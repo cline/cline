@@ -1,0 +1,182 @@
+---
+title: "ClineCore"
+sidebarTitle: "ClineCore"
+description: "API reference for ClineCore, the full orchestration runtime with sessions, persistence, and built-in tools."
+---
+
+`ClineCore` is the main entry point for applications that need session management, built-in tools, config discovery, and optional hub support.
+
+```typescript
+import { ClineCore } from "@clinebot/core"
+```
+
+## ClineCore.create(options)
+
+Creates a new ClineCore instance. This is an async factory method.
+
+```typescript
+const cline = await ClineCore.create(options: ClineCoreOptions)
+```
+
+### ClineCoreOptions
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `clientName` | `string` | Yes | Identifier for this client (e.g., `"my-app"`) |
+| `backendMode` | `"auto" \| "hub" \| "remote" \| "local"` | No | How to connect to the backend. Default: `"auto"` |
+| `logger` | `BasicLogger` | No | Custom logger instance |
+| `telemetry` | `ITelemetryService` | No | Telemetry service for OpenTelemetry integration |
+| `toolPolicies` | `Record<string, ToolPolicy>` | No | Global tool policies |
+| `requestToolApproval` | `(req) => Promise<{ approved: boolean }>` | No | Global tool approval handler |
+| `prepare` | `(input) => Promise<void>` | No | Bootstrap hook for workspace setup |
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  backendMode: "hub",
+  logger: myLogger,
+  requestToolApproval: async (req) => ({ approved: true }),
+})
+```
+
+## cline.start(input)
+
+Creates a new session and runs the agent. Returns when the task completes.
+
+```typescript
+const result = await cline.start(input: StartSessionInput)
+```
+
+### StartSessionInput
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prompt` | `string` | Yes | The user's task or question |
+| `config` | `CoreSessionConfig` | Yes | Session configuration (see below) |
+| `interactive` | `boolean` | No | Whether the session supports user interaction |
+| `delivery` | `"queue" \| "steer"` | No | `"steer"` injects at front of queue |
+| `source` | `string` | No | Client identifier (`"cli"`, `"vscode"`, etc.) |
+| `sessionMetadata` | `Record<string, unknown>` | No | Custom metadata to store with the session |
+| `initialMessages` | `Message[]` | No | Pre-seed conversation history |
+| `userImages` | `string[]` | No | Image paths or URLs to include |
+| `userFiles` | `string[]` | No | File paths to include as context |
+| `toolPolicies` | `Record<string, ToolPolicy>` | No | Session-specific tool policies |
+| `requestToolApproval` | `(req) => Promise<{ approved: boolean }>` | No | Session-specific approval handler |
+
+### CoreSessionConfig
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `providerId` | `string` | Yes | LLM provider ID |
+| `modelId` | `string` | Yes | Model ID |
+| `apiKey` | `string` | No | Provider API key (falls back to env/settings) |
+| `cwd` | `string` | Yes | Working directory for the agent |
+| `workspaceRoot` | `string` | No | Workspace root (defaults to `cwd`) |
+| `systemPrompt` | `string` | No | Custom system prompt |
+| `enableTools` | `boolean` | No | Enable built-in tools |
+| `enableSpawnAgent` | `boolean` | No | Allow spawning sub-agents |
+| `enableAgentTeams` | `boolean` | No | Enable multi-agent teams |
+| `teamName` | `string` | No | Team name for team workflows |
+| `maxIterations` | `number` | No | Maximum agent loop iterations |
+| `mode` | `"normal" \| "expert" \| "performance"` | No | Execution mode |
+| `tools` | `Tool[]` | No | Additional custom tools |
+| `toolPolicies` | `Record<string, ToolPolicy>` | No | Per-tool policies |
+| `plugins` | `AgentPlugin[]` | No | Plugins that add tools, hooks, and capabilities |
+| `logger` | `BasicLogger` | No | Session-specific logger |
+
+### StartSessionResult
+
+```typescript
+interface StartSessionResult {
+  sessionId: string
+  manifest: SessionManifest
+  manifestPath: string
+  transcriptPath: string
+  messagesPath: string
+  result?: AgentResult
+}
+```
+
+## cline.send(input)
+
+Send a follow-up message to an existing session.
+
+```typescript
+const result = await cline.send(input: SendSessionInput)
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sessionId` | `string` | Yes | Target session ID |
+| `prompt` | `string` | Yes | Follow-up message |
+
+Returns `AgentResult | undefined`.
+
+## cline.abort(sessionId, reason?)
+
+Abort the current run in a session. The agent stops after completing the current tool execution.
+
+```typescript
+await cline.abort(sessionId: string, reason?: string)
+```
+
+## cline.stop(sessionId)
+
+Gracefully stop a session.
+
+```typescript
+await cline.stop(sessionId: string)
+```
+
+## cline.dispose(reason?)
+
+Clean up all resources. Call when your application exits.
+
+```typescript
+await cline.dispose(reason?: string)
+```
+
+## cline.get(sessionId)
+
+Retrieve a session record by ID.
+
+```typescript
+const session = await cline.get(sessionId: string)
+// Returns SessionRecord | undefined
+```
+
+## cline.list(limit?)
+
+List recent sessions.
+
+```typescript
+const sessions = await cline.list(limit?: number)
+// Returns SessionRecord[]
+```
+
+## cline.delete(sessionId)
+
+Delete a session and its stored data.
+
+```typescript
+const deleted = await cline.delete(sessionId: string)
+// Returns boolean
+```
+
+## cline.readMessages(sessionId)
+
+Read the conversation history for a session.
+
+```typescript
+const messages = await cline.readMessages(sessionId: string)
+// Returns Message[]
+```
+
+## cline.readTranscript(sessionId, maxChars?)
+
+Read the human-readable transcript for a session.
+
+```typescript
+const transcript = await cline.readTranscript(sessionId: string, maxChars?: number)
+// Returns string
+```

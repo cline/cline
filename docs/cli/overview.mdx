@@ -10,16 +10,16 @@ Cline CLI brings the full power of Cline to your terminal. Whether you prefer an
 The CLI supports macOS, Linux, and Windows, and works with all the same AI providers as the VS Code extension.
 
 <Tip>
-Ready to get started? Check out the [installation guide](/cline-cli/installation) to install Cline CLI and run your first task.
+Ready to get started? Check out the [installation guide](/cli/installation) to install Cline CLI and run your first task.
 </Tip>
 
 ## Two Ways to Use Cline CLI
 
 <Columns cols={2}>
-  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+  <Card title="Interactive Mode" icon="terminal" href="/cli/interactive-mode">
     **For hands-on development.** Launch `cline` in your terminal and collaborate with Cline in real-time — chat, review plans, approve actions, and iterate on tasks with a rich visual interface.
   </Card>
-  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+  <Card title="Headless Mode" icon="robot" href="/cli/three-core-flows">
     **For automation & CI/CD.** Run `cline -y "task"` to let Cline work autonomously — no interaction needed. Pipe input/output, get JSON results, and chain commands in scripts and pipelines.
   </Card>
 </Columns>
@@ -48,7 +48,7 @@ Key features:
 
 Interactive mode keeps you in control. You review Cline's plan, approve or modify actions, and guide the conversation.
 
-[Learn more about interactive mode →](/cline-cli/interactive-mode)
+[Learn more about interactive mode →](/cli/interactive-mode)
 
 ### Headless Mode (Non-Interactive)
 
@@ -95,7 +95,7 @@ Cline automatically detects which mode to use based on your invocation. This tab
 | `cat file \| cline "task"` | Headless | stdin is piped |
 | `cline "task" > output.txt` | Headless | stdout is redirected |
 
-[Learn more about headless mode →](/cline-cli/three-core-flows)
+[Learn more about headless mode →](/cli/three-core-flows)
 
 ## Supported Model Providers
 
@@ -114,7 +114,7 @@ Cline CLI supports all providers available in the VS Code extension:
 - **LM Studio** (local models)
 - **OpenAI Compatible** (any compatible API)
 
-During setup, authenticate with `cline auth` to configure your preferred provider. [See setup guide →](/cline-cli/installation#authenticate)
+During setup, authenticate with `cline auth` to configure your preferred provider. [See setup guide →](/cli/installation#authenticate)
 
 ## What You Can Build
 
@@ -207,7 +207,7 @@ Chains multiple Cline invocations together for creative multi-step workflows.
 | Session summary | ✓ | - |
 | JSON output | - | `--json` |
 | Piped input | - | ✓ |
-| [MCP servers](/cline-cli/configuration#mcp-server-configuration) | ✓ | ✓ |
+| [MCP servers](/cli/configuration#mcp-server-configuration) | ✓ | ✓ |
 
 ## MCP Server Support
 
@@ -215,32 +215,32 @@ Cline CLI supports [MCP (Model Context Protocol)](/mcp/mcp-overview) servers, th
 
 To use MCP servers with the CLI, add your server configuration to `~/.cline/data/settings/cline_mcp_settings.json`. The format is identical to the VS Code extension.
 
-[Configure MCP servers for the CLI →](/cline-cli/configuration#mcp-server-configuration)
+[Configure MCP servers for the CLI →](/cli/configuration#mcp-server-configuration)
 
 ## Learn More
 
 <Columns cols={2}>
-  <Card title="Installation & Setup" icon="download" href="/cline-cli/installation">
+  <Card title="Installation & Setup" icon="download" href="/cli/installation">
     Install Cline CLI and authenticate with your preferred provider.
   </Card>
   
-  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+  <Card title="Interactive Mode" icon="terminal" href="/cli/interactive-mode">
     Master the interactive CLI with keyboard shortcuts and slash commands.
   </Card>
   
-  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+  <Card title="Headless Mode" icon="robot" href="/cli/three-core-flows">
     Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
   </Card>
   
-  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
     Configure settings, rules, workflows, and environment variables.
   </Card>
   
-  <Card title="Use in Other Editors" icon="code" href="/cline-cli/acp-editor-integrations">
+  <Card title="Use in Other Editors" icon="code" href="/cli/acp-editor-integrations">
     Run Cline as an ACP agent in JetBrains, Neovim, Zed, and more.
   </Card>
   
-  <Card title="CLI Samples" icon="flask" href="/cline-cli/samples/overview">
+  <Card title="CLI Samples" icon="flask" href="/cli/samples/overview">
     Real-world examples of headless workflows and automation patterns.
   </Card>
 </Columns>

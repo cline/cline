@@ -1,0 +1,231 @@
+---
+title: "Plugins"
+sidebarTitle: "Plugins"
+description: "Plugins add tools, commands, and capabilities to agents at runtime."
+---
+
+Plugins are the primary mechanism for adding capabilities to agents. A plugin can register tools, contribute commands, and hook into the agent lifecycle. They run inside the agent process with full access to the runtime API.
+
+You can pass plugins in code or drop them as files into `.cline/plugins/` for auto-discovery.
+
+## The AgentPlugin Interface
+
+```typescript
+interface AgentPlugin {
+  name: string
+  manifest: {
+    capabilities: ("tools" | "hooks" | "commands")[]
+  }
+
+  // Called once during agent initialization
+  setup?(api: PluginAPI): void
+
+  // Lifecycle hooks (optional)
+  onRunStart?(context: { userMessage: string }): void
+  onRunEnd?(context: { result: AgentResult }): void
+  onToolCall?(context: { call: ToolCallRecord }): void
+  onToolResult?(context: { record: ToolCallRecord }): void
+  onIterationStart?(context: { iteration: number }): void
+  onIterationEnd?(context: { iteration: number }): void
+  onError?(context: { error: Error; recoverable: boolean }): void
+}
+```
+
+## Creating a Plugin
+
+A plugin that adds a database query tool and logs all tool calls:
+
+```typescript
+import { type AgentPlugin, createTool } from "@clinebot/sdk"
+
+const databasePlugin: AgentPlugin = {
+  name: "database-tools",
+  manifest: {
+    capabilities: ["tools", "hooks"],
+  },
+
+  setup(api) {
+    api.registerTool(
+      createTool({
+        name: "query_database",
+        description: "Run a read-only SQL query against the application database.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            sql: { type: "string", description: "SQL SELECT query to execute" },
+          },
+          required: ["sql"],
+        },
+        execute: async (input) => {
+          const rows = await db.query(input.sql)
+          return { rows, count: rows.length }
+        },
+      })
+    )
+  },
+
+  onToolCall({ call }) {
+    console.log(`[db] Tool called: ${call.name}`)
+  },
+
+  onToolResult({ record }) {
+    console.log(`[db] Tool result: ${record.name} (${record.duration}ms)`)
+  },
+}
+```
+
+## Registering Plugins
+
+### With Agent
+
+```typescript
+const agent = new Agent({
+  // ...config
+  plugins: [databasePlugin, loggingPlugin, metricsPlugin],
+})
+```
+
+### With ClineCore
+
+```typescript
+const session = await cline.start({
+  config: {
+    plugins: [databasePlugin],
+  },
+  // ...
+})
+```
+
+Plugins are loaded once when the agent starts. The `setup()` method runs before the first iteration, so all tools are available from the very first LLM call.
+
+## The Plugin API
+
+The `api` object passed to `setup()` lets you register contributions:
+
+```typescript
+interface PluginAPI {
+  registerTool(tool: Tool): void
+}
+```
+
+## File-Based Plugins
+
+You can also load plugins from the file system instead of passing them in code. Drop a `.ts` or `.js` file into `~/.cline/plugins/` (global) or `.cline/plugins/` (project-level) and ClineCore discovers them automatically at session start.
+
+```
+~/.cline/plugins/
+  typescript-nav.ts        # Available in all projects
+  metrics.js
+
+.cline/plugins/
+  project-helper.ts        # Available in this project only
+```
+
+Each file exports an `AgentPlugin`:
+
+```typescript
+// ~/.cline/plugins/typescript-nav.ts
+import { type AgentPlugin, createTool } from "@clinebot/sdk"
+
+const plugin: AgentPlugin = {
+  name: "typescript-nav",
+  manifest: { capabilities: ["tools"] },
+
+  setup(api) {
+    api.registerTool(
+      createTool({
+        name: "goto_definition",
+        description: "Find the definition of a TypeScript symbol at a given file and line.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: { type: "string", description: "Absolute path to the TypeScript file" },
+            line: { type: "number", description: "Line number (1-based)" },
+          },
+          required: ["filePath", "line"],
+        },
+        execute: async (input) => {
+          const definitions = await resolveDefinitions(input.filePath, input.line)
+          return { definitions }
+        },
+      })
+    )
+  },
+}
+
+export default plugin
+```
+
+File-based plugins are loaded once at session start and are not hot-reloaded (unlike rules and skills, which are watched for changes).
+
+## Plugin Patterns
+
+### Metrics and Observability
+
+```typescript
+const metricsPlugin: AgentPlugin = {
+  name: "metrics",
+  manifest: { capabilities: ["hooks"] },
+
+  onRunStart() {
+    metrics.increment("agent.runs.started")
+  },
+
+  onRunEnd({ result }) {
+    metrics.increment("agent.runs.completed")
+    metrics.gauge("agent.iterations", result.iterations)
+    metrics.histogram("agent.tokens", result.usage.inputTokens + result.usage.outputTokens)
+  },
+
+  onToolCall({ call }) {
+    metrics.increment(`agent.tools.${call.name}.called`)
+  },
+
+  onError({ error, recoverable }) {
+    metrics.increment("agent.errors", { recoverable: String(recoverable) })
+  },
+}
+```
+
+### Guardrails
+
+```typescript
+const guardrailPlugin: AgentPlugin = {
+  name: "safety-guardrails",
+  manifest: { capabilities: ["hooks"] },
+
+  onToolCall({ call }) {
+    if (call.name === "bash" && call.input.command?.includes("rm -rf")) {
+      throw new Error("Destructive shell commands are not allowed")
+    }
+  },
+}
+```
+
+### Context Injection
+
+```typescript
+const contextPlugin: AgentPlugin = {
+  name: "project-context",
+  manifest: { capabilities: ["hooks"] },
+
+  onRunStart({ userMessage }) {
+    console.log(`User asked: ${userMessage}`)
+  },
+}
+```
+
+## Plugins vs Hooks
+
+Plugins and [Hooks](/sdk/hooks) serve different purposes:
+
+| Aspect | Plugins | Hooks |
+|--------|---------|-------|
+| Defined as | TypeScript objects | Shell scripts or TypeScript files |
+| Loaded from | Code or `.cline/plugins/` | `.cline/hooks/` |
+| Can register tools | Yes | No |
+| Can modify agent behavior | Yes, through tool registration and lifecycle callbacks | Yes, through lifecycle interception |
+| Runs in | Agent process (in-memory) | Separate process (shell execution) |
+| Best for | Adding capabilities (tools, integrations) | Policy enforcement, external side effects |
+
+Use plugins when you want to add tools or modify the agent from within the runtime. Use hooks when you want external scripts to react to agent events.

@@ -1,0 +1,232 @@
+---
+title: "Sessions"
+sidebarTitle: "Sessions"
+description: "ClineCore provides session management, persistence, built-in tools, and config discovery on top of the Agent."
+---
+
+While the [Agent](/sdk/agents) class gives you a stateless execution loop, `ClineCore` wraps it with everything you need for production applications: session persistence, built-in tools, config file discovery, and optional hub for multi-process architectures.
+
+## When to Use ClineCore vs Agent
+
+| Need | Use Agent | Use ClineCore |
+|------|-----------|---------------|
+| Quick, in-process agent execution | Yes | Overkill |
+| Session persistence (survive restarts) | No | Yes |
+| Built-in tools (bash, file editing, etc.) | No | Yes |
+| Config file discovery (.cline/rules, skills, etc.) | No | Yes |
+| Multi-process / hub architecture | No | Yes |
+| Scheduled agents (cron) | No | Yes |
+| Multi-agent teams | No | Yes |
+
+## Creating a ClineCore Instance
+
+```typescript
+import { ClineCore } from "@clinebot/sdk"
+
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  backendMode: "auto",  // "auto" | "hub" | "remote" | "local"
+  logger: myLogger,     // Optional: custom logger
+})
+```
+
+### Backend Modes
+
+| Mode | Behavior |
+|------|----------|
+| `auto` | Prefers a compatible local hub when available, falls back to local in-process execution. This is the default. |
+| `hub` | Requires a compatible WebSocket hub. Throws if one is not reachable. |
+| `remote` | Requires an explicit remote WebSocket hub endpoint. |
+| `local` | In-process only. No hub, no shared sessions. |
+
+## Starting a Session
+
+```typescript
+const session = await cline.start({
+  prompt: "Set up a CI pipeline with GitHub Actions",
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    cwd: "/path/to/project",
+    enableTools: true,
+  },
+})
+```
+
+The `start()` method creates a new session, runs the agent, and returns when the task completes:
+
+```typescript
+interface StartSessionResult {
+  sessionId: string
+  manifest: SessionManifest
+  manifestPath: string
+  transcriptPath: string
+  messagesPath: string
+  result?: AgentResult
+}
+```
+
+### Session Configuration
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `providerId` | `string` | LLM provider |
+| `modelId` | `string` | Model identifier |
+| `apiKey` | `string` | Provider API key |
+| `cwd` | `string` | Working directory for the agent |
+| `systemPrompt` | `string` | Custom system prompt (optional, ClineCore has a default) |
+| `enableTools` | `boolean` | Enable the built-in tool suite |
+| `enableSpawnAgent` | `boolean` | Allow spawning sub-agents |
+| `enableAgentTeams` | `boolean` | Enable multi-agent team workflows |
+| `plugins` | `AgentPlugin[]` | Plugins that add tools, hooks, and capabilities |
+| `toolPolicies` | `Record<string, ToolPolicy>` | Per-tool approval rules |
+| `maxIterations` | `number` | Maximum iterations |
+| `mode` | `string` | `"normal"`, `"expert"`, or `"performance"` |
+
+## Sending Follow-Up Messages
+
+After a session is started, send additional prompts with `send()`:
+
+```typescript
+const followUp = await cline.send({
+  sessionId: session.sessionId,
+  prompt: "Now add tests for the pipeline",
+})
+```
+
+## Session Persistence
+
+ClineCore stores sessions in SQLite. Each session records:
+
+- Conversation messages
+- Tool call history
+- Session metadata (provider, model, timestamps)
+- Transcripts (human-readable markdown)
+
+```
+~/.cline/data/sessions/[workspace-hash]/
+  sessions.db              # SQLite database
+  [session-id]/
+    messages.json           # Conversation history
+    transcript.json         # Full transcript
+    manifest.json           # Session metadata
+```
+
+### Listing Sessions
+
+```typescript
+const sessions = await cline.list(10)  // Last 10 sessions
+for (const session of sessions) {
+  console.log(session.sessionId, session.status, session.createdAt)
+}
+```
+
+### Reading a Session
+
+```typescript
+const session = await cline.get(sessionId)
+const messages = await cline.readMessages(sessionId)
+const transcript = await cline.readTranscript(sessionId, 5000)  // max 5000 chars
+```
+
+### Deleting a Session
+
+```typescript
+await cline.delete(sessionId)
+```
+
+## Resuming Sessions
+
+Resume a previous session to continue where it left off:
+
+```typescript
+const result = await cline.send({
+  sessionId: previousSessionId,
+  prompt: "Continue with the next task",
+})
+```
+
+The agent loads the full conversation history and picks up with full context.
+
+## Tool Approval
+
+When the agent wants to execute a tool, ClineCore can route approval requests to your application:
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  requestToolApproval: async (request) => {
+    console.log(`Agent wants to: ${request.toolName}`)
+    console.log(`Arguments: ${JSON.stringify(request.input)}`)
+
+    // Your approval logic here
+    return { approved: true }
+  },
+})
+```
+
+Or set per-tool policies to auto-approve specific tools:
+
+```typescript
+const session = await cline.start({
+  config: {
+    toolPolicies: {
+      read_files: { autoApprove: true },
+      search: { autoApprove: true },
+      bash: { autoApprove: false },      // Always ask
+      editor: { autoApprove: false },
+    },
+  },
+  // ...
+})
+```
+
+## Controlling Active Sessions
+
+### Abort
+
+Stop the agent mid-execution:
+
+```typescript
+await cline.abort(sessionId, "User cancelled")
+```
+
+### Stop
+
+Gracefully stop a session:
+
+```typescript
+await cline.stop(sessionId)
+```
+
+### Dispose
+
+Clean up all resources when your application exits:
+
+```typescript
+await cline.dispose("Application shutting down")
+```
+
+## Config File Discovery
+
+ClineCore automatically discovers and watches configuration files:
+
+```
+~/.cline/                        # User home config
+  data/settings/
+    providers.json               # Stored API keys
+    rules/                       # Global rules
+    skills/                      # Global skills
+
+.cline/                          # Project root config
+  rules/                         # Project-specific rules
+  skills/                        # Project-specific skills
+  workflows/                     # Workflow definitions
+  hooks/                         # Lifecycle hook scripts
+  plugins/                       # JS/TS plugin modules
+  mcp.json                       # MCP server config
+  agents.yaml                    # Custom agent definitions
+```
+
+These files are watched for changes during a session. Rules, skills, and workflows update in real time without restarting the agent.

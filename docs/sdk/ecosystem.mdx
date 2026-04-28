@@ -1,0 +1,145 @@
+---
+title: "Ecosystem"
+sidebarTitle: "Ecosystem"
+description: "Build applications on top of the Cline SDK that connect to a running hub and inherit its full capabilities."
+---
+
+When a Cline hub is running on your machine, applications you install can connect to it over WebSocket and immediately get access to the full SDK: agent execution, tool calling, model providers, session management, MCP servers, rules, skills, and everything else the user has configured. The connecting app doesn't need its own API keys, its own model configuration, or its own agent loop. It just connects and starts working.
+
+This opens the door to an ecosystem of applications built on the Cline SDK. IDE extensions, CLI tools, desktop utilities, Chrome extensions, Slack bots, internal dashboards -- all sharing the same hub, the same sessions, and the same configuration.
+
+## How It Works
+
+The Cline hub runs as a background daemon on the user's machine. It manages sessions, coordinates tool execution, handles model provider configuration, and persists state. Any application that installs `@clinebot/sdk` as a dependency can connect to this hub and create or join sessions.
+
+```typescript
+import { ClineCore } from "@clinebot/sdk"
+
+const cline = await ClineCore.create({
+  clientName: "my-custom-app",
+  backendMode: "hub",
+})
+
+// That's it. The hub handles providers, API keys, tools, and persistence.
+// Your app just sends prompts and receives results.
+const session = await cline.start({
+  prompt: "Analyze the test coverage in this project",
+  config: {
+    cwd: "/path/to/project",
+    enableTools: true,
+  },
+})
+```
+
+Your application inherits everything the user has already set up:
+
+- Model providers and API keys configured through `cline auth`
+- Rules, skills, and workflows from `.cline/` directories
+- MCP servers configured through `cline mcp`
+- Tool policies and auto-approve settings
+- Session history and checkpoints
+
+If your app needs to override any of these (a different model, a custom system prompt, specific tools), it can do so per-session without affecting the user's global configuration.
+
+## What You Can Build
+
+<CardGroup cols={2}>
+  <Card title="IDE Extensions" icon="window">
+    Build editor integrations for any IDE. Your extension connects to the hub and gets full agent capabilities without bundling its own runtime. The user's existing provider config, rules, and tools just work.
+  </Card>
+  <Card title="CLI Tools" icon="terminal">
+    Build specialized command-line tools for your team's workflows. A `deploy` CLI, a `review` CLI, a `migrate` CLI -- each connecting to the same hub and sharing session history.
+  </Card>
+  <Card title="Browser Extensions" icon="globe">
+    Build Chrome extensions that can read the current page and send it to an agent for analysis, summarization, or action. Register browser-specific capabilities (reading page content, filling forms) that the agent can call.
+  </Card>
+  <Card title="Desktop Utilities" icon="desktop">
+    Build menu bar apps, system tray tools, or desktop widgets that give quick access to agent sessions. A menu bar app for Cline is coming that makes hub management and session access effortless.
+  </Card>
+  <Card title="Team Dashboards" icon="chart-line">
+    Build internal dashboards that monitor agent activity, track token usage, review session transcripts, and manage schedules across your organization.
+  </Card>
+  <Card title="Custom Integrations" icon="plug">
+    Connect the hub to your internal systems. A Slack bot that creates Jira tickets, a webhook handler that triggers agents on deployment events, a monitoring tool that runs diagnostics on alerts.
+  </Card>
+</CardGroup>
+
+## Zero-Configuration Onboarding
+
+The biggest advantage of building on the hub is what your users don't have to do. If someone already has Cline installed (through VS Code, JetBrains, or the CLI), your application connects to their existing hub and works immediately. No setup wizard for API keys, no model selection screen, no provider configuration.
+
+This is particularly powerful for teams and organizations. An admin configures providers, rules, and tools once. Every application built on the SDK picks up that configuration automatically. A new team member installs the Cline extension, authenticates once, and every hub-connected tool in the organization's toolkit works.
+
+## Registering Capabilities
+
+Your application can register custom capabilities that the agent can use during sessions. This means the hub gets richer with every app that connects.
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "browser-helper",
+  backendMode: "hub",
+  capabilities: [
+    { name: "read_page", description: "Read the current browser page content" },
+    { name: "fill_form", description: "Fill in a web form with provided data" },
+    { name: "take_screenshot", description: "Capture a screenshot of the current tab" },
+  ],
+})
+```
+
+When an agent session needs to read a webpage, the hub routes that request to your browser extension. When it needs to open a file in an editor, it routes to VS Code. Each connected app contributes what it's good at, and the agent gets access to all of it.
+
+## Seeing What's Connected
+
+Users can see which applications are connected to their hub:
+
+```bash
+cline hub status
+```
+
+This shows the hub's health, connected clients, active sessions, and registered capabilities -- a clear picture of the ecosystem running on their machine.
+
+## Build Your First Hub Client
+
+Here's a minimal application that connects to the hub, creates a session, streams the agent's output, and exits:
+
+```typescript
+import { ClineCore } from "@clinebot/sdk"
+
+async function main() {
+  const cline = await ClineCore.create({
+    clientName: "my-first-client",
+    backendMode: "hub",
+  })
+
+  const session = await cline.start({
+    prompt: "What files are in the current directory?",
+    config: {
+      cwd: process.cwd(),
+      enableTools: true,
+    },
+  })
+
+  console.log(session.result?.text)
+  await cline.dispose()
+}
+
+main()
+```
+
+That's about 15 lines of code to get a working agent with file system access, shell commands, and whatever else the user has configured. Your app doesn't need to know which model they're using, which provider they're paying for, or how their tools are set up. The hub handles it.
+
+From here, you can:
+
+- Add [custom tools](/sdk/tools) for your app's domain
+- Register [plugins](/sdk/plugins) that hook into the agent lifecycle
+- Build a UI that streams events in real time using the [event system](/sdk/streaming-and-events)
+- Create [scheduled agents](/cli/scheduling) that run tasks on a cron
+- Connect to [messaging platforms](/cli/connectors) for remote access
+
+## The Vision
+
+Today, every AI coding tool is a silo. Your IDE extension has its own runtime, your CLI has its own configuration, your automation scripts have their own setup. Switch tools and you start from scratch.
+
+The Cline SDK flips this. One hub per machine, one configuration, one session store. Build an app that connects to the hub and it inherits everything. The user sets up once. Every application benefits.
+
+This is how an ecosystem grows. Not by locking developers into one tool, but by making it trivially easy to build new tools that all work together.

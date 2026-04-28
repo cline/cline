@@ -1,0 +1,204 @@
+---
+title: "Model Providers"
+sidebarTitle: "Model Providers"
+description: "The SDK supports all major LLM providers through a unified gateway with consistent streaming, tool use, and error handling."
+---
+
+The `@clinebot/llms` package provides a unified gateway for interacting with LLM providers. You configure a provider and model once, and the SDK handles streaming, tool formatting, error recovery, and provider-specific quirks.
+
+## Supported Providers
+
+| Provider | ID | Key Models | Vision | Tool Use |
+|----------|----|------------|--------|----------|
+| Anthropic | `anthropic` | Claude Opus 4, Sonnet 4, Haiku 3.5 | Yes | Yes |
+| OpenAI | `openai` | GPT-4o, o1, o3 | Yes | Yes |
+| Google | `google` | Gemini 2.5 Pro, Flash | Yes | Yes |
+| AWS Bedrock | `bedrock` | Claude, Llama | Yes | Yes |
+| Google Vertex AI | `vertex` | Gemini, Claude | Yes | Yes |
+| Mistral | `mistral` | Mistral Large, Codestral | No | Yes |
+| OpenAI-compatible | `openai-compatible` | Any provider with OpenAI-format API | Varies | Varies |
+| LiteLLM | `litellm` | Proxy to 100+ providers | Varies | Varies |
+| Dify | `dify` | Dify-hosted models | Varies | Varies |
+
+## Configuring a Provider
+
+### Via Constructor
+
+```typescript
+import { Agent } from "@clinebot/agents"
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  // ...
+})
+```
+
+### Via Environment Variables
+
+The SDK checks standard environment variables for each provider:
+
+| Provider | Environment Variable |
+|----------|---------------------|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google | `GOOGLE_API_KEY` or `GOOGLE_APPLICATION_CREDENTIALS` |
+| AWS Bedrock | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+
+### Via Settings File
+
+When using ClineCore or the CLI, provider credentials are stored in `~/.cline/data/settings/providers.json`. You can configure them with the CLI:
+
+```bash
+cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-6
+cline auth -p openai -k "sk-..." -m openai/gpt-4o
+```
+
+## Using the Gateway Directly
+
+For advanced use cases, interact with the `@clinebot/llms` gateway directly:
+
+```typescript
+import { DefaultGateway } from "@clinebot/llms"
+
+const gateway = new DefaultGateway()
+
+// List available providers
+const providers = gateway.listProviders()
+for (const provider of providers) {
+  console.log(provider.id, provider.name, provider.capabilities)
+}
+
+// List models for a provider
+const models = gateway.listModels("anthropic")
+for (const model of models) {
+  console.log(model.id, model.contextWindow, model.pricing)
+}
+```
+
+## Model Information
+
+Each model comes with metadata:
+
+```typescript
+interface ModelInfo {
+  id: string
+  name: string
+  provider: string
+  contextWindow: number
+  maxTokens: number
+  pricing: {
+    input: number           // Cost per million input tokens
+    output: number          // Cost per million output tokens
+    cacheCreation?: number  // Cost for cache creation
+    cacheRead?: number      // Cost for cache reads
+  }
+  capabilities: {
+    vision?: boolean
+    reasoning?: boolean
+    thinking?: boolean
+    streaming?: boolean
+  }
+}
+```
+
+## Switching Models Mid-Session
+
+Change the model without losing conversation context:
+
+```typescript
+// Start with a fast model for exploration
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-haiku-4-5",
+  // ...
+})
+
+await agent.run("What files are in this project?")
+
+// Switch to a more capable model for complex work
+agent.updateConnection({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+})
+
+await agent.continue("Now refactor the authentication module")
+```
+
+## OpenAI-Compatible Providers
+
+Any provider that implements the OpenAI API format works with the `openai-compatible` provider:
+
+```typescript
+const agent = new Agent({
+  providerId: "openai-compatible",
+  modelId: "your-model-name",
+  apiKey: "your-api-key",
+  baseUrl: "https://your-provider.com/v1",
+  // ...
+})
+```
+
+This works with providers like Together AI, Fireworks, Groq, and self-hosted endpoints (vLLM, Ollama with OpenAI compatibility, etc.).
+
+## Provider Authentication
+
+### API Key
+
+The simplest method. Pass the key directly or via environment variable:
+
+```typescript
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+```
+
+### OAuth
+
+Some providers support OAuth flows. The CLI handles this:
+
+```bash
+cline auth   # Interactive provider selection and OAuth flow
+```
+
+### AWS Credentials
+
+For Bedrock, the SDK uses the standard AWS credential chain:
+
+```typescript
+const agent = new Agent({
+  providerId: "bedrock",
+  modelId: "anthropic.claude-sonnet-4-6",
+  awsRegion: "us-east-1",
+  // Uses AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+  // Or IAM role, or AWS CLI profile
+})
+```
+
+## Cost Tracking
+
+Track costs through the usage information in `AgentResult`:
+
+```typescript
+const result = await agent.run("Analyze this codebase")
+
+console.log("Input tokens:", result.usage.inputTokens)
+console.log("Output tokens:", result.usage.outputTokens)
+console.log("Cache read tokens:", result.usage.cacheReadTokens)
+console.log("Cache creation tokens:", result.usage.cacheCreationTokens)
+```
+
+Combine with model pricing data for precise cost calculation:
+
+```typescript
+const model = gateway.listModels("anthropic").find(m => m.id === "claude-sonnet-4-6")
+const cost =
+  (result.usage.inputTokens * model.pricing.input) / 1_000_000 +
+  (result.usage.outputTokens * model.pricing.output) / 1_000_000
+
+console.log(`Cost: $${cost.toFixed(4)}`)
+```

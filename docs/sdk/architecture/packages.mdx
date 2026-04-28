@@ -1,0 +1,174 @@
+---
+title: "Package Reference"
+sidebarTitle: "Packages"
+description: "Deep dive into each SDK package's role, exports, and boundaries."
+---
+
+The SDK is split into four published packages and three internal packages. This page covers what each package exports and when to use it.
+
+## Published Packages
+
+### @clinebot/shared
+
+The foundation layer. Import this when you need types, tool creation helpers, or shared contracts.
+
+```bash
+npm install @clinebot/shared
+```
+
+Key exports:
+
+| Export | Description |
+|--------|-------------|
+| `createTool` | Helper function to create a typed `Tool` object |
+| `Tool` | Tool interface type |
+| `ToolContext` | Context passed to tool execute functions |
+| `ToolPolicy` | Per-tool approval/enablement config |
+| `AgentEvent` | Union type of all agent events |
+| `Message` | Conversation message type |
+| `ContentBlock` | Text, tool use, tool result, thinking content |
+| `HookEngine` | Lifecycle hook engine |
+| `ContributionRegistry` | Extension registration system |
+| `BasicLogger` | Logging interface |
+
+### @clinebot/llms
+
+Provider gateway and model catalogs. Import this when you need to work with LLM providers directly.
+
+```bash
+npm install @clinebot/llms
+```
+
+Key exports:
+
+| Export | Description |
+|--------|-------------|
+| `DefaultGateway` | Main gateway class for provider/model management |
+| `GatewayRegistry` | Registry for provider and model lookups |
+| `ModelInfo` | Model metadata (pricing, capabilities, context window) |
+| `ProviderInfo` | Provider metadata and capabilities |
+| Provider handlers | Anthropic, OpenAI, Google, Bedrock, Mistral, etc. |
+
+Built on the [Vercel AI SDK](https://ai-sdk.dev) for consistent streaming and tool calling across providers.
+
+### @clinebot/agents
+
+The stateless agent execution loop. Import this for lightweight, in-process agent usage.
+
+```bash
+npm install @clinebot/agents
+```
+
+Key exports:
+
+| Export | Description |
+|--------|-------------|
+| `Agent` | Main agent class |
+| `AgentConfig` | Constructor configuration type |
+| `AgentResult` | Return type from `run()` and `continue()` |
+| `AgentPlugin` | Plugin interface |
+| `AgentStream` | Async iterable event stream |
+| `streamRun` | Helper to create a streaming agent run |
+| `AgentUsage` | Token usage tracking type |
+
+### @clinebot/core
+
+Full orchestration runtime with sessions, persistence, and built-in tools.
+
+```bash
+npm install @clinebot/core
+```
+
+Key exports:
+
+| Export | Description |
+|--------|-------------|
+| `ClineCore` | Main entry point |
+| `ClineCoreOptions` | Constructor options |
+| `StartSessionInput` | Session creation config |
+| `StartSessionResult` | Session creation result |
+| `CoreSessionConfig` | Session configuration type |
+| `SessionRecord` | Persisted session metadata |
+
+## Internal Packages
+
+### @clinebot/enterprise
+
+Enterprise integrations (not published):
+
+- WorkOS-based identity and SSO
+- Control plane sync for managed instructions
+- Enterprise telemetry bridging
+- Claims-to-role mapping
+
+## Dependency Graph
+
+```
+@clinebot/enterprise (internal, optional)
+        │
+        ▼
+@clinebot/core
+        │
+        ├── @clinebot/agents
+        │       │
+        │       ├── @clinebot/llms
+        │       │       │
+        │       │       └── @clinebot/shared
+        │       │
+        │       └── @clinebot/shared
+        │
+        └── @clinebot/shared
+```
+
+Dependencies flow strictly downward. No circular dependencies. No upward references.
+
+## @clinebot/sdk
+
+`@clinebot/sdk` is the recommended install for most users. It includes all four published packages, so a single install gives you the full API:
+
+```bash
+npm install @clinebot/sdk
+```
+
+```typescript
+import { Agent, ClineCore, createTool, type AgentPlugin } from "@clinebot/sdk"
+```
+
+## Choosing the Right Package
+
+For most use cases, just install `@clinebot/sdk`. Install individual packages only when you need a minimal dependency footprint:
+
+| I want to... | Package |
+|--------------|---------|
+| Create a simple agent with custom tools | `@clinebot/agents` + `@clinebot/shared` |
+| Use built-in tools (bash, file editing) | `@clinebot/core` |
+| Persist sessions across restarts | `@clinebot/core` in hub mode |
+| Schedule agents on a cron | `@clinebot/core` in hub mode |
+| List available models and providers | `@clinebot/llms` |
+| Create custom tools | `@clinebot/shared` (for `createTool`) |
+| Build a plugin | `@clinebot/agents` (for `AgentPlugin` type) |
+
+## Version Compatibility
+
+All published packages share the same version number and are released together. Use matching versions across packages:
+
+```json
+{
+  "dependencies": {
+    "@clinebot/core": "0.0.34",
+    "@clinebot/agents": "0.0.34",
+    "@clinebot/llms": "0.0.34",
+    "@clinebot/shared": "0.0.34"
+  }
+}
+```
+
+Or just use `@clinebot/sdk` as a convenience:
+
+```json
+{
+  "dependencies": {
+    "@clinebot/sdk": "0.0.34"
+  }
+}
+```

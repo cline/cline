@@ -1,0 +1,246 @@
+---
+title: "Writing Plugins"
+sidebarTitle: "Writing Plugins"
+description: "Build plugins that add tools, observe execution, and modify agent behavior."
+---
+
+Plugins are the primary way to package reusable agent capabilities. This guide walks through building a production-quality plugin from scratch.
+
+## What You'll Build
+
+A GitHub integration plugin that:
+- Registers tools for interacting with GitHub (list issues, create PRs, post comments)
+- Logs all tool calls for auditing
+- Tracks token usage per session
+
+## Step 1: Define the Plugin Structure
+
+```typescript
+// github-plugin.ts
+import { type AgentPlugin, type AgentResult } from "@clinebot/agents"
+import { createTool } from "@clinebot/sdk"
+
+interface GitHubConfig {
+  token: string
+  owner: string
+  repo: string
+}
+
+export function createGitHubPlugin(config: GitHubConfig): AgentPlugin {
+  let totalTokens = 0
+
+  return {
+    name: "github-integration",
+    manifest: {
+      capabilities: ["tools", "hooks"],
+    },
+
+    setup(api) {
+      // Register tools in the setup phase
+      api.registerTool(createListIssuesTool(config))
+      api.registerTool(createCreateIssueTool(config))
+      api.registerTool(createPostCommentTool(config))
+    },
+
+    onRunStart({ userMessage }) {
+      console.log(`[github] Run started: "${userMessage.slice(0, 60)}..."`)
+    },
+
+    onToolCall({ call }) {
+      console.log(`[github] Tool: ${call.name}(${JSON.stringify(call.input).slice(0, 100)})`)
+    },
+
+    onRunEnd({ result }) {
+      totalTokens += result.usage.inputTokens + result.usage.outputTokens
+      console.log(`[github] Run complete. Session tokens so far: ${totalTokens}`)
+    },
+  }
+}
+```
+
+## Step 2: Create the Tools
+
+```typescript
+function createListIssuesTool(config: GitHubConfig) {
+  return createTool({
+    name: "list_github_issues",
+    description: `List open issues in ${config.owner}/${config.repo}. Returns issue numbers, titles, labels, and assignees.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        state: {
+          type: "string",
+          enum: ["open", "closed", "all"],
+          description: "Issue state filter. Default: open.",
+        },
+        labels: {
+          type: "string",
+          description: "Comma-separated label names to filter by (e.g., 'bug,priority:high').",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum issues to return. Default: 10, max: 100.",
+        },
+      },
+    },
+    execute: async (input) => {
+      const params = new URLSearchParams({
+        state: input.state ?? "open",
+        per_page: String(Math.min(input.limit ?? 10, 100)),
+      })
+      if (input.labels) params.set("labels", input.labels)
+
+      const response = await fetch(
+        `https://api.github.com/repos/${config.owner}/${config.repo}/issues?${params}`,
+        { headers: { Authorization: `token ${config.token}` } }
+      )
+
+      const issues = await response.json()
+      return {
+        issues: issues.map((i: Record<string, unknown>) => ({
+          number: i.number,
+          title: i.title,
+          state: i.state,
+          labels: (i.labels as Array<{ name: string }>).map((l) => l.name),
+          assignee: (i.assignee as { login: string } | null)?.login,
+          createdAt: i.created_at,
+        })),
+        total: issues.length,
+      }
+    },
+  })
+}
+
+function createCreateIssueTool(config: GitHubConfig) {
+  return createTool({
+    name: "create_github_issue",
+    description: `Create a new issue in ${config.owner}/${config.repo}.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Issue title" },
+        body: { type: "string", description: "Issue body (Markdown supported)" },
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description: "Labels to apply",
+        },
+      },
+      required: ["title"],
+    },
+    execute: async (input) => {
+      const response = await fetch(
+        `https://api.github.com/repos/${config.owner}/${config.repo}/issues`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `token ${config.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: input.title,
+            body: input.body,
+            labels: input.labels,
+          }),
+        }
+      )
+
+      const issue = await response.json()
+      return { number: issue.number, url: issue.html_url }
+    },
+  })
+}
+
+function createPostCommentTool(config: GitHubConfig) {
+  return createTool({
+    name: "post_github_comment",
+    description: `Post a comment on an issue or PR in ${config.owner}/${config.repo}.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        issueNumber: { type: "number", description: "Issue or PR number" },
+        body: { type: "string", description: "Comment body (Markdown supported)" },
+      },
+      required: ["issueNumber", "body"],
+    },
+    execute: async (input) => {
+      const response = await fetch(
+        `https://api.github.com/repos/${config.owner}/${config.repo}/issues/${input.issueNumber}/comments`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `token ${config.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ body: input.body }),
+        }
+      )
+
+      const comment = await response.json()
+      return { id: comment.id, url: comment.html_url }
+    },
+  })
+}
+```
+
+## Step 3: Use the Plugin
+
+```typescript
+import { Agent } from "@clinebot/agents"
+import { createGitHubPlugin } from "./github-plugin"
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a project manager assistant with access to GitHub.",
+  tools: [],
+  plugins: [
+    createGitHubPlugin({
+      token: process.env.GITHUB_TOKEN,
+      owner: "my-org",
+      repo: "my-project",
+    }),
+  ],
+})
+
+await agent.run("List all open bugs and create a summary issue with the count")
+```
+
+## Distributing as a File Plugin
+
+To make this plugin available to all ClineCore sessions, save it as a file plugin:
+
+```typescript
+// ~/.cline/plugins/github.ts
+import { type AgentPlugin, createTool } from "@clinebot/sdk"
+
+const plugin: AgentPlugin = {
+  name: "github",
+  manifest: { capabilities: ["tools"] },
+  setup(api) {
+    api.registerTool(
+      createTool({
+        name: "list_github_issues",
+        // ... tool definition
+      })
+    )
+  },
+}
+
+export default plugin
+```
+
+ClineCore automatically discovers and loads plugins from `~/.cline/plugins/` (global) and `.cline/plugins/` (project-level).
+
+## Plugin Design Guidelines
+
+1. Use factory functions (like `createGitHubPlugin`) when the plugin needs configuration. Export the plugin object directly when it doesn't.
+
+2. Keep `setup()` synchronous and fast. It runs before the first LLM call, so any async initialization delays the agent.
+
+3. Register all tools in `setup()`, not in lifecycle hooks. Tools must be available before the first iteration.
+
+4. Use lifecycle hooks for observation (logging, metrics, auditing), not for modifying agent behavior. If you need to modify behavior, consider using the `before_agent_start` hook to adjust the system prompt.
+
+5. Handle errors gracefully in hooks. A thrown error in `onToolCall` will count as a tool failure. If your hook is purely observational, catch errors internally.

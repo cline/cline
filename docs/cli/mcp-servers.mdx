@@ -1,0 +1,113 @@
+---
+title: "MCP Servers"
+sidebarTitle: "MCP Servers"
+description: "Manage Model Context Protocol servers to extend agent capabilities with external tools."
+---
+
+MCP (Model Context Protocol) servers give the agent access to external tools and data sources. The CLI provides an interactive wizard for managing them.
+
+## MCP Wizard
+
+```bash
+cline mcp
+```
+
+Opens an interactive menu:
+
+| Action | Description |
+|--------|-------------|
+| List servers | Show all configured servers with transport type and enabled/disabled status |
+| Add server | Configure a new MCP server |
+| Edit server | Modify an existing server |
+| Enable/Disable | Toggle a server on or off without deleting it |
+| Delete server | Remove a server permanently |
+
+When adding a server, the wizard prompts for:
+
+- A unique server name
+- Transport type:
+  - Local (stdio): runs a command on your machine
+  - Remote (SSE): Server-Sent Events connection
+  - Remote (HTTP): Streamable HTTP connection
+- For stdio: the command to run and optional environment variables
+- For remote: the server URL and optional headers
+
+## Configuration File
+
+You can also configure MCP servers directly in `.cline/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"],
+      "type": "stdio"
+    },
+    "database": {
+      "url": "http://localhost:8080/mcp",
+      "type": "http"
+    }
+  }
+}
+```
+
+## Transport Types
+
+### Local (stdio)
+
+Runs a command on your machine. The CLI communicates with the server over stdin/stdout.
+
+```json
+{
+  "my-server": {
+    "command": "node",
+    "args": ["server.js"],
+    "type": "stdio",
+    "env": {
+      "API_KEY": "your-key"
+    }
+  }
+}
+```
+
+### Remote (SSE)
+
+Connects to a remote server using Server-Sent Events.
+
+```json
+{
+  "my-server": {
+    "url": "https://mcp.example.com/sse",
+    "type": "sse",
+    "headers": {
+      "Authorization": "Bearer token"
+    }
+  }
+}
+```
+
+### Remote (HTTP)
+
+Connects to a remote server using streamable HTTP.
+
+```json
+{
+  "my-server": {
+    "url": "https://mcp.example.com/mcp",
+    "type": "http",
+    "headers": {
+      "Authorization": "Bearer token"
+    }
+  }
+}
+```
+
+## Listing Servers
+
+You can also list servers non-interactively:
+
+```bash
+cline config mcp
+cline config mcp --json
+```

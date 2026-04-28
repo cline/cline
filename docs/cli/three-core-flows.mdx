@@ -5,7 +5,7 @@ description: "Run Cline autonomously in scripts, CI/CD pipelines, and automated 
 
 Headless mode runs Cline without an interactive interface — perfect for automation, scripting, and CI/CD pipelines where human interaction isn't possible or desired. Cline executes tasks, produces clean text or JSON output, and exits when complete.
 
-For collaborative, conversational development, see [Interactive Mode](/cline-cli/interactive-mode) instead.
+For collaborative, conversational development, see [Interactive Mode](/cli/interactive-mode) instead.
 
 <Note>
 **Migrating from an older CLI version?** Instance commands (`cline instance new/list/kill`) have been removed in Cline CLI 2.0. The new architecture is simpler — just use `cline -y "task"` for headless execution.
@@ -22,7 +22,7 @@ Cline automatically enters headless mode when any of these conditions are met:
 | `cat file \| cline "task"` | stdin is piped |
 | `cline "task" > output.txt` | stdout is redirected |
 
-If none of these apply (e.g., running `cline` or `cline "task"` in a terminal), Cline launches in [interactive mode](/cline-cli/interactive-mode).
+If none of these apply (e.g., running `cline` or `cline "task"` in a terminal), Cline launches in [interactive mode](/cli/interactive-mode).
 
 ## YOLO Mode (Fully Autonomous)
 
@@ -144,7 +144,7 @@ export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf
 cline -y "your task"
 ```
 
-See [Configuration](/cline-cli/configuration#environment-variables) for full documentation.
+See [Configuration](/cli/configuration#environment-variables) for full documentation.
 
 ## CI/CD Integration
 
@@ -226,19 +226,19 @@ echo "$DIFF" | cline -y --json "Review this code diff for issues" | jq -r '.text
 ## Next Steps
 
 <Columns cols={2}>
-  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+  <Card title="Interactive Mode" icon="terminal" href="/cli/interactive-mode">
     For hands-on development with keyboard shortcuts, slash commands, and file mentions.
   </Card>
   
-  <Card title="CLI Reference" icon="book" href="/cline-cli/cli-reference">
+  <Card title="CLI Reference" icon="book" href="/cli/cli-reference">
     Complete command documentation with all flags and options.
   </Card>
   
-  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
     Environment variables, rules, and advanced settings.
   </Card>
   
-  <Card title="CLI Samples" icon="flask" href="/cline-cli/samples/overview">
+  <Card title="CLI Samples" icon="flask" href="/cli/samples/overview">
     Real-world examples of headless workflows and automation patterns.
   </Card>
 </Columns>

@@ -1,0 +1,256 @@
+---
+title: "Tools"
+sidebarTitle: "Tools"
+description: "Tools give agents the ability to take actions: read files, run commands, call APIs, and interact with external systems."
+---
+
+Tools are functions that agents can call during execution. When the LLM decides it needs to take an action (read a file, run a command, fetch a URL), it generates a tool call. The SDK executes the tool and feeds the result back to the model.
+
+## Built-In Tools
+
+When using `ClineCore`, agents get access to a suite of built-in tools:
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Execute shell commands |
+| `editor` | View and edit files |
+| `read_files` | Batch read multiple files |
+| `apply_patch` | Apply unified diffs to files |
+| `search` | Ripgrep-powered codebase search |
+| `fetch_web` | HTTP requests with HTML-to-markdown conversion |
+| `ask_question` | Ask the user for input |
+| `submit_and_exit` | Mark the task as complete |
+
+<Note>
+Built-in tools are only available through `ClineCore`. The `Agent` class from `@clinebot/agents` ships with no tools -- you provide everything.
+</Note>
+
+## Creating Custom Tools
+
+Use `createTool` to define tools with type-safe input schemas:
+
+```typescript
+import { createTool } from "@clinebot/shared"
+
+const searchDatabase = createTool({
+  name: "search_database",
+  description: "Search the application database by query. Returns matching records.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "SQL-like search query",
+      },
+      limit: {
+        type: "number",
+        description: "Maximum number of results to return",
+      },
+    },
+    required: ["query"],
+  },
+  execute: async (input) => {
+    const results = await db.search(input.query, input.limit ?? 10)
+    return { results, count: results.length }
+  },
+})
+```
+
+### Tool Interface
+
+Every tool implements this interface:
+
+```typescript
+interface Tool<TInput, TOutput> {
+  name: string
+  description: string
+  inputSchema: JSONSchema
+  execute(input: TInput, context: ToolContext, onChange?: Function): Promise<TOutput>
+  timeoutMs?: number
+  retryable?: boolean
+  maxRetries?: number
+}
+```
+
+### Tool Context
+
+The `execute` function receives a `ToolContext` with metadata about the current execution:
+
+```typescript
+interface ToolContext {
+  agentId: string
+  conversationId: string
+  iteration: number
+  abortSignal?: AbortSignal
+  metadata?: Record<string, unknown>
+}
+```
+
+Use the `abortSignal` to handle cancellation gracefully:
+
+```typescript
+const longRunningTool = createTool({
+  name: "process_data",
+  description: "Process a large dataset.",
+  inputSchema: { type: "object", properties: {} },
+  execute: async (input, context) => {
+    for (const batch of dataBatches) {
+      if (context.abortSignal?.aborted) {
+        return { status: "cancelled", processed: count }
+      }
+      await processBatch(batch)
+    }
+    return { status: "complete" }
+  },
+})
+```
+
+## Registering Tools
+
+### With Agent
+
+Pass tools directly in the constructor:
+
+```typescript
+const agent = new Agent({
+  // ...config
+  tools: [searchDatabase, longRunningTool],
+})
+```
+
+Or add tools after creation:
+
+```typescript
+agent.addTools([anotherTool])
+```
+
+### With ClineCore
+
+Pass tools in the session config:
+
+```typescript
+const session = await cline.start({
+  config: {
+    tools: [searchDatabase],
+    enableTools: true,  // Also enables built-in tools
+  },
+  // ...
+})
+```
+
+### Via Plugins
+
+Plugins can register tools during their setup phase:
+
+```typescript
+const myPlugin: AgentPlugin = {
+  name: "database-tools",
+  manifest: { capabilities: ["tools"] },
+  setup(api) {
+    api.registerTool(searchDatabase)
+    api.registerTool(insertRecord)
+    api.registerTool(deleteRecord)
+  },
+}
+```
+
+See [Plugins](/sdk/plugins) for more on the plugin system.
+
+## Tool Policies
+
+Control which tools require approval and which run automatically:
+
+```typescript
+const agent = new Agent({
+  // ...config
+  tools: [readTool, writeTool, deleteTool],
+  toolPolicies: {
+    read_data: { autoApprove: true },
+    write_data: { autoApprove: false },
+    delete_data: { enabled: false },  // Disable entirely
+  },
+})
+```
+
+| Policy | Effect |
+|--------|--------|
+| `{ autoApprove: true }` | Tool runs without asking |
+| `{ autoApprove: false }` | Tool requires approval before running |
+| `{ enabled: false }` | Tool is disabled (model won't see it) |
+
+## Tool Descriptions Matter
+
+The `description` field is what the LLM reads to decide when to use your tool. Write clear, specific descriptions:
+
+```typescript
+// Bad: vague, model won't know when to use it
+const bad = createTool({
+  name: "helper",
+  description: "A helper function.",
+  // ...
+})
+
+// Good: specific about what it does and when to use it
+const good = createTool({
+  name: "get_pull_request",
+  description: "Fetch details of a GitHub pull request by number. Returns title, description, diff stats, review status, and CI check results. Use this when you need to understand what a PR changes.",
+  // ...
+})
+```
+
+Tips for effective tool descriptions:
+- State what the tool does and what it returns
+- Mention when the model should prefer this tool over alternatives
+- Include constraints (rate limits, required permissions, etc.)
+- Describe the input parameters in the `inputSchema` property descriptions
+
+## Input Schema Best Practices
+
+Use JSON Schema to define tool inputs. The schema is sent to the LLM, so clear property descriptions improve tool call accuracy:
+
+```typescript
+const deployTool = createTool({
+  name: "deploy",
+  description: "Deploy the application to a target environment.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      environment: {
+        type: "string",
+        enum: ["staging", "production"],
+        description: "Target environment. Use 'staging' for testing, 'production' for live.",
+      },
+      version: {
+        type: "string",
+        description: "Semantic version tag to deploy (e.g., '1.2.3'). Defaults to latest.",
+      },
+      dryRun: {
+        type: "boolean",
+        description: "If true, validate the deployment plan without executing it.",
+      },
+    },
+    required: ["environment"],
+  },
+  execute: async (input) => {
+    // deployment logic
+  },
+})
+```
+
+## MCP Tools
+
+Agents can also use tools from [Model Context Protocol](https://modelcontextprotocol.io) servers. When using ClineCore, configure MCP servers via `.cline/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+MCP tools are discovered automatically and registered as agent tools alongside your custom tools and the built-in suite.

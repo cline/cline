@@ -1,0 +1,251 @@
+---
+title: "Streaming Events"
+sidebarTitle: "Streaming Events"
+description: "Subscribe to real-time events during agent execution for streaming UIs, logging, and monitoring."
+---
+
+The SDK uses an event-driven architecture. As the agent runs, it emits events for every meaningful state change: text generation, tool calls, iteration boundaries, token usage, errors, and completion.
+
+## Subscribing to Events
+
+### Via Constructor
+
+The simplest way to handle events:
+
+```typescript
+const agent = new Agent({
+  // ...config
+  onEvent: (event) => {
+    if (event.type === "content_update" && event.contentType === "text") {
+      process.stdout.write(event.text)
+    }
+  },
+})
+```
+
+### Via subscribeEvents
+
+Subscribe (and unsubscribe) dynamically:
+
+```typescript
+const unsubscribe = agent.subscribeEvents((event) => {
+  // handle event
+})
+
+// Later
+unsubscribe()
+```
+
+## Event Types
+
+Every event has a `type` field that identifies what happened:
+
+### Content Events
+
+These fire as the model generates its response:
+
+| Event | Fields | When |
+|-------|--------|------|
+| `content_start` | `contentType`, `toolName?` | Model starts generating text or a tool call |
+| `content_update` | `contentType`, `text?` | New chunk of text or tool call arguments |
+| `content_end` | `contentType` | Model finishes this piece of content |
+
+```typescript
+onEvent: (event) => {
+  switch (event.type) {
+    case "content_start":
+      if (event.contentType === "text") {
+        // Model started generating text
+      }
+      if (event.contentType === "tool") {
+        console.log(`Calling tool: ${event.toolName}`)
+      }
+      if (event.contentType === "reasoning") {
+        // Model is thinking (chain-of-thought)
+      }
+      break
+
+    case "content_update":
+      if (event.contentType === "text") {
+        process.stdout.write(event.text)
+      }
+      break
+
+    case "content_end":
+      // This piece of content is complete
+      break
+  }
+}
+```
+
+### Iteration Events
+
+Track the agent's progress through its loop:
+
+| Event | Fields | When |
+|-------|--------|------|
+| `iteration_start` | `iteration` | A new iteration of the agent loop begins |
+| `iteration_end` | `iteration` | An iteration completes |
+
+```typescript
+onEvent: (event) => {
+  if (event.type === "iteration_start") {
+    console.log(`Starting iteration ${event.iteration}`)
+  }
+}
+```
+
+### Usage Events
+
+Token consumption and cost tracking:
+
+| Event | Fields | When |
+|-------|--------|------|
+| `usage` | `inputTokens`, `outputTokens`, `cacheReadTokens?`, `cacheCreationTokens?` | After each LLM API call |
+
+```typescript
+let totalTokens = 0
+
+onEvent: (event) => {
+  if (event.type === "usage") {
+    totalTokens += event.inputTokens + event.outputTokens
+    console.log(`Tokens this turn: ${event.inputTokens} in, ${event.outputTokens} out`)
+    console.log(`Total tokens: ${totalTokens}`)
+  }
+}
+```
+
+### Notice Events
+
+Status updates and warnings from the agent runtime:
+
+| Event | Fields | When |
+|-------|--------|------|
+| `notice` | `reason`, `message?` | Agent recovers from error, detects a loop, or changes status |
+
+Notice reasons include:
+- `recovery` -- agent recovered from a transient error
+- `loop_detected` -- agent is making repeated identical tool calls
+- `stop` -- agent is about to stop (with reason)
+- `status` -- general status update
+
+### Completion Events
+
+| Event | Fields | When |
+|-------|--------|------|
+| `done` | `finishReason`, `text`, `iterations`, `usage` | Agent finished (success or failure) |
+| `error` | `message`, `recoverable` | An error occurred |
+
+```typescript
+onEvent: (event) => {
+  if (event.type === "done") {
+    console.log(`Finished: ${event.finishReason}`)
+    console.log(`Took ${event.iterations} iterations`)
+  }
+  if (event.type === "error") {
+    console.error(`Error: ${event.message}`)
+    if (!event.recoverable) {
+      console.error("Agent cannot recover from this error")
+    }
+  }
+}
+```
+
+## Streaming with AgentStream
+
+For async iteration over events, use the streaming API:
+
+```typescript
+import { Agent, streamRun } from "@clinebot/agents"
+
+const agent = new Agent({ /* config */ })
+
+const stream = streamRun(agent, "Build a REST API")
+
+for await (const event of stream) {
+  if (event.type === "content_update" && event.contentType === "text") {
+    process.stdout.write(event.text)
+  }
+}
+
+const result = await stream.getResult()
+console.log(result.finishReason)
+```
+
+`AgentStream` implements `AsyncIterable<AgentEvent>`, so you can use it with `for await...of` loops, or pass it to any async stream consumer.
+
+### Aborting a Stream
+
+```typescript
+const stream = streamRun(agent, "Long running task...")
+
+// From another context
+stream.abort()
+```
+
+## Building a Real-Time UI
+
+Here's a pattern for building a streaming chat interface:
+
+```typescript
+import { Agent } from "@clinebot/agents"
+
+interface UIUpdate {
+  type: "text" | "tool_start" | "tool_end" | "thinking" | "done"
+  content: string
+}
+
+function createAgentWithUI(onUpdate: (update: UIUpdate) => void) {
+  return new Agent({
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt: "You are a helpful assistant.",
+    tools: [],
+    onEvent: (event) => {
+      switch (event.type) {
+        case "content_update":
+          if (event.contentType === "text") {
+            onUpdate({ type: "text", content: event.text })
+          }
+          if (event.contentType === "reasoning") {
+            onUpdate({ type: "thinking", content: event.text })
+          }
+          break
+        case "content_start":
+          if (event.contentType === "tool") {
+            onUpdate({ type: "tool_start", content: event.toolName })
+          }
+          break
+        case "content_end":
+          if (event.contentType === "tool") {
+            onUpdate({ type: "tool_end", content: "" })
+          }
+          break
+        case "done":
+          onUpdate({ type: "done", content: event.finishReason })
+          break
+      }
+    },
+  })
+}
+```
+
+## Event Ordering Guarantees
+
+Events are emitted in a predictable order within each iteration:
+
+1. `iteration_start`
+2. `content_start` (text or reasoning)
+3. `content_update` (repeated, one per chunk)
+4. `content_end`
+5. `content_start` (tool call, if any)
+6. `content_update` (tool arguments)
+7. `content_end`
+8. `usage`
+9. `iteration_end`
+
+After the final iteration:
+10. `done`
+
+Errors can occur at any point and are emitted as `error` events. If `recoverable` is true, the agent will retry. If false, the next event will be `done` with `finishReason: "error"`.

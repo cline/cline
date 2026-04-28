@@ -1,0 +1,278 @@
+---
+title: "Creating Custom Tools"
+sidebarTitle: "Creating Custom Tools"
+description: "Define, register, and test your own tools with type-safe schemas and execution handlers."
+---
+
+Custom tools extend what your agent can do. A tool is a function with a name, a description the LLM reads, a JSON Schema for inputs, and an execute function that does the actual work.
+
+## Basic Tool
+
+```typescript
+import { createTool } from "@clinebot/sdk"
+
+const getCurrentTime = createTool({
+  name: "get_current_time",
+  description: "Get the current date and time in ISO format.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      timezone: {
+        type: "string",
+        description: "IANA timezone (e.g., 'America/New_York'). Defaults to UTC.",
+      },
+    },
+  },
+  execute: async (input) => {
+    const date = new Date()
+    return {
+      iso: date.toISOString(),
+      timezone: input.timezone ?? "UTC",
+      formatted: date.toLocaleString("en-US", { timeZone: input.timezone ?? "UTC" }),
+    }
+  },
+})
+```
+
+## Anatomy of a Tool
+
+```typescript
+interface Tool<TInput, TOutput> {
+  name: string           // Unique identifier (snake_case recommended)
+  description: string    // LLM reads this to decide when to use the tool
+  inputSchema: JSONSchema // Defines what arguments the tool accepts
+  execute: (
+    input: TInput,
+    context: ToolContext,
+    onChange?: Function
+  ) => Promise<TOutput>
+  timeoutMs?: number     // Maximum execution time
+  retryable?: boolean    // Whether failed calls can be retried
+  maxRetries?: number    // Maximum retry attempts
+}
+```
+
+### The Name
+
+Use `snake_case`. The name must be unique within the agent's tool set. Keep it descriptive but concise:
+
+- `search_database`, not `db` or `performDatabaseSearchOperation`
+- `send_email`, not `email` or `handleEmailSending`
+- `list_pull_requests`, not `prs`
+
+### The Description
+
+This is the most important field for tool call accuracy. The LLM uses the description to decide when and how to use the tool.
+
+```typescript
+// Weak: model won't know when to use this
+description: "Handles data."
+
+// Strong: model knows exactly what this does and when to use it
+description: "Search the PostgreSQL database by executing a read-only SQL query. Returns matching rows as JSON. Use this when you need to look up user records, order history, or product data. Maximum 100 rows per query."
+```
+
+Include:
+- What the tool does
+- What it returns
+- When to use it (and when not to)
+- Constraints (rate limits, read-only, max results, etc.)
+
+### The Input Schema
+
+Standard JSON Schema. Every property should have a `description`:
+
+```typescript
+inputSchema: {
+  type: "object",
+  properties: {
+    query: {
+      type: "string",
+      description: "Search query. Supports wildcards (*) and exact phrases (\"like this\").",
+    },
+    limit: {
+      type: "number",
+      description: "Maximum results to return. Range: 1-100. Default: 10.",
+    },
+    filters: {
+      type: "object",
+      description: "Optional filters to narrow results.",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["active", "archived", "deleted"],
+          description: "Filter by record status.",
+        },
+        createdAfter: {
+          type: "string",
+          description: "ISO date string. Only return records created after this date.",
+        },
+      },
+    },
+  },
+  required: ["query"],
+}
+```
+
+Use `enum` for fields with a fixed set of values. This dramatically improves accuracy.
+
+## Using ToolContext
+
+The `execute` function receives a `ToolContext` with execution metadata:
+
+```typescript
+const myTool = createTool({
+  name: "long_process",
+  description: "Process data in batches.",
+  inputSchema: { type: "object", properties: {} },
+  execute: async (input, context) => {
+    // Check which agent and iteration is calling this tool
+    console.log(`Agent: ${context.agentId}, Iteration: ${context.iteration}`)
+
+    // Respect cancellation
+    for (const batch of batches) {
+      if (context.abortSignal?.aborted) {
+        return { status: "cancelled", processed: count }
+      }
+      await processBatch(batch)
+    }
+
+    return { status: "complete" }
+  },
+})
+```
+
+## Error Handling
+
+Return errors as structured data rather than throwing:
+
+```typescript
+const apiTool = createTool({
+  name: "call_api",
+  description: "Make an authenticated API call.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      endpoint: { type: "string", description: "API endpoint path" },
+    },
+    required: ["endpoint"],
+  },
+  execute: async (input) => {
+    try {
+      const response = await fetch(`https://api.example.com${input.endpoint}`, {
+        headers: { Authorization: `Bearer ${process.env.API_TOKEN}` },
+      })
+
+      if (!response.ok) {
+        return {
+          error: `API returned ${response.status}: ${response.statusText}`,
+          retryable: response.status >= 500,
+        }
+      }
+
+      return await response.json()
+    } catch (err) {
+      return {
+        error: `Network error: ${err.message}`,
+        retryable: true,
+      }
+    }
+  },
+})
+```
+
+When a tool returns an error, the agent sees it and can adjust its approach. When a tool throws, it counts as a "mistake" and increments the consecutive mistake counter.
+
+## Timeouts and Retries
+
+```typescript
+const slowTool = createTool({
+  name: "compile_project",
+  description: "Compile the project. May take up to 2 minutes for large codebases.",
+  inputSchema: { type: "object", properties: {} },
+  timeoutMs: 120_000,     // 2 minute timeout
+  retryable: true,        // Allow retries on failure
+  maxRetries: 2,          // Try up to 3 times total
+  execute: async (input) => {
+    // compilation logic
+  },
+})
+```
+
+## Tool Composition
+
+Build complex tools by composing simpler ones:
+
+```typescript
+const analyzeRepo = createTool({
+  name: "analyze_repository",
+  description: "Analyze a repository: count files by language, measure test coverage, check for common issues.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: { type: "string", description: "Absolute path to the repository root" },
+    },
+    required: ["path"],
+  },
+  execute: async (input) => {
+    const [languages, tests, issues] = await Promise.all([
+      countFilesByLanguage(input.path),
+      measureTestCoverage(input.path),
+      checkCommonIssues(input.path),
+    ])
+
+    return { languages, testCoverage: tests, issues }
+  },
+})
+```
+
+## Testing Tools
+
+Test your tools in isolation before giving them to an agent:
+
+```typescript
+import { describe, it, expect } from "vitest"
+
+describe("get_current_time", () => {
+  it("returns ISO timestamp", async () => {
+    const result = await getCurrentTime.execute(
+      { timezone: "UTC" },
+      { agentId: "test", conversationId: "test", iteration: 1 }
+    )
+
+    expect(result.iso).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(result.timezone).toBe("UTC")
+  })
+})
+```
+
+## Registering Tools
+
+<Tabs>
+  <Tab title="Direct">
+    ```typescript
+    const agent = new Agent({
+      tools: [searchDatabase, getCurrentTime, analyzeRepo],
+      // ...
+    })
+    ```
+  </Tab>
+  <Tab title="Via Plugin">
+    ```typescript
+    const myPlugin: AgentPlugin = {
+      name: "my-tools",
+      manifest: { capabilities: ["tools"] },
+      setup(api) {
+        api.registerTool(searchDatabase)
+        api.registerTool(getCurrentTime)
+      },
+    }
+    ```
+  </Tab>
+  <Tab title="Add Later">
+    ```typescript
+    const agent = new Agent({ tools: [], /* ... */ })
+    agent.addTools([searchDatabase, getCurrentTime])
+    ```
+  </Tab>
+</Tabs>
