@@ -1,11 +1,10 @@
 import { supportsHicapResponsesApi } from "@shared/clients/hicap"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { type ModelsApiOptions, UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient, ModelsServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import HicapModelPicker from "../HicapModelPicker"
@@ -40,17 +39,7 @@ export const HicapProvider = ({ showModelOptions, isPopup, currentMode }: HicapP
 		const trimmedValue = value.trim()
 		const numericValue = Number(trimmedValue)
 		const parsedValue = trimmedValue && Number.isFinite(numericValue) ? numericValue : undefined
-		const options = (field === "hicapMaxOutputTokens"
-			? { hicapMaxOutputTokens: parsedValue }
-			: { hicapTemperature: parsedValue }) as unknown as ModelsApiOptions
-		await ModelsServiceClient.updateApiConfiguration(
-			UpdateApiConfigurationRequestNew.create({
-				updates: {
-					options,
-				},
-				updateMask: [`options.${field}`],
-			}),
-		)
+		await handleFieldChange(field, parsedValue)
 	}
 
 	useEffect(() => {

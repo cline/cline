@@ -461,8 +461,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
 		const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
 		const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
+		const selectedHicapModelIds = [actModelId, planModelId].filter(Boolean)
 		const hicapResponsesApiSupported = separateModels
-			? [actModelId, planModelId].filter(Boolean).every((modelId) => supportsHicapResponsesApi(modelId))
+			? selectedHicapModelIds.length > 0 && selectedHicapModelIds.every((modelId) => supportsHicapResponsesApi(modelId))
 			: supportsHicapResponsesApi(actModelId || planModelId)
 
 		switch (currentTab) {
