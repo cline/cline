@@ -1,7 +1,6 @@
 import {
 	clearHubDiscovery,
-	createLocalHubScheduleRuntimeHandlers,
-	ensureHubServer,
+	ensureDetachedHubServer,
 	probeHubServer,
 	readHubDiscovery,
 	resolveSharedHubOwnerContext,
@@ -71,13 +70,12 @@ export function createHubCommand(
 				port?: number;
 				pathname?: string;
 			}>();
-			const result = await ensureHubServer({
+			const url = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
 				pathname: opts.pathname,
-				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			});
-			io.writeln(result.url);
+			io.writeln(url);
 		}),
 	);
 
@@ -89,22 +87,12 @@ export function createHubCommand(
 				port?: number;
 				pathname?: string;
 			}>();
-			const result = await ensureHubServer({
+			const url = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
 				pathname: opts.pathname,
-				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			});
-			io.writeln(result.url);
-			if (!result.server) {
-				return;
-			}
-			await new Promise<void>((resolve) => {
-				const shutdown = () => resolve();
-				process.once("SIGINT", shutdown);
-				process.once("SIGTERM", shutdown);
-			});
-			await result.server.close();
+			io.writeln(url);
 		}),
 	);
 

@@ -1,23 +1,9 @@
 import { sendHubCommand } from "@clinebot/core";
-import { ensureCliHubServer } from "../../utils/hub-runtime";
+import {
+	ensureCliHubServer,
+	parseHubEndpointOverride,
+} from "../../utils/hub-runtime";
 import type { CommandIo } from "./types";
-
-export function parseHubAddress(address: string | undefined): {
-	host?: string;
-	port?: number;
-	pathname?: string;
-} {
-	const trimmed = address?.trim();
-	if (!trimmed) {
-		return {};
-	}
-	const [host, portRaw] = trimmed.split(":", 2);
-	const port = Number.parseInt(portRaw ?? "", 10);
-	return {
-		host: host?.trim() || undefined,
-		port: Number.isInteger(port) ? port : undefined,
-	};
-}
 
 export class HubScheduleClient {
 	constructor(
@@ -110,8 +96,9 @@ export async function ensureSchedulerHub(
 	client: HubScheduleClient;
 }> {
 	try {
-		const endpoint = parseHubAddress(address);
-		await ensureCliHubServer(workspaceRoot, endpoint);
+		const requestedEndpoint = parseHubEndpointOverride(address);
+		const hubUrl = await ensureCliHubServer(workspaceRoot, requestedEndpoint);
+		const endpoint = parseHubEndpointOverride(hubUrl);
 		return {
 			ok: true,
 			client: new HubScheduleClient(endpoint),

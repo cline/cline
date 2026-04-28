@@ -105,6 +105,8 @@ export function prewarmDetachedHubServer(
 	endpoint: HubEndpointOverrides = {},
 ): void {
 	const owner = resolveSharedHubOwnerContext();
+	const hasExplicitPort =
+		endpoint.port !== undefined || !!process.env.CLINE_HUB_PORT?.trim();
 	const resolvedEndpoint = resolveHubEndpointOptions(endpoint);
 	const expectedUrl = createHubServerUrl(
 		resolvedEndpoint.host,
@@ -124,10 +126,11 @@ export function prewarmDetachedHubServer(
 				await writeHubDiscovery(owner.discoveryPath, expected);
 				return;
 			}
-			const spawnEndpoint =
-				expected?.url && resolvedEndpoint.port !== 0
-					? { ...resolvedEndpoint, port: 0 }
-					: resolvedEndpoint;
+			const shouldUseFallbackPort =
+				!hasExplicitPort && resolvedEndpoint.port !== 0;
+			const spawnEndpoint = shouldUseFallbackPort
+				? { ...resolvedEndpoint, port: 0 }
+				: resolvedEndpoint;
 			spawnDetachedHubServer(workspaceRoot, spawnEndpoint);
 		})
 		.catch(() => {
@@ -140,6 +143,9 @@ export async function ensureDetachedHubServer(
 	endpointOverrides: HubEndpointOverrides = {},
 ): Promise<string> {
 	const owner = resolveSharedHubOwnerContext();
+	const hasExplicitPort =
+		endpointOverrides.port !== undefined ||
+		!!process.env.CLINE_HUB_PORT?.trim();
 	const endpoint = resolveHubEndpointOptions(endpointOverrides);
 	const expectedUrl = createHubServerUrl(
 		endpoint.host,
@@ -158,8 +164,10 @@ export async function ensureDetachedHubServer(
 		await writeHubDiscovery(owner.discoveryPath, expected);
 		return expected.url;
 	}
-	const spawnEndpoint =
-		expected?.url && endpoint.port !== 0 ? { ...endpoint, port: 0 } : endpoint;
+	const shouldUseFallbackPort = !hasExplicitPort && endpoint.port !== 0;
+	const spawnEndpoint = shouldUseFallbackPort
+		? { ...endpoint, port: 0 }
+		: endpoint;
 	spawnDetachedHubServer(workspaceRoot, spawnEndpoint);
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {

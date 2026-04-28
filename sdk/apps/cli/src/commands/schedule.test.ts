@@ -13,6 +13,23 @@ vi.mock("@clinebot/core", () => ({
 
 vi.mock("../utils/hub-runtime", () => ({
 	ensureCliHubServer: mockEnsureCliHubServer,
+	parseHubEndpointOverride: (rawAddress: string | undefined) => {
+		const trimmed = rawAddress?.trim();
+		if (!trimmed) {
+			return {};
+		}
+		const parsed = new URL(
+			trimmed.includes("://") ? trimmed : `ws://${trimmed}`,
+		);
+		return {
+			host: parsed.hostname || undefined,
+			port: parsed.port ? Number(parsed.port) : undefined,
+			pathname:
+				parsed.pathname && parsed.pathname !== "/"
+					? parsed.pathname
+					: undefined,
+		};
+	},
 }));
 
 async function runScheduleCommand(
@@ -54,7 +71,7 @@ describe("runScheduleCommand list output", () => {
 		expect(errors).toEqual([]);
 		expect(output).toEqual(["No schedules found."]);
 		expect(mockSendHubCommand).toHaveBeenCalledWith(
-			{},
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
 			{
 				clientId: "clite-schedule",
 				command: "schedule.list",
@@ -138,7 +155,7 @@ describe("runScheduleCommand import", () => {
 		expect(errors).toEqual([]);
 		expect(output).toEqual(['{\n  "scheduleId": "sched_123"\n}']);
 		expect(mockSendHubCommand).toHaveBeenCalledWith(
-			{},
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
 			{
 				clientId: "clite-schedule",
 				command: "schedule.create",
@@ -199,7 +216,7 @@ describe("runScheduleCommand export", () => {
 			const written = await readFile(targetPath, "utf8");
 			expect(written).toBe(JSON.stringify(scheduleRecord, null, 2));
 			expect(mockSendHubCommand).toHaveBeenCalledWith(
-				{},
+				{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
 				{
 					clientId: "clite-schedule",
 					command: "schedule.get",
