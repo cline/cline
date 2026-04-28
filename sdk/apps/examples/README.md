@@ -33,6 +33,20 @@ cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
 clite -i "What's the weather like in Tokyo and Paris?"
 ```
 
+### [`typescript-lsp-plugin/`](./typescript-lsp-plugin)
+
+TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by the TypeScript Language Service API. Resolves through imports, re-exports, and type aliases -- much more precise than text search.
+
+- Register a tool via `createTool()` and `AgentExtension`
+- Use the TypeScript Language Service to resolve symbol definitions
+- Cache the language service for efficient repeated lookups
+- Zero extra dependencies -- resolves `typescript` from the target project
+
+```bash
+cp apps/examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
+clite -i "Find where createTool is defined"
+```
+
 ### [`subagent-plugin/`](./subagent-plugin)
 
 **Portable subagent plugin** that adds background agent orchestration tools to the CLI and SDK:
@@ -116,7 +130,7 @@ Current SDK layering:
 
 **Building integrations?**
 - Check out the [`slack-bot/`](./slack-bot) for production patterns
-- See [`cline-plugin/`](./cline-plugin) and [`subagent-plugin/`](./subagent-plugin) for reusable extensions
+- See [`cline-plugin/`](./cline-plugin), [`typescript-lsp-plugin/`](./typescript-lsp-plugin), and [`subagent-plugin/`](./subagent-plugin) for reusable extensions
 
 **Going to production?**
 - Session management: [`cline-sdk/09-sessions.ts`](./cline-sdk/09-sessions.ts)
