@@ -198,6 +198,10 @@ function cloneSessionMetadata(
 	if (session.messagesPath?.trim())
 		metadata.messagesPath = session.messagesPath;
 	if (session.prompt?.trim()) metadata.prompt = session.prompt;
+	if (session.provider?.trim()) metadata.provider = session.provider;
+	if (session.model?.trim()) metadata.model = session.model;
+	if (session.source?.trim()) metadata.source = session.source;
+	if (typeof session.pid === "number") metadata.pid = session.pid;
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 

@@ -351,6 +351,60 @@ describe("ClineCore", () => {
 		});
 	});
 
+	it("can list sessions without hydrating message history", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			start: vi.fn(),
+			send: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stop: vi.fn(),
+			dispose: vi.fn(),
+			get: vi.fn(),
+			list: vi.fn(async () => [
+				{
+					sessionId: "session-lightweight",
+					source: "core",
+					pid: 1,
+					startedAt: "2026-04-21T02:17:46.169Z",
+					status: "completed",
+					interactive: false,
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/tmp/workspace",
+					workspaceRoot: "/tmp/workspace",
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					isSubagent: false,
+					metadata: { title: "stored title" },
+					updatedAt: "2026-04-21T02:17:46.169Z",
+				},
+			]),
+			delete: vi.fn(),
+			update: vi.fn(),
+			readMessages: vi.fn(),
+			handleHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const core = await ClineCore.create();
+		const [row] = await core.list(10, { hydrate: false });
+
+		// Hydration options are consumed by ClineCore/listSessionHistory; the host
+		// list contract only receives the numeric limit.
+		expect(host.list.mock.calls).toEqual([[10]]);
+		expect(host.readMessages).not.toHaveBeenCalled();
+		expect(row).toMatchObject({
+			sessionId: "session-lightweight",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			metadata: { title: "stored title" },
+		});
+	});
+
 	it("exposes event automation through ClineCore instead of CronService", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-core-automation-"));
 		const cronDir = join(root, ".cline", "cron");

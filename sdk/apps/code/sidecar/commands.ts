@@ -18,7 +18,6 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
-	ClineCore,
 	createLocalHubScheduleRuntimeHandlers,
 	createUserInstructionConfigWatcher,
 	discoverPluginModulePaths,
@@ -163,23 +162,128 @@ async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
 ): Promise<unknown> {
+	const max = Math.max(1, Math.floor(limit));
 	if (ctx.sessionManager) {
-		return await ctx.sessionManager.list(limit);
+		return await ctx.sessionManager.list(max, { hydrate: false });
 	}
-	const core = await ClineCore.create({
-		backendMode: "hub",
-		hub: {
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-			clientType: "code-sidecar-list",
-			displayName: "Code App history",
-		},
-	});
-	try {
-		return await core.list(limit);
-	} finally {
-		await core.dispose("code_sidecar_list_sessions");
+
+	const byId = new Map<string, JsonRecord>();
+	const store = new SqliteSessionStore();
+	const mergeSessionRecord = (
+		sessionId: string,
+		record: JsonRecord,
+	): JsonRecord => {
+		const persisted = store.get(sessionId) as unknown as JsonRecord | undefined;
+		const metadata =
+			record.metadata && typeof record.metadata === "object"
+				? (record.metadata as JsonRecord)
+				: undefined;
+		return {
+			...(persisted ?? {}),
+			...record,
+			sessionId,
+			provider: record.provider ?? persisted?.provider ?? "",
+			model: record.model ?? persisted?.model ?? "",
+			cwd: record.cwd ?? persisted?.cwd ?? "",
+			workspaceRoot:
+				record.workspaceRoot ??
+				persisted?.workspaceRoot ??
+				persisted?.cwd ??
+				"",
+			prompt: record.prompt ?? persisted?.prompt ?? metadata?.prompt,
+			parentSessionId:
+				record.parentSessionId ??
+				persisted?.parentSessionId ??
+				metadata?.parentSessionId,
+			parentAgentId:
+				record.parentAgentId ??
+				persisted?.parentAgentId ??
+				metadata?.parentAgentId,
+			agentId: record.agentId ?? persisted?.agentId ?? metadata?.agentId,
+			conversationId:
+				record.conversationId ??
+				persisted?.conversationId ??
+				metadata?.conversationId,
+			isSubagent: record.isSubagent ?? persisted?.isSubagent ?? false,
+			startedAt: record.startedAt ?? persisted?.startedAt ?? record.createdAt,
+			updatedAt: record.updatedAt ?? persisted?.updatedAt,
+			metadata: {
+				...((persisted?.metadata && typeof persisted.metadata === "object"
+					? persisted.metadata
+					: {}) as JsonRecord),
+				...(metadata ?? {}),
+			},
+		};
+	};
+
+	if (ctx.hubClient) {
+		try {
+			const reply = await ctx.hubClient.command("session.list", { limit: max });
+			const sessions = Array.isArray(reply.payload?.sessions)
+				? reply.payload.sessions
+				: [];
+			for (const item of sessions) {
+				if (!item || typeof item !== "object") continue;
+				const record = item as JsonRecord;
+				const sessionId = String(record.sessionId ?? "").trim();
+				if (sessionId)
+					byId.set(sessionId, mergeSessionRecord(sessionId, record));
+			}
+		} catch {
+			// Fall through to the local SQLite index.
+		}
 	}
+
+	if (byId.size === 0) {
+		for (const session of store.list(max)) {
+			byId.set(session.sessionId, session as unknown as JsonRecord);
+		}
+	}
+
+	for (const [sessionId, session] of ctx.liveSessions.entries()) {
+		const existing = byId.get(sessionId);
+		byId.set(sessionId, {
+			...(existing ?? {}),
+			sessionId,
+			status: session.status,
+			provider: session.config.provider ?? existing?.provider ?? "",
+			model: session.config.model ?? existing?.model ?? "",
+			cwd: session.config.cwd ?? existing?.cwd ?? "",
+			workspaceRoot:
+				session.config.workspaceRoot ??
+				existing?.workspaceRoot ??
+				existing?.cwd ??
+				"",
+			prompt: session.prompt ?? existing?.prompt,
+			startedAt:
+				existing?.startedAt ?? new Date(session.startedAt).toISOString(),
+			endedAt:
+				session.endedAt !== undefined
+					? new Date(session.endedAt).toISOString()
+					: existing?.endedAt,
+			metadata: {
+				...((existing?.metadata && typeof existing.metadata === "object"
+					? existing.metadata
+					: {}) as JsonRecord),
+				...(session.title ? { title: session.title } : {}),
+			},
+		});
+	}
+
+	return Array.from(byId.values())
+		.sort((left, right) => {
+			const leftTime = Date.parse(
+				String(left.updatedAt ?? left.startedAt ?? ""),
+			);
+			const rightTime = Date.parse(
+				String(right.updatedAt ?? right.startedAt ?? ""),
+			);
+			return (
+				(Number.isNaN(rightTime) ? 0 : rightTime) -
+				(Number.isNaN(leftTime) ? 0 : leftTime)
+			);
+		})
+		.slice(0, max);
 }
 
 // ---------------------------------------------------------------------------

@@ -167,10 +167,10 @@ export async function runHistoryList(input: {
 	};
 	const limit = Number.isFinite(input.limit) ? input.limit : 200;
 
-	const hydratedRows = await listSessions(limit, {
+	const rows = await listSessions(limit, {
 		workspaceRoot: input.workspaceRoot,
 	});
-	if (hydratedRows.length === 0) {
+	if (rows.length === 0) {
 		if (input.outputMode === "json") {
 			process.stdout.write(JSON.stringify([]));
 		} else {
@@ -180,14 +180,14 @@ export async function runHistoryList(input: {
 	}
 
 	if (input.outputMode === "json") {
-		process.stdout.write(JSON.stringify(hydratedRows));
+		process.stdout.write(JSON.stringify(rows));
 		return 0;
 	}
 
 	disableOpenTuiGraphicsProbe();
 	const { renderHistoryStandalone } = await import("../tui/history-standalone");
 	return await renderHistoryStandalone({
-		rows: hydratedRows,
+		rows,
 		onExport: async (sessionId: string) =>
 			await exportHistorySession(sessionId, undefined),
 	});

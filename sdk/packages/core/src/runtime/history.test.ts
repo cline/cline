@@ -202,6 +202,34 @@ describe("session history", () => {
 		expect(readMessages).not.toHaveBeenCalled();
 	});
 
+	it("can list lightweight history without hydrating messages", async () => {
+		const list = vi.fn().mockResolvedValue([
+			createRow({
+				sessionId: "sess_lightweight",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				metadata: { title: "stored title" },
+			}),
+		]);
+		const readMessages = vi.fn();
+
+		const rows = await listSessionHistory(
+			{ list, readMessages },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(list).toHaveBeenCalledWith(10);
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(rows).toEqual([
+			expect.objectContaining({
+				sessionId: "sess_lightweight",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				metadata: expect.objectContaining({ title: "stored title" }),
+			}),
+		]);
+	});
+
 	it("merges manifest fallback rows when the backend list is short", async () => {
 		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
 		process.env.CLINE_SESSION_DATA_DIR = tempSessionDataDir;

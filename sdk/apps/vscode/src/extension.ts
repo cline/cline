@@ -137,14 +137,6 @@ type ProviderListItem = {
 	defaultModelId?: string;
 };
 
-type HubSessionRecord = {
-	sessionId: string;
-	status?: string;
-	workspaceRoot?: string;
-	updatedAt?: number;
-	metadata?: Record<string, unknown>;
-};
-
 type HubEventEnvelope = {
 	event: string;
 	sessionId?: string;
@@ -175,6 +167,16 @@ function stringifyContent(value: unknown): string {
 	} catch {
 		return String(value);
 	}
+}
+
+function parseSessionTimestamp(value: unknown): number | undefined {
+	const timestamp =
+		typeof value === "number"
+			? value
+			: typeof value === "string"
+				? Date.parse(value)
+				: Number.NaN;
+	return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
 function mapPersistedMessagesToWebviewMessages(
@@ -736,14 +738,13 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async refreshSessions(): Promise<void> {
-		if (!this.hubClient) {
-			return;
-		}
-		const reply = await this.hubClient.command("session.list");
-		const sessions = (
-			(reply.payload?.sessions as HubSessionRecord[] | undefined) ?? []
-		)
-			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+		const host = await this.getSessionHost();
+		const sessions = (await host.list(200, { hydrate: false }))
+			.sort(
+				(a, b) =>
+					(parseSessionTimestamp(b.updatedAt) ?? 0) -
+					(parseSessionTimestamp(a.updatedAt) ?? 0),
+			)
 			.map(
 				(session): WebviewSessionSummary => ({
 					sessionId: session.sessionId,
@@ -753,7 +754,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 							: undefined,
 					status: session.status,
 					workspaceRoot: session.workspaceRoot,
-					updatedAt: session.updatedAt,
+					updatedAt: parseSessionTimestamp(session.updatedAt),
 				}),
 			);
 		await this.post({ type: "sessions", sessions });

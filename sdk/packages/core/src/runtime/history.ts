@@ -15,6 +15,7 @@ import type { RuntimeHost } from "./runtime-host";
 export interface SessionHistoryListOptions {
 	limit?: number;
 	includeManifestFallback?: boolean;
+	hydrate?: boolean;
 }
 
 type StoredSessionMessage = LlmsProviders.Message & {
@@ -366,5 +367,8 @@ export async function listSessionHistory(
 			: Array.from(merged.values())
 					.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
 					.slice(0, limit);
+	if (options.hydrate === false) {
+		return rows.map((row) => normalizeHistoryRow(row));
+	}
 	return await hydrateSessionHistory(host, rows);
 }

@@ -226,6 +226,7 @@ describe("createCliCore", () => {
 		expect(listHistory).toHaveBeenCalledWith({
 			limit: 25,
 			includeManifestFallback: true,
+			hydrate: false,
 		});
 		expect(dispose).toHaveBeenCalledWith("cli_session_helper_dispose");
 		expect(rows).toEqual([

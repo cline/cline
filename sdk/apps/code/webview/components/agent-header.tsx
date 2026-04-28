@@ -77,10 +77,7 @@ export function AgentHeader({
 		}
 	};
 
-	const triggerDeleteSession = () => {
-		console.error("[webview:delete] menu click");
-		onDeleteSession?.();
-	};
+	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
 		<header className="flex h-12 items-center justify-between border-b border-border bg-card px-4">

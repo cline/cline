@@ -88,13 +88,14 @@ async function withCliCore<T>(
 
 export async function listSessions(
 	limit = 200,
-	options?: { workspaceRoot?: string },
+	options?: { workspaceRoot?: string; hydrate?: boolean },
 ): Promise<SessionHistoryRecord[]> {
 	const rows = await withCliCore(
 		async (core) =>
 			await core.listHistory({
 				limit,
 				includeManifestFallback: true,
+				hydrate: options?.hydrate ?? false,
 			}),
 		{
 			forceLocalBackend: true,
@@ -149,7 +150,7 @@ export async function getSessionRow(
 export async function getLatestSessionRow(): Promise<unknown | undefined> {
 	return await withCliCore(
 		async (core) => {
-			const rows = await core.list(1);
+			const rows = await core.list(1, { hydrate: false });
 			return toSessionRecordLike(rows[0]);
 		},
 		{ forceLocalBackend: true },

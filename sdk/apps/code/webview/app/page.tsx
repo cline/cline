@@ -667,15 +667,9 @@ function ChatThreadPane({
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 
 	const requestDeleteSession = useCallback(() => {
-		console.error(
-			`[webview:delete] handler activeSessionToDelete=${activeSessionToDelete ?? "null"} deletingSession=${deletingSession}`,
-		);
 		if (!activeSessionToDelete || deletingSession) {
 			return;
 		}
-		console.error(
-			`[webview:delete] confirm sessionId=${activeSessionToDelete}`,
-		);
 		setDeleteConfirmOpen(true);
 	}, [activeSessionToDelete, deletingSession]);
 

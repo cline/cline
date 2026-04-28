@@ -911,8 +911,11 @@ export class ClineCore implements RuntimeHost {
 	 * });
 	 * ```
 	 */
-	list: RuntimeHost["list"] = async (limit = 200) =>
-		await this.listHistory({ limit });
+	list = async (
+		limit = 200,
+		options: Omit<ClineCoreListHistoryOptions, "limit"> = {},
+	): Promise<SessionHistoryRecord[]> =>
+		await this.listHistory({ ...options, limit });
 	/**
 	 * Permanently deletes a session and all its associated data.
 	 *
