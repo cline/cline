@@ -1,4 +1,5 @@
-import { createContextCompactionPrepareTurn, type Llms } from "@clinebot/core";
+import { createContextCompactionPrepareTurn } from "@clinebot/core";
+import type { Message } from "@clinebot/shared";
 import type { Config } from "../../utils/types";
 
 const FALLBACK_MANUAL_COMPACTION_CONTEXT_WINDOW_TOKENS = 64_000;
@@ -7,8 +8,8 @@ const MANUAL_COMPACTION_THRESHOLD_RATIO = 0.5;
 export async function compactInteractiveMessages(input: {
 	config: Config;
 	sessionId: string;
-	messages: Llms.Message[];
-}): Promise<Llms.Message[]> {
+	messages: Message[];
+}): Promise<Message[]> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
 	const contextWindowTokens =
 		input.config.compaction?.contextWindowTokens ??

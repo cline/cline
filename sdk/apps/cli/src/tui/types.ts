@@ -1,5 +1,9 @@
-import type { AgentEvent, AgentMode, Llms, TeamEvent } from "@clinebot/core";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
+import type { AgentEvent, AgentMode, TeamEvent } from "@clinebot/core";
+import type {
+	Message,
+	ToolApprovalRequest,
+	ToolApprovalResult,
+} from "@clinebot/shared";
 import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
@@ -70,7 +74,8 @@ export interface TuiProps {
 	config: Config;
 	initialView?: "chat" | "config";
 	initialPrompt?: string;
-	initialMessages?: Llms.Message[];
+	initialMessages?: Message[];
+	loadDeferredInitialMessages?: () => Promise<Message[]>;
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
@@ -102,7 +107,7 @@ export interface TuiProps {
 	onModeChange: (mode: AgentMode) => Promise<void>;
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
-	onResumeSession: (sessionId: string) => Promise<Llms.Message[]>;
+	onResumeSession: (sessionId: string) => Promise<Message[]>;
 	onCompact: () => Promise<{ messagesBefore: number; messagesAfter: number }>;
 	onFork: () => Promise<
 		{ forkedFromSessionId: string; newSessionId: string } | undefined

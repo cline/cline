@@ -199,6 +199,57 @@ function App(props: TuiProps) {
 			clearToastTimeout();
 		};
 	}, [clearToastTimeout]);
+	const {
+		appendEntry: appendSessionEntry,
+		replaceEntries: replaceSessionEntries,
+		setHasSubmitted: setSessionHasSubmitted,
+	} = session;
+	const deferredHydrationGuardRef = useRef({
+		hasSubmitted: session.hasSubmitted,
+		entryCount: session.entries.length,
+	});
+	deferredHydrationGuardRef.current = {
+		hasSubmitted: session.hasSubmitted,
+		entryCount: session.entries.length,
+	};
+
+	useEffect(() => {
+		const loadDeferredInitialMessages = props.loadDeferredInitialMessages;
+		if (!loadDeferredInitialMessages) {
+			return;
+		}
+		let cancelled = false;
+		loadDeferredInitialMessages()
+			.then((messages) => {
+				if (cancelled || messages.length === 0) {
+					return;
+				}
+				const currentSession = deferredHydrationGuardRef.current;
+				if (currentSession.hasSubmitted || currentSession.entryCount > 0) {
+					return;
+				}
+				replaceSessionEntries(hydrateSessionMessages(messages));
+				setSessionHasSubmitted(true);
+				setAppView("chat");
+			})
+			.catch((error) => {
+				if (cancelled) {
+					return;
+				}
+				appendSessionEntry({
+					kind: "error",
+					text: error instanceof Error ? error.message : String(error),
+				});
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		props.loadDeferredInitialMessages,
+		appendSessionEntry,
+		replaceSessionEntries,
+		setSessionHasSubmitted,
+	]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
 	useEffect(() => {

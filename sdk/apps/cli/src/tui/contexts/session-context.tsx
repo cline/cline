@@ -39,6 +39,7 @@ interface SessionContextValue {
 	toggleAutoApprove: () => void;
 	requestExit: () => void;
 	clearEntries: () => void;
+	replaceEntries: (entries: ChatEntry[]) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -178,6 +179,14 @@ export function SessionProvider(props: {
 		setLastTotalCost(0);
 	}, []);
 
+	const replaceEntries = useCallback((nextEntries: ChatEntry[]) => {
+		setEntries(
+			nextEntries.length > MAX_BUFFERED_LINES
+				? nextEntries.slice(nextEntries.length - MAX_BUFFERED_LINES)
+				: nextEntries,
+		);
+	}, []);
+
 	const value: SessionContextValue = {
 		entries,
 		isRunning,
@@ -205,6 +214,7 @@ export function SessionProvider(props: {
 		toggleAutoApprove,
 		requestExit,
 		clearEntries,
+		replaceEntries,
 	};
 
 	return (

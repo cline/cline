@@ -8,6 +8,7 @@ import type {
 	SessionManifest,
 	ToolPolicy,
 } from "@clinebot/core";
+import type { Message } from "@clinebot/shared";
 
 export type CliOutputMode = "text" | "json";
 export type CliAgentMode = AgentMode;
@@ -39,7 +40,7 @@ export interface ActiveCliSession {
 export interface StoredApiMessages {
 	version: 1;
 	updated_at: string;
-	messages: Llms.Message[];
+	messages: Message[];
 }
 
 export interface SessionDbRow {

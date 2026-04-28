@@ -1,13 +1,11 @@
 import {
-	type Llms,
 	type ProviderSettings,
 	ProviderSettingsManager,
 	prewarmFileIndex,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
-
+import type { Message } from "@clinebot/shared";
 import { logCliError } from "../logging/errors";
-
 import {
 	loadClineAccountSnapshot,
 	switchClineAccount,
@@ -211,22 +209,25 @@ export async function runInteractive(
 	setActiveRuntimeCleanup(() => {
 		tuiApp?.destroy();
 	});
-	let initialMessages: Llms.Message[] | undefined;
 	let startupErrorReported = false;
-	if (resumeSessionId?.trim()) {
-		await sessionRuntime.ensureReady().catch((error) => {
-			startupErrorReported = true;
-			logCliError(config.logger, "Interactive startup failed", { error });
-			writeErr(error instanceof Error ? error.message : String(error));
-		});
-		initialMessages = await sessionRuntime.readCurrentMessages();
-	}
+	const loadDeferredInitialMessages = resumeSessionId?.trim()
+		? async (): Promise<Message[]> => {
+				try {
+					await sessionRuntime.ensureReady();
+					return await sessionRuntime.readCurrentMessages();
+				} catch (error) {
+					startupErrorReported = true;
+					logCliError(config.logger, "Interactive startup failed", { error });
+					throw error;
+				}
+			}
+		: undefined;
 
 	tuiApp = await renderOpenTui({
 		config,
 		initialView: options?.initialView,
 		initialPrompt: options?.initialPrompt,
-		initialMessages,
+		loadDeferredInitialMessages,
 		initialRepoStatus,
 		workflowSlashCommands,
 		loadAdditionalSlashCommands,
@@ -425,16 +426,19 @@ export async function runInteractive(
 		},
 	});
 
-	void sessionRuntime.ensureReady().catch((error) => {
-		if (sessionRuntime.isShutdownRequested()) {
-			return;
-		}
-		if (!startupErrorReported) {
-			logCliError(config.logger, "Interactive startup failed", { error });
-			writeErr(error instanceof Error ? error.message : String(error));
-		}
-		tuiApp?.destroy();
-	});
+	if (!loadDeferredInitialMessages) {
+		setTimeout(() => {
+			void sessionRuntime.ensureReady().catch((error) => {
+				if (sessionRuntime.isShutdownRequested() || startupErrorReported) {
+					return;
+				}
+				startupErrorReported = true;
+				logCliError(config.logger, "Interactive startup failed", { error });
+				writeErr(error instanceof Error ? error.message : String(error));
+				tuiApp?.destroy();
+			});
+		}, 0);
+	}
 
 	try {
 		await tuiApp.waitUntilExit();

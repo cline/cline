@@ -28,6 +28,7 @@ import {
 	ProviderSettingsManager,
 	SessionSource,
 } from "@clinebot/core";
+import type { Message } from "@clinebot/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
@@ -69,7 +70,7 @@ interface SessionState {
 	/** Unsubscribe function for the agent event listener. */
 	unsubscribe?: () => void;
 	/** Messages to inject into the next session manager for conversation continuity. */
-	pendingInitialMessages?: Llms.Message[];
+	pendingInitialMessages?: Message[];
 }
 
 export class AcpAgent implements Agent {

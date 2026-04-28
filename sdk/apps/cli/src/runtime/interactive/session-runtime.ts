@@ -1,12 +1,12 @@
 import {
 	type AgentEvent,
-	type Llms,
 	SessionSource,
 	type TeamEvent,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
+import type { Message } from "@clinebot/shared";
 import { createCliCore } from "../../session/session";
 import { submitAndExitInTerminal } from "../../utils/approval";
 import type {
@@ -80,7 +80,16 @@ export function createInteractiveSessionRuntime(input: {
 			return sessionManager;
 		}
 		const manager = await createCliCore({
-			backendMode: "hub",
+			// Interactive startup must never wait for a detached hub daemon to boot.
+			// `auto` uses an already-compatible hub when one is immediately available,
+			// but falls back to the local runtime while the hub is prewarmed in the
+			// background. Forcing `hub` here routes through `ensureCompatibleLocalHubUrl`,
+			// which can poll for up to the hub startup timeout before the TUI is usable.
+			// Yolo and sandbox modes must stay fully local and must not prewarm or reuse
+			// the shared daemon hub.
+			backendMode: "auto",
+			forceLocalBackend:
+				input.config.mode === "yolo" || input.config.sandbox === true,
 			defaultToolExecutors: {
 				askQuestion: (question, options) => {
 					if (input.askQuestionRef.current) {
@@ -132,7 +141,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const startFreshSession = async (
-		initial: Llms.Message[] = [],
+		initial: Message[] = [],
 		sessionMetadata?: Record<string, unknown>,
 	): Promise<void> => {
 		const manager = await ensureSessionManager();
@@ -153,7 +162,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const startResumedSession = async (
 		resumeId: string,
-		initial: Llms.Message[] | undefined,
+		initial: Message[] | undefined,
 	): Promise<void> => {
 		const manager = await ensureSessionManager();
 		const started = await manager.start({
@@ -198,7 +207,7 @@ export function createInteractiveSessionRuntime(input: {
 		return await startupPromise;
 	};
 
-	const readCurrentMessages = async (): Promise<Llms.Message[]> => {
+	const readCurrentMessages = async (): Promise<Message[]> => {
 		if (!sessionManager || !activeSessionId) {
 			return [];
 		}
@@ -212,7 +221,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const restartWithMessages = async (
-		messages: Llms.Message[],
+		messages: Message[],
 		sessionMetadata?: Record<string, unknown>,
 	): Promise<void> => {
 		await stopCurrentSession();
@@ -304,7 +313,7 @@ export function createInteractiveSessionRuntime(input: {
 		return { forkedFromSessionId, newSessionId: activeSessionId };
 	};
 
-	const resumeSession = async (sessionId: string): Promise<Llms.Message[]> => {
+	const resumeSession = async (sessionId: string): Promise<Message[]> => {
 		await stopCurrentSession();
 		const manager = await ensureSessionManager();
 		const messages = await loadInteractiveResumeMessages(manager, sessionId);

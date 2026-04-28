@@ -1,9 +1,8 @@
-import type { Llms } from "@clinebot/core";
-import { formatDisplayUserInput } from "@clinebot/shared";
+import { formatDisplayUserInput, type Message } from "@clinebot/shared";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
-type PersistedMessage = Llms.Message & {
+type PersistedMessage = Message & {
 	metadata?: Record<string, unknown>;
 };
 
@@ -28,7 +27,7 @@ function stringifyToolResult(
 		.join("\n");
 }
 
-export function hydrateSessionMessages(messages: Llms.Message[]): ChatEntry[] {
+export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 	const entries: ChatEntry[] = [];
 	const toolUseMap = new Map<string, number>();
 

@@ -143,6 +143,14 @@ Design rules:
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
 8. Hub client adapters exported from `@clinebot/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 
+### Interactive CLI Startup
+
+1. `apps/cli` owns OpenTUI startup and must render the first frame without waiting for detached hub startup.
+2. Interactive sessions use `backendMode: "auto"` so an already-compatible hub can be reused immediately, while a missing hub is only prewarmed in the background and the TUI falls back to a local runtime for responsiveness.
+3. Hub-required flows such as `clite hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
+4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
+5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
+
 ### Enterprise-Managed Runtime
 
 1. Enterprise bootstrap resolves identity through an `IdentityAdapter`.
