@@ -6,6 +6,36 @@ import {
 } from "../../utils/input-history";
 import type { TextareaHandle } from "../components/input-bar";
 
+type HistoryDirection = "up" | "down";
+type HistoryNavigationAction = "navigate" | "move-to-boundary" | "ignore";
+
+export interface HistoryNavigationPosition {
+	direction: HistoryDirection;
+	cursorOffset: number;
+	textLength: number;
+	visualRow: number;
+	height: number;
+	virtualLineCount: number;
+}
+
+export function getHistoryNavigationAction(
+	position: HistoryNavigationPosition,
+): HistoryNavigationAction {
+	if (position.direction === "up") {
+		if (position.cursorOffset <= 0) return "navigate";
+		return position.visualRow === 0 ? "move-to-boundary" : "ignore";
+	}
+
+	if (position.cursorOffset >= position.textLength) return "navigate";
+
+	const visibleLineCount = Math.max(
+		1,
+		Math.min(position.height, Math.max(1, position.virtualLineCount)),
+	);
+	const bottomVisualRow = visibleLineCount - 1;
+	return position.visualRow >= bottomVisualRow ? "move-to-boundary" : "ignore";
+}
+
 export function useInputHistory(
 	textareaRef: React.MutableRefObject<TextareaHandle | null>,
 ) {
@@ -17,10 +47,28 @@ export function useInputHistory(
 	historyRef.current = history;
 
 	const navigateHistory = useCallback(
-		(direction: "up" | "down", currentInput: string) => {
+		(direction: HistoryDirection, currentInput: string) => {
 			const ta = textareaRef.current;
 			const entries = historyRef.current;
-			if (!ta || entries.length === 0) return false;
+			if (!ta) return false;
+
+			const action = getHistoryNavigationAction({
+				direction,
+				cursorOffset: ta.cursorOffset,
+				textLength: ta.plainText.length,
+				visualRow: ta.visualCursor.visualRow,
+				height: ta.height,
+				virtualLineCount: ta.virtualLineCount,
+			});
+
+			if (action === "ignore") return false;
+
+			if (action === "move-to-boundary") {
+				ta.cursorOffset = direction === "up" ? 0 : ta.plainText.length;
+				return true;
+			}
+
+			if (entries.length === 0) return false;
 
 			if (indexRef.current === -1) {
 				if (direction === "down") return false;
@@ -48,7 +96,7 @@ export function useInputHistory(
 
 			pendingHistoryTextRef.current = text;
 			ta.setText(text);
-			ta.cursorOffset = text.length;
+			ta.cursorOffset = direction === "up" ? 0 : text.length;
 			return true;
 		},
 		[textareaRef],

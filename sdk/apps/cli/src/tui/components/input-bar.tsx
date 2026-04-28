@@ -1,9 +1,9 @@
 import {
 	decodePasteBytes,
-	type ExtmarksController,
 	type KeyEvent,
 	type PasteEvent,
 	stripAnsiSequences,
+	type TextareaRenderable,
 } from "@opentui/core";
 import { useCallback, useRef } from "react";
 import {
@@ -13,15 +13,19 @@ import {
 } from "../utils/image-paste";
 import { shouldCompactPastedText } from "../utils/pasted-snippets";
 
-export interface TextareaHandle {
-	plainText: string;
-	onSubmit: (() => void) | null;
-	setText(text: string): void;
-	insertText(text: string): void;
-	cursorOffset: number;
-	extmarks: ExtmarksController;
-	getSelection(): { start: number; end: number } | null;
-}
+export type TextareaHandle = Pick<
+	TextareaRenderable,
+	| "plainText"
+	| "onSubmit"
+	| "setText"
+	| "insertText"
+	| "cursorOffset"
+	| "visualCursor"
+	| "height"
+	| "virtualLineCount"
+	| "extmarks"
+	| "getSelection"
+>;
 
 export interface InputBarProps {
 	accent: string;
