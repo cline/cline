@@ -23,6 +23,7 @@ import { useQueuedPrompts } from "./hooks/use-queued-prompts";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
 import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
+import { TerminalColorsContext } from "./hooks/use-terminal-background";
 import type { AppView, TuiProps } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
@@ -414,22 +415,36 @@ function App(props: TuiProps) {
 	);
 }
 
-export function Root(props: TuiProps) {
+export function Root(
+	props: TuiProps & {
+		terminalBackground?: string | null;
+		terminalForeground?: string | null;
+	},
+) {
 	const initialEntries = useMemo(
 		() => hydrateSessionMessages(props.initialMessages ?? []),
 		[props.initialMessages],
 	);
+	const terminalColors = useMemo(
+		() => ({
+			background: props.terminalBackground ?? null,
+			foreground: props.terminalForeground ?? null,
+		}),
+		[props.terminalBackground, props.terminalForeground],
+	);
 	return (
-		<DialogProvider size="medium">
-			<SessionProvider
-				config={props.config}
-				initialEntries={initialEntries}
-				onRunningChange={props.onRunningChange}
-				onAutoApproveChange={props.onAutoApproveChange}
-				onExit={props.onExit}
-			>
-				<App {...props} />
-			</SessionProvider>
-		</DialogProvider>
+		<TerminalColorsContext value={terminalColors}>
+			<DialogProvider size="medium">
+				<SessionProvider
+					config={props.config}
+					initialEntries={initialEntries}
+					onRunningChange={props.onRunningChange}
+					onAutoApproveChange={props.onAutoApproveChange}
+					onExit={props.onExit}
+				>
+					<App {...props} />
+				</SessionProvider>
+			</DialogProvider>
+		</TerminalColorsContext>
 	);
 }

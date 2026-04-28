@@ -2,7 +2,12 @@ import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
-import { palette } from "../palette";
+import { useTerminalBackground } from "../hooks/use-terminal-background";
+import {
+	getDefaultForeground,
+	getModeInputBackground,
+	palette,
+} from "../palette";
 import type { ChatEntry } from "../types";
 import { getSyntaxStyle } from "../utils/syntax-style";
 import {
@@ -189,6 +194,7 @@ function ToolCallView(props: {
 	inputSummary: string;
 	rawInput?: unknown;
 	accent?: string;
+	defaultFg?: string;
 	streaming: boolean;
 	result?: {
 		outputSummary: string;
@@ -202,6 +208,7 @@ function ToolCallView(props: {
 		streaming,
 		result,
 		accent = palette.act,
+		defaultFg,
 	} = props;
 	const failed = result?.error != null;
 	const params = formatToolParams(toolName, props.rawInput, inputSummary);
@@ -218,7 +225,7 @@ function ToolCallView(props: {
 						<text fg={accent}>*</text>
 					)}
 				</box>
-				<text selectable>
+				<text fg={defaultFg} selectable>
 					<span fg={accent}>
 						<strong>{toolName}</strong>
 					</span>
@@ -246,23 +253,47 @@ function ToolCallView(props: {
 
 export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 	const { entry, accent = palette.act } = props;
+	const terminalBg = useTerminalBackground();
+	const defaultFg = getDefaultForeground(terminalBg);
+	const userMsgBg = getModeInputBackground(
+		accent === palette.plan ? "plan" : "act",
+		terminalBg,
+	);
 
 	switch (entry.kind) {
 		case "user":
 			return (
-				<box flexDirection="row">
+				<box
+					flexDirection="row"
+					backgroundColor={userMsgBg}
+					marginX={-1}
+					paddingLeft={1}
+					paddingRight={2}
+					paddingY={1}
+				>
 					<text fg={accent}>{">"} </text>
-					<text selectable>{entry.text}</text>
+					<text fg={defaultFg} selectable>
+						{entry.text}
+					</text>
 				</box>
 			);
 
 		case "user_submitted":
 			return (
-				<box flexDirection="row">
+				<box
+					flexDirection="row"
+					backgroundColor={userMsgBg}
+					marginX={-1}
+					paddingLeft={1}
+					paddingRight={2}
+					paddingY={1}
+				>
 					<text fg={accent}>{">"} </text>
 					{entry.delivery === "steer" && <text fg="yellow">[steer] </text>}
 					{entry.delivery === "queue" && <text fg="gray">[queued] </text>}
-					<text selectable>{entry.text}</text>
+					<text fg={defaultFg} selectable>
+						{entry.text}
+					</text>
 				</box>
 			);
 
@@ -283,6 +314,7 @@ export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 							content={content}
 							syntaxStyle={getSyntaxStyle()}
 							streaming={entry.streaming}
+							fg={defaultFg}
 						/>
 					</box>
 				</box>
@@ -301,6 +333,7 @@ export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 					streaming={entry.streaming}
 					result={entry.result}
 					accent={accent}
+					defaultFg={defaultFg}
 				/>
 			);
 

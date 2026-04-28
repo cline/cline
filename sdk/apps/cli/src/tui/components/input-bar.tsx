@@ -25,6 +25,9 @@ export interface TextareaHandle {
 
 export interface InputBarProps {
 	accent: string;
+	inputBackground: string;
+	inputForeground: string;
+	inputPlaceholder: string;
 	placeholder: string;
 	initialValue: string;
 	inputKey: number;
@@ -49,6 +52,9 @@ function readTextPaste(event: PasteEvent): string | null {
 export function InputBar(props: InputBarProps) {
 	const {
 		accent,
+		inputBackground,
+		inputForeground,
+		inputPlaceholder,
 		placeholder,
 		initialValue,
 		inputKey,
@@ -166,7 +172,17 @@ export function InputBar(props: InputBarProps) {
 	);
 
 	return (
-		<box border borderStyle="rounded" borderColor={accent} paddingX={1}>
+		<box
+			flexDirection="row"
+			gap={1}
+			alignItems="flex-start"
+			backgroundColor={inputBackground}
+			paddingX={2}
+			paddingY={1}
+		>
+			<text fg={accent}>
+				<strong>{">"}</strong>
+			</text>
 			<textarea
 				key={inputKey}
 				ref={textareaRefCallback as React.RefCallback<never>}
@@ -180,6 +196,9 @@ export function InputBar(props: InputBarProps) {
 				onPaste={handlePaste}
 				onKeyDown={handleKeyDown}
 				placeholder={placeholder}
+				placeholderColor={inputPlaceholder}
+				textColor={inputForeground}
+				focusedTextColor={inputForeground}
 				focused
 				flexGrow={1}
 				cursorColor={accent}

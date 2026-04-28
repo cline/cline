@@ -13,10 +13,16 @@ import {
 	TrackedRobot,
 	type useMouseTracker,
 } from "../../components/tracked-robot";
-import { palette } from "../../palette";
+import { useTerminalBackground } from "../../hooks/use-terminal-background";
+import { getDefaultForeground, palette } from "../../palette";
 import { MAIN_MENU, THINKING_LEVELS } from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
+
+function useDefaultFg(): string | undefined {
+	const terminalBg = useTerminalBackground();
+	return getDefaultForeground(terminalBg);
+}
 
 interface OnboardingFrameProps {
 	children: ReactNode;
@@ -80,6 +86,7 @@ export function OnboardingOAuthPendingScreen(props: {
 	mouse: MouseTrackerState;
 	oauthProvider: string;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -87,7 +94,7 @@ export function OnboardingOAuthPendingScreen(props: {
 			mouse={props.mouse}
 		>
 			<box flexDirection="column" alignItems="center" gap={1}>
-				<text>Signing in with {props.label}</text>
+				<text fg={defaultFg}>Signing in with {props.label}</text>
 
 				{!props.authError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
@@ -144,6 +151,7 @@ export function OnboardingDeviceCodeScreen(props: {
 	label: string;
 	mouse: MouseTrackerState;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -151,7 +159,7 @@ export function OnboardingDeviceCodeScreen(props: {
 			mouse={props.mouse}
 		>
 			<box flexDirection="column" alignItems="center" gap={1}>
-				<text>Signing in with {props.label}</text>
+				<text fg={defaultFg}>Signing in with {props.label}</text>
 
 				{!props.deviceUserCode && !props.deviceError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
@@ -180,7 +188,7 @@ export function OnboardingDeviceCodeScreen(props: {
 						gap={1}
 					>
 						<text fg="gray">Your code:</text>
-						<text fg="white" selectable>
+						<text fg={defaultFg} selectable>
 							<strong>{props.deviceUserCode}</strong>
 						</text>
 						<text fg="gray" marginTop={1}>
@@ -217,6 +225,7 @@ export function OnboardingApiKeyScreen(props: {
 	onApiKeyInput: (value: string) => void;
 	onSubmit: () => void;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -224,7 +233,7 @@ export function OnboardingApiKeyScreen(props: {
 			mouse={props.mouse}
 		>
 			<box flexDirection="column" gap={1} alignItems="center">
-				<text>{props.activeProviderName} API Key</text>
+				<text fg={defaultFg}>{props.activeProviderName} API Key</text>
 
 				<box
 					border
@@ -238,6 +247,9 @@ export function OnboardingApiKeyScreen(props: {
 						onInput={props.onApiKeyInput}
 						onSubmit={props.onSubmit}
 						placeholder="Paste your API key here..."
+						textColor={defaultFg}
+						focusedTextColor={defaultFg}
+						cursorColor={defaultFg}
 						focused
 						flexGrow={1}
 					/>
@@ -260,13 +272,16 @@ export function OnboardingProviderPickerScreen(props: {
 	providerList: SearchableListState;
 	providersLoading: boolean;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
 			contentWidth={props.contentWidth}
 			mouse={props.mouse}
 		>
-			<text paddingX={1}>Choose a provider</text>
+			<text fg={defaultFg} paddingX={1}>
+				Choose a provider
+			</text>
 
 			{props.providersLoading ? (
 				<box flexDirection="row" gap={1} paddingX={1}>
@@ -302,13 +317,14 @@ export function OnboardingClineModelScreen(props: {
 	mouse: MouseTrackerState;
 	recommendedLoading: boolean;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
 			contentWidth={props.contentWidth}
 			mouse={props.mouse}
 		>
-			<text paddingX={1}>
+			<text fg={defaultFg} paddingX={1}>
 				<strong>Choose a model</strong>
 			</text>
 			<text fg="gray" paddingX={1}>
@@ -338,13 +354,14 @@ export function OnboardingModelPickerScreen(props: {
 	modelsLoading: boolean;
 	mouse: MouseTrackerState;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
 			contentWidth={props.contentWidth}
 			mouse={props.mouse}
 		>
-			<text paddingX={1}>
+			<text fg={defaultFg} paddingX={1}>
 				<strong>Choose a model for {props.activeProviderName}</strong>
 			</text>
 			<text fg="gray" paddingX={1}>
@@ -387,13 +404,16 @@ export function OnboardingThinkingLevelScreen(props: {
 	selectedModelName: string;
 	thinkingSelected: number;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<OnboardingFrame
 			compact={props.compact}
 			contentWidth={props.contentWidth}
 			mouse={props.mouse}
 		>
-			<text paddingX={1}>Thinking level for {props.selectedModelName}</text>
+			<text fg={defaultFg} paddingX={1}>
+				Thinking level for {props.selectedModelName}
+			</text>
 			<text fg="gray" paddingX={1}>
 				Extended thinking lets the model reason through complex problems
 			</text>
@@ -416,7 +436,7 @@ export function OnboardingThinkingLevelScreen(props: {
 							>
 								{isSel ? "\u276f" : " "}
 							</text>
-							<text fg={isSel ? palette.textOnSelection : undefined}>
+							<text fg={isSel ? palette.textOnSelection : defaultFg}>
 								{level.label}
 							</text>
 							<text fg={isSel ? palette.textOnSelection : "gray"}>
@@ -439,6 +459,7 @@ export function OnboardingMainMenuScreen(props: {
 	menuSelected: number;
 	mouse: MouseTrackerState;
 }) {
+	const defaultFg = useDefaultFg();
 	return (
 		<box
 			flexDirection="column"
@@ -459,7 +480,7 @@ export function OnboardingMainMenuScreen(props: {
 				alignItems="center"
 				marginTop={1}
 			>
-				<text>
+				<text fg={defaultFg}>
 					<strong>Welcome to Cline</strong>
 				</text>
 				<text fg="gray" marginTop={1}>
@@ -490,7 +511,7 @@ export function OnboardingMainMenuScreen(props: {
 								{option.icon}
 							</text>
 							<box flexDirection="column" flexGrow={1}>
-								<text fg={isSel ? "white" : "gray"}>{option.label}</text>
+								<text fg={isSel ? defaultFg : "gray"}>{option.label}</text>
 								<text fg={isSel ? "gray" : "#555555"}>{option.detail}</text>
 							</box>
 							{isSel && (

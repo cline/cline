@@ -1,6 +1,7 @@
 import type { AgentMode } from "@clinebot/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { palette } from "../palette";
+import { useTerminalBackground } from "../hooks/use-terminal-background";
+import { getDefaultForeground, palette } from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 
 function createContextBar(
@@ -104,6 +105,8 @@ export function StatusBar(props: StatusBarProps) {
 	} = props;
 
 	const { width } = useTerminalDimensions();
+	const terminalBg = useTerminalBackground();
+	const defaultFg = getDefaultForeground(terminalBg);
 	const bar = createContextBar(totalTokens, contextWindow);
 
 	// Available content width after accounting for padding.
@@ -168,7 +171,7 @@ export function StatusBar(props: StatusBarProps) {
 
 			{!firstRowFits && <text fg="gray">{contextText.trimStart()}</text>}
 
-			<text>
+			<text fg={defaultFg}>
 				{truncatedPath}
 				{hasGitDiff && (
 					<span fg="gray">
@@ -182,7 +185,7 @@ export function StatusBar(props: StatusBarProps) {
 			</text>
 
 			{autoApproveAll ? (
-				<text>
+				<text fg={defaultFg}>
 					<span fg={palette.success}>
 						{"\u23f5\u23f5"} Auto-approve all enabled
 					</span>

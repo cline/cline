@@ -12,7 +12,14 @@ import {
 } from "../components/status-bar";
 import { TrackedRobot, useMouseTracker } from "../components/tracked-robot";
 import { useSession } from "../contexts/session-context";
-import { getModeAccent } from "../palette";
+import { useTerminalBackground } from "../hooks/use-terminal-background";
+import {
+	getDefaultForeground,
+	getModeAccent,
+	getModeInputBackground,
+	getModeInputForeground,
+	getModeInputPlaceholder,
+} from "../palette";
 import { HOME_VIEW_MAX_WIDTH, type TuiProps } from "../types";
 
 export function HomeView(props: {
@@ -49,7 +56,12 @@ export function HomeView(props: {
 	const { width } = useTerminalDimensions();
 	const mouse = useMouseTracker();
 
+	const terminalBg = useTerminalBackground();
+	const defaultFg = getDefaultForeground(terminalBg);
 	const accent = getModeAccent(session.uiMode);
+	const inputBackground = getModeInputBackground(session.uiMode, terminalBg);
+	const inputForeground = getModeInputForeground(session.uiMode, terminalBg);
+	const inputPlaceholder = getModeInputPlaceholder(session.uiMode, terminalBg);
 	const placeholder =
 		session.uiMode === "plan" ? "Plan something..." : "What can I do for you?";
 	const modelDisplayName = resolveModelDisplayName(config);
@@ -68,7 +80,7 @@ export function HomeView(props: {
 		>
 			<TrackedRobot cursorX={mouse.cursor.x} cursorY={mouse.cursor.y} />
 			<box marginTop={1} marginBottom={1} flexShrink={0}>
-				<text>
+				<text fg={defaultFg}>
 					<strong>What can I do for you?</strong>
 				</text>
 			</box>
@@ -85,6 +97,9 @@ export function HomeView(props: {
 			>
 				<InputBar
 					accent={accent}
+					inputBackground={inputBackground}
+					inputForeground={inputForeground}
+					inputPlaceholder={inputPlaceholder}
 					placeholder={placeholder}
 					initialValue={inputValue}
 					inputKey={inputKey}
@@ -95,28 +110,34 @@ export function HomeView(props: {
 					textareaRef={props.textareaRef}
 				/>
 
-				<box flexDirection="column" height={DROPDOWN_MAX_HEIGHT}>
+				<box flexDirection="column" height={DROPDOWN_MAX_HEIGHT + 1}>
 					{hasAutocomplete && props.autocomplete ? (
-						<AutocompleteDropdown {...props.autocomplete} accent={accent} />
-					) : (
-						<StatusBar
-							providerId={config.providerId}
-							modelId={modelDisplayName}
-							totalTokens={session.lastTotalTokens}
-							totalCost={session.lastTotalCost}
-							contextWindow={contextWindow}
-							uiMode={session.uiMode}
-							autoApproveAll={session.autoApproveAll}
-							workspaceName={
-								config.workspaceRoot
-									? (config.workspaceRoot.split("/").pop() ?? "")
-									: ""
-							}
-							gitBranch={repoStatus.branch}
-							gitDiffStats={repoStatus.diffStats}
-							onToggleMode={props.onToggleMode}
-							variant="home"
+						<AutocompleteDropdown
+							{...props.autocomplete}
+							accent={accent}
+							containerWidth={Math.min(width, HOME_VIEW_MAX_WIDTH)}
 						/>
+					) : (
+						<box marginTop={1}>
+							<StatusBar
+								providerId={config.providerId}
+								modelId={modelDisplayName}
+								totalTokens={session.lastTotalTokens}
+								totalCost={session.lastTotalCost}
+								contextWindow={contextWindow}
+								uiMode={session.uiMode}
+								autoApproveAll={session.autoApproveAll}
+								workspaceName={
+									config.workspaceRoot
+										? (config.workspaceRoot.split("/").pop() ?? "")
+										: ""
+								}
+								gitBranch={repoStatus.branch}
+								gitDiffStats={repoStatus.diffStats}
+								onToggleMode={props.onToggleMode}
+								variant="home"
+							/>
+						</box>
 					)}
 				</box>
 			</box>

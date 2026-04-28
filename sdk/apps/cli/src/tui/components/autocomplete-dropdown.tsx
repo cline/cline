@@ -1,11 +1,10 @@
-import type { BoxRenderable } from "@opentui/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { useEffect, useRef, useState } from "react";
 import type {
 	AutocompleteMode,
 	AutocompleteOption,
 } from "../hooks/use-autocomplete";
-import { palette } from "../palette";
+import { useTerminalBackground } from "../hooks/use-terminal-background";
+import { getDefaultForeground, palette } from "../palette";
 
 const MAX_ROWS = 7;
 export const DROPDOWN_MAX_HEIGHT = MAX_ROWS + 2;
@@ -16,32 +15,22 @@ export interface AutocompleteDropdownProps {
 	selected: number;
 	onSelect: (option: AutocompleteOption) => void;
 	accent?: string;
+	containerWidth?: number;
 }
 
 export function AutocompleteDropdown(props: AutocompleteDropdownProps) {
 	const { mode, options, selected, onSelect, accent = palette.act } = props;
 	const { width: termWidth } = useTerminalDimensions();
 
-	const boxRef = useRef<BoxRenderable>(null);
-	const [measuredWidth, setMeasuredWidth] = useState(0);
-
-	useEffect(() => {
-		const w = boxRef.current?.width;
-		if (w && w > 0 && w !== measuredWidth) {
-			setMeasuredWidth(w);
-		}
-	});
-
 	if (!mode || options.length === 0) return null;
 
-	const effectiveWidth = measuredWidth > 0 ? measuredWidth : termWidth;
+	const effectiveWidth = props.containerWidth ?? termWidth;
 	const rowBudget = Math.max(10, effectiveWidth - 4);
 	const safeSelected = Math.max(0, Math.min(selected, options.length - 1));
 
 	if (options.length <= MAX_ROWS) {
 		return (
 			<box
-				ref={boxRef}
 				flexDirection="column"
 				border
 				borderStyle="rounded"
@@ -82,13 +71,7 @@ export function AutocompleteDropdown(props: AutocompleteDropdownProps) {
 	const belowCount = options.length - (itemStart + itemSlots);
 
 	return (
-		<box
-			ref={boxRef}
-			flexDirection="column"
-			border
-			borderStyle="rounded"
-			borderColor="gray"
-		>
+		<box flexDirection="column" border borderStyle="rounded" borderColor="gray">
 			{showAboveIndicator && (
 				<box paddingX={1} justifyContent="center">
 					<text fg="gray">
@@ -139,6 +122,8 @@ function OptionRow(props: {
 	accent: string;
 	onSelect: (option: AutocompleteOption) => void;
 }) {
+	const terminalBg = useTerminalBackground();
+	const defaultFg = getDefaultForeground(terminalBg);
 	const { opt, isSelected, rowBudget, mode, accent, onSelect } = props;
 
 	if (opt.isHeader) {
@@ -188,7 +173,7 @@ function OptionRow(props: {
 		>
 			<text wrapMode="none">
 				<span fg={isSelected ? palette.textOnSelection : "gray"}>{prefix}</span>
-				<span fg={isSelected ? palette.textOnSelection : undefined}>
+				<span fg={isSelected ? palette.textOnSelection : defaultFg}>
 					{displayName}
 				</span>
 				{descText ? (

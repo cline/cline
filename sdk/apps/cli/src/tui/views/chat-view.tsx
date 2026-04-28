@@ -11,7 +11,13 @@ import {
 	StatusBar,
 } from "../components/status-bar";
 import { useSession } from "../contexts/session-context";
-import { getModeAccent } from "../palette";
+import { useTerminalBackground } from "../hooks/use-terminal-background";
+import {
+	getModeAccent,
+	getModeInputBackground,
+	getModeInputForeground,
+	getModeInputPlaceholder,
+} from "../palette";
 import type { QueuedPromptItem, TuiProps } from "../types";
 
 export function ChatView(props: {
@@ -46,7 +52,11 @@ export function ChatView(props: {
 		repoStatus,
 	} = props;
 	const session = useSession();
+	const terminalBg = useTerminalBackground();
 	const accent = getModeAccent(session.uiMode);
+	const inputBackground = getModeInputBackground(session.uiMode, terminalBg);
+	const inputForeground = getModeInputForeground(session.uiMode, terminalBg);
+	const inputPlaceholder = getModeInputPlaceholder(session.uiMode, terminalBg);
 	const placeholder =
 		session.uiMode === "plan" ? "Plan something..." : "Ask anything...";
 	const modelDisplayName = resolveModelDisplayName(config);
@@ -69,17 +79,22 @@ export function ChatView(props: {
 					<QueuedPrompts items={props.queuedPrompts} />
 				)}
 
-				<InputBar
-					accent={accent}
-					placeholder={placeholder}
-					initialValue={inputValue}
-					inputKey={inputKey}
-					onSubmit={onSubmit}
-					onContentChange={onContentChange}
-					onImagePaste={onImagePaste}
-					onLargeTextPaste={onLargeTextPaste}
-					textareaRef={props.textareaRef}
-				/>
+				<box marginBottom={1}>
+					<InputBar
+						accent={accent}
+						inputBackground={inputBackground}
+						inputForeground={inputForeground}
+						inputPlaceholder={inputPlaceholder}
+						placeholder={placeholder}
+						initialValue={inputValue}
+						inputKey={inputKey}
+						onSubmit={onSubmit}
+						onContentChange={onContentChange}
+						onImagePaste={onImagePaste}
+						onLargeTextPaste={onLargeTextPaste}
+						textareaRef={props.textareaRef}
+					/>
+				</box>
 
 				<StatusBar
 					providerId={config.providerId}

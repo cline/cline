@@ -14,10 +14,22 @@ export async function renderOpenTui(
 		enableMouseMovement: true,
 	});
 
+	const detectedPalette = await renderer
+		.getPalette({ timeout: 150 })
+		.catch(() => null);
+	const terminalBackground = detectedPalette?.defaultBackground ?? null;
+	const terminalForeground = detectedPalette?.defaultForeground ?? null;
+
 	let root: ReturnType<typeof createRoot>;
 	try {
 		root = createRoot(renderer);
-		root.render(<Root {...props} />);
+		root.render(
+			<Root
+				{...props}
+				terminalBackground={terminalBackground}
+				terminalForeground={terminalForeground}
+			/>,
+		);
 	} catch (error) {
 		renderer.destroy();
 		throw error;

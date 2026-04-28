@@ -9,14 +9,16 @@ const FRAME_BOTTOM_RIGHT = 128;
 
 const ROBOT_HEIGHT = 12;
 
-const THEME: Record<string, string> = {
-	black: "white",
-	whiteBright: "white",
-	gray: "white",
-};
+function buildTheme(defaultColor: string): Record<string, string> {
+	return {
+		black: defaultColor,
+		whiteBright: defaultColor,
+		gray: defaultColor,
+	};
+}
 
-function getColor(key: string): string {
-	return THEME[key] || key;
+function getColor(key: string, theme: Record<string, string>): string {
+	return theme[key] || key;
 }
 
 interface ColorSegment {
@@ -28,14 +30,16 @@ function buildRowSegments(
 	row: string,
 	rowIdx: number,
 	colors: Record<string, string>,
+	defaultColor: string,
+	theme: Record<string, string>,
 ): ColorSegment[] {
 	const segments: ColorSegment[] = [];
-	let currentFg = "white";
+	let currentFg = defaultColor;
 	let currentText = "";
 
 	for (let col = 0; col < row.length; col++) {
 		const key = `${col},${rowIdx}`;
-		const fg = colors[key] ? getColor(colors[key]) : "white";
+		const fg = colors[key] ? getColor(colors[key], theme) : defaultColor;
 		if (fg !== currentFg) {
 			if (currentText) segments.push({ text: currentText, fg: currentFg });
 			currentFg = fg;
@@ -48,12 +52,19 @@ function buildRowSegments(
 	return segments;
 }
 
-function RobotFrame(props: { frame: CroppedFrame }) {
-	const { frame } = props;
+function RobotFrame(props: { frame: CroppedFrame; defaultColor: string }) {
+	const { frame, defaultColor } = props;
+	const theme = buildTheme(defaultColor);
 	return (
 		<box flexDirection="column">
 			{frame.rows.map((row, rowIdx) => {
-				const segments = buildRowSegments(row, rowIdx, frame.colors);
+				const segments = buildRowSegments(
+					row,
+					rowIdx,
+					frame.colors,
+					defaultColor,
+					theme,
+				);
 				return (
 					// biome-ignore lint/suspicious/noArrayIndexKey: static animation frame with fixed row order
 					<text key={`row-${rowIdx}`}>
@@ -70,7 +81,11 @@ function RobotFrame(props: { frame: CroppedFrame }) {
 	);
 }
 
-export function RobotAnimation(props: { cursorX: number; cursorY: number }) {
+export function RobotAnimation(props: {
+	cursorX: number;
+	cursorY: number;
+	defaultColor?: string;
+}) {
 	const [frameIndex, setFrameIndex] = useState(FRAME_STRAIGHT);
 	const [targetFrame, setTargetFrame] = useState(FRAME_STRAIGHT);
 	const { width, height } = useTerminalDimensions();
@@ -140,7 +155,7 @@ export function RobotAnimation(props: { cursorX: number; cursorY: number }) {
 
 	return (
 		<box flexDirection="column" alignItems="center" width="100%">
-			<RobotFrame frame={frame} />
+			<RobotFrame frame={frame} defaultColor={props.defaultColor ?? "white"} />
 		</box>
 	);
 }

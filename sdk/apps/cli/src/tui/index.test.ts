@@ -4,6 +4,10 @@ import type { TuiProps } from "./types";
 const rendererMock = vi.hoisted(() => ({
 	copyToClipboardOSC52: vi.fn(),
 	destroy: vi.fn(),
+	getPalette: vi.fn(async () => ({
+		defaultBackground: null,
+		defaultForeground: null,
+	})),
 	on: vi.fn(),
 }));
 

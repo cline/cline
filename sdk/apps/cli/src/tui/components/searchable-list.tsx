@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { palette } from "../palette";
+import { useTerminalBackground } from "../hooks/use-terminal-background";
+import { getDefaultForeground, palette } from "../palette";
 
 export interface SearchableItem {
 	key: string;
@@ -100,6 +101,8 @@ export function SearchableList(props: {
 	emptyText?: string;
 	borderColor?: string;
 }) {
+	const terminalBg = useTerminalBackground();
+	const defaultFg = getDefaultForeground(terminalBg);
 	const {
 		items,
 		selected,
@@ -131,6 +134,9 @@ export function SearchableList(props: {
 				<input
 					onInput={onSearchChange}
 					placeholder={placeholder}
+					textColor={defaultFg}
+					focusedTextColor={defaultFg}
+					cursorColor={defaultFg}
 					flexGrow={1}
 					focused
 				/>
@@ -168,7 +174,7 @@ export function SearchableList(props: {
 								>
 									{isSel ? "\u276f" : " "}
 								</text>
-								<text fg={isSel ? palette.textOnSelection : undefined}>
+								<text fg={isSel ? palette.textOnSelection : defaultFg}>
 									{item.label}
 								</text>
 								{item.detail && (
