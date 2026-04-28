@@ -5,6 +5,7 @@ import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { buildActiveRulesMetadata } from "@core/context/context-tracking/buildActiveRulesMetadata"
 import { EnvironmentContextTracker } from "@core/context/context-tracking/EnvironmentContextTracker"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
@@ -36,6 +37,8 @@ import {
 	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
+	getTaskMetadata,
+	saveTaskMetadata,
 } from "@core/storage/disk"
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
@@ -1970,6 +1973,20 @@ export class Task {
 		const activatedConditionalRules = [...globalRules.activatedConditionalRules, ...localRules.activatedConditionalRules]
 		if (activatedConditionalRules.length > 0) {
 			await this.say("conditional_rules_applied", JSON.stringify({ rules: activatedConditionalRules }))
+		}
+
+		// Save active rules snapshot on first turn only (see #5710)
+		const metadata = await getTaskMetadata(this.taskId)
+		if (!metadata.active_rules) {
+			metadata.active_rules = buildActiveRulesMetadata({
+				globalToggles,
+				localToggles,
+				cursorLocalToggles,
+				windsurfLocalToggles,
+				agentsLocalToggles,
+				activatedConditionalRules,
+			})
+			await saveTaskMetadata(this.taskId, metadata)
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
