@@ -54,16 +54,16 @@ const TUI_LOCAL_COMMANDS: Array<{
 		visible: false,
 	},
 	{
-		name: "mcp",
-		description: "Manage MCP servers",
+		name: "model",
+		description: "Switch model or provider",
 	},
 	{
 		name: "account",
 		description: "View Cline account",
 	},
 	{
-		name: "model",
-		description: "Switch model or provider",
+		name: "mcp",
+		description: "Manage MCP servers",
 	},
 	{
 		name: "compact",
@@ -82,14 +82,32 @@ const TUI_LOCAL_COMMANDS: Array<{
 		description: "View session history",
 	},
 	{
-		name: "quit",
-		description: "Exit Cline",
-	},
-	{
 		name: "help",
 		description: "Show help",
 	},
+	{
+		name: "quit",
+		description: "Exit Cline",
+	},
 ];
+
+const SYSTEM_COMMAND_ORDER = [
+	"settings",
+	"model",
+	"account",
+	"mcp",
+	"compact",
+	"fork",
+	"clear",
+	"team",
+	"history",
+	"help",
+	"quit",
+] satisfies ReadonlyArray<LocalSlashCommandName | "team">;
+
+const SYSTEM_COMMAND_PRIORITY = new Map<string, number>(
+	SYSTEM_COMMAND_ORDER.map((name, index) => [name, index]),
+);
 
 function normalizeCommandName(name: string): string {
 	return name.trim().replace(/^\/+/, "").toLowerCase();
@@ -236,9 +254,20 @@ export function expandUserCommandPrompt(
 export function getVisibleSystemSlashCommands(
 	registry: SlashCommandRegistry,
 ): SlashCommandRegistryEntry[] {
-	return registry.entries.filter(
+	const visible = registry.entries.filter(
 		(entry) => entry.visible && entry.execution !== "user-command",
 	);
+	const priorityOf = (name: string) =>
+		SYSTEM_COMMAND_PRIORITY.get(name) ?? SYSTEM_COMMAND_ORDER.length;
+	return visible
+		.map((entry, index) => ({ entry, index }))
+		.sort((a, b) => {
+			const pa = priorityOf(a.entry.name);
+			const pb = priorityOf(b.entry.name);
+			if (pa !== pb) return pa - pb;
+			return a.index - b.index;
+		})
+		.map(({ entry }) => entry);
 }
 
 export function getVisibleUserSlashCommands(
