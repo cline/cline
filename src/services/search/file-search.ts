@@ -90,11 +90,21 @@ export async function executeRipgrepForFiles(
 			errorOutput += data.toString()
 		})
 
-		rgProcess.on("exit", (code) => {
-			exitCode = code
-		})
+		// Coordinate the readline 'close' and the child-process 'exit' events.
+		// On Windows their order is non-deterministic, so we must wait for both
+		// before deciding whether to resolve or reject — otherwise the
+		// rejection message can race in with `exitCode === null` even when the
+		// process actually exited with a real non-zero code.
+		let rlClosed = false
+		let processExited = false
+		let finalised = false
 
-		rl.on("close", () => {
+		const finalise = () => {
+			if (finalised || !rlClosed || !processExited) {
+				return
+			}
+			finalised = true
+
 			// Only reject when we have nothing to return: a non-zero exit with
 			// results is normal — we proactively SIGTERM after hitting the limit.
 			if (fileResults.length === 0 && (errorOutput || (exitCode !== null && exitCode !== 0))) {
@@ -118,6 +128,17 @@ export async function executeRipgrepForFiles(
 
 			// Resolve combined results of files and directories
 			resolve([...fileResults, ...dirResults])
+		}
+
+		rgProcess.on("exit", (code) => {
+			exitCode = code
+			processExited = true
+			finalise()
+		})
+
+		rl.on("close", () => {
+			rlClosed = true
+			finalise()
 		})
 
 		rgProcess.on("error", (error) =>

@@ -123,17 +123,12 @@ describe("File Search", () => {
 				},
 			} as unknown as childProcess.ChildProcess)
 
-			// CLINE-1814: spawn-time errors are now wrapped in RipgrepSpawnError so
-			// the controller can map them to a structured error_reason.
 			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
 				`ripgrep failed to spawn: ${mockError}`,
 			)
 		})
 
 		it("should reject with RipgrepSpawnError when ripgrep exits non-zero with no results", async () => {
-			// CLINE-1814: a non-zero exit with empty stdout used to silently
-			// resolve to []; we now reject so the controller can attach an
-			// error_reason of "ripgrep_spawn_failed".
 			const mockStdout = new Readable({
 				read() {
 					this.push(null)
