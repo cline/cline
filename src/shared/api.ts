@@ -2209,7 +2209,7 @@ export const deepSeekModels = {
 		supportsStreaming: true,
 	},
 	"deepseek-reasoner": {
-		maxTokens: 8_192,
+		maxTokens: 32_768,
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // deepseek reports input tokens as cache_hit + cache_miss (OpenAI-style), unlike anthropic which separates them
