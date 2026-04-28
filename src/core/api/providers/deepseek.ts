@@ -142,7 +142,7 @@ export class DeepSeekHandler implements ApiHandler {
 		// Use apiFormat to detect R1 format requirements instead of the isR1FormatRequired flag,
 		// which provides a more consistent format detection mechanism across providers.
 		const isDeepseekReasoner = modelInfo.apiFormat === ApiFormat.R1_CHAT
-		const isDeepseekV4Pro = modelInfo.supportsReasoningEffort === true
+		const supportsReasoningEffort = modelInfo.supportsReasoningEffort === true
 
 		const convertedMessages = convertToOpenAiMessages(messages)
 		// Models that support reasoning (R1 via apiFormat, V4 Pro via supportsReasoning)
@@ -152,7 +152,7 @@ export class DeepSeekHandler implements ApiHandler {
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
-		const reasoningEffort = isDeepseekV4Pro ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
+		const reasoningEffort = supportsReasoningEffort ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
 
 		const maxTokens = model.info.maxTokens
 
