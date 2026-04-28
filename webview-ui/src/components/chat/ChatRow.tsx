@@ -385,6 +385,30 @@ export const ChatRowContent = memo(
 			}
 		}, [message.say, message.text])
 
+		// Reset output expansion state when command stops (completes or is cancelled)
+		useEffect(() => {
+			// If command was executing and now isn't, clean up
+			if (isCommandMessage && prevCommandExecutingRef.current && !isCommandExecuting) {
+				setIsOutputFullyExpanded(false)
+			}
+
+			// Update ref for next render
+			prevCommandExecutingRef.current = isCommandExecuting
+		}, [isCommandMessage, isCommandExecuting])
+
+		// Auto-expand when command starts executing (only if running > 500ms)
+		useEffect(() => {
+			if (isCommandMessage && isCommandExecuting && !isExpanded) {
+				// Wait 500ms before auto-expanding to avoid animating fast commands
+				const timer = setTimeout(() => {
+					// Expand after 500ms
+					onToggleExpand(message.ts)
+				}, 500)
+
+				return () => clearTimeout(timer)
+			}
+		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
+
 		// Helper function to check if file is an image
 		const isImageFile = (filePath: string): boolean => {
 			const imageExtensions = [".png", ".jpg", ".jpeg", ".webp"]
@@ -723,30 +747,6 @@ export const ChatRowContent = memo(
 					return <InvisibleSpacer />
 			}
 		}
-
-		// Reset output expansion state when command stops (completes or is cancelled)
-		useEffect(() => {
-			// If command was executing and now isn't, clean up
-			if (isCommandMessage && prevCommandExecutingRef.current && !isCommandExecuting) {
-				setIsOutputFullyExpanded(false)
-			}
-
-			// Update ref for next render
-			prevCommandExecutingRef.current = isCommandExecuting
-		}, [isCommandMessage, isCommandExecuting])
-
-		// Auto-expand when command starts executing (only if running > 500ms)
-		useEffect(() => {
-			if (isCommandMessage && isCommandExecuting && !isExpanded) {
-				// Wait 500ms before auto-expanding to avoid animating fast commands
-				const timer = setTimeout(() => {
-					// Expand after 500ms
-					onToggleExpand(message.ts)
-				}, 500)
-
-				return () => clearTimeout(timer)
-			}
-		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
 
 		if (message.ask === "command" || message.say === "command") {
 			return (
