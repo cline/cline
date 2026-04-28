@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@clinebot/shared/storage";
 import { getLiveModelsCatalog } from "../..";
@@ -58,6 +64,15 @@ export class ProviderSettingsManager {
 		}
 		ensureCustomProvidersLoadedSync(this);
 		registerConfiguredProvidersFromSettings(this.read());
+		// Harden permissions on any existing file at startup so that
+		// pre-existing installations are also protected (best-effort; no-op on Windows).
+		if (existsSync(this.filePath)) {
+			try {
+				chmodSync(this.filePath, 0o600);
+			} catch {
+				// Ignore — Windows does not support POSIX chmod.
+			}
+		}
 	}
 
 	getFilePath(): string {
@@ -88,13 +103,19 @@ export class ProviderSettingsManager {
 		const normalized = StoredProviderSettingsSchema.parse(state);
 		const dir = dirname(this.filePath);
 		if (!existsSync(dir)) {
-			mkdirSync(dir, { recursive: true });
+			mkdirSync(dir, { recursive: true, mode: 0o700 });
 		}
 		writeFileSync(
 			this.filePath,
 			`${JSON.stringify(normalized, null, 2)}\n`,
 			"utf8",
 		);
+		// Restrict file to owner-only read/write (best-effort; no-op on Windows).
+		try {
+			chmodSync(this.filePath, 0o600);
+		} catch {
+			// Ignore — Windows does not support POSIX chmod.
+		}
 		registerConfiguredProvidersFromSettings(normalized);
 	}
 
