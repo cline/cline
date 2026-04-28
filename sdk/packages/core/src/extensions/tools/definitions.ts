@@ -217,16 +217,23 @@ export function createBashTool(
 		maxRetries: 0,
 		execute: async (input, context) => {
 			const validate = validateWithZod(RunCommandsInputUnionSchema, input);
-			const commands = Array.isArray(validate)
-				? validate
-				: typeof validate === "object"
-					? Array.isArray(validate.commands)
-						? validate.commands
-						: [validate.commands]
-					: [validate];
+			let commands: string[];
+			if (typeof validate === "string") {
+				commands = [validate];
+			} else if (Array.isArray(validate)) {
+				commands = validate;
+			} else if ("commands" in validate) {
+				commands = Array.isArray(validate.commands)
+					? validate.commands
+					: [validate.commands];
+			} else if ("command" in validate) {
+				commands = [validate.command];
+			} else {
+				commands = [validate.cmd];
+			}
 
 			return Promise.all(
-				commands.map(async (command): Promise<ToolOperationResult> => {
+				commands.map(async (command: string): Promise<ToolOperationResult> => {
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),

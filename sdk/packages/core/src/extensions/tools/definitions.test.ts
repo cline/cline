@@ -422,6 +422,38 @@ describe("default run_commands tool", () => {
 		);
 	});
 
+	it("accepts common single-command aliases", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createWindowsShellTool(execute);
+
+		await tool.execute({ command: "pwd" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+		await tool.execute({ cmd: "git status --short" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"pwd",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			"git status --short",
+			process.cwd(),
+			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
 	it("accepts structured commands and preserves argv", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string; args?: string[] }) =>
@@ -457,6 +489,42 @@ describe("default run_commands tool", () => {
 				command: "node",
 				args: ["-e", "console.log('ok')"],
 			},
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
+	it("preserves args on direct structured command objects", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string; args?: string[] }) =>
+				typeof command === "string"
+					? `ran:${command}`
+					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
+		);
+		const tool = createWindowsShellTool(execute);
+
+		const result = await tool.execute(
+			{ command: "git", args: ["status", "--short"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git:status,--short",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			{ command: "git", args: ["status", "--short"] },
 			process.cwd(),
 			expect.objectContaining({
 				agentId: "agent-1",
@@ -527,6 +595,45 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+		);
+	});
+
+	it("accepts paths aliases for model-generated read requests", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute(
+			{
+				paths: ["/tmp/a.ts", { path: "/tmp/b.ts", start_line: 2 }],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		await tool.execute({ paths: "/tmp/c.ts" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/a.ts" },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/b.ts", start_line: 2 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/c.ts" },
+			expect.objectContaining({ iteration: 2 }),
 		);
 	});
 

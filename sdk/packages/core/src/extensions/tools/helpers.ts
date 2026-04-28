@@ -76,6 +76,13 @@ export function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
 		return filePaths.map((filePath) => ({ path: filePath }));
 	}
 
+	if ("paths" in validate) {
+		const paths = Array.isArray(validate.paths)
+			? validate.paths
+			: [validate.paths];
+		return paths.map((path) => (typeof path === "string" ? { path } : path));
+	}
+
 	return [validate];
 }
 
@@ -115,6 +122,14 @@ export function normalizeRunCommandsInput(
 		return Array.isArray(validate.commands)
 			? validate.commands
 			: [validate.commands];
+	}
+
+	if ("command" in validate) {
+		return "args" in validate ? [validate] : [validate.command];
+	}
+
+	if ("cmd" in validate) {
+		return [validate.cmd];
 	}
 
 	return [validate];

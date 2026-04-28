@@ -72,6 +72,9 @@ export const ReadFilesInputUnionSchema = z.union([
 	z.object({ files: ReadFileRequestSchema }),
 	z.object({ file_paths: z.array(AbsolutePath) }),
 	z.object({ file_paths: z.string() }),
+	z.object({ paths: z.array(z.union([AbsolutePath, ReadFileRequestSchema])) }),
+	z.object({ paths: ReadFileRequestSchema }),
+	z.object({ paths: z.string() }),
 ]);
 
 /**
@@ -114,6 +117,8 @@ export const RunCommandsInputSchema = z.object({
 export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
 	z.object({ commands: CommandInputSchema }),
+	z.object({ command: CommandInputSchema }),
+	z.object({ cmd: CommandInputSchema }),
 	z.array(z.string()),
 	z.string(),
 ]);
@@ -151,10 +156,12 @@ export const StructuredCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
 	StructuredCommandsInputSchema,
 	z.object({ commands: StructuredCommandEntrySchema }),
-	z.array(z.string()),
 	z.array(StructuredCommandInputSchema),
-	z.string(),
 	StructuredCommandInputSchema,
+	z.object({ command: CommandInputSchema }),
+	z.object({ cmd: CommandInputSchema }),
+	z.array(z.string()),
+	z.string(),
 ]);
 
 /**
