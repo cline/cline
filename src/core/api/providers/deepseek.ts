@@ -6,10 +6,8 @@ import type { ChatCompletionReasoningEffort, ChatCompletionTool as OpenAITool } 
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ApiFormat } from "@/shared/proto/cline/models"
-import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
-import { RetriableError, withRetry } from "../retry"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
@@ -22,7 +20,6 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekBaseUrl?: string
 	apiModelId?: string
 	reasoningEffort?: string
-	/** Reserved for future API support. DeepSeek does not currently support thinking budget tokens. */
 	thinkingBudgetTokens?: number
 }
 
@@ -44,34 +41,22 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
  * 2. Cost calculation — uses the OpenAI formula which expects `prompt_tokens`,
  *    `cache_hit_tokens`, and `cache_miss_tokens`.
  *
- * Note: `thinkingBudgetTokens` is accepted but not currently used, as DeepSeek does not
- * support per-request thinking token budgets (unlike Anthropic). DeepSeek V4 Pro
- * reasoning is controlled via `reasoning_effort` instead.
- *
  * @see https://api-docs.deepseek.com/guides/kv_cache
  */
 export class DeepSeekHandler implements ApiHandler {
 	private options: DeepSeekHandlerOptions
 	private client: OpenAI | undefined
 	private abortController: AbortController | null = null
-	private lastUsageChunk: import("../transform/stream").ApiStreamUsageChunk | undefined
+	private isAborted = false
 
 	constructor(options: DeepSeekHandlerOptions) {
 		this.options = options
 	}
 
 	abort(): void {
+		this.isAborted = true
 		this.abortController?.abort()
 		this.abortController = null
-	}
-
-	/**
-	 * Returns the last usage chunk from the stream, if available.
-	 * DeepSeek returns usage in the final chunk via stream_options.include_usage,
-	 * so this is primarily useful when the stream is interrupted before completion.
-	 */
-	async getApiStreamUsage(): Promise<import("../transform/stream").ApiStreamUsageChunk | undefined> {
-		return this.lastUsageChunk
 	}
 
 	private ensureClient(): OpenAI {
@@ -102,13 +87,12 @@ export class DeepSeekHandler implements ApiHandler {
 		//   - Anthropic: input_tokens = non-cached tokens (separate cache_read/write tokens)
 		//   - DeepSeek: prompt_tokens = cache_hit_tokens + cache_miss_tokens (no non-cached input)
 		//
-		// For context management, we report cacheWriteTokens (cache misses) as inputTokens
-		// since cache misses represent the actual new prompt tokens that consume context window.
-		// Reporting 0 (as the non-cached remainder would be) makes context truncation unable to
-		// detect when the window is filling up.
-		//
-		// Cost calculation uses the OpenAI formula which expects prompt_tokens,
-		// cache_hit_tokens, and cache_miss_tokens.
+		// This affects:
+		// 1) Context management truncation — inputTokens is always 0, so truncation
+		//    decisions must rely on cacheReadTokens and cacheWriteTokens as proxies for
+		//    actual prompt processing cost.
+		// 2) Cost calculation — uses the OpenAI formula which expects prompt_tokens,
+		//    cache_hit_tokens, and cache_miss_tokens.
 
 		interface DeepSeekUsage extends OpenAI.CompletionUsage {
 			prompt_cache_hit_tokens?: number
@@ -121,22 +105,17 @@ export class DeepSeekHandler implements ApiHandler {
 		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
 		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
 		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
-		// Cache miss tokens are the actual new input that consumes context window.
-		// Report them as inputTokens so context management can properly track window usage
-		// for truncation decisions. Cache hits don't count toward the window.
-		// When cacheWriteTokens is 0 (e.g., all cache hits or API doesn't return cache breakdown),
-		// fall back to prompt_tokens to prevent context truncation from stalling.
-		const effectiveInputTokens = cacheWriteTokens > 0 ? cacheWriteTokens : inputTokens
-		const usageChunk = {
-			type: "usage" as const,
-			inputTokens: effectiveInputTokens,
+		// In DeepSeek's model, all input tokens are accounted as either cache hits or misses,
+		// so the non-cached token count is always 0.
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
+		yield {
+			type: "usage",
+			inputTokens: nonCachedInputTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,
 			totalCost: totalCost,
 		}
-		this.lastUsageChunk = usageChunk
-		yield usageChunk
 	}
 
 	/**
@@ -160,22 +139,42 @@ export class DeepSeekHandler implements ApiHandler {
 		const model = this.getModel()
 
 		const modelInfo = model.info as OpenAiCompatibleModelInfo
-		// Use apiFormat to detect R1 format requirements instead of the isR1FormatRequired flag,
-		// which provides a more consistent format detection mechanism across providers.
-		const isDeepseekReasoner = modelInfo.apiFormat === ApiFormat.R1_CHAT
-		const supportsReasoningEffort = modelInfo.supportsReasoningEffort === true
+		const isDeepseekReasoner = modelInfo.isR1FormatRequired === true
+		const isDeepseekV4Pro = modelInfo.supportsReasoningEffort === true
 
-		const convertedMessages = convertToOpenAiMessages(messages, "deepseek")
-		// Models that support reasoning (R1 via apiFormat, V4 Pro via supportsReasoning)
-		// must pass reasoning_content back in subsequent turns to maintain chain continuity.
-		const needsReasoningContent = isDeepseekReasoner || modelInfo.supportsReasoning === true
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = needsReasoningContent
+		const convertedMessages = convertToOpenAiMessages(messages)
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
-		const reasoningEffort = supportsReasoningEffort ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
+		const reasoningEffort = isDeepseekV4Pro ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
 
-		const maxTokens = model.info.maxTokens
+		let maxTokens = model.info.maxTokens
+
+		// For V4 Pro, thinkingBudgetTokens serves as an explicit cap on total output tokens
+		// (including reasoning). Since DeepSeek does NOT have a dedicated reasoning budget API
+		// parameter like Anthropic's `thinking.budget_tokens`, thinkingBudgetTokens here acts
+		// as a user-specified ceiling to prevent runaway costs.
+		//
+		// IMPORTANT: We MUST NOT blindly replace maxTokens with thinkingBudgetTokens, because
+		// the total output includes tool call results. If thinkingBudgetTokens is too low, tool
+		// calls may be truncated mid-execution, causing task failures.
+		//
+		// Strategy:
+		// 1. Keep model.info.maxTokens as the default ceiling.
+		// 2. If thinkingBudgetTokens is explicitly set AND smaller than maxTokens, cap at
+		//    thinkingBudgetTokens (user wants a stricter limit).
+		// 3. Enforce a minimum floor of 8192 tokens to prevent tool call starvation.
+		// 4. The primary reasoning control for V4 Pro remains the `reasoning_effort` parameter.
+		if (isDeepseekV4Pro && this.options.thinkingBudgetTokens !== undefined && this.options.thinkingBudgetTokens > 0) {
+			const MIN_TOKENS_FLOOR = 8192 // Minimum to prevent tool call truncation
+			const modelMaxTokens = model.info.maxTokens ?? 0
+			const cappedTokens =
+				modelMaxTokens > 0
+					? Math.min(modelMaxTokens, this.options.thinkingBudgetTokens)
+					: this.options.thinkingBudgetTokens
+			maxTokens = Math.max(MIN_TOKENS_FLOOR, cappedTokens)
+		}
 
 		this.abortController = new AbortController()
 
@@ -196,82 +195,33 @@ export class DeepSeekHandler implements ApiHandler {
 
 		const toolCallProcessor = new ToolCallProcessor()
 
-		try {
-			for await (const chunk of stream) {
-				const delta = chunk.choices?.[0]?.delta
-				if (delta?.content) {
-					yield {
-						type: "text",
-						text: delta.content,
-					}
-				}
-
-				if (delta?.tool_calls) {
-					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-				}
-
-				if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-					yield {
-						type: "reasoning",
-						reasoning: (delta.reasoning_content as string | undefined) || "",
-					}
-				}
-
-				if (chunk.usage) {
-					yield* this.yieldUsage(model.info, chunk.usage)
+		for await (const chunk of stream) {
+			if (this.isAborted) {
+				break
+			}
+			const delta = chunk.choices?.[0]?.delta
+			if (delta?.content) {
+				yield {
+					type: "text",
+					text: delta.content,
 				}
 			}
-		} catch (error: any) {
-			// If the request was intentionally aborted (e.g., user cancelled),
-			// silently return instead of delegating to error handling which
-			// may trigger retries via the @withRetry() decorator.
-			if (error?.name === "AbortError" || this.abortController?.signal.aborted) {
-				return
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
-			this.handleStreamError(error)
-		}
-	}
 
-	/**
-	 * Classifies DeepSeek API errors and surfaces actionable messages.
-	 * - 400/401/402 → immediately throw non-retriable errors (bad request, auth, balance)
-	 * - 429/500/502/503/504 → throw RetriableError to trigger exponential backoff retry
-	 * - Network errors without HTTP status → throw RetriableError
-	 * - Other errors → re-throw as-is (will be caught by @withRetry() decorator)
-	 */
-	private handleStreamError(error: any): never {
-		const status = error?.status
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					reasoning: (delta.reasoning_content as string | undefined) || "",
+				}
+			}
 
-		// Non-retriable errors
-		if (status === 400) {
-			throw new Error(`DeepSeek API bad request (400): ${error.message}`)
+			if (chunk.usage) {
+				yield* this.yieldUsage(model.info, chunk.usage)
+			}
 		}
-		if (status === 401) {
-			throw new Error(`DeepSeek API unauthorized (401): Check your API key.`)
-		}
-		if (status === 402) {
-			throw new Error(
-				"DeepSeek API error (402): Insufficient balance. Please top up your account at https://platform.deepseek.com.",
-			)
-		}
-
-		// Retriable errors — trigger @withRetry() exponential backoff
-		if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
-			throw new RetriableError(`DeepSeek API error (${status}): ${error.message}`)
-		}
-
-		// Network errors without HTTP status (e.g., connection reset, DNS failure)
-		if (
-			!status &&
-			(error?.message?.includes("fetch") ||
-				error?.message?.includes("network") ||
-				error?.code === "ECONNRESET" ||
-				error?.code === "ETIMEDOUT")
-		) {
-			throw new RetriableError(`DeepSeek network error: ${error.message}`)
-		}
-
-		throw error
 	}
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
@@ -279,11 +229,6 @@ export class DeepSeekHandler implements ApiHandler {
 		if (modelId && modelId in deepSeekModels) {
 			const id = modelId as DeepSeekModelId
 			return { id, info: deepSeekModels[id] }
-		}
-		if (modelId) {
-			Logger.warn(
-				`[DeepSeekHandler] Model ID "${modelId}" not found in deepSeekModels, falling back to default "${deepSeekDefaultModelId}"`,
-			)
 		}
 		return {
 			id: deepSeekDefaultModelId,

@@ -30,10 +30,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modelInfo = deepSeekModels[selectedModelId as keyof typeof deepSeekModels]
 	const showReasoningEffort = (modelInfo as any)?.supportsReasoningEffort === true
-	// V4 Pro uses reasoning_effort to control reasoning depth, not a thinking budget API param.
-	// Only show the slider for models that support reasoning WITHOUT reasoning_effort.
-	const showThinkingBudget =
-		(modelInfo as any)?.supportsReasoning === true && (modelInfo as any)?.supportsReasoningEffort !== true
+	const showThinkingBudget = (modelInfo as any)?.supportsReasoning === true
 
 	return (
 		<div>

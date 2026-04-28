@@ -9,34 +9,26 @@ import { OpenAiHandler } from "@core/api/providers/openai"
  */
 export function getContextWindowInfo(api: ApiHandler) {
 	let contextWindow = api.getModel().info.contextWindow || 128_000
+	// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
 
-	// Handle OpenAiHandler with deepseek models — use actual model info when available
-	// to avoid forcing 128K on models with different context windows (e.g., v4-pro 1M).
+	// Handle special cases like DeepSeek
 	if (api instanceof OpenAiHandler && api.getModel().id.toLowerCase().includes("deepseek")) {
-		contextWindow = api.getModel().info.contextWindow || 128_000
+		contextWindow = 128_000
 	}
 
 	let maxAllowedSize: number
-	// Dynamic buffer sizing based on context window tiers.
-	// Small windows need proportionally larger buffers for output tokens;
-	// large windows (e.g., deepseek-v4-pro 1M) can use a smaller relative buffer.
-	if (contextWindow <= 64_000) {
-		// deepseek-v4-flash and similar small models: reserve ~42% for output
-		maxAllowedSize = contextWindow - 27_000
-	} else if (contextWindow <= 128_000) {
-		// deepseek-chat, deepseek-reasoner, and most 128K models: reserve ~23%
-		maxAllowedSize = contextWindow - 30_000
-	} else if (contextWindow <= 200_000) {
-		// Claude models: reserve 20%
-		maxAllowedSize = contextWindow - 40_000
-	} else if (contextWindow <= 500_000) {
-		// Mid-large windows: reserve 100K (conservative)
-		maxAllowedSize = contextWindow - 100_000
-	} else {
-		// Extra-large windows (deepseek-v4-pro 1M, etc.): reserve 60K
-		// 384K maxTokens output ceiling far exceeds the 60K buffer requirement,
-		// so we can safely use a smaller buffer to maximize available input context.
-		maxAllowedSize = Math.max(contextWindow - 60_000, contextWindow * 0.94)
+	switch (contextWindow) {
+		case 64_000: // deepseek models
+			maxAllowedSize = contextWindow - 27_000
+			break
+		case 128_000: // most models
+			maxAllowedSize = contextWindow - 30_000
+			break
+		case 200_000: // claude models
+			maxAllowedSize = contextWindow - 40_000
+			break
+		default:
+			maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
 	}
 
 	return { contextWindow, maxAllowedSize }

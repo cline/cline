@@ -2197,8 +2197,8 @@ export const deepSeekModels = {
 		maxTokens: 8_000,
 		contextWindow: 128_000,
 		supportsImages: false,
-		supportsPromptCache: true, // deepseek reports input tokens as cache_hit + cache_miss (OpenAI-style), unlike anthropic which separates them
-		inputPrice: 0.27, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
 		outputPrice: 1.1,
 		cacheWritesPrice: 0.27,
 		cacheReadsPrice: 0.07,
@@ -2209,15 +2209,15 @@ export const deepSeekModels = {
 		supportsStreaming: true,
 	},
 	"deepseek-reasoner": {
-		maxTokens: 32_768,
+		maxTokens: 8_192,
 		contextWindow: 128_000,
 		supportsImages: false,
-		supportsPromptCache: true, // deepseek reports input tokens as cache_hit + cache_miss (OpenAI-style), unlike anthropic which separates them
-		inputPrice: 0.55, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
+		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
-		supportsReasoning: true, // DeepSeek Reasoner uses R1 format with reasoning_content
+		supportsReasoning: false,
 		supportsReasoningEffort: false,
 		apiFormat: ApiFormat.R1_CHAT,
 		isR1FormatRequired: true,
@@ -2229,7 +2229,7 @@ export const deepSeekModels = {
 		contextWindow: 64_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0.07, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
+		inputPrice: 0,
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.07,
 		cacheReadsPrice: 0.028,
@@ -2244,7 +2244,7 @@ export const deepSeekModels = {
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 1.74, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
+		inputPrice: 0, // uses cache-based pricing
 		outputPrice: 3.48,
 		cacheWritesPrice: 1.74,
 		cacheReadsPrice: 0.145,
@@ -2253,8 +2253,6 @@ export const deepSeekModels = {
 		apiFormat: ApiFormat.OPENAI_CHAT,
 		supportsTools: true,
 		supportsStreaming: true,
-		description:
-			"DeepSeek V4 Pro — 1M context window with reasoning capabilities. Supports reasoning_effort (high/max) for complex problem-solving and agent tasks.",
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
