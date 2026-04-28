@@ -33,7 +33,6 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { nanoid } from "nanoid"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
@@ -47,6 +46,7 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
+import { buildServerKey } from "./server-key"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -124,8 +124,11 @@ export class McpHub {
 	}
 
 	/**
-	 * Create a unique key for an MCP server based on its name.
-	 * This avoids making a tool name too long while still ensuring uniqueness.
+	 * Create a stable, deterministic key for an MCP server based on its name.
+	 * Uses a hash of the server name instead of a random nanoid so the same
+	 * server always gets the same key across extension restarts / reconnects.
+	 * This prevents tool routing failures when the model has cached tool names
+	 * from a previous session (see #8087).
 	 */
 	private getMcpServerKey(server: string): string {
 		// Reuse existing key if server is already registered
@@ -134,10 +137,16 @@ export class McpHub {
 				return existingKey
 			}
 		}
-		// Generate a short 6-character unique ID for the server
-		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
-		// Only use the first 5 characters of nanoid to keep it short
-		const uid = "c" + nanoid(5)
+		// Generate a deterministic 6-character ID from the server name.
+		// "c" prefix ensures it starts with a letter (for Gemini compatibility).
+		const uid = buildServerKey(server)
+		const existing = McpHub.mcpServerKeys.get(uid)
+		if (existing && existing !== server) {
+			Logger.warn(
+				`MCP server key collision: "${server}" and "${existing}" both hash to "${uid}". ` +
+					`"${existing}" will be overwritten. Consider renaming one of the servers.`,
+			)
+		}
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
