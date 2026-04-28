@@ -56,7 +56,7 @@ Include previous messages to maintain context:
 
 ```json
 {
-  "model": "anthropic/claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4.6",
   "messages": [
     {"role": "system", "content": "You are a helpful coding assistant."},
     {"role": "user", "content": "What is a closure in JavaScript?"},
@@ -71,13 +71,13 @@ Include previous messages to maintain context:
 When `stream: true` (the default), the response is a series of [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-Sent_Events):
 
 ```
-data: {"id":"gen-abc123","choices":[{"delta":{"role":"assistant"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+data: {"id":"gen-abc123","choices":[{"delta":{"role":"assistant"},"index":0}],"model":"anthropic/claude-sonnet-4.6"}
 
-data: {"id":"gen-abc123","choices":[{"delta":{"content":"The capital"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+data: {"id":"gen-abc123","choices":[{"delta":{"content":"The capital"},"index":0}],"model":"anthropic/claude-sonnet-4.6"}
 
-data: {"id":"gen-abc123","choices":[{"delta":{"content":" of France"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+data: {"id":"gen-abc123","choices":[{"delta":{"content":" of France"},"index":0}],"model":"anthropic/claude-sonnet-4.6"}
 
-data: {"id":"gen-abc123","choices":[{"delta":{"content":" is Paris."},"index":0,"finish_reason":"stop"}],"model":"anthropic/claude-sonnet-4-6","usage":{"prompt_tokens":14,"completion_tokens":8,"cost":0.000066}}
+data: {"id":"gen-abc123","choices":[{"delta":{"content":" is Paris."},"index":0,"finish_reason":"stop"}],"model":"anthropic/claude-sonnet-4.6","usage":{"prompt_tokens":14,"completion_tokens":8,"cost":0.000066}}
 
 data: [DONE]
 ```
@@ -123,7 +123,7 @@ When `stream: false`, the response is a single JSON object:
 ```json
 {
   "id": "gen-abc123",
-  "model": "anthropic/claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4.6",
   "choices": [
     {
       "message": {
@@ -147,7 +147,7 @@ You can define tools that the model can call using the OpenAI function calling f
 
 ```json
 {
-  "model": "anthropic/claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4.6",
   "messages": [
     {"role": "user", "content": "What's the weather in San Francisco?"}
   ],
@@ -231,7 +231,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [
       {"role": "system", "content": "You are a concise assistant. Answer in one sentence."},
       {"role": "user", "content": "Explain what an API is."}

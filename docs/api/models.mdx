@@ -15,7 +15,7 @@ provider/model-name
 ```
 
 For example:
-- `anthropic/claude-sonnet-4-6` - Claude Sonnet 4.6 from Anthropic
+- `anthropic/claude-sonnet-4.6` - Claude Sonnet 4.6 from Anthropic
 - `openai/gpt-4o` - GPT-4o from OpenAI
 - `google/gemini-2.5-pro` - Gemini 2.5 Pro from Google
 
@@ -25,8 +25,8 @@ Pass this string as the `model` parameter in your [Chat Completions](/api/chat-c
 
 | Model ID | Provider | Context Window | Reasoning | Best For |
 |----------|----------|---------------|-----------|----------|
-| `anthropic/claude-sonnet-4-6` | Anthropic | 200K | Yes | General coding, analysis, complex tasks |
-| `anthropic/claude-sonnet-4-5` | Anthropic | 200K | Yes | Balanced performance and cost |
+| `anthropic/claude-sonnet-4.6` | Anthropic | 200K | Yes | General coding, analysis, complex tasks |
+| `anthropic/claude-sonnet-4.5` | Anthropic | 200K | Yes | Balanced performance and cost |
 | `openai/gpt-4o` | OpenAI | 128K | No | Multimodal tasks, fast responses |
 | `google/gemini-2.5-pro` | Google | 1M | Yes | Very long context, document analysis |
 | `deepseek/deepseek-chat` | DeepSeek | 64K | No | Cost-effective coding tasks |
@@ -72,11 +72,11 @@ Models with reasoning support include most Claude, Gemini 2.5, and Grok 3 models
 
 | If you need... | Consider |
 |----------------|----------|
-| Best coding performance | `anthropic/claude-sonnet-4-6` |
+| Best coding performance | `anthropic/claude-sonnet-4.6` |
 | Long document analysis | `google/gemini-2.5-pro` (1M context) |
 | Fast, cheap responses | `deepseek/deepseek-chat` |
 | Free experimentation | `minimax/minimax-m2.5` |
-| Multi-modal (text + images) | `openai/gpt-4o` or `anthropic/claude-sonnet-4-6` |
+| Multi-modal (text + images) | `openai/gpt-4o` or `anthropic/claude-sonnet-4.6` |
 | Complex reasoning | Any model with reasoning support |
 
 For a deeper comparison of model capabilities and pricing, see the [Model Selection Guide](/core-features/model-selection-guide).
@@ -87,7 +87,7 @@ Models that support images accept base64-encoded image content in the `messages`
 
 ```json
 {
-  "model": "anthropic/claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4.6",
   "messages": [
     {
       "role": "user",
