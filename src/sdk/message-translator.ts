@@ -19,8 +19,8 @@
 // - SDK "agent_event" content_end (tool: MCP) → say="use_mcp_server" + say="mcp_server_response"
 // - SDK "agent_event" content_end → ClineMessage with partial=false
 // - SDK "agent_event" content_start (tool: attempt_completion) → ClineMessage say="completion_result"
-// - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage ask="completion_result"
-// - SDK "agent_event" done → ClineMessage ask="completion_result" (only if attempt_completion not seen)
+// - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage say="completion_result" (final)
+// - SDK "agent_event" done → ClineMessage ask="completion_result" (always; must be last message)
 // - SDK "agent_event" error → ClineMessage say="error"
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
@@ -984,18 +984,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							text: resultText,
 							partial: false,
 						})
-						// Emit ask:"completion_result" with EMPTY text to enable
-						// follow-up input without rendering a second green rectangle.
-						// The webview's ChatRow renders ask:"completion_result" with
-						// empty text as an InvisibleSpacer, but still sets clineAsk
-						// which enables the follow-up textarea.
-						messages.push({
-							ts: state.nextTs(),
-							type: "ask",
-							ask: "completion_result",
-							text: "",
-							partial: false,
-						})
+						// NOTE: We do NOT emit ask:"completion_result" here.
+						// The ask must come AFTER the usage event (which arrives
+						// between content_end and done). If we emit it here, the
+						// usage event's say:"api_req_started" becomes the last
+						// message and the webview shows "Thinking..." instead of
+						// the completion UI. The done handler emits the
+						// ask:"completion_result" as the final message.
 						break
 					}
 
@@ -1192,32 +1187,28 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete. In the classic extension, the green
-			// "Task Completed" rectangle was ONLY shown when the agent
-			// explicitly called the attempt_completion tool. The done event
-			// just signals the turn ended.
+			// Agent turn is complete. Always emit ask:"completion_result"
+			// as the LAST message so it comes after the usage event's
+			// say:"api_req_started". This is critical: the webview uses
+			// the last raw message to determine UI state. If the usage
+			// event is last, the webview shows "Thinking..." instead of
+			// the completion UI (ENG-1887).
 			//
-			// If attempt_completion was already handled (via content_start/
-			// content_end for that tool), we already emitted both
-			// say:"completion_result" and ask:"completion_result" there.
-			// We do NOT emit another completion_result here to avoid
-			// duplicate green rectangles.
+			// For attempt_completion: content_end already emitted
+			// say:"completion_result" (the green rectangle). We emit
+			// ask:"completion_result" here with empty text so the
+			// webview enables the follow-up textarea without a second
+			// green rectangle.
 			//
-			// If attempt_completion was NOT called (e.g., the agent just
-			// responded with text), we still need to emit
-			// ask:"completion_result" to enable the follow-up input in
-			// the webview. But we emit it with empty text so the webview
-			// renders an invisible spacer (no green rectangle) while still
-			// setting clineAsk for follow-up messages.
-			if (!state.wasAttemptCompletionSeen()) {
-				messages.push({
-					ts: state.nextTs(),
-					type: "ask",
-					ask: "completion_result",
-					text: "",
-					partial: false,
-				})
-			}
+			// For non-attempt_completion (agent just responded with text):
+			// same empty ask enables the follow-up input.
+			messages.push({
+				ts: state.nextTs(),
+				type: "ask",
+				ask: "completion_result",
+				text: "",
+				partial: false,
+			})
 			break
 		}
 
