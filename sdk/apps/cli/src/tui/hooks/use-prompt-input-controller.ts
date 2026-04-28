@@ -4,6 +4,11 @@ import { expandUserCommandPrompt } from "../commands/slash-command-registry";
 import type { TextareaHandle } from "../components/input-bar";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
+import {
+	createUniquePastedTextSnippetMarker,
+	expandPastedTextSnippets,
+	type PastedTextSnippet,
+} from "../utils/pasted-snippets";
 import type { AutocompleteOption, useAutocomplete } from "./use-autocomplete";
 import { extractSlashQuery } from "./use-autocomplete";
 import { useInputHistory } from "./use-input-history";
@@ -41,6 +46,7 @@ export function usePromptInputController(input: {
 	const textareaRef = useRef<TextareaHandle | null>(null);
 	const inputValueRef = useRef("");
 	const pastedImagesRef = useRef<PastedImage[]>([]);
+	const pastedTextSnippetsRef = useRef<PastedTextSnippet[]>([]);
 	const localCommandInFlightRef = useRef(false);
 	inputValueRef.current = inputValue;
 
@@ -54,10 +60,37 @@ export function usePromptInputController(input: {
 		pastedImagesRef.current = [];
 	}, []);
 
+	const clearPastedTextSnippets = useCallback(() => {
+		pastedTextSnippetsRef.current = [];
+	}, []);
+
+	const clearPasteAttachments = useCallback(() => {
+		clearPastedImages();
+		clearPastedTextSnippets();
+	}, [clearPastedImages, clearPastedTextSnippets]);
+
 	const handleImagePaste = useCallback((dataUrl: string) => {
 		const marker = `[Image ${pastedImagesRef.current.length + 1}]`;
 		pastedImagesRef.current = [...pastedImagesRef.current, { marker, dataUrl }];
 		return marker;
+	}, []);
+
+	const handleLargeTextPaste = useCallback((text: string) => {
+		const marker = createUniquePastedTextSnippetMarker(
+			text,
+			pastedTextSnippetsRef.current.map((snippet) => snippet.marker),
+		);
+		pastedTextSnippetsRef.current = [
+			...pastedTextSnippetsRef.current,
+			{ marker, text },
+		];
+		return marker;
+	}, []);
+
+	const prunePastedTextSnippets = useCallback((text: string) => {
+		pastedTextSnippetsRef.current = pastedTextSnippetsRef.current.filter(
+			(snippet) => text.includes(snippet.marker),
+		);
 	}, []);
 
 	const runSlashCommand = useCallback(
@@ -83,7 +116,7 @@ export function usePromptInputController(input: {
 				ta.cursorOffset = 0;
 				autocomplete.close();
 				setInputValue("");
-				clearPastedImages();
+				clearPasteAttachments();
 				option.onSelect();
 				return;
 			}
@@ -95,7 +128,7 @@ export function usePromptInputController(input: {
 					ta.cursorOffset = 0;
 					autocomplete.close();
 					setInputValue("");
-					clearPastedImages();
+					clearPasteAttachments();
 					return;
 				}
 				const text = inputValueRef.current;
@@ -123,7 +156,7 @@ export function usePromptInputController(input: {
 			autocomplete.close();
 			setInputValue(ta.plainText);
 		},
-		[autocomplete, clearPastedImages, runSlashCommand],
+		[autocomplete, clearPasteAttachments, runSlashCommand],
 	);
 
 	const selectRef = useRef(selectAutocompleteOption);
@@ -142,16 +175,23 @@ export function usePromptInputController(input: {
 				if (await runSlashCommand(cmd)) {
 					setInputKey((k) => k + 1);
 					setInputValue("");
-					clearPastedImages();
+					clearPasteAttachments();
 					return;
 				}
 			}
 
+			const activePastedTextSnippets = pastedTextSnippetsRef.current.filter(
+				(snippet) => prompt.includes(snippet.marker),
+			);
+			const expandedPrompt = expandPastedTextSnippets(
+				prompt,
+				activePastedTextSnippets,
+			);
 			const activeUserImages = pastedImagesRef.current
 				.filter((image) => prompt.includes(image.marker))
 				.map((image) => image.dataUrl);
 			const promptForSubmit = expandUserCommandPrompt(
-				prompt,
+				expandedPrompt,
 				slashCommandRegistry,
 			);
 
@@ -169,7 +209,7 @@ export function usePromptInputController(input: {
 			}
 			setInputKey((k) => k + 1);
 			setInputValue("");
-			clearPastedImages();
+			clearPasteAttachments();
 			if (!delivery) {
 				inputHistory.recordHistoryEntry(promptForSubmit);
 			}
@@ -226,7 +266,7 @@ export function usePromptInputController(input: {
 			}
 		},
 		[
-			clearPastedImages,
+			clearPasteAttachments,
 			configVerbose,
 			inputHistory,
 			onSubmit,
@@ -267,14 +307,21 @@ export function usePromptInputController(input: {
 		(text: string) => {
 			setInputValue(text);
 			if (!text.trim()) {
-				clearPastedImages();
+				clearPasteAttachments();
+			} else {
+				prunePastedTextSnippets(text);
 			}
 			autocomplete.updateAutocomplete(text);
 			if (inputHistory.shouldResetHistoryIndex(text)) {
 				inputHistory.resetHistoryIndex();
 			}
 		},
-		[autocomplete, clearPastedImages, inputHistory],
+		[
+			autocomplete,
+			clearPasteAttachments,
+			inputHistory,
+			prunePastedTextSnippets,
+		],
 	);
 
 	const syncInputFromTextarea = useCallback(() => {
@@ -282,12 +329,22 @@ export function usePromptInputController(input: {
 			const text = textareaRef.current?.plainText ?? "";
 			if (text === inputValueRef.current) return;
 			setInputValue(text);
+			if (!text.trim()) {
+				clearPasteAttachments();
+			} else {
+				prunePastedTextSnippets(text);
+			}
 			autocomplete.updateAutocomplete(text);
 			if (inputHistory.shouldResetHistoryIndex(text)) {
 				inputHistory.resetHistoryIndex();
 			}
 		});
-	}, [autocomplete, inputHistory]);
+	}, [
+		autocomplete,
+		clearPasteAttachments,
+		inputHistory,
+		prunePastedTextSnippets,
+	]);
 
 	return {
 		inputKey,
@@ -303,6 +360,7 @@ export function usePromptInputController(input: {
 		submitInitialPrompt,
 		selectAutocompleteOption,
 		handleImagePaste,
+		handleLargeTextPaste,
 		handleSubmit,
 		handleContentChange,
 		syncInputFromTextarea,

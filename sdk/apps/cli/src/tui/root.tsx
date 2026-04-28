@@ -356,6 +356,7 @@ function App(props: TuiProps) {
 		onSubmit: promptInput.handleSubmit,
 		onContentChange: promptInput.handleContentChange,
 		onImagePaste: promptInput.handleImagePaste,
+		onLargeTextPaste: promptInput.handleLargeTextPaste,
 		repoStatus,
 		textareaRef: promptInput.textareaRef,
 		queuedPrompts,

@@ -1,10 +1,17 @@
-import type { KeyEvent, PasteEvent } from "@opentui/core";
+import {
+	decodePasteBytes,
+	type ExtmarksController,
+	type KeyEvent,
+	type PasteEvent,
+	stripAnsiSequences,
+} from "@opentui/core";
 import { useCallback, useRef } from "react";
 import {
 	readClipboardImageDataUrl,
 	readImagePasteAttachment,
 	readImmediateImagePasteAttachment,
 } from "../utils/image-paste";
+import { shouldCompactPastedText } from "../utils/pasted-snippets";
 
 export interface TextareaHandle {
 	plainText: string;
@@ -12,6 +19,8 @@ export interface TextareaHandle {
 	setText(text: string): void;
 	insertText(text: string): void;
 	cursorOffset: number;
+	extmarks: ExtmarksController;
+	getSelection(): { start: number; end: number } | null;
 }
 
 export interface InputBarProps {
@@ -22,7 +31,19 @@ export interface InputBarProps {
 	onSubmit: () => void;
 	onContentChange: (text: string) => void;
 	onImagePaste?: (dataUrl: string) => string;
+	onLargeTextPaste?: (text: string) => string;
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
+}
+
+function readTextPaste(event: PasteEvent): string | null {
+	if (
+		event.metadata?.kind === "binary" ||
+		event.metadata?.mimeType?.startsWith("image/")
+	) {
+		return null;
+	}
+
+	return stripAnsiSequences(decodePasteBytes(event.bytes));
 }
 
 export function InputBar(props: InputBarProps) {
@@ -43,6 +64,8 @@ export function InputBar(props: InputBarProps) {
 	onContentChangeRef.current = onContentChange;
 	const onImagePasteRef = useRef(props.onImagePaste);
 	onImagePasteRef.current = props.onImagePaste;
+	const onLargeTextPasteRef = useRef(props.onLargeTextPaste);
+	onLargeTextPasteRef.current = props.onLargeTextPaste;
 
 	const textareaRefCallback = useCallback(
 		(node: unknown) => {
@@ -70,24 +93,61 @@ export function InputBar(props: InputBarProps) {
 		[inputRef],
 	);
 
+	const insertAtomicText = useCallback(
+		(text: string) => {
+			const ta = inputRef.current;
+			if (!ta) return;
+
+			const selection = ta.getSelection();
+			const start = selection
+				? Math.min(selection.start, selection.end)
+				: ta.cursorOffset;
+			ta.insertText(text);
+			ta.extmarks.create({
+				start,
+				end: start + text.length,
+				virtual: true,
+			});
+			queueMicrotask(() => {
+				const plainText = inputRef.current?.plainText ?? "";
+				onContentChangeRef.current(plainText);
+			});
+		},
+		[inputRef],
+	);
+
 	const handlePaste = useCallback(
 		(event: PasteEvent) => {
-			if (!onImagePasteRef.current) return;
+			if (onImagePasteRef.current) {
+				const immediate = readImmediateImagePasteAttachment(event);
+				if (immediate) {
+					event.preventDefault();
+					insertImageAttachment(immediate.dataUrl);
+					return;
+				}
+			}
 
-			const immediate = readImmediateImagePasteAttachment(event);
-			if (immediate) {
+			const pastedText = readTextPaste(event);
+			if (
+				pastedText &&
+				shouldCompactPastedText(pastedText) &&
+				onLargeTextPasteRef.current
+			) {
+				const marker = onLargeTextPasteRef.current(pastedText);
 				event.preventDefault();
-				insertImageAttachment(immediate.dataUrl);
+				insertAtomicText(marker);
 				return;
 			}
 
-			void readImagePasteAttachment(event).then((attachment) => {
-				if (!attachment) return;
-				event.preventDefault();
-				insertImageAttachment(attachment.dataUrl);
-			});
+			if (onImagePasteRef.current) {
+				void readImagePasteAttachment(event).then((attachment) => {
+					if (!attachment) return;
+					event.preventDefault();
+					insertImageAttachment(attachment.dataUrl);
+				});
+			}
 		},
-		[insertImageAttachment],
+		[insertAtomicText, insertImageAttachment],
 	);
 
 	const handleKeyDown = useCallback(

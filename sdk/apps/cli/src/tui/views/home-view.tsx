@@ -22,6 +22,7 @@ export function HomeView(props: {
 	onSubmit: () => void;
 	onContentChange: (text: string) => void;
 	onImagePaste: (dataUrl: string) => string;
+	onLargeTextPaste: (text: string) => string;
 	repoStatus: {
 		branch: string | null;
 		diffStats: {
@@ -41,6 +42,7 @@ export function HomeView(props: {
 		onSubmit,
 		onContentChange,
 		onImagePaste,
+		onLargeTextPaste,
 		repoStatus,
 	} = props;
 	const session = useSession();
@@ -89,6 +91,7 @@ export function HomeView(props: {
 					onSubmit={onSubmit}
 					onContentChange={onContentChange}
 					onImagePaste={onImagePaste}
+					onLargeTextPaste={onLargeTextPaste}
 					textareaRef={props.textareaRef}
 				/>
 
