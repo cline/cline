@@ -994,6 +994,57 @@ export const vertexModels = {
 			supportsThinkingLevel: true,
 		},
 	},
+	// [NEW] Gemini 3.1 Pro customtools - optimized for agentic workflows with bash and custom tools
+	// Source: docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro
+	"gemini-3.1-pro-preview-customtools": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		cacheWritesPrice: 2.5,
+		cacheReadsPrice: 0.2,
+		temperature: 1.0,
+		supportsReasoning: true,
+		thinkingConfig: {
+			supportsThinkingLevel: true,
+		},
+		description: "Optimized for agentic workflows with custom tools and bash. Better at prioritizing tools like view_file and search_code. Companion to gemini-3.1-pro-preview.",
+	},
+	// [NEW] Gemini 3.1 Flash-Lite - cost-efficient model
+	// Source: docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-flash-lite
+	"gemini-3.1-flash-lite-preview": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.01,
+	},
+	// [NEW] Gemma 4 26B MaaS - Google open model
+	// Source: huggingface.co/google/gemma-4-31B + GCP models page
+	"gemma-4-26b-a4b-it-maas@001": {
+		maxTokens: 8192,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Google Gemma 4 26B (MoE) optimized for instruction following and agentic workflows.",
+	},
+	// [NEW] Gemma 4 31B Dense - flagship open-weights reasoning
+	// Source: huggingface.co/google/gemma-4-31B
+	"gemma-4-31b-dense": {
+		maxTokens: 8192,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		description: "Google Gemma 4 31B Dense. Flagship open-weights reasoning model with 256K context.",
+	},
 	"gemini-3-pro-preview": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
