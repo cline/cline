@@ -22,7 +22,8 @@ export abstract class DiffViewProvider {
 	private preDiagnostics: FileDiagnostics[] = []
 	protected relPath?: string
 	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
+	protected fileEncoding = "utf8"
+	protected originalHadBom = false
 	private streamedLines: string[] = []
 	private newContent?: string
 
@@ -45,9 +46,11 @@ export abstract class DiffViewProvider {
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
+			this.originalHadBom = this.originalContent.startsWith("\ufeff")
 		} else {
 			this.originalContent = ""
 			this.fileEncoding = "utf8"
+			this.originalHadBom = false
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 		this.createdDirs = await createDirectoriesForFile(this.absolutePath)
@@ -158,7 +161,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>
 
 	/**
 	 * Closes all open diff views.
@@ -363,12 +366,27 @@ export abstract class DiffViewProvider {
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 
+		// Strip any leading BOM so the comparison below isn't thrown off by it:
+		// update() strips the BOM from incoming content before populating the document,
+		// while the host editor may re-add it (or not) on save. Comparing BOM-stripped
+		// strings avoids false "user edited Cline's output" reports on BOM files.
+		const stripBom = (s: string) => (s.startsWith("\ufeff") ? s.slice(1) : s)
+
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
-		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
+		const normalizedPreSaveContent =
+			stripBom(preSaveContent)
+				.replace(/\r\n|\n/g, newContentEOL)
+				.trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPostSaveContent =
+			stripBom(postSaveContent)
+				.replace(/\r\n|\n/g, newContentEOL)
+				.trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
-		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
+		const normalizedNewContent =
+			stripBom(this.newContent)
+				.replace(/\r\n|\n/g, newContentEOL)
+				.trimEnd() + newContentEOL
 
 		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
@@ -430,8 +448,7 @@ export abstract class DiffViewProvider {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
 			// course the user made changes and saved during the edit.
-			const contents = (await this.getDocumentText()) || ""
-			const lineCount = (contents.match(/\n/g) || []).length + 1
+			const lineCount = await this.getDocumentLineCount()
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
@@ -456,7 +473,7 @@ export abstract class DiffViewProvider {
 		for (const part of diffs) {
 			if (part.added || part.removed) {
 				// Found the first diff, scroll to it
-				this.scrollEditorToLine(lineCount)
+				await this.scrollEditorToLine(lineCount)
 				return
 			}
 			if (!part.removed) {
@@ -495,6 +512,7 @@ export abstract class DiffViewProvider {
 		this.preDiagnostics = []
 
 		this.originalContent = undefined
+		this.originalHadBom = false
 		this.fileEncoding = "utf8"
 		this.documentWasOpen = false
 
