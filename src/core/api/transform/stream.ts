@@ -26,6 +26,10 @@ export interface ApiStreamUsageChunk {
 	thoughtsTokenCount?: number // openrouter
 	totalCost?: number // openrouter
 	/**
+	 * Total context window size for the model being used
+	 */
+	contextWindow?: number
+	/**
 	 * The response ID associated with this response
 	 */
 	id?: string
