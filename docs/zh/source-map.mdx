@@ -1,0 +1,131 @@
+---
+title: "Cline 源码地图"
+sidebarTitle: "源码地图"
+description: "按宿主、任务引擎、MCP、存储、Webview UI 和 CLI 运行时拆出的实战导航图。"
+---
+
+仓库一大，最糟糕的读法就是“从头到尾全看一遍”。最快的读法，是先知道自己该站在哪里。这一页就是给你定站位的。
+
+## 如果你只读 12 个文件，就读这 12 个
+
+| 文件 | 为什么重要 |
+|---|---|
+| `src/extension.ts` | VS Code 启动顺序、命令注册、存储迁移、Webview 注册都在这里 |
+| `src/hosts/vscode/VscodeWebviewProvider.ts` | React 前端与扩展宿主的消息桥 |
+| `src/core/controller/index.ts` | 共享服务所有权、任务创建、远程配置、MCP 初始化 |
+| `src/core/task/index.ts` | 主任务循环和任务级资源绑定 |
+| `src/core/task/ToolExecutor.ts` | 审批、校验、安全限制、工具结果回灌 |
+| `src/core/task/tools/ToolExecutorCoordinator.ts` | 从工具名到 handler 的类型化路由 |
+| `src/core/task/loop-detection.ts` | 重复工具调用安全逻辑 |
+| `src/core/task/TaskPresentationScheduler.ts` | 流式 UI 调度器 |
+| `src/services/mcp/McpHub.ts` | MCP 设置监听、传输建立、重连逻辑 |
+| `src/core/storage/StateManager.ts` | 缓存状态、debounce 持久化、同步策略 |
+| `webview-ui/src/services/grpc-client-base.ts` | Webview 请求与流式响应传输 |
+| `cli/src/agent/ClineAgent.ts` | ACP 集成、多会话 CLI 嵌入 |
+
+## 按子系统阅读
+
+### VS Code 宿主与 Webview 桥接
+
+- `src/extension.ts`
+- `src/hosts/vscode/VscodeWebviewProvider.ts`
+- `src/shared/WebviewMessage.ts`
+- `src/shared/ExtensionMessage.ts`
+
+适合回答的问题：侧边栏到底怎么和扩展端通信？
+
+### Controller 与共享服务装配
+
+- `src/core/controller/index.ts`
+- `src/core/storage/StateManager.ts`
+- `src/core/storage/disk.ts`
+
+适合回答的问题：长生命周期服务由谁拥有？状态到底写到哪里？
+
+### Task 引擎与工具执行通路
+
+- `src/core/task/index.ts`
+- `src/core/task/ToolExecutor.ts`
+- `src/core/task/tools/ToolExecutorCoordinator.ts`
+- `src/core/task/tools/handlers/UseMcpToolHandler.ts`
+
+适合回答的问题：模型吐出的一个 tool call，如何变成真实副作用？
+
+### 安全性与交互流畅度
+
+- `src/core/task/loop-detection.ts`
+- `src/core/task/TaskPresentationScheduler.ts`
+- `src/core/task/message-state.ts`
+
+适合回答的问题：为什么 Cline 在流式输出时既稳又不容易自转？
+
+### MCP
+
+- `src/services/mcp/McpHub.ts`
+- `src/services/mcp/McpOAuthManager.ts`
+- `src/services/mcp/schemas.ts`
+
+适合回答的问题：外部工具是怎样被发现、鉴权和调用的？
+
+### 检查点与任务恢复
+
+- `src/integrations/checkpoints/factory.ts`
+- `docs/troubleshooting/task-history-recovery.mdx`
+- `src/core/storage/disk.ts`
+
+适合回答的问题：为什么任务历史和检查点在升级后还能恢复？
+
+### CLI 与 ACP
+
+- `cli/src/index.ts`
+- `cli/src/utils/mode-selection.ts`
+- `cli/src/agent/ClineAgent.ts`
+- `cli/src/agent/messageTranslator.ts`
+
+适合回答的问题：为什么 CLI 看起来像原生终端工具，却仍然共用同一套核心引擎？
+
+## 从症状反查源码
+
+| 现象 | 先看哪里 | 原因 |
+|---|---|---|
+| 侧边栏不更新 | `src/hosts/vscode/VscodeWebviewProvider.ts`, `webview-ui/src/services/grpc-client-base.ts` | 请求和流式响应边界都在这里 |
+| 工具一直重复调用 | `src/core/task/ToolExecutor.ts`, `src/core/task/loop-detection.ts` | 审批与循环检测都集中在这里 |
+| MCP 服务连不上 | `src/services/mcp/McpHub.ts`, `src/services/mcp/schemas.ts` | 校验、文件监听、传输建立都在这里 |
+| CLI 和 VS Code 行为不同 | `cli/src/index.ts`, `cli/src/agent/ClineAgent.ts`, `src/hosts/external/ExternalWebviewProvider.ts` | 宿主差异应该在这层，而不是在 Task 引擎里 |
+| 历史或检查点不对劲 | `src/core/storage/StateManager.ts`, `src/core/storage/disk.ts`, `src/integrations/checkpoints/factory.ts` | 存储与检查点策略在这几处交界 |
+
+## 按角色给阅读建议
+
+<CardGroup cols={2}>
+  <Card title="新贡献者" icon="book">
+    先读 `quick-start`，再读 `architecture`，然后把上面的 12 个核心文件过一遍。
+  </Card>
+  <Card title="Agent 系统工程师" icon="code">
+    直接从 `src/core/task/index.ts`、`ToolExecutor.ts`、`loop-detection.ts`、`TaskPresentationScheduler.ts` 开始。
+  </Card>
+  <Card title="前端工程师" icon="desktop">
+    先看 `webview-ui/src/App.tsx`、`ExtensionStateContext.tsx`、`grpc-client-base.ts`，再反查 `VscodeWebviewProvider.ts`。
+  </Card>
+  <Card title="平台工程师" icon="server">
+    先看 `StateManager.ts`、`disk.ts`、`McpHub.ts` 和 checkpoint factory。
+  </Card>
+</CardGroup>
+
+## 推荐阅读顺序
+
+```text
+1. src/extension.ts
+2. src/core/controller/index.ts
+3. src/core/task/index.ts
+4. src/core/task/ToolExecutor.ts
+5. src/core/task/tools/ToolExecutorCoordinator.ts
+6. src/core/task/loop-detection.ts
+7. src/core/task/TaskPresentationScheduler.ts
+8. src/services/mcp/McpHub.ts
+9. src/core/storage/StateManager.ts
+10. webview-ui/src/services/grpc-client-base.ts
+11. cli/src/index.ts
+12. cli/src/agent/ClineAgent.ts
+```
+
+读完这 12 个文件，整个仓库就不会再像迷宫，而会变成“一套清晰执行内核 + 一圈适配层”。
