@@ -927,6 +927,39 @@ describe("updateLocalProvider", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
+	it("updates a provider that exists in settings but not models registry", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "settings-only-provider",
+				baseUrl: "https://settings.example.invalid/v1",
+				model: "saved-model",
+			},
+			{ setLastUsed: false },
+		);
+
+		const result = await updateLocalProvider(manager, {
+			providerId: "settings-only-provider",
+			models: ["new-model-a", "new-model-b"],
+			defaultModelId: "new-model-b",
+		});
+
+		expect(result.modelsCount).toBe(2);
+		const provider = await LlmsModels.getProvider("settings-only-provider");
+		expect(provider?.name).toBe("Settings Only Provider");
+		expect(provider?.baseUrl).toBe("https://settings.example.invalid/v1");
+		expect(provider?.defaultModelId).toBe("new-model-b");
+
+		const settings = manager.getProviderSettings("settings-only-provider");
+		expect(settings?.baseUrl).toBe("https://settings.example.invalid/v1");
+		expect(settings?.model).toBe("new-model-b");
+
+		const { models } = await getLocalProviderModels("settings-only-provider");
+		expect(models.map((model) => model.id).sort()).toEqual([
+			"new-model-a",
+			"new-model-b",
+		]);
+	});
+
 	it("throws when updating a provider that does not exist in custom registry", async () => {
 		await expect(
 			updateLocalProvider(manager, {

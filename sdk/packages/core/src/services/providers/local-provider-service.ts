@@ -389,9 +389,33 @@ export async function updateLocalProvider(
 
 	const modelsPath = resolveModelsRegistryPath(manager);
 	const modelsState = await readModelsFile(modelsPath);
-	const existingEntry = modelsState.providers[providerId];
+	let existingEntry = modelsState.providers[providerId];
 	if (!existingEntry) {
-		throw new Error(`provider "${providerId}" does not exist`);
+		const existingSettings = manager.getProviderSettings(providerId);
+		if (!existingSettings) {
+			throw new Error(`provider "${providerId}" does not exist`);
+		}
+
+		const seedModelId =
+			uniqueTrimmed(request.models)[0] ?? existingSettings.model?.trim();
+		if (!seedModelId) {
+			throw new Error(
+				`provider "${providerId}" cannot be updated because no model is configured`,
+			);
+		}
+
+		// Ephemeral seed for the existing update path; final state is computed and written below.
+		existingEntry = {
+			provider: {
+				name: request.name?.trim() || titleCaseFromId(providerId),
+				baseUrl: request.baseUrl?.trim() ?? existingSettings.baseUrl?.trim() ?? "",
+				defaultModelId: seedModelId,
+				protocol: existingSettings.protocol,
+				client: existingSettings.client,
+				capabilities: existingSettings.capabilities,
+			},
+			models: buildProviderModels([seedModelId], existingSettings.capabilities),
+		};
 	}
 	if (!existingEntry.provider) {
 		throw new Error(
