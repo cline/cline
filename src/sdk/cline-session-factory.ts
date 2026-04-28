@@ -12,6 +12,7 @@ import { type ClineCoreStartInput, type CoreSessionConfig, type SessionHost, typ
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
@@ -377,6 +378,18 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to build system prompt, using minimal fallback:", error)
 		systemPrompt = "You are Cline, a highly skilled software engineer. Help the user with their request."
+	}
+
+	// Inject preferred language instructions when a non-default language is selected.
+	// Mirrors classic src/core/task/index.ts preferredLanguage handling.
+	try {
+		const preferredLanguageRaw = StateManager.get().getGlobalSettingsKey("preferredLanguage")
+		const preferredLanguage = getLanguageKey(preferredLanguageRaw as LanguageDisplay | undefined)
+		if (preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS) {
+			systemPrompt = `${systemPrompt}\n\n# Preferred Language\n\nSpeak in ${preferredLanguage}.`
+		}
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to inject preferredLanguage instructions:", error)
 	}
 
 	// Append plan-mode instructions when in plan mode, matching the CLI's
