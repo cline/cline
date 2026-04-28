@@ -7,7 +7,7 @@ import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
-import { withRetry } from "../retry"
+import { RetriableError, withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
@@ -47,16 +47,13 @@ export class DeepSeekHandler implements ApiHandler {
 	private options: DeepSeekHandlerOptions
 	private client: OpenAI | undefined
 	private abortController: AbortController | null = null
-	private isAborted = false
 
 	constructor(options: DeepSeekHandlerOptions) {
 		this.options = options
 	}
 
 	abort(): void {
-		this.isAborted = true
 		this.abortController?.abort()
-		this.abortController = null
 	}
 
 	private ensureClient(): OpenAI {
@@ -173,33 +170,56 @@ export class DeepSeekHandler implements ApiHandler {
 
 		const toolCallProcessor = new ToolCallProcessor()
 
-		for await (const chunk of stream) {
-			if (this.isAborted) {
-				break
-			}
-			const delta = chunk.choices?.[0]?.delta
-			if (delta?.content) {
-				yield {
-					type: "text",
-					text: delta.content,
+		try {
+			for await (const chunk of stream) {
+				const delta = chunk.choices?.[0]?.delta
+				if (delta?.content) {
+					yield {
+						type: "text",
+						text: delta.content,
+					}
+				}
+
+				if (delta?.tool_calls) {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+				}
+
+				if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+					yield {
+						type: "reasoning",
+						reasoning: (delta.reasoning_content as string | undefined) || "",
+					}
+				}
+
+				if (chunk.usage) {
+					yield* this.yieldUsage(model.info, chunk.usage)
 				}
 			}
-
-			if (delta?.tool_calls) {
-				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-			}
-
-			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					reasoning: (delta.reasoning_content as string | undefined) || "",
-				}
-			}
-
-			if (chunk.usage) {
-				yield* this.yieldUsage(model.info, chunk.usage)
-			}
+		} catch (error: any) {
+			this.handleStreamError(error)
 		}
+	}
+
+	/**
+	 * Classifies DeepSeek API errors and surfaces actionable messages.
+	 * - 402 → immediately throw non-retriable error (insufficient balance)
+	 * - 503 → throw RetriableError to trigger exponential backoff retry
+	 * - Other errors → re-throw as-is
+	 */
+	private handleStreamError(error: any): never {
+		const status = error?.status
+
+		if (status === 402) {
+			throw new Error(
+				"DeepSeek API error (402): Insufficient balance. Please top up your account at https://platform.deepseek.com.",
+			)
+		}
+
+		if (status === 503) {
+			throw new RetriableError("DeepSeek API error (503): Service temporarily overloaded. Retrying...")
+		}
+
+		throw error
 	}
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
