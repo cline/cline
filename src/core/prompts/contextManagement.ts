@@ -84,11 +84,16 @@ Here's an example of how your output should be structured:
    - [Task 1]
    - [Task 2]
    - [...]
-6. Current Work:
+6. Task Evolution:
+   - Original Task: [Initial user request summary]
+   - Task Modifications: [How the user modified or redirected the work]
+   - Current Active Task: [Most recent task]
+   - Context for Changes: [Why the task evolved]
+7. Current Work:
    [Precise description of current work]
-7. Optional Next Step:
+8. Optional Next Step:
    [Optional Next step to take]
-8. Optional Required Files:
+9. Optional Required Files:
    - [file path 1]
    - [file path 2]
 </context>
