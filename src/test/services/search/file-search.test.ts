@@ -123,9 +123,50 @@ describe("File Search", () => {
 				},
 			} as unknown as childProcess.ChildProcess)
 
+			// CLINE-1814: spawn-time errors are now wrapped in RipgrepSpawnError so
+			// the controller can map them to a structured error_reason.
 			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
-				`ripgrep process error: ${mockError}`,
+				`ripgrep failed to spawn: ${mockError}`,
 			)
+		})
+
+		it("should reject with RipgrepSpawnError when ripgrep exits non-zero with no results", async () => {
+			// CLINE-1814: a non-zero exit with empty stdout used to silently
+			// resolve to []; we now reject so the controller can attach an
+			// error_reason of "ripgrep_spawn_failed".
+			const mockStdout = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push("rg: /bogus: No such file or directory (os error 2)")
+					this.push(null)
+				},
+			})
+
+			let exitHandler: ((code: number | null) => void) | null = null
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						exitHandler = callback as (code: number | null) => void
+						// Schedule the exit-code emission for after the readline 'close'
+						setImmediate(() => exitHandler?.(2))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as childProcess.ChildProcess)
+
+			const promise = fileSearch.executeRipgrepForFiles("/workspace", 5000)
+			await should(promise).be.rejectedWith(/ripgrep exited with code 2/)
+			const err = await promise.catch((e) => e)
+			should(err).have.property("name", "RipgrepSpawnError")
+			should(err).have.property("exitCode", 2)
+			should(err.stderr).match(/No such file or directory/)
 		})
 	})
 

@@ -151,6 +151,23 @@ message FileSearchRequest {
 message FileSearchResults {
   repeated FileInfo results = 1; // Array of file/folder results
   optional string mentions_request_id = 2; // Echo of the request ID for tracking
+  // CLINE-1814: structured machine-readable reason for an empty result list.
+  // Empty/unset when results were returned successfully (or when there
+  // genuinely were no matches for a non-empty workspace). Known values:
+  //   - "workspace_not_ready"     - host has not finished loading the project
+  //                                 model yet; the picker should retry on the
+  //                                 next keystroke (self-healing).
+  //   - "workspace_unavailable"   - host could not produce any workspace path
+  //                                 (configuration error, not transient).
+  //   - "ripgrep_spawn_failed"    - the bundled rg binary failed to spawn or
+  //                                 exited non-zero; see error_message.
+  //   - "results_truncated"       - the result cap was hit; user should
+  //                                 refine their query (reserved for Phase 2C).
+  //   - "unknown"                 - catch-all; see error_message.
+  optional string error_reason = 3;
+  // Optional human-readable message accompanying error_reason; rendered as a
+  // grey subtitle in the picker UI to help the user understand the state.
+  optional string error_message = 4;
 }
 
 // File information structure for search results
