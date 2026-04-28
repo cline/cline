@@ -514,6 +514,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		hicapApiEndpoint: config.hicapApiEndpoint,
+		hicapUseResponsesApi: config.hicapUseResponsesApi,
+		hicapMaxOutputTokens: config.hicapMaxOutputTokens,
+		hicapTemperature: config.hicapTemperature,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -692,6 +696,10 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		minimaxApiLine: protoConfig.minimaxApiLine,
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
+		hicapApiEndpoint: protoConfig.hicapApiEndpoint,
+		hicapUseResponsesApi: protoConfig.hicapUseResponsesApi,
+		hicapMaxOutputTokens: protoConfig.hicapMaxOutputTokens,
+		hicapTemperature: protoConfig.hicapTemperature,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
 		clineApiKey: protoConfig.clineApiKey,
 

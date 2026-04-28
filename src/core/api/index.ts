@@ -449,6 +449,13 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				hicapApiKey: options.hicapApiKey,
 				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
+				hicapApiEndpoint: options.hicapApiEndpoint,
+				hicapUseResponsesApi: options.hicapUseResponsesApi,
+				hicapMaxOutputTokens: options.hicapMaxOutputTokens,
+				hicapTemperature: options.hicapTemperature,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "nousResearch":
 			return new NousResearchHandler({

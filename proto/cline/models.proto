@@ -600,6 +600,10 @@ message ModelsApiConfiguration {
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
   optional string wandb_api_key = 87;
+  optional bool hicap_use_responses_api = 88;
+  optional string hicap_api_endpoint = 89;
+  optional int64 hicap_max_output_tokens = 90;
+  optional double hicap_temperature = 91;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

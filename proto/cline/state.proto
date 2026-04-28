@@ -281,6 +281,10 @@ message Settings {
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
   optional bool lazy_teammate_mode_enabled = 183;
+  optional bool hicap_use_responses_api = 184;
+  optional string hicap_api_endpoint = 185;
+  optional int32 hicap_max_output_tokens = 186;
+  optional int32 hicap_temperature = 187;
 }
 
 message State {

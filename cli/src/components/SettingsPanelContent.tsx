@@ -19,6 +19,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { supportsHicapResponsesApi } from "@/shared/clients/hicap"
 import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { supportsReasoningEffortForModel } from "@/utils/model-utils"
@@ -212,6 +213,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [planReasoningEffort, setPlanReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
 		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("planModeReasoningEffort")),
+	)
+	const [hicapUseResponsesApi, setHicapUseResponsesApi] = useState<boolean>(
+		() => stateManager.getGlobalSettingsKey("hicapUseResponsesApi") ?? false,
+	)
+	const [hicapMaxOutputTokens, setHicapMaxOutputTokens] = useState<string>(() =>
+		(stateManager.getGlobalSettingsKey("hicapMaxOutputTokens") ?? "").toString(),
+	)
+	const [hicapTemperature, setHicapTemperature] = useState<string>(() =>
+		(stateManager.getGlobalSettingsKey("hicapTemperature") ?? "").toString(),
 	)
 
 	// Auto-approve settings (complex nested object)
@@ -451,6 +461,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
 		const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
 		const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
+		const hicapResponsesApiSupported = separateModels
+			? [actModelId, planModelId].filter(Boolean).every((modelId) => supportsHicapResponsesApi(modelId))
+			: supportsHicapResponsesApi(actModelId || planModelId)
 
 		switch (currentTab) {
 			case "api":
@@ -551,6 +564,28 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 										]
 									: []),
 							]),
+					...(provider === "hicap"
+						? [
+								{
+									key: "hicapUseResponsesApi",
+									label: hicapResponsesApiSupported ? "Use Responses API" : "API Format",
+									type: hicapResponsesApiSupported ? ("checkbox" as const) : ("readonly" as const),
+									value: hicapResponsesApiSupported ? hicapUseResponsesApi : "Chat Completions",
+								},
+								{
+									key: "hicapMaxOutputTokens",
+									label: "Max Output Tokens",
+									type: "editable" as const,
+									value: hicapMaxOutputTokens || "default",
+								},
+								{
+									key: "hicapTemperature",
+									label: "Temperature",
+									type: "editable" as const,
+									value: hicapTemperature || "default",
+								},
+							]
+						: []),
 					{
 						key: "separateModels",
 						label: "Use separate models for Plan and Act",
@@ -714,6 +749,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planThinkingEnabled,
 		actReasoningEffort,
 		planReasoningEffort,
+		hicapUseResponsesApi,
+		hicapMaxOutputTokens,
+		hicapTemperature,
+		actModelId,
+		planModelId,
 		autoApproveSettings,
 		features,
 		preferredLanguage,
@@ -774,6 +814,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		[separateModels, rebuildTaskApi, stateManager],
 	)
 
+	const setOptionalNumberSetting = useCallback(
+		(key: "hicapMaxOutputTokens" | "hicapTemperature", value: string) => {
+			const trimmedValue = value.trim()
+			const numericValue = Number(trimmedValue)
+			stateManager.setGlobalState(key, trimmedValue && Number.isFinite(numericValue) ? numericValue : undefined)
+			rebuildTaskApi()
+		},
+		[rebuildTaskApi, stateManager],
+	)
+
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
 		const item = items[selectedIndex]
@@ -802,6 +852,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (targetMode) {
 				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
 				setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
+				return
 			}
 			return
 		}
@@ -872,6 +923,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setPlanReasoningEffort(actEffort)
 			}
 
+			rebuildTaskApi()
+			return
+		}
+
+		if (item.key === "hicapUseResponsesApi") {
+			setHicapUseResponsesApi(newValue)
+			stateManager.setGlobalState("hicapUseResponsesApi", newValue)
 			rebuildTaskApi()
 			return
 		}
@@ -954,6 +1012,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planReasoningEffort,
 		rebuildTaskApi,
 		setReasoningEffortForMode,
+		setOptionalNumberSetting,
 	])
 
 	// Handle completion of the Bedrock custom ARN flow (ARN + base model selected)
@@ -1045,6 +1104,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
 					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
 				}
+			}
+
+			if (providerForSelection === "hicap" && !supportsHicapResponsesApi(modelId)) {
+				setHicapUseResponsesApi(false)
+				stateManager.setGlobalState("hicapUseResponsesApi", false)
 			}
 
 			// Flush pending state to ensure model ID is persisted
@@ -1242,9 +1306,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setPreferredLanguage(editValue)
 				stateManager.setGlobalState("preferredLanguage", editValue)
 				break
+			case "hicapMaxOutputTokens":
+				setHicapMaxOutputTokens(editValue)
+				setOptionalNumberSetting("hicapMaxOutputTokens", editValue)
+				break
+			case "hicapTemperature":
+				setHicapTemperature(editValue)
+				setOptionalNumberSetting("hicapTemperature", editValue)
+				break
 		}
 		setIsEditing(false)
-	}, [items, selectedIndex, editValue, separateModels, stateManager])
+	}, [items, selectedIndex, editValue, separateModels, stateManager, setOptionalNumberSetting])
 
 	// Navigate to next/prev item, skipping non-interactive items
 	const navigateItems = useCallback(
