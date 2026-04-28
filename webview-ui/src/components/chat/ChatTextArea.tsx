@@ -259,6 +259,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
+		// Derive whether the selected model supports images
+		const supportsImages = useMemo(() => {
+			const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
+			return selectedModelInfo?.supportsImages ?? false
+		}, [apiConfiguration, mode])
+
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
 			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
@@ -850,7 +856,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
+				if (!shouldDisableFilesAndImages && supportsImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -901,6 +907,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[
 				shouldDisableFilesAndImages,
+				supportsImages,
 				setSelectedImages,
 				selectedImages,
 				selectedFiles,
@@ -1258,7 +1265,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
+			if (shouldDisableFilesAndImages || !supportsImages || imageFiles.length === 0) {
 				return
 			}
 
