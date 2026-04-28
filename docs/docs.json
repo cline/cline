@@ -131,7 +131,6 @@
 							"features/subagents",
 							"features/background-edit",
 							"features/jupyter-notebooks",
-							"features/deep-planning",
 							"features/web-tools",
 							"features/worktrees"
 						]
@@ -652,8 +651,12 @@
 			"destination": "/troubleshooting/terminal-quick-fixes"
 		},
 		{
+			"source": "/features/deep-planning",
+			"destination": "/core-workflows/plan-and-act"
+		},
+		{
 			"source": "/features/slash-commands/deep-planning",
-			"destination": "/features/deep-planning"
+			"destination": "/core-workflows/plan-and-act"
 		},
 		{
 			"source": "/features/slash-commands/smol",

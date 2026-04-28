@@ -80,16 +80,16 @@ When enabled, switching between Plan and Act mode automatically switches to the 
 | Maximum quality | Claude Opus | Claude Sonnet |
 | Speed-focused | Gemini 3 Flash | Cerebras |
 
-## Using `/deep-planning`
+## Planning Large Tasks
 
-For complex tasks that need thorough analysis, use the `/deep-planning` slash command. This triggers an extended planning session where Cline:
+For complex tasks that need thorough analysis, stay in Plan mode long enough to:
 
-1. Explores the codebase systematically
-2. Identifies all affected files and dependencies
-3. Creates a detailed implementation plan
-4. Asks clarifying questions before proceeding
+1. Explore the codebase systematically
+2. Identify affected files, dependencies, and edge cases
+3. Discuss tradeoffs and clarify requirements
+4. Write down an implementation plan before switching to Act mode
 
-The deep planning prompt is optimized for each model family, so it adapts to the strengths of whatever model you're using. See the [Deep Planning docs](/features/deep-planning) for more details.
+If you want a durable artifact, ask Cline to create a markdown planning document you can review with your team before implementation begins. If your team does this often, turn the process into a reusable [workflow](/customization/workflows).
 
 ## Choosing the Right Approach by Task Size
 
@@ -105,9 +105,9 @@ For most development work, start in Plan mode to understand the scope and approa
 
 **Examples:** Add a new API endpoint, implement a UI component, fix a bug that requires investigation, refactor a single module.
 
-### Large tasks: Use `/deep-planning`
+### Large tasks: Plan mode + written plan
 
-For complex features that span multiple files, require architectural decisions, or will take multiple sessions to complete, use the `/deep-planning` slash command. This creates a detailed implementation plan that Cline can reference throughout the work.
+For complex features that span multiple files, require architectural decisions, or will take multiple sessions to complete, spend more time in Plan mode and have Cline produce a written implementation plan before switching to Act mode.
 
 **Examples:** Add a new feature across frontend and backend, major refactoring across the codebase, implementing a new system or integration, multi-step migrations.
 
