@@ -54,6 +54,7 @@ export class DeepSeekHandler implements ApiHandler {
 	private options: DeepSeekHandlerOptions
 	private client: OpenAI | undefined
 	private abortController: AbortController | null = null
+	private lastUsageChunk: import("../transform/stream").ApiStreamUsageChunk | undefined
 
 	constructor(options: DeepSeekHandlerOptions) {
 		this.options = options
@@ -61,6 +62,15 @@ export class DeepSeekHandler implements ApiHandler {
 
 	abort(): void {
 		this.abortController?.abort()
+	}
+
+	/**
+	 * Returns the last usage chunk from the stream, if available.
+	 * DeepSeek returns usage in the final chunk via stream_options.include_usage,
+	 * so this is primarily useful when the stream is interrupted before completion.
+	 */
+	async getApiStreamUsage(): Promise<import("../transform/stream").ApiStreamUsageChunk | undefined> {
+		return this.lastUsageChunk
 	}
 
 	private ensureClient(): OpenAI {
@@ -116,14 +126,16 @@ export class DeepSeekHandler implements ApiHandler {
 		// When cacheWriteTokens is 0 (e.g., all cache hits or API doesn't return cache breakdown),
 		// fall back to prompt_tokens to prevent context truncation from stalling.
 		const effectiveInputTokens = cacheWriteTokens > 0 ? cacheWriteTokens : inputTokens
-		yield {
-			type: "usage",
+		const usageChunk = {
+			type: "usage" as const,
 			inputTokens: effectiveInputTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,
 			totalCost: totalCost,
 		}
+		this.lastUsageChunk = usageChunk
+		yield usageChunk
 	}
 
 	/**
