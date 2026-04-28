@@ -22,6 +22,7 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekBaseUrl?: string
 	apiModelId?: string
 	reasoningEffort?: string
+	/** Reserved for future API support. DeepSeek does not currently support thinking budget tokens. */
 	thinkingBudgetTokens?: number
 }
 
@@ -42,6 +43,10 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
  *    as proxies for actual prompt processing cost.
  * 2. Cost calculation — uses the OpenAI formula which expects `prompt_tokens`,
  *    `cache_hit_tokens`, and `cache_miss_tokens`.
+ *
+ * Note: `thinkingBudgetTokens` is accepted but not currently used, as DeepSeek does not
+ * support per-request thinking token budgets (unlike Anthropic). DeepSeek V4 Pro
+ * reasoning is controlled via `reasoning_effort` instead.
  *
  * @see https://api-docs.deepseek.com/guides/kv_cache
  */
