@@ -34,14 +34,27 @@ export async function deleteWorktree(_controller: Controller, request: DeleteWor
 			})
 		}
 
-		// Clean up checkpoint data (shadow git repo) for the deleted worktree
+		// Clean up checkpoint data for the deleted worktree:
+		// 1. Legacy shadow git cleanup (for tasks created before ref-based checkpoints)
 		try {
 			const cwdHash = hashWorkingDir(request.path)
 			const checkpointDir = path.join(HostProvider.get().globalStorageFsPath, "checkpoints", cwdHash)
 			await rm(checkpointDir, { recursive: true, force: true })
 		} catch (error) {
-			// Log but don't fail - checkpoint cleanup is best-effort
-			Logger.log(`Failed to cleanup checkpoints for deleted worktree: ${error}`)
+			Logger.log(`Failed to cleanup legacy checkpoints for deleted worktree: ${error}`)
+		}
+
+		// 2. Ref-based checkpoint cleanup (delete refs/cline/checkpoints/* in the worktree's repo)
+		try {
+			const { RefCheckpointTracker } = await import("@/integrations/checkpoints/RefCheckpointTracker")
+			// Get all task IDs that had checkpoints in this worktree
+			const git = simpleGit(cwd)
+			const refs = await git.raw(["for-each-ref", "--format=%(refname)", "refs/cline/checkpoints/"])
+			for (const ref of refs.split("\n").filter(Boolean)) {
+				await git.raw(["update-ref", "-d", ref]).catch(() => {})
+			}
+		} catch (error) {
+			Logger.log(`Failed to cleanup ref-based checkpoints for deleted worktree: ${error}`)
 		}
 
 		// Delete the branch if requested

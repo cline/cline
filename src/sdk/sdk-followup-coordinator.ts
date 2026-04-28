@@ -52,7 +52,13 @@ export class SdkFollowupCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
-		if ((!activeSession || !activeSession.isRunning) && task) {
+		if (!activeSession && task) {
+			// No active session but task exists — the session was disposed (e.g., after
+			// MCP tool reload or mode switch). Resume by creating a new session with
+			// the task's history. Note: we intentionally do NOT check isRunning here.
+			// After a turn completes the session is still alive (activeSession exists)
+			// but isRunning is false — that's the normal between-turns state, not a
+			// reason to tear down and recreate the session.
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
 			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
 			return
@@ -72,6 +78,14 @@ export class SdkFollowupCoordinator {
 		}
 
 		this.options.sessions.setRunning(true)
+
+		// Save a checkpoint before the user feedback message so that
+		// checkpoint_created appears right before user_feedback in the
+		// message array. The UserMessage "edit & restore" UI sends
+		// offset: 1 which subtracts from the user_feedback index,
+		// expecting to land on the checkpoint_created message.
+		this.saveCheckpointOnUserMessage()
+
 		this.emitUserFeedback(sessionId, prompt, images, files)
 
 		if (!wasAlreadyRunning) {
@@ -165,6 +179,30 @@ export class SdkFollowupCoordinator {
 
 		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 		this.options.sessions.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedPrompt, images, files)
+	}
+
+	/**
+	 * Save a checkpoint when the user submits a message.
+	 * Emits a checkpoint_created message and commits the workspace state.
+	 * Fire-and-forget to avoid blocking the message send.
+	 */
+	private saveCheckpointOnUserMessage(): void {
+		const task = this.options.getTask()
+		if (!task?.checkpointManager) return
+
+		// Emit checkpoint_created message
+		const checkpointMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "say",
+			say: "checkpoint_created",
+			partial: false,
+		}
+		this.options.messages.appendMessages([checkpointMessage])
+
+		// Commit checkpoint asynchronously (fire-and-forget)
+		task.checkpointManager.saveCheckpoint().catch((err) => {
+			Logger.error("[SdkFollowupCoordinator] Failed to save checkpoint:", err)
+		})
 	}
 
 	private emitUserFeedback(sessionId: string, prompt?: string, images?: string[], files?: string[]): void {

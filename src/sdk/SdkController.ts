@@ -27,6 +27,7 @@ import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { SdkCheckpointManager } from "@/integrations/checkpoints/SdkCheckpointManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
@@ -256,6 +257,9 @@ export class Controller {
 			getTask: () => this.task,
 			setTask: (task) => {
 				this.task = task
+				if (task) {
+					this.initCheckpointManager(task)
+				}
 			},
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
@@ -272,6 +276,9 @@ export class Controller {
 			clearTask: () => this.clearTask(),
 			setTask: (task) => {
 				this.task = task
+				if (task) {
+					this.initCheckpointManager(task)
+				}
 			},
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			onCancelTask: () => this.cancelTask(),
@@ -404,6 +411,41 @@ export class Controller {
 	 * The classic extension used `vscode.workspace.workspaceFolders[0].uri.fsPath`
 	 * directly; using HostProvider keeps this host-agnostic.
 	 */
+	/**
+	 * Initialize the SdkCheckpointManager for a task proxy.
+	 * Fire-and-forget: async init happens in the background.
+	 */
+	private initCheckpointManager(task: TaskProxy): void {
+		const enableCheckpoints = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
+		if (!enableCheckpoints) return
+
+		this.getWorkspaceRoot()
+			.then((workspaceRoot) => {
+				const manager = new SdkCheckpointManager({
+					taskId: task.taskId,
+					workspaceRoot,
+					enableCheckpoints,
+					messageAccess: task.messageStateHandler,
+					onSessionInvalidated: async () => {
+						// Tear down the active SDK session so the next askResponse()
+						// creates a fresh session with the truncated conversation history.
+						const activeSession = this.sessions.clearActiveSessionReference()
+						if (activeSession) {
+							const { sessionManager, unsubscribe, sessionId } = activeSession
+							unsubscribe()
+							sessionManager.stop(sessionId).catch(() => {})
+							sessionManager.dispose("checkpointRestore").catch(() => {})
+						}
+					},
+				})
+				task.checkpointManager = manager
+				Logger.info(`[SdkController] Checkpoint manager initialized for task ${task.taskId}`)
+			})
+			.catch((err) => {
+				Logger.error("[SdkController] Failed to init checkpoint manager:", err)
+			})
+	}
+
 	private async getWorkspaceRoot(): Promise<string> {
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})

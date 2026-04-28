@@ -911,6 +911,7 @@ export const ChatRowContent = memo(
 							<UserMessage
 								files={message.files}
 								images={message.images}
+								isAgentRunning={isRequestInProgress}
 								messageTs={message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
 								text={message.text}
@@ -935,7 +936,13 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
+						return (
+							<CheckmarkControl
+								isAgentRunning={isRequestInProgress}
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								messageTs={message.ts}
+							/>
+						)
 					case "load_mcp_documentation":
 						return (
 							<div className="text-foreground flex items-center opacity-70 text-[12px] py-1 px-0">

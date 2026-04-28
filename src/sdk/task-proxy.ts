@@ -9,6 +9,7 @@
 // and return safe defaults.
 
 import { EventEmitter } from "node:events"
+import type { ICheckpointManager } from "@integrations/checkpoints/types"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
@@ -30,9 +31,8 @@ export interface TaskProxy {
 	/** Browser session — stubbed (browser automation removed in this migration) */
 	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; browser automation removed
 	browserSession: any
-	/** Checkpoint manager — stubbed (shadow git removed in this migration) */
-	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; checkpoints removed
-	checkpointManager: any
+	/** Checkpoint manager — wired to SdkCheckpointManager for ref-based checkpoints */
+	checkpointManager: ICheckpointManager | undefined
 	/** Terminal manager — stub that safely no-ops for settings compatibility */
 	terminalManager: TaskProxyTerminalManager
 	/** Task state for tracking */
@@ -103,6 +103,12 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	/** Get all accumulated messages (returns a copy) */
 	getClineMessages(): ClineMessage[] {
 		return [...this.messages]
+	}
+
+	/** Replace the entire message array (e.g., on checkpoint restore truncation) */
+	setMessages(messages: ClineMessage[]): void {
+		this.messages = [...messages]
+		this.emit("clineMessagesChanged", { type: "set", messages: this.messages })
 	}
 
 	/** Clear all messages (e.g., on task clear) */
@@ -179,6 +185,9 @@ export function createTaskProxy(
 	// Mutable session ID — updated when the session is restarted (e.g., MCP tool reload)
 	let currentSessionId = sessionId
 
+	// Mutable checkpoint manager — set after creation by the coordinator
+	let currentCheckpointManager: ICheckpointManager | undefined
+
 	// Mutable API handler — updateSettings() replaces it when switching models
 	let currentApi: TaskProxyApi = {
 		getModel: () => ({ id: "unknown" }),
@@ -250,9 +259,11 @@ export function createTaskProxy(
 			return undefined
 		},
 
-		get checkpointManager() {
-			// Shadow git checkpoints removed — see ARCHITECTURE.md
-			return undefined
+		get checkpointManager(): ICheckpointManager | undefined {
+			return currentCheckpointManager
+		},
+		set checkpointManager(manager: ICheckpointManager | undefined) {
+			currentCheckpointManager = manager
 		},
 
 		get terminalManager(): TaskProxyTerminalManager {

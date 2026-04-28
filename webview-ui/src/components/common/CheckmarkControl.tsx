@@ -15,9 +15,10 @@ import { CheckpointsServiceClient } from "@/services/grpc-client"
 interface CheckmarkControlProps {
 	messageTs?: number
 	isCheckpointCheckedOut?: boolean
+	isAgentRunning?: boolean
 }
 
-export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
+export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, isAgentRunning }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
@@ -211,8 +212,11 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
 						<CustomButton
 							$isCheckedOut={isCheckpointCheckedOut}
+							disabled={isAgentRunning}
 							isActive={showRestoreConfirm}
-							onClick={() => setShowRestoreConfirm(true)}>
+							onClick={() => !isAgentRunning && setShowRestoreConfirm(true)}
+							style={{ cursor: isAgentRunning ? "not-allowed" : undefined }}
+							title={isAgentRunning ? "Cancel the task before restoring" : undefined}>
 							Restore
 						</CustomButton>
 						{showRestoreConfirm &&

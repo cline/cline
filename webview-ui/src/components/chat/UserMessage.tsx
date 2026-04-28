@@ -13,9 +13,10 @@ interface UserMessageProps {
 	images?: string[]
 	messageTs?: number // Timestamp for the message, needed for checkpoint restore
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
+	isAgentRunning?: boolean
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, sendMessageFromChatRow }) => {
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, sendMessageFromChatRow, isAgentRunning }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -126,20 +127,30 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
 						{!checkpointManagerErrorMessage && (
 							<RestoreButton
+								disabled={isAgentRunning}
 								isPrimary={false}
 								label="Restore All"
 								onClick={handleRestoreWorkspace}
 								ref={restoreAllButtonRef}
-								title="Restore both the chat and workspace files to this checkpoint and send your edited message"
+								title={
+									isAgentRunning
+										? "Cancel the task before restoring"
+										: "Restore both the chat and workspace files to this checkpoint and send your edited message"
+								}
 								type="taskAndWorkspace"
 							/>
 						)}
 						<RestoreButton
+							disabled={isAgentRunning}
 							isPrimary={true}
 							label="Restore Chat"
 							onClick={handleRestoreWorkspace}
 							ref={restoreChatButtonRef}
-							title="Restore just the chat to this checkpoint and send your edited message"
+							title={
+								isAgentRunning
+									? "Cancel the task before restoring"
+									: "Restore just the chat to this checkpoint and send your edited message"
+							}
 							type="task"
 						/>
 					</div>
@@ -163,35 +174,38 @@ interface RestoreButtonProps {
 	isPrimary: boolean
 	onClick: (type: ClineCheckpointRestore) => void
 	title?: string
+	disabled?: boolean
 }
 
-const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type, label, isPrimary, onClick, title }, ref) => {
-	const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-		e.stopPropagation()
-		onClick(type)
-	}
+const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(
+	({ type, label, isPrimary, onClick, title, disabled }, ref) => {
+		const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+			e.stopPropagation()
+			if (!disabled) onClick(type)
+		}
 
-	return (
-		<button
-			onClick={handleClick}
-			ref={ref}
-			style={{
-				backgroundColor: isPrimary
-					? "var(--vscode-button-background)"
-					: "var(--vscode-button-secondaryBackground, var(--vscode-descriptionForeground))",
-				color: isPrimary
-					? "var(--vscode-button-foreground)"
-					: "var(--vscode-button-secondaryForeground, var(--vscode-foreground))",
-				border: "none",
-				padding: "4px 8px",
-				borderRadius: "2px",
-				fontSize: "9px",
-				cursor: "pointer",
-			}}
-			title={title}>
-			{label}
-		</button>
-	)
-})
+		return (
+			<button
+				onClick={handleClick}
+				ref={ref}
+				style={{
+					backgroundColor: isPrimary
+						? "var(--vscode-button-background)"
+						: "var(--vscode-button-secondaryBackground, var(--vscode-descriptionForeground))",
+					color: isPrimary
+						? "var(--vscode-button-foreground)"
+						: "var(--vscode-button-secondaryForeground, var(--vscode-foreground))",
+					border: "none",
+					padding: "4px 8px",
+					borderRadius: "2px",
+					fontSize: "9px",
+					cursor: "pointer",
+				}}
+				title={title}>
+				{label}
+			</button>
+		)
+	},
+)
 
 export default UserMessage
