@@ -60,7 +60,11 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 
 			if (!workspacePath) {
 				Logger.error("Error in searchFiles: No workspace path available")
-				telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
+				telemetryService.captureMentionFailed(
+					"folder",
+					"workspace_unavailable",
+					"No workspace path available",
+				)
 				return {
 					results: [],
 					mentionsRequestId: request.mentionsRequestId,
@@ -104,11 +108,6 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 
 		const { errorReason, errorMessage } = classifyError(error)
 
-		// Reuse the existing captureMentionFailed channel; it has a closed enum
-		// so map onto its closest value and carry the precise reason in errorMessage.
-		const errorType: "permission_denied" | "unknown" =
-			error instanceof Error && error.message.includes("permission") ? "permission_denied" : "unknown"
-
 		// Determine mention type based on the search request
 		const mentionType =
 			request.selectedType === FileSearchType.FILE
@@ -116,6 +115,15 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 				: request.selectedType === FileSearchType.FOLDER
 					? "folder"
 					: "folder" // Default to folder for "all" searches
+
+		// Pass the precise errorReason straight through; the telemetry enum was
+		// extended in this commit to accept "ripgrep_spawn_failed" as a value.
+		const errorType: "ripgrep_spawn_failed" | "permission_denied" | "unknown" =
+			errorReason === ERROR_REASON_RIPGREP_SPAWN_FAILED
+				? "ripgrep_spawn_failed"
+				: error instanceof Error && error.message.includes("permission")
+					? "permission_denied"
+					: "unknown"
 
 		await telemetryService.captureMentionFailed(mentionType, errorType, errorMessage)
 
