@@ -144,6 +144,12 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 				// Read each file only if auto-approved
 				// We consider the list of files still good context for task continuation even if user doesn't have auto approval on
 				for (const relPath of filePaths) {
+					// Check .clineignore first and skip ignored files
+					const accessValidation = this.validator.checkClineIgnorePath(relPath)
+					if (!accessValidation.ok) {
+						continue
+					}
+
 					// Validate that we have not loaded this file previously
 					const normalizedPath = relPath.toLowerCase()
 					if (loadedFiles.has(normalizedPath)) {
@@ -154,12 +160,6 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					filesProcessed++
 					if (filesProcessed > MAX_FILES_PROCESSED) {
 						break
-					}
-
-					// Check .clineignore first and skip ignored files
-					const accessValidation = this.validator.checkClineIgnorePath(relPath)
-					if (!accessValidation.ok) {
-						continue
 					}
 
 					// Only process if auto-approved (respects workspace/outside-workspace settings)
