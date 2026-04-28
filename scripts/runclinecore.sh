@@ -47,4 +47,4 @@ BINARY_MODULES_DIR="./binaries/$PLATFORM_NAME/node_modules"
 
 echo pwd: $(pwd)
 set -x
-NODE_PATH=$BINARY_MODULES_DIR:./node_modules DEV_WORKSPACE_FOLDER=/tmp/ node --max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE:-8192} cline-core.js 2>&1 | tee $LOG_FILE
+NODE_PATH=$BINARY_MODULES_DIR:./node_modules DEV_WORKSPACE_FOLDER=/tmp/ node --max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE:-8192} --heapsnapshot-near-heap-limit=1 cline-core.js 2>&1 | tee $LOG_FILE
