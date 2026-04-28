@@ -257,6 +257,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
+		// CLINE-1814: structured error_reason / error_message from the most recent
+		// searchFiles response, surfaced as a subtitle below "No results found".
+		// Cleared (set to "") on every success or on a fresh search submission.
+		const [searchErrorReason, setSearchErrorReason] = useState<string>("")
+		const [searchErrorMessage, setSearchErrorMessage] = useState<string>("")
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Fetch git commits when Git is selected or when typing a hash
@@ -358,11 +363,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)
 								.then((results) => {
 									setFileSearchResults((results.results || []) as SearchResult[])
+									// CLINE-1814: capture structured error info if any.
+									setSearchErrorReason(results.errorReason || "")
+									setSearchErrorMessage(results.errorMessage || "")
 									setSearchLoading(false)
 								})
 								.catch((error) => {
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
+									// CLINE-1814: a thrown gRPC error (e.g. cline-core down)
+									// is itself a diagnostic signal — surface it.
+									setSearchErrorReason("unknown")
+									setSearchErrorMessage(
+										error instanceof Error ? error.message : "RPC unavailable",
+									)
 									setSearchLoading(false)
 								})
 						}
@@ -768,11 +782,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)
 								.then((results) => {
 									setFileSearchResults((results.results || []) as SearchResult[])
+									// CLINE-1814: surface error_reason (if any) to the picker.
+									setSearchErrorReason(results.errorReason || "")
+									setSearchErrorMessage(results.errorMessage || "")
 									setSearchLoading(false)
 								})
 								.catch((error) => {
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
+									setSearchErrorReason("unknown")
+									setSearchErrorMessage(
+										error instanceof Error ? error.message : "RPC unavailable",
+									)
 									setSearchLoading(false)
 								})
 						}, 200) // 200ms debounce
@@ -783,6 +804,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
 					setFileSearchResults([])
+					setSearchErrorReason("")
+					setSearchErrorMessage("")
 				}
 			},
 			[setInputValue, setFileSearchResults, selectedType],
@@ -1375,6 +1398,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
 								dynamicSearchResults={fileSearchResults}
+								errorMessage={searchErrorMessage}
+								errorReason={searchErrorReason}
 								isLoading={searchLoading}
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleMentionSelect}

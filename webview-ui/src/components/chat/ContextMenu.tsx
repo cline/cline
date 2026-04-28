@@ -10,10 +10,54 @@ interface ContextMenuProps {
 	onMouseDown: () => void
 	selectedIndex: number
 	setSelectedIndex: (index: number) => void
-	selectedType: ContextMenuOptionType | null
+	selectedType: ContextMenuOptionType | null;
 	queryItems: ContextMenuQueryItem[]
 	dynamicSearchResults?: SearchResult[]
 	isLoading?: boolean
+	// CLINE-1814: structured error_reason / error_message from the most recent
+	// FileService.searchFiles response. When present and the picker would
+	// otherwise show "no results found", we render a grey italic subtitle so
+	// the user can tell a "still loading", "ripgrep is broken", or "workspace
+	// is missing" state apart from a genuinely empty result set. See proto
+	// `cline.FileSearchResults.error_reason` for the closed enumeration.
+	errorReason?: string
+	errorMessage?: string
+}
+
+/**
+ * CLINE-1814: map a structured `error_reason` to a short, user-readable
+ * subtitle that gets rendered in grey beneath the "No results found" row.
+ *
+ * Phrasing rules:
+ *   - `workspace_not_ready` is rendered neutrally — it is *expected* during
+ *     IDE startup and the picker self-heals on the next keystroke. Do not use
+ *     the word "indexing"; the trigger is project-model-not-yet-applied,
+ *     which is a different (narrower) IntelliJ window than dumb mode.
+ *   - `workspace_unavailable` is the non-transient form. Tell the user the
+ *     workspace itself is missing.
+ *   - `ripgrep_spawn_failed` carries the first line of stderr from rg in
+ *     `error_message`; render it verbatim because it's typically the most
+ *     useful diagnostic (`ENOENT`, `Operation not permitted`, etc.).
+ *   - `results_truncated` is a Phase 2C signal — already wired in the proto
+ *     so the UI is forwards-compatible.
+ */
+function renderErrorSubtitle(reason: string, message: string): string | null {
+	if (!reason) {
+		return null
+	}
+	switch (reason) {
+		case "workspace_not_ready":
+			return "(your IDE is still loading the project — try again in a moment)"
+		case "workspace_unavailable":
+			return "(workspace path unavailable)"
+		case "ripgrep_spawn_failed":
+			return message ? `(ripgrep failed: ${message})` : "(ripgrep failed)"
+		case "results_truncated":
+			return "(showing first 5000 results; refine your query)"
+		case "unknown":
+		default:
+			return message ? `(internal error: ${message})` : "(internal error)"
+	}
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -26,6 +70,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	queryItems,
 	dynamicSearchResults = [],
 	isLoading = false,
+	errorReason = "",
+	errorMessage = "",
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -114,6 +160,37 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}, [])
 
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
+		// CLINE-1814: when the row is the NoResults sentinel and we have a
+		// structured error_reason, render a two-line layout:
+		//   "No results found"
+		//   "(workspace path unavailable)"  -- grey, italic, smaller
+		// so the user can tell a healthy-but-empty result set apart from a
+		// real failure mode. Keep the simple label for the URL/Problems rows.
+		if (option.type === ContextMenuOptionType.NoResults) {
+			const subtitle = renderErrorSubtitle(errorReason, errorMessage)
+			if (subtitle) {
+				return (
+					<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+						<span style={{ lineHeight: "1.2" }}>No results found</span>
+						<span
+							style={{
+								fontSize: "0.85em",
+								opacity: 0.7,
+								fontStyle: "italic",
+								whiteSpace: "nowrap",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								lineHeight: "1.2",
+							}}
+							title={errorMessage || subtitle}>
+							{subtitle}
+						</span>
+					</div>
+				)
+			}
+			return <span>No results found</span>
+		}
+
 		// Handle simple label types
 		const simpleLabel = SIMPLE_OPTION_LABELS[option.type]
 		if (simpleLabel) {
