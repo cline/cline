@@ -213,21 +213,41 @@ export class DeepSeekHandler implements ApiHandler {
 
 	/**
 	 * Classifies DeepSeek API errors and surfaces actionable messages.
-	 * - 402 → immediately throw non-retriable error (insufficient balance)
-	 * - 503 → throw RetriableError to trigger exponential backoff retry
-	 * - Other errors → re-throw as-is
+	 * - 400/401/402 → immediately throw non-retriable errors (bad request, auth, balance)
+	 * - 429/500/502/503/504 → throw RetriableError to trigger exponential backoff retry
+	 * - Network errors without HTTP status → throw RetriableError
+	 * - Other errors → re-throw as-is (will be caught by @withRetry() decorator)
 	 */
 	private handleStreamError(error: any): never {
 		const status = error?.status
 
+		// Non-retriable errors
+		if (status === 400) {
+			throw new Error(`DeepSeek API bad request (400): ${error.message}`)
+		}
+		if (status === 401) {
+			throw new Error(`DeepSeek API unauthorized (401): Check your API key.`)
+		}
 		if (status === 402) {
 			throw new Error(
 				"DeepSeek API error (402): Insufficient balance. Please top up your account at https://platform.deepseek.com.",
 			)
 		}
 
-		if (status === 503) {
-			throw new RetriableError("DeepSeek API error (503): Service temporarily overloaded. Retrying...")
+		// Retriable errors — trigger @withRetry() exponential backoff
+		if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+			throw new RetriableError(`DeepSeek API error (${status}): ${error.message}`)
+		}
+
+		// Network errors without HTTP status (e.g., connection reset, DNS failure)
+		if (
+			!status &&
+			(error?.message?.includes("fetch") ||
+				error?.message?.includes("network") ||
+				error?.code === "ECONNRESET" ||
+				error?.code === "ETIMEDOUT")
+		) {
+			throw new RetriableError(`DeepSeek network error: ${error.message}`)
 		}
 
 		throw error
