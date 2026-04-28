@@ -108,9 +108,12 @@ export class DeepSeekHandler implements ApiHandler {
 		// Cache miss tokens are the actual new input that consumes context window.
 		// Report them as inputTokens so context management can properly track window usage
 		// for truncation decisions. Cache hits don't count toward the window.
+		// When cacheWriteTokens is 0 (e.g., all cache hits or API doesn't return cache breakdown),
+		// fall back to prompt_tokens to prevent context truncation from stalling.
+		const effectiveInputTokens = cacheWriteTokens > 0 ? cacheWriteTokens : inputTokens
 		yield {
 			type: "usage",
-			inputTokens: cacheWriteTokens,
+			inputTokens: effectiveInputTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,
