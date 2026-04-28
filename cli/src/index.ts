@@ -9,14 +9,16 @@ import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
-import type { Controller } from "@/core/controller"
+import { Controller } from "@/core/controller"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
 import { setRuntimeHooksDir } from "@/core/storage/disk"
+import { fetchUserRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
+import { AuthService } from "@/services/auth/AuthService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { telemetryService } from "@/services/telemetry"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
@@ -35,7 +37,7 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
-import { printInfo, printWarning } from "./utils/display"
+import { printError, printInfo, printWarning } from "./utils/display"
 import {
 	forwardSignalToKanbanProcess,
 	isKanbanCommandAvailable,
@@ -331,6 +333,37 @@ async function showKanbanMigrationView(): Promise<KanbanMigrationAction> {
 	)
 
 	return selectedAction
+}
+
+async function isKanbanEnabled(options: InitOptions): Promise<boolean> {
+	const context = await initializeCli({ ...options, enableAuth: true })
+	AuthService.getInstance(context.controller)
+
+	// Restore auth before fetching remote config, as it may be needed for the fetch
+	await context.controller.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+	const response = await fetchUserRemoteConfig()
+
+	if (!response) {
+		return true
+	}
+
+	const { config: remoteConfig } = response
+
+	return !remoteConfig || remoteConfig.kanbanEnabled === true
+}
+
+async function startKanban(options: InitOptions): Promise<boolean> {
+	try {
+		if (!(await isKanbanEnabled(options))) {
+			return false
+		}
+
+		runKanbanAlias(options)
+		return true
+	} catch {
+		return false
+	}
 }
 
 async function addMcpServer(name: string, targetOrCommand: string[] = [], options: McpAddOptions): Promise<void> {
@@ -656,27 +689,33 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		`Cline CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}, Log dir: ${CLINE_CLI_DIR.log}`,
 	)
 
-	HostProvider.initialize(
-		() => new CliWebviewProvider(extensionContext as any),
-		() => new FileEditProvider(),
-		() => new CliCommentReviewController(),
-		() => new StandaloneTerminalManager(),
-		createCliHostBridgeProvider(workspacePath),
-		logToChannel,
-		async (path: string) => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl(path) : ""),
-		getCliBinaryPath,
-		EXTENSION_DIR,
-		DATA_DIR,
-	)
+	if (!HostProvider.isInitialized()) {
+		HostProvider.initialize(
+			() => new CliWebviewProvider(extensionContext as any),
+			() => new FileEditProvider(),
+			() => new CliCommentReviewController(),
+			() => new StandaloneTerminalManager(),
+			createCliHostBridgeProvider(workspacePath),
+			logToChannel,
+			async (path: string) => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl(path) : ""),
+			getCliBinaryPath,
+			EXTENSION_DIR,
+			DATA_DIR,
+		)
+	}
+	if (!StateManager.isInitialized()) {
+		await StateManager.initialize(storageContext)
+	}
 
-	await StateManager.initialize(storageContext)
-	await ErrorService.initialize()
+	if (!ErrorService.isInitialized()) {
+		await ErrorService.initialize()
+
+		await telemetryService.captureExtensionActivated()
+		await telemetryService.captureHostEvent("cline_cli", "initialized")
+	}
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	await telemetryService.captureExtensionActivated()
-	await telemetryService.captureHostEvent("cline_cli", "initialized")
 
 	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
 	activeContext = ctx
@@ -1032,7 +1071,16 @@ program
 program
 	.command("kanban")
 	.description(`Run ${KANBAN_LAUNCH_COMMAND}`)
-	.action(() => runKanbanAlias())
+	.action((_, options) => {
+		startKanban(options).then((started) => {
+			if (!started) {
+				printError(
+					"The Kanban view has been disabled for your organization. Please contact your administrator to enable it.",
+				)
+				exit(1)
+			}
+		})
+	})
 
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")
@@ -1210,8 +1258,14 @@ program
 				exit(1)
 			}
 
-			runKanbanAlias({ cwd: options.cwd })
-			return
+			const started = await startKanban(options)
+			if (started) {
+				exit(0)
+			}
+
+			printWarning(
+				"The Kanban view has been disabled for your organization. Please contact your administrator to enable it.",
+			)
 		}
 
 		// Check for ACP mode first - this takes precedence over everything else
@@ -1241,7 +1295,8 @@ program
 				taskId: options.taskId,
 				continue: options.continue,
 				tui: options.tui,
-			})
+			}) &&
+			(await isKanbanEnabled(options))
 		) {
 			let migrationAction: "kanban" | "exit" = "kanban"
 			const ctx = await initializeCli({ ...options, enableAuth: true })
