@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1777348777191,
+	version: 1777415849479,
 	providers: {
 		aihubmix: {
 			"coding-glm-5.1": {
@@ -1394,6 +1394,27 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		baseten: {
+			"deepseek-ai/DeepSeek-V4-Pro": {
+				id: "deepseek-ai/DeepSeek-V4-Pro",
+				name: "DeepSeek V4 Pro",
+				contextWindow: 1000000,
+				maxTokens: 384000,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.74,
+					output: 3.48,
+					cacheRead: 0.15,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "deepseek-thinking",
+			},
 			"moonshotai/Kimi-K2.6": {
 				id: "moonshotai/Kimi-K2.6",
 				name: "Kimi K2.6",
@@ -3391,6 +3412,27 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		fireworks: {
+			"accounts/fireworks/models/deepseek-v4-pro": {
+				id: "accounts/fireworks/models/deepseek-v4-pro",
+				name: "DeepSeek V4 Pro",
+				contextWindow: 1000000,
+				maxTokens: 384000,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.74,
+					output: 3.48,
+					cacheRead: 0.15,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "deepseek-thinking",
+			},
 			"accounts/fireworks/models/kimi-k2p6": {
 				id: "accounts/fireworks/models/kimi-k2p6",
 				name: "Kimi K2.6",
@@ -4765,6 +4807,34 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		kilo: {
+			"xiaomi/mimo-v2.5": {
+				id: "xiaomi/mimo-v2.5",
+				name: "Xiaomi: MiMo-V2.5",
+				contextWindow: 1048576,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 0.4,
+					output: 2,
+					cacheRead: 0.08,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-22",
+			},
+			"xiaomi/mimo-v2.5-pro": {
+				id: "xiaomi/mimo-v2.5-pro",
+				name: "Xiaomi: MiMo V2.5 Pro",
+				contextWindow: 1048576,
+				maxTokens: 128000,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 1,
+					output: 3,
+					cacheRead: 0.2,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-22",
+			},
 			"moonshotai/kimi-k2.6": {
 				id: "moonshotai/kimi-k2.6",
 				name: "MoonshotAI: Kimi K2.6",
@@ -9486,14 +9556,9 @@ export const GENERATED_PROVIDER_MODELS: {
 			"deepseek-v4-pro": {
 				id: "deepseek-v4-pro",
 				name: "deepseek-v4-pro",
-				contextWindow: 1000000,
-				maxTokens: 384000,
-				capabilities: [
-					"tools",
-					"reasoning",
-					"structured_output",
-					"temperature",
-				],
+				contextWindow: 1048576,
+				maxTokens: 52428,
+				capabilities: ["tools", "reasoning"],
 				pricing: {
 					input: 0,
 					output: 0,
@@ -10036,6 +10101,27 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-04-23",
 				family: "gpt",
+			},
+			"gpt-5.5-pro": {
+				id: "gpt-5.5-pro",
+				name: "GPT-5.5 Pro",
+				contextWindow: 1050000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+				],
+				pricing: {
+					input: 30,
+					output: 180,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-23",
+				family: "gpt-pro",
 			},
 			"gpt-5.4-mini": {
 				id: "gpt-5.4-mini",
@@ -10807,6 +10893,27 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+				id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+				name: "Nemotron 3 Nano Omni (free)",
+				contextWindow: 256000,
+				maxTokens: 65536,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-28",
+				family: "nemotron",
+			},
 			"deepseek/deepseek-v4-flash": {
 				id: "deepseek/deepseek-v4-flash",
 				name: "DeepSeek V4 Flash",
@@ -10870,6 +10977,27 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-04-23",
 				family: "gpt",
+			},
+			"openai/gpt-5.5-pro": {
+				id: "openai/gpt-5.5-pro",
+				name: "GPT-5.5 Pro",
+				contextWindow: 1050000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+				],
+				pricing: {
+					input: 30,
+					output: 180,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-23",
+				family: "gpt-pro",
 			},
 			"xiaomi/mimo-v2.5": {
 				id: "xiaomi/mimo-v2.5",
@@ -18586,6 +18714,27 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		wandb: {
+			"zai-org/GLM-5.1": {
+				id: "zai-org/GLM-5.1",
+				name: "GLM-5.1",
+				contextWindow: 200000,
+				maxTokens: 131072,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.4,
+					output: 4.4,
+					cacheRead: 0.26,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-27",
+				family: "glm",
+			},
 			"nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8": {
 				id: "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
 				name: "NVIDIA Nemotron 3 Super 120B",
