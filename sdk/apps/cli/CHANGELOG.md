@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 0.0.4 (2026-04-28)
+
+- Fix compiled binary spawning infinite hub daemon recursion loop
+
 ## 0.0.3 (2026-04-28)
 
 - Rewritten TUI from Ink to OpenTUI with streaming markdown, syntax-highlighted diffs, scrollable chat, and mouse support
