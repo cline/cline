@@ -4,7 +4,11 @@ import {
 	type ResolveCronSpecsDirOptions,
 	resolveCronReportsDir,
 } from "@clinebot/shared/storage";
-import type { CronRunRecord, CronSpecRecord } from "./sqlite-cron-store";
+import type {
+	CronEventLogRecord,
+	CronRunRecord,
+	CronSpecRecord,
+} from "./sqlite-cron-store";
 
 /**
  * Writes a markdown report for a completed or failed cron run.
@@ -26,6 +30,7 @@ export interface CronRunReportData {
 	toolCalls?: Array<{ name: string; error?: string; durationMs?: number }>;
 	durationMs?: number;
 	error?: string;
+	triggerEvent?: CronEventLogRecord;
 }
 
 export interface WriteReportOptions {
@@ -54,7 +59,11 @@ function yamlEntry(key: string, value: string | undefined): string | undefined {
 	return `${key}: ${escapeYamlString(value)}`;
 }
 
-function buildFrontmatter(run: CronRunRecord, spec: CronSpecRecord): string {
+function buildFrontmatter(
+	run: CronRunRecord,
+	spec: CronSpecRecord,
+	triggerEvent?: CronEventLogRecord,
+): string {
 	const entries: string[] = [
 		`runId: ${escapeYamlString(run.runId)}`,
 		`specId: ${escapeYamlString(spec.specId)}`,
@@ -69,6 +78,9 @@ function buildFrontmatter(run: CronRunRecord, spec: CronSpecRecord): string {
 		yamlEntry("startedAt", run.startedAt),
 		yamlEntry("completedAt", run.completedAt),
 		yamlEntry("triggerEventId", run.triggerEventId),
+		yamlEntry("triggerEventType", triggerEvent?.eventType),
+		yamlEntry("triggerEventSource", triggerEvent?.source),
+		yamlEntry("triggerEventSubject", triggerEvent?.subject),
 	];
 	for (const entry of optional) if (entry) entries.push(entry);
 	return `---\n${entries.join("\n")}\n---\n`;
@@ -76,6 +88,21 @@ function buildFrontmatter(run: CronRunRecord, spec: CronSpecRecord): string {
 
 function buildBody(data: CronRunReportData): string {
 	const sections: string[] = [];
+	if (data.triggerEvent) {
+		const event = data.triggerEvent;
+		const lines = [
+			`- eventId: ${event.eventId}`,
+			`- eventType: ${event.eventType}`,
+			`- source: ${event.source}`,
+			event.subject ? `- subject: ${event.subject}` : "",
+			`- occurredAt: ${event.occurredAt}`,
+			event.dedupeKey ? `- dedupeKey: ${event.dedupeKey}` : "",
+			event.attributes
+				? `- attributes: ${JSON.stringify(event.attributes)}`
+				: "",
+		].filter((line) => line.length > 0);
+		sections.push(`## Trigger Event\n\n${lines.join("\n")}\n`);
+	}
 	if (data.error) {
 		sections.push(`## Error\n\n${data.error}\n`);
 	}
@@ -116,7 +143,11 @@ export function writeCronRunReport(options: WriteReportOptions): string {
 	const dir = resolveCronReportsDir(options.specs);
 	mkdirSync(dir, { recursive: true });
 	const path = join(dir, `${options.run.runId}.md`);
-	const content = `${buildFrontmatter(options.run, options.spec)}\n${buildBody(options.data)}`;
+	const content = `${buildFrontmatter(
+		options.run,
+		options.spec,
+		options.data.triggerEvent,
+	)}\n${buildBody(options.data)}`;
 	writeFileSync(path, content, "utf8");
 	return path;
 }

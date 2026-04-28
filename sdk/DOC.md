@@ -1053,18 +1053,20 @@ clite connect telegram -m my_bot -k TOKEN --hook-command '/path/to/hook.sh'
 
 ---
 
-## File-Based Automation (`.cline/cron/`)
+## File-Based And Event-Driven Automation (`.cline/cron/`)
 
 Operators can author automation tasks as Markdown files inside a
-workspace's `.cline/cron/` directory. The hub daemon (via `CronService`)
-parses these files, stores spec state in its own `cron.db`, materializes
-runs, executes them through the runtime, and writes per-run reports.
+global `~/.cline/cron/` directory by default, or a configured workspace
+`.cline/cron/` directory. `ClineCore` exposes the public automation API
+through `cline.automation`; internally core parses these files, stores spec
+state in its own `cron.db`, materializes runs, executes them through the
+runtime, and writes per-run reports.
 
 ### File layout
 
 - `.cline/cron/*.md` — **one-off** task specs.
 - `.cline/cron/*.cron.md` — **recurring** task specs (standard 5-field cron pattern).
-- `.cline/cron/events/*.event.md` — **event-driven** task specs (reserved; parsed and stored, executed by Feature 2).
+- `.cline/cron/events/*.event.md` — **event-driven** task specs.
 - `.cline/cron/reports/<run-id>.md` — generated reports. Derived artifact; do not edit by hand.
 - `.cline/data/db/cron.db` — durable cron state. Never edit by hand; sessions live in a separate `sessions.db`.
 
@@ -1098,6 +1100,12 @@ Recurring-only fields (`*.cron.md`): `schedule` (required), `timezone`.
 
 Event-only fields (`events/*.event.md`): `event` (required), `filters`,
 `debounceSeconds`, `dedupeWindowSeconds`, `cooldownSeconds`, `maxParallel`.
+
+Event filters match fields on the normalized automation event envelope. Filter
+keys first look in `attributes`, then `payload`, then top-level envelope fields
+such as `source`, `subject`, `workspaceRoot`, and `dedupeKey`. Dot paths are
+supported, so `pullRequest.baseBranch: main` matches
+`attributes.pullRequest.baseBranch`.
 
 Supported `tools` values are the default tool names: `read_files`,
 `search_codebase`, `run_commands`, `fetch_web_content`, `apply_patch`,
@@ -1151,6 +1159,58 @@ use `.cline/cron/<name>.md` and omit the `schedule` field.
 A copyable example is also available at
 [`apps/examples/cron/daily-code-review.cron.md`](./apps/examples/cron/daily-code-review.cron.md).
 
+Event-driven spec example:
+
+```md
+---
+id: pr-review
+title: Review new PRs
+workspaceRoot: /absolute/path/to/repo
+event: github.pull_request.opened
+filters:
+  repository: acme/api
+  pullRequest:
+    baseBranch: main
+debounceSeconds: 30
+dedupeWindowSeconds: 600
+cooldownSeconds: 120
+maxParallel: 2
+tags:
+  - github
+  - review
+---
+Review the opened pull request, summarize risks, and recommend follow-up work.
+```
+
+Save event specs as `.cline/cron/events/<name>.event.md`. A copyable
+event-driven example is available at
+[`apps/examples/cron/events/pr-review.event.md`](./apps/examples/cron/events/pr-review.event.md).
+For a local test that does not need GitHub or any webhook receiver, use
+[`apps/examples/cron/events/local-manual-test.event.md`](./apps/examples/cron/events/local-manual-test.event.md).
+
+### Event-driven flow
+
+Event type strings such as `github.pull_request.opened` are conventions, not a
+built-in global registry. A spec file subscribes to a normalized event type, and
+an adapter fires that event after translating a native source payload.
+
+1. **Register interest with a spec file** — create
+   `.cline/cron/events/pr-review.event.md` with
+   `event: github.pull_request.opened`. On startup or watcher reconcile,
+   automation stores the spec in `cron_specs.event_type`.
+2. **Receive a source-specific event** — for GitHub, a GitHub App, webhook
+   receiver, connector, plugin, or host integration receives the raw pull
+   request webhook payload.
+3. **Normalize before ingress** — the adapter translates the source payload into
+   an `AutomationEventEnvelope` and calls `cline.automation.ingestEvent(...)`
+   or the hub `cron.event.ingest` command.
+4. **Match and enqueue** — `CronEventIngress` records the event, matches event
+   specs by type and filters, applies dedupe/debounce/cooldown policy, and
+   queues matching `cron_runs`.
+5. **Run and report** — `CronRunner` executes the queued event run and injects
+   trigger event context into the prompt. Reports include trigger event
+   frontmatter and a `## Trigger Event` section.
+
 ### Lifecycle
 
 - **Startup reconciliation** — the hub walks `.cline/cron/`, parses every
@@ -1169,6 +1229,10 @@ A copyable example is also available at
 - **Recurring runs** — `getNextCronTime` computes timezone-aware
   `next_run_at`. One overdue run is enqueued on startup (no unbounded
   backfill), then the scheduler advances to the next slot.
+- **Event runs** — normalized events are recorded in `cron_event_log`, matched
+  against valid enabled event specs, and queued with `trigger_kind='event'`.
+  Dedupe, debounce, cooldown, and max-parallel policy are enforced before
+  execution.
 - **Deletions** — removing a file marks the spec as `removed=1`, disables
   it, and cancels any queued runs. Historical `done`/`failed` runs stay
   queryable.
@@ -1179,7 +1243,8 @@ Each completed or failed run writes
 `.cline/cron/reports/<run-id>.md`. The file includes YAML frontmatter
 (`runId`, `specId`, `externalId`, `title`, `triggerKind`, `status`,
 `sessionId`, `sourcePath`, `startedAt`, `completedAt`) and body sections
-for summary, usage (token counts + cost), and a tool-call bullet list.
+for summary, usage (token counts + cost), and a tool-call bullet list. Event
+runs also include trigger event frontmatter plus a `## Trigger Event` section.
 
 ### Programmatic access
 
@@ -1194,11 +1259,14 @@ new HubWebSocketServer({
 ```
 
 The service exposes `listSpecs`, `getSpec`, `listRuns`, `getRun`,
-`listActiveRuns`, `listUpcomingRuns`, and `reconcileNow()` for hub-side
-query APIs. Tests cover the parser (`@clinebot/core`
+`listActiveRuns`, `listUpcomingRuns`, `ingestEvent`, `listEventLogs`,
+`getEventLog`, and `reconcileNow()` for hub-side query and ingress APIs.
+SDK callers should prefer `cline.automation`: `start`, `stop`,
+`reconcileNow`, `ingestEvent`, `listEvents`, `getEvent`, `listSpecs`, and
+`listRuns`. Tests cover the parser (`@clinebot/core`
 `src/cron/cron-spec-parser.test.ts`), store, reconciler, materializer,
 and runner.
 
 ### Test Plan
 
-Drop one-off specs into `.cline/cron/*.md`, recurring specs into `.cline/cron/*.cron.md`, run the hub, and see runs materialized, executed, and reported to `.cline/cron/reports/<run-id>.md` — all backed by `.cline/data/db/cron.db`.
+Drop one-off specs into `.cline/cron/*.md`, recurring specs into `.cline/cron/*.cron.md`, event specs into `.cline/cron/events/*.event.md`, create `ClineCore` with automation enabled or run the hub, and see runs materialized, executed, and reported to `.cline/cron/reports/<run-id>.md` — all backed by `.cline/data/db/cron.db`.

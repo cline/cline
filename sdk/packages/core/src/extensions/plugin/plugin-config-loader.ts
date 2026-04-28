@@ -1,5 +1,9 @@
 import { existsSync } from "node:fs";
-import type { AgentConfig, WorkspaceInfo } from "@clinebot/shared";
+import type {
+	AgentConfig,
+	PluginSetupContext,
+	WorkspaceInfo,
+} from "@clinebot/shared";
 import {
 	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
 	resolveConfiguredPluginModulePaths,
@@ -69,6 +73,12 @@ export interface ResolveAndLoadAgentPluginsOptions
 	 * in the extension context.
 	 */
 	workspaceInfo?: WorkspaceInfo;
+	session?: PluginSetupContext["session"];
+	client?: PluginSetupContext["client"];
+	user?: PluginSetupContext["user"];
+	automation?: PluginSetupContext["automation"];
+	logger?: PluginSetupContext["logger"];
+	telemetry?: PluginSetupContext["telemetry"];
 }
 
 export async function resolveAndLoadAgentPlugins(
@@ -90,7 +100,13 @@ export async function resolveAndLoadAgentPlugins(
 			exportName: options.exportName,
 			providerId: options.providerId,
 			modelId: options.modelId,
+			session: options.session,
+			client: options.client,
+			user: options.user,
 			workspaceInfo: options.workspaceInfo,
+			automation: options.automation,
+			logger: options.logger,
+			telemetry: options.telemetry,
 		});
 		return {
 			extensions: report.plugins,
@@ -109,7 +125,11 @@ export async function resolveAndLoadAgentPlugins(
 		providerId: options.providerId,
 		modelId: options.modelId,
 		cwd: options.cwd,
+		session: options.session,
+		client: options.client,
+		user: options.user,
 		workspaceInfo: options.workspaceInfo,
+		logger: options.logger,
 	});
 	return {
 		extensions: sandboxed.extensions ?? [],

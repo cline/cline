@@ -1,6 +1,10 @@
+import type { AutomationEventEnvelope } from "../cron";
 import type { HookStage } from "../hooks/contracts";
 import type { Tool } from "../llms/tools";
+import type { BasicLogger } from "../logging/logger";
+import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
+import type { ClientContext, UserContext } from "./context";
 
 export interface AgentExtensionCommand {
 	name: string;
@@ -19,13 +23,38 @@ export interface AgentExtensionProvider {
 	metadata?: Record<string, unknown>;
 }
 
+export interface AgentExtensionAutomationEventType {
+	/** Normalized event type a plugin can emit, e.g. `github.pull_request.opened`. */
+	eventType: string;
+	/** Normalized source identifier, e.g. `github`, `linear`, or `local`. */
+	source: string;
+	description?: string;
+	attributesSchema?: Record<string, unknown>;
+	payloadSchema?: Record<string, unknown>;
+	examples?: AutomationEventEnvelope[];
+	metadata?: Record<string, unknown>;
+}
+
+export interface AgentExtensionAutomationContext {
+	/**
+	 * Submit a normalized automation event to the host. Raw webhook or connector
+	 * payloads should be translated into an `AutomationEventEnvelope` first.
+	 */
+	ingestEvent: (event: AutomationEventEnvelope) => void | Promise<void>;
+}
+
+export interface AgentExtensionSessionContext {
+	/** Stable core session id for the root session that loaded the plugin. */
+	sessionId?: string;
+}
+
 /**
  * API surface passed to an extension's `setup()` method.
  *
  * Use it to register the contributions the extension wants to make — tools,
- * commands, message builders, and providers. All registrations accumulate into
- * the `ContributionRegistry` and are available to the host after `setup()`
- * completes.
+ * commands, message builders, providers, and automation event types. All
+ * registrations accumulate into the `ContributionRegistry` and are available to
+ * the host after `setup()` completes.
  */
 export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
 	/** Register a tool the agent can invoke during its run. Requires the `tools` capability. */
@@ -38,6 +67,10 @@ export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
 	) => void;
 	/** Register a provider contribution (e.g. a custom model provider). Requires the `providers` capability. */
 	registerProvider: (provider: AgentExtensionProvider) => void;
+	/** Register a normalized automation event type the plugin can emit. Requires the `automationEvents` capability. */
+	registerAutomationEventType: (
+		eventType: AgentExtensionAutomationEventType,
+	) => void;
 }
 
 /**
@@ -48,10 +81,20 @@ export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
  * `process.cwd()`. Use them to resolve paths or build workspace-aware tool
  * schemas at registration time.
  *
- * Both fields are optional so that `setup()` callers that do not have
- * workspace context (e.g. unit tests) can omit them without breaking plugins.
+ * All fields are optional so `setup()` callers that do not have host context
+ * (e.g. unit tests) can omit them without breaking plugins.
  */
 export interface PluginSetupContext {
+	/**
+	 * Core session metadata known before the first agent run starts.
+	 * Agent-level ids such as `agentId` and `conversationId` are available on
+	 * lifecycle hook contexts once SessionRuntime creates them.
+	 */
+	session?: AgentExtensionSessionContext;
+	/** Host/client identity such as `cline-cli`, `cline-vscode`, or an SDK app. */
+	client?: ClientContext;
+	/** Authenticated user or organization identity when the host provides it. */
+	user?: UserContext;
 	/**
 	 * Structured workspace and git metadata for the session. Contains
 	 * `rootPath`, `hint`, `associatedRemoteUrls`, `latestGitCommitHash`, and
@@ -60,6 +103,22 @@ export interface PluginSetupContext {
 	 * setup time.
 	 */
 	workspaceInfo?: WorkspaceInfo;
+	/**
+	 * Automation ingress made available by hosts that enable ClineCore
+	 * automation. Plugins should feature-detect this property so the same plugin
+	 * can run in hosts that do not enable automation.
+	 */
+	automation?: AgentExtensionAutomationContext;
+	/** Host-provided logger scoped to this session/plugin setup. */
+	logger?: BasicLogger;
+	/**
+	 * Host-provided telemetry service when available in the current process.
+	 *
+	 * This service is intentionally not serialized across plugin sandbox process
+	 * boundaries; sandboxed plugins should feature-detect this property and expect
+	 * it to be undefined unless a future host adds an explicit telemetry bridge.
+	 */
+	telemetry?: ITelemetryService;
 }
 
 const ExtensionCapabilityOptions = [
@@ -68,6 +127,7 @@ const ExtensionCapabilityOptions = [
 	"commands",
 	"messageBuilders",
 	"providers",
+	"automationEvents",
 ] as const;
 
 export type AgentExtensionCapability =
@@ -88,6 +148,7 @@ export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
 	commands: AgentExtensionCommand[];
 	messageBuilder: AgentExtensionMessageBuilder<TMessage>[];
 	providers: AgentExtensionProvider[];
+	automationEventTypes: AgentExtensionAutomationEventType[];
 }
 
 /**
@@ -104,7 +165,10 @@ export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
  * (e.g. `AgentExtension` in `@clinebot/agents`) narrow them to the correct
  * context and return types.
  */
-export interface ContributionRegistryExtension<TTool = Tool> {
+export interface ContributionRegistryExtension<
+	TTool = Tool,
+	TMessage = unknown,
+> {
 	type?: string; // Default to plugin for now.
 	/** Unique identifier for this extension, used in error messages and hook handler names. */
 	name: string;
@@ -122,7 +186,7 @@ export interface ContributionRegistryExtension<TTool = Tool> {
 	 * `import.meta.url` tricks when you need workspace-relative paths.
 	 */
 	setup?: (
-		api: AgentExtensionApi<TTool, any>,
+		api: AgentExtensionApi<TTool, TMessage>,
 		ctx: PluginSetupContext,
 	) => void | Promise<void>;
 	/** Handler for the `input` stage — fired when the user submits input. */
@@ -158,8 +222,9 @@ export interface ContributionRegistryExtension<TTool = Tool> {
 }
 
 export interface ContributionRegistryOptions<
-	TExtension extends ContributionRegistryExtension<TTool>,
+	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool = Tool,
+	TMessage = unknown,
 > {
 	extensions?: TExtension[];
 	/** Workspace context forwarded to each extension's `setup(api, ctx)` call. */
@@ -167,8 +232,9 @@ export interface ContributionRegistryOptions<
 }
 
 interface NormalizedExtension<
-	TExtension extends ContributionRegistryExtension<TTool>,
+	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool,
+	TMessage,
 > {
 	extension: TExtension;
 	order: number;
@@ -239,8 +305,8 @@ const STAGE_TO_HANDLER: Record<
 	error: "onError",
 };
 
-function asExtensionName(
-	extension: ContributionRegistryExtension<any>,
+function asExtensionName<TTool, TMessage>(
+	extension: ContributionRegistryExtension<TTool, TMessage>,
 	order: number,
 ): string {
 	return extension.name || `extension_${String(order).padStart(4, "0")}`;
@@ -275,8 +341,8 @@ export function normalizePluginManifest(
 	};
 }
 
-function hasHookHandlers(
-	extension: ContributionRegistryExtension<any>,
+function hasHookHandlers<TTool, TMessage>(
+	extension: ContributionRegistryExtension<TTool, TMessage>,
 ): boolean {
 	return (
 		typeof extension.onInput === "function" ||
@@ -298,12 +364,13 @@ function hasHookHandlers(
 }
 
 function normalizeManifest<
-	TExtension extends ContributionRegistryExtension<TTool>,
+	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool,
+	TMessage,
 >(
 	extension: TExtension,
 	order: number,
-): NormalizedExtension<TExtension, TTool>["manifest"] {
+): NormalizedExtension<TExtension, TTool, TMessage>["manifest"] {
 	const extensionName = asExtensionName(extension, order);
 	const manifest = extension.manifest;
 	if (!manifest || typeof manifest !== "object") {
@@ -404,8 +471,39 @@ function normalizeManifest<
 	};
 }
 
+function normalizeAutomationEventType(
+	input: AgentExtensionAutomationEventType,
+	extensionName: string,
+): AgentExtensionAutomationEventType {
+	if (!input || typeof input !== "object") {
+		throw new Error(
+			`Invalid automation event contribution for extension "${extensionName}": expected object`,
+		);
+	}
+	const eventType =
+		typeof input.eventType === "string" ? input.eventType.trim() : "";
+	const source = typeof input.source === "string" ? input.source.trim() : "";
+	if (!eventType) {
+		throw new Error(
+			`Invalid automation event contribution for extension "${extensionName}": eventType is required`,
+		);
+	}
+	if (!source) {
+		throw new Error(
+			`Invalid automation event contribution for extension "${extensionName}": source is required`,
+		);
+	}
+	return {
+		...input,
+		eventType,
+		source,
+		examples: input.examples ? [...input.examples] : undefined,
+		metadata: input.metadata ? { ...input.metadata } : undefined,
+	};
+}
+
 export class ContributionRegistry<
-	TExtension extends ContributionRegistryExtension<TTool>,
+	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool = Tool,
 	TMessage = unknown,
 > {
@@ -415,13 +513,16 @@ export class ContributionRegistry<
 		commands: [],
 		messageBuilder: [],
 		providers: [],
+		automationEventTypes: [],
 	};
-	private normalized: NormalizedExtension<TExtension, TTool>[] = [];
+	private normalized: NormalizedExtension<TExtension, TTool, TMessage>[] = [];
 	private phase: "resolve" | "validate" | "setup" | "activate" | "run" =
 		"resolve";
 	private readonly setupContext: PluginSetupContext;
 
-	constructor(options: ContributionRegistryOptions<TExtension, TTool> = {}) {
+	constructor(
+		options: ContributionRegistryOptions<TExtension, TTool, TMessage> = {},
+	) {
 		this.extensions = options.extensions ?? [];
 		this.setupContext = options.setupContext ?? {};
 	}
@@ -445,7 +546,7 @@ export class ContributionRegistry<
 		if (this.phase !== "validate") return;
 		this.normalized = this.normalized.map((entry) => ({
 			...entry,
-			manifest: normalizeManifest<TExtension, TTool>(
+			manifest: normalizeManifest<TExtension, TTool, TMessage>(
 				entry.extension,
 				entry.order,
 			),
@@ -458,17 +559,34 @@ export class ContributionRegistry<
 		if (this.phase === "validate") this.validate();
 		if (this.phase !== "setup") return;
 
-		const api: AgentExtensionApi<TTool, TMessage> = {
-			registerTool: (tool) => this.registry.tools.push(tool),
-			registerCommand: (command) => this.registry.commands.push(command),
-			registerMessageBuilder: (builder) =>
-				this.registry.messageBuilder.push(builder),
-			registerProvider: (provider) => this.registry.providers.push(provider),
-		};
-
-		for (const { extension } of this.normalized) {
+		for (const entry of this.normalized) {
+			const { extension } = entry;
 			if (extension.disabled) continue;
-			await extension.setup?.(api, this.setupContext);
+			const extensionName = asExtensionName(extension, entry.order);
+			const api: AgentExtensionApi<TTool, TMessage> = {
+				registerTool: (tool) => this.registry.tools.push(tool),
+				registerCommand: (command) => this.registry.commands.push(command),
+				registerMessageBuilder: (builder) =>
+					this.registry.messageBuilder.push(builder),
+				registerProvider: (provider) => this.registry.providers.push(provider),
+				registerAutomationEventType: (eventType) => {
+					if (!entry.manifest.capabilities.has("automationEvents")) {
+						throw new Error(
+							`Invalid setup for extension "${extensionName}": registerAutomationEventType requires the "automationEvents" capability`,
+						);
+					}
+					this.registry.automationEventTypes.push(
+						normalizeAutomationEventType(eventType, extensionName),
+					);
+				},
+			};
+			const setupContext = entry.manifest.capabilities.has("automationEvents")
+				? this.setupContext
+				: {
+						...this.setupContext,
+						automation: undefined,
+					};
+			await extension.setup?.(api, setupContext);
 		}
 		this.phase = "activate";
 	}
@@ -502,11 +620,16 @@ export class ContributionRegistry<
 			commands: [...this.registry.commands],
 			messageBuilder: [...this.registry.messageBuilder],
 			providers: [...this.registry.providers],
+			automationEventTypes: [...this.registry.automationEventTypes],
 		};
 	}
 
 	getRegisteredTools(): TTool[] {
 		return [...this.registry.tools];
+	}
+
+	getRegisteredAutomationEventTypes(): AgentExtensionAutomationEventType[] {
+		return [...this.registry.automationEventTypes];
 	}
 
 	getValidatedExtensions(): TExtension[] {
@@ -520,11 +643,11 @@ export class ContributionRegistry<
 }
 
 export function createContributionRegistry<
-	TExtension extends ContributionRegistryExtension<TTool>,
+	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool = Tool,
 	TMessage = unknown,
 >(
-	options: ContributionRegistryOptions<TExtension, TTool> = {},
+	options: ContributionRegistryOptions<TExtension, TTool, TMessage> = {},
 ): ContributionRegistry<TExtension, TTool, TMessage> {
 	return new ContributionRegistry(options);
 }

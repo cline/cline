@@ -10,7 +10,11 @@
  * depend on local helpers that can be inlined into the sandbox build.
  */
 
-import { normalizePluginManifest, type PluginManifest } from "@clinebot/shared";
+import {
+	type AutomationEventEnvelope,
+	normalizePluginManifest,
+	type PluginManifest,
+} from "@clinebot/shared";
 import { importPluginModule } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
@@ -47,15 +51,37 @@ interface PluginProvider {
 	metadata?: Record<string, unknown>;
 }
 
+interface PluginAutomationEventType {
+	eventType: string;
+	source: string;
+	description?: string;
+	attributesSchema?: Record<string, unknown>;
+	payloadSchema?: Record<string, unknown>;
+	examples?: AutomationEventEnvelope[];
+	metadata?: Record<string, unknown>;
+}
+
 interface PluginApi {
 	registerTool(tool: PluginTool): void;
 	registerCommand(command: PluginCommand): void;
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
+	registerAutomationEventType(eventType: PluginAutomationEventType): void;
 }
 
 interface PluginSetupCtx {
+	session?: unknown;
+	client?: unknown;
+	user?: unknown;
 	workspaceInfo?: unknown;
+	automation?: {
+		ingestEvent(event: AutomationEventEnvelope): void | Promise<void>;
+	};
+	logger?: {
+		debug(message: string, metadata?: Record<string, unknown>): void;
+		log(message: string, metadata?: Record<string, unknown>): void;
+		error(message: string, metadata?: Record<string, unknown>): void;
+	};
 }
 
 interface PluginModule {
@@ -77,6 +103,17 @@ interface ContributionDescriptor {
 	metadata?: Record<string, unknown>;
 }
 
+interface AutomationEventTypeDescriptor {
+	id: string;
+	eventType: string;
+	source: string;
+	description?: string;
+	attributesSchema?: Record<string, unknown>;
+	payloadSchema?: Record<string, unknown>;
+	examples?: AutomationEventEnvelope[];
+	metadata?: Record<string, unknown>;
+}
+
 interface PluginDescriptor {
 	pluginId: string;
 	pluginPath: string;
@@ -87,6 +124,7 @@ interface PluginDescriptor {
 		commands: ContributionDescriptor[];
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
+		automationEventTypes: AutomationEventTypeDescriptor[];
 		shortcuts?: ContributionDescriptor[];
 		flags?: ContributionDescriptor[];
 	};
@@ -166,8 +204,31 @@ function assertValidPluginSetupCtx(
 	if (!isObject(ctx)) {
 		throw new Error("Plugin setup context must be an object");
 	}
+	if (ctx.session !== undefined && !isObject(ctx.session)) {
+		throw new Error("Plugin setup context session must be an object");
+	}
+	if (ctx.client !== undefined && !isObject(ctx.client)) {
+		throw new Error("Plugin setup context client must be an object");
+	}
+	if (ctx.user !== undefined && !isObject(ctx.user)) {
+		throw new Error("Plugin setup context user must be an object");
+	}
 	if (ctx.workspaceInfo !== undefined && !isObject(ctx.workspaceInfo)) {
 		throw new Error("Plugin setup context workspaceInfo must be an object");
+	}
+	if (ctx.automation !== undefined && !isObject(ctx.automation)) {
+		throw new Error("Plugin setup context automation must be an object");
+	}
+	if (
+		ctx.automation !== undefined &&
+		typeof ctx.automation.ingestEvent !== "function"
+	) {
+		throw new Error(
+			"Plugin setup context automation.ingestEvent must be a function",
+		);
+	}
+	if (ctx.logger !== undefined && !isObject(ctx.logger)) {
+		throw new Error("Plugin setup context logger must be an object");
 	}
 }
 
@@ -226,11 +287,74 @@ function sanitizeObject(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
+function sanitizeLogMetadata(
+	value: unknown,
+): Record<string, unknown> | undefined {
+	if (!value || typeof value !== "object") {
+		return undefined;
+	}
+	const metadata = { ...(value as Record<string, unknown>) };
+	if (metadata.error instanceof Error) {
+		metadata.error = {
+			name: metadata.error.name,
+			message: metadata.error.message,
+			stack: metadata.error.stack,
+		};
+	}
+	return metadata;
+}
+
+function createPluginLogger(
+	pluginName: string,
+): NonNullable<PluginSetupCtx["logger"]> {
+	const emitLog = (
+		level: "debug" | "log" | "error",
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => {
+		emitEvent("plugin_log", {
+			level,
+			pluginName,
+			message,
+			metadata: sanitizeLogMetadata(metadata),
+		});
+	};
+	return {
+		debug: (message, metadata) => emitLog("debug", message, metadata),
+		log: (message, metadata) => emitLog("log", message, metadata),
+		error: (message, metadata) => emitLog("error", message, metadata),
+	};
+}
+
 function makeId(pluginId: string, prefix: string): string {
 	const key = `${pluginId}:${prefix}`;
 	const next = (contributionCounters.get(key) ?? 0) + 1;
 	contributionCounters.set(key, next);
 	return `${pluginId}_${prefix}_${next}`;
+}
+
+function normalizeAutomationEventType(
+	eventType: PluginAutomationEventType,
+): PluginAutomationEventType {
+	const normalizedEventType =
+		typeof eventType.eventType === "string" ? eventType.eventType.trim() : "";
+	const source =
+		typeof eventType.source === "string" ? eventType.source.trim() : "";
+	if (!normalizedEventType) {
+		throw new Error("Automation event type contribution requires eventType");
+	}
+	if (!source) {
+		throw new Error("Automation event type contribution requires source");
+	}
+	return {
+		...eventType,
+		eventType: normalizedEventType,
+		source,
+		examples: eventType.examples ? [...eventType.examples] : undefined,
+		metadata: eventType.metadata
+			? sanitizeObject(eventType.metadata)
+			: undefined,
+	};
 }
 
 function getPlugin(pluginId: string): PluginState {
@@ -251,7 +375,11 @@ async function initialize(args: {
 	providerId?: string;
 	modelId?: string;
 	cwd?: string;
+	session?: unknown;
+	client?: unknown;
+	user?: unknown;
 	workspaceInfo?: unknown;
+	loggerEnabled?: boolean;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -305,6 +433,7 @@ async function initialize(args: {
 				commands: [],
 				messageBuilders: [],
 				providers: [],
+				automationEventTypes: [],
 				shortcuts: [],
 				flags: [],
 			};
@@ -351,12 +480,33 @@ async function initialize(args: {
 						metadata: sanitizeObject(provider.metadata),
 					});
 				},
+				registerAutomationEventType: (eventType) => {
+					contributions.automationEventTypes.push({
+						id: makeId(pluginId, "automation_event"),
+						...normalizeAutomationEventType(eventType),
+					});
+				},
 			};
 
 			if (typeof plugin.setup === "function") {
 				try {
 					const setupCtx = {
+						session: args.session,
+						client: args.client,
+						user: args.user,
 						workspaceInfo: args.workspaceInfo,
+						...(args.loggerEnabled
+							? { logger: createPluginLogger(plugin.name) }
+							: {}),
+						...(plugin.manifest.capabilities.includes("automationEvents")
+							? {
+									automation: {
+										ingestEvent: (event: AutomationEventEnvelope) => {
+											emitEvent("automation_event", event);
+										},
+									},
+								}
+							: {}),
 					};
 					assertValidPluginSetupCtx(setupCtx);
 					await plugin.setup(api, setupCtx);

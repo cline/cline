@@ -61,13 +61,14 @@ export class CronMaterializer {
 	}
 
 	/**
-	 * Ensure a single one-off spec has exactly one queued|running|done run
-	 * for its current revision. Returns true if a new queued run was created.
+	 * Ensure a single one-off spec has exactly one run record for its current
+	 * revision unless an explicit rerun path creates a different trigger kind.
+	 * Returns true if a new queued run was created.
 	 */
 	public materializeOneOff(spec: CronSpecRecord): boolean {
 		if (spec.triggerKind !== "one_off") return false;
 		if (!spec.enabled || spec.removed) return false;
-		if (this.store.hasActiveOrDoneOneOffRun(spec.specId, spec.revision)) {
+		if (this.store.hasOneOffRunForRevision(spec.specId, spec.revision)) {
 			return false;
 		}
 		this.store.enqueueRun({

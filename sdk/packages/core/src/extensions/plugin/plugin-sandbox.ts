@@ -4,13 +4,20 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
+	AgentExtensionAutomationEventType,
 	HookStage,
+	PluginSetupContext,
 	Tool,
 	WorkspaceInfo,
 } from "@clinebot/shared";
 import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
+
+export type SandboxedPluginSetupContext = Pick<
+	PluginSetupContext,
+	"session" | "client" | "user" | "workspaceInfo" | "logger"
+>;
 
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
@@ -31,6 +38,11 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	 * so they can inspect git state without running their own commands.
 	 */
 	workspaceInfo?: WorkspaceInfo;
+	session?: SandboxedPluginSetupContext["session"];
+	client?: SandboxedPluginSetupContext["client"];
+	user?: SandboxedPluginSetupContext["user"];
+	/** Enables a logger bridge that forwards sandbox log calls to the host. */
+	logger?: SandboxedPluginSetupContext["logger"];
 }
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -46,6 +58,11 @@ type SandboxedContributionDescriptor = {
 	metadata?: Record<string, unknown>;
 };
 
+type SandboxedAutomationEventTypeDescriptor =
+	AgentExtensionAutomationEventType & {
+		id: string;
+	};
+
 type SandboxedPluginDescriptor = {
 	pluginId: string;
 	pluginPath: string;
@@ -56,6 +73,7 @@ type SandboxedPluginDescriptor = {
 		commands: SandboxedContributionDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
+		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
 		shortcuts?: SandboxedContributionDescriptor[];
 		flags?: SandboxedContributionDescriptor[];
 	};
@@ -75,6 +93,8 @@ function normalizeDescriptor(
 			commands: descriptor.contributions?.commands ?? [],
 			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
 			providers: descriptor.contributions?.providers ?? [],
+			automationEventTypes:
+				descriptor.contributions?.automationEventTypes ?? [],
 			shortcuts: descriptor.contributions?.shortcuts ?? [],
 			flags: descriptor.contributions?.flags ?? [],
 		},
@@ -246,7 +266,11 @@ export async function loadSandboxedPlugins(
 		providerId: options.providerId,
 		modelId: options.modelId,
 		cwd: options.cwd,
+		session: options.session,
+		client: options.client,
+		user: options.user,
 		workspaceInfo: options.workspaceInfo,
+		loggerEnabled: Boolean(options.logger),
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -435,6 +459,19 @@ function registerSimpleContributions(
 			name: pd.name,
 			description: pd.description,
 			metadata: pd.metadata,
+		});
+	}
+
+	for (const eventType of descriptor.contributions?.automationEventTypes ??
+		[]) {
+		api.registerAutomationEventType({
+			eventType: eventType.eventType,
+			source: eventType.source,
+			description: eventType.description,
+			attributesSchema: eventType.attributesSchema,
+			payloadSchema: eventType.payloadSchema,
+			examples: eventType.examples,
+			metadata: eventType.metadata,
 		});
 	}
 }

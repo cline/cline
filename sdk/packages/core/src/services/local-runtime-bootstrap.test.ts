@@ -171,6 +171,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				registerCommand: () => {},
 				registerMessageBuilder: () => {},
 				registerProvider: () => {},
+				registerAutomationEventType: () => {},
 			},
 			{},
 		);
@@ -252,6 +253,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				registerCommand: () => {},
 				registerMessageBuilder: () => {},
 				registerProvider: () => {},
+				registerAutomationEventType: () => {},
 			},
 			{},
 		);

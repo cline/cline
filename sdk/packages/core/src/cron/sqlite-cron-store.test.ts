@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CronOneOffSpec, CronScheduleSpec } from "@clinebot/shared";
+import { loadSqliteDb } from "@clinebot/shared/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SqliteCronStore } from "./sqlite-cron-store";
 
@@ -130,6 +131,48 @@ describe("SqliteCronStore", () => {
 	});
 });
 
+describe("SqliteCronStore: schema migrations", () => {
+	it("recreates the one-off run uniqueness index when its predicate changes", () => {
+		const tmp = tempDbPath();
+		const initialStore = new SqliteCronStore({ dbPath: tmp.path });
+		initialStore.close();
+
+		const db = loadSqliteDb(tmp.path);
+		try {
+			db.exec("DROP INDEX IF EXISTS cron_runs_one_off_active_idx;");
+			db.exec(`CREATE UNIQUE INDEX cron_runs_one_off_active_idx
+				ON cron_runs(spec_id, spec_revision)
+				WHERE trigger_kind = 'one_off' AND status IN ('queued', 'running');`);
+			const before = db
+				.prepare(
+					"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'cron_runs_one_off_active_idx'",
+				)
+				.get();
+			expect(String(before?.sql)).toContain("status IN");
+		} finally {
+			db.close?.();
+		}
+
+		const migratedStore = new SqliteCronStore({ dbPath: tmp.path });
+		migratedStore.close();
+
+		const migratedDb = loadSqliteDb(tmp.path);
+		try {
+			const after = migratedDb
+				.prepare(
+					"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'cron_runs_one_off_active_idx'",
+				)
+				.get();
+			const indexSql = String(after?.sql);
+			expect(indexSql).toContain("WHERE trigger_kind = 'one_off'");
+			expect(indexSql).not.toContain("status IN");
+		} finally {
+			migratedDb.close?.();
+			rmSync(tmp.dir, { recursive: true, force: true });
+		}
+	});
+});
+
 describe("SqliteCronStore: runs", () => {
 	let dir: string;
 	let store: SqliteCronStore;
@@ -164,7 +207,7 @@ describe("SqliteCronStore: runs", () => {
 
 	it("enqueues a queued one-off run and detects duplicates", () => {
 		const spec = seedOneOff();
-		expect(store.hasActiveOrDoneOneOffRun(spec.specId, 1)).toBe(false);
+		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(false);
 		const run = store.enqueueRun({
 			specId: spec.specId,
 			specRevision: 1,
@@ -173,7 +216,18 @@ describe("SqliteCronStore: runs", () => {
 		});
 		expect(run.status).toBe("queued");
 		expect(run.triggerKind).toBe("one_off");
-		expect(store.hasActiveOrDoneOneOffRun(spec.specId, 1)).toBe(true);
+		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(true);
+	});
+
+	it("treats failed one-off runs as satisfying the revision", () => {
+		const spec = seedOneOff();
+		const run = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: 1,
+			triggerKind: "one_off",
+		});
+		store.completeRun(run.runId, { status: "failed", error: "boom" });
+		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(true);
 	});
 
 	it("claims due queued runs and completes them", () => {

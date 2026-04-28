@@ -7,13 +7,16 @@ import { loadSandboxedPlugins } from "./plugin-sandbox";
 
 function createApiCapture() {
 	const tools: Tool[] = [];
+	const automationEventTypes: unknown[] = [];
 	const api = {
 		registerTool: (tool: Tool) => tools.push(tool),
 		registerCommand: () => {},
 		registerMessageBuilder: () => {},
 		registerProvider: () => {},
+		registerAutomationEventType: (eventType: unknown) =>
+			automationEventTypes.push(eventType),
 	};
-	return { tools, api };
+	return { tools, automationEventTypes, api };
 }
 
 describe("plugin-sandbox", () => {
@@ -83,6 +86,41 @@ describe("plugin-sandbox", () => {
 				"    globalThis.__clinePluginHost?.emitEvent?.('run_end_hook', {",
 				"      finishReason: ctx.result?.finishReason,",
 				"      iterations: ctx.result?.iterations,",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
+			join(dir, "plugin-automation-events.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-automation-events',",
+				"  manifest: { capabilities: ['automationEvents','tools'] },",
+				"  setup(api, ctx) {",
+				"    api.registerAutomationEventType({",
+				"      eventType: 'local.plugin_event',",
+				"      source: 'local-plugin',",
+				"      description: 'Local event emitted by a sandbox plugin',",
+				"      attributesSchema: { type: 'object', properties: { topic: { type: 'string' } } },",
+				"    });",
+				"    api.registerTool({",
+				"      name: 'emit_automation_event',",
+				"      description: 'emit automation event',",
+				"      inputSchema: { type: 'object', properties: { topic: { type: 'string' } }, required: ['topic'] },",
+				"      execute: async (input) => {",
+				"        await ctx.automation?.ingestEvent?.({",
+				"          eventId: 'plugin-' + input.topic,",
+				"          eventType: 'local.plugin_event',",
+				"          source: 'local-plugin',",
+				"          subject: input.topic,",
+				"          occurredAt: '2026-04-24T10:00:00.000Z',",
+				"          attributes: { topic: input.topic },",
+				"        });",
+				"        return { ok: true };",
+				"      },",
 				"    });",
 				"  },",
 				"};",
@@ -238,6 +276,7 @@ describe("plugin-sandbox", () => {
 			pluginPaths: [
 				join(dir, "plugin.mjs"),
 				join(dir, "plugin-events.mjs"),
+				join(dir, "plugin-automation-events.mjs"),
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
 				join(dir, "plugin-sdk.ts"),
@@ -352,6 +391,35 @@ describe("plugin-sandbox", () => {
 			{
 				name: "test_event",
 				payload: { value: "hello" },
+			},
+		]);
+	});
+
+	it("registers automation event types and forwards sandbox automation events", async () => {
+		const extension = sharedExtensions.get("sandbox-automation-events");
+		const { tools, automationEventTypes, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		expect(automationEventTypes).toEqual([
+			expect.objectContaining({
+				eventType: "local.plugin_event",
+				source: "local-plugin",
+			}),
+		]);
+
+		const tool = tools.find((entry) => entry.name === "emit_automation_event");
+		await tool?.execute({ topic: "cron-feature-2" }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		} as ToolContext);
+		expect(forwardedEvents).toEqual([
+			{
+				name: "automation_event",
+				payload: expect.objectContaining({
+					eventId: "plugin-cron-feature-2",
+					eventType: "local.plugin_event",
+					source: "local-plugin",
+				}),
 			},
 		]);
 	});

@@ -17,6 +17,7 @@ import type {
 	AgentExtensionRegistry as AgentExtensionRegistryGeneric,
 	ContributionRegistryExtension,
 	PluginManifest,
+	PluginSetupContext,
 } from "../extensions/contribution-registry";
 import type { HookControl, HookPolicies } from "../hooks/contracts";
 import type { Message, MessageWithMetadata } from "../llms/messages";
@@ -446,6 +447,8 @@ export interface AgentHookStopErrorContext {
 export interface AgentHookSessionShutdownContext {
 	agentId: string;
 	conversationId: string;
+	/** Stable core session id for the root session, when provided by the host. */
+	sessionId?: string;
 	parentAgentId: string | null;
 	/**
 	 * Optional reason for shutdown (e.g. "ctrl_d", "process_exit")
@@ -474,6 +477,8 @@ export interface AgentExtensionSessionStartContext extends SessionWorkspaceEnv {
 export interface AgentExtensionSessionShutdownContext {
 	agentId: string;
 	conversationId: string;
+	/** Stable core session id for the root session, when provided by the host. */
+	sessionId?: string;
 	parentAgentId: string | null;
 	reason?: string;
 }
@@ -503,11 +508,10 @@ export type AgentExtensionBeforeAgentStartControl = Omit<
 	appendMessages?: Message[];
 };
 
-export interface AgentExtensionContext {
-	workspaceInfo?: WorkspaceInfo;
-}
+export interface AgentExtensionContext extends PluginSetupContext {}
 
-export interface AgentExtension extends ContributionRegistryExtension<Tool> {
+export interface AgentExtension
+	extends ContributionRegistryExtension<Tool, Message> {
 	name: string;
 	manifest: PluginManifest;
 	setup?: (

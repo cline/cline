@@ -2,7 +2,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentResult, BasicLogger } from "@clinebot/shared";
+import type {
+	AgentExtensionAutomationContext,
+	AgentResult,
+	BasicLogger,
+} from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -65,6 +69,7 @@ type PluginEventTestHarness = {
 	handlePluginEvent: (
 		rootSessionId: string,
 		event: { name: string; payload?: unknown },
+		fallbackAutomation?: AgentExtensionAutomationContext,
 	) => Promise<void>;
 	getPendingPrompts: (
 		sessionId: string,
@@ -76,7 +81,7 @@ function createPluginEventHarness(
 ): PluginEventTestHarness {
 	const target = manager as object;
 	return {
-		handlePluginEvent: async (rootSessionId, event) => {
+		handlePluginEvent: async (rootSessionId, event, fallbackAutomation) => {
 			const handler = Reflect.get(target, "handlePluginEvent");
 			if (typeof handler !== "function") {
 				throw new Error("handlePluginEvent test hook unavailable");
@@ -85,9 +90,10 @@ function createPluginEventHarness(
 				handler as (
 					rootSessionId: string,
 					event: { name: string; payload?: unknown },
+					fallbackAutomation?: AgentExtensionAutomationContext,
 				) => Promise<void>,
 				target,
-				[rootSessionId, event],
+				[rootSessionId, event, fallbackAutomation],
 			);
 		},
 		getPendingPrompts: (sessionId) => {
@@ -283,6 +289,113 @@ describe("LocalRuntimeHost", () => {
 				leadAgentId: "agent-root-1",
 				restoredFromPersistence: false,
 				distinct_id: distinctId,
+			}),
+		);
+	});
+
+	it("ingests automation events emitted by sandbox plugins during setup", async () => {
+		const sessionId = "sess-plugin-automation-setup";
+		const ingestEvent = vi.fn().mockResolvedValue(undefined);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				listSessions: vi.fn().mockResolvedValue([]),
+			} as never,
+		});
+		const harness = createPluginEventHarness(manager);
+
+		await harness.handlePluginEvent(
+			sessionId,
+			{
+				name: "automation_event",
+				payload: {
+					eventId: "evt_setup_1",
+					eventType: "local.plugin_event",
+					source: "local-plugin",
+					occurredAt: "2026-04-24T10:00:00.000Z",
+				},
+			},
+			{ ingestEvent },
+		);
+
+		expect(ingestEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				eventId: "evt_setup_1",
+				eventType: "local.plugin_event",
+			}),
+		);
+	});
+
+	it("ingests automation events emitted by plugins after session registration", async () => {
+		const sessionId = "sess-plugin-automation-registered";
+		const manifest = createManifest(sessionId);
+		const ingestEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({
+					updated: true,
+					endedAt: "2026-01-01T00:00:05.000Z",
+				}),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					extensionContext: { automation: { ingestEvent } },
+				}),
+				prompt: undefined,
+				interactive: true,
+			}),
+		);
+
+		const harness = createPluginEventHarness(manager);
+		await harness.handlePluginEvent(sessionId, {
+			name: "automation_event",
+			payload: {
+				eventId: "evt_registered_1",
+				eventType: "local.plugin_event",
+				source: "local-plugin",
+				occurredAt: "2026-04-24T10:00:00.000Z",
+			},
+		});
+
+		expect(ingestEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				eventId: "evt_registered_1",
+				eventType: "local.plugin_event",
 			}),
 		);
 	});

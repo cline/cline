@@ -324,6 +324,7 @@ export class CronRunner {
 					usage: result.usage,
 					toolCalls: result.toolCalls,
 					durationMs: endMs - startMs,
+					triggerEvent,
 				},
 			});
 			this.store.completeRun(run.runId, {
@@ -349,7 +350,7 @@ export class CronRunner {
 				workspaceRoot: this.options.workspaceRoot,
 				run: { ...run, sessionId, status: "failed" },
 				spec,
-				data: { error: message, durationMs: endMs - startMs },
+				data: { error: message, durationMs: endMs - startMs, triggerEvent },
 			});
 			this.store.completeRun(run.runId, {
 				status: "failed",

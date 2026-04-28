@@ -29,6 +29,7 @@ function collectRegisteredTools(
 		registerCommand: () => {},
 		registerMessageBuilder: () => {},
 		registerProvider: () => {},
+		registerAutomationEventType: () => {},
 	};
 	extension.setup(api, { workspaceInfo });
 	return tools;

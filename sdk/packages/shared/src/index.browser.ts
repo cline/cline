@@ -17,6 +17,7 @@ export {
 	ConnectorHookEventSchema,
 } from "./connectors/events";
 export type * from "./connectors/options";
+export type { AutomationEventEnvelope } from "./cron";
 export type {
 	ClientContext,
 	ClientName,
@@ -26,15 +27,19 @@ export type {
 } from "./extensions/context";
 export type {
 	AgentExtensionApi,
+	AgentExtensionAutomationContext,
+	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
 	AgentExtensionHookStage,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
+	AgentExtensionSessionContext,
 	ContributionRegistryExtension,
 	ContributionRegistryOptions,
 	PluginManifest,
+	PluginSetupContext,
 } from "./extensions/contribution-registry";
 export {
 	ContributionRegistry,

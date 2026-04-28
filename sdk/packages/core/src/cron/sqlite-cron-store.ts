@@ -1045,13 +1045,12 @@ export class SqliteCronStore {
 		return this.getRun(options.runId);
 	}
 
-	public hasActiveOrDoneOneOffRun(specId: string, revision: number): boolean {
+	public hasOneOffRunForRevision(specId: string, revision: number): boolean {
 		const row = this.db
 			.prepare(
 				`SELECT run_id FROM cron_runs
 					WHERE spec_id = ? AND spec_revision = ?
 						AND trigger_kind = 'one_off'
-						AND status IN ('queued', 'running', 'done')
 					LIMIT 1`,
 			)
 			.get(specId, revision);

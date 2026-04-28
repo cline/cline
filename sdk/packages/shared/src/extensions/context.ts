@@ -1,6 +1,10 @@
 import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
+import type {
+	AgentExtensionAutomationContext,
+	AgentExtensionSessionContext,
+} from "./contribution-registry";
 
 /**
  * The IDE or client surface the user is running Cline from.
@@ -76,6 +80,13 @@ export interface ExtensionContext {
 	user?: UserContext;
 	client?: ClientContext;
 	workspace?: WorkspaceContext;
+	/** Core session metadata forwarded into plugin setup context. */
+	session?: AgentExtensionSessionContext;
+	/**
+	 * Host-provided automation ingress for plugins. Present when the session is
+	 * started through a ClineCore instance with automation enabled.
+	 */
+	automation?: AgentExtensionAutomationContext;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 }

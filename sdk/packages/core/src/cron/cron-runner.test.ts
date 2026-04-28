@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,16 +15,17 @@ import { SqliteCronStore } from "./sqlite-cron-store";
 
 function fakeHandlers(): {
 	handlers: HubScheduleRuntimeHandlers;
-	calls: { start: number; send: number; stop: number };
+	calls: { start: number; send: number; stop: number; prompts: string[] };
 } {
-	const calls = { start: 0, send: 0, stop: 0 };
+	const calls = { start: 0, send: 0, stop: 0, prompts: [] as string[] };
 	const handlers: HubScheduleRuntimeHandlers = {
 		async startSession(_req) {
 			calls.start += 1;
 			return { sessionId: `sess_${calls.start}` };
 		},
-		async sendSession(_sessionId, _req) {
+		async sendSession(_sessionId, req) {
 			calls.send += 1;
+			calls.prompts.push(req.prompt);
 			return {
 				result: {
 					text: "done text",
@@ -140,6 +147,62 @@ describe("CronRunner", () => {
 		const run = store.listRuns({ specId: upserted.record.specId })[0]!;
 		expect(run.status).toBe("failed");
 		expect(run.error).toMatch(/no runtime/);
+	});
+
+	it("executes queued event runs with trigger context and report provenance", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const upserted = store.upsertSpec({
+			externalId: "pr-review",
+			sourcePath: "events/pr-review.event.md",
+			triggerKind: "event",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "event",
+				id: "pr-review",
+				title: "PR Review",
+				prompt: "Review the opened pull request",
+				workspaceRoot,
+				enabled: true,
+				event: "github.pull_request.opened",
+				filters: { repository: "acme/api" },
+			},
+		});
+		store.insertEventLog({
+			eventId: "evt_1",
+			eventType: "github.pull_request.opened",
+			source: "github",
+			subject: "acme/api#12",
+			occurredAt: "2026-04-23T10:00:00.000Z",
+			dedupeKey: "pr:12",
+			attributes: { repository: "acme/api" },
+		});
+		store.enqueueRun({
+			specId: upserted.record.specId,
+			specRevision: upserted.record.revision,
+			triggerKind: "event",
+			triggerEventId: "evt_1",
+		});
+
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		await runner.dispose();
+
+		expect(calls.send).toBe(1);
+		expect(calls.prompts[0]).toContain("Trigger event:");
+		expect(calls.prompts[0]).toContain("github.pull_request.opened");
+		const run = store.listRuns({ specId: upserted.record.specId })[0]!;
+		expect(run.status).toBe("done");
+		expect(run.reportPath).toBeDefined();
+		const report = readFileSync(run.reportPath!, "utf8");
+		expect(report).toContain("triggerEventType: github.pull_request.opened");
+		expect(report).toContain("## Trigger Event");
 	});
 
 	it("requeues runs that lose the limiter race instead of failing them", async () => {

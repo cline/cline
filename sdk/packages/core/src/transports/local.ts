@@ -6,6 +6,9 @@ import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
+	type AutomationEventEnvelope,
+	type BasicLogger,
+	type BasicLogMetadata,
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
@@ -295,6 +298,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 		const sessionToolExecutors =
 			input.localRuntime?.defaultToolExecutors ?? this.defaultToolExecutors;
+		const inputLocalConfig = input.localRuntime?.configOverrides as
+			| Partial<CoreSessionConfig>
+			| undefined;
+		const pluginEventFallbackLogger =
+			inputLocalConfig?.extensionContext?.logger ?? inputLocalConfig?.logger;
+		const pluginEventFallbackAutomation =
+			inputLocalConfig?.extensionContext?.automation;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
@@ -306,7 +316,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultRequestToolApproval: this.defaultRequestToolApproval,
 			defaultFetch: this.defaultFetch,
-			onPluginEvent: (event) => void this.handlePluginEvent(sessionId, event),
+			onPluginEvent: (event) => {
+				if (event.name === "plugin_log") {
+					this.handlePluginLog(
+						sessionId,
+						event.payload,
+						pluginEventFallbackLogger,
+					);
+					return;
+				}
+				void this.handlePluginEvent(
+					sessionId,
+					event,
+					pluginEventFallbackAutomation,
+				);
+			},
 			onTeamEvent: (event: TeamEvent) => {
 				void this.handleTeamEvent(sessionId, event);
 				bootstrap.config.onTeamEvent?.(event);
@@ -1101,7 +1125,31 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async handlePluginEvent(
 		rootSessionId: string,
 		event: { name: string; payload?: unknown },
+		fallbackAutomation?: NonNullable<
+			CoreSessionConfig["extensionContext"]
+		>["automation"],
 	): Promise<void> {
+		if (event.name === "plugin_log") {
+			this.handlePluginLog(rootSessionId, event.payload);
+			return;
+		}
+		if (event.name === "automation_event") {
+			const session = this.sessions.get(rootSessionId);
+			const automation =
+				session?.config.extensionContext?.automation ?? fallbackAutomation;
+			if (!automation) {
+				return;
+			}
+			const payload =
+				event.payload && typeof event.payload === "object"
+					? (event.payload as AutomationEventEnvelope)
+					: undefined;
+			if (!payload) {
+				return;
+			}
+			await automation.ingestEvent(payload);
+			return;
+		}
 		if (
 			event.name !== "steer_message" &&
 			event.name !== "queue_message" &&
@@ -1135,6 +1183,49 @@ export class LocalRuntimeHost implements RuntimeHost {
 			prompt,
 			delivery,
 		});
+	}
+
+	private handlePluginLog(
+		rootSessionId: string,
+		payload: unknown,
+		fallbackLogger?: BasicLogger,
+	): void {
+		const session = this.sessions.get(rootSessionId);
+		const logger =
+			fallbackLogger ??
+			session?.config.extensionContext?.logger ??
+			session?.config.logger;
+		if (!logger || !payload || typeof payload !== "object") {
+			return;
+		}
+		const record = payload as Record<string, unknown>;
+		const message = typeof record.message === "string" ? record.message : "";
+		if (!message) {
+			return;
+		}
+		const metadata =
+			record.metadata && typeof record.metadata === "object"
+				? ({
+						...(record.metadata as Record<string, unknown>),
+					} as BasicLogMetadata)
+				: {};
+		metadata.sessionId ??= rootSessionId;
+		if (typeof record.pluginName === "string" && record.pluginName) {
+			metadata.pluginName = record.pluginName;
+		}
+		if (record.level === "debug") {
+			logger.debug(message, metadata);
+			return;
+		}
+		if (record.level === "error") {
+			if (logger.error) {
+				logger.error(message, metadata);
+			} else {
+				logger.log(message, { ...metadata, severity: "error" });
+			}
+			return;
+		}
+		logger.log(message, metadata);
 	}
 
 	/**

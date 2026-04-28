@@ -80,15 +80,20 @@ bun run src/index.ts
 
 ### [`cron/`](./cron)
 
-**Example file-based automation specs** for global `~/.cline/cron/`:
+**Example file-based and event-driven automation specs** for global `~/.cline/cron/`:
 
 - Copy a recurring spec into `~/.cline/cron/`
-- Use it as a template for one-off or scheduled automation
-- Pair it with the hub's `CronService` to reconcile, queue, and execute runs
+- Copy event specs into `~/.cline/cron/events/`
+- Use them as templates for one-off, scheduled, or event-driven automation
+- Pair `events/local-plugin-event.event.md` with `cline-plugin/automation-events.ts`
+  to test plugin-emitted normalized events locally
+- Enable automation through `ClineCore.create({ automation: true })`
 
 ```bash
 mkdir -p ~/.cline/cron
 cp apps/examples/cron/daily-code-review.cron.md ~/.cline/cron/
+mkdir -p ~/.cline/cron/events
+cp apps/examples/cron/events/local-manual-test.event.md ~/.cline/cron/events/
 ```
 
 ## 🚀 Quick Start

@@ -1,11 +1,13 @@
 import type {
 	AgentConfig,
+	AgentExtensionAutomationContext,
 	AgentResult,
 	AutomationEventEnvelope,
 	BasicLogger,
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
 	ChatTurnResult,
+	ExtensionContext,
 	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -381,7 +383,9 @@ export class ClineCore implements RuntimeHost {
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly defaultToolExecutors: Partial<ToolExecutors> | undefined;
+	private readonly logger: BasicLogger | undefined;
 	private readonly telemetry: ITelemetryService | undefined;
+	private readonly distinctId: string | undefined;
 	private readonly automationService: CronService | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
@@ -395,7 +399,9 @@ export class ClineCore implements RuntimeHost {
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
 		defaultToolExecutors: Partial<ToolExecutors> | undefined,
+		logger: BasicLogger | undefined,
 		telemetry: ITelemetryService | undefined,
+		distinctId: string | undefined,
 		automationOptions:
 			| (ClineCoreAutomationOptions & { logger?: BasicLogger })
 			| undefined,
@@ -405,7 +411,9 @@ export class ClineCore implements RuntimeHost {
 		this.host = host;
 		this.prepare = prepare;
 		this.defaultToolExecutors = defaultToolExecutors;
+		this.logger = logger;
 		this.telemetry = telemetry;
+		this.distinctId = distinctId;
 		this.automationService = automationOptions
 			? new CronService({
 					workspaceRoot: automationOptions.workspaceRoot ?? process.cwd(),
@@ -467,7 +475,9 @@ export class ClineCore implements RuntimeHost {
 			host.runtimeAddress,
 			options.prepare,
 			options.defaultToolExecutors,
+			options.logger,
 			options.telemetry,
+			options.distinctId,
 			automationOptions
 				? { ...automationOptions, logger: options.logger }
 				: undefined,
@@ -481,6 +491,7 @@ export class ClineCore implements RuntimeHost {
 	private createAutomationRuntimeHandlers(
 		host: RuntimeHost,
 	): HubScheduleRuntimeHandlers {
+		const core = this;
 		return {
 			async startSession(request) {
 				const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
@@ -509,6 +520,9 @@ export class ClineCore implements RuntimeHost {
 						},
 					},
 					localRuntime: {
+						configOverrides: {
+							extensionContext: core.withAutomationExtensionContext(),
+						},
 						configExtensions: request.configExtensions,
 					},
 				});
@@ -547,6 +561,44 @@ export class ClineCore implements RuntimeHost {
 		};
 	}
 
+	private createAutomationPluginContext():
+		| AgentExtensionAutomationContext
+		| undefined {
+		if (!this.automationService) {
+			return undefined;
+		}
+		return {
+			ingestEvent: (event: AutomationEventEnvelope) => {
+				this.automation.ingestEvent(event);
+			},
+		};
+	}
+
+	private withAutomationExtensionContext(
+		context?: ExtensionContext,
+	): ExtensionContext | undefined {
+		const automation = this.createAutomationPluginContext();
+		const client =
+			context?.client ??
+			(this.clientName ? { name: this.clientName } : undefined);
+		const user =
+			context?.user ??
+			(this.distinctId ? { distinctId: this.distinctId } : undefined);
+		const logger = context?.logger ?? this.logger;
+		const telemetry = context?.telemetry ?? this.telemetry;
+		if (!automation && !client && !user && !logger && !telemetry) {
+			return context;
+		}
+		return {
+			...(context ?? {}),
+			...(client ? { client } : {}),
+			...(user ? { user } : {}),
+			...(logger ? { logger } : {}),
+			...(telemetry ? { telemetry } : {}),
+			...(automation ? { automation } : {}),
+		};
+	}
+
 	private async disposeSessionBootstrap(sessionId: string): Promise<void> {
 		const bootstrap = this.activeSessionBootstraps.get(sessionId);
 		if (!bootstrap) {
@@ -579,7 +631,7 @@ export class ClineCore implements RuntimeHost {
 
 	private normalizeStartInput(input: ClineCoreStartInput): StartSessionInput {
 		const split = splitCoreSessionConfig(input.config);
-		const localRuntime =
+		let localRuntime: LocalRuntimeStartOptions | undefined =
 			split.localRuntime || input.localRuntime || this.defaultToolExecutors
 				? {
 						...(split.localRuntime ?? {}),
@@ -595,6 +647,18 @@ export class ClineCore implements RuntimeHost {
 						},
 					}
 				: undefined;
+		const automationExtensionContext = this.withAutomationExtensionContext(
+			localRuntime?.configOverrides?.extensionContext,
+		);
+		if (automationExtensionContext) {
+			localRuntime = {
+				...(localRuntime ?? {}),
+				configOverrides: {
+					...(localRuntime?.configOverrides ?? {}),
+					extensionContext: automationExtensionContext,
+				},
+			};
+		}
 		return {
 			...input,
 			...split,

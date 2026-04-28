@@ -41,12 +41,15 @@ export type {
 } from "./extensions/context";
 export type {
 	AgentExtensionApi,
+	AgentExtensionAutomationContext,
+	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
 	AgentExtensionHookStage,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
+	AgentExtensionSessionContext,
 	ContributionRegistryExtension,
 	ContributionRegistryOptions,
 	PluginManifest,

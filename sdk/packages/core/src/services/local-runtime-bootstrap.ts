@@ -1,6 +1,7 @@
 import type {
 	AgentConfig,
 	AgentHooks,
+	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
 	Tool,
@@ -278,6 +279,23 @@ export async function prepareLocalRuntimeBootstrap(
 	// as workspaceMetadata; the structured object is kept as workspaceInfo.
 	const { workspaceInfo, workspaceMetadata } =
 		await buildWorkspaceMetadataWithInfo(input.config.cwd);
+	const configuredExtensionContext = localConfig?.extensionContext;
+	const extensionContext: ExtensionContext = {
+		...(configuredExtensionContext ?? {}),
+		workspace: {
+			...workspaceInfo,
+			...(configuredExtensionContext?.workspace ?? {}),
+		},
+		session: {
+			...(configuredExtensionContext?.session ?? {}),
+			sessionId,
+		},
+		logger: configuredExtensionContext?.logger ?? configOverrides?.logger,
+		telemetry:
+			configuredExtensionContext?.telemetry ??
+			configOverrides?.telemetry ??
+			defaultTelemetry,
+	};
 
 	const fileHooks = createHookConfigFileHooks({
 		cwd: input.config.cwd,
@@ -312,6 +330,12 @@ export async function prepareLocalRuntimeBootstrap(
 				providerId: input.config.providerId,
 				modelId: input.config.modelId,
 				workspaceInfo,
+				session: extensionContext.session,
+				client: extensionContext.client,
+				user: extensionContext.user,
+				logger: extensionContext.logger,
+				telemetry: extensionContext.telemetry,
+				automation: extensionContext.automation,
 			});
 			logPluginDiagnostics(
 				loadedPlugins.failures,
@@ -335,7 +359,8 @@ export async function prepareLocalRuntimeBootstrap(
 		...(configOverrides ?? {}),
 		hooks: baseHooks,
 		extensions,
-		telemetry: configOverrides?.telemetry ?? defaultTelemetry,
+		extensionContext,
+		telemetry: extensionContext.telemetry,
 	};
 	const providerConfig = buildProviderConfig(
 		baseConfig,

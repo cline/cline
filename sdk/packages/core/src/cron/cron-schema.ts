@@ -89,9 +89,10 @@ const CRON_SCHEMA_STATEMENTS: readonly string[] = [
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL
 	);`,
+	`DROP INDEX IF EXISTS cron_runs_one_off_active_idx;`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS cron_runs_one_off_active_idx
 		ON cron_runs(spec_id, spec_revision)
-		WHERE trigger_kind = 'one_off' AND status IN ('queued', 'running', 'done');`,
+		WHERE trigger_kind = 'one_off';`,
 	`CREATE INDEX IF NOT EXISTS cron_runs_claimable_idx
 		ON cron_runs(status, scheduled_for, claim_until_at);`,
 	`CREATE INDEX IF NOT EXISTS cron_runs_spec_idx

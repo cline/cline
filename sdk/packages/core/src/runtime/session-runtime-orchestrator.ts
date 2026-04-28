@@ -253,7 +253,13 @@ export class SessionRuntime {
 		>({
 			extensions: config.extensions ? [...config.extensions] : [],
 			setupContext: {
+				session: config.extensionContext?.session,
+				client: config.extensionContext?.client,
+				user: config.extensionContext?.user,
 				workspaceInfo: config.extensionContext?.workspace,
+				automation: config.extensionContext?.automation,
+				logger: config.extensionContext?.logger ?? this.logger,
+				telemetry: config.extensionContext?.telemetry ?? this.telemetry,
 			},
 		});
 		// Resolve + validate eagerly so `getExtensionRegistry()` is
@@ -337,7 +343,8 @@ export class SessionRuntime {
 	}
 
 	/**
-	 * Snapshot of the contribution registry (tools + commands from extensions).
+	 * Snapshot of the contribution registry (tools, commands, and other
+	 * extension contributions).
 	 *
 	 * Before the first run, the registry is in the `validate` phase:
 	 * extensions are validated but their `setup()` callbacks have not
@@ -346,7 +353,7 @@ export class SessionRuntime {
 	 * registry is initialized (§`ensureExtensionsInitialized`), and
 	 * the snapshot reflects everything extensions registered via
 	 * `api.registerTool` / `registerCommand` / `registerMessageBuilder`
-	 * / `registerProvider`.
+	 * / `registerProvider` / `registerAutomationEventType`.
 	 */
 	getExtensionRegistry(): AgentExtensionRegistry<Tool, Message> {
 		return this.contributionRegistry.getRegistrySnapshot();
@@ -522,6 +529,7 @@ export class SessionRuntime {
 			payload: {
 				agentId: this.agentId,
 				conversationId: this.conversation.getConversationId(),
+				sessionId: this.config.sessionId,
 				parentAgentId: this.parentAgentId ?? null,
 				reason,
 			},
@@ -753,7 +761,7 @@ export class SessionRuntime {
 
 		// Subscribe to runtime events; fan out legacy events to listeners
 		// and keep private book-keeping for tool-call records / usage.
-		const unsubscribe = runtime.subscribe((event) => {
+		const unsubscribe = runtime.subscribe((event: AgentRuntimeEvent) => {
 			this.handleRuntimeEvent(event);
 		});
 

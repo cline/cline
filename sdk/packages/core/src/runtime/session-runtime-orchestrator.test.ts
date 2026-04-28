@@ -18,6 +18,8 @@ import type { AgentRuntime, AgentRuntimeConfig } from "@clinebot/agents";
 import type {
 	AgentConfig,
 	AgentEvent,
+	AgentExtension,
+	AgentExtensionContext,
 	AgentMessage,
 	AgentRunResult,
 	AgentRuntimeEvent,
@@ -226,6 +228,7 @@ describe("SessionRuntime construction", () => {
 			commands: [],
 			messageBuilder: [],
 			providers: [],
+			automationEventTypes: [],
 		});
 	});
 });
@@ -277,6 +280,85 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.tools[0].name).toBe("ext-echo");
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
+		expect(registry.automationEventTypes).toEqual([]);
+	});
+
+	it("passes session, caller, and logger context into extension setup()", async () => {
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const telemetry = {
+			capture: vi.fn(),
+		} as unknown as AgentConfig["telemetry"];
+		const ingestEvent = vi.fn();
+		let observed: AgentExtensionContext | undefined;
+		const extension: AgentExtension = {
+			name: "context-ext",
+			manifest: { capabilities: ["tools", "automationEvents"] },
+			setup: (_api, ctx) => {
+				observed = ctx;
+				ctx.logger?.log("plugin setup", {
+					sessionId: ctx.session?.sessionId,
+				});
+			},
+		};
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				extensionContext: {
+					session: { sessionId: "sess_plugin_context" },
+					client: { name: "cline-sdk", version: "1.2.3" },
+					user: { distinctId: "user-1" },
+					workspace: { rootPath: "/tmp/workspace" },
+					automation: { ingestEvent },
+					logger,
+					telemetry,
+				},
+			}),
+			deps,
+		);
+
+		await session.run("go");
+
+		expect(observed?.session?.sessionId).toBe("sess_plugin_context");
+		expect(observed?.client).toEqual({
+			name: "cline-sdk",
+			version: "1.2.3",
+		});
+		expect(observed?.user?.distinctId).toBe("user-1");
+		expect(observed?.workspaceInfo?.rootPath).toBe("/tmp/workspace");
+		expect(observed?.automation?.ingestEvent).toBe(ingestEvent);
+		expect(observed?.telemetry).toBe(telemetry);
+		expect(logger.log).toHaveBeenCalledWith("plugin setup", {
+			sessionId: "sess_plugin_context",
+		});
+	});
+
+	it("propagates the stable core session id into session_shutdown extension hooks", async () => {
+		let shutdownSessionId: string | undefined;
+		const extension: AgentExtension = {
+			name: "shutdown-context-ext",
+			manifest: { capabilities: ["hooks"], hookStages: ["session_shutdown"] },
+			onSessionShutdown: (ctx) => {
+				shutdownSessionId = ctx.sessionId;
+				return undefined;
+			},
+		};
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				sessionId: "sess_shutdown_context",
+				extensions: [extension],
+			}),
+			deps,
+		);
+
+		await session.shutdown("test");
+
+		expect(shutdownSessionId).toBe("sess_shutdown_context");
 	});
 
 	it("merges extension-registered tools into the AgentRuntime tools for the turn", async () => {

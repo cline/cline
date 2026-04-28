@@ -69,6 +69,19 @@ describe("CronMaterializer", () => {
 		expect(runs.length).toBe(2);
 	});
 
+	it("does not requeue a failed one-off run for the same revision", () => {
+		const spec = seedOneOff();
+		const m = new CronMaterializer({ store });
+		expect(m.materializeAll().oneOffQueued).toBe(1);
+		const run = store.listRuns({ specId: spec.specId })[0]!;
+		store.completeRun(run.runId, { status: "failed", error: "boom" });
+
+		expect(m.materializeAll().oneOffQueued).toBe(0);
+		const runs = store.listRuns({ specId: spec.specId });
+		expect(runs).toHaveLength(1);
+		expect(runs[0]?.status).toBe("failed");
+	});
+
 	it("catches up one overdue schedule run and advances next_run_at", () => {
 		const past = new Date(Date.now() - 60_000).toISOString();
 		const upserted = store.upsertSpec({

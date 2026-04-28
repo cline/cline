@@ -4,11 +4,13 @@ Shows how to author a reusable plugin module that works in both the SDK and the 
 
 - **Register tools** — give the agent new capabilities it can invoke
 - **Hook into the lifecycle** — observe or influence execution at key points
+- **Emit automation events** — normalize plugin-owned events into ClineCore automation
 
 Example plugins:
 
 - [weathe-plugin.example.ts](./weathe-plugin.example.ts) - weather tool plus lifecycle metrics hooks
 - [mac-notify.example.ts](./mac-notify.example.ts) - macOS Notification Center alert on successful run completion
+- [automation-events.ts](./automation-events.ts) - local plugin-emitted automation event example
 
 ## Use It With The CLI
 
@@ -98,7 +100,39 @@ await host.start({
 | `commands`         | `api.registerCommand()`                      |
 | `providers`        | `api.registerProvider()`                     |
 | `messageBuilder`   | `api.registerMessageBuilder()` (Coming soon) |
+| `automationEvents` | `api.registerAutomationEventType()` and `ctx.automation?.ingestEvent()` |
 | `hooks`            | lifecycle hook handlers (see below)          |
+
+## Automation event plugins
+
+Plugins can contribute normalized automation event types and, when running in a
+`ClineCore` host with automation enabled, emit events through setup context:
+
+```ts
+const plugin: Plugin = {
+  name: "local-events",
+  manifest: { capabilities: ["automationEvents"] },
+  setup(api, ctx) {
+    api.registerAutomationEventType({
+      eventType: "local.plugin_event",
+      source: "local-plugin",
+      description: "Local normalized event emitted by a plugin",
+    });
+
+    void ctx.automation?.ingestEvent({
+      eventId: `local-plugin-${Date.now()}`,
+      eventType: "local.plugin_event",
+      source: "local-plugin",
+      occurredAt: new Date().toISOString(),
+    });
+  },
+};
+```
+
+The setup context can also include `session`, `client`, `user`, `workspaceInfo`,
+`logger`, and `telemetry` when provided by the host. See
+[`automation-events.ts`](./automation-events.ts) for a local timer-based demo
+that cleans up with the `session_shutdown` hook.
 
 ## Available hook stages
 

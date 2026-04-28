@@ -18,6 +18,7 @@ type LocalOnlyCoreSessionConfigKeys =
 	| "hooks"
 	| "logger"
 	| "telemetry"
+	| "extensionContext"
 	| "extraTools"
 	| "extensions"
 	| "onTeamEvent"
@@ -85,6 +86,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 		hooks,
 		logger,
 		telemetry,
+		extensionContext,
 		extraTools,
 		extensions,
 		onTeamEvent,
@@ -98,6 +100,8 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 	if (hooks) localConfigOverrides.hooks = hooks;
 	if (logger) localConfigOverrides.logger = logger;
 	if (telemetry) localConfigOverrides.telemetry = telemetry;
+	if (extensionContext)
+		localConfigOverrides.extensionContext = extensionContext;
 	if (extraTools) localConfigOverrides.extraTools = extraTools;
 	if (extensions) localConfigOverrides.extensions = extensions;
 	if (onTeamEvent) localConfigOverrides.onTeamEvent = onTeamEvent;
