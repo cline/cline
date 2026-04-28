@@ -28,6 +28,7 @@ function jsonResponse(
 export function startServer(
 	ctx: SidecarContext,
 	preferredPort: number = SIDECAR_PORT,
+	onShutdown?: (reason?: string) => Promise<void>,
 ): { port: number } {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
@@ -43,7 +44,7 @@ export function startServer(
 			server = BunRuntime.serve({
 				hostname: "127.0.0.1",
 				port: candidate,
-				fetch: createFetchHandler(ctx),
+				fetch: createFetchHandler(ctx, onShutdown),
 				websocket: createWebSocketHandler(ctx),
 			});
 			break;
@@ -59,8 +60,11 @@ export function startServer(
 	return { port: server.port };
 }
 
-function createFetchHandler(_ctx: SidecarContext) {
-	return (req: Request, server: any) => {
+function createFetchHandler(
+	_ctx: SidecarContext,
+	onShutdown?: (reason?: string) => Promise<void>,
+) {
+	return async (req: Request, server: any) => {
 		const url = new URL(req.url);
 
 		if (url.pathname === "/health") {
@@ -76,6 +80,23 @@ function createFetchHandler(_ctx: SidecarContext) {
 
 		if (url.pathname === "/transport" && server.upgrade(req)) {
 			return undefined;
+		}
+
+		if (url.pathname === "/shutdown" && req.method === "POST") {
+			queueMicrotask(() => {
+				void onShutdown?.("code_sidecar_shutdown_endpoint")
+					.catch((error) => {
+						process.stderr.write(
+							`sidecar shutdown failed: ${
+								error instanceof Error ? error.message : String(error)
+							}\n`,
+						);
+					})
+					.finally(() => process.exit(0));
+			});
+			return new Response(JSON.stringify({ ok: true }), {
+				headers: { "content-type": "application/json" },
+			});
 		}
 
 		return new Response("Not found", { status: 404 });

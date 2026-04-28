@@ -173,6 +173,30 @@ describe("NodeHubClient", () => {
 				sessionId: "*",
 			});
 		});
+
+		it("unregisters before closing when disposed", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({
+				url: "ws://127.0.0.1:25463/hub",
+				clientType: "code-sidecar",
+			});
+			await client.connect();
+			const socket = MockWebSocket.instances[0];
+
+			await client.dispose();
+
+			expect(socket.sentFrames).toContainEqual(
+				expect.objectContaining({
+					kind: "command",
+					envelope: expect.objectContaining({
+						command: "client.unregister",
+						clientId: client.getClientId(),
+					}),
+				}),
+			);
+			expect(socket.readyState).toBe(MockWebSocket.CLOSED);
+		});
 	});
 
 	describe("timeouts", () => {

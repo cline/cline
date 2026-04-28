@@ -614,101 +614,116 @@ export function AgentSidebar({
 	}, [scheduleRefresh]);
 
 	useEffect(() => {
-		const recent = sessions.slice(0, 24);
-		for (const session of recent) {
-			const sessionId = session.sessionId;
-			if (!sessionId) {
-				continue;
-			}
-			if (usageLoadingRef.current.has(sessionId)) {
-				continue;
-			}
-			const existing = threadsRef.current.find((item) => item.id === sessionId);
-			const hasUsage =
-				existing?.inputTokens !== undefined ||
-				existing?.outputTokens !== undefined;
-			const lastHydratedStatus = usageHydratedStatusRef.current.get(sessionId);
-			const shouldFetch =
-				!hasUsage ||
-				session.status === "running" ||
-				lastHydratedStatus !== session.status;
-			if (!shouldFetch) {
-				continue;
-			}
-			usageLoadingRef.current.add(sessionId);
-			void desktopClient
-				.invoke<SessionMessage[]>("read_session_messages", {
-					sessionId,
-					maxMessages: 1200,
-				})
-				.then(async (sessionMessages) => {
-					const usage = summarizeUsageFromMessages(sessionMessages);
-					if (!usage) {
-						const events = await desktopClient.invoke<SessionHookEvent[]>(
-							"read_session_hooks",
-							{
-								sessionId,
-								limit: 1200,
-							},
-						);
-						return {
-							inputTokens: events.reduce(
-								(sum, event) => sum + (event.inputTokens ?? 0),
-								0,
-							),
-							outputTokens: events.reduce(
-								(sum, event) => sum + (event.outputTokens ?? 0),
-								0,
-							),
-							totalCostUsd: events.reduce(
-								(sum, event) => sum + (event.totalCost ?? 0),
-								0,
-							),
-						};
-					}
-					return usage;
-				})
-				.then(({ inputTokens, outputTokens, totalCostUsd }) => {
-					setThreads((current) =>
-						updateThreadById(current, sessionId, (thread) => {
-							if (
-								thread.inputTokens === inputTokens &&
-								thread.outputTokens === outputTokens &&
-								thread.totalCostUsd === totalCostUsd
-							) {
-								return thread;
-							}
-							return { ...thread, inputTokens, outputTokens, totalCostUsd };
-						}),
-					);
-				})
-				.catch(() => {
-					if (!hasUsage) {
+		const recent = sessions
+			.filter((session) => session.sessionId !== activeSessionId)
+			.slice(0, 4);
+		let cancelled = false;
+		const timer = window.setTimeout(() => {
+			for (const session of recent) {
+				if (cancelled) {
+					return;
+				}
+				const sessionId = session.sessionId;
+				if (!sessionId) {
+					continue;
+				}
+				if (usageLoadingRef.current.has(sessionId)) {
+					continue;
+				}
+				const existing = threadsRef.current.find(
+					(item) => item.id === sessionId,
+				);
+				const hasUsage =
+					existing?.inputTokens !== undefined ||
+					existing?.outputTokens !== undefined;
+				const lastHydratedStatus =
+					usageHydratedStatusRef.current.get(sessionId);
+				const shouldFetch =
+					!hasUsage ||
+					session.status === "running" ||
+					lastHydratedStatus !== session.status;
+				if (!shouldFetch) {
+					continue;
+				}
+				usageLoadingRef.current.add(sessionId);
+				void desktopClient
+					.invoke<SessionMessage[]>("read_session_messages", {
+						sessionId,
+						maxMessages: 1200,
+					})
+					.then(async (sessionMessages) => {
+						const usage = summarizeUsageFromMessages(sessionMessages);
+						if (!usage) {
+							const events = await desktopClient.invoke<SessionHookEvent[]>(
+								"read_session_hooks",
+								{
+									sessionId,
+									limit: 1200,
+								},
+							);
+							return {
+								inputTokens: events.reduce(
+									(sum, event) => sum + (event.inputTokens ?? 0),
+									0,
+								),
+								outputTokens: events.reduce(
+									(sum, event) => sum + (event.outputTokens ?? 0),
+									0,
+								),
+								totalCostUsd: events.reduce(
+									(sum, event) => sum + (event.totalCost ?? 0),
+									0,
+								),
+							};
+						}
+						return usage;
+					})
+					.then(({ inputTokens, outputTokens, totalCostUsd }) => {
 						setThreads((current) =>
 							updateThreadById(current, sessionId, (thread) => {
 								if (
-									thread.inputTokens === 0 &&
-									thread.outputTokens === 0 &&
-									(thread.totalCostUsd ?? 0) === 0
+									thread.inputTokens === inputTokens &&
+									thread.outputTokens === outputTokens &&
+									thread.totalCostUsd === totalCostUsd
 								) {
 									return thread;
 								}
-								return {
-									...thread,
-									inputTokens: 0,
-									outputTokens: 0,
-									totalCostUsd: 0,
-								};
+								return { ...thread, inputTokens, outputTokens, totalCostUsd };
 							}),
 						);
-					}
-				})
-				.finally(() => {
-					usageHydratedStatusRef.current.set(sessionId, session.status);
-					usageLoadingRef.current.delete(sessionId);
-				});
-		}
-	}, [sessions]);
+					})
+					.catch(() => {
+						if (!hasUsage) {
+							setThreads((current) =>
+								updateThreadById(current, sessionId, (thread) => {
+									if (
+										thread.inputTokens === 0 &&
+										thread.outputTokens === 0 &&
+										(thread.totalCostUsd ?? 0) === 0
+									) {
+										return thread;
+									}
+									return {
+										...thread,
+										inputTokens: 0,
+										outputTokens: 0,
+										totalCostUsd: 0,
+									};
+								}),
+							);
+						}
+					})
+					.finally(() => {
+						usageHydratedStatusRef.current.set(sessionId, session.status);
+						usageLoadingRef.current.delete(sessionId);
+					});
+			}
+		}, 800);
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
+	}, [activeSessionId, sessions]);
 
 	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
@@ -854,71 +869,92 @@ export function AgentSidebar({
 	}, [scheduleRefresh]);
 
 	useEffect(() => {
-		const recent = sessions.slice(0, 24);
-		for (const session of recent) {
-			const sessionId = session.sessionId;
-			if (!sessionId) {
-				continue;
+		const recent = sessions
+			.filter((session) => session.sessionId !== activeSessionId)
+			.slice(0, 4);
+		let cancelled = false;
+		const timer = window.setTimeout(() => {
+			for (const session of recent) {
+				if (cancelled) {
+					return;
+				}
+				const sessionId = session.sessionId;
+				if (!sessionId) {
+					continue;
+				}
+				if (titleLoadingRef.current.has(sessionId)) {
+					continue;
+				}
+				const existing = threadsRef.current.find(
+					(item) => item.id === sessionId,
+				);
+				if (!existing) {
+					continue;
+				}
+				const lastHydratedStatus =
+					messageHydratedStatusRef.current.get(sessionId);
+				const shouldHydrateTitle = existing.title.startsWith("Session ");
+				const hasManualTitle = Boolean(
+					getSessionMetadataTitle(session.metadata),
+				);
+				const shouldHydrateStatus =
+					existing.status === "failed" ||
+					existing.status === "completed" ||
+					existing.status === "idle" ||
+					lastHydratedStatus !== session.status;
+				if ((!shouldHydrateTitle || hasManualTitle) && !shouldHydrateStatus) {
+					continue;
+				}
+				titleLoadingRef.current.add(sessionId);
+				void desktopClient
+					.invoke<SessionMessage[]>("read_session_messages", {
+						sessionId,
+						maxMessages: 80,
+					})
+					.then((messages) => {
+						const nextTitle = hasManualTitle
+							? null
+							: titleFromMessages(messages);
+						setThreads((current) =>
+							updateThreadById(current, sessionId, (thread) => {
+								const nextStatus = inferStatusFromMessages(
+									thread.status,
+									messages,
+								);
+								const title = nextTitle ?? thread.title;
+								if (title === thread.title && nextStatus === thread.status) {
+									return thread;
+								}
+								return { ...thread, title, status: nextStatus };
+							}),
+						);
+						setSessions((current) =>
+							updateSessionById(current, sessionId, (item) => {
+								const nextStatus = inferStatusFromMessages(
+									item.status,
+									messages,
+								);
+								if (nextStatus === item.status) {
+									return item;
+								}
+								return { ...item, status: nextStatus };
+							}),
+						);
+					})
+					.catch(() => {
+						// Ignore sessions that cannot be hydrated.
+					})
+					.finally(() => {
+						messageHydratedStatusRef.current.set(sessionId, session.status);
+						titleLoadingRef.current.delete(sessionId);
+					});
 			}
-			if (titleLoadingRef.current.has(sessionId)) {
-				continue;
-			}
-			const existing = threadsRef.current.find((item) => item.id === sessionId);
-			if (!existing) {
-				continue;
-			}
-			const lastHydratedStatus =
-				messageHydratedStatusRef.current.get(sessionId);
-			const shouldHydrateTitle = existing.title.startsWith("Session ");
-			const hasManualTitle = Boolean(getSessionMetadataTitle(session.metadata));
-			const shouldHydrateStatus =
-				existing.status === "failed" ||
-				existing.status === "completed" ||
-				existing.status === "idle" ||
-				lastHydratedStatus !== session.status;
-			if ((!shouldHydrateTitle || hasManualTitle) && !shouldHydrateStatus) {
-				continue;
-			}
-			titleLoadingRef.current.add(sessionId);
-			void desktopClient
-				.invoke<SessionMessage[]>("read_session_messages", {
-					sessionId,
-					maxMessages: 80,
-				})
-				.then((messages) => {
-					const nextTitle = hasManualTitle ? null : titleFromMessages(messages);
-					setThreads((current) =>
-						updateThreadById(current, sessionId, (thread) => {
-							const nextStatus = inferStatusFromMessages(
-								thread.status,
-								messages,
-							);
-							const title = nextTitle ?? thread.title;
-							if (title === thread.title && nextStatus === thread.status) {
-								return thread;
-							}
-							return { ...thread, title, status: nextStatus };
-						}),
-					);
-					setSessions((current) =>
-						updateSessionById(current, sessionId, (item) => {
-							const nextStatus = inferStatusFromMessages(item.status, messages);
-							if (nextStatus === item.status) {
-								return item;
-							}
-							return { ...item, status: nextStatus };
-						}),
-					);
-				})
-				.catch(() => {
-					// Ignore sessions that cannot be hydrated.
-				})
-				.finally(() => {
-					messageHydratedStatusRef.current.set(sessionId, session.status);
-					titleLoadingRef.current.delete(sessionId);
-				});
-		}
-	}, [sessions]);
+		}, 1200);
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
+	}, [activeSessionId, sessions]);
 
 	const filteredThreads = useMemo(() => {
 		let filtered = threads;

@@ -8,7 +8,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::{Manager, State};
+use tauri::{Manager, RunEvent, State};
 
 #[derive(Clone)]
 struct AppContext {
@@ -20,17 +20,61 @@ struct AppContext {
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
+    shutting_down: Mutex<bool>,
+}
+
+impl DesktopBackendState {
+    fn is_shutting_down(&self) -> bool {
+        self.shutting_down
+            .lock()
+            .map(|guard| *guard)
+            .unwrap_or(true)
+    }
+
+    fn stop(&self) {
+        if let Ok(mut guard) = self.shutting_down.lock() {
+            *guard = true;
+        }
+
+        if let Ok(endpoint_guard) = self.ws_endpoint.lock() {
+            if let Some(endpoint) = endpoint_guard.as_ref() {
+                request_desktop_backend_shutdown(endpoint);
+            }
+        }
+
+        if let Ok(mut process_guard) = self.process.lock() {
+            if let Some(child) = process_guard.as_mut() {
+                for _ in 0..30 {
+                    match child.try_wait() {
+                        Ok(Some(_)) => break,
+                        Ok(None) => thread::sleep(Duration::from_millis(100)),
+                        Err(_) => break,
+                    }
+                }
+                match child.try_wait() {
+                    Ok(Some(_)) => {}
+                    Ok(None) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                    Err(_) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                }
+            }
+            *process_guard = None;
+        }
+
+        if let Ok(mut endpoint_guard) = self.ws_endpoint.lock() {
+            *endpoint_guard = None;
+        }
+    }
 }
 
 impl Drop for DesktopBackendState {
     fn drop(&mut self) {
-        if let Ok(mut process_guard) = self.process.lock() {
-            if let Some(child) = process_guard.as_mut() {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
-            *process_guard = None;
-        }
+        self.stop();
     }
 }
 
@@ -63,6 +107,51 @@ fn resolve_workspace_root(launch_cwd: &str) -> String {
             }
         }
         _ => launch_cwd.to_string(),
+    }
+}
+
+fn request_desktop_backend_shutdown(endpoint: &str) {
+    let trimmed = endpoint.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let base = trimmed.strip_suffix('/').unwrap_or(trimmed);
+    let url = format!("{base}/shutdown");
+    let timeout_seconds = "2";
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "try {{ Invoke-WebRequest -UseBasicParsing -Method Post -Uri '{}' -TimeoutSec {} | Out-Null }} catch {{ }}",
+                    url.replace('\'', "''"),
+                    timeout_seconds
+                ),
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = Command::new("curl")
+            .args([
+                "-fsS",
+                "--connect-timeout",
+                timeout_seconds,
+                "--max-time",
+                timeout_seconds,
+                "-X",
+                "POST",
+                &url,
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
     }
 }
 
@@ -121,6 +210,10 @@ fn ensure_desktop_backend_started(
     state: &Arc<DesktopBackendState>,
     context: &AppContext,
 ) -> Result<(), String> {
+    if state.is_shutting_down() {
+        return Ok(());
+    }
+
     {
         let mut process_guard = state
             .process
@@ -329,7 +422,6 @@ fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
         .map(|path| path.to_string_lossy().to_string())
 }
 
-
 #[tauri::command]
 fn open_mcp_settings_file() -> Result<String, String> {
     let settings_path = resolve_mcp_settings_path()?;
@@ -373,6 +465,9 @@ fn main() {
             }
             thread::spawn(move || loop {
                 thread::sleep(Duration::from_secs(5));
+                if backend_state.is_shutting_down() {
+                    break;
+                }
                 if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
                     eprintln!("[desktop-backend] health check failed: {error}");
                 }
@@ -384,6 +479,15 @@ fn main() {
             pick_workspace_directory,
             open_mcp_settings_file
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri app");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri app")
+        .run(|app_handle, event| match event {
+            RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+                app_handle
+                    .state::<Arc<DesktopBackendState>>()
+                    .inner()
+                    .stop();
+            }
+            _ => {}
+        });
 }

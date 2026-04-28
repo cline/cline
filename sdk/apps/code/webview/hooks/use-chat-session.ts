@@ -138,7 +138,25 @@ function mergeHydratedMessagesWithLive(options: {
 	if (liveDuringHydration.length === 0) {
 		return hydrated;
 	}
-	return sortMessagesChronologically([...hydrated, ...liveDuringHydration]);
+	const hydratedKeyCounts = new Map<string, number>();
+	for (const message of hydrated) {
+		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		hydratedKeyCounts.set(key, (hydratedKeyCounts.get(key) ?? 0) + 1);
+	}
+	const nonDuplicateLive = liveDuringHydration.filter((message) => {
+		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		const hydratedCount = hydratedKeyCounts.get(key) ?? 0;
+		if (hydratedCount > 0) {
+			if (hydratedCount === 1) {
+				hydratedKeyCounts.delete(key);
+			} else {
+				hydratedKeyCounts.set(key, hydratedCount - 1);
+			}
+			return false;
+		}
+		return true;
+	});
+	return sortMessagesChronologically([...hydrated, ...nonDuplicateLive]);
 }
 
 function updateMessageById(
@@ -211,6 +229,7 @@ export function useChatSession() {
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
+	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const abortedRef = useRef(false);
 	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -235,6 +254,14 @@ export function useChatSession() {
 	const clearLiveToolRefs = useCallback(() => {
 		liveToolMessageIdsRef.current = {};
 		liveToolInputsRef.current = {};
+	}, []);
+
+	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
+		if (targetSessionId) {
+			delete lastStreamIndexBySessionRef.current[targetSessionId];
+			return;
+		}
+		lastStreamIndexBySessionRef.current = {};
 	}, []);
 
 	const clearAbortFallbackTimeout = useCallback(() => {
@@ -335,6 +362,19 @@ export function useChatSession() {
 
 	const addMessage = useCallback((message: ChatMessage) => {
 		setMessages((prev) => sliceMessages([...prev, message]));
+	}, []);
+
+	const shouldApplyStreamChunk = useCallback((payload: AgentChunkEvent) => {
+		const index = payload.index;
+		if (typeof index !== "number") {
+			return true;
+		}
+		const previous = lastStreamIndexBySessionRef.current[payload.sessionId];
+		if (previous !== undefined && index <= previous) {
+			return false;
+		}
+		lastStreamIndexBySessionRef.current[payload.sessionId] = index;
+		return true;
 	}, []);
 
 	const materializeToolMessagesFromResult = useCallback(
@@ -491,6 +531,7 @@ export function useChatSession() {
 	const handleIncomingChunk = useCallback(
 		(payload: AgentChunkEvent) => {
 			if (!RELEVANT_STREAMS.has(payload.stream)) return;
+			if (!shouldApplyStreamChunk(payload)) return;
 
 			const listeningSessionId = activeSessionIdRef.current;
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
@@ -524,12 +565,30 @@ export function useChatSession() {
 				clearLiveToolRefs();
 				setStatus("running");
 				if (userLabel) {
-					addMessage({
-						id: makeId("user"),
-						sessionId: listeningSessionId,
-						role: "user",
-						content: userLabel,
-						createdAt: chunkCreatedAt(payload),
+					setMessages((prev) => {
+						const lastVisible = [...prev]
+							.reverse()
+							.find(
+								(message) =>
+									message.sessionId === listeningSessionId &&
+									message.role !== "status",
+							);
+						if (
+							lastVisible?.role === "user" &&
+							lastVisible.content === userLabel
+						) {
+							return prev;
+						}
+						return sliceMessages([
+							...prev,
+							{
+								id: makeId("user"),
+								sessionId: listeningSessionId,
+								role: "user",
+								content: userLabel,
+								createdAt: chunkCreatedAt(payload),
+							},
+						]);
 					});
 				}
 				return;
@@ -676,6 +735,7 @@ export function useChatSession() {
 			appendMessageContent,
 			appendMessageReasoning,
 			clearLiveToolRefs,
+			shouldApplyStreamChunk,
 		],
 	);
 
@@ -1188,9 +1248,7 @@ export function useChatSession() {
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
 			setMessages(nextMessages);
-			setRawTranscript(
-				nextMessages.map((message) => message.content).join("\n\n"),
-			);
+			setRawTranscript("");
 			setStatus(nextMessages.length > 0 ? "completed" : "idle");
 			resetCounters();
 			void refreshSessionDiffSummary(nextSessionId);
@@ -1278,6 +1336,7 @@ export function useChatSession() {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
 			setSessionId(session.sessionId);
@@ -1308,33 +1367,52 @@ export function useChatSession() {
 					hydrationStartedAt,
 				});
 				setMessages(mergedMessages);
-				setRawTranscript(mergedMessages.map((m) => m.content).join("\n\n"));
+				setRawTranscript("");
 				resetCounters();
 				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
 			try {
-				const attached = await desktopClient.invoke<{
-					sessionId?: string;
-					status?: string;
-					provider?: string;
-					model?: string;
-					cwd?: string;
-					workspaceRoot?: string;
-					prompt?: string;
-				}>("chat_session_command", {
-					request: {
-						action: "attach",
-						sessionId: session.sessionId,
-						config: {
-							provider: session.provider,
-							model: session.model,
-							cwd: session.cwd,
-							workspaceRoot: session.workspaceRoot,
+				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
+					"read_session_messages",
+					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
+				);
+				if (hydrationRequestIdRef.current !== requestId) return;
+				if (historyMessages.length > 0) {
+					void refreshPromptsInQueue(session.sessionId);
+					applyHydratedMessages(historyMessages, session.status);
+					setIsHydratingSession(false);
+				}
+
+				const attached = await desktopClient
+					.invoke<{
+						sessionId?: string;
+						status?: string;
+						provider?: string;
+						model?: string;
+						cwd?: string;
+						workspaceRoot?: string;
+						prompt?: string;
+					}>("chat_session_command", {
+						request: {
+							action: "attach",
+							sessionId: session.sessionId,
+							config: {
+								provider: session.provider,
+								model: session.model,
+								cwd: session.cwd,
+								workspaceRoot: session.workspaceRoot,
+							},
 						},
-					},
-				});
+					})
+					.catch((err) => {
+						if (historyMessages.length === 0) {
+							throw err;
+						}
+						setError(errorMessage(err));
+						return undefined;
+					});
 				if (hydrationRequestIdRef.current !== requestId) return;
 				setConfig((prev) => ({
 					...prev,
@@ -1352,17 +1430,13 @@ export function useChatSession() {
 						session.cwd ||
 						prev.cwd,
 				}));
-				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
-					"read_session_messages",
-					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
-				);
-				if (hydrationRequestIdRef.current !== requestId) return;
 
 				if (historyMessages.length > 0) {
-					void refreshPromptsInQueue(session.sessionId);
-					applyHydratedMessages(
-						historyMessages,
-						(attached?.status || session.status) as SessionHistoryStatus,
+					setStatus(
+						inferHydratedChatStatus(
+							(attached?.status || session.status) as SessionHistoryStatus,
+							historyMessages,
+						),
 					);
 					return;
 				}
@@ -1399,6 +1473,7 @@ export function useChatSession() {
 			clearLiveToolRefs,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
+			resetStreamDedupe,
 			resetCounters,
 		],
 	);

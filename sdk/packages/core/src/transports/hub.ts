@@ -532,7 +532,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		this.sessionSubscriptions.clear();
 		this.sessionToolExecutors.clear();
-		this.client.close();
+		await this.client.dispose();
 	}
 
 	async get(sessionId: string): Promise<SessionRecord | undefined> {

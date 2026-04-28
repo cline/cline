@@ -39,6 +39,10 @@ export class HubUIClient {
 		this.client.close();
 	}
 
+	async dispose(): Promise<void> {
+		await this.client.dispose();
+	}
+
 	getClientId(): string {
 		return this.client.getClientId();
 	}

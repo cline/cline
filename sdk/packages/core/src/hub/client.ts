@@ -152,6 +152,7 @@ export class NodeHubClient {
 	private readonly listeners = new Set<SubscriptionEntry>();
 	private readonly subscriptionCounts = new Map<string, number>();
 	private lastCloseMessage = "Hub connection closed";
+	private registered = false;
 
 	constructor(private readonly options: HubClientOptions) {
 		this.clientId =
@@ -253,6 +254,7 @@ export class NodeHubClient {
 				cwd: this.options.cwd,
 			},
 		} satisfies HubClientRegistration);
+		this.registered = true;
 		for (const key of this.subscriptionCounts.keys()) {
 			this.sendSubscriptionFrame(
 				"stream.subscribe",
@@ -337,6 +339,7 @@ export class NodeHubClient {
 
 	close(): void {
 		const socket = this.socket;
+		this.registered = false;
 		if (!socket) {
 			return;
 		}
@@ -352,6 +355,21 @@ export class NodeHubClient {
 		} catch {
 			// best-effort close
 		}
+	}
+
+	async dispose(): Promise<void> {
+		const socket = this.socket;
+		if (socket?.readyState === 1 && this.registered) {
+			try {
+				await this.command("client.unregister", undefined, undefined, {
+					timeoutMs: 2_000,
+				});
+			} catch {
+				// Best-effort unregister during shutdown. The websocket adapter also
+				// unregisters clients on close, so failure here should not block teardown.
+			}
+		}
+		this.close();
 	}
 
 	private sendFrame(frame: HubTransportFrame): void {

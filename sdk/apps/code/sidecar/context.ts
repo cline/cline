@@ -160,19 +160,14 @@ function handleAgentEvent(
 			break;
 		}
 		case "content_end": {
-			if (event.contentType === "text" && event.text) {
-				emitChunk(ctx, sessionId, "chat_text", event.text);
-			} else if (event.contentType === "reasoning" && event.reasoning) {
-				emitChunk(
-					ctx,
-					sessionId,
-					"chat_reasoning",
-					JSON.stringify({
-						text: event.reasoning,
-						redacted: false,
-					}),
-				);
-			} else if (event.contentType === "tool") {
+			// Text and reasoning `content_start` events are already emitted as
+			// incremental deltas. Runtime `content_end` carries the final full text,
+			// so forwarding it as another chat_text/chat_reasoning chunk duplicates
+			// the live UI while persisted history remains correct after hydration.
+			if (event.contentType === "text" || event.contentType === "reasoning") {
+				break;
+			}
+			if (event.contentType === "tool") {
 				emitChunk(
 					ctx,
 					sessionId,
@@ -380,6 +375,46 @@ export function createSidecarContext(workspaceRoot: string): SidecarContext {
 		workspaceRoot,
 		unsubscribeSessionEvents: null,
 	};
+}
+
+export async function disposeSidecarContext(
+	ctx: SidecarContext,
+	reason = "code_sidecar_shutdown",
+): Promise<void> {
+	const cleanup: Array<Promise<unknown>> = [];
+
+	ctx.unsubscribeSessionEvents?.();
+	ctx.unsubscribeSessionEvents = null;
+
+	for (const client of ctx.wsClients) {
+		try {
+			client.close?.();
+		} catch {
+			// Best-effort websocket close during shutdown.
+		}
+	}
+	ctx.wsClients.clear();
+	ctx.pendingApprovals.clear();
+
+	const hubClient = ctx.hubClient;
+	ctx.hubClient = null;
+	if (hubClient) {
+		cleanup.push(hubClient.dispose());
+	}
+
+	const sessionManager = ctx.sessionManager;
+	ctx.sessionManager = null;
+	if (sessionManager) {
+		cleanup.push(sessionManager.dispose(reason));
+	}
+
+	const results = await Promise.allSettled(cleanup);
+	const firstFailure = results.find(
+		(result): result is PromiseRejectedResult => result.status === "rejected",
+	);
+	if (firstFailure) {
+		throw firstFailure.reason;
+	}
 }
 
 export function handleHubApprovalEvent(

@@ -179,6 +179,10 @@ export class HubSessionClient {
 		this.client.close();
 	}
 
+	async dispose(): Promise<void> {
+		await this.client.dispose();
+	}
+
 	async startRuntimeSession(
 		request: ChatStartSessionRequest,
 	): Promise<ChatStartSessionResponse> {

@@ -4,12 +4,14 @@ import { SessionSource } from "../types/common";
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
+const disposeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../hub/client", () => ({
 	NodeHubClient: class {
 		command = commandMock;
 		subscribe = subscribeMock;
 		close = closeMock;
+		dispose = disposeMock;
 	},
 }));
 
@@ -33,6 +35,7 @@ describe("HubRuntimeHost", () => {
 		commandMock.mockReset();
 		subscribeMock.mockReset();
 		closeMock.mockReset();
+		disposeMock.mockReset();
 	});
 
 	it("does not auto-start a run during session creation", async () => {
@@ -725,5 +728,6 @@ describe("HubRuntimeHost", () => {
 			{ sessionId: "sess-1" },
 			"sess-1",
 		);
+		expect(disposeMock).toHaveBeenCalledTimes(1);
 	});
 });

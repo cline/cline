@@ -22,8 +22,15 @@ export async function readSessionHooks(
 		return [];
 	}
 	const raw = await readFile(path, "utf8");
+	const max = Math.max(1, limit);
 	const out: JsonRecord[] = [];
-	for (const line of raw.split("\n")) {
+	let lineEnd = raw.length;
+	for (let index = raw.length - 1; index >= -1; index -= 1) {
+		if (index >= 0 && raw.charCodeAt(index) !== 10) {
+			continue;
+		}
+		const line = raw.slice(index + 1, lineEnd).replace(/\r$/, "");
+		lineEnd = index;
 		if (!line.trim()) {
 			continue;
 		}
@@ -110,9 +117,12 @@ export async function readSessionHooks(
 					parseF64Value(usage?.total_cost) ??
 					parseF64Value(usage?.cost),
 			});
+			if (out.length >= max) {
+				break;
+			}
 		} catch {
 			// Ignore malformed lines.
 		}
 	}
-	return out.slice(-Math.max(1, limit));
+	return out.reverse();
 }

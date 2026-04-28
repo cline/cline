@@ -37,8 +37,11 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	);
 	if (!existsSync(path)) return null;
 	try {
-		const parsed = JSON.parse(readFileSync(path, "utf8").trim());
-		return Array.isArray(parsed) ? parsed : null;
+		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
+			| { messages?: unknown[] }
+			| unknown[];
+		if (Array.isArray(parsed)) return parsed;
+		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
 		return null;
 	}
@@ -342,9 +345,20 @@ async function handleStart(
 	if (!request.config) throw new Error("config is required");
 	const manager = getSessionManager(ctx);
 	const systemPrompt = await resolveSystemPrompt(request.config);
+	const requestedSessionId = String(
+		request.config.sessionId ?? request.config.session_id ?? "",
+	).trim();
+	const initialMessages =
+		Array.isArray(request.config.initialMessages) &&
+		request.config.initialMessages.length > 0
+			? request.config.initialMessages
+			: requestedSessionId
+				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
+				: undefined;
 	const coreConfig: JsonRecord = {
 		...buildCoreSessionConfig(request.config),
 		systemPrompt,
+		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn
@@ -359,11 +373,19 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as any),
 		source: SessionSource.DESKTOP,
 		interactive: true,
+		...(initialMessages ? { initialMessages: initialMessages as any[] } : {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
 	console.error(`[sidecar:handleStart] session started sessionId=${sessionId}`);
 	const session = createLiveSession(request.config, {
+		messages: initialMessages,
+		prompt: initialMessages
+			? derivePromptFromMessages(initialMessages)
+			: undefined,
+		title: requestedSessionId
+			? readSessionMetadataTitle(requestedSessionId)
+			: undefined,
 		status: "idle",
 	});
 	ctx.liveSessions.set(sessionId, session);
