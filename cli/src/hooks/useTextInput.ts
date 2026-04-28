@@ -3,6 +3,7 @@
  *
  * Supports essential terminal shortcuts:
  * - Option+Left/Right: move by word (via escape sequences)
+ * - Option+Backspace: delete word backwards (handled by useHomeEndKeys)
  * - Ctrl+A/E: start/end of line
  * - Ctrl+W: delete word backwards
  * - Ctrl+U: delete to start of line
@@ -27,7 +28,7 @@ type KeyboardSequence =
 
 /**
  * Parse keyboard escape sequences for special key combinations.
- * Only handles Option+arrow - Home/End are handled by useHomeEndKeys.
+ * Handles Option+arrow. Home/End and Option+Backspace are handled by useHomeEndKeys.
  */
 function parseKeyboardSequence(input: string): KeyboardSequence {
 	if (OPTION_LEFT_SEQUENCES.has(input)) {
@@ -83,6 +84,7 @@ export interface UseTextInputReturn {
 
 	// Deletion
 	deleteCharBefore: () => void
+	deleteWordBefore: () => void
 
 	// Keyboard shortcut handlers
 	handleKeyboardSequence: (input: string) => boolean
@@ -219,6 +221,7 @@ export function useTextInput(): UseTextInputReturn {
 		insertText,
 		setCursorPos,
 		deleteCharBefore,
+		deleteWordBefore,
 		handleKeyboardSequence,
 		handleCtrlShortcut,
 	}
