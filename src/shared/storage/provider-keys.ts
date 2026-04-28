@@ -56,6 +56,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	gemini: "geminiApiKey",
 	"openai-native": "openAiNativeApiKey",
 	ollama: "ollamaApiKey",
+	lmstudio: "lmStudioApiKey",
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
 	deepseek: "deepSeekApiKey",
