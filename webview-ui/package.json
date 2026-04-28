@@ -83,7 +83,7 @@
 		"storybook": "^9.1.17",
 		"tailwindcss": "^4.1.13",
 		"typescript": "^5.7.3",
-		"vite": "^7.1.11",
+		"vite": "^7.3.2",
 		"vitest": "^3.0.5"
 	},
 	"overrides": {
