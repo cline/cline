@@ -254,6 +254,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.VERTEX
 		case "openai":
 			return ProtoApiProvider.OPENAI
+		case "abliteration":
+			return ProtoApiProvider.ABLITERATION
 		case "ollama":
 			return ProtoApiProvider.OLLAMA
 		case "lmstudio":
@@ -346,6 +348,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "vertex"
 		case ProtoApiProvider.OPENAI:
 			return "openai"
+		case ProtoApiProvider.ABLITERATION:
+			return "abliteration"
 		case ProtoApiProvider.OLLAMA:
 			return "ollama"
 		case ProtoApiProvider.LMSTUDIO:
@@ -456,6 +460,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		vertexRegion: config.vertexRegion,
 		openAiBaseUrl: config.openAiBaseUrl,
 		openAiApiKey: config.openAiApiKey,
+		abliterationApiKey: config.abliterationApiKey,
 		ollamaBaseUrl: config.ollamaBaseUrl,
 		ollamaApiKey: config.ollamaApiKey,
 		ollamaApiOptionsCtxNum: config.ollamaApiOptionsCtxNum,
@@ -636,6 +641,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		vertexRegion: protoConfig.vertexRegion,
 		openAiBaseUrl: protoConfig.openAiBaseUrl,
 		openAiApiKey: protoConfig.openAiApiKey,
+		abliterationApiKey: protoConfig.abliterationApiKey,
 		ollamaBaseUrl: protoConfig.ollamaBaseUrl,
 		ollamaApiKey: protoConfig.ollamaApiKey,
 		ollamaApiOptionsCtxNum: protoConfig.ollamaApiOptionsCtxNum,

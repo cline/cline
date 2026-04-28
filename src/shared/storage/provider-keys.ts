@@ -3,6 +3,7 @@
 import { Secrets, SettingsKey } from "@shared/storage/state-keys"
 import {
 	ApiProvider,
+	abliterationDefaultModelId,
 	anthropicDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,
@@ -53,6 +54,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	openrouter: "openRouterApiKey",
 	bedrock: ["awsAccessKey", "awsBedrockApiKey"],
 	openai: "openAiApiKey",
+	abliteration: "abliterationApiKey",
 	gemini: "geminiApiKey",
 	"openai-native": "openAiNativeApiKey",
 	ollama: "ollamaApiKey",
@@ -92,6 +94,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: openRouterDefaultModelId,
 	cline: openRouterDefaultModelId,
 	openai: openAiNativeDefaultModelId,
+	abliteration: abliterationDefaultModelId,
 	ollama: "",
 	lmstudio: "",
 	litellm: liteLlmDefaultModelId,

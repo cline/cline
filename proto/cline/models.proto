@@ -461,6 +461,7 @@ enum ApiProvider {
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
   WANDB = 41;
+  ABLITERATION = 42;
 }
 
 enum ApiFormat {
@@ -600,6 +601,7 @@ message ModelsApiConfiguration {
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
   optional string wandb_api_key = 87;
+  optional string abliteration_api_key = 88;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
