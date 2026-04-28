@@ -1121,16 +1121,19 @@ class CoreChatWebviewController implements vscode.Disposable {
 					}
 				}
 			}
-			// Stop the current session before spawning the fork.
-			await this.stopExistingSession();
-			if (!this.startConfig) {
+			const forkStartConfig = sourceSession
+				? await this.buildStartConfigFromSession(sourceSession)
+				: this.startConfig;
+			if (!forkStartConfig) {
 				throw new Error("Could not resolve start config for fork.");
 			}
+			// Stop the current session before spawning the fork.
+			await this.stopExistingSession();
 			const toolPolicies: Record<string, import("@clinebot/core").ToolPolicy> =
 				{ "*": { autoApprove: true } };
 			const response = await host.start({
 				interactive: true,
-				config: this.startConfig,
+				config: forkStartConfig,
 				toolPolicies,
 				initialMessages: rawMessages as import("@clinebot/llms").Message[],
 				sessionMetadata: forkMetadata,
@@ -1139,7 +1142,9 @@ class CoreChatWebviewController implements vscode.Disposable {
 			if (!newSessionId) {
 				throw new Error("Fork did not return a session id.");
 			}
+			const newSession = await host.get(newSessionId);
 			this.sessionId = newSessionId;
+			this.startConfig = forkStartConfig;
 			this.startEventStream(newSessionId);
 			await this.post({ type: "session_started", sessionId: newSessionId });
 			const forkMessages = mapPersistedMessagesToWebviewMessages(
@@ -1150,6 +1155,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 			await this.post({
 				type: "session_hydrated",
 				sessionId: newSessionId,
+				status: newSession?.status,
 				messages: forkMessages,
 			});
 			await this.post({
@@ -1216,6 +1222,9 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async forwardSessionHubEvent(event: HubEventEnvelope): Promise<void> {
+		if (!this.sessionId || event.sessionId !== this.sessionId) {
+			return;
+		}
 		const payload = asRecord(event.payload);
 		const shouldRefreshSessions =
 			event.event === "session.created" ||

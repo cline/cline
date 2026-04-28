@@ -465,6 +465,83 @@ describe("LocalRuntimeHost", () => {
 		expect(started.manifest.source).toBe("kanban");
 	});
 
+	it("persists initial messages for idle resumed sessions", async () => {
+		const sessionId = "sess-fork-copy";
+		const manifest = createManifest(sessionId);
+		const initialMessages = [
+			{ role: "user" as const, content: "build a thing" },
+			{ role: "assistant" as const, content: "done" },
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: undefined,
+				teamRestoredFromPersistence: false,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue(initialMessages),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				initialMessages,
+			}),
+		);
+
+		expect(agent.run).not.toHaveBeenCalled();
+		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledTimes(
+			1,
+		);
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
+			sessionId,
+			initialMessages,
+			"You are a test agent",
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"completed",
+			0,
+		);
+		await expect(manager.get(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "completed",
+		});
+	});
+
 	it("reuses the persisted team name when resuming a session", async () => {
 		const sessionId = "sess-team-resume";
 		const manifest = createManifest(sessionId);

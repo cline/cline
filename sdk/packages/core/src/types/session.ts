@@ -14,6 +14,9 @@ export type ActiveSession = {
 	artifacts?: RootSessionArtifacts;
 	source: SessionSource;
 	startedAt: string;
+	status: SessionStatus;
+	endedAt?: string | null;
+	exitCode?: number | null;
 	pendingPrompt?: string;
 	runtime: BuiltRuntime;
 	agent: SessionRuntime;

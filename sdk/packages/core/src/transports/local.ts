@@ -145,9 +145,9 @@ function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		source: session.source,
 		pid: process.pid,
 		startedAt: session.startedAt,
-		endedAt: null,
-		exitCode: null,
-		status: "running",
+		endedAt: session.endedAt ?? null,
+		exitCode: session.exitCode ?? null,
+		status: session.status,
 		interactive: session.interactive,
 		provider: session.config.providerId,
 		model: session.config.modelId,
@@ -436,6 +436,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			runtime,
 			agent,
 			started: false,
+			status: "running",
 			aborting: false,
 			interactive: input.interactive === true,
 			persistedMessages: startInput.initialMessages,
@@ -448,6 +449,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
+		if ((startInput.initialMessages?.length ?? 0) > 0) {
+			await this.ensureSessionPersisted(active);
+			await this.invoke<void>(
+				"persistSessionMessages",
+				active.sessionId,
+				startInput.initialMessages,
+				active.config.systemPrompt,
+			);
+			if (!startInput.prompt?.trim()) {
+				await this.updateStatus(active, "completed", 0);
+			}
+		}
 
 		let result: AgentResult | undefined;
 		try {
@@ -1114,6 +1127,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		latestManifest.ended_at = result.endedAt ?? nowIso();
 		latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
 		session.artifacts.manifest = latestManifest;
+		session.status = status;
+		session.endedAt = latestManifest.ended_at;
+		session.exitCode = latestManifest.exit_code;
 		await this.invoke<void>(
 			"writeSessionManifest",
 			session.artifacts.manifestPath,

@@ -57,6 +57,13 @@ function readSessionMetadataTitle(sessionId: string): string | undefined {
 	return typeof title === "string" ? title.trim() || undefined : undefined;
 }
 
+function readSessionMetadata(sessionId: string): JsonRecord | undefined {
+	const manifest = readSessionManifest(sessionId);
+	return manifest?.metadata && typeof manifest.metadata === "object"
+		? (manifest.metadata as JsonRecord)
+		: undefined;
+}
+
 function derivePromptFromMessages(messages: unknown[]): string {
 	for (const msg of messages) {
 		if (!msg || typeof msg !== "object") continue;
@@ -598,6 +605,112 @@ async function handleAbort(
 	return { sessionId, ok: true };
 }
 
+async function handleFork(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) throw new Error("sessionId is required");
+	const manager = getSessionManager(ctx);
+	const sourceMessages =
+		readPersistedChatMessages(sourceSessionId) ??
+		ctx.liveSessions.get(sourceSessionId)?.messages;
+	if (!sourceMessages?.length) {
+		throw new Error(`No messages found for session ${sourceSessionId}`);
+	}
+
+	const sourceSession = await manager.get(sourceSessionId);
+	const sourceMetadata =
+		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
+			? (sourceSession.metadata as JsonRecord)
+			: undefined) ?? readSessionMetadata(sourceSessionId);
+	const liveConfig = ctx.liveSessions.get(sourceSessionId)?.config;
+	const forkConfig: JsonRecord = {
+		...(liveConfig ?? {}),
+		...(request.config ?? {}),
+		sessionId: undefined,
+		provider:
+			sourceSession?.provider ||
+			liveConfig?.provider ||
+			request.config?.provider ||
+			request.config?.providerId ||
+			"",
+		model:
+			sourceSession?.model ||
+			liveConfig?.model ||
+			request.config?.model ||
+			request.config?.modelId ||
+			"",
+		cwd:
+			sourceSession?.cwd ||
+			sourceSession?.workspaceRoot ||
+			liveConfig?.cwd ||
+			request.config?.cwd ||
+			request.config?.workspaceRoot ||
+			request.config?.workspace_root ||
+			"",
+		workspaceRoot:
+			sourceSession?.workspaceRoot ||
+			sourceSession?.cwd ||
+			liveConfig?.workspaceRoot ||
+			request.config?.workspaceRoot ||
+			request.config?.workspace_root ||
+			request.config?.cwd ||
+			"",
+	};
+	const checkpointMetadata =
+		sourceMetadata?.checkpoint !== undefined
+			? { checkpoints: sourceMetadata.checkpoint }
+			: {};
+	const forkMetadata: JsonRecord = {
+		...(sourceMetadata ?? {}),
+		fork: {
+			forkedFromSessionId: sourceSessionId,
+			forkedAt: new Date().toISOString(),
+			source: sourceSession?.source ?? "desktop",
+			...checkpointMetadata,
+		},
+	};
+	const systemPrompt = await resolveSystemPrompt(forkConfig);
+	const startResult = await manager.start({
+		...splitCoreSessionConfig(
+			buildCoreSessionConfig({
+				...forkConfig,
+				systemPrompt,
+				initialMessages: sourceMessages,
+			}) as any,
+		),
+		source: SessionSource.DESKTOP,
+		interactive: true,
+		initialMessages: sourceMessages as any[],
+		sessionMetadata: forkMetadata,
+		toolPolicies: resolveToolPolicies(forkConfig),
+	});
+	const newSessionId = startResult.sessionId;
+	ctx.liveSessions.delete(sourceSessionId);
+	ctx.liveSessions.set(
+		newSessionId,
+		createLiveSession(forkConfig, {
+			messages: sourceMessages,
+			prompt: derivePromptFromMessages(sourceMessages),
+			title: readSessionMetadataTitle(sourceSessionId),
+			status: "idle",
+		}),
+	);
+	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+	sendPromptsInQueueSnapshot(ctx, newSessionId);
+	let messages: unknown[] = sourceMessages;
+	try {
+		const read = await manager.readMessages(newSessionId);
+		if (read?.length > 0) messages = read;
+	} catch {}
+	return {
+		sessionId: newSessionId,
+		forkedFromSessionId: sourceSessionId,
+		messages,
+	};
+}
+
 async function handleReset(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -787,6 +900,7 @@ const ACTION_HANDLERS: Record<
 	send: handleSend,
 	stop: handleStop,
 	abort: handleAbort,
+	fork: handleFork,
 	reset: handleReset,
 	restore_checkpoint: handleRestoreCheckpoint,
 	pending_prompts: handlePendingPrompts,
