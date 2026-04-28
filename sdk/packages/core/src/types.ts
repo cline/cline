@@ -6,6 +6,7 @@ export type {
 } from "@clinebot/shared";
 export {
 	ClineCore,
+	type ClineCoreListHistoryOptions,
 	type ClineCoreOptions,
 	type ClineCoreStartInput,
 	type HubOptions,

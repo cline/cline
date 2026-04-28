@@ -6,9 +6,9 @@ import { expectVisible } from "./helpers/terminal.js";
 const HELP_TERMINAL = { columns: 120, rows: 50 };
 
 // ===========================================================================
-// cline --help  (root help)
+// clite --help  (root help)
 // ===========================================================================
-test.describe("cline --help", () => {
+test.describe("clite --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -60,9 +60,9 @@ test.describe("cline -h", () => {
 });
 
 // ===========================================================================
-// cline history --help
+// clite history --help
 // ===========================================================================
-test.describe("cline history --help", () => {
+test.describe("clite history --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["history", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -90,9 +90,9 @@ test.describe("cline h --help (history alias)", () => {
 });
 
 // ===========================================================================
-// cline config --help
+// clite config --help
 // ===========================================================================
-test.describe("cline config --help", () => {
+test.describe("clite config --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["config", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -105,9 +105,9 @@ test.describe("cline config --help", () => {
 });
 
 // ===========================================================================
-// cline auth --help
+// clite auth --help
 // ===========================================================================
-test.describe("cline auth --help", () => {
+test.describe("clite auth --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -127,9 +127,9 @@ test.describe("cline auth --help", () => {
 });
 
 // ===========================================================================
-// cline version --help
+// clite version --help
 // ===========================================================================
-test.describe("cline version --help", () => {
+test.describe("clite version --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["version", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -142,9 +142,9 @@ test.describe("cline version --help", () => {
 });
 
 // ===========================================================================
-// cline update --help
+// clite update --help
 // ===========================================================================
-test.describe("cline update --help", () => {
+test.describe("clite update --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["update", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -157,9 +157,9 @@ test.describe("cline update --help", () => {
 });
 
 // ===========================================================================
-// cline dev --help
+// clite dev --help
 // ===========================================================================
-test.describe("cline dev --help", () => {
+test.describe("clite dev --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["dev", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),

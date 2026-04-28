@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, resolve } from "node:path";
 import {
@@ -8,6 +8,20 @@ import {
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import { type AgentMode, buildClineSystemPrompt } from "@clinebot/shared";
+import { isImagePath, loadImageAsDataUrl } from "../utils/image-attachments";
+
+const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
+
+You are in Plan mode. Your role is to explore, analyze, and plan -- not to execute.
+
+- Read files, search the codebase, and gather context to understand the problem
+- Ask clarifying questions when requirements are ambiguous
+- Present your plan as a structured outline with clear steps
+- Explain tradeoffs between different approaches when they exist
+- Do NOT edit files, write code, run destructive commands, or make any changes
+- Do NOT implement anything -- focus on understanding and alignment first
+
+When the user aligns on a plan and is ready to proceed, use the switch_to_act_mode tool to switch to act mode and begin implementation.`;
 
 export async function resolveSystemPrompt(input: {
 	cwd: string;
@@ -17,12 +31,18 @@ export async function resolveSystemPrompt(input: {
 	mode?: AgentMode;
 }): Promise<string> {
 	const metadata = await buildWorkspaceMetadata(input.cwd);
+	let rules = mergeRulesForSystemPrompt(undefined, input.rules);
+	if (input.mode === "plan") {
+		rules = rules
+			? `${rules}\n\n${PLAN_MODE_INSTRUCTIONS}`
+			: PLAN_MODE_INSTRUCTIONS;
+	}
 	return buildClineSystemPrompt({
 		ide: "Terminal Shell",
 		workspaceRoot: input.cwd,
 		workspaceName: basename(input.cwd),
 		metadata,
-		rules: mergeRulesForSystemPrompt(undefined, input.rules),
+		rules,
 		mode: input.mode,
 		providerId: input.providerId,
 		overridePrompt: input.explicitSystemPrompt,
@@ -31,18 +51,15 @@ export async function resolveSystemPrompt(input: {
 	});
 }
 
-const FILE_MENTION_PATTERN_TEST = /@(?:\/|~\/|\.{1,2}\/)\S+/i;
-const FILE_MENTION_PATTERN_EXEC = /@((?:\/|~\/|\.{1,2}\/)\S+)/g;
-const IMAGE_EXTENSIONS = new Set([
-	".png",
-	".jpg",
-	".jpeg",
-	".gif",
-	".webp",
-	".bmp",
-	".svg",
-]);
-
+const FILE_MENTION_PREFIX = String.raw`(?:\/|~\/|\.{1,2}\/)`;
+const FILE_MENTION_PATTERN_TEST = new RegExp(
+	String.raw`@(?:"${FILE_MENTION_PREFIX}[^"\r\n]+"|${FILE_MENTION_PREFIX}\S+)`,
+	"i",
+);
+const FILE_MENTION_PATTERN_EXEC = new RegExp(
+	String.raw`@(?:"(${FILE_MENTION_PREFIX}[^"\r\n]+)"|(${FILE_MENTION_PREFIX}\S+))`,
+	"g",
+);
 function hasFileMentions(prompt: string): boolean {
 	return FILE_MENTION_PATTERN_TEST.test(prompt);
 }
@@ -58,8 +75,10 @@ function extractFileMentions(
 	);
 
 	while ((match = pattern.exec(prompt)) !== null) {
+		const path = match[1] ?? match[2];
+		if (!path) continue;
 		matches.push({
-			path: match[1],
+			path,
 			index: match.index,
 			raw: match[0],
 		});
@@ -74,53 +93,6 @@ function resolveMentionPath(filePath: string): string {
 	return resolve(filePath);
 }
 
-function isImagePath(filePath: string): boolean {
-	const normalized = filePath.toLowerCase();
-	for (const extension of IMAGE_EXTENSIONS) {
-		if (normalized.endsWith(extension)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-/**
- * Gets the MIME type based on file extension
- */
-function getMimeType(filePath: string): string {
-	const ext = filePath.toLowerCase().split(".").pop() || "";
-	const mimeTypes: Record<string, string> = {
-		png: "image/png",
-		jpg: "image/jpeg",
-		jpeg: "image/jpeg",
-		gif: "image/gif",
-		webp: "image/webp",
-		bmp: "image/bmp",
-		svg: "image/svg+xml",
-	};
-	return mimeTypes[ext] || "image/png";
-}
-
-/**
- * Loads an image file and converts it to base64
- */
-function loadImageAsBase64(filePath: string): string {
-	try {
-		const buffer = readFileSync(filePath);
-		return buffer.toString("base64");
-	} catch (error) {
-		throw new Error(
-			`Failed to load image from ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-}
-
-/**
- * Parses user input message and extracts @mentioned file references.
- * Image files are converted to data URLs for image content blocks.
- * Non-image files are forwarded as userFiles so the runtime can materialize
- * them as file content blocks.
- */
 export async function buildUserInputMessage(
 	rawPrompt: string,
 	userInstructionWatcher?: UserInstructionConfigWatcher,
@@ -163,8 +135,7 @@ export async function buildUserInputMessage(
 	const userFiles: string[] = [];
 	const loadedImages: Array<{
 		index: number;
-		data: string;
-		mediaType: string;
+		dataUrl: string;
 		fileName: string;
 	}> = [];
 	const loadedFiles: Array<{
@@ -183,12 +154,10 @@ export async function buildUserInputMessage(
 			const fileName = basename(resolvedPath);
 
 			if (isImagePath(resolvedPath)) {
-				const data = loadImageAsBase64(resolvedPath);
-				const mediaType = getMimeType(resolvedPath);
+				const dataUrl = loadImageAsDataUrl(resolvedPath);
 				loadedImages.push({
 					index: mention.index,
-					data,
-					mediaType,
+					dataUrl,
 					fileName,
 				});
 				processedPrompt = processedPrompt.replace(
@@ -214,8 +183,7 @@ export async function buildUserInputMessage(
 	}
 
 	for (const image of loadedImages.reverse()) {
-		const dataUrl = `data:${image.mediaType};base64,${image.data}`;
-		userImages.push(dataUrl);
+		userImages.push(image.dataUrl);
 	}
 	for (const file of loadedFiles.reverse()) {
 		userFiles.push(file.path);

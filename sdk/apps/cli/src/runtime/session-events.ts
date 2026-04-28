@@ -64,12 +64,48 @@ type SessionManagerSubscriber = {
 	): () => void;
 };
 
+type AgentDoneEvent = Extract<AgentEvent, { type: "done" }>;
+
+function doneEventCompletenessScore(event: AgentDoneEvent): number {
+	let score = 0;
+	if (typeof event.text === "string" && event.text.trim().length > 0) {
+		score += 2;
+	}
+	if (typeof event.iterations === "number" && event.iterations > 0) {
+		score += 2;
+	}
+	if (event.usage) {
+		score += 3;
+	}
+	if (event.reason !== "completed") {
+		score += 1;
+	}
+	return score;
+}
+
 export function subscribeToAgentEvents(
 	sessionManager: SessionManagerSubscriber,
 	onAgentEvent: (event: AgentEvent) => void,
 	options?: RuntimeHostSubscribeOptions,
 ): () => void {
 	let hasSeenStructuredAgentEvent = false;
+	let lastDoneEvent: AgentDoneEvent | undefined;
+	const emitAgentEvent = (event: AgentEvent): void => {
+		if (event.type === "iteration_start") {
+			lastDoneEvent = undefined;
+		}
+		if (event.type === "done") {
+			if (
+				lastDoneEvent &&
+				doneEventCompletenessScore(event) <=
+					doneEventCompletenessScore(lastDoneEvent)
+			) {
+				return;
+			}
+			lastDoneEvent = event;
+		}
+		onAgentEvent(event);
+	};
 	return sessionManager.subscribe((event: unknown) => {
 		const typedEvent = event as
 			| { type: "agent_event"; payload: { event: AgentEvent } }
@@ -80,10 +116,10 @@ export function subscribeToAgentEvents(
 			const payload = typedEvent.payload as
 				| { event?: AgentEvent; teamRole?: string }
 				| undefined;
-			// Skip teammate events — they stream concurrently and would interleave
+			// Skip teammate events because they stream concurrently and would interleave
 			// with the lead agent's output on shared stdout.
 			if (payload?.event && payload.teamRole !== "teammate") {
-				onAgentEvent(payload.event);
+				emitAgentEvent(payload.event);
 			}
 			return;
 		}
@@ -106,7 +142,7 @@ export function subscribeToAgentEvents(
 			return;
 		}
 		try {
-			onAgentEvent(JSON.parse(payload.chunk) as AgentEvent);
+			emitAgentEvent(JSON.parse(payload.chunk) as AgentEvent);
 		} catch {
 			// Best-effort event parsing path.
 		}

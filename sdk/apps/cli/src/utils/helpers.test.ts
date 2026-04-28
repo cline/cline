@@ -50,7 +50,6 @@ describe("parseArgs", () => {
 			acpMode: false,
 			thinking: false,
 			reasoningEffort: undefined,
-			liveModelCatalog: false,
 			defaultToolAutoApprove: true,
 		});
 	});
@@ -73,7 +72,6 @@ describe("parseArgs", () => {
 			"--thinking",
 			"--reasoning-effort",
 			"high",
-			"--refresh-models",
 			"--plan",
 			"Audit",
 			"the",
@@ -83,9 +81,9 @@ describe("parseArgs", () => {
 		expect(parsed.prompt).toBe("Audit the repo");
 		expect(parsed.verbose).toBe(true);
 		expect(parsed.defaultToolAutoApprove).toBe(false);
+		expect(parsed.autoApproveOverride).toBe(false);
 		expect(parsed.thinking).toBe(true);
 		expect(parsed.reasoningEffort).toBe("high");
-		expect(parsed.liveModelCatalog).toBe(true);
 		expect(parsed.outputMode).toBe("text");
 		expect(parsed.mode).toBe("plan");
 		expect(parsed.cwd).toBe("/tmp/work");
@@ -120,6 +118,7 @@ describe("parseArgs", () => {
 			"tell me about this repo",
 		]);
 		expect(parsed.defaultToolAutoApprove).toBe(false);
+		expect(parsed.autoApproveOverride).toBe(false);
 		expect(parsed.prompt).toBe("tell me about this repo");
 	});
 
@@ -129,6 +128,7 @@ describe("parseArgs", () => {
 		).toEqual(["--autoapprove", "true", "Audit the repo"]);
 		const parsed = parseArgs(["--autoapprove", "Audit the repo"]);
 		expect(parsed.defaultToolAutoApprove).toBe(true);
+		expect(parsed.autoApproveOverride).toBe(true);
 		expect(parsed.prompt).toBe("Audit the repo");
 	});
 
@@ -167,6 +167,7 @@ describe("parseArgs", () => {
 		const parsedYolo = parseArgs(["--yolo"]);
 		expect(parsedYolo.mode).toBe("yolo");
 		expect(parsedYolo.defaultToolAutoApprove).toBe(true);
+		expect(parsedYolo.autoApproveOverride).toBe(true);
 	});
 
 	it("parses --zen flag for background hub dispatch", () => {

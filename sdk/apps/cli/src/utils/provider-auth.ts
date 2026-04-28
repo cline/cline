@@ -34,7 +34,9 @@ export function toProviderApiKey(
 	credentials: Pick<OAuthCredentials, "access">,
 ): string {
 	if (providerId === "cline") {
-		return `workos:${credentials.access}`;
+		return credentials.access.startsWith("workos:")
+			? credentials.access
+			: `workos:${credentials.access}`;
 	}
 	return credentials.access;
 }

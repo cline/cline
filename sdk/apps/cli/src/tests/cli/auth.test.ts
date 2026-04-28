@@ -1,12 +1,12 @@
 // ---------------------------------------------------------------------------
-// cline auth — CLI flag and contract tests
+// clite auth - CLI flag and contract tests
 //
-// These tests cover the `cline auth` subcommand behavior:
+// These tests cover the `clite auth` subcommand behavior:
 //   - Interactive auth screen navigation
-//   - `cline auth -p <provider> -k <apiKey> -m <modelId>` golden path
+//   - `clite auth -p <provider> -k <apiKey> -m <modelId>` golden path
 //   - Invalid provider / key / model error handling
 //   - Partial-flag error handling (exit with failure)
-//   - `cline auth --help`
+//   - `clite auth --help`
 // ---------------------------------------------------------------------------
 
 import { test } from "@microsoft/tui-test";
@@ -20,7 +20,7 @@ import { clineEnv } from "../helpers/env.js";
 import { waitForAuthScreen } from "../helpers/page-objects/auth.js";
 import { expectExitCode, expectVisible } from "../helpers/terminal.js";
 
-test.describe("cline auth (interactive screen)", () => {
+test.describe("clite auth (interactive screen)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth"] },
 		...TERMINAL_WIDE,
@@ -39,7 +39,7 @@ test.describe("cline auth (interactive screen)", () => {
 	});
 });
 
-test.describe("cline auth --help", () => {
+test.describe("clite auth --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth", "--help"] },
 		...TERMINAL_WIDE,
@@ -58,9 +58,9 @@ test.describe("cline auth --help", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline auth with only partial flags → exits with error
+// clite auth with only partial flags -> exits with error
 // ---------------------------------------------------------------------------
-test.describe("cline auth --provider only (partial flags)", () => {
+test.describe("clite auth --provider only (partial flags)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth", "--provider", "openai"] },
 		...TERMINAL_WIDE,
@@ -73,7 +73,7 @@ test.describe("cline auth --provider only (partial flags)", () => {
 	});
 });
 
-test.describe("cline auth --apikey only (partial flags)", () => {
+test.describe("clite auth --apikey only (partial flags)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -89,7 +89,7 @@ test.describe("cline auth --apikey only (partial flags)", () => {
 	});
 });
 
-test.describe("cline auth --modelid only (partial flags)", () => {
+test.describe("clite auth --modelid only (partial flags)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -105,7 +105,7 @@ test.describe("cline auth --modelid only (partial flags)", () => {
 	});
 });
 
-test.describe("cline auth --baseurl only (partial flags)", () => {
+test.describe("clite auth --baseurl only (partial flags)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -121,7 +121,7 @@ test.describe("cline auth --baseurl only (partial flags)", () => {
 	});
 });
 
-test.describe("cline auth --verbose only", () => {
+test.describe("clite auth --verbose only", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -138,7 +138,7 @@ test.describe("cline auth --verbose only", () => {
 	});
 });
 
-test.describe("cline auth --cwd", () => {
+test.describe("clite auth --cwd", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -155,7 +155,7 @@ test.describe("cline auth --cwd", () => {
 	});
 });
 
-test.describe("cline auth --config", () => {
+test.describe("clite auth --config", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -172,7 +172,7 @@ test.describe("cline auth --config", () => {
 	});
 });
 
-test.describe("cline auth -p -k -m (golden path)", () => {
+test.describe("clite auth -p -k -m (golden path)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -198,7 +198,7 @@ test.describe("cline auth -p -k -m (golden path)", () => {
 	});
 });
 
-test.describe("cline auth with invalid key (still exits 0)", () => {
+test.describe("clite auth with invalid key (still exits 0)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -223,7 +223,7 @@ test.describe("cline auth with invalid key (still exits 0)", () => {
 	});
 });
 
-test.describe("cline auth -p -k -m -b (golden path with baseUrl)", () => {
+test.describe("clite auth -p -k -m -b (golden path with baseUrl)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -250,7 +250,7 @@ test.describe("cline auth -p -k -m -b (golden path with baseUrl)", () => {
 	});
 });
 
-test.describe("cline auth --baseurl with non-OpenAI-compatible provider", () => {
+test.describe("clite auth --baseurl with non-OpenAI-compatible provider", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -280,7 +280,7 @@ test.describe("cline auth --baseurl with non-OpenAI-compatible provider", () => 
 	});
 });
 
-test.describe("cline auth with invalid provider", () => {
+test.describe("clite auth with invalid provider", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,

@@ -81,36 +81,74 @@ If you touch hub/bootstrap/session flows, prefer both unit coverage and an end-t
 
 ## Publishing
 
-### Quick Release (recommended)
+### SDK Release
 
-The `bun release` script automates the full publish flow — versioning, lockfile regeneration, verification, and publishing — in a single interactive command.
+The `bun release sdk` script automates the SDK publish flow: versioning, lockfile regeneration, verification, and publishing.
 
 ```sh
-# SDK packages (@clinebot/{shared,llms,agents,core})
 bun release sdk              # auto-increment patch version
 bun release sdk 0.1.0        # explicit version
 bun release sdk --tag next   # publish with a custom npm dist-tag
 bun release sdk --dry-run    # preview without side effects
-
-# CLI (cross-platform binaries, GitHub release, Homebrew tap)
-bun release cli              # auto-increment patch version
-bun release cli 0.1.0        # explicit version
-bun release cli --dry-run    # preview without side effects
-
-# Homebrew only (no version bump or tests — re-publish to tap)
-bun release brew             # build, GitHub release, push cask
-bun release brew --dry-run   # preview without side effects
 ```
 
-Additional flags: `--skip-tests`, `--skip-git-tags`.
+Additional SDK flags: `--skip-tests`, `--skip-git-tags`.
 
 The script checks out `main` (and pulls latest) before starting. If the working tree is dirty it aborts.
 
-The SDK flow runs: tests → version bump → lockfile regen → tarball verification → publish (shared → llms → agents → core) → git tag `sdk-v{VERSION}`.
+The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core) → optional `sdk-v{VERSION}` tag creation.
 
-The CLI flow runs: tests → version bump → lockfile regen → cross-platform build & GitHub release & Homebrew tap push → git tag `cli-v{VERSION}`.
+### CLI Release
 
-The Brew flow runs: build binaries → GitHub release → push cask to Homebrew tap. Use this when the version is already bumped and you just need to (re-)publish to Homebrew.
+The CLI is published through npm. Start releases from `apps/cli` with the `publish-cli` skill. The skill should guide the release prep, then offer the GitHub Actions publish path and the local publish path.
+
+Under the hood, every release starts the same way: prepare one release commit, then choose how to publish it.
+
+Prepare the release commit from the code you want to release:
+
+1. Draft user-facing release notes from the commits since the last `cli-vX.Y.Z` tag.
+2. Choose the release version.
+3. Update `apps/cli/package.json`.
+4. Add the approved notes to `apps/cli/CHANGELOG.md`.
+5. Run the requested checks.
+6. Commit the version and changelog changes.
+
+Then publish that release commit with one of these paths.
+
+Path A: publish from GitHub Actions.
+
+Use this for normal releases. Merge the release commit to `main`, create and push the matching release tag, then run:
+
+```sh
+git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
+git push origin refs/tags/cli-vX.Y.Z
+gh workflow run publish-cli.yaml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+```
+
+The workflow checks out the provided `cli-vX.Y.Z` tag, verifies it matches `apps/cli/package.json`, builds the platform packages, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
+
+Path B: publish locally.
+
+Use this when publishing from an authenticated local machine. Start from a clean checkout at the release commit:
+
+```sh
+gh auth status
+npm whoami
+git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
+git push origin refs/tags/cli-vX.Y.Z
+bun release cli
+gh release create cli-vX.Y.Z --verify-tag --title "CLI vX.Y.Z" --notes "Paste the approved release notes here."
+```
+
+The local helper verifies the working tree is clean, verifies `cli-vX.Y.Z` points at `HEAD` locally and on `origin`, runs tests, builds platform packages, and publishes to npm.
+
+Nightly release:
+
+```sh
+gh workflow run publish-cli.yaml -f publish_target=nightly
+```
+
+Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
 
 ### Manual SDK Publish
 
@@ -153,20 +191,6 @@ bun pm ls @clinebot/core @clinebot/agents @clinebot/llms
 ### CI
 
 The CI publish workflow (`.github/workflows/publish-sdk.yaml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
-
-#### Brew
-
-To publish CLI to the Homebrew tap:
-
-```sh
-bun release brew
-```
-
-To install or update CLI from brew:
-
-```sh
-brew upgrade cline/internal-tap/cline 2>/dev/null || brew install cline/internal-tap/cline
-```
 
 ### Root Automation Scope
 

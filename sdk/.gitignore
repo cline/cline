@@ -31,9 +31,6 @@ next-env.d.ts
 # IntelliJ based IDEs
 .idea
 
-# Agents
-.claude
-
 # Finder (MacOS) folder config
 .DS_Store
 

@@ -169,8 +169,8 @@ describe("cli interactive e2e", () => {
 		]);
 		const output = outputOf(result);
 		expect(output).toContain("Configuration");
-		expect(output).toContain("Tools Plugins Agents Hooks [Skills] Rules MCP");
-		expect(output).toContain("Tools Plugins Agents Hooks Skills [Rules] MCP");
+		expect(output).toContain("[Tools] Plugins Agents Hooks Skills Rules MCP");
+		expect(output).toContain("Tools [Plugins] Agents Hooks Skills Rules MCP");
 	});
 
 	it("closes /settings with Escape", () => {
@@ -197,6 +197,6 @@ describe("cli interactive e2e", () => {
 		);
 		const output = outputOf(result);
 		expect(output).toContain("Configuration");
-		expect(output).toContain("Tools Plugins Agents Hooks [Skills] Rules MCP");
+		expect(output).toContain("[Tools] Plugins Agents Hooks Skills Rules MCP");
 	});
 });

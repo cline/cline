@@ -1,7 +1,10 @@
+import { initVcr } from "@clinebot/shared";
 import { resolveHubEndpointOptions } from "./defaults";
 import { createLocalHubScheduleRuntimeHandlers } from "./runtime-handlers";
 import { startHubWebSocketServer } from "./server";
 import { resolveSharedHubOwnerContext } from "./workspace";
+
+initVcr(process.env.CLINE_VCR);
 
 function parseArgs(argv: string[]): {
 	cwd: string;

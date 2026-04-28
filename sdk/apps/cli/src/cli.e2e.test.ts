@@ -127,7 +127,6 @@ describe("cli e2e", () => {
 		expect(asText(result.stdout)).toContain("--data-dir");
 		expect(asText(result.stdout)).toContain("--thinking");
 		expect(asText(result.stdout)).toContain("--reasoning-effort");
-		expect(asText(result.stdout)).toContain("--refresh-models");
 		expect(asText(result.stdout)).toContain("Show current configuration");
 	});
 

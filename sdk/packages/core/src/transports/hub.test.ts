@@ -1,6 +1,3 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionSource } from "../types/common";
 
@@ -152,7 +149,7 @@ describe("HubRuntimeHost", () => {
 		let onEvent:
 			| ((event: {
 					version: 1;
-					event: "approval.requested";
+					event: string;
 					sessionId: string;
 					payload: Record<string, unknown>;
 			  }) => void)
@@ -175,15 +172,28 @@ describe("HubRuntimeHost", () => {
 				},
 			})
 			.mockResolvedValueOnce({ ok: true, payload: {} });
-		const requestToolApproval = vi.fn(async () => ({
-			approved: true,
-			reason: "ok",
-		}));
+		const eventOrder: string[] = [];
+		const requestToolApproval = vi.fn(async () => {
+			eventOrder.push("approval-requested");
+			return {
+				approved: true,
+				reason: "ok",
+			};
+		});
 
 		const { HubRuntimeHost } = await import("./hub");
 		const host = new HubRuntimeHost({
 			url: "ws://127.0.0.1:25463/hub",
 			requestToolApproval,
+		});
+		host.subscribe((event) => {
+			if (
+				event.type === "agent_event" &&
+				event.payload.event.type === "content_start" &&
+				event.payload.event.contentType === "tool"
+			) {
+				eventOrder.push("tool-started");
+			}
 		});
 
 		await host.start({
@@ -208,6 +218,7 @@ describe("HubRuntimeHost", () => {
 		});
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
+		expect(eventOrder).toEqual(["tool-started", "approval-requested"]);
 		expect(requestToolApproval).toHaveBeenCalledWith({
 			sessionId: "sess-1",
 			agentId: "agent-1",
@@ -223,6 +234,18 @@ describe("HubRuntimeHost", () => {
 			{ approvalId: "approval-1", approved: true, reason: "ok" },
 			"sess-1",
 		);
+
+		onEvent?.({
+			version: 1,
+			event: "tool.started",
+			sessionId: "sess-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				input: { commands: ["echo hi"] },
+			},
+		});
+		expect(eventOrder).toEqual(["tool-started", "approval-requested"]);
 	});
 
 	it("tears down session stream subscriptions when a session stops", async () => {
@@ -261,6 +284,321 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("maps hub completion events back to agent events", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event:
+						| "assistant.finished"
+						| "reasoning.finished"
+						| "agent.done"
+						| "run.completed";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "assistant.finished",
+			sessionId: "sess-1",
+			payload: { text: "hello" },
+		});
+		onEvent?.({
+			version: 1,
+			event: "reasoning.finished",
+			sessionId: "sess-1",
+			payload: { reasoning: "thought" },
+		});
+		onEvent?.({
+			version: 1,
+			event: "agent.done",
+			sessionId: "sess-1",
+			payload: {
+				reason: "completed",
+				text: "hello",
+				iterations: 1,
+				usage: { inputTokens: 2, outputTokens: 3, totalCost: 0.01 },
+			},
+		});
+		onEvent?.({
+			version: 1,
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: { reason: "completed" },
+		});
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: { type: "content_end", contentType: "text", text: "hello" },
+					}),
+				}),
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: {
+							type: "content_end",
+							contentType: "reasoning",
+							reasoning: "thought",
+						},
+					}),
+				}),
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: expect.objectContaining({
+							type: "done",
+							reason: "completed",
+							text: "hello",
+							iterations: 1,
+						}),
+					}),
+				}),
+			]),
+		);
+	});
+
+	it("maps hub iteration lifecycle events back to agent events", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "iteration.started" | "iteration.finished";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "iteration.started",
+			sessionId: "sess-1",
+			payload: { iteration: 2 },
+		});
+		onEvent?.({
+			version: 1,
+			event: "iteration.finished",
+			sessionId: "sess-1",
+			payload: { iteration: 2, hadToolCalls: true, toolCallCount: 1 },
+		});
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: { type: "iteration_start", iteration: 2 },
+					}),
+				}),
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: {
+							type: "iteration_end",
+							iteration: 2,
+							hadToolCalls: true,
+							toolCallCount: 1,
+						},
+					}),
+				}),
+			]),
+		);
+	});
+
+	it("maps hub aborted runs back to aborted agent events", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "run.aborted";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "run.aborted",
+			sessionId: "sess-1",
+			payload: {},
+		});
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: expect.objectContaining({
+							type: "done",
+							reason: "aborted",
+						}),
+					}),
+				}),
+				expect.objectContaining({
+					type: "ended",
+					payload: expect.objectContaining({
+						sessionId: "sess-1",
+						reason: "aborted",
+					}),
+				}),
+			]),
+		);
+	});
+
+	it("maps failed hub completion reasons back to error agent events", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "run.completed";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: {
+				reason: "failed",
+				text: "run failed",
+				iterations: 2,
+			},
+		});
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: expect.objectContaining({
+							type: "done",
+							reason: "error",
+							text: "run failed",
+							iterations: 2,
+						}),
+					}),
+				}),
+				expect.objectContaining({
+					type: "ended",
+					payload: expect.objectContaining({
+						sessionId: "sess-1",
+						reason: "failed",
+					}),
+				}),
+			]),
+		);
+	});
+
 	it("forwards image attachments when sending a run", async () => {
 		commandMock.mockResolvedValue({ ok: true, payload: { result: undefined } });
 
@@ -291,9 +629,7 @@ describe("HubRuntimeHost", () => {
 	it("forwards file attachments when sending a run", async () => {
 		commandMock.mockResolvedValue({ ok: true, payload: { result: undefined } });
 
-		const dir = mkdtempSync(join(tmpdir(), "hub-send-file-"));
-		const filePath = join(dir, "note.md");
-		writeFileSync(filePath, "# note\n", "utf8");
+		const filePath = "/tmp/project/note.md";
 
 		const { HubRuntimeHost } = await import("./hub");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
@@ -310,7 +646,7 @@ describe("HubRuntimeHost", () => {
 				sessionId: "sess-1",
 				input: "Use this file",
 				attachments: {
-					userFiles: [{ name: "note.md", content: "# note\n" }],
+					userFiles: [filePath],
 				},
 				delivery: undefined,
 			},

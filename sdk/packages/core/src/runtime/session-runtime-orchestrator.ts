@@ -434,6 +434,55 @@ export class SessionRuntime {
 						: String(reason);
 		this.abortRequested = true;
 		this.abortReason = message;
+		if (this.activeRunPromise) {
+			/**
+			 * Why this exists in hub mode:
+			 *
+			 * The TUI and the runtime are not always in the same process. In hub
+			 * mode, the visible TUI talks to a shared daemon over websocket. When the
+			 * user sends a prompt, the TUI sends a "start this run" command to the
+			 * daemon. The daemon starts the AgentRuntime and stores the promise for
+			 * that run as `activeRunPromise`.
+			 *
+			 * If the user presses Escape, the TUI sends a separate "cancel the
+			 * current run" command to the daemon. Cancelling a run means aborting the
+			 * AgentRuntime. That is supposed to interrupt the provider stream or any
+			 * other in-flight async work, and the normal way that interruption shows
+			 * up in JavaScript is a rejected promise. That rejection is not a bug by
+			 * itself. It is the expected result of the user saying "stop this
+			 * request."
+			 *
+			 * The important detail is that the rejection is already handled by the
+			 * code path that started the run. The original "start this run" command
+			 * is still awaiting `sessionHost.send(...)`, and that await is what
+			 * should eventually turn the run result or run error into a reply/event
+			 * for the client.
+			 *
+			 * The problem we hit was a timing gap inside the daemon process. The
+			 * separate cancel command can call `activeRuntime.abort(message)` while
+			 * the original start command is still waiting elsewhere. The abort can
+			 * make `activeRunPromise` reject immediately. If the runtime reports that
+			 * rejection before the original start command observes it, Node/Bun can
+			 * briefly classify it as an `unhandledRejection`.
+			 *
+			 * In the hub daemon, `unhandledRejection` is fatal. That is normally the
+			 * right policy because real unhandled errors should not be ignored. But
+			 * for this cancellation path it meant Escape could kill the daemon even
+			 * though the run error was expected and the original start command was
+			 * still responsible for handling it. After the daemon died, the next
+			 * prompt looked like it started loading, then silently stalled because
+			 * the TUI was talking to a dead runtime process.
+			 *
+			 * This `.catch()` is not the real application-level error handling. It is
+			 * only a local safety observer attached before we trigger the abort, so
+			 * the daemon does not mistake an expected cancellation rejection for a
+			 * process crash. We do not replace `activeRunPromise`, await this catch,
+			 * or convert the rejection into success. The original start command, and
+			 * any other caller awaiting `run()` / `continue()`, still receives the
+			 * same result or error it would have received without this observer.
+			 */
+			void this.activeRunPromise.catch(() => {});
+		}
 		this.activeRuntime?.abort(message);
 	}
 

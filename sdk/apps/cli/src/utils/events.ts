@@ -163,9 +163,9 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 			closeInlineStreamIfNeeded();
 			if (config.verbose) {
 				const iterations = event.iterations;
-				const isAborted = event.reason === "aborted";
+				const label = event.reason === "aborted" ? "aborted" : "finished";
 				write(
-					`\n${c.dim}── ${(event.reason ?? isAborted) ? "aborted" : "finished"} (${iterations} iterations) ──${c.reset}\n`,
+					`\n${c.dim}── ${label} (${iterations} iterations) ──${c.reset}\n`,
 				);
 			}
 			activeInlineStream = undefined;

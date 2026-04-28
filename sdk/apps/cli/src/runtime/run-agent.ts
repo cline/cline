@@ -155,6 +155,8 @@ export async function runAgent(
 		},
 		forceLocalBackend: config.mode === "yolo" || config.sandbox === true,
 		logger: config.logger,
+		cwd: config.cwd,
+		workspaceRoot: config.workspaceRoot,
 		toolPolicies: config.toolPolicies,
 		requestToolApproval,
 	});

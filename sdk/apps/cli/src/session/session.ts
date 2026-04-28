@@ -3,6 +3,7 @@ import type {
 	AgentConfig,
 	BasicLogger,
 	HookEventPayload,
+	RuntimeHostMode,
 	SessionHistoryRecord,
 	SessionRecord,
 	ToolApprovalRequest,
@@ -23,6 +24,7 @@ export async function createCliCore(options?: {
 	defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	logger?: BasicLogger;
+	backendMode?: RuntimeHostMode;
 	forceLocalBackend?: boolean;
 	cwd?: string;
 	workspaceRoot?: string;
@@ -30,7 +32,9 @@ export async function createCliCore(options?: {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
 }): Promise<ClineCore> {
-	const explicitBackendMode = options?.forceLocalBackend ? "local" : undefined;
+	const explicitBackendMode = options?.forceLocalBackend
+		? "local"
+		: options?.backendMode;
 	const cwd = options?.cwd?.trim() || process.cwd();
 	const workspaceRoot =
 		options?.workspaceRoot?.trim() || resolveWorkspaceRoot(cwd);
@@ -86,11 +90,18 @@ export async function listSessions(
 	limit = 200,
 	options?: { workspaceRoot?: string },
 ): Promise<SessionHistoryRecord[]> {
-	const rows = await withCliCore(async (core) => await core.list(limit), {
-		forceLocalBackend: true,
-		cwd: options?.workspaceRoot,
-		workspaceRoot: options?.workspaceRoot,
-	});
+	const rows = await withCliCore(
+		async (core) =>
+			await core.listHistory({
+				limit,
+				includeManifestFallback: true,
+			}),
+		{
+			forceLocalBackend: true,
+			cwd: options?.workspaceRoot,
+			workspaceRoot: options?.workspaceRoot,
+		},
+	);
 	if (!options?.workspaceRoot) {
 		return rows;
 	}

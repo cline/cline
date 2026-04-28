@@ -67,7 +67,6 @@ export function addRootOptions(cmd: Command): Command {
 		.option("--id <id>", "Resume an existing task by ID")
 		.option("-k, --key <api-key>", "API key override for this run")
 		.option("-P, --provider <id>", "Provider id (default: cline)")
-		.option("--refresh-models", "Refresh provider model catalog for this run")
 		.option("-s, --system <prompt>", "Override the system prompt")
 		.option("--team-name <name>", "Override the runtime team state name")
 		.option(
@@ -77,7 +76,7 @@ export function addRootOptions(cmd: Command): Command {
 }
 
 export function createProgram(): Command {
-	const program = new Command("clite") // Temporary name; will be invoked as `cline` in practice
+	const program = new Command("clite")
 		.description("Cline CLI - AI coding assistant in your terminal")
 		.version(version, "-V, --version", "Output the version number")
 		.exitOverride() // don't call process.exit
@@ -107,7 +106,6 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		acpMode: !!opts.acp,
 		thinking: !!opts.thinking,
 		reasoningEffort: undefined,
-		liveModelCatalog: !!opts.refreshModels,
 		defaultToolAutoApprove: true,
 		id: opts.id,
 	};
@@ -117,14 +115,17 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		const raw = String(opts.autoapprove).trim().toLowerCase();
 		if (raw === "true") {
 			result.defaultToolAutoApprove = true;
+			result.autoApproveOverride = true;
 		} else if (raw === "false") {
 			result.defaultToolAutoApprove = false;
+			result.autoApproveOverride = false;
 		} else if (raw) {
 			result.invalidAutoApprove = raw;
 		}
 	}
 	if (opts.yolo) {
 		result.defaultToolAutoApprove = true;
+		result.autoApproveOverride = true;
 	}
 
 	// Timeout validation

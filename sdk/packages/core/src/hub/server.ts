@@ -1414,6 +1414,9 @@ export class HubServerTransport implements NativeHubTransport {
 			!Array.isArray(payload.attachments)
 				? (payload.attachments as Record<string, unknown>)
 				: undefined;
+		const userFiles = Array.isArray(attachments?.userFiles)
+			? attachments.userFiles.filter((filePath) => typeof filePath === "string")
+			: undefined;
 		const result = await this.sessionHost.send({
 			sessionId,
 			prompt,
@@ -1424,6 +1427,7 @@ export class HubServerTransport implements NativeHubTransport {
 			userImages: Array.isArray(attachments?.userImages)
 				? (attachments.userImages as string[])
 				: undefined,
+			userFiles,
 		});
 		if (result) {
 			this.suppressNextTerminalEventBySession.set(
@@ -1728,6 +1732,30 @@ export class HubServerTransport implements NativeHubTransport {
 				return;
 			case "agent_event": {
 				const { sessionId, event: agentEvent } = event.payload;
+				if (agentEvent.type === "iteration_start") {
+					this.publish(
+						this.buildEvent(
+							"iteration.started",
+							{ iteration: agentEvent.iteration },
+							sessionId,
+						),
+					);
+					return;
+				}
+				if (agentEvent.type === "iteration_end") {
+					this.publish(
+						this.buildEvent(
+							"iteration.finished",
+							{
+								iteration: agentEvent.iteration,
+								hadToolCalls: agentEvent.hadToolCalls,
+								toolCallCount: agentEvent.toolCallCount,
+							},
+							sessionId,
+						),
+					);
+					return;
+				}
 				if (agentEvent.type === "content_start") {
 					if (
 						agentEvent.contentType === "text" &&
@@ -1786,18 +1814,52 @@ export class HubServerTransport implements NativeHubTransport {
 						return;
 					}
 				}
-				if (
-					agentEvent.type === "content_end" &&
-					agentEvent.contentType === "tool"
-				) {
+				if (agentEvent.type === "content_end") {
+					switch (agentEvent.contentType) {
+						case "text":
+							this.publish(
+								this.buildEvent(
+									"assistant.finished",
+									{ text: agentEvent.text },
+									sessionId,
+								),
+							);
+							break;
+						case "reasoning":
+							this.publish(
+								this.buildEvent(
+									"reasoning.finished",
+									{ reasoning: agentEvent.reasoning },
+									sessionId,
+								),
+							);
+							break;
+						case "tool":
+							this.publish(
+								this.buildEvent(
+									"tool.finished",
+									{
+										toolCallId: agentEvent.toolCallId,
+										toolName: agentEvent.toolName,
+										output: agentEvent.output,
+										error: agentEvent.error,
+									},
+									sessionId,
+								),
+							);
+							break;
+					}
+					return;
+				}
+				if (agentEvent.type === "done") {
 					this.publish(
 						this.buildEvent(
-							"tool.finished",
+							"agent.done",
 							{
-								toolCallId: agentEvent.toolCallId,
-								toolName: agentEvent.toolName,
-								output: agentEvent.output,
-								error: agentEvent.error,
+								reason: agentEvent.reason,
+								text: agentEvent.text,
+								iterations: agentEvent.iterations,
+								usage: agentEvent.usage,
 							},
 							sessionId,
 						),

@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
-// CLI headless use cases  (cline -y / cline --json / piped stdin)
+// CLI headless use cases  (clite -y / clite --json / piped stdin)
 //
-// These tests run cline as a child process (no TUI harness) and assert on
+// These tests run clite as a child process (no TUI harness) and assert on
 // stdout, stderr, and exit codes.
 //
 // Tests tagged @live require a configured provider and are skipped by default.
@@ -19,11 +19,11 @@ import { clineEnv } from "../helpers/env.js";
 import { expectExitCode, expectVisible } from "../helpers/terminal.js";
 
 // ---------------------------------------------------------------------------
-// cline -y "tell me a joke"
+// clite -y "tell me a joke"
 // Golden path: prints only LLM output (no chrome), then exits 0.
 // Unauthenticated: prints "Not authenticated" and exits 1.
 // ---------------------------------------------------------------------------
-test.describe("cline -y (headless yolo mode) — unauthenticated", () => {
+test.describe("clite -y (headless yolo mode) - unauthenticated", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-y", "tell me a joke"] },
 		...TERMINAL_WIDE,
@@ -37,10 +37,10 @@ test.describe("cline -y (headless yolo mode) — unauthenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// echo "max paulus" | cline -y "print only the second word I gave you"
-// Piped stdin test — uses TUI harness with stdin pre-written
+// echo "max paulus" | clite -y "print only the second word I gave you"
+// Piped stdin test - uses TUI harness with stdin pre-written
 // ---------------------------------------------------------------------------
-test.describe("piped stdin | cline -y — unauthenticated", () => {
+test.describe("piped stdin | clite -y - unauthenticated", () => {
 	test.use({
 		program: {
 			file: "sh",
@@ -60,10 +60,10 @@ test.describe("piped stdin | cline -y — unauthenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline -y --verbose "tell me a joke" 2>&1
+// clite -y --verbose "tell me a joke" 2>&1
 // Golden path: prints model info, prompt, api request, reasoning, task_completion lines
 // ---------------------------------------------------------------------------
-test.describe("cline -y --verbose — unauthenticated", () => {
+test.describe("clite -y --verbose - unauthenticated", () => {
 	test.use({
 		program: {
 			file: "sh",
@@ -80,10 +80,10 @@ test.describe("cline -y --verbose — unauthenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline -y --json "tell me a joke"
+// clite -y --json "tell me a joke"
 // Headless yolo with JSON output (one JSON object per line)
 // ---------------------------------------------------------------------------
-test.describe("cline -y --json — unauthenticated", () => {
+test.describe("clite -y --json - unauthenticated", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-y", "--json", "tell me a joke"] },
 		...TERMINAL_WIDE,
@@ -97,7 +97,7 @@ test.describe("cline -y --json — unauthenticated", () => {
 	});
 });
 
-test.describe("cline -y (headless yolo mode) — authenticated @live", () => {
+test.describe("clite -y (headless yolo mode) - authenticated @live", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-y", "tell me a joke"] },
 		...TERMINAL_WIDE,
@@ -114,10 +114,10 @@ test.describe("cline -y (headless yolo mode) — authenticated @live", () => {
 });
 
 // ---------------------------------------------------------------------------
-// echo "max paulus" | cline -y "..." — authenticated
+// echo "max paulus" | clite -y "..." - authenticated
 // Piped stdin test with valid credentials
 // ---------------------------------------------------------------------------
-test.describe("piped stdin | cline -y — authenticated", () => {
+test.describe("piped stdin | clite -y - authenticated", () => {
 	test.use({
 		program: {
 			file: "sh",
@@ -140,10 +140,10 @@ test.describe("piped stdin | cline -y — authenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline -y --verbose "tell me a joke" 2>&1 — authenticated
+// clite -y --verbose "tell me a joke" 2>&1 - authenticated
 // Golden path: prints model info, prompt, api request, reasoning, task_completion
 // ---------------------------------------------------------------------------
-test.describe("cline -y --verbose — authenticated @live", () => {
+test.describe("clite -y --verbose - authenticated @live", () => {
 	test.use({
 		program: {
 			file: "sh",
@@ -165,10 +165,10 @@ test.describe("cline -y --verbose — authenticated @live", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline --json "tell me a joke" — authenticated
+// clite --json "tell me a joke" - authenticated
 // All output must conform to JSON (one JSON object per line)
 // ---------------------------------------------------------------------------
-test.describe("cline --json — authenticated @live", () => {
+test.describe("clite --json - authenticated @live", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
 		...TERMINAL_WIDE,
@@ -187,7 +187,7 @@ test.describe("cline --json — authenticated @live", () => {
 // cline -t 2 -y "tell me a joke"
 // Timeout: should print "Error: Timeout" and exit 1
 // ---------------------------------------------------------------------------
-test.describe("cline -t (timeout) — headless yolo", () => {
+test.describe("cline -t (timeout) - headless yolo", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -207,7 +207,7 @@ test.describe("cline -t (timeout) — headless yolo", () => {
 	});
 });
 
-test.describe("cline --json -t (timeout) — JSON mode", () => {
+test.describe("clite --json -t (timeout) - JSON mode", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -226,10 +226,10 @@ test.describe("cline --json -t (timeout) — JSON mode", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline -y -m <model-id> "what model are you"
-// Model flag in headless mode — should use specified model but not persist
+// clite -y -m <model-id> "what model are you"
+// Model flag in headless mode - should use specified model but not persist
 // ---------------------------------------------------------------------------
-test.describe("cline -y -m (model flag in headless) @live", () => {
+test.describe("clite -y -m (model flag in headless) @live", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,

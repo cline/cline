@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
 // Process-level helpers for headless / contract-style CLI tests.
 //
-// These helpers spawn cline as a child process and return stdout, stderr,
-// and exit code — without going through the TUI harness. Use these for:
+// These helpers spawn clite as a child process and return stdout, stderr,
+// and exit code - without going through the TUI harness. Use these for:
 //   - Exit code assertions
 //   - Pure stdout/stderr contract tests
-//   - Piped stdin tests (echo "..." | cline -y ...)
+//   - Piped stdin tests (echo "..." | clite -y ...)
 //   - JSON output validation
 //   - Timeout behavior
 // ---------------------------------------------------------------------------
@@ -35,10 +35,10 @@ export interface RunOptions {
 }
 
 /**
- * Run `cline [args]` synchronously and return stdout/stderr/exitCode.
+ * Run `clite [args]` synchronously and return stdout/stderr/exitCode.
  *
  * Suitable for deterministic, fast-exiting commands like:
- *   cline --help, cline --version, cline auth -p ... -k ..., etc.
+ *   clite --help, clite --version, clite auth -p ... -k ..., etc.
  */
 export function runCline(args: string[], opts: RunOptions = {}): RunResult {
 	const {

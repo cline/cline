@@ -655,6 +655,48 @@ describe("SessionRuntime.abort", () => {
 		expect(result.finishReason).toBe("aborted");
 	});
 
+	it("does not swallow the caller-visible rejection when abort rejects the run", async () => {
+		let rejectRun: ((error: Error) => void) | undefined;
+		const runGate = new Promise<AgentRunResult>((_resolve, reject) => {
+			rejectRun = reject;
+		});
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const abortCalls: unknown[] = [];
+		const runtime = {
+			async run() {
+				markRunStarted?.();
+				return await runGate;
+			},
+			async continue() {
+				markRunStarted?.();
+				return await runGate;
+			},
+			abort(reason?: unknown) {
+				abortCalls.push(reason);
+				rejectRun?.(new Error(String(reason ?? "aborted")));
+			},
+			subscribe() {
+				return () => {};
+			},
+			snapshot() {
+				return makeSnapshot();
+			},
+		} as unknown as AgentRuntime;
+
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: () => runtime,
+		});
+		const runPromise = session.run("slow");
+		await runStarted;
+		session.abort("user cancelled");
+
+		await expect(runPromise).rejects.toThrow("user cancelled");
+		expect(abortCalls).toEqual(["user cancelled"]);
+	});
+
 	it("is a no-op when no run is active", () => {
 		const { deps } = withFakeRuntime();
 		const session = new SessionRuntime(makeAgentConfig(), deps);

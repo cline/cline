@@ -154,7 +154,7 @@ describe("runHistoryExport", () => {
 	it("writes standalone html from a persisted messages artifact", async () => {
 		tempDir = await mkdtemp(join(tmpdir(), "clite-history-export-"));
 		const outputPath = join(tempDir, "export.html");
-		mockedReadSessionMessagesArtifact.mockResolvedValue({
+		const artifact = {
 			version: 1,
 			updated_at: "2026-04-22T17:42:10.123Z",
 			sessionId: "sess_1",
@@ -170,7 +170,10 @@ describe("runHistoryExport", () => {
 					content: [{ type: "text", text: "world" }],
 				},
 			],
-		} as any);
+		} satisfies NonNullable<
+			Awaited<ReturnType<typeof readSessionMessagesArtifact>>
+		>;
+		mockedReadSessionMessagesArtifact.mockResolvedValue(artifact);
 		const io = {
 			writeln: vi.fn(),
 			writeErr: vi.fn(),

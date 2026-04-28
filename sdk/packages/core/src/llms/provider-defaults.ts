@@ -159,6 +159,20 @@ async function mergeKnownModels(
 	});
 }
 
+function resolveCatalogModels(
+	providerId: string,
+	modelsByProviderId: Record<string, Record<string, ModelInfo>>,
+): Record<string, ModelInfo> {
+	// Runtime provider ids do not always match catalog keys. For example,
+	// Cline uses OpenRouter-backed catalog models, so live catalog lookups must
+	// apply the same key mapping as generated catalog lookups.
+	const catalogKeys = Llms.resolveProviderModelCatalogKeys(providerId);
+	return Object.assign(
+		{},
+		...catalogKeys.map((catalogKey) => modelsByProviderId[catalogKey] ?? {}),
+	);
+}
+
 function normalizeBaseUrl(baseUrl: string | undefined): string {
 	const value = baseUrl?.trim();
 	return value && value.length > 0 ? value : "";
@@ -611,7 +625,9 @@ export async function resolveProviderConfig(
 		const liveCatalog = modelCatalog?.loadLatestOnInit
 			? await getLiveModelsCatalog(modelCatalog)
 			: undefined;
-		const liveModels = liveCatalog?.[providerId] ?? {};
+		const liveModels = liveCatalog
+			? resolveCatalogModels(providerId, liveCatalog)
+			: {};
 		const privateModels =
 			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
 				? await getPrivateProviderModels(providerId, modelCatalog, config)

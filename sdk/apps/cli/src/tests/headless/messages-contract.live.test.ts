@@ -40,7 +40,7 @@ function findMessagesArtifacts(root: string): string[] {
 	return out.sort();
 }
 
-test.describe("cline --json persisted messages contract — authenticated @live", () => {
+test.describe("clite --json persisted messages contract - authenticated @live", () => {
 	const sessionDataDir = mkdtempSync(
 		join(tmpdir(), "cline-headless-messages-contract-"),
 	);

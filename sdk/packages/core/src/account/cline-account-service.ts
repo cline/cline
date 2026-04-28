@@ -19,6 +19,33 @@ interface ClineApiEnvelope<T> {
 	data?: T;
 }
 
+function getClineApiEnvelopeError(parsed: unknown): string | undefined {
+	if (typeof parsed !== "object" || parsed === null || !("error" in parsed)) {
+		return undefined;
+	}
+	const error = parsed.error;
+	return typeof error === "string" && error.trim() ? error : undefined;
+}
+
+function formatClineAccountRequestFailure(
+	status: number,
+	bodyText: string,
+	parsed: unknown,
+): string {
+	const envelopeError = getClineApiEnvelopeError(parsed);
+	if (envelopeError) {
+		return envelopeError;
+	}
+
+	const body = bodyText.trim();
+	if (body) {
+		const preview = body.length > 200 ? `${body.slice(0, 200)}...` : body;
+		return `Cline account request failed with status ${status}: ${preview}`;
+	}
+
+	return `Cline account request failed with status ${status}`;
+}
+
 export interface ClineAccountServiceOptions {
 	apiBaseUrl: string;
 	getAuthToken: () => Promise<string | undefined | null>;
@@ -266,15 +293,26 @@ export class ClineAccountService {
 			const text = await response.text();
 			let parsed: unknown;
 			if (text.trim()) {
-				parsed = JSON.parse(text);
+				try {
+					parsed = JSON.parse(text);
+				} catch {
+					if (!response.ok) {
+						throw new Error(
+							formatClineAccountRequestFailure(
+								response.status,
+								text,
+								undefined,
+							),
+						);
+					}
+					throw new Error("Cline account response was not valid JSON");
+				}
 			}
 
 			if (!response.ok) {
-				const message =
-					typeof parsed === "object" && parsed !== null && "error" in parsed
-						? String((parsed as { error: unknown }).error)
-						: `Cline account request failed with status ${response.status}`;
-				throw new Error(message);
+				throw new Error(
+					formatClineAccountRequestFailure(response.status, text, parsed),
+				);
 			}
 
 			if (typeof parsed === "object" && parsed !== null) {

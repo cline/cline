@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionRecord } from "../types/sessions";
-import { hydrateSessionHistory } from "./history";
+import { hydrateSessionHistory, listSessionHistory } from "./history";
+
+const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+
+let tempSessionDataDir = "";
 
 function createRow(
 	overrides: Partial<SessionRecord> & Pick<SessionRecord, "sessionId">,
@@ -24,7 +31,50 @@ function createRow(
 	};
 }
 
-describe("hydrateSessionHistory", () => {
+async function writeManifest(
+	sessionId: string,
+	manifest: Record<string, unknown>,
+): Promise<void> {
+	const sessionDir = join(tempSessionDataDir, sessionId);
+	const completeManifest = {
+		version: 1,
+		session_id: sessionId,
+		source: "cli",
+		pid: 1,
+		started_at: "2026-04-20T00:00:00.000Z",
+		status: "completed",
+		interactive: false,
+		provider: "cline",
+		model: "anthropic/claude-sonnet-4.6",
+		cwd: "/tmp/workspace",
+		workspace_root: "/tmp/workspace",
+		enable_tools: true,
+		enable_spawn: false,
+		enable_teams: false,
+		...manifest,
+	};
+	await mkdir(sessionDir, { recursive: true });
+	await writeFile(
+		join(sessionDir, `${sessionId}.json`),
+		`${JSON.stringify(completeManifest, null, 2)}\n`,
+		"utf8",
+	);
+}
+
+describe("session history", () => {
+	afterEach(async () => {
+		vi.clearAllMocks();
+		if (tempSessionDataDir) {
+			await rm(tempSessionDataDir, { recursive: true, force: true });
+			tempSessionDataDir = "";
+		}
+		if (originalSessionDataDir === undefined) {
+			delete process.env.CLINE_SESSION_DATA_DIR;
+		} else {
+			process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
+		}
+	});
+
 	it("preserves rows that already have history display metadata", async () => {
 		const readMessages = vi.fn();
 		const rows = await hydrateSessionHistory({ readMessages }, [
@@ -110,5 +160,113 @@ describe("hydrateSessionHistory", () => {
 		expect(row.provider).toBe("cline");
 		expect(row.model).toBe("anthropic/claude-haiku-4.5");
 		expect(readMessages).toHaveBeenCalledWith("sess_3");
+	});
+
+	it("preserves host ordering when no manifest fallback rows are merged", async () => {
+		const readMessages = vi.fn().mockResolvedValue([]);
+		const first = createRow({
+			sessionId: "sess_first",
+			startedAt: "2026-04-19T00:00:00.000Z",
+		});
+		const second = createRow({
+			sessionId: "sess_second",
+			startedAt: "2026-04-20T00:00:00.000Z",
+		});
+
+		const rows = await listSessionHistory(
+			{
+				list: vi.fn().mockResolvedValue([first, second]),
+				readMessages,
+			},
+			{ limit: 2 },
+		);
+
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"sess_first",
+			"sess_second",
+		]);
+	});
+
+	it("passes zero limits through without forcing a row", async () => {
+		const list = vi.fn().mockResolvedValue([
+			createRow({
+				sessionId: "sess_4",
+			}),
+		]);
+		const readMessages = vi.fn();
+
+		const rows = await listSessionHistory({ list, readMessages }, { limit: 0 });
+
+		expect(list).toHaveBeenCalledWith(0);
+		expect(rows).toEqual([]);
+		expect(readMessages).not.toHaveBeenCalled();
+	});
+
+	it("merges manifest fallback rows when the backend list is short", async () => {
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
+		process.env.CLINE_SESSION_DATA_DIR = tempSessionDataDir;
+		await writeManifest("sess_1800000000000", {
+			session_id: "sess_1800000000000",
+			started_at: "2026-04-20T00:00:00.000Z",
+			source: "cli",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/tmp/workspace",
+			workspace_root: "/tmp/workspace",
+			prompt: "manifest prompt",
+			metadata: {
+				title: "manifest title",
+				totalCost: 0.03,
+			},
+		});
+		await writeManifest("sess_1700000000000", {
+			session_id: "sess_1700000000000",
+			started_at: "2026-04-19T00:00:00.000Z",
+			source: "cli",
+			provider: "cline",
+			model: "anthropic/claude-haiku-4.5",
+			cwd: "/tmp/workspace",
+			workspace_root: "/tmp/workspace",
+			prompt: "older manifest prompt",
+		});
+
+		const readMessages = vi.fn().mockResolvedValue([]);
+		const rows = await listSessionHistory(
+			{
+				list: vi.fn().mockResolvedValue([
+					createRow({
+						sessionId: "sess_backend",
+						startedAt: "2026-04-21T00:00:00.000Z",
+						provider: "cline",
+						model: "anthropic/claude-opus-4.1",
+						metadata: {
+							title: "backend title",
+							totalCost: 0.05,
+						},
+					}),
+				]),
+				readMessages,
+			},
+			{
+				limit: 3,
+				includeManifestFallback: true,
+			},
+		);
+
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"sess_backend",
+			"sess_1800000000000",
+			"sess_1700000000000",
+		]);
+		expect(rows[1]).toMatchObject({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			prompt: "manifest prompt",
+			metadata: {
+				title: "manifest title",
+				totalCost: 0.03,
+			},
+		});
+		expect(readMessages).toHaveBeenCalledWith("sess_1700000000000");
 	});
 });

@@ -696,9 +696,12 @@ function toProviderApiKey(
 	providerId: OAuthProviderId,
 	credentials: { access: string },
 ): string {
-	return providerId === "cline"
-		? `workos:${credentials.access}`
-		: credentials.access;
+	if (providerId === "cline") {
+		return credentials.access.startsWith("workos:")
+			? credentials.access
+			: `workos:${credentials.access}`;
+	}
+	return credentials.access;
 }
 
 export async function loginLocalProvider(

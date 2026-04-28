@@ -157,6 +157,7 @@ export type {
 } from "./auth/types";
 export {
 	ClineCore,
+	type ClineCoreListHistoryOptions,
 	type ClineCoreOptions,
 	type ClineCoreStartInput,
 	type HubOptions,
@@ -543,6 +544,13 @@ export {
 	type ToolPresetName,
 	ToolPresets,
 } from "./extensions/tools";
+export {
+	type ClineRecommendedModel,
+	type ClineRecommendedModelsData,
+	FALLBACK_CLINE_RECOMMENDED_MODELS,
+	type FetchClineRecommendedModelsOptions,
+	fetchClineRecommendedModels,
+} from "./llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,

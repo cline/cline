@@ -1,10 +1,13 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
 import { disposeAll, initVcr } from "@clinebot/shared";
 import { logCliProcessError } from "./logging/errors";
 import { runCli } from "./main";
-import { abortActiveRuntime } from "./runtime/active-runtime";
+import {
+	abortActiveRuntime,
+	cleanupActiveRuntime,
+} from "./runtime/active-runtime";
 import { writeErr } from "./utils/output";
 
 // Initialize VCR before any HTTP requests are made.
@@ -34,6 +37,7 @@ if (!isMainThread) {
 		writeErr(
 			error instanceof Error ? (error.stack ?? error.message) : String(error),
 		);
+		cleanupActiveRuntime();
 		abortActiveRuntime();
 		void disposeAll().finally(() => {
 			process.exit(1);
@@ -53,6 +57,7 @@ if (!isMainThread) {
 		} catch (err) {
 			logCliProcessError("runCli", err);
 			writeErr(err instanceof Error ? err.message : String(err));
+			cleanupActiveRuntime();
 			abortActiveRuntime();
 			exitCode = 1;
 		} finally {

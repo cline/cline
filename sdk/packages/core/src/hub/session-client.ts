@@ -89,6 +89,18 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 		return undefined;
 	}
 	switch (event.event) {
+		case "iteration.started":
+			return {
+				sessionId,
+				eventType: "runtime.chat.iteration_start",
+				payload: cloneRecord(event.payload),
+			};
+		case "iteration.finished":
+			return {
+				sessionId,
+				eventType: "runtime.chat.iteration_end",
+				payload: cloneRecord(event.payload),
+			};
 		case "assistant.delta":
 			return {
 				sessionId,

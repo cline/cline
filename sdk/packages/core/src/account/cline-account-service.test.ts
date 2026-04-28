@@ -166,6 +166,38 @@ describe("ClineAccountService", () => {
 		expect(config).toBeNull();
 	});
 
+	it("surfaces plain text request failures without JSON parse errors", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response("Authentication failed", { status: 401 });
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchMe()).rejects.toThrow(
+			"Cline account request failed with status 401: Authentication failed",
+		);
+	});
+
+	it("surfaces invalid success payloads without JSON parse internals", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response("Account service unavailable", { status: 200 });
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		await expect(service.fetchMe()).rejects.toThrow(
+			"Cline account response was not valid JSON",
+		);
+	});
+
 	it("switchAccount sends null org id for personal account", async () => {
 		const fetchImpl = vi.fn(async (_input: unknown, init?: RequestInit) => {
 			expect(init?.method).toBe("PUT");

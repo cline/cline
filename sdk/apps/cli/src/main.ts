@@ -31,6 +31,9 @@ import {
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import type { Config } from "./utils/types";
+import { runConnectWizard } from "./wizards/connect";
+import { runMcpWizard } from "./wizards/mcp";
+import { runScheduleWizard } from "./wizards/schedule";
 
 export function stdinHasPipedInput(): boolean {
 	if (process.stdin.isTTY) return false;
@@ -118,7 +121,7 @@ export async function runCli(): Promise<void> {
 	// Default action handles non-subcommand args (e.g. prompt text)
 	program.action(() => {});
 
-	// Auth subcommand — defines its own options so commander parses them
+	// Auth subcommand: defines its own options so commander parses them
 	// directly. The short flags -p/-m intentionally shadow the root's -p (plan)
 	// and -m (model); commander scopes options per-command so there is no
 	// conflict.
@@ -246,9 +249,24 @@ export async function runCli(): Promise<void> {
 					connectCmd.args.slice(1),
 					io,
 				);
+			} else if (process.stdin.isTTY && process.stdout.isTTY) {
+				ctx.exitCode = await runConnectWizard();
 			} else {
 				writeln(`\nAdapters:\n${formatAdapterList()}`);
 				connectCmd.help();
+			}
+		});
+
+	program
+		.command("mcp")
+		.description("Manage MCP servers")
+		.action(async () => {
+			if (process.stdin.isTTY && process.stdout.isTTY) {
+				ctx.exitCode = await runMcpWizard();
+			} else {
+				writeln(
+					"MCP wizard requires a TTY. Use clite config mcp to list servers.",
+				);
 			}
 		});
 
@@ -424,6 +442,14 @@ export async function runCli(): Promise<void> {
 		.allowExcessArguments()
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
+			if (
+				cmd.args.length === 0 &&
+				process.stdin.isTTY &&
+				process.stdout.isTTY
+			) {
+				ctx.exitCode = await runScheduleWizard();
+				return;
+			}
 			const scheduleCmd = await createScheduleRuntimeCommand();
 			await scheduleCmd.parseAsync(cmd.args, { from: "user" });
 		});
@@ -566,10 +592,12 @@ export async function runCli(): Promise<void> {
 		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
 	}
 	setCurrentOutputMode(args.outputMode);
-	const defaultToolAutoApprove = args.defaultToolAutoApprove;
+	const defaultToolAutoApprove = true;
+	const effectiveToolAutoApprove =
+		args.autoApproveOverride ?? defaultToolAutoApprove;
 	const toolPolicies: Record<string, ToolPolicy> = {
 		"*": {
-			autoApprove: defaultToolAutoApprove,
+			autoApprove: effectiveToolAutoApprove,
 		},
 	};
 
@@ -645,6 +673,7 @@ export async function runCli(): Promise<void> {
 			isZenMode ||
 			args.outputMode === "json" ||
 			(!process.stdin.isTTY && !args.interactive);
+		const isInteractive = (args.interactive || !args.prompt) && !isHeadless;
 
 		if (!apiKey && isOAuthProvider(provider) && !isHeadless) {
 			const oauthResult = await ensureOAuthProviderApiKey({
@@ -660,23 +689,23 @@ export async function runCli(): Promise<void> {
 		}
 
 		let knownModels: Config["knownModels"];
-		if (args.liveModelCatalog) {
-			try {
-				const resolvedProviderConfig = await coreServer.resolveProviderConfig(
-					provider,
-					{
-						loadLatestOnInit: true,
-						loadPrivateOnAuth: true,
-						failOnError: false,
-					},
-				);
-				knownModels = resolvedProviderConfig?.knownModels;
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				writeln(
-					`${c.dim}[model-catalog] latest refresh failed, using bundled defaults (${message})${c.reset}`,
-				);
-			}
+		try {
+			const providerConfig = await coreServer.resolveProviderConfig(
+				provider,
+				isInteractive
+					? {
+							loadLatestOnInit: true,
+							loadPrivateOnAuth: true,
+							failOnError: false,
+						}
+					: undefined,
+			);
+			knownModels = providerConfig?.knownModels;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			writeln(
+				`${c.dim}[model-catalog] catalog resolution failed (${message})${c.reset}`,
+			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
 		const effectiveReasoningEffort =
@@ -750,7 +779,7 @@ export async function runCli(): Promise<void> {
 				: undefined,
 		};
 		try {
-			// For OAuth providers, don't write the resolved key into apiKey —
+			// For OAuth providers, don't write the resolved key into apiKey;
 			// the token lives in auth.accessToken and apiKey is reserved for
 			// migrated/manual keys.
 			const persistApiKey =
@@ -806,7 +835,7 @@ export async function runCli(): Promise<void> {
 			}
 		}
 
-		// Interactive mode — zen is incompatible because there is no terminal UI
+		// Interactive mode: zen is incompatible because there is no terminal UI
 		// to surface results and nothing waits for the background task.
 		if (args.interactive || !args.prompt) {
 			if (isZenMode) {
@@ -819,10 +848,19 @@ export async function runCli(): Promise<void> {
 				return;
 			}
 			const runInteractive = await loadInteractiveRuntimeModule();
+			let initialView: "chat" | "config" | undefined;
+			if (launchConfigView) {
+				initialView = "config";
+			} else if (resumeSessionId) {
+				initialView = "chat";
+			}
+			const initialClineProviderSettings =
+				provider === "cline" ? selectedProviderSettings : undefined;
 			await runInteractive(config, userInstructionWatcher, resumeSessionId, {
-				clineApiBaseUrl: selectedProviderSettings?.baseUrl,
-				clineProviderSettings: selectedProviderSettings,
-				initialView: launchConfigView ? "config" : "chat",
+				initialPrompt: args.prompt,
+				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
+				clineProviderSettings: initialClineProviderSettings,
+				initialView,
 			});
 			return;
 		}

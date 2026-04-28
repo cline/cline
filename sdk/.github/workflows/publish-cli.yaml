@@ -1,0 +1,364 @@
+name: Publish CLI to NPM
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      publish_target:
+        description: "Which publish flow to run"
+        required: true
+        default: "main"
+        type: choice
+        options:
+          - main
+          - nightly
+      git_tag:
+        description: "Existing release tag to publish when publish_target=main, for example cli-v0.1.0"
+        required: false
+        type: string
+      confirm_publish:
+        description: 'Required when publish_target=main. Type "publish" to confirm release publish.'
+        required: false
+        type: string
+      force_nightly_publish:
+        description: "Force nightly publish even with no commits in last 24h"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-main:
+    name: Publish @clinebot/cli
+    permissions:
+      contents: write
+      id-token: write
+    if: |
+      github.repository == 'cline/sdk-wip' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.publish_target == 'main' &&
+      github.event.inputs.confirm_publish == 'publish' &&
+      !endsWith(github.actor, '[bot]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify publish tooling
+        run: |
+          NPM_VERSION=$(npm --version)
+          echo "npm ${NPM_VERSION}"
+          IFS=. read -r major minor patch <<EOF
+          ${NPM_VERSION}
+          EOF
+          if [ "$major" -lt 11 ] || { [ "$major" -eq 11 ] && [ "$minor" -lt 5 ]; } || { [ "$major" -eq 11 ] && [ "$minor" -eq 5 ] && [ "$patch" -lt 1 ]; }; then
+            echo "npm 11.5.1 or newer is required for trusted publishing"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate release tag
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.git_tag }}"
+
+          if [ -z "$TAG" ]; then
+            echo "git_tag is required when publish_target=main"
+            exit 1
+          fi
+
+          if ! printf "%s\n" "$TAG" | grep -Eq '^cli-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "git_tag must look like cli-vX.Y.Z, got: ${TAG}"
+            exit 1
+          fi
+
+          VERSION="${TAG#cli-v}"
+          PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            exit 1
+          fi
+
+          if ! printf "%s\n" "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "apps/cli/package.json has invalid version: ${VERSION}"
+            exit 1
+          fi
+
+          TAG_COMMIT=$(git rev-parse "${TAG}^{commit}")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo "${TAG} does not point at the checked out commit"
+            exit 1
+          fi
+
+          git fetch origin +main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$HEAD_COMMIT" origin/main; then
+            echo "${TAG} is not reachable from origin/main"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: bun run test
+
+      - name: Build platform binaries
+        run: bun script/build.ts --install-native-variants
+        working-directory: apps/cli
+
+      - name: Verify build output
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          EXPECTED=(
+            "@clinebot/cli-darwin-arm64"
+            "@clinebot/cli-darwin-x64"
+            "@clinebot/cli-linux-arm64"
+            "@clinebot/cli-linux-x64"
+            "@clinebot/cli-windows-arm64"
+            "@clinebot/cli-windows-x64"
+          )
+
+          for package_name in "${EXPECTED[@]}"; do
+            dir="apps/cli/dist/${package_name#@clinebot/}"
+            if [ ! -f "$dir/package.json" ]; then
+              echo "Missing package manifest: $dir/package.json"
+              exit 1
+            fi
+            actual_name=$(node -p "require('./$dir/package.json').name")
+            actual_version=$(node -p "require('./$dir/package.json').version")
+            if [ "$actual_name" != "$package_name" ]; then
+              echo "Expected $package_name, got $actual_name"
+              exit 1
+            fi
+            if [ "$actual_version" != "$VERSION" ]; then
+              echo "Expected $package_name@$VERSION, got $actual_version"
+              exit 1
+            fi
+            ls -lh "$dir/bin/"
+          done
+
+      - name: Publish to NPM with latest tag
+        run: bun script/publish-npm.ts --tag latest
+        working-directory: apps/cli
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "CLI v${VERSION}" \
+            --notes "Published @clinebot/cli@${VERSION} to npm."
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "Published @clinebot/cli@${VERSION} to npm with dist-tag 'latest'"
+          echo "Install with: npm install -g @clinebot/cli"
+
+      - name: Post release to Slack
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          payload: |
+            channel: "C0APVKGGZFC"
+            text: "Cline SDK CLI v${{ steps.version.outputs.version }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "Cline SDK CLI v${{ steps.version.outputs.version }}"
+              - type: "context"
+                elements:
+                  - type: "mrkdwn"
+                    text: "<https://www.npmjs.com/package/@clinebot/cli/v/${{ steps.version.outputs.version }}|View on npm>"
+
+  publish-nightly:
+    name: Publish @clinebot/cli nightly
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      github.repository == 'cline/sdk-wip' &&
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name == 'schedule' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_target == 'nightly'
+        )
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for recent commits
+        id: check_commits
+        env:
+          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}
+        run: |
+          if [ "$FORCE_PUBLISH" = "true" ]; then
+            echo "force_nightly_publish enabled, proceeding with publish"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$(git rev-list --count HEAD --since='24 hours ago')" -eq 0 ]; then
+            echo "No commits in last 24 hours, skipping publish"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found recent commits, proceeding with publish"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Bun
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup Node.js
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify publish tooling
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          NPM_VERSION=$(npm --version)
+          echo "npm ${NPM_VERSION}"
+          IFS=. read -r major minor patch <<EOF
+          ${NPM_VERSION}
+          EOF
+          if [ "$major" -lt 11 ] || { [ "$major" -eq 11 ] && [ "$minor" -lt 5 ]; } || { [ "$major" -eq 11 ] && [ "$minor" -eq 5 ] && [ "$patch" -lt 1 ]; }; then
+            echo "npm 11.5.1 or newer is required for trusted publishing"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun run test
+
+      - name: Generate nightly version
+        if: steps.check_commits.outputs.skip != 'true'
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+          TIMESTAMP=$(date +%s)
+          VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
+
+          echo "Base version: ${BASE_VERSION}"
+          echo "Generated nightly version: ${VERSION}"
+          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Update nightly package version
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          node -e '
+            const fs = require("node:fs");
+            const path = "apps/cli/package.json";
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = process.env.VERSION;
+            fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
+          '
+          cat apps/cli/package.json | grep '"version"'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Build platform binaries
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun script/build.ts --install-native-variants
+        working-directory: apps/cli
+
+      - name: Verify build output
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          EXPECTED=(
+            "@clinebot/cli-darwin-arm64"
+            "@clinebot/cli-darwin-x64"
+            "@clinebot/cli-linux-arm64"
+            "@clinebot/cli-linux-x64"
+            "@clinebot/cli-windows-arm64"
+            "@clinebot/cli-windows-x64"
+          )
+
+          for package_name in "${EXPECTED[@]}"; do
+            dir="apps/cli/dist/${package_name#@clinebot/}"
+            if [ ! -f "$dir/package.json" ]; then
+              echo "Missing package manifest: $dir/package.json"
+              exit 1
+            fi
+            actual_name=$(node -p "require('./$dir/package.json').name")
+            actual_version=$(node -p "require('./$dir/package.json').version")
+            if [ "$actual_name" != "$package_name" ]; then
+              echo "Expected $package_name, got $actual_name"
+              exit 1
+            fi
+            if [ "$actual_version" != "$VERSION" ]; then
+              echo "Expected $package_name@$VERSION, got $actual_version"
+              exit 1
+            fi
+            ls -lh "$dir/bin/"
+          done
+
+      - name: Publish to NPM with nightly tag
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun script/publish-npm.ts --tag nightly
+        working-directory: apps/cli
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Summary
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "Published @clinebot/cli@${VERSION} to npm with dist-tag 'nightly'"
+          echo "Install with: npm install -g @clinebot/cli@nightly"

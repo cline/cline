@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
 import type {
+	AgentEvent,
+	AgentFinishReason,
 	AgentResult,
+	AgentUsage,
 	HubEventEnvelope,
 	SessionRecord as HubSessionRecord,
 	HubToolExecutorName,
@@ -89,6 +90,76 @@ function parseApprovalInput(value: unknown): unknown {
 	} catch {
 		return value;
 	}
+}
+
+function isAgentFinishReason(value: unknown): value is AgentFinishReason {
+	return (
+		value === "completed" ||
+		value === "max_iterations" ||
+		value === "aborted" ||
+		value === "mistake_limit" ||
+		value === "error"
+	);
+}
+
+function parseDoneUsage(value: unknown): AgentUsage | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+	const payload = value as Record<string, unknown>;
+	const inputTokens =
+		typeof payload.inputTokens === "number" ? payload.inputTokens : undefined;
+	const outputTokens =
+		typeof payload.outputTokens === "number" ? payload.outputTokens : undefined;
+	if (inputTokens === undefined || outputTokens === undefined) {
+		return undefined;
+	}
+	return {
+		inputTokens,
+		outputTokens,
+		cacheReadTokens:
+			typeof payload.cacheReadTokens === "number" ? payload.cacheReadTokens : 0,
+		cacheWriteTokens:
+			typeof payload.cacheWriteTokens === "number"
+				? payload.cacheWriteTokens
+				: 0,
+		totalCost: typeof payload.totalCost === "number" ? payload.totalCost : 0,
+	};
+}
+
+function doneEventFromPayload(
+	payload: Record<string, unknown> | undefined,
+): AgentEvent {
+	const result =
+		payload?.result &&
+		typeof payload.result === "object" &&
+		!Array.isArray(payload.result)
+			? (payload.result as Record<string, unknown>)
+			: undefined;
+	const reasonCandidate = payload?.reason ?? result?.finishReason;
+	const reason = isAgentFinishReason(reasonCandidate)
+		? reasonCandidate
+		: reasonCandidate === "failed"
+			? "error"
+			: "completed";
+	const usage = parseDoneUsage(payload?.usage ?? result?.usage);
+	return {
+		type: "done",
+		reason,
+		text:
+			typeof payload?.text === "string"
+				? payload.text
+				: typeof result?.text === "string"
+					? result.text
+					: "",
+		iterations:
+			typeof payload?.iterations === "number"
+				? payload.iterations
+				: typeof result?.iterations === "number"
+					? result.iterations
+					: 0,
+		usage,
+	};
 }
 
 function hubReplyErrorMessage(
@@ -233,6 +304,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		Partial<ToolExecutors>
 	>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
+	private readonly pendingApprovalToolCallIds = new Set<string>();
 	private readonly requestToolApproval:
 		| HubRuntimeHostOptions["requestToolApproval"]
 		| undefined;
@@ -323,10 +395,7 @@ export class HubRuntimeHost implements RuntimeHost {
 									: {}),
 								...(input.userFiles?.length
 									? {
-											userFiles: input.userFiles.map((filePath) => ({
-												name: basename(filePath),
-												content: readFileSync(filePath, "utf8"),
-											})),
+											userFiles: input.userFiles,
 										}
 									: {}),
 							}
@@ -572,6 +641,27 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.delete(target);
 	}
 
+	private emitToolCallContentStart(input: {
+		sessionId: string;
+		toolCallId?: string;
+		toolName?: string;
+		toolInput?: unknown;
+	}): void {
+		this.events.emit({
+			type: "agent_event",
+			payload: {
+				sessionId: input.sessionId,
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolCallId: input.toolCallId,
+					toolName: input.toolName,
+					input: input.toolInput,
+				},
+			},
+		});
+	}
+
 	private handleHubEvent(event: HubEventEnvelope): void {
 		const sessionId = event.sessionId?.trim();
 		if (event.event === "capability.requested") {
@@ -587,6 +677,43 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 
 		switch (event.event) {
+			case "iteration.started": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "iteration_start",
+							iteration:
+								typeof event.payload?.iteration === "number"
+									? event.payload.iteration
+									: 0,
+						},
+					},
+				});
+				return;
+			}
+			case "iteration.finished": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "iteration_end",
+							iteration:
+								typeof event.payload?.iteration === "number"
+									? event.payload.iteration
+									: 0,
+							hadToolCalls: event.payload?.hadToolCalls === true,
+							toolCallCount:
+								typeof event.payload?.toolCallCount === "number"
+									? event.payload.toolCallCount
+									: 0,
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.delta": {
 				const text =
 					typeof event.payload?.text === "string" ? event.payload.text : "";
@@ -601,6 +728,23 @@ export class HubRuntimeHost implements RuntimeHost {
 							type: "content_start",
 							contentType: "text",
 							text,
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.finished": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "text",
+							text:
+								typeof event.payload?.text === "string"
+									? event.payload.text
+									: undefined,
 						},
 					},
 				});
@@ -627,29 +771,60 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
-			case "tool.started": {
+			case "reasoning.finished": {
 				this.events.emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
 						event: {
-							type: "content_start",
-							contentType: "tool",
-							toolCallId:
-								typeof event.payload?.toolCallId === "string"
-									? event.payload.toolCallId
+							type: "content_end",
+							contentType: "reasoning",
+							reasoning:
+								typeof event.payload?.reasoning === "string"
+									? event.payload.reasoning
 									: undefined,
-							toolName:
-								typeof event.payload?.toolName === "string"
-									? event.payload.toolName
-									: undefined,
-							input: event.payload?.input,
 						},
 					},
 				});
 				return;
 			}
+			case "agent.done": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: doneEventFromPayload(event.payload),
+					},
+				});
+				return;
+			}
+			case "tool.started": {
+				const toolCallId =
+					typeof event.payload?.toolCallId === "string"
+						? event.payload.toolCallId
+						: undefined;
+				if (toolCallId && this.pendingApprovalToolCallIds.delete(toolCallId)) {
+					return;
+				}
+				this.emitToolCallContentStart({
+					sessionId,
+					toolCallId,
+					toolName:
+						typeof event.payload?.toolName === "string"
+							? event.payload.toolName
+							: undefined,
+					toolInput: event.payload?.input,
+				});
+				return;
+			}
 			case "tool.finished": {
+				const toolCallId =
+					typeof event.payload?.toolCallId === "string"
+						? event.payload.toolCallId
+						: undefined;
+				if (toolCallId) {
+					this.pendingApprovalToolCallIds.delete(toolCallId);
+				}
 				this.events.emit({
 					type: "agent_event",
 					payload: {
@@ -657,10 +832,7 @@ export class HubRuntimeHost implements RuntimeHost {
 						event: {
 							type: "content_end",
 							contentType: "tool",
-							toolCallId:
-								typeof event.payload?.toolCallId === "string"
-									? event.payload.toolCallId
-									: undefined,
+							toolCallId,
 							toolName:
 								typeof event.payload?.toolName === "string"
 									? event.payload.toolName
@@ -724,6 +896,21 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "run.completed":
 			case "run.aborted": {
 				this.sessionToolExecutors.delete(sessionId);
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: doneEventFromPayload({
+							...event.payload,
+							reason:
+								typeof event.payload?.reason === "string"
+									? event.payload.reason
+									: event.event === "run.aborted"
+										? "aborted"
+										: "completed",
+						}),
+					},
+				});
 				this.events.emit({
 					type: "ended",
 					payload: {
@@ -844,6 +1031,14 @@ export class HubRuntimeHost implements RuntimeHost {
 			!Array.isArray(event.payload.policy)
 				? (event.payload.policy as ToolApprovalRequest["policy"])
 				: { autoApprove: false };
+		const input = parseApprovalInput(event.payload?.inputJson);
+		this.pendingApprovalToolCallIds.add(toolCallId);
+		this.emitToolCallContentStart({
+			sessionId,
+			toolCallId,
+			toolName,
+			toolInput: input,
+		});
 		const result = await Promise.resolve(
 			this.requestToolApproval({
 				sessionId,
@@ -861,7 +1056,7 @@ export class HubRuntimeHost implements RuntimeHost {
 						: 0,
 				toolCallId,
 				toolName,
-				input: parseApprovalInput(event.payload?.inputJson),
+				input,
 				policy,
 			}),
 		).catch((error) => ({

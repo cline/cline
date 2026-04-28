@@ -15,6 +15,7 @@ import {
 import { getToolCatalog } from "../runtime/tools";
 
 export type InteractiveConfigTab =
+	| "general"
 	| "tools"
 	| "workflows"
 	| "agents"

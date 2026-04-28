@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CLI Interactive use cases — main chat view
+// CLI Interactive use cases - main chat view
 //
 // Covers:
 //   - `cline` launches interactive view (authed / unauthed)
@@ -22,12 +22,11 @@ import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import {
 	toggleAutoApproveAll,
-	togglePlanAct,
 	waitForChatReady,
 } from "../helpers/page-objects/chat.js";
 import { expectVisible } from "../helpers/terminal.js";
 
-test.describe("cline (authenticated) — shows chat view", () => {
+test.describe("cline (authenticated) - shows chat view", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
 		...TERMINAL_WIDE,
@@ -39,24 +38,7 @@ test.describe("cline (authenticated) — shows chat view", () => {
 	});
 });
 
-test.describe("Plan/Act mode toggle", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: [] },
-		...TERMINAL_WIDE,
-		env: clineEnv("default"),
-	});
-
-	test("pressing Tab toggles between Plan and Act mode", async ({
-		terminal,
-	}) => {
-		await waitForChatReady(terminal);
-		await expectVisible(terminal, "○ Plan ● Act");
-		await togglePlanAct(terminal);
-		await expectVisible(terminal, "● Plan ○ Act");
-	});
-});
-
-test.describe("Auto-approve all — Shift+Tab toggle", () => {
+test.describe("Auto-approve all - Shift+Tab toggle", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
 		...TERMINAL_WIDE,

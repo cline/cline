@@ -75,7 +75,6 @@ export interface ParsedArgs {
 	invalidTimeoutSeconds?: string;
 	thinking: boolean;
 	reasoningEffort?: CliReasoningEffort;
-	liveModelCatalog: boolean;
 	invalidReasoningEffort?: string;
 	invalidAutoApprove?: string;
 	sandbox: boolean;
@@ -91,4 +90,5 @@ export interface ParsedArgs {
 	cwd?: string;
 	teamName?: string;
 	defaultToolAutoApprove: boolean;
+	autoApproveOverride?: boolean;
 }

@@ -6,7 +6,8 @@ import type {
 	ToolApprovalResult,
 } from "@clinebot/shared";
 import type { ToolExecutors } from "./extensions/tools";
-import { hydrateSessionHistory } from "./runtime/history";
+import type { SessionHistoryListOptions } from "./runtime/history";
+import { listSessionHistory } from "./runtime/history";
 import type { SessionBackend } from "./runtime/host";
 import { createRuntimeHost } from "./runtime/host";
 import type {
@@ -28,6 +29,7 @@ import { SessionSource } from "./types/common";
 import type { CoreSessionConfig } from "./types/config";
 import type { CoreSessionEvent, SessionPendingPrompt } from "./types/events";
 import type { SessionMessagesArtifactUploader } from "./types/session";
+import type { SessionHistoryRecord } from "./types/sessions";
 
 export interface HubOptions {
 	endpoint?: string;
@@ -49,6 +51,8 @@ export interface RemoteOptions {
 }
 
 export type { RuntimeHostMode };
+
+export type ClineCoreListHistoryOptions = SessionHistoryListOptions;
 
 export interface ClineCoreStartInput
 	extends Omit<StartSessionInput, "config" | "localRuntime"> {
@@ -518,24 +522,31 @@ export class ClineCore implements RuntimeHost {
 	 */
 	get: RuntimeHost["get"] = (...args) => this.host.get(...args);
 	/**
-	 * Lists recent sessions with their full history.
+	 * Lists recent sessions through the shared history-listing path.
+	 */
+	listHistory = async (
+		options: ClineCoreListHistoryOptions = {},
+	): Promise<SessionHistoryRecord[]> =>
+		await listSessionHistory(this.host, options);
+	/**
+	 * Lists recent sessions with inferred history display metadata.
 	 *
-	 * Retrieves a paginated list of recent sessions, optionally limited by the provided
-	 * count. Each session includes its complete message history and metadata.
+	 * Retrieves a paginated list of recent sessions, optionally limited by the
+	 * provided count.
 	 *
 	 * @param limit Maximum number of sessions to return (defaults to 200)
-	 * @returns A promise resolving to an array of sessions with full history
+	 * @returns A promise resolving to an array of session history records
 	 *
 	 * @example
 	 * ```ts
 	 * const sessions = await cline.list(50);
 	 * sessions.forEach((session) => {
-	 *   console.log(`Session ${session.id}: ${session.messages.length} messages`);
+	 *   console.log(`Session ${session.sessionId}: ${session.metadata?.title}`);
 	 * });
 	 * ```
 	 */
 	list: RuntimeHost["list"] = async (limit = 200) =>
-		await hydrateSessionHistory(this.host, await this.host.list(limit));
+		await this.listHistory({ limit });
 	/**
 	 * Permanently deletes a session and all its associated data.
 	 *

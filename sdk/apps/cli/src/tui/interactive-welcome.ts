@@ -1,17 +1,17 @@
 import {
-	ClineAccountService,
 	getFileIndex,
 	listAvailableRuntimeCommandsFromWatcher,
 	type ProviderSettings,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
-import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import type { Config } from "../utils/types";
+import { formatClineCredits, loadClineAccountSnapshot } from "./cline-account";
 
 export interface InteractiveSlashCommand {
 	name: string;
 	instructions: string;
 	description?: string;
+	kind?: "skill" | "workflow";
 }
 
 function normalizeLimit(limit: number | undefined): number {
@@ -50,7 +50,12 @@ export function listInteractiveSlashCommands(
 		{
 			name: "settings",
 			instructions: "",
-			description: "Alias for /config",
+			description: "Modify agent configuration",
+		},
+		{
+			name: "mcp",
+			instructions: "",
+			description: "Manage MCP servers",
 		},
 		{
 			name: "fork",
@@ -72,6 +77,7 @@ export function listInteractiveSlashCommands(
 			name: command.name,
 			instructions: command.instructions,
 			description: command.description,
+			kind: command.kind,
 		})),
 	];
 }
@@ -110,45 +116,14 @@ export async function resolveClineWelcomeLine(input: {
 	if (input.config.providerId !== "cline") {
 		return undefined;
 	}
-	const persistedAccessToken =
-		input.clineProviderSettings?.auth?.accessToken?.trim() || "";
-	const configApiKey = input.config.apiKey.trim();
-	let authToken = persistedAccessToken || configApiKey;
-	if (authToken.toLowerCase().startsWith("workos:workos:")) {
-		authToken = authToken.slice("workos:".length);
-	}
-	if (!authToken) {
-		return undefined;
-	}
-
-	const service = new ClineAccountService({
-		apiBaseUrl: input.clineApiBaseUrl?.trim() || "https://api.cline.bot",
-		getAuthToken: async () => authToken,
-	});
 	try {
-		const me = await service.fetchMe();
-		const activeOrgName = me.organizations
-			.find((org) => org.active)
-			?.name?.trim();
-		const activeOrganizationId = me.organizations.find(
-			(org) => org.active,
-		)?.organizationId;
-		let rawBalance: number;
-		if (activeOrganizationId?.trim()) {
-			const orgBalance =
-				await service.fetchOrganizationBalance(activeOrganizationId);
-			rawBalance = orgBalance.balance;
-		} else {
-			const userBalance = await service.fetchBalance(me.id);
-			rawBalance = userBalance.balance;
-		}
-		const normalizedBalance = normalizeCreditBalance(rawBalance);
+		const snapshot = await loadClineAccountSnapshot(input);
 		const parts = [
-			me.email,
-			`Credits: ${formatCreditBalance(normalizedBalance)}`,
+			snapshot.user.email,
+			`Credits: ${formatClineCredits(snapshot.displayedBalance)}`,
 		];
-		if (activeOrgName) {
-			parts.push(activeOrgName);
+		if (snapshot.activeOrganization?.name.trim()) {
+			parts.push(snapshot.activeOrganization.name);
 		}
 		return parts.join(" | ");
 	} catch {

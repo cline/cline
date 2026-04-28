@@ -1,6 +1,6 @@
 # Cline CLI Lite
 
-Cline CLI built with Cline SDK. 
+Cline CLI built with Cline SDK.
 
 Streams output in real time and includes built-in tools, sub-agent spawning, and team runtime support by default.
 
@@ -9,7 +9,7 @@ Detailed CLI command/feature reference is centralized in [`DOC.md`](./DOC.md).
 
 ## Requirements
 
-- [Bun](https://bun.com/docs/installation) (for development, build, and running `cline`)
+- [Bun](https://bun.com/docs/installation) (for development, build, and running `clite`)
 
 ## Installation
 
@@ -36,7 +36,7 @@ bun run -F @clinebot/cli dev "your prompt" # Run the CLI from the package worksp
 # or
 bun link # Link the package globally for easy access from anywhere
 # Run from the linked binary
-cline auth
+clite auth
 
 # Run built CLI with Bun
 bun cli/dist/index.js "your prompt"
@@ -79,100 +79,97 @@ bun -F @clinebot/cli test:e2e:interactive
 
 ```bash
 # Start Cline CLI without a prompt to enter interactive mode
-cline
+clite
 
 # Single prompt / One-shot - includes tools + spawn + teams
-cline "Audit this package and propose fixes"
+clite "Audit this package and propose fixes"
 # NOTE: Single-prompt runs are non-interactive and exit when the turn finishes
 
 # Interactive mode
-cline -i
+clite -i
 # With custom system prompt
-cline -i -s "You are a pirate" "Tell me about the sea"
-cline -i "Let's work on this together. First, analyze the current state and suggest next steps."
+clite -i -s "You are a pirate" "Tell me about the sea"
+clite -i "Let's work on this together. First, analyze the current state and suggest next steps."
 
 # Require approval before each tool call
-cline --autoapprove false "Inspect and modify this repository"
+clite --autoapprove false "Inspect and modify this repository"
 # Explicitly enable auto-approval for all tools
-cline --autoapprove true "Refactor src/index.ts for readability"
+clite --autoapprove true "Refactor src/index.ts for readability"
 
 # Pipe input
-cat file.txt | cline "Summarize this"
+cat file.txt | clite "Summarize this"
 
 # Team workflow with persistent name
-cline --team-name my-team "Plan, implement, and verify release checklist"
-cline --team-name my-team "Continue yesterday's team workflow"
+clite --team-name my-team "Plan, implement, and verify release checklist"
+clite --team-name my-team "Continue yesterday's team workflow"
 
-# Show usage stats (includes elapsed time, tokens, and estimated cost when available)
-cline -u "Explain quantum computing"
+# Show verbose run stats (includes elapsed time, tokens, and estimated cost when available)
+clite -v "Explain quantum computing"
 
 # Override consecutive internal mistake (retry) limit for this run (default: 3)
-cline --retries 5 "Fix failing tests"
+clite --retries 5 "Fix failing tests"
 # Common with auto-approve/yolo-style runs
-cline --autoapprove true --retries 5 "Refactor this package"
+clite --autoapprove true --retries 5 "Refactor this package"
 
 # Explicit yolo also enables submit_and_exit and disables spawn/team tools by default
-cline --yolo --retries 5 "Refactor this package"
+clite --yolo --retries 5 "Refactor this package"
 
 # Zen mode: fire-and-forget a task to the background hub and exit the CLI immediately
 # The hub keeps running the task; the menubar app (if installed) will notify you on
-# completion. Otherwise check `cline history` later to see the result.
-cline --zen "Refactor the authentication module"
+# completion. Otherwise check `clite history` later to see the result.
+clite --zen "Refactor the authentication module"
 
 # Stream structured NDJSON output
-cline --json "Summarize this repository"
+clite --json "Summarize this repository"
 
 # Use a specific provider, model, and access token for a single prompt/task
-cline -P openrouter -m google/gemini-3-pro -k sk-your-google-gemini-api-key "Set up a storybook for the frontend react ui components"
+clite -P openrouter -m google/gemini-3-pro -k sk-your-google-gemini-api-key "Set up a storybook for the frontend react ui components"
 # Use a different model with the last used provider
-cline -m anthropic/claude-opus-4-6 "Explain string theory"
-# Refresh model catalog from provider endpoints for this run 
-# to use a new model not available in the built-in model catalog yet 
-cline --refresh-models -P cline -m "openai/gpt-10"
+clite -m anthropic/claude-opus-4-6 "Explain string theory"
 
 # Quick setup with API key/model
-cline auth --provider anthropic --apikey sk-... --modelid claude-sonnet-4-6
-cline auth --provider openai-native --apikey sk-... --modelid gpt-5 --baseurl https://api.example.com/v1
+clite auth --provider anthropic --apikey sk-... --modelid claude-sonnet-4-6
+clite auth --provider openai-native --apikey sk-... --modelid gpt-5 --baseurl https://api.example.com/v1
 
 # Authenticate OAuth providers explicitly
-cline auth <cline|openai-codex|oca>
+clite auth <cline|openai-codex|oca>
 
 # Bridge a Telegram bot into RPC-backed chat sessions (polling mode)
-cline connect telegram -m my_bot -k 123456:ABCDEF...
+clite connect telegram -m my_bot -k 123456:ABCDEF...
 # Foreground mode for local debugging / logs in the active terminal
-cline connect telegram -i -m my_bot -k 123456:ABCDEF...
+clite connect telegram -i -m my_bot -k 123456:ABCDEF...
 # Reuse the last-used provider/model, but keep tools off by default for safety
 # Override provider/model if needed
-cline connect telegram -m my_bot -k 123456:ABCDEF... --provider cline --model openai/gpt-5.3-codex
+clite connect telegram -m my_bot -k 123456:ABCDEF... --provider cline --model openai/gpt-5.3-codex
 # Enable tools explicitly only if you trust the Telegram surface
-cline connect telegram -m my_bot -k 123456:ABCDEF... --enable-tools
+clite connect telegram -m my_bot -k 123456:ABCDEF... --enable-tools
 # Dispatch connector lifecycle/message events to an external hook command
-cline connect telegram -m my_bot -k 123456:ABCDEF... --hook-command '/Users/me/bin/on-connector-event'
+clite connect telegram -m my_bot -k 123456:ABCDEF... --hook-command '/Users/me/bin/on-connector-event'
 # In Telegram chats, use /tools, /yolo, /cwd <path>, /clear, /whereami, /exit
 
 # Bridge a Google Chat app into RPC-backed chat sessions (webhook mode)
-cline connect gchat --base-url https://your-domain.com
+clite connect gchat --base-url https://your-domain.com
 # Foreground mode for local debugging / logs in the active terminal
-cline connect gchat -i --base-url https://your-domain.com --port 8787
+clite connect gchat -i --base-url https://your-domain.com --port 8787
 # Receive all-space messages through Workspace Events / Pub/Sub
-cline connect gchat --base-url https://your-domain.com --pubsub-topic projects/my-project/topics/chat-events --impersonate-user admin@example.com
+clite connect gchat --base-url https://your-domain.com --pubsub-topic projects/my-project/topics/chat-events --impersonate-user admin@example.com
 # Enable tools explicitly only if you trust the Google Chat surface
-cline connect gchat --base-url https://your-domain.com --enable-tools
+clite connect gchat --base-url https://your-domain.com --enable-tools
 
 # Bridge a WhatsApp Business webhook into RPC-backed chat sessions
-cline connect whatsapp --base-url https://your-domain.com
+clite connect whatsapp --base-url https://your-domain.com
 # Foreground mode for local debugging / logs in the active terminal
-cline connect whatsapp -i --base-url https://your-domain.com --port 8787
+clite connect whatsapp -i --base-url https://your-domain.com --port 8787
 # Override Meta credentials directly instead of relying on environment variables
-cline connect whatsapp --base-url https://your-domain.com --phone-number-id 1234567890 --access-token token --app-secret secret --verify-token verify
+clite connect whatsapp --base-url https://your-domain.com --phone-number-id 1234567890 --access-token token --app-secret secret --verify-token verify
 # Enable tools explicitly only if you trust the WhatsApp surface
-cline connect whatsapp --base-url https://your-domain.com --enable-tools
+clite connect whatsapp --base-url https://your-domain.com --enable-tools
 
 # Stop connector bridges and delete their sessions
-cline connect --stop
-cline connect --stop telegram
-cline connect --stop gchat
-cline connect --stop whatsapp
+clite connect --stop
+clite connect --stop telegram
+clite connect --stop gchat
+clite connect --stop whatsapp
 
 # Connector implementation notes
 # - adapter files keep transport-specific setup and schedule-delivery rules
@@ -180,19 +177,19 @@ cline connect --stop whatsapp
 #   and turn/approval handling lives under apps/cli/src/connectors/
 
 # Open the CLI runtime log file
-cline dev log
+clite dev log
 
 # Inspect local CLI/RPC process health
-cline doctor
+clite doctor
 # Include historical spawn records from the shared CLI log
-cline doctor --verbose
+clite doctor --verbose
 # Kill stale local RPC listeners and old CLI processes
-cline doctor --fix
+clite doctor --fix
 
 # Open interactive config view directly
-cline config
-# Running `cline` with no prompt also enters interactive mode.
-# Interactive mode is rendered with the Ink TUI.
+clite config
+# Running `clite` with no prompt also enters interactive mode.
+# Interactive mode is rendered with the OpenTUI TUI.
 # The initial screen uses a WelcomeView-style layout before the first prompt.
 # Inline composer supports completion menus:
 # - `@` opens workspace file mention search (arrow keys to move, Enter/Tab to insert)
@@ -208,7 +205,7 @@ cline config
 # Exit interactive mode with Ctrl+D (or Ctrl+C when idle).
 
 # Schedule agents on cron-like intervals
-cline schedule create "Daily code review" \
+clite schedule create "Daily code review" \
   --cron "0 9 * * MON-FRI" \
   --prompt "Review PRs opened yesterday and summarize issues." \
   --workspace /path/to/repo \
@@ -219,39 +216,39 @@ cline schedule create "Daily code review" \
 
 # Route a scheduled result back to a Telegram thread handled by the connector
 # First, send /whereami to your bot in Telegram to get the thread id
-cline schedule create "Daily summary" \
+clite schedule create "Daily summary" \
   --cron "0 9 * * *" \
   --prompt "Summarize yesterday's activity in this workspace." \
   --workspace /path/to/repo \
   --delivery-adapter telegram \
   --delivery-bot my_bot \
   --delivery-thread telegram:123456789
-cline schedule list
-cline schedule get <schedule-id>
-cline schedule trigger <schedule-id>
-cline schedule history <schedule-id> --limit 20
-cline schedule stats <schedule-id>
-cline schedule active
-cline schedule upcoming --limit 10
-cline schedule export <schedule-id> > daily-review.yaml
-cline schedule import ./daily-review.yaml
+clite schedule list
+clite schedule get <schedule-id>
+clite schedule trigger <schedule-id>
+clite schedule history <schedule-id> --limit 20
+clite schedule stats <schedule-id>
+clite schedule active
+clite schedule upcoming --limit 10
+clite schedule export <schedule-id> > daily-review.yaml
+clite schedule import ./daily-review.yaml
 ```
 
 ## OAuth Authentication
 
-`cline` supports OAuth login for:
+`clite` supports OAuth login for:
 
 - `cline`
 - `openai-codex`
 - `oca`
 
-`cline` does not auto-start OAuth during normal command startup. Authenticate explicitly first with `cline auth <provider>`.
+`clite` does not auto-start OAuth during normal command startup. Authenticate explicitly first with `clite auth <provider>`.
 
-For non-interactive runs, if one of these providers is selected and no saved credentials are available, `cline` fails fast with an authentication message instead of launching a hidden browser flow.
+For non-interactive runs, if one of these providers is selected and no saved credentials are available, `clite` fails fast with an authentication message instead of launching a hidden browser flow.
 
-During OAuth login, `cline` tries to open the authorization URL in your default browser automatically and still prints the URL for manual fallback.
+During OAuth login, `clite` tries to open the authorization URL in your default browser automatically and still prints the URL for manual fallback.
 
-`cline auth` (without a provider) opens the interactive auth TUI with the same auth options as the old CLI flow:
+`clite auth` (without a provider) opens the interactive auth TUI with the same auth options as the old CLI flow:
 
 - Sign in with Cline
 - Sign in with ChatGPT Subscription (`openai-codex`)
@@ -260,7 +257,7 @@ During OAuth login, `cline` tries to open the authorization URL in your default 
 
 Runtime note:
 
-- Hook dispatch now runs in-process against the active runtime session instead of spinning up a separate `cline hook-worker` service.
+- Hook dispatch now runs in-process against the active runtime session instead of spinning up a separate `clite hook-worker` service.
 
 ## Options
 
@@ -281,7 +278,6 @@ Runtime note:
 | `--reasoning-effort <none\|low\|medium\|high\|xhigh>` | Set explicit model reasoning effort (default: `none`, or `medium` when `--thinking` is set) |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
-| `--refresh-models` | Refresh the provider model catalog for this run |
 | `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline` (enables sandbox mode automatically) |
 | `--autoapprove [true\|false]` | Set tool auto-approval for all tools |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
@@ -295,36 +291,36 @@ Runtime note:
 
 Top-level commands:
 
-- `cline config` - Open the interactive config view
-- `cline history|h [options]` - List session history or manage saved sessions
-- `cline version` - Show CLI version
-- `cline update [options]` - Reserved command; currently prints a not-implemented message
-- `cline auth <provider>` - Authenticate or seed provider credentials
-- `cline connect <adapter>` - Run a chat connector bridge (`telegram`, `gchat`, `whatsapp`)
-- `cline connect --stop [adapter]` - Stop connector bridge processes and their sessions
-- `cline schedule <command>` - Create and manage scheduled runs
-- `cline dev log` - Open the CLI runtime log file
-- `cline doctor` - Inspect local CLI health and stale processes
-- `cline hook` - Handle a hook payload from stdin
-- `cline hub` - Manage the local hub daemon
-- `cline kanban` - Launch the external `kanban` app and exit (requires `npm i -g kanban`)
+- `clite config` - Open the interactive config view
+- `clite history|h [options]` - List session history or manage saved sessions
+- `clite version` - Show CLI version
+- `clite update [options]` - Reserved command; currently prints a not-implemented message
+- `clite auth <provider>` - Authenticate or seed provider credentials
+- `clite connect <adapter>` - Run a chat connector bridge (`telegram`, `gchat`, `whatsapp`)
+- `clite connect --stop [adapter]` - Stop connector bridge processes and their sessions
+- `clite schedule <command>` - Create and manage scheduled runs
+- `clite dev log` - Open the CLI runtime log file
+- `clite doctor` - Inspect local CLI health and stale processes
+- `clite hook` - Handle a hook payload from stdin
+- `clite hub` - Manage the local hub daemon
+- `clite kanban` - Launch the external `kanban` app and exit (requires `npm i -g kanban`)
 
 Connector shortcuts:
 
-- `cline connect telegram -m <bot> -k <token>` - Start the Telegram bridge
-- `cline connect gchat --base-url <url>` - Start the Google Chat webhook bridge
-- `cline connect whatsapp --base-url <url>` - Start the WhatsApp webhook bridge
-- `cline connect <adapter> --help` - Show adapter-specific options and examples
+- `clite connect telegram -m <bot> -k <token>` - Start the Telegram bridge
+- `clite connect gchat --base-url <url>` - Start the Google Chat webhook bridge
+- `clite connect whatsapp --base-url <url>` - Start the WhatsApp webhook bridge
+- `clite connect <adapter> --help` - Show adapter-specific options and examples
 - `--hook-command <command>` - Run a shell command for connector events
 
 Schedule shortcuts:
 
-- `cline schedule create <name> --cron "<expr>" --prompt "<text>" --workspace <path>` - Create a scheduled run
-- `cline schedule <create|list|get|update|pause|resume|delete|trigger|history|stats|active|upcoming|import|export>` - Manage schedules and execution history
+- `clite schedule create <name> --cron "<expr>" --prompt "<text>" --workspace <path>` - Create a scheduled run
+- `clite schedule <create|list|get|update|pause|resume|delete|trigger|history|stats|active|upcoming|import|export>` - Manage schedules and execution history
 
 Behavior notes:
 
-- `cline auth` without a provider opens the interactive auth setup TUI.
+- `clite auth` without a provider opens the interactive auth setup TUI.
 - Connector slash commands are shared across connector chat surfaces: `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/exit`.
 - Interactive CLI can use the shared slash-command parser when `CLINE_ENABLE_CHAT_COMMANDS=1`.
 - `/team <task>` is handled directly by the CLI in both interactive and non-interactive runs, even when chat commands are otherwise disabled.
@@ -342,15 +338,15 @@ Auth quick-setup flags:
 
 ```bash
 # Fire off a task and return to your shell right away
-cline --zen "Refactor the authentication module and add unit tests"
+clite --zen "Refactor the authentication module and add unit tests"
 ```
 
 Behavior:
 
-- The CLI starts (or reuses) the local hub daemon, submits the task, then exits. It does **not** stream output or stay attached to the session.
+- The CLI starts (or reuses) the local hub daemon, submits the task, then exits. It does not stream output or stay attached to the session.
 - Because there is no human in the loop once the CLI exits, zen sessions run with full tool auto-approval (same semantics as `--yolo`). `spawn`/`team` tools are disabled by default for safety, consistent with yolo-mode defaults.
 - If the Cline menubar app is running, it subscribes to hub `ui.notify` events and will surface a system notification when the task completes.
-- If the menubar app is not running, there is no live UI for the task. Use `cline history` later to find the session and inspect the result.
+- If the menubar app is not running, there is no live UI for the task. Use `clite history` later to find the session and inspect the result.
 - `--zen` is incompatible with `--data-dir` (the implicit sandbox requires a local backend that exits with the CLI) and with `--tui` (there is no terminal UI to render into).
 
 ## Tool Approval
@@ -359,10 +355,10 @@ Tool calls are auto-approved by default. Use `--autoapprove false` to require re
 
 ```bash
 # Require approval for all tools
-cline --autoapprove false "Inspect and modify this repository"
+clite --autoapprove false "Inspect and modify this repository"
 
 # Explicitly keep approvals disabled for this run
-cline --autoapprove true "Audit the current workspace"
+clite --autoapprove true "Audit the current workspace"
 ```
 
 When approval is required, the CLI prompts in TTY mode:
@@ -406,7 +402,7 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 
 `--key` takes precedence over environment variables.
 
-For OAuth providers (`cline`, `openai-codex`, `oca`), authenticate explicitly with `cline auth <provider>`. Normal command startup does not auto-launch OAuth.
+For OAuth providers (`cline`, `openai-codex`, `oca`), authenticate explicitly with `clite auth <provider>`. Normal command startup does not auto-launch OAuth.
 
 ## Debugging
 
@@ -421,12 +417,12 @@ CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./sr
 ```
 
 - The workspace includes [.vscode/launch.json](./.vscode/launch.json) with a single `Launch CLI Debugger` compound entry for VS Code. It launches `apps/cli/src/index.ts` directly under Bun in development mode and attaches the common SDK child-process debuggers.
-- The launch config uses `"type": "bun"` (requires the [`oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode) extension). Using `type: node` will not work — breakpoints in the CLI and workspace packages like `packages/core` will be silently ignored.
-- Attach configs use `"url": "ws://127.0.0.1:<port>"` with `localRoot`/`remoteRoot` both set to `${workspaceFolder}`. This lets the Bun debug adapter resolve source maps for files loaded through workspace symlinks (e.g. `node_modules/@clinebot/core` → `packages/core/src/...`), so breakpoints set in `packages/core` hit correctly.
+- The launch config uses `"type": "bun"` (requires the [`oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode) extension). Using `type: node` will not work because breakpoints in the CLI and workspace packages like `packages/core` will be silently ignored.
+- Attach configs use `"url": "ws://127.0.0.1:<port>"` with `localRoot`/`remoteRoot` both set to `${workspaceFolder}`. This lets the Bun debug adapter resolve source maps for files loaded through workspace symlinks (for example `node_modules/@clinebot/core` to `packages/core/src/...`), so breakpoints set in `packages/core` hit correctly.
 
 ## Logging Adapter
 
-`cline` uses a `pino`-backed adapter that targets the core `BasicLogger` contract:
+`clite` uses a `pino`-backed adapter that targets the core `BasicLogger` contract:
 
 - CLI runtime passes `logger` directly into local `@clinebot/core` sessions.
 - Hub-backed sessions include a serialized logger payload in `ChatStartSessionRequest.logger`; the runtime reconstructs the same `pino` settings and injects them into core.
@@ -434,7 +430,7 @@ CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./sr
 
 After login, OAuth credentials are persisted with `auth.expiresAt`, and `@clinebot/core` refreshes these tokens automatically during session turns.
 
-On startup, `cline` also attempts a legacy settings import:
+On startup, `clite` also attempts a legacy settings import:
 
 - Source files: `<CLINE_DATA_DIR>/globalState.json` and `<CLINE_DATA_DIR>/secrets.json`
 - Target file: `<CLINE_DATA_DIR>/settings/providers.json` (or `CLINE_PROVIDER_SETTINGS_PATH`)
@@ -452,17 +448,18 @@ Custom provider registry notes:
 
 ## Features
 
-- **Streaming output** - Responses stream in real-time
-- **Stable stream rendering** - Prefers structured agent events and avoids duplicate text/tool output when chunk mirrors are also emitted
-- **Sub-agent spawning** - `spawn_agent` is available by default unless disabled
-- **Recursive delegation** - Sub-agents spawned via `spawn_agent` also receive `spawn_agent` when spawn is enabled
-- **Agent teams runtime** - Team tools (tasks/mailbox/mission log) are available by default unless disabled
+- Streaming output - Responses stream in real-time
+- Stable stream rendering - Prefers structured agent events and avoids duplicate text/tool output when chunk mirrors are also emitted
+- Sub-agent spawning - `spawn_agent` is available by default unless disabled
+- Recursive delegation - Sub-agents spawned via `spawn_agent` also receive `spawn_agent` when spawn is enabled
+- Agent teams runtime - Team tools (tasks/mailbox/mission log) are available by default unless disabled
 - Team tools keep related operations grouped where that improves usability (for example `team_task` uses an `action` field, while teammate/runs/mailbox/outcome tools stay separate)
-- **Pipe support** - Accepts piped input for processing files
-- **Interactive mode** - Multi-turn conversations
-- **JSON output mode** - NDJSON records for run lifecycle, agent/team events, and final result (`--json`)
-- **Minimal dependencies** - Fast startup time
-- **Multiple providers** - Works with Anthropic, OpenAI, and more
+- Pipe support - Accepts piped input for processing files
+- Interactive mode - Multi-turn conversations
+- JSON output mode - NDJSON records for run lifecycle, agent/team events, and final result (`--json`)
+- Minimal dependencies - Fast startup time
+- Multiple providers - Works with Anthropic, OpenAI, and more
+- Configurable reasoning effort - Adjust model reasoning depth per run
 
 ## Runtime Ownership
 

@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { SessionHistoryRecord } from "@clinebot/core";
 import { generateConversationHTML } from "../session/export";
 import {
 	deleteSession,
@@ -8,15 +7,14 @@ import {
 	readSessionMessagesArtifact,
 	updateSession,
 } from "../session/session";
+import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import { writeln } from "../utils/output";
 import type { CliOutputMode } from "../utils/types";
 
-// Re-export formatting helpers from the extracted TUI component so existing
-// consumers (tests, other modules) continue to work without changing imports.
 export {
 	formatCheckpointDetail,
 	formatHistoryListLine,
-} from "../tui/components/HistoryListView";
+} from "../utils/history-format";
 
 type HistoryIo = {
 	writeln: (text?: string) => void;
@@ -186,29 +184,12 @@ export async function runHistoryList(input: {
 		return 0;
 	}
 
-	// Lazy-import the TUI component to avoid pulling in React/ink for
-	// non-interactive (JSON) code paths.
-	const { render } = await import("ink");
-	const React = (await import("react")).default;
-	const { HistoryListView } = await import("../tui/components/HistoryListView");
-
-	// Interactive selection mode
-	return new Promise((resolve) => {
-		const { unmount } = render(
-			React.createElement(HistoryListView, {
-				rows: hydratedRows as SessionHistoryRecord[],
-				onSelect: (sessionId) => {
-					unmount();
-					resolve(sessionId);
-				},
-				onExport: async (sessionId) =>
-					await exportHistorySession(sessionId, undefined),
-				onExit: () => {
-					unmount();
-					resolve(0);
-				},
-			}),
-		);
+	disableOpenTuiGraphicsProbe();
+	const { renderHistoryStandalone } = await import("../tui/history-standalone");
+	return await renderHistoryStandalone({
+		rows: hydratedRows,
+		onExport: async (sessionId: string) =>
+			await exportHistorySession(sessionId, undefined),
 	});
 }
 

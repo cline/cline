@@ -12,6 +12,21 @@ const result = await Bun.build({
 	target: "node",
 	format: "esm",
 	packages: "bundle", // Keep private workspace packages bundled so npm consumers do not need @clinebot/* at runtime.
+	external: [
+		// OpenTUI resolves a platform-specific native package at runtime.
+		// Bundling through that resolution path rewrites the import in a way that
+		// breaks Linux e2e runs from dist/. Keep React external too so OpenTUI and
+		// the CLI share one React runtime instead of ending up with duplicate hook
+		// dispatchers in the bundle.
+		"@opentui/core",
+		"@opentui/react",
+		"@opentui-ui/dialog",
+		"opentui-spinner",
+		"react",
+		"react/jsx-runtime",
+		"react/jsx-dev-runtime",
+		"react-devtools-core",
+	],
 	define: {
 		"process.env.NODE_ENV": '"production"',
 		"process.env.OTEL_TELEMETRY_ENABLED": defineProcessEnv(

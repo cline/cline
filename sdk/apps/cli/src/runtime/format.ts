@@ -27,7 +27,7 @@ export async function resolveMistakeLimitDecision(
 	| { action: "continue"; guidance?: string }
 	| { action: "stop"; reason?: string }
 > {
-	const yoloEnabled = config.defaultToolAutoApprove;
+	const yoloEnabled = config.toolPolicies["*"]?.autoApprove !== false;
 	if (yoloEnabled) {
 		return {
 			action: "stop",

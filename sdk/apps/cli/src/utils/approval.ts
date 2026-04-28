@@ -131,8 +131,8 @@ export async function askQuestionInTerminal(
 		for (const [index, option] of options.entries()) {
 			write(`${c.dim}  ${index + 1}.${c.reset} ${option}\n`);
 		}
-		// Ink hides the terminal cursor while its TUI is mounted; restore it so
-		// readline shows a normal blinking insertion point for the follow-up.
+		// Terminal renderers can hide the cursor; restore it so readline shows a
+		// normal blinking insertion point for the follow-up.
 		write(SHOW_TERMINAL_CURSOR);
 		write(
 			`${c.dim}Choose 1-${options.length} or type a custom answer:${c.reset}\n${c.green}>${c.reset} `,

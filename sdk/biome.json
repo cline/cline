@@ -123,6 +123,17 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["apps/cli/src/tui/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noStaticElementInteractions": "off",
+						"useKeyWithClickEvents": "off"
+					}
+				}
+			}
 		}
 	]
 }

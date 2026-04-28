@@ -5,6 +5,8 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"lib": ["ES2022"],
+		"jsx": "react-jsx",
+		"jsxImportSource": "@opentui/react",
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,

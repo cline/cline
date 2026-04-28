@@ -166,6 +166,8 @@ Core owns:
 Runtime boundary notes:
 
 - `ClineCore.start(...)` is the ergonomic app-facing entrypoint and accepts the broad `CoreSessionConfig`
+- `ClineCore.listHistory(...)` is the shared history listing entrypoint for app-facing history UIs. It hydrates display metadata and supports opt-in manifest fallback for callers that need to include legacy file-backed session rows.
+- `ClineCore.list(...)` delegates to the hydrated history path for backward-compatible recent-session listing.
 - `RuntimeHost` is the lower-level transport-safe execution contract used beneath `ClineCore`
 - `LocalRuntimeHost` owns local in-process execution and local session persistence behavior
 - `RpcRuntimeHost` owns RPC request translation, remote event adaptation, and remote lifecycle proxying

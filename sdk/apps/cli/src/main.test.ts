@@ -1,7 +1,7 @@
 import { fstatSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/** Real `fstatSync` — used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
+/** Real `fstatSync`: used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
 const fsActual = vi.hoisted(() => ({
 	realFstatSync: null as null | typeof import("node:fs").fstatSync,
 }));
@@ -26,13 +26,20 @@ const authMocks = vi.hoisted(() => ({
 	parseAuthCommandArgs: vi.fn(),
 	runAuthCommand: vi.fn(),
 }));
+const providerSettingsMocks = vi.hoisted(() => ({
+	getLastUsedProviderSettings: vi.fn<() => unknown>(() => undefined),
+	getProviderSettings: vi.fn<(providerId: string) => unknown>(() => undefined),
+	saveProviderSettings: vi.fn<(settings: unknown, options?: unknown) => void>(
+		() => {},
+	),
+}));
 const sessionMocks = vi.hoisted(() => ({
 	deleteSession: vi.fn(),
 	listSessions: vi.fn(async () => []),
 	updateSession: vi.fn(),
 }));
 const llmMocks = vi.hoisted(() => ({
-	resolveProviderConfig: vi.fn(async () => undefined),
+	resolveProviderConfig: vi.fn(async (): Promise<unknown> => undefined),
 }));
 const promptMocks = vi.hoisted(() => ({
 	resolveSystemPrompt: vi.fn(async () => "system prompt"),
@@ -47,7 +54,7 @@ const runtimeMocks = vi.hoisted(() => ({
 	runInteractive: vi.fn(),
 }));
 const historyMocks = vi.hoisted(() => ({
-	runHistoryList: vi.fn(async () => 0),
+	runHistoryList: vi.fn<() => Promise<number | string>>(async () => 0),
 	runHistoryDelete: vi.fn(async () => 0),
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
@@ -106,22 +113,24 @@ vi.mock("@clinebot/core", async () => {
 		...actual,
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createTeamName: vi.fn(() => "team-test"),
-		createUserInstructionConfigWatcher: vi.fn(
-			() =>
-				({
-					start: vi.fn(async () => {}),
-					stop: vi.fn(() => {}),
-				}) as any,
+		createUserInstructionConfigWatcher: vi.fn(() =>
+			actual.createUserInstructionConfigWatcher({
+				skills: { directories: [] },
+				rules: { directories: [] },
+				workflows: { directories: [] },
+			}),
 		),
 		loadRulesForSystemPromptFromWatcher: vi.fn(() => []),
 		ProviderSettingsManager: class {
 			getLastUsedProviderSettings() {
-				return undefined;
+				return providerSettingsMocks.getLastUsedProviderSettings();
 			}
-			getProviderSettings() {
-				return undefined;
+			getProviderSettings(providerId: string) {
+				return providerSettingsMocks.getProviderSettings(providerId);
 			}
-			saveProviderSettings() {}
+			saveProviderSettings(settings: unknown, options?: unknown) {
+				providerSettingsMocks.saveProviderSettings(settings, options);
+			}
 		},
 	};
 });
@@ -161,6 +170,8 @@ describe("runCli lightweight command dispatch", () => {
 		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue(
 			"ws://127.0.0.1:25463",
 		);
+		llmMocks.resolveProviderConfig.mockReset();
+		llmMocks.resolveProviderConfig.mockResolvedValue(undefined);
 		authMocks.ensureOAuthProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
@@ -172,6 +183,13 @@ describe("runCli lightweight command dispatch", () => {
 		);
 		authMocks.parseAuthCommandArgs.mockReset();
 		authMocks.runAuthCommand.mockReset();
+		providerSettingsMocks.getLastUsedProviderSettings.mockReset();
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			undefined,
+		);
+		providerSettingsMocks.getProviderSettings.mockReset();
+		providerSettingsMocks.getProviderSettings.mockReturnValue(undefined);
+		providerSettingsMocks.saveProviderSettings.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		// CI: fd 0 is often a pipe with no EOF. If routing ever falls through to agent bootstrap,
@@ -252,6 +270,213 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(mockState.runAgentImports).toBe(1);
 		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("does not force chat view for default interactive mode", async () => {
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				initialView: undefined,
+			}),
+		);
+	});
+
+	it("loads live catalog models for default interactive model selection", async () => {
+		llmMocks.resolveProviderConfig.mockResolvedValue({
+			knownModels: {
+				"live-only-model": {
+					id: "live-only-model",
+					name: "Live Only Model",
+				},
+			},
+		});
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(llmMocks.resolveProviderConfig).toHaveBeenCalledWith("cline", {
+			loadLatestOnInit: true,
+			loadPrivateOnAuth: true,
+			failOnError: false,
+		});
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				knownModels: expect.objectContaining({
+					"live-only-model": expect.objectContaining({
+						name: "Live Only Model",
+					}),
+				}),
+			}),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
+	it("passes a positional prompt into TUI mode for startup submission", async () => {
+		process.argv = ["bun", "src/index.ts", "sup", "-i"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(llmMocks.resolveProviderConfig).toHaveBeenCalledWith("cline", {
+			loadLatestOnInit: true,
+			loadPrivateOnAuth: true,
+			failOnError: false,
+		});
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				initialPrompt: "sup",
+				initialView: undefined,
+			}),
+		);
+	});
+
+	it("uses the bundled catalog path for single-prompt runs", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(llmMocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"cline",
+			undefined,
+		);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
+	it("applies --autoapprove as a runtime policy without changing the config default", async () => {
+		process.argv = ["bun", "src/index.ts", "--autoapprove", "false"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultToolAutoApprove: true,
+				toolPolicies: {
+					"*": { autoApprove: false },
+				},
+			}),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
+	it("forces chat view when resuming a session", async () => {
+		process.argv = ["bun", "src/index.ts", "--id", "sess_123"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.anything(),
+			"sess_123",
+			expect.objectContaining({
+				initialView: "chat",
+			}),
+		);
+	});
+
+	it("forces chat view when resuming from history picker", async () => {
+		historyMocks.runHistoryList.mockImplementationOnce(
+			async () => "sess_from_history",
+		);
+		process.argv = ["bun", "src/index.ts", "history"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.anything(),
+			"sess_from_history",
+			expect.objectContaining({
+				initialPrompt: undefined,
+				initialView: "chat",
+			}),
+		);
+	});
+
+	it("does not pass non-Cline provider settings as Cline account options", async () => {
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue({
+			provider: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+			model: "openai/gpt-5",
+		});
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+			model: "openai/gpt-5",
+		});
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "openrouter",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				clineApiBaseUrl: undefined,
+				clineProviderSettings: undefined,
+			}),
+		);
+	});
+
+	it("passes Cline provider settings as Cline account options", async () => {
+		const clineSettings = {
+			provider: "cline",
+			baseUrl: "https://api.example.test",
+			model: "anthropic/claude-sonnet-4.6",
+		};
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			clineSettings,
+		);
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "cline",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				clineApiBaseUrl: "https://api.example.test",
+				clineProviderSettings: clineSettings,
+			}),
+		);
 	});
 
 	it("launches kanban and exits before loading runtime modules", async () => {
@@ -494,7 +719,7 @@ describe("stdinHasPipedInput", () => {
 		vi.mocked(fstatSync).mockReturnValue({
 			isFIFO: () => true,
 			isFile: () => false,
-		} as any);
+		} as unknown as ReturnType<typeof fstatSync>);
 		const { stdinHasPipedInput } = await import("./main");
 		expect(stdinHasPipedInput()).toBe(true);
 	});
@@ -507,7 +732,7 @@ describe("stdinHasPipedInput", () => {
 		vi.mocked(fstatSync).mockReturnValue({
 			isFIFO: () => false,
 			isFile: () => true,
-		} as any);
+		} as unknown as ReturnType<typeof fstatSync>);
 		const { stdinHasPipedInput } = await import("./main");
 		expect(stdinHasPipedInput()).toBe(true);
 	});
@@ -520,7 +745,7 @@ describe("stdinHasPipedInput", () => {
 		vi.mocked(fstatSync).mockReturnValue({
 			isFIFO: () => false,
 			isFile: () => false,
-		} as any);
+		} as unknown as ReturnType<typeof fstatSync>);
 		const { stdinHasPipedInput } = await import("./main");
 		expect(stdinHasPipedInput()).toBe(false);
 	});

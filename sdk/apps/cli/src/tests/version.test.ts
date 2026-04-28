@@ -4,9 +4,9 @@ import { clineEnv } from "./helpers/env.js";
 import { expectVisible } from "./helpers/terminal.js";
 
 // ---------------------------------------------------------------------------
-// cline --version  (root flag)
+// clite --version  (root flag)
 // ---------------------------------------------------------------------------
-test.describe("cline --version", () => {
+test.describe("clite --version", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--version"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -18,9 +18,9 @@ test.describe("cline --version", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline -V  (short flag)
+// clite -V  (short flag)
 // ---------------------------------------------------------------------------
-test.describe("cline -V", () => {
+test.describe("clite -V", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-V"] },
 		env: clineEnv("claude-sonnet-4.6"),
@@ -32,9 +32,9 @@ test.describe("cline -V", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline version  (subcommand)
+// clite version  (subcommand)
 // ---------------------------------------------------------------------------
-test.describe("cline version subcommand", () => {
+test.describe("clite version subcommand", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["version"] },
 		env: clineEnv("claude-sonnet-4.6"),

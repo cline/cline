@@ -1,17 +1,15 @@
 import { createInterface } from "node:readline";
 import {
 	createOAuthClientCallbacks,
-	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	listLocalProviders,
 	type ProviderSettings,
 	type ProviderSettingsManager,
-	saveLocalProviderSettings,
 } from "@clinebot/core";
 import { Command } from "commander";
-import { Box, render, Text, useApp, useInput } from "ink";
 import open from "open";
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
+import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -175,31 +173,6 @@ async function loadProviderCatalog(
 		}))
 		.filter((provider) => provider.id.length > 0)
 		.sort((a, b) => a.id.localeCompare(b.id));
-}
-
-function toProviderLabels(
-	providers: Array<{ id: string; name: string }>,
-): string[] {
-	return providers.map((provider) => `${provider.name} (${provider.id})`);
-}
-
-async function deleteProviderFromAuth(
-	providerSettingsManager: ProviderSettingsManager,
-	providerId: string,
-): Promise<void> {
-	try {
-		await deleteLocalProvider(providerSettingsManager, { providerId });
-		return;
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		if (!message.includes("does not exist")) {
-			throw error;
-		}
-	}
-	saveLocalProviderSettings(providerSettingsManager, {
-		providerId,
-		enabled: false,
-	});
 }
 
 async function ensureQuickSetupInputValid(
@@ -416,95 +389,12 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 	return 0;
 }
 
-type InteractiveAuthState = {
-	screen:
-		| "menu"
-		| "provider"
-		| "confirm-delete-provider"
-		| "apikey"
-		| "modelid"
-		| "baseurl"
-		| "done";
-	menuIndex: number;
-	providerIndex: number;
-	providerIds: string[];
-	providerLabels: string[];
-	selectedProvider: string;
-	providerPendingDelete?: string;
-	apiKey: string;
-	modelId: string;
-	baseUrl: string;
-	exitCode: number;
-	busy: boolean;
-	busyMessage?: string;
-	errorMessage?: string;
-};
-
-const AUTH_MENU_ITEMS = [
-	{ label: "Sign in with Cline", value: "oauth-cline" as const },
-	{
-		label: "Sign in with ChatGPT Subscription",
-		value: "oauth-openai-codex" as const,
-	},
-	{ label: "Sign in with OCA", value: "oauth-oca" as const },
-	{ label: "Use your own API key", value: "byokey" as const },
-	{ label: "Exit", value: "exit" as const },
-];
-
-function renderSelectableList(input: {
-	items: string[];
-	selected: number;
-	title: string;
-}): React.ReactElement {
-	return React.createElement(
-		Box,
-		{ flexDirection: "column", marginBottom: 1 },
-		React.createElement(Text, { color: "cyan", bold: true }, input.title),
-		...input.items.map((item, index) =>
-			React.createElement(
-				Text,
-				{
-					color: index === input.selected ? "blue" : undefined,
-					key: `${index}:${item}`,
-				},
-				`${index === input.selected ? "❯" : " "} ${item}`,
-			),
-		),
-		React.createElement(
-			Text,
-			{ color: "gray" },
-			"Use arrow keys to navigate, Enter to select",
-		),
-	);
-}
-
-function renderPromptInput(input: {
-	title: string;
-	value: string;
-	placeholder?: string;
-	secret?: boolean;
-}): React.ReactElement {
-	const display = input.secret ? "•".repeat(input.value.length) : input.value;
-	return React.createElement(
-		Box,
-		{ flexDirection: "column", marginBottom: 1 },
-		React.createElement(Text, { color: "cyan", bold: true }, input.title),
-		React.createElement(
-			Box,
-			null,
-			React.createElement(
-				Text,
-				{ color: display ? "white" : "gray" },
-				display || input.placeholder || "",
-			),
-			React.createElement(Text, { inverse: true }, " "),
-		),
-		React.createElement(
-			Text,
-			{ color: "gray" },
-			"Enter to continue, Esc to go back",
-		),
-	);
+export async function loadAuthTuiRuntime() {
+	disableOpenTuiGraphicsProbe();
+	const { createCliRenderer } = await import("@opentui/core");
+	const { createRoot } = await import("@opentui/react");
+	const { OnboardingView } = await import("../tui/views/onboarding");
+	return { createCliRenderer, createRoot, OnboardingView };
 }
 
 async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
@@ -514,509 +404,61 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 		);
 		return 1;
 	}
-	const providerCatalog = await loadProviderCatalog(
-		input.providerSettingsManager,
-	);
-	const providerIds = providerCatalog.map((provider) => provider.id);
-	const providerLabels = toProviderLabels(providerCatalog);
-	const defaultProvider =
-		normalizeProviderId(
-			input.providerSettingsManager.getLastUsedProviderSettings()?.provider ??
-				"cline",
-		) || "cline";
+	const { createCliRenderer, createRoot, OnboardingView } =
+		await loadAuthTuiRuntime();
+	const renderer = await createCliRenderer({
+		exitOnCtrlC: false,
+		autoFocus: false,
+		enableMouseMovement: true,
+	});
 
-	const initialProviderIndex = Math.max(
-		0,
-		providerIds.indexOf(defaultProvider),
-	);
-
-	return await new Promise<number>((resolve) => {
-		function AuthTui(props: {
-			onDone: (code: number) => void;
-		}): React.ReactElement {
-			const { exit } = useApp();
-			const [state, setState] = useState<InteractiveAuthState>({
-				screen: "menu",
-				menuIndex: 0,
-				providerIndex: initialProviderIndex,
-				providerIds,
-				providerLabels,
-				selectedProvider: providerIds[initialProviderIndex] ?? "anthropic",
-				apiKey: "",
-				modelId: "",
-				baseUrl: "",
-				exitCode: 0,
-				busy: false,
-			});
-
-			const currentProvider = useMemo(
-				() => state.providerIds[state.providerIndex] ?? state.selectedProvider,
-				[state.providerIds, state.providerIndex, state.selectedProvider],
-			);
-
-			const finalize = (code: number) => {
-				setState((prev) => ({ ...prev, screen: "done", exitCode: code }));
-			};
-
-			useInput((value, key) => {
-				if (state.screen === "done") {
-					return;
-				}
-				if (state.busy) {
-					if (key.ctrl && value === "c") {
-						finalize(1);
-					}
-					return;
-				}
-				if (key.ctrl && value === "c") {
-					finalize(1);
-					return;
-				}
-				if (state.screen === "menu") {
-					if (key.upArrow) {
-						setState((prev) => ({
-							...prev,
-							menuIndex:
-								prev.menuIndex > 0
-									? prev.menuIndex - 1
-									: AUTH_MENU_ITEMS.length - 1,
-						}));
-						return;
-					}
-					if (key.downArrow) {
-						setState((prev) => ({
-							...prev,
-							menuIndex:
-								prev.menuIndex < AUTH_MENU_ITEMS.length - 1
-									? prev.menuIndex + 1
-									: 0,
-						}));
-						return;
-					}
-					if (key.return) {
-						const selected = AUTH_MENU_ITEMS[state.menuIndex]?.value;
-						if (selected === "exit") {
-							finalize(0);
-							return;
-						}
-						if (selected === "byokey") {
-							setState((prev) => ({
-								...prev,
-								screen: "provider",
-								errorMessage: undefined,
-							}));
-							return;
-						}
-						const providerId =
-							selected === "oauth-cline"
-								? "cline"
-								: selected === "oauth-openai-codex"
-									? "openai-codex"
-									: "oca";
-						setState((prev) => ({
-							...prev,
-							busy: true,
-							busyMessage: `Signing in to ${providerId}...`,
-							errorMessage: undefined,
-						}));
-						void runAuthProviderCommand(
-							input.providerSettingsManager,
-							providerId,
-							input.io,
-						).then((code) => {
-							if (code === 0) {
-								finalize(0);
-							} else {
-								setState((prev) => ({
-									...prev,
-									busy: false,
-									busyMessage: undefined,
-									errorMessage: `Failed to authenticate with ${providerId}`,
-								}));
-							}
-						});
-					}
-					return;
-				}
-				if (state.screen === "provider") {
-					if (key.escape) {
-						setState((prev) => ({ ...prev, screen: "menu" }));
-						return;
-					}
-					if (key.upArrow) {
-						setState((prev) => ({
-							...prev,
-							providerIndex:
-								prev.providerIndex > 0
-									? prev.providerIndex - 1
-									: prev.providerIds.length - 1,
-						}));
-						return;
-					}
-					if (key.downArrow) {
-						setState((prev) => ({
-							...prev,
-							providerIndex:
-								prev.providerIndex < prev.providerIds.length - 1
-									? prev.providerIndex + 1
-									: 0,
-						}));
-						return;
-					}
-					if (value.toLowerCase() === "d") {
-						const providerId = state.providerIds[state.providerIndex];
-						if (!providerId) {
-							return;
-						}
-						setState((prev) => ({
-							...prev,
-							screen: "confirm-delete-provider",
-							providerPendingDelete: providerId,
-							errorMessage: undefined,
-						}));
-						return;
-					}
-					if (key.return) {
-						const providerId =
-							state.providerIds[state.providerIndex] ?? "anthropic";
-						const defaultModelId =
-							input.providerSettingsManager.getProviderSettings(providerId)
-								?.model ?? "";
-						setState((prev) => ({
-							...prev,
-							selectedProvider: providerId,
-							modelId: defaultModelId,
-							screen: "apikey",
-							errorMessage: undefined,
-						}));
-					}
-					return;
-				}
-				if (state.screen === "confirm-delete-provider") {
-					if (key.escape || value.toLowerCase() === "n") {
-						setState((prev) => ({
-							...prev,
-							screen: "provider",
-							providerPendingDelete: undefined,
-						}));
-						return;
-					}
-					if (value.toLowerCase() === "y" || key.return) {
-						const providerId = state.providerPendingDelete;
-						if (!providerId) {
-							setState((prev) => ({
-								...prev,
-								screen: "provider",
-								providerPendingDelete: undefined,
-							}));
-							return;
-						}
-						setState((prev) => ({
-							...prev,
-							busy: true,
-							busyMessage: `Deleting provider ${providerId}...`,
-							errorMessage: undefined,
-						}));
-						void deleteProviderFromAuth(
-							input.providerSettingsManager,
-							providerId,
-						)
-							.then(async () => {
-								const nextCatalog = await loadProviderCatalog(
-									input.providerSettingsManager,
-								);
-								const nextProviderIds = nextCatalog.map(
-									(provider) => provider.id,
-								);
-								const nextProviderLabels = toProviderLabels(nextCatalog);
-								setState((prev) => {
-									const nextIndex = Math.min(
-										prev.providerIndex,
-										Math.max(0, nextProviderIds.length - 1),
-									);
-									return {
-										...prev,
-										busy: false,
-										busyMessage: undefined,
-										screen: "provider",
-										providerPendingDelete: undefined,
-										providerIds: nextProviderIds,
-										providerLabels: nextProviderLabels,
-										providerIndex: nextIndex,
-										selectedProvider:
-											nextProviderIds[nextIndex] ?? prev.selectedProvider,
-									};
-								});
-							})
-							.catch((error) => {
-								setState((prev) => ({
-									...prev,
-									busy: false,
-									busyMessage: undefined,
-									screen: "provider",
-									providerPendingDelete: undefined,
-									errorMessage:
-										error instanceof Error ? error.message : String(error),
-								}));
-							});
-					}
-					return;
-				}
-				if (state.screen === "apikey") {
-					if (key.escape) {
-						setState((prev) => ({ ...prev, screen: "provider" }));
-						return;
-					}
-					if (key.return) {
-						setState((prev) => ({ ...prev, screen: "modelid" }));
-						return;
-					}
-					if (key.backspace || key.delete) {
-						setState((prev) => ({
-							...prev,
-							apiKey: prev.apiKey.slice(0, -1),
-						}));
-						return;
-					}
-					if (
-						!key.ctrl &&
-						!key.meta &&
-						value.length > 0 &&
-						!value.includes("\u001b")
-					) {
-						setState((prev) => ({
-							...prev,
-							apiKey: prev.apiKey + value,
-						}));
-					}
-					return;
-				}
-				if (state.screen === "modelid") {
-					if (key.escape) {
-						setState((prev) => ({ ...prev, screen: "apikey" }));
-						return;
-					}
-					if (key.return) {
-						if (
-							currentProvider !== "openai" &&
-							currentProvider !== "openai-native"
-						) {
-							setState((prev) => ({ ...prev, screen: "baseurl", baseUrl: "" }));
-						} else {
-							setState((prev) => ({ ...prev, screen: "baseurl" }));
-						}
-						return;
-					}
-					if (key.backspace || key.delete) {
-						setState((prev) => ({
-							...prev,
-							modelId: prev.modelId.slice(0, -1),
-						}));
-						return;
-					}
-					if (
-						!key.ctrl &&
-						!key.meta &&
-						value.length > 0 &&
-						!value.includes("\u001b")
-					) {
-						setState((prev) => ({ ...prev, modelId: prev.modelId + value }));
-					}
-					return;
-				}
-				if (state.screen === "baseurl") {
-					if (key.escape) {
-						setState((prev) => ({ ...prev, screen: "modelid" }));
-						return;
-					}
-					if (key.return) {
-						const payload: AuthQuickSetupInput = {
-							provider: currentProvider,
-							apikey: state.apiKey,
-							modelid: state.modelId,
-							baseurl: state.baseUrl.trim() || undefined,
-						};
-						setState((prev) => ({
-							...prev,
-							busy: true,
-							busyMessage: "Saving provider settings...",
-							errorMessage: undefined,
-						}));
-						void ensureQuickSetupInputValid(
-							payload,
-							input.providerSettingsManager,
-						).then((validationError) => {
-							if (validationError) {
-								setState((prev) => ({
-									...prev,
-									busy: false,
-									busyMessage: undefined,
-									errorMessage: validationError,
-								}));
-								return;
-							}
-							try {
-								saveQuickAuthProviderSettings({
-									providerSettingsManager: input.providerSettingsManager,
-									providerId: normalizeProviderId(payload.provider),
-									apikey: payload.apikey,
-									modelid: payload.modelid,
-									baseurl: payload.baseurl,
-								});
-								finalize(0);
-							} catch (error) {
-								setState((prev) => ({
-									...prev,
-									busy: false,
-									busyMessage: undefined,
-									errorMessage:
-										error instanceof Error ? error.message : String(error),
-								}));
-							}
-						});
-						return;
-					}
-					if (key.backspace || key.delete) {
-						setState((prev) => ({
-							...prev,
-							baseUrl: prev.baseUrl.slice(0, -1),
-						}));
-						return;
-					}
-					if (
-						!key.ctrl &&
-						!key.meta &&
-						value.length > 0 &&
-						!value.includes("\u001b")
-					) {
-						setState((prev) => ({ ...prev, baseUrl: prev.baseUrl + value }));
-					}
-				}
-			});
-
-			useEffect(() => {
-				if (state.screen !== "done") {
-					return;
-				}
-				props.onDone(state.exitCode);
-				exit();
-			}, [exit, props, state.exitCode, state.screen]);
-
-			const menuItems = AUTH_MENU_ITEMS.map((item) => item.label);
-			const providerItems = state.providerLabels;
-			const showBaseUrlInput =
-				currentProvider === "openai" || currentProvider === "openai-native";
-
-			return React.createElement(
-				Box,
-				{ flexDirection: "column", paddingX: 1 },
-				React.createElement(
-					Text,
-					{ bold: true, color: "white" },
-					"Authentication Setup",
-				),
-				React.createElement(Text, { color: "gray" }, ""),
-				state.errorMessage
-					? React.createElement(Text, { color: "red" }, state.errorMessage)
-					: null,
-				state.busy
-					? React.createElement(
-							Text,
-							{ color: "cyan" },
-							state.busyMessage ?? "Working...",
-						)
-					: null,
-				!state.busy && state.screen === "menu"
-					? renderSelectableList({
-							items: menuItems,
-							selected: state.menuIndex,
-							title: "Choose an auth option",
-						})
-					: null,
-				!state.busy && state.screen === "provider"
-					? renderSelectableList({
-							items: providerItems,
-							selected: state.providerIndex,
-							title: "Select provider for API key setup",
-						})
-					: null,
-				!state.busy && state.screen === "provider"
-					? React.createElement(
-							Text,
-							{ color: "gray" },
-							"Press d to delete selected provider config",
-						)
-					: null,
-				!state.busy && state.screen === "confirm-delete-provider"
-					? React.createElement(
-							Box,
-							{ flexDirection: "column", marginBottom: 1 },
-							React.createElement(
-								Text,
-								{ color: "yellow", bold: true },
-								`Delete provider "${state.providerPendingDelete ?? ""}"?`,
-							),
-							React.createElement(
-								Text,
-								{ color: "gray" },
-								"This removes saved config and deletes custom providers.",
-							),
-							React.createElement(
-								Text,
-								{ color: "gray" },
-								"Press y or Enter to confirm, n or Esc to cancel",
-							),
-						)
-					: null,
-				!state.busy && state.screen === "apikey"
-					? renderPromptInput({
-							title: `API key for ${currentProvider}`,
-							value: state.apiKey,
-							placeholder: "sk-...",
-							secret: true,
-						})
-					: null,
-				!state.busy && state.screen === "modelid"
-					? renderPromptInput({
-							title: `Model ID for ${currentProvider}`,
-							value: state.modelId,
-							placeholder:
-								input.providerSettingsManager.getProviderSettings(
-									currentProvider,
-								)?.model ?? "",
-						})
-					: null,
-				!state.busy && state.screen === "baseurl"
-					? renderPromptInput({
-							title: showBaseUrlInput
-								? "Base URL (optional)"
-								: "Press Enter to save",
-							value: showBaseUrlInput ? state.baseUrl : "",
-							placeholder: "https://api.example.com/v1",
-						})
-					: null,
-			);
+	return await new Promise<number>((resolve, reject) => {
+		let root: ReturnType<typeof createRoot>;
+		try {
+			root = createRoot(renderer);
+		} catch (error) {
+			renderer.destroy();
+			reject(error);
+			return;
 		}
-
 		let settled = false;
-		const app = render(
-			React.createElement(AuthTui, {
-				onDone: (code) => {
-					if (settled) {
-						return;
-					}
-					settled = true;
-					resolve(code);
-				},
-			}),
-			{ exitOnCtrlC: false },
-		);
-		void app.waitUntilExit().then(() => {
+		let unmounted = false;
+		const unmountRoot = () => {
+			if (unmounted) {
+				return;
+			}
+			unmounted = true;
+			root.unmount();
+		};
+		const settle = (code: number) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			unmountRoot();
+			renderer.destroy();
+			resolve(code);
+		};
+		renderer.on("destroy", () => {
+			unmountRoot();
 			if (!settled) {
 				settled = true;
 				resolve(1);
 			}
 		});
+		try {
+			root.render(
+				React.createElement(OnboardingView, {
+					providerSettingsManager: input.providerSettingsManager,
+					onComplete: () => settle(0),
+					onExit: () => settle(1),
+				}),
+			);
+		} catch (error) {
+			unmountRoot();
+			renderer.destroy();
+			reject(error);
+		}
 	});
 }
 

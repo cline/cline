@@ -30,4 +30,16 @@ describe("buildUserInputMessage", () => {
 		expect(result.userImages).toEqual([]);
 		expect(result.userFiles).toEqual([filePath]);
 	});
+
+	it("extracts quoted text file mentions with spaces into userFiles", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cli prompt "));
+		const filePath = join(dir, "notes with spaces.md");
+		writeFileSync(filePath, "# Notes\n");
+
+		const result = await buildUserInputMessage(`summarize @"${filePath}"`);
+
+		expect(result.prompt).toBe("summarize [file: notes with spaces.md]");
+		expect(result.userImages).toEqual([]);
+		expect(result.userFiles).toEqual([filePath]);
+	});
 });

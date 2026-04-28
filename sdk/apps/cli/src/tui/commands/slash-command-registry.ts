@@ -1,0 +1,233 @@
+import { formatUserCommandBlock } from "@clinebot/shared";
+import type { InteractiveSlashCommand } from "../interactive-welcome";
+
+export type SlashCommandSource =
+	| "tui"
+	| "runtime"
+	| "plugin"
+	| "skill"
+	| "workflow";
+
+export type SlashCommandExecution = "local" | "runtime" | "user-command";
+
+export type LocalSlashCommandName =
+	| "settings"
+	| "config"
+	| "mcp"
+	| "account"
+	| "model"
+	| "compact"
+	| "fork"
+	| "clear"
+	| "history"
+	| "quit"
+	| "help";
+
+export interface SlashCommandRegistryEntry {
+	name: string;
+	description: string;
+	instructions: string;
+	source: SlashCommandSource;
+	kind?: InteractiveSlashCommand["kind"];
+	execution: SlashCommandExecution;
+	visible: boolean;
+	selectable: boolean;
+}
+
+export interface SlashCommandRegistry {
+	entries: SlashCommandRegistryEntry[];
+	byName: Map<string, SlashCommandRegistryEntry>;
+}
+
+const TUI_LOCAL_COMMANDS: Array<{
+	name: LocalSlashCommandName;
+	description: string;
+	visible?: boolean;
+}> = [
+	{
+		name: "settings",
+		description: "Modify agent configuration",
+	},
+	{
+		name: "config",
+		description: "Modify agent configuration",
+		visible: false,
+	},
+	{
+		name: "mcp",
+		description: "Manage MCP servers",
+	},
+	{
+		name: "account",
+		description: "View Cline account",
+	},
+	{
+		name: "model",
+		description: "Switch model or provider",
+	},
+	{
+		name: "compact",
+		description: "Compact context",
+	},
+	{
+		name: "fork",
+		description: "Create a copy of the current session into a new session",
+	},
+	{
+		name: "clear",
+		description: "Start a new session",
+	},
+	{
+		name: "history",
+		description: "View session history",
+	},
+	{
+		name: "quit",
+		description: "Exit Cline",
+	},
+	{
+		name: "help",
+		description: "Show help",
+	},
+];
+
+function normalizeCommandName(name: string): string {
+	return name.trim().replace(/^\/+/, "").toLowerCase();
+}
+
+function addEntry(
+	byName: Map<string, SlashCommandRegistryEntry>,
+	entry: SlashCommandRegistryEntry,
+): void {
+	const normalized = normalizeCommandName(entry.name);
+	if (!normalized || byName.has(normalized)) {
+		return;
+	}
+	byName.set(normalized, {
+		...entry,
+		name: normalized,
+	});
+}
+
+function entryFromRuntimeCommand(
+	command: InteractiveSlashCommand,
+	source: "runtime" | "plugin" | "skill" | "workflow",
+): SlashCommandRegistryEntry | undefined {
+	const name = normalizeCommandName(command.name);
+	if (!name) {
+		return undefined;
+	}
+	const execution: SlashCommandExecution =
+		command.kind === "skill" || command.kind === "workflow"
+			? "user-command"
+			: "runtime";
+	return {
+		name,
+		description: command.description ?? "",
+		instructions: command.instructions,
+		source,
+		kind: command.kind,
+		execution,
+		visible: true,
+		selectable: true,
+	};
+}
+
+export function buildSlashCommandRegistry(input: {
+	workflowSlashCommands?: InteractiveSlashCommand[];
+	additionalSlashCommands?: InteractiveSlashCommand[];
+	canFork?: boolean;
+	showClineAccountCommand?: boolean;
+}): SlashCommandRegistry {
+	const byName = new Map<string, SlashCommandRegistryEntry>();
+
+	for (const command of TUI_LOCAL_COMMANDS) {
+		if (command.name === "account" && input.showClineAccountCommand === false) {
+			continue;
+		}
+		const isFork = command.name === "fork";
+		const visible =
+			(command.visible ?? true) && (!isFork || input.canFork === true);
+		addEntry(byName, {
+			name: command.name,
+			description: command.description,
+			instructions: "",
+			source: "tui",
+			execution: "local",
+			visible,
+			selectable: visible,
+		});
+	}
+
+	for (const command of input.workflowSlashCommands ?? []) {
+		const source =
+			command.kind === "skill" || command.kind === "workflow"
+				? command.kind
+				: "runtime";
+		const entry = entryFromRuntimeCommand(command, source);
+		if (entry) {
+			addEntry(byName, entry);
+		}
+	}
+
+	for (const command of input.additionalSlashCommands ?? []) {
+		const entry = entryFromRuntimeCommand(command, "plugin");
+		if (entry) {
+			addEntry(byName, entry);
+		}
+	}
+
+	return {
+		entries: [...byName.values()],
+		byName,
+	};
+}
+
+export function resolveSlashCommand(
+	registry: SlashCommandRegistry,
+	commandName: string,
+): SlashCommandRegistryEntry | undefined {
+	return registry.byName.get(normalizeCommandName(commandName));
+}
+
+export function formatSlashCommandAutocompleteValue(
+	entry: SlashCommandRegistryEntry,
+): string {
+	if (entry.execution === "user-command") {
+		return formatUserCommandBlock(entry.instructions, entry.name);
+	}
+	return `/${entry.name} `;
+}
+
+export function expandUserCommandPrompt(
+	input: string,
+	registry: SlashCommandRegistry,
+): string {
+	const match = /^\/([a-zA-Z0-9_.-]+)(\s+[\s\S]*)?$/.exec(input.trim());
+	if (!match) {
+		return input;
+	}
+	const command = resolveSlashCommand(registry, match[1] ?? "");
+	if (!command || command.execution !== "user-command") {
+		return input;
+	}
+	const rest = (match[2] ?? "").trim();
+	const block = formatUserCommandBlock(command.instructions, command.name);
+	return rest ? `${block} ${rest}` : block;
+}
+
+export function getVisibleSystemSlashCommands(
+	registry: SlashCommandRegistry,
+): SlashCommandRegistryEntry[] {
+	return registry.entries.filter(
+		(entry) => entry.visible && entry.execution !== "user-command",
+	);
+}
+
+export function getVisibleUserSlashCommands(
+	registry: SlashCommandRegistry,
+): SlashCommandRegistryEntry[] {
+	return registry.entries.filter(
+		(entry) => entry.visible && entry.execution === "user-command",
+	);
+}

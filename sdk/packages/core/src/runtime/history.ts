@@ -1,11 +1,21 @@
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms";
 import { formatDisplayUserInput, normalizeUserInput } from "@clinebot/shared";
+import { resolveSessionDataDir } from "@clinebot/shared/storage";
+import type { SessionManifest } from "../session/session-manifest";
+import { SessionManifestSchema } from "../session/session-manifest";
 import type {
 	SessionHistoryMetadata,
 	SessionHistoryRecord,
 	SessionRecord,
 } from "../types/sessions";
 import type { RuntimeHost } from "./runtime-host";
+
+export interface SessionHistoryListOptions {
+	limit?: number;
+	includeManifestFallback?: boolean;
+}
 
 type StoredSessionMessage = LlmsProviders.Message & {
 	metrics?: {
@@ -49,6 +59,103 @@ function asHistoryMetadata(value: unknown): SessionHistoryMetadata | undefined {
 		return undefined;
 	}
 	return { ...(value as Record<string, unknown>) };
+}
+
+function normalizeHistoryLimit(limit: number | undefined): number {
+	const value = limit ?? 200;
+	return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 200;
+}
+
+function extractSessionRecencyToken(sessionId: string): number {
+	const matches = sessionId.match(/\d{13,}/g);
+	if (!matches || matches.length === 0) {
+		return 0;
+	}
+	let best = 0;
+	for (const match of matches) {
+		const value = Number.parseInt(match, 10);
+		if (Number.isFinite(value) && value > best) {
+			best = value;
+		}
+	}
+	return best;
+}
+
+function manifestToSessionRecord(manifest: SessionManifest): SessionRecord {
+	return {
+		sessionId: manifest.session_id,
+		source: manifest.source,
+		pid: manifest.pid,
+		startedAt: manifest.started_at,
+		endedAt: manifest.ended_at ?? null,
+		exitCode: manifest.exit_code ?? null,
+		status: manifest.status,
+		interactive: manifest.interactive,
+		provider: manifest.provider,
+		model: manifest.model,
+		cwd: manifest.cwd,
+		workspaceRoot: manifest.workspace_root,
+		teamName: manifest.team_name,
+		enableTools: manifest.enable_tools,
+		enableSpawn: manifest.enable_spawn,
+		enableTeams: manifest.enable_teams,
+		isSubagent: false,
+		prompt: manifest.prompt,
+		metadata: manifest.metadata,
+		messagesPath: manifest.messages_path,
+		updatedAt: manifest.ended_at ?? manifest.started_at,
+	};
+}
+
+async function listManifestHistoryRows(
+	limit: number,
+): Promise<SessionRecord[]> {
+	const requestedLimit = normalizeHistoryLimit(limit);
+	const sessionsDir = resolveSessionDataDir();
+	const entries = await readdir(sessionsDir, { withFileTypes: true }).catch(
+		() => [],
+	);
+	const candidateEntries = entries
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => ({
+			entry,
+			recency: extractSessionRecencyToken(entry.name.trim()),
+		}))
+		.sort(
+			(left, right) =>
+				right.recency - left.recency ||
+				right.entry.name.localeCompare(left.entry.name),
+		)
+		.slice(0, requestedLimit);
+	const rows = await Promise.all(
+		candidateEntries.map(async ({ entry }) => {
+			const sessionId = entry.name.trim();
+			if (!sessionId) {
+				return undefined;
+			}
+			const manifestPath = join(sessionsDir, sessionId, `${sessionId}.json`);
+			const raw = await readFile(manifestPath, "utf8").catch(() => undefined);
+			if (!raw) {
+				return undefined;
+			}
+			let parsedJson: unknown;
+			try {
+				parsedJson = JSON.parse(raw) as unknown;
+			} catch {
+				return undefined;
+			}
+			const parsedManifest = SessionManifestSchema.safeParse(parsedJson);
+			if (!parsedManifest.success) {
+				return undefined;
+			}
+			return manifestToSessionRecord(parsedManifest.data);
+		}),
+	);
+
+	return rows
+		.filter((row): row is SessionRecord => Boolean(row))
+		.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
+		.slice(0, requestedLimit);
 }
 
 function extractTextFromContent(
@@ -234,4 +341,30 @@ export async function hydrateSessionHistory(
 			});
 		}),
 	);
+}
+
+export async function listSessionHistory(
+	host: Pick<RuntimeHost, "list" | "readMessages">,
+	options: SessionHistoryListOptions = {},
+): Promise<SessionHistoryRecord[]> {
+	const limit = normalizeHistoryLimit(options.limit);
+	const backendRows = (await host.list(limit)).slice(0, limit);
+	const manifestRows =
+		options.includeManifestFallback === true && backendRows.length < limit
+			? await listManifestHistoryRows(Math.min(Math.max(limit * 2, 100), 500))
+			: [];
+	const merged = new Map<string, SessionRecord>();
+	for (const row of [...backendRows, ...manifestRows]) {
+		if (merged.has(row.sessionId)) {
+			continue;
+		}
+		merged.set(row.sessionId, row);
+	}
+	const rows =
+		manifestRows.length === 0
+			? backendRows
+			: Array.from(merged.values())
+					.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
+					.slice(0, limit);
+	return await hydrateSessionHistory(host, rows);
 }

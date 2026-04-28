@@ -113,6 +113,38 @@ describe("createCliCore", () => {
 		);
 	});
 
+	it("passes an explicit hub backend through to core", async () => {
+		await sessionModule.createCliCore({ backendMode: "hub" });
+
+		expect(createCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backendMode: "hub",
+				hub: expect.objectContaining({
+					clientType: "cli",
+					displayName: "Cline CLI",
+				}),
+			}),
+		);
+	});
+
+	it("keeps forceLocalBackend as the strongest local override", async () => {
+		await sessionModule.createCliCore({
+			backendMode: "hub",
+			forceLocalBackend: true,
+		});
+
+		expect(createCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backendMode: "local",
+			}),
+		);
+		expect(createCore).toHaveBeenCalledWith(
+			expect.not.objectContaining({
+				hub: expect.anything(),
+			}),
+		);
+	});
+
 	it("keeps hub client metadata when custom tool executors are provided", async () => {
 		await sessionModule.createCliCore({
 			defaultToolExecutors: {
@@ -171,5 +203,36 @@ describe("createCliCore", () => {
 				forceLocalBackend: false,
 			},
 		);
+	});
+
+	it("lists sessions through core history with manifest fallback enabled", async () => {
+		const listHistory = vi.fn(async () => [
+			{
+				sessionId: "sess_1",
+				workspaceRoot: "/tmp/workspace",
+			},
+		]);
+		const dispose = vi.fn();
+		createCore.mockResolvedValueOnce({
+			runtimeAddress: undefined,
+			listHistory,
+			dispose,
+		});
+
+		const rows = await sessionModule.listSessions(25, {
+			workspaceRoot: "/tmp/workspace",
+		});
+
+		expect(listHistory).toHaveBeenCalledWith({
+			limit: 25,
+			includeManifestFallback: true,
+		});
+		expect(dispose).toHaveBeenCalledWith("cli_session_helper_dispose");
+		expect(rows).toEqual([
+			{
+				sessionId: "sess_1",
+				workspaceRoot: "/tmp/workspace",
+			},
+		]);
 	});
 });

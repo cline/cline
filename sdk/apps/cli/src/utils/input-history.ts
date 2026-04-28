@@ -34,6 +34,19 @@ export function loadInputHistory(): string[] {
 	return readEntries(resolveHistoryPath()).slice(-MAX_HISTORY).reverse();
 }
 
+export function prependInputHistoryEntry(
+	history: readonly string[],
+	prompt: string,
+	maxHistory = MAX_HISTORY,
+): string[] {
+	const trimmed = prompt.trim();
+	if (!trimmed) return [...history];
+	return [trimmed, ...history.filter((p) => p !== trimmed)].slice(
+		0,
+		maxHistory,
+	);
+}
+
 /**
  * Appends a prompt to the history file, removing any previous occurrence of
  * the same prompt so the list stays unique, then trims to MAX_HISTORY.
@@ -44,15 +57,16 @@ export function appendInputHistory(prompt: string): void {
 	const path = resolveHistoryPath();
 	try {
 		mkdirSync(dirname(path), { recursive: true });
-		// Remove existing occurrence (case-sensitive), add to end, cap size.
-		const existing = readEntries(path).filter((p) => p !== trimmed);
-		const next = [...existing, trimmed].slice(-MAX_HISTORY);
+		const next = prependInputHistoryEntry(
+			readEntries(path).reverse(),
+			trimmed,
+		).reverse();
 		writeFileSync(
 			path,
 			`${next.map((p) => JSON.stringify({ prompt: p, ts: Date.now() })).join("\n")}\n`,
 			"utf8",
 		);
 	} catch {
-		// Non-fatal — best effort
+		// Non-fatal, best effort.
 	}
 }

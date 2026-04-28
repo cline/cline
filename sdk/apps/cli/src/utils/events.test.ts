@@ -131,6 +131,35 @@ describe("handleEvent text formatting", () => {
 		expect(output).toContain("→ at status");
 	});
 
+	it("prints completed done events as finished in verbose mode", () => {
+		handleEvent(
+			{
+				type: "done",
+				reason: "completed",
+				iterations: 5,
+				text: "ok",
+			} as unknown as AgentEvent,
+			{ verbose: true } as Config,
+		);
+
+		expect(output).toContain("── finished (5 iterations) ──");
+		expect(output).not.toContain("── aborted (5 iterations) ──");
+	});
+
+	it("prints aborted done events as aborted in verbose mode", () => {
+		handleEvent(
+			{
+				type: "done",
+				reason: "aborted",
+				iterations: 2,
+				text: "aborted",
+			} as unknown as AgentEvent,
+			{ verbose: true } as Config,
+		);
+
+		expect(output).toContain("── aborted (2 iterations) ──");
+	});
+
 	it("suppresses heartbeat-only team progress messages", () => {
 		handleTeamEvent({
 			type: "run_progress",

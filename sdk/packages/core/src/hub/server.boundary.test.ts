@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { CoreSessionEvent } from "../types/events";
 import { createLocalHubScheduleRuntimeHandlers } from "./runtime-handlers";
 import { HubServerTransport } from "./server";
 
@@ -302,5 +303,94 @@ describe("HubServerTransport boundaries", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("forwards run file attachment paths to the session host", async () => {
+		const send = vi.fn().mockResolvedValue(undefined);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				start: vi.fn(),
+				stop: vi.fn(),
+				send,
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				get: vi.fn(),
+				list: vi.fn(),
+				delete: vi.fn(),
+				update: vi.fn(),
+				handleHookEvent: vi.fn(),
+			} as never,
+		});
+
+		const reply = await (
+			transport as unknown as {
+				handleCommand: (envelope: {
+					version: "v1";
+					requestId: string;
+					command: "run.start";
+					sessionId: string;
+					payload: {
+						sessionId: string;
+						prompt: string;
+						attachments: { userFiles: string[] };
+					};
+				}) => Promise<{ ok: boolean }>;
+			}
+		).handleCommand({
+			version: "v1",
+			requestId: "req-1",
+			command: "run.start",
+			sessionId: "session-1",
+			payload: {
+				sessionId: "session-1",
+				prompt: "Use this file",
+				attachments: { userFiles: ["/tmp/project/note.md"] },
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "session-1",
+				prompt: "Use this file",
+				userFiles: ["/tmp/project/note.md"],
+			}),
+		);
+	});
+
+	it("publishes iteration lifecycle events from agent events", async () => {
+		const transport = createTransport();
+		const published: string[] = [];
+		transport.subscribe("test", (event) => {
+			published.push(event.event);
+		});
+		const handleSessionEvent = (
+			transport as unknown as {
+				handleSessionEvent: (event: CoreSessionEvent) => Promise<void>;
+			}
+		).handleSessionEvent.bind(transport);
+
+		await handleSessionEvent({
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: { type: "iteration_start", iteration: 3 },
+			},
+		});
+		await handleSessionEvent({
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "iteration_end",
+					iteration: 3,
+					hadToolCalls: true,
+					toolCallCount: 1,
+				},
+			},
+		});
+
+		expect(published).toEqual(["iteration.started", "iteration.finished"]);
 	});
 });
