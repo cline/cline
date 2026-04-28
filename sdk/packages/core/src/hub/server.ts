@@ -532,6 +532,10 @@ export class HubServerTransport implements NativeHubTransport {
 			}) => void;
 		}
 	>();
+	private readonly suppressNextTerminalEventBySession = new Map<
+		string,
+		string
+	>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly cronService?: CronService;
@@ -656,6 +660,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await this.handleSessionDetach(envelope);
 			case "session.get":
 				return await this.handleSessionGet(envelope);
+			case "session.messages":
+				return await this.handleSessionMessages(envelope);
 			case "session.list":
 				return await this.handleSessionList(envelope);
 			case "session.update":
@@ -1198,6 +1204,45 @@ export class HubServerTransport implements NativeHubTransport {
 		};
 	}
 
+	private async handleSessionMessages(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		if (!sessionId) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_session_id",
+					message: "session.messages requires a session id",
+				},
+			};
+		}
+		const session = await this.readHubSessionRecord(sessionId);
+		if (!session) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "session_not_found",
+					message: `Unknown session: ${sessionId}`,
+				},
+			};
+		}
+		const messages = await this.sessionHost.readMessages(sessionId);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { sessionId, messages },
+		};
+	}
+
 	private async handleSessionList(
 		envelope: HubCommandEnvelope,
 	): Promise<HubReplyEnvelope> {
@@ -1381,6 +1426,10 @@ export class HubServerTransport implements NativeHubTransport {
 				: undefined,
 		});
 		if (result) {
+			this.suppressNextTerminalEventBySession.set(
+				sessionId,
+				result.finishReason,
+			);
 			this.publish(
 				this.buildEvent(
 					"run.completed",
@@ -1836,7 +1885,16 @@ export class HubServerTransport implements NativeHubTransport {
 				}
 				return;
 			}
-			case "ended":
+			case "ended": {
+				const suppressDuplicateTerminalEvent =
+					this.suppressNextTerminalEventBySession.get(
+						event.payload.sessionId,
+					) === event.payload.reason;
+				if (suppressDuplicateTerminalEvent) {
+					this.suppressNextTerminalEventBySession.delete(
+						event.payload.sessionId,
+					);
+				}
 				if (event.payload.reason === "completed") {
 					const session = await this.readHubSessionRecord(
 						event.payload.sessionId,
@@ -1845,6 +1903,9 @@ export class HubServerTransport implements NativeHubTransport {
 					this.publish(
 						this.buildEvent("ui.notify", notification, event.payload.sessionId),
 					);
+				}
+				if (suppressDuplicateTerminalEvent) {
+					return;
 				}
 				this.publish(
 					this.buildEvent(
@@ -1856,6 +1917,7 @@ export class HubServerTransport implements NativeHubTransport {
 					),
 				);
 				return;
+			}
 			default:
 				return;
 		}

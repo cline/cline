@@ -10,7 +10,13 @@ export type ChatMessage = {
 	reasoning?: string;
 	reasoningRedacted?: boolean;
 	toolEvents?: ToolEvent[];
+	blocks?: ChatMessageBlock[];
 };
+
+export type ChatMessageBlock =
+	| { id: string; type: "text"; text: string }
+	| { id: string; type: "reasoning"; text: string; redacted?: boolean }
+	| { id: string; type: "tool"; toolEvent: ToolEvent };
 
 export type ToolEvent = {
 	id: string;

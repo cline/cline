@@ -7,7 +7,6 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { HubSessionClient, HubSessionRow } from "@clinebot/core";
 import { ensureParentDir, resolveClineDataDir } from "@clinebot/core";
@@ -294,55 +293,47 @@ export function parseLocalRowMetadata(row: {
 		: undefined;
 }
 
+function extractMessageReplyText(message: unknown): string | undefined {
+	if (!message || typeof message !== "object") {
+		return undefined;
+	}
+	const record = message as { role?: unknown; content?: unknown };
+	if (record.role !== "assistant") {
+		return undefined;
+	}
+	const content = record.content;
+	if (typeof content === "string" && content.trim()) {
+		return content.trim();
+	}
+	if (!Array.isArray(content)) {
+		return undefined;
+	}
+	const joined = content
+		.map((part) => {
+			if (typeof part === "string") {
+				return part;
+			}
+			if (!part || typeof part !== "object") {
+				return "";
+			}
+			const record = part as { text?: unknown };
+			return typeof record.text === "string" ? record.text : "";
+		})
+		.join("")
+		.trim();
+	return joined || undefined;
+}
+
 export async function readSessionReplyText(
 	client: HubSessionClient,
 	sessionId: string,
 ): Promise<string | undefined> {
-	const session = await client.getSession(sessionId);
-	const path = session?.messagesPath?.trim();
-	if (!path || !existsSync(path)) {
-		return undefined;
-	}
 	try {
-		const raw = await readFile(path, "utf8");
-		if (!raw.trim()) {
-			return undefined;
-		}
-		const parsed = JSON.parse(raw) as { messages?: unknown[] } | unknown[];
-		const messages = Array.isArray(parsed)
-			? parsed
-			: Array.isArray(parsed.messages)
-				? parsed.messages
-				: [];
+		const messages = await client.readMessages(sessionId);
 		for (let index = messages.length - 1; index >= 0; index -= 1) {
-			const message = messages[index] as Record<string, unknown>;
-			if (message?.role !== "assistant") {
-				continue;
-			}
-			const content = message.content;
-			if (typeof content === "string" && content.trim()) {
-				return content.trim();
-			}
-			if (Array.isArray(content)) {
-				const joined = content
-					.map((part) => {
-						if (typeof part === "string") {
-							return part;
-						}
-						if (!part || typeof part !== "object") {
-							return "";
-						}
-						const record = part as Record<string, unknown>;
-						if (typeof record.text === "string") {
-							return record.text;
-						}
-						return "";
-					})
-					.join("")
-					.trim();
-				if (joined) {
-					return joined;
-				}
+			const text = extractMessageReplyText(messages[index]);
+			if (text) {
+				return text;
 			}
 		}
 	} catch {}

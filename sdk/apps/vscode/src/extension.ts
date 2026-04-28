@@ -206,6 +206,7 @@ function mapPersistedMessagesToWebviewMessages(
 		const textParts: string[] = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
+		const blocks: NonNullable<WebviewChatMessage["blocks"]> = [];
 		const toolEvents = new Map<
 			string,
 			NonNullable<WebviewChatMessage["toolEvents"]>[number]
@@ -215,35 +216,62 @@ function mapPersistedMessagesToWebviewMessages(
 			const text = message.content.trim();
 			if (text) {
 				textParts.push(text);
+				blocks.push({
+					id: `${message.id ?? messageIndex}:text:0`,
+					type: "text",
+					text,
+				});
 			}
 		}
 
-		for (const part of Array.isArray(message.content) ? message.content : []) {
+		for (const [partIndex, part] of (Array.isArray(message.content)
+			? message.content
+			: []
+		).entries()) {
 			switch (part.type) {
 				case "text":
 					if (part.text.trim()) {
-						textParts.push(part.text.trim());
+						const text = part.text.trim();
+						textParts.push(text);
+						blocks.push({
+							id: `${message.id ?? messageIndex}:text:${partIndex}`,
+							type: "text",
+							text,
+						});
 					}
 					break;
 				case "reasoning":
 					if (part.text.trim()) {
 						reasoningParts.push(part.text);
+						blocks.push({
+							id: `${message.id ?? messageIndex}:reasoning:${partIndex}`,
+							type: "reasoning",
+							text: part.text,
+							redacted: part.redacted,
+						});
 					}
 					reasoningRedacted = reasoningRedacted || part.redacted === true;
 					break;
-				case "tool-call":
-					toolEvents.set(part.toolCallId, {
+				case "tool-call": {
+					const toolEvent = {
 						id: `${message.id ?? messageIndex}:${part.toolCallId}`,
 						toolCallId: part.toolCallId,
 						name: part.toolName,
 						text: `Running ${part.toolName}...`,
 						state: "input-available",
 						input: part.input,
+					} satisfies NonNullable<WebviewChatMessage["toolEvents"]>[number];
+					toolEvents.set(part.toolCallId, toolEvent);
+					blocks.push({
+						id: `${message.id ?? messageIndex}:tool:${part.toolCallId}`,
+						type: "tool",
+						toolEvent,
 					});
 					break;
+				}
 				case "tool-result": {
 					const existing = toolEvents.get(part.toolCallId);
-					toolEvents.set(part.toolCallId, {
+					const toolEvent = {
 						id:
 							existing?.id ??
 							`${message.id ?? messageIndex}:${part.toolCallId}`,
@@ -256,7 +284,26 @@ function mapPersistedMessagesToWebviewMessages(
 						input: existing?.input,
 						output: part.output,
 						error: part.isError ? stringifyContent(part.output) : undefined,
-					});
+					} satisfies NonNullable<WebviewChatMessage["toolEvents"]>[number];
+					toolEvents.set(part.toolCallId, toolEvent);
+					const existingBlockIndex = blocks.findIndex(
+						(block) =>
+							block.type === "tool" &&
+							block.toolEvent.toolCallId === part.toolCallId,
+					);
+					if (existingBlockIndex >= 0) {
+						blocks[existingBlockIndex] = {
+							...blocks[existingBlockIndex],
+							type: "tool",
+							toolEvent,
+						};
+					} else {
+						blocks.push({
+							id: `${message.id ?? messageIndex}:tool:${part.toolCallId}`,
+							type: "tool",
+							toolEvent,
+						});
+					}
 					break;
 				}
 			}
@@ -282,6 +329,7 @@ function mapPersistedMessagesToWebviewMessages(
 					reasoningParts.length > 0 ? reasoningParts.join("\n") : undefined,
 				reasoningRedacted: reasoningRedacted || undefined,
 				toolEvents: toolEventList.length > 0 ? toolEventList : undefined,
+				blocks: blocks.length > 0 ? blocks : undefined,
 			},
 		];
 	});

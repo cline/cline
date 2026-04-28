@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { __test__ } from "./common";
+import { __test__, readSessionReplyText } from "./common";
 
 describe("spawnDetachedConnector", () => {
 	it("preserves the connect subcommand when building detached connector args", () => {
@@ -78,5 +78,33 @@ describe("spawnDetachedConnector", () => {
 				"-i",
 			],
 		});
+	});
+});
+
+describe("readSessionReplyText", () => {
+	it("reads messages through the hub session client", async () => {
+		const client = {
+			readMessages: async () => [
+				{
+					role: "user",
+					content: [{ type: "text", text: "question" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "first" }],
+				},
+				{
+					role: "assistant",
+					content: [
+						{ type: "text", text: "latest " },
+						{ type: "text", text: "reply" },
+					],
+				},
+			],
+		};
+
+		await expect(
+			readSessionReplyText(client as never, "session-1"),
+		).resolves.toBe("latest reply");
 	});
 });

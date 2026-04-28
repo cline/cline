@@ -13,11 +13,19 @@ describe("HubServerTransport boundaries", () => {
 				send: vi.fn(),
 				abort: vi.fn(),
 				dispose: vi.fn(),
-				get: vi.fn(),
+				get: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "completed",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
 				list: vi.fn(),
 				delete: vi.fn(),
 				update: vi.fn(),
 				handleHookEvent: vi.fn(),
+				readMessages: vi.fn(),
 			} as never,
 			...options,
 		});
@@ -106,6 +114,100 @@ describe("HubServerTransport boundaries", () => {
 			approved: false,
 			reason:
 				"Tool approval requires an interactive session, but this session is non-interactive.",
+		});
+	});
+
+	it("serves session messages from the hub-owned session host", async () => {
+		const messages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "created elsewhere" }],
+			},
+		];
+		const readMessages = vi.fn().mockResolvedValue(messages);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				start: vi.fn(),
+				stop: vi.fn(),
+				send: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				get: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					source: "cli",
+					pid: 123,
+					startedAt: new Date(0).toISOString(),
+					status: "completed",
+					interactive: false,
+					provider: "cline",
+					model: "test-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: false,
+					updatedAt: new Date(0).toISOString(),
+				}),
+				list: vi.fn(),
+				delete: vi.fn(),
+				update: vi.fn(),
+				handleHookEvent: vi.fn(),
+				readMessages,
+			} as never,
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-1",
+			command: "session.messages",
+			sessionId: "session-1",
+		});
+
+		expect(readMessages).toHaveBeenCalledWith("session-1");
+		expect(reply).toMatchObject({
+			version: "v1",
+			requestId: "req-1",
+			ok: true,
+			payload: { sessionId: "session-1", messages },
+		});
+	});
+
+	it("returns session_not_found when session messages are requested for an unknown session", async () => {
+		const readMessages = vi.fn().mockResolvedValue([]);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				start: vi.fn(),
+				stop: vi.fn(),
+				send: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				get: vi.fn().mockResolvedValue(undefined),
+				list: vi.fn(),
+				delete: vi.fn(),
+				update: vi.fn(),
+				handleHookEvent: vi.fn(),
+				readMessages,
+			} as never,
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-1",
+			command: "session.messages",
+			sessionId: "missing-session",
+		});
+
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(reply).toMatchObject({
+			version: "v1",
+			requestId: "req-1",
+			ok: false,
+			error: {
+				code: "session_not_found",
+				message: "Unknown session: missing-session",
+			},
 		});
 	});
 

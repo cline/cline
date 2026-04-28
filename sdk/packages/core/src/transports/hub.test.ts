@@ -319,6 +319,47 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("reads messages through the hub instead of dereferencing client-local artifact paths", async () => {
+		const messages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "hello from another client" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "hello" }],
+			},
+		];
+		commandMock.mockResolvedValue({ ok: true, payload: { messages } });
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(host.readMessages(" sess-1 ")).resolves.toEqual(messages);
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.messages",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
+	});
+
+	it("throws when the hub rejects message reads", async () => {
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: {
+				code: "session_not_found",
+				message: "Unknown session: sess-missing",
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(host.readMessages("sess-missing")).rejects.toThrow(
+			"Unknown session: sess-missing",
+		);
+	});
+
 	it("detaches active sessions when disposed", async () => {
 		commandMock.mockResolvedValueOnce({
 			payload: {

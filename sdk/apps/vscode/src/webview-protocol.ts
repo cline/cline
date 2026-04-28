@@ -21,6 +21,15 @@ export type WebviewToolEvent = {
 	error?: string;
 };
 
+export type WebviewChatMessageBlock =
+	| { id: string; type: "text"; text: string }
+	| { id: string; type: "reasoning"; text: string; redacted?: boolean }
+	| {
+			id: string;
+			type: "tool";
+			toolEvent: NonNullable<WebviewChatMessage["toolEvents"]>[number];
+	  };
+
 export type WebviewChatMessage = {
 	id: string;
 	role: "user" | "assistant" | "meta" | "error";
@@ -37,6 +46,7 @@ export type WebviewChatMessage = {
 		output?: unknown;
 		error?: string;
 	}>;
+	blocks?: WebviewChatMessageBlock[];
 };
 
 export type WebviewConfig = {

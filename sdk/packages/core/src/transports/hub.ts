@@ -33,10 +33,7 @@ import {
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
-import {
-	RuntimeHostEventBus,
-	readPersistedMessagesFile,
-} from "./runtime-host-support";
+import { RuntimeHostEventBus } from "./runtime-host-support";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -92,6 +89,13 @@ function parseApprovalInput(value: unknown): unknown {
 	} catch {
 		return value;
 	}
+}
+
+function hubReplyErrorMessage(
+	reply: { error?: { message?: string } },
+	command: string,
+): string {
+	return reply.error?.message ?? `hub command failed: ${command}`;
 }
 
 export interface HubRuntimeHostOptions {
@@ -513,8 +517,22 @@ export class HubRuntimeHost implements RuntimeHost {
 	async readMessages(
 		sessionId: string,
 	): Promise<import("@clinebot/llms").Message[]> {
-		const session = await this.get(sessionId);
-		return readPersistedMessagesFile(session?.messagesPath);
+		const target = sessionId.trim();
+		if (!target) {
+			return [];
+		}
+		const reply = await this.client.command(
+			"session.messages",
+			{ sessionId: target },
+			target,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
+		}
+		const messages = reply.payload?.messages;
+		return Array.isArray(messages)
+			? (messages as import("@clinebot/llms").Message[])
+			: [];
 	}
 
 	async handleHookEvent(_payload: HookEventPayload): Promise<void> {

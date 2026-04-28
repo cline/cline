@@ -1,3 +1,4 @@
+import type * as LlmsProviders from "@clinebot/llms";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
@@ -73,6 +74,13 @@ function extractSessionRow(
 				: undefined,
 		metadata,
 	};
+}
+
+function hubReplyErrorMessage(
+	reply: { error?: { message?: string } },
+	command: string,
+): string {
+	return reply.error?.message ?? `hub command failed: ${command}`;
 }
 
 function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
@@ -279,6 +287,24 @@ export class HubSessionClient {
 			sessionId,
 		);
 		return extractSessionRow(reply.payload);
+	}
+
+	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
+		const target = sessionId.trim();
+		if (!target) {
+			return [];
+		}
+		await this.ensureMetadataApplied();
+		const reply = await this.client.command(
+			"session.messages",
+			{ sessionId: target },
+			target,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
+		}
+		const messages = reply.payload?.messages;
+		return Array.isArray(messages) ? (messages as LlmsProviders.Message[]) : [];
 	}
 
 	async listSessions(input?: { limit?: number }): Promise<HubSessionRow[]> {

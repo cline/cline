@@ -4,6 +4,7 @@ import { GitBranchIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
 import { nanoid } from "nanoid";
 import {
 	type MutableRefObject,
+	type ReactNode,
 	useEffect,
 	useMemo,
 	useRef,
@@ -45,6 +46,7 @@ import type {
 import { Composer } from "./components/Composer";
 import type {
 	ChatMessage,
+	ChatMessageBlock,
 	ModelSelectionStorage,
 	ProviderOption,
 	ToolEvent,
@@ -131,7 +133,11 @@ function appendAssistantDelta(
 		if (targetIndex >= 0) {
 			return current.map((message, index) =>
 				index === targetIndex
-					? { ...message, text: `${message.text}${text}` }
+					? {
+							...message,
+							text: `${message.text}${text}`,
+							blocks: appendTextBlock(message.blocks, text),
+						}
 					: message,
 			);
 		}
@@ -142,13 +148,83 @@ function appendAssistantDelta(
 		activeAssistantIdRef.current = lastMessage.id;
 		return [
 			...current.slice(0, -1),
-			{ ...lastMessage, text: `${lastMessage.text}${text}` },
+			{
+				...lastMessage,
+				text: `${lastMessage.text}${text}`,
+				blocks: appendTextBlock(lastMessage.blocks, text),
+			},
 		];
 	}
 
-	const assistantMessage = createMessage("assistant", text);
+	const assistantMessage = createMessage("assistant", text, {
+		blocks: [{ id: nanoid(), type: "text", text }],
+	});
 	activeAssistantIdRef.current = assistantMessage.id;
 	return [...current, assistantMessage];
+}
+
+function appendTextBlock(
+	blocks: ChatMessageBlock[] | undefined,
+	text: string,
+): ChatMessageBlock[] {
+	const current = blocks ?? [];
+	const last = current.at(-1);
+	if (last?.type === "text") {
+		return current.map((block, index) =>
+			index === current.length - 1 && block.type === "text"
+				? { ...block, text: `${block.text}${text}` }
+				: block,
+		);
+	}
+	return [...current, { id: nanoid(), type: "text", text }];
+}
+
+function appendReasoningBlock(
+	blocks: ChatMessageBlock[] | undefined,
+	text: string,
+	redacted?: boolean,
+): ChatMessageBlock[] {
+	const current = blocks ?? [];
+	const last = current.at(-1);
+	if (last?.type === "reasoning") {
+		return current.map((block, index) =>
+			index === current.length - 1 && block.type === "reasoning"
+				? {
+						...block,
+						text: `${block.text}${text}`,
+						redacted: block.redacted || redacted,
+					}
+				: block,
+		);
+	}
+	return [...current, { id: nanoid(), type: "reasoning", text, redacted }];
+}
+
+function upsertToolBlock(
+	blocks: ChatMessageBlock[] | undefined,
+	toolEvent: ToolEvent,
+): ChatMessageBlock[] {
+	const current = blocks ?? [];
+	const existingIndex = current.findIndex(
+		(block) =>
+			block.type === "tool" &&
+			((block.toolEvent.toolCallId &&
+				toolEvent.toolCallId &&
+				block.toolEvent.toolCallId === toolEvent.toolCallId) ||
+				(!block.toolEvent.toolCallId &&
+					!toolEvent.toolCallId &&
+					block.toolEvent.name === toolEvent.name &&
+					block.toolEvent.state === "input-available" &&
+					toolEvent.state !== "input-available")),
+	);
+	if (existingIndex === -1) {
+		return [...current, { id: nanoid(), type: "tool", toolEvent }];
+	}
+	return current.map((block, index) =>
+		index === existingIndex && block.type === "tool"
+			? { ...block, toolEvent: { ...block.toolEvent, ...toolEvent } }
+			: block,
+	);
 }
 
 function appendReasoningDelta(
@@ -174,6 +250,11 @@ function appendReasoningDelta(
 							...message,
 							reasoning: `${message.reasoning ?? ""}${reasoningChunk}`,
 							reasoningRedacted: message.reasoningRedacted || redacted,
+							blocks: appendReasoningBlock(
+								message.blocks,
+								reasoningChunk,
+								redacted,
+							),
 						}
 					: message,
 			);
@@ -189,6 +270,11 @@ function appendReasoningDelta(
 				...lastMessage,
 				reasoning: `${lastMessage.reasoning ?? ""}${reasoningChunk}`,
 				reasoningRedacted: lastMessage.reasoningRedacted || redacted,
+				blocks: appendReasoningBlock(
+					lastMessage.blocks,
+					reasoningChunk,
+					redacted,
+				),
 			},
 		];
 	}
@@ -196,6 +282,9 @@ function appendReasoningDelta(
 	const assistantMessage = createMessage("assistant", "", {
 		reasoning: reasoningChunk,
 		reasoningRedacted: redacted,
+		blocks: [
+			{ id: nanoid(), type: "reasoning", text: reasoningChunk, redacted },
+		],
 	});
 	activeAssistantIdRef.current = assistantMessage.id;
 	return [...current, assistantMessage];
@@ -382,12 +471,19 @@ function appendToolEvent(
 				? {
 						...message,
 						toolEvents: upsertToolEvent(message.toolEvents ?? [], toolEvent),
+						blocks: upsertToolBlock(message.blocks, toolEvent),
 					}
 				: message,
 		);
 	}
 
-	return [...current, createMessage("meta", text, { toolEvents: [toolEvent] })];
+	return [
+		...current,
+		createMessage("meta", text, {
+			toolEvents: [toolEvent],
+			blocks: [{ id: nanoid(), type: "tool", toolEvent }],
+		}),
+	];
 }
 
 function mergeHydratedMessagesWithLive(
@@ -409,6 +505,7 @@ function mergeHydratedMessagesWithLive(
 				reasoningRedacted:
 					last.reasoningRedacted || live.reasoningRedacted || undefined,
 				toolEvents: [...(last.toolEvents ?? []), ...(live.toolEvents ?? [])],
+				blocks: [...(last.blocks ?? []), ...(live.blocks ?? [])],
 			};
 			continue;
 		}
@@ -421,12 +518,104 @@ function mergeHydratedMessagesWithLive(
 				...last,
 				text: live.text || last.text,
 				toolEvents: [...(last.toolEvents ?? []), ...(live.toolEvents ?? [])],
+				blocks: [...(last.blocks ?? []), ...(live.blocks ?? [])],
 			};
 			continue;
 		}
 		next.push(live);
 	}
 	return next;
+}
+
+function renderToolEvent(toolEvent: ToolEvent, className: string): ReactNode[] {
+	return expandToolEvent(toolEvent).map((expanded) => (
+		<Tool className={className} key={expanded.id}>
+			<ToolHeader
+				state={expanded.state}
+				title={expanded.title}
+				type="dynamic-tool"
+				toolName={expanded.name}
+			/>
+			<ToolContent>
+				<ToolOutput errorText={expanded.error} output={expanded.output} />
+			</ToolContent>
+		</Tool>
+	));
+}
+
+function legacyMessageBlocks(message: ChatMessage): ChatMessageBlock[] {
+	const blocks: ChatMessageBlock[] = [];
+	for (const toolEvent of message.toolEvents ?? []) {
+		blocks.push({ id: `legacy-tool-${toolEvent.id}`, type: "tool", toolEvent });
+	}
+	if (message.reasoning) {
+		blocks.push({
+			id: `legacy-reasoning-${message.id}`,
+			type: "reasoning",
+			text: message.reasoning,
+			redacted: message.reasoningRedacted,
+		});
+	}
+	if (message.text) {
+		blocks.push({
+			id: `legacy-text-${message.id}`,
+			type: "text",
+			text: message.text,
+		});
+	}
+	return blocks;
+}
+
+function renderMessageBlocks(
+	message: ChatMessage,
+	options: { isMeta?: boolean; sending?: boolean },
+): ReactNode[] {
+	const blocks = message.blocks?.length
+		? message.blocks
+		: legacyMessageBlocks(message);
+	return blocks.flatMap((block) => {
+		switch (block.type) {
+			case "tool":
+				if (block.toolEvent.name.startsWith("team_")) {
+					return [
+						<TeamTasks
+							className={options.isMeta ? "mt-3 w-full" : "mb-3 w-full"}
+							events={[block.toolEvent] as TeamToolEvent[]}
+							key={block.id}
+						/>,
+					];
+				}
+				return renderToolEvent(
+					block.toolEvent,
+					options.isMeta ? "mt-3" : "mb-3",
+				);
+			case "reasoning":
+				return [
+					<Reasoning
+						className={options.isMeta ? "mt-3" : "mb-3"}
+						defaultOpen={false}
+						key={block.id}
+					>
+						<ReasoningTrigger />
+						<ReasoningContent>{block.text}</ReasoningContent>
+					</Reasoning>,
+				];
+			case "text":
+				if (options.isMeta) {
+					return [
+						<pre className="whitespace-pre-wrap font-inherit" key={block.id}>
+							{block.text}
+						</pre>,
+					];
+				}
+				return [
+					<MessageContent key={block.id}>
+						<MessageResponse>{block.text}</MessageResponse>
+					</MessageContent>,
+				];
+		}
+		return [];
+	});
 }
 
 function finalizeAssistantTurn(
@@ -874,15 +1063,6 @@ export default function Chat() {
 							</div>
 						) : null}
 						{visibleMessages.map((message) => {
-							const teamToolEvents =
-								message.toolEvents?.filter((toolEvent) =>
-									toolEvent.name.startsWith("team_"),
-								) ?? [];
-							const standardToolEvents =
-								message.toolEvents?.filter(
-									(toolEvent) => !toolEvent.name.startsWith("team_"),
-								) ?? [];
-
 							if (message.role === "meta" || message.role === "error") {
 								return (
 									<div
@@ -894,33 +1074,7 @@ export default function Chat() {
 										)}
 										key={message.id}
 									>
-										<pre className="whitespace-pre-wrap font-inherit">
-											{message.text}
-										</pre>
-										{teamToolEvents.length > 0 ? (
-											<TeamTasks
-												className="mt-3 w-full"
-												events={teamToolEvents as TeamToolEvent[]}
-											/>
-										) : null}
-										{standardToolEvents.flatMap((toolEvent) =>
-											expandToolEvent(toolEvent).map((expanded) => (
-												<Tool className="mt-3" key={expanded.id}>
-													<ToolHeader
-														state={expanded.state}
-														title={expanded.title}
-														type="dynamic-tool"
-														toolName={expanded.name}
-													/>
-													<ToolContent>
-														<ToolOutput
-															errorText={expanded.error}
-															output={expanded.output}
-														/>
-													</ToolContent>
-												</Tool>
-											)),
-										)}
+										{renderMessageBlocks(message, { isMeta: true })}
 									</div>
 								);
 							}
@@ -928,68 +1082,36 @@ export default function Chat() {
 							return (
 								<Message from={message.role} key={message.id}>
 									<div>
-										{teamToolEvents.length > 0 ? (
-											<TeamTasks
-												className="mb-3 w-full"
-												events={teamToolEvents as TeamToolEvent[]}
-											/>
+										{renderMessageBlocks(message, { sending })}
+										{message.role === "assistant" && !sending ? (
+											<div className="mt-1 flex items-center gap-1">
+												<Button
+													className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+													disabled={forking}
+													onClick={() => {
+														setForking(true);
+														setForkError(null);
+														postToHost({ type: "forkSession" });
+													}}
+													size="sm"
+													title="Fork session — copy full message history into a new session"
+													type="button"
+													variant="ghost"
+												>
+													{forking ? (
+														<Loader2Icon className="size-3 animate-spin" />
+													) : (
+														<GitBranchIcon className="size-3" />
+													)}
+													Fork
+												</Button>
+												{forkError ? (
+													<span className="text-[11px] text-destructive">
+														{forkError}
+													</span>
+												) : null}
+											</div>
 										) : null}
-										{standardToolEvents.flatMap((toolEvent) =>
-											expandToolEvent(toolEvent).map((expanded) => (
-												<Tool className="mb-3" key={expanded.id}>
-													<ToolHeader
-														state={expanded.state}
-														title={expanded.title}
-														type="dynamic-tool"
-														toolName={expanded.name}
-													/>
-													<ToolContent>
-														<ToolOutput
-															errorText={expanded.error}
-															output={expanded.output}
-														/>
-													</ToolContent>
-												</Tool>
-											)),
-										)}
-										{message.reasoning ? (
-											<Reasoning className="mb-3" defaultOpen={false}>
-												<ReasoningTrigger />
-												<ReasoningContent>{message.reasoning}</ReasoningContent>
-											</Reasoning>
-										) : null}
-										<MessageContent>
-											<MessageResponse>{message.text}</MessageResponse>
-											{message.role === "assistant" && !sending ? (
-												<div className="mt-1 flex items-center gap-1">
-													<Button
-														className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-														disabled={forking}
-														onClick={() => {
-															setForking(true);
-															setForkError(null);
-															postToHost({ type: "forkSession" });
-														}}
-														size="sm"
-														title="Fork session — copy full message history into a new session"
-														type="button"
-														variant="ghost"
-													>
-														{forking ? (
-															<Loader2Icon className="size-3 animate-spin" />
-														) : (
-															<GitBranchIcon className="size-3" />
-														)}
-														Fork
-													</Button>
-													{forkError ? (
-														<span className="text-[11px] text-destructive">
-															{forkError}
-														</span>
-													) : null}
-												</div>
-											) : null}
-										</MessageContent>
 									</div>
 								</Message>
 							);
