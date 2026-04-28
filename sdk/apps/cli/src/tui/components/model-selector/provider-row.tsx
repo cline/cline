@@ -19,7 +19,7 @@ export function ProviderRow({
 			<text fg="white">{providerName}</text>
 			{!focused && (
 				<text fg="gray" flexShrink={0}>
-					(tab)
+					(tab to change provider)
 				</text>
 			)}
 			{focused && (
