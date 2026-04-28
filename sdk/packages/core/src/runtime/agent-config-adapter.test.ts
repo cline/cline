@@ -304,6 +304,45 @@ describe("apiHandlerToAgentModel", () => {
 		}
 		expect(setAbortSignal).toHaveBeenCalledWith(ac.signal);
 	});
+
+	it("prepares messages before invoking the handler", async () => {
+		const createMessage = vi.fn<ApiHandler["createMessage"]>(() =>
+			asApiStream([{ type: "done", id: "r1", success: true }]),
+		);
+		const handler: ApiHandler = {
+			createMessage,
+			getMessages: () => undefined,
+			getModel: () => ({ id: "m", info: { id: "m", capabilities: [] } }),
+		};
+		const prepareMessages = vi.fn((messages: Message[]): Message[] => [
+			...messages,
+			{ role: "user", content: [{ type: "text", text: "prepared" }] },
+		]);
+		const model = apiHandlerToAgentModel(handler, { prepareMessages });
+
+		const stream = await model.stream({
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "hi" }],
+					createdAt: 1,
+				},
+			],
+			tools: [],
+		});
+		for await (const _ of stream) {
+			/* no-op */
+		}
+
+		expect(prepareMessages).toHaveBeenCalledWith([
+			{ role: "user", content: [{ type: "text", text: "hi" }] },
+		]);
+		expect(createMessage.mock.calls[0][1]).toEqual([
+			{ role: "user", content: [{ type: "text", text: "hi" }] },
+			{ role: "user", content: [{ type: "text", text: "prepared" }] },
+		]);
+	});
 });
 
 // ---------------------------------------------------------------------------

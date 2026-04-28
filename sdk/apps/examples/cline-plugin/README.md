@@ -4,6 +4,7 @@ Shows how to author a reusable plugin module that works in both the SDK and the 
 
 - **Register tools** — give the agent new capabilities it can invoke
 - **Hook into the lifecycle** — observe or influence execution at key points
+- **Rewrite provider messages** — add custom context compaction before the model call
 - **Emit automation events** — normalize plugin-owned events into ClineCore automation
 
 Example plugins:
@@ -11,6 +12,7 @@ Example plugins:
 - [weathe-plugin.example.ts](./weathe-plugin.example.ts) - weather tool plus lifecycle metrics hooks
 - [mac-notify.example.ts](./mac-notify.example.ts) - macOS Notification Center alert on successful run completion
 - [automation-events.ts](./automation-events.ts) - local plugin-emitted automation event example
+- [custom-compaction.example.ts](./custom-compaction.example.ts) - custom summary-based message compaction
 
 ## Use It With The CLI
 
@@ -35,6 +37,15 @@ cline -i "Run the test suite"
 ```
 
 The notification example uses the `run_end` hook and `/usr/bin/osascript`. macOS may ask you to allow notifications for the terminal or host process the first time it fires.
+
+To add custom provider-message compaction before each model call:
+
+```bash
+mkdir -p .cline/plugins
+cp apps/examples/cline-plugin/custom-compaction.example.ts .cline/plugins/custom-compaction.ts
+
+cline -i "Search the codebase for dispatcher usage, then summarize it"
+```
 
 ## Run The Demo Directly
 
@@ -99,7 +110,7 @@ await host.start({
 | `tools`            | `api.registerTool()`                         |
 | `commands`         | `api.registerCommand()`                      |
 | `providers`        | `api.registerProvider()`                     |
-| `messageBuilder`   | `api.registerMessageBuilder()` (Coming soon) |
+| `messageBuilders`  | `api.registerMessageBuilder()`               |
 | `automationEvents` | `api.registerAutomationEventType()` and `ctx.automation?.ingestEvent()` |
 | `hooks`            | lifecycle hook handlers (see below)          |
 
@@ -156,32 +167,21 @@ that cleans up with the `session_shutdown` hook.
 
 > **`turn_end` vs `iteration_end`:** Within a single iteration the order is `turn_end` → *(tool calls)* → `iteration_end`. Use `turn_end` to inspect or react to the model's raw response before tools run; use `iteration_end` when you need to observe the outcome of the full round-trip including all tool results.
 
-## Context rewriting vs compaction
+## Custom message compaction
 
-Plugins do not own context compaction.
+Use `messageBuilders` when a plugin needs to transform the provider-bound
+message list before the model call. Message builders run after runtime messages
+are converted into SDK message blocks and before the built-in API safety pass,
+so core still applies final provider-safe truncation afterward.
 
-Compaction is a core-owned context-pipeline concern that runs through turn preparation before the model call. If a plugin needs to influence the prompt or retained history, use the normal hook surface for prompt/message rewriting rather than a compaction-specific hook.
-
-Example:
-
-```ts
-const plugin: Plugin = {
-  name: "my-plugin",
-  manifest: {
-    capabilities: ["hooks"],
-    hookStages: ["before_agent_start"],
-  },
-  onBeforeAgentStart() {
-    return {
-      systemPrompt:
-        "You are a helpful assistant. Prefer concise weather summaries.",
-    };
-  },
-};
-```
+See [`custom-compaction.example.ts`](./custom-compaction.example.ts) for a full
+plugin that estimates context size, preserves the first user message and recent
+working context, and replaces older middle history with one continuation summary.
 
 Notes:
 
-- plugins can still influence prompt construction through supported hook stages
-- default compaction strategy selection lives in `@clinebot/core`
-- custom compaction should be implemented in the host/core layer, not as a plugin lifecycle hook
+- message builders receive and return `Message[]`
+- builders may be sync or async
+- multiple builders run in plugin registration order
+- the built-in core message builder runs last to normalize input and enforce provider-safe truncation
+- use `before_agent_start` hooks for system-prompt changes; use message builders for message-list rewrites

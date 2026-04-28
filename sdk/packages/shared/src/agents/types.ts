@@ -511,11 +511,11 @@ export type AgentExtensionBeforeAgentStartControl = Omit<
 export interface AgentExtensionContext extends PluginSetupContext {}
 
 export interface AgentExtension
-	extends ContributionRegistryExtension<Tool, Message> {
+	extends ContributionRegistryExtension<Tool, Message[]> {
 	name: string;
 	manifest: PluginManifest;
 	setup?: (
-		api: AgentExtensionApi<Tool, Message>,
+		api: AgentExtensionApi<Tool, Message[]>,
 		ctx: AgentExtensionContext,
 	) => void | Promise<void>;
 	onSessionStart?: (

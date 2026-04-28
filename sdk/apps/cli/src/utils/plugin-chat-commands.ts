@@ -78,7 +78,7 @@ export async function createWorkspaceChatCommandHost(input: {
 	const registry = createContributionRegistry<
 		(typeof loaded.extensions)[number],
 		Tool,
-		Message
+		Message[]
 	>({
 		extensions: loaded.extensions,
 	});

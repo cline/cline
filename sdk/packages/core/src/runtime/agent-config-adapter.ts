@@ -67,6 +67,15 @@ export interface ApiHandlerAgentModelOptions {
 	 * `request.signal` through for per-turn abort semantics.
 	 */
 	readonly getAbortSignal?: () => AbortSignal | undefined;
+	/**
+	 * Last-mile message preparation before the legacy handler builds a provider
+	 * request. SessionRuntime uses this to apply API-safe normalization,
+	 * tool-result truncation, and stale read-result rewriting with its
+	 * session-owned MessageBuilder.
+	 */
+	readonly prepareMessages?: (
+		messages: Message[],
+	) => Message[] | Promise<Message[]>;
 }
 
 /**
@@ -94,7 +103,11 @@ export function apiHandlerToAgentModel(
 			const signal = options.getAbortSignal?.() ?? request.signal;
 			handler.setAbortSignal?.(signal);
 			const systemPrompt = request.systemPrompt ?? "";
-			const messages = agentMessagesToMessages(request.messages);
+			const messages = options.prepareMessages
+				? await options.prepareMessages(
+						agentMessagesToMessages(request.messages),
+					)
+				: agentMessagesToMessages(request.messages);
 			const tools = agentToolDefinitionsToToolDefinitions(request.tools);
 			const stream = handler.createMessage(systemPrompt, messages, tools);
 			return translateApiStream(stream);

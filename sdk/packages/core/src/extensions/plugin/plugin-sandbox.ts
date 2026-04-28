@@ -6,6 +6,7 @@ import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
 	HookStage,
+	Message,
 	PluginSetupContext,
 	Tool,
 	WorkspaceInfo,
@@ -320,6 +321,13 @@ export async function loadSandboxedPlugins(
 						contributionTimeoutMs,
 						reinitialize,
 					);
+					registerMessageBuilders(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
 					registerSimpleContributions(api, descriptor);
 				},
 			};
@@ -447,13 +455,6 @@ function registerSimpleContributions(
 	api: AgentExtensionApi,
 	descriptor: SandboxedPluginDescriptor,
 ): void {
-	for (const rd of descriptor.contributions?.messageBuilders ?? []) {
-		api.registerMessageBuilder({
-			name: rd.name,
-			build: (m) => m,
-		});
-	}
-
 	for (const pd of descriptor.contributions?.providers ?? []) {
 		api.registerProvider({
 			name: pd.name,
@@ -474,6 +475,62 @@ function registerSimpleContributions(
 			metadata: eventType.metadata,
 		});
 	}
+}
+
+function registerMessageBuilders(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const bd of descriptor.contributions?.messageBuilders ?? []) {
+		api.registerMessageBuilder({
+			name: bd.name,
+			async build(messages) {
+				try {
+					const result = await sandbox.call<unknown[]>(
+						"buildMessages",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: bd.id,
+							messages,
+						},
+						{ timeoutMs },
+					);
+					return isMessageArray(result) ? result : messages;
+				} catch (error) {
+					if (!isUnknownPluginIdError(error)) {
+						throw error;
+					}
+					await reinitialize();
+					const result = await sandbox.call<unknown[]>(
+						"buildMessages",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: bd.id,
+							messages,
+						},
+						{ timeoutMs },
+					);
+					return isMessageArray(result) ? result : messages;
+				}
+			},
+		});
+	}
+}
+
+function isMessageArray(value: unknown): value is Message[] {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			(entry) =>
+				typeof entry === "object" &&
+				entry !== null &&
+				"role" in entry &&
+				"content" in entry,
+		)
+	);
 }
 
 function makeHookHandler(

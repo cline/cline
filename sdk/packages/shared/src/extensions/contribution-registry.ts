@@ -14,7 +14,7 @@ export interface AgentExtensionCommand {
 
 export interface AgentExtensionMessageBuilder<TMessage = unknown> {
 	name: string;
-	build: (message: TMessage) => TMessage;
+	build: (message: TMessage) => TMessage | Promise<TMessage>;
 }
 
 export interface AgentExtensionProvider {

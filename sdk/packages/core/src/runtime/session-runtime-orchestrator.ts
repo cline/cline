@@ -176,7 +176,7 @@ export class SessionRuntime {
 	private readonly contributionRegistry: ContributionRegistry<
 		AgentExtension,
 		Tool,
-		Message
+		Message[]
 	>;
 	private extensionsInitialized = false;
 	private readonly listeners = new Set<SessionEventListener>();
@@ -249,7 +249,7 @@ export class SessionRuntime {
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			Tool,
-			Message
+			Message[]
 		>({
 			extensions: config.extensions ? [...config.extensions] : [],
 			setupContext: {
@@ -355,7 +355,7 @@ export class SessionRuntime {
 	 * `api.registerTool` / `registerCommand` / `registerMessageBuilder`
 	 * / `registerProvider` / `registerAutomationEventType`.
 	 */
-	getExtensionRegistry(): AgentExtensionRegistry<Tool, Message> {
+	getExtensionRegistry(): AgentExtensionRegistry<Tool, Message[]> {
 		return this.contributionRegistry.getRegistrySnapshot();
 	}
 
@@ -701,7 +701,9 @@ export class SessionRuntime {
 
 		// Build the AgentRuntime for this turn.
 		const handler = createHandlerFromConfig(this.config, this.logger);
-		const agentModel = apiHandlerToAgentModel(handler);
+		const agentModel = apiHandlerToAgentModel(handler, {
+			prepareMessages: (messages) => this.prepareMessagesForApi(messages),
+		});
 		// Merge extension-contributed tools with the config-declared
 		// tools for this turn. Extensions register tools via
 		// `api.registerTool` during `setup()` — parity with legacy
@@ -890,6 +892,15 @@ export class SessionRuntime {
 			});
 		}
 		this.extensionsInitialized = true;
+	}
+
+	private async prepareMessagesForApi(messages: Message[]): Promise<Message[]> {
+		let prepared = messages;
+		for (const builder of this.contributionRegistry.getRegistrySnapshot()
+			.messageBuilder) {
+			prepared = await builder.build(prepared);
+		}
+		return this.messageBuilder.buildForApi(prepared);
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {

@@ -1,22 +1,31 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentConfig, Tool, ToolContext } from "@clinebot/shared";
+import type {
+	AgentConfig,
+	AgentExtensionMessageBuilder,
+	Message,
+	Tool,
+	ToolContext,
+} from "@clinebot/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 
 function createApiCapture() {
 	const tools: Tool[] = [];
+	const messageBuilders: AgentExtensionMessageBuilder<Message[]>[] = [];
 	const automationEventTypes: unknown[] = [];
 	const api = {
 		registerTool: (tool: Tool) => tools.push(tool),
 		registerCommand: () => {},
-		registerMessageBuilder: () => {},
+		registerMessageBuilder: (
+			builder: AgentExtensionMessageBuilder<Message[]>,
+		) => messageBuilders.push(builder),
 		registerProvider: () => {},
 		registerAutomationEventType: (eventType: unknown) =>
 			automationEventTypes.push(eventType),
 	};
-	return { tools, automationEventTypes, api };
+	return { tools, messageBuilders, automationEventTypes, api };
 }
 
 describe("plugin-sandbox", () => {
@@ -86,6 +95,23 @@ describe("plugin-sandbox", () => {
 				"    globalThis.__clinePluginHost?.emitEvent?.('run_end_hook', {",
 				"      finishReason: ctx.result?.finishReason,",
 				"      iterations: ctx.result?.iterations,",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
+			join(dir, "plugin-message-builder.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-message-builder',",
+				"  manifest: { capabilities: ['messageBuilders'] },",
+				"  setup(api) {",
+				"    api.registerMessageBuilder({",
+				"      name: 'append-system-context',",
+				"      build: async (messages) => messages.concat([{ role: 'user', content: [{ type: 'text', text: 'from sandbox builder' }] }]),",
 				"    });",
 				"  },",
 				"};",
@@ -457,6 +483,31 @@ describe("plugin-sandbox", () => {
 				{
 					name: "run_end_hook",
 					payload: { finishReason: "completed", iterations: 2 },
+				},
+			]);
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+
+	it("runs message builders in the sandbox process", async () => {
+		const sandboxed = await loadSandboxedPlugins({
+			pluginPaths: [join(dir, "plugin-message-builder.mjs")],
+		});
+
+		try {
+			const extension = sandboxed.extensions?.[0];
+			const { messageBuilders, api } = createApiCapture();
+			await extension?.setup?.(api, {});
+			expect(messageBuilders).toHaveLength(1);
+			const result = await messageBuilders[0]?.build([
+				{ role: "user", content: [{ type: "text", text: "original" }] },
+			]);
+			expect(result).toEqual([
+				{ role: "user", content: [{ type: "text", text: "original" }] },
+				{
+					role: "user",
+					content: [{ type: "text", text: "from sandbox builder" }],
 				},
 			]);
 		} finally {

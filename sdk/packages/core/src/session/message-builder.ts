@@ -13,6 +13,8 @@ import type * as LlmsProviders from "@clinebot/llms";
 import { normalizeUserInput } from "@clinebot/shared";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
+const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
+const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
@@ -56,6 +58,7 @@ export class MessageBuilder {
 	constructor(
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
 		private readonly targetToolNames = TARGET_TOOL_NAMES,
+		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
 	) {}
 
 	buildForApi(messages: LlmsProviders.Message[]): LlmsProviders.Message[] {
@@ -65,7 +68,7 @@ export class MessageBuilder {
 		const latestReadToolUseByLocator = this.latestReadToolUseByLocatorCache;
 		const latestFullContentOwnerByPath = this.latestFullContentOwnerByPathCache;
 
-		return messages.map((message) => {
+		const prepared = messages.map((message) => {
 			if (!Array.isArray(message.content)) {
 				if (message.role === "user" && typeof message.content === "string") {
 					const normalized = normalizeUserInput(message.content);
@@ -154,6 +157,8 @@ export class MessageBuilder {
 				content,
 			};
 		});
+
+		return this.truncateToTotalTextBudget(prepared);
 	}
 
 	private reindex(messages: LlmsProviders.Message[]): void {
@@ -714,8 +719,223 @@ export class MessageBuilder {
 		const effectiveKeepCharsPerSide = Math.floor(effectiveAvailableChars / 2);
 
 		const start = text.slice(0, effectiveKeepCharsPerSide);
-		const end = text.slice(-effectiveKeepCharsPerSide);
+		const end =
+			effectiveKeepCharsPerSide > 0
+				? text.slice(-effectiveKeepCharsPerSide)
+				: "";
 
 		return `${start}${effectiveMarker}${end}`;
+	}
+
+	private truncateToTotalTextBudget(
+		messages: LlmsProviders.Message[],
+	): LlmsProviders.Message[] {
+		if (this.maxTotalTextBytes <= 0) {
+			return messages;
+		}
+
+		let totalBytes = this.countMessageTextBytes(messages);
+		if (totalBytes <= this.maxTotalTextBytes) {
+			return messages;
+		}
+
+		const next = messages.map((message) => {
+			if (!Array.isArray(message.content)) {
+				return message;
+			}
+			return {
+				...message,
+				content: message.content.map((block) =>
+					this.cloneContentBlockForMutation(block),
+				),
+			};
+		});
+
+		const candidates = this.collectTruncationCandidates(next);
+		for (const candidate of candidates) {
+			if (totalBytes <= this.maxTotalTextBytes) {
+				break;
+			}
+
+			const current = candidate.get();
+			const currentBytes = candidate.byteLength;
+			if (currentBytes <= MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES) {
+				continue;
+			}
+
+			const overflowBytes = totalBytes - this.maxTotalTextBytes;
+			const targetBytes = Math.max(
+				MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+				currentBytes - overflowBytes,
+			);
+			const truncated = this.truncateMiddleToBytes(current, targetBytes);
+			candidate.set(truncated);
+			totalBytes -= currentBytes - this.utf8ByteLength(truncated);
+		}
+
+		return next;
+	}
+
+	private countMessageTextBytes(messages: LlmsProviders.Message[]): number {
+		let total = 0;
+		for (const message of messages) {
+			if (typeof message.content === "string") {
+				total += this.utf8ByteLength(message.content);
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type === "text") {
+					total += this.utf8ByteLength(block.text);
+				} else if (block.type === "thinking") {
+					total += this.utf8ByteLength(block.thinking);
+				} else if (block.type === "file") {
+					total += this.utf8ByteLength(block.content);
+				} else if (block.type === "tool_result") {
+					total += this.countToolResultTextBytes(block.content);
+				}
+			}
+		}
+		return total;
+	}
+
+	private countToolResultTextBytes(
+		content: LlmsProviders.ToolResultContent["content"],
+	): number {
+		if (typeof content === "string") {
+			return this.utf8ByteLength(content);
+		}
+		return content.reduce((total, entry) => {
+			if (entry.type === "text") {
+				return total + this.utf8ByteLength(entry.text);
+			}
+			if (entry.type === "file") {
+				return total + this.utf8ByteLength(entry.content);
+			}
+			return total;
+		}, 0);
+	}
+
+	private collectTruncationCandidates(
+		messages: LlmsProviders.Message[],
+	): Array<{
+		byteLength: number;
+		get: () => string;
+		set: (value: string) => void;
+	}> {
+		const candidates: Array<{
+			byteLength: number;
+			get: () => string;
+			set: (value: string) => void;
+		}> = [];
+
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type !== "tool_result") {
+					continue;
+				}
+				const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+				if (!this.shouldTruncateTool(toolName)) {
+					continue;
+				}
+				if (typeof block.content === "string") {
+					candidates.push({
+						byteLength: this.utf8ByteLength(block.content),
+						get: () => block.content as string,
+						set: (value) => {
+							block.content = value;
+						},
+					});
+					continue;
+				}
+				for (const entry of block.content) {
+					if (entry.type === "text") {
+						candidates.push({
+							byteLength: this.utf8ByteLength(entry.text),
+							get: () => entry.text,
+							set: (value) => {
+								entry.text = value;
+							},
+						});
+					} else if (entry.type === "file") {
+						candidates.push({
+							byteLength: this.utf8ByteLength(entry.content),
+							get: () => entry.content,
+							set: (value) => {
+								entry.content = value;
+							},
+						});
+					}
+				}
+			}
+		}
+
+		return candidates.sort((left, right) => right.byteLength - left.byteLength);
+	}
+
+	private truncateMiddleToLength(text: string, maxChars: number): string {
+		if (text.length <= maxChars) {
+			return text;
+		}
+
+		const marker = `\n\n...[truncated ${Math.max(0, text.length - maxChars)} chars to fit provider request budget]...\n\n`;
+		const availableChars = Math.max(0, maxChars - marker.length);
+		const keepCharsPerSide = Math.floor(availableChars / 2);
+		const retainedChars = keepCharsPerSide * 2;
+		const removedChars = Math.max(0, text.length - retainedChars);
+		const effectiveMarker = `\n\n...[truncated ${removedChars} chars to fit provider request budget]...\n\n`;
+		const effectiveAvailableChars = Math.max(
+			0,
+			maxChars - effectiveMarker.length,
+		);
+		const effectiveKeepCharsPerSide = Math.floor(effectiveAvailableChars / 2);
+
+		const start = text.slice(0, effectiveKeepCharsPerSide);
+		const end =
+			effectiveKeepCharsPerSide > 0
+				? text.slice(-effectiveKeepCharsPerSide)
+				: "";
+
+		return `${start}${effectiveMarker}${end}`;
+	}
+
+	private truncateMiddleToBytes(text: string, maxBytes: number): string {
+		if (this.utf8ByteLength(text) <= maxBytes) {
+			return text;
+		}
+
+		let low = 0;
+		let high = text.length;
+		let best = this.truncateMiddleToLength(text, 0);
+		while (low <= high) {
+			const mid = Math.floor((low + high) / 2);
+			const candidate = this.truncateMiddleToLength(text, mid);
+			if (this.utf8ByteLength(candidate) <= maxBytes) {
+				best = candidate;
+				low = mid + 1;
+			} else {
+				high = mid - 1;
+			}
+		}
+		return best;
+	}
+
+	private utf8ByteLength(text: string): number {
+		return Buffer.byteLength(text, "utf8");
+	}
+
+	private cloneContentBlockForMutation(
+		block: LlmsProviders.ContentBlock,
+	): LlmsProviders.ContentBlock {
+		if (block.type !== "tool_result" || typeof block.content === "string") {
+			return { ...block };
+		}
+
+		return {
+			...block,
+			content: block.content.map((entry) => ({ ...entry })),
+		};
 	}
 }
