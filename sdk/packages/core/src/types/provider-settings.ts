@@ -6,7 +6,7 @@ import {
 	type ProviderSettings,
 	ProviderSettingsSchema,
 	toProviderConfig,
-} from "../llms/provider-settings";
+} from "../services/llms/provider-settings";
 
 export type {
 	ProviderClient,

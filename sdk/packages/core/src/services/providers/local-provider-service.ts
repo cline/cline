@@ -11,14 +11,14 @@ import { createOAuthClientCallbacks } from "../../auth/client";
 import { loginClineOAuth } from "../../auth/cline";
 import { loginOpenAICodex } from "../../auth/codex";
 import { loginOcaOAuth } from "../../auth/oca";
-import { resolveProviderConfig } from "../../llms/provider-defaults";
+import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import type {
 	ModelInfo,
 	ProviderClient,
 	ProviderConfig,
 	ProviderProtocol,
 	ProviderSettings,
-} from "../../llms/provider-settings";
+} from "../../services/llms/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,

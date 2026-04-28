@@ -1,0 +1,135 @@
+import type { HubCommandEnvelope, HubReplyEnvelope } from "@clinebot/shared";
+import { createSessionId } from "@clinebot/shared";
+import { errorReply, type HubTransportContext, okReply } from "./context";
+
+export async function requestCapability(
+	ctx: HubTransportContext,
+	sessionId: string,
+	capabilityName: string,
+	payload: Record<string, unknown>,
+	targetClientId: string,
+): Promise<Record<string, unknown> | undefined> {
+	const requestId = createSessionId("capreq_");
+	return await new Promise((resolve, reject) => {
+		ctx.pendingCapabilityRequests.set(requestId, {
+			sessionId,
+			capabilityName,
+			resolve: (result) => {
+				if (!result.ok) {
+					reject(
+						new Error(
+							result.error ||
+								`Capability ${capabilityName} was rejected by ${targetClientId}.`,
+						),
+					);
+					return;
+				}
+				resolve(result.payload);
+			},
+		});
+		ctx.publish(
+			ctx.buildEvent(
+				"capability.requested",
+				{
+					requestId,
+					targetClientId,
+					capabilityName,
+					payload,
+				},
+				sessionId,
+			),
+		);
+	});
+}
+
+export async function handleCapabilityRequest(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId =
+		typeof envelope.payload?.sessionId === "string"
+			? envelope.payload.sessionId.trim()
+			: envelope.sessionId?.trim() || "";
+	const capabilityName =
+		typeof envelope.payload?.capabilityName === "string"
+			? envelope.payload.capabilityName.trim()
+			: "";
+	const targetClientId =
+		typeof envelope.payload?.targetClientId === "string"
+			? envelope.payload.targetClientId.trim()
+			: "";
+	if (!sessionId || !capabilityName || !targetClientId) {
+		return errorReply(
+			envelope,
+			"invalid_capability_request",
+			"capability.request requires sessionId, capabilityName, and targetClientId",
+		);
+	}
+	try {
+		const payload =
+			envelope.payload?.payload &&
+			typeof envelope.payload.payload === "object" &&
+			!Array.isArray(envelope.payload.payload)
+				? (envelope.payload.payload as Record<string, unknown>)
+				: {};
+		const response = await ctx.requestCapability(
+			sessionId,
+			capabilityName,
+			payload,
+			targetClientId,
+		);
+		return okReply(envelope, response);
+	} catch (error) {
+		return errorReply(
+			envelope,
+			"capability_request_failed",
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+}
+
+export function handleCapabilityRespond(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const requestId =
+		typeof envelope.payload?.requestId === "string"
+			? envelope.payload.requestId.trim()
+			: "";
+	const pending = ctx.pendingCapabilityRequests.get(requestId);
+	if (!pending) {
+		return errorReply(
+			envelope,
+			"capability_not_found",
+			`Unknown capability request: ${requestId}`,
+		);
+	}
+	ctx.pendingCapabilityRequests.delete(requestId);
+	const payload =
+		envelope.payload?.payload &&
+		typeof envelope.payload.payload === "object" &&
+		!Array.isArray(envelope.payload.payload)
+			? (envelope.payload.payload as Record<string, unknown>)
+			: undefined;
+	const error =
+		typeof envelope.payload?.error === "string"
+			? envelope.payload.error
+			: undefined;
+	const ok = envelope.payload?.ok === true;
+	pending.resolve({ ok, payload, error });
+	ctx.publish(
+		ctx.buildEvent(
+			"capability.resolved",
+			{
+				requestId,
+				capabilityName: pending.capabilityName,
+				targetClientId: envelope.clientId?.trim(),
+				ok,
+				payload,
+				error,
+			},
+			pending.sessionId,
+		),
+	);
+	return okReply(envelope, { requestId, ok });
+}

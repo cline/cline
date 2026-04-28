@@ -32,7 +32,7 @@ type SessionRuntimeCtorConfig = AgentConfig & {
 	onEvent?: (event: AgentEvent) => void;
 };
 
-vi.mock("../../../runtime/session-runtime-orchestrator", () => {
+vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 	return {
 		SessionRuntime: createSessionRuntimeMock,
 	};

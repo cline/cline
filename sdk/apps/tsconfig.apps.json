@@ -7,6 +7,9 @@
 				"../packages/agents/src/*/index.ts"
 			],
 			"@clinebot/core": ["../packages/core/src/index.ts"],
+			"@clinebot/core/hub/daemon-entry": [
+				"../packages/core/src/hub/daemon/entry.ts"
+			],
 			"@clinebot/core/*": [
 				"../packages/core/src/*",
 				"../packages/core/src/*/index.ts"

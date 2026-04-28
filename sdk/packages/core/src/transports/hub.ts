@@ -5,12 +5,12 @@ import type {
 	AgentUsage,
 	HubEventEnvelope,
 	SessionRecord as HubSessionRecord,
-	HubToolExecutorName,
 	JsonValue,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	ToolContext,
 } from "@clinebot/shared";
+import { isHubToolExecutorName } from "@clinebot/shared";
 import type { ToolExecutors } from "../extensions/tools";
 import type { HookEventPayload } from "../hooks";
 import { NodeHubClient } from "../hub/client";
@@ -26,11 +26,11 @@ import type {
 	SessionAccumulatedUsage,
 	StartSessionInput,
 	StartSessionResult,
-} from "../runtime/runtime-host";
+} from "../runtime/host/runtime-host";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
-} from "../session/session-manifest";
+} from "../session/models/session-manifest";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
@@ -46,20 +46,6 @@ function toJsonRecord(
 		string,
 		JsonValue | undefined
 	>;
-}
-
-function isHubToolExecutorName(value: unknown): value is HubToolExecutorName {
-	return (
-		value === "readFile" ||
-		value === "search" ||
-		value === "bash" ||
-		value === "webFetch" ||
-		value === "editor" ||
-		value === "applyPatch" ||
-		value === "skills" ||
-		value === "askQuestion" ||
-		value === "submit"
-	);
 }
 
 function parseToolContext(value: unknown): ToolContext {

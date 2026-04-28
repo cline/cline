@@ -9,7 +9,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
-import { SessionRuntime } from "../../../runtime/session-runtime-orchestrator";
+import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
 import {
 	buildSubAgentSystemPrompt,
 	buildTeammateSystemPrompt,

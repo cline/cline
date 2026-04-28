@@ -32,7 +32,7 @@ import {
 	type TeamTaskStatus,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
-import { SessionRuntime } from "../../../runtime/session-runtime-orchestrator";
+import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
 
 // Re-export shared types for backward compatibility
 export {

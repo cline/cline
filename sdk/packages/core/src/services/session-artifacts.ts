@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import {
 	parseSubSessionId,
 	parseTeamTaskSubSessionId,
-} from "../session/session-graph";
+} from "../session/models/session-graph";
 
 export function nowIso(): string {
 	return new Date().toISOString();

@@ -9,7 +9,7 @@ const getAgentIdMock = vi.fn(() => "sub-agent-1");
 const getConversationIdMock = vi.fn(() => "conv-sub-1");
 const agentConstructorSpy = vi.fn();
 
-vi.mock("../../../runtime/session-runtime-orchestrator", () => {
+vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 	return {
 		SessionRuntime: class MockSessionRuntime {
 			constructor(config: unknown) {

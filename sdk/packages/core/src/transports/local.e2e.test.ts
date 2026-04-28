@@ -14,10 +14,10 @@ import type { AgentResult } from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { splitCoreSessionConfig } from "../runtime/runtime-host";
-import type { SessionManifest } from "../session/session-manifest";
-import type { SessionRow } from "../session/session-row";
-import type { RootSessionArtifacts } from "../session/session-service";
+import { splitCoreSessionConfig } from "../runtime/host/runtime-host";
+import type { SessionManifest } from "../session/models/session-manifest";
+import type { SessionRow } from "../session/models/session-row";
+import type { RootSessionArtifacts } from "../session/services/session-service";
 import type { SessionSource, SessionStatus } from "../types/common";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local";
 

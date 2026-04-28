@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@clinebot/shared";
-import type { SessionAccumulatedUsage } from "../runtime/runtime-host";
+import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
 import type { ActiveSession } from "../types/session";

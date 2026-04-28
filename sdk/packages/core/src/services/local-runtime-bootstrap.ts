@@ -9,6 +9,7 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@clinebot/shared";
+import { hasRuntimeConfigExtension } from "@clinebot/shared";
 import { decodeJwtPayload } from "../auth/utils";
 import { resolveAndLoadAgentPlugins } from "../extensions/plugin/plugin-config-loader";
 import type {
@@ -27,8 +28,8 @@ import type {
 	LocalRuntimeConfigOverrides,
 	LocalRuntimeStartOptions,
 	StartSessionInput,
-} from "../runtime/runtime-host";
-import type { RuntimeBuilderInput } from "../runtime/session-runtime";
+} from "../runtime/host/runtime-host";
+import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
 import type { CoreSessionConfig } from "../types/config";
 import {
 	type ProviderConfig,
@@ -39,7 +40,7 @@ import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
-import { buildWorkspaceMetadataWithInfo } from "./workspace-manifest";
+import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
 
 function formatPluginFailure(failure: PluginInitializationFailure): string {
 	const label = failure.pluginName ?? failure.pluginPath;
@@ -92,17 +93,11 @@ function resolveReasoningSettings(
 	};
 }
 
-const ALL_CONFIG_EXTENSIONS: readonly RuntimeConfigExtensionKind[] = [
-	"rules",
-	"skills",
-	"plugins",
-];
-
 function hasConfigExtension(
 	extensions: ReadonlyArray<RuntimeConfigExtensionKind> | undefined,
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
-	return new Set(extensions ?? ALL_CONFIG_EXTENSIONS).has(kind);
+	return hasRuntimeConfigExtension(extensions, kind);
 }
 
 function buildOpenAICodexHeaders(input: {

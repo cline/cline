@@ -7,13 +7,13 @@ import type { ClineCoreStartInput } from "./ClineCore";
 import type {
 	StartSessionInput,
 	StartSessionResult,
-} from "./runtime/runtime-host";
+} from "./runtime/host/runtime-host";
 
 const { createRuntimeHostMock } = vi.hoisted(() => ({
 	createRuntimeHostMock: vi.fn(),
 }));
 
-vi.mock("./runtime/host", () => ({
+vi.mock("./runtime/host/host", () => ({
 	createRuntimeHost: createRuntimeHostMock,
 }));
 

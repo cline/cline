@@ -1,0 +1,274 @@
+import type { TeamProgressProjectionEvent } from "@clinebot/shared";
+import type {
+	CoreSessionEvent,
+	SessionPendingPrompt,
+} from "../../../types/events";
+import { buildCompletionNotification } from "../helpers";
+import { type HubTransportContext, readHubSessionRecord } from "./context";
+
+/**
+ * Translates internal `CoreSessionEvent`s emitted by the session host into the
+ * outward-facing `HubEventEnvelope` stream.
+ */
+export async function projectSessionEvent(
+	ctx: HubTransportContext,
+	event: CoreSessionEvent,
+): Promise<void> {
+	switch (event.type) {
+		case "chunk":
+			// Ignore raw agent chunks here. In this runtime they can contain
+			// serialized event envelopes rather than user-facing assistant text.
+			// Structured live content is forwarded via the "agent_event" branch.
+			return;
+		case "agent_event":
+			projectAgentEvent(ctx, event);
+			return;
+		case "hook":
+			if (event.payload.hookEventName === "tool_call") {
+				ctx.publish(
+					ctx.buildEvent(
+						"tool.started",
+						{ toolName: event.payload.toolName },
+						event.payload.sessionId,
+					),
+				);
+			} else if (event.payload.hookEventName === "tool_result") {
+				ctx.publish(
+					ctx.buildEvent(
+						"tool.finished",
+						{ toolName: event.payload.toolName },
+						event.payload.sessionId,
+					),
+				);
+			}
+			return;
+		case "team_progress": {
+			const projection: TeamProgressProjectionEvent = {
+				type: "team_progress_projection",
+				version: 1,
+				sessionId: event.payload.sessionId,
+				summary: event.payload.summary,
+				lastEvent: event.payload.lifecycle,
+			};
+			ctx.publish(
+				ctx.buildEvent(
+					"team.progress",
+					projection as unknown as Record<string, unknown>,
+					event.payload.sessionId,
+				),
+			);
+			return;
+		}
+		case "pending_prompts":
+			ctx.publish(
+				ctx.buildEvent(
+					"session.pending_prompts",
+					{
+						sessionId: event.payload.sessionId,
+						prompts: event.payload.prompts,
+					},
+					event.payload.sessionId,
+				),
+			);
+			return;
+		case "pending_prompt_submitted": {
+			const prompt: SessionPendingPrompt = {
+				id: event.payload.id,
+				prompt: event.payload.prompt,
+				delivery: event.payload.delivery,
+				attachmentCount: event.payload.attachmentCount,
+			};
+			ctx.publish(
+				ctx.buildEvent(
+					"session.pending_prompt_submitted",
+					{ sessionId: event.payload.sessionId, prompt },
+					event.payload.sessionId,
+				),
+			);
+			return;
+		}
+		case "status": {
+			const session = await readHubSessionRecord(ctx, event.payload.sessionId);
+			if (session) {
+				ctx.publish(
+					ctx.buildEvent(
+						"session.updated",
+						{ session },
+						event.payload.sessionId,
+					),
+				);
+			}
+			return;
+		}
+		case "ended":
+			await projectSessionEnded(ctx, event);
+			return;
+		default:
+			return;
+	}
+}
+
+function projectAgentEvent(
+	ctx: HubTransportContext,
+	event: Extract<CoreSessionEvent, { type: "agent_event" }>,
+): void {
+	const { sessionId, event: agentEvent } = event.payload;
+	if (agentEvent.type === "iteration_start") {
+		ctx.publish(
+			ctx.buildEvent(
+				"iteration.started",
+				{ iteration: agentEvent.iteration },
+				sessionId,
+			),
+		);
+		return;
+	}
+	if (agentEvent.type === "iteration_end") {
+		ctx.publish(
+			ctx.buildEvent(
+				"iteration.finished",
+				{
+					iteration: agentEvent.iteration,
+					hadToolCalls: agentEvent.hadToolCalls,
+					toolCallCount: agentEvent.toolCallCount,
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
+	if (agentEvent.type === "content_start") {
+		if (
+			agentEvent.contentType === "text" &&
+			typeof agentEvent.text === "string" &&
+			agentEvent.text.length > 0
+		) {
+			ctx.publish(
+				ctx.buildEvent("assistant.delta", { text: agentEvent.text }, sessionId),
+			);
+			return;
+		}
+		if (agentEvent.contentType === "reasoning") {
+			if (agentEvent.redacted && !agentEvent.reasoning) {
+				ctx.publish(
+					ctx.buildEvent(
+						"reasoning.delta",
+						{ text: "", redacted: true },
+						sessionId,
+					),
+				);
+				return;
+			}
+			if (
+				typeof agentEvent.reasoning === "string" &&
+				agentEvent.reasoning.length > 0
+			) {
+				ctx.publish(
+					ctx.buildEvent(
+						"reasoning.delta",
+						{
+							text: agentEvent.reasoning,
+							redacted: agentEvent.redacted === true,
+						},
+						sessionId,
+					),
+				);
+			}
+			return;
+		}
+		if (agentEvent.contentType === "tool") {
+			ctx.publish(
+				ctx.buildEvent(
+					"tool.started",
+					{
+						toolCallId: agentEvent.toolCallId,
+						toolName: agentEvent.toolName,
+						input: agentEvent.input,
+					},
+					sessionId,
+				),
+			);
+			return;
+		}
+	}
+	if (agentEvent.type === "content_end") {
+		switch (agentEvent.contentType) {
+			case "text":
+				ctx.publish(
+					ctx.buildEvent(
+						"assistant.finished",
+						{ text: agentEvent.text },
+						sessionId,
+					),
+				);
+				break;
+			case "reasoning":
+				ctx.publish(
+					ctx.buildEvent(
+						"reasoning.finished",
+						{ reasoning: agentEvent.reasoning },
+						sessionId,
+					),
+				);
+				break;
+			case "tool":
+				ctx.publish(
+					ctx.buildEvent(
+						"tool.finished",
+						{
+							toolCallId: agentEvent.toolCallId,
+							toolName: agentEvent.toolName,
+							output: agentEvent.output,
+							error: agentEvent.error,
+						},
+						sessionId,
+					),
+				);
+				break;
+		}
+		return;
+	}
+	if (agentEvent.type === "done") {
+		ctx.publish(
+			ctx.buildEvent(
+				"agent.done",
+				{
+					reason: agentEvent.reason,
+					text: agentEvent.text,
+					iterations: agentEvent.iterations,
+					usage: agentEvent.usage,
+				},
+				sessionId,
+			),
+		);
+	}
+}
+
+async function projectSessionEnded(
+	ctx: HubTransportContext,
+	event: Extract<CoreSessionEvent, { type: "ended" }>,
+): Promise<void> {
+	const suppressDuplicateTerminalEvent =
+		ctx.suppressNextTerminalEventBySession.get(event.payload.sessionId) ===
+		event.payload.reason;
+	if (suppressDuplicateTerminalEvent) {
+		ctx.suppressNextTerminalEventBySession.delete(event.payload.sessionId);
+	}
+	if (event.payload.reason === "completed") {
+		const session = await readHubSessionRecord(ctx, event.payload.sessionId);
+		const notification = await buildCompletionNotification(session);
+		ctx.publish(
+			ctx.buildEvent("ui.notify", notification, event.payload.sessionId),
+		);
+	}
+	if (suppressDuplicateTerminalEvent) {
+		return;
+	}
+	ctx.publish(
+		ctx.buildEvent(
+			event.payload.reason === "aborted" ? "run.aborted" : "run.completed",
+			{ reason: event.payload.reason },
+			event.payload.sessionId,
+		),
+	);
+}

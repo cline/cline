@@ -101,7 +101,11 @@ Owns stateful orchestration:
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
-- hub-related modules live under `packages/core/src/hub/`. Infrastructure such as discovery, the daemon, and WebSocket clients belongs next to the hub server implementation so there is a single source of truth.
+- hub-related modules live under `packages/core/src/hub/`, grouped by service:
+  - `client/` contains host-facing hub clients and browser connection helpers
+  - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
+  - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
+  - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 
 ### `@clinebot/enterprise`
 
@@ -351,33 +355,33 @@ orchestrator used by core and hub layers.
 
 ### Layers
 
-1. **Spec parser** (`cron-spec-parser.ts`): parses YAML frontmatter + body
+1. **Spec parser** (`cron/specs/cron-spec-parser.ts`): parses YAML frontmatter + body
    into a `CronSpec` discriminated union (`one_off | schedule | event`).
    Types live in `@clinebot/shared` under `src/cron/cron-spec-types.ts`
    so other packages can consume them without the YAML parser. Schedule
    expressions and timezones are validated before a spec can become
    runnable.
-2. **Store** (`sqlite-cron-store.ts`): owns `cron.db` at
+2. **Store** (`cron/store/sqlite-cron-store.ts`): owns `cron.db` at
    `resolveCronDbPath()` (default `.cline/data/db/cron.db`). Schema is
-   bootstrapped from `cron-schema.ts` — sessions and cron live in separate
+   bootstrapped from `cron/store/cron-schema.ts` — sessions and cron live in separate
    DBs so their lifecycles stay decoupled.
-3. **Reconciler** (`cron-reconciler.ts`): scans the configured cron specs
+3. **Reconciler** (`cron/specs/cron-reconciler.ts`): scans the configured cron specs
    directory (global `~/.cline/cron/` by default, or workspace-scoped when
    configured), parses each file independently, and upserts spec state.
    Invalid specs are recorded
    with `parse_status='invalid'` so state is durable rather than silently
    dropped. Files that disappear between scans get `removed=1` and their
    queued runs are cancelled.
-4. **Watcher** (`cron-watcher.ts`): `node:fs watch({ recursive: true })`
+4. **Watcher** (`cron/specs/cron-watcher.ts`): `node:fs watch({ recursive: true })`
    with a ~250ms per-path debounce. Watcher events always trigger a
    re-reconcile — the reconciler is always the source of truth, not the
    watcher stream.
-5. **Materializer** (`cron-materializer.ts`): turns file-triggered specs into
+5. **Materializer** (`cron/runner/cron-materializer.ts`): turns file-triggered specs into
    queued `cron_runs`. One-off: at most one run record per `(spec_id,
    revision)`, including failed runs so specs do not retry accidentally.
    Schedule: "one overdue catch-up on startup then advance" using
    timezone-aware `getNextCronTime`.
-6. **Event ingress** (`cron-event-ingress.ts`): accepts already-normalized
+6. **Event ingress** (`cron/events/cron-event-ingress.ts`): accepts already-normalized
    `AutomationEventEnvelope` values, persists them into `cron_event_log`,
    matches enabled event specs by `event_type` plus declarative filters,
    applies dedupe/debounce/cooldown policy, and enqueues `cron_runs` with
@@ -385,7 +389,7 @@ orchestrator used by core and hub layers.
    declare `automationEvents` and submit normalized events through
    `ctx.automation.ingestEvent(...)`; sandboxed plugins forward those events
    through the core plugin event bridge.
-7. **Runner** (`cron-runner.ts`): polls `cron.db`, atomically claims
+7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),
    renews the run claim while execution is active, writes a markdown report
@@ -394,11 +398,11 @@ orchestrator used by core and hub layers.
    `plugins`), session source, and a notes directory that is injected into
    the system prompt. Event runs include the normalized trigger event context
    in the prompt.
-8. **Reports** (`cron-report-writer.ts`): writes
+8. **Reports** (`cron/reports/cron-report-writer.ts`): writes
    `.cline/cron/reports/<run-id>.md` with run frontmatter plus
    `## Summary`, `## Usage`, `## Tool Calls`, and, for event runs,
    `## Trigger Event` sections.
-9. **Service** (`cron-service.ts`): orchestrates all of the above.
+9. **Service** (`cron/service/cron-service.ts`): orchestrates all of the above.
    `ClineCore.create({ automation })` owns the SDK-facing lifecycle and exposes
    `cline.automation.*` methods. Hub-side callers can submit normalized events
    through the `cron.event.ingest` command.
@@ -407,11 +411,11 @@ The detached hub daemon passes its workspace root as `cronOptions`, so
 normal CLI/hub startup watches `${workspaceRoot}/.cline/cron/` without a
 custom host needing to opt in.
 
-The existing `HubScheduleService` and `SqliteHubScheduleStore`
-(sessions.db `schedules` table) remain available for programmatic
-schedule APIs; file-based cron does not disturb them. Event-driven
-triggers share the same `cron_runs` claim/requeue/report flow as one-off and
-recurring specs.
+Programmatic hub schedules are stored as `cron_specs` with source
+`hub-schedule` and execute through the same `cron_runs`
+claim/requeue/report flow as file-backed one-off, recurring, and
+event-driven specs. The hub schedule command surface remains a thin adapter;
+there is no separate schedules table, schedule store, or schedule runner.
 
 ## Publishability Constraint
 

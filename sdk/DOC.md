@@ -1264,7 +1264,7 @@ The service exposes `listSpecs`, `getSpec`, `listRuns`, `getRun`,
 SDK callers should prefer `cline.automation`: `start`, `stop`,
 `reconcileNow`, `ingestEvent`, `listEvents`, `getEvent`, `listSpecs`, and
 `listRuns`. Tests cover the parser (`@clinebot/core`
-`src/cron/cron-spec-parser.test.ts`), store, reconciler, materializer,
+`src/cron/specs/cron-spec-parser.test.ts`), store, reconciler, materializer,
 and runner.
 
 ### Test Plan

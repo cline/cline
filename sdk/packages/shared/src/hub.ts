@@ -427,6 +427,26 @@ export type HubToolExecutorName =
 	| "askQuestion"
 	| "submit";
 
+export const HUB_TOOL_EXECUTOR_NAMES = [
+	"readFile",
+	"search",
+	"bash",
+	"webFetch",
+	"editor",
+	"applyPatch",
+	"skills",
+	"askQuestion",
+	"submit",
+] as const satisfies readonly HubToolExecutorName[];
+
+const HUB_TOOL_EXECUTOR_NAME_SET = new Set<string>(HUB_TOOL_EXECUTOR_NAMES);
+
+export function isHubToolExecutorName(
+	value: unknown,
+): value is HubToolExecutorName {
+	return typeof value === "string" && HUB_TOOL_EXECUTOR_NAME_SET.has(value);
+}
+
 export interface HubSessionRuntimeOptions {
 	mode?: "act" | "plan" | "yolo";
 	systemPrompt?: string;

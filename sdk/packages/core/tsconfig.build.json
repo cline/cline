@@ -11,7 +11,7 @@
 	"include": [
 		"src/index.ts",
 		"src/hub/index.ts",
-		"src/hub/daemon-entry.ts",
+		"src/hub/daemon/entry.ts",
 		"src/telemetry/index.ts"
 	]
 }

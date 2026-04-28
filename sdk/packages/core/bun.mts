@@ -33,8 +33,8 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		...buildConfig,
 	},
 	{
-		entrypoints: ["./src/hub/daemon-entry.ts"],
-		outdir: "./dist/hub",
+		entrypoints: ["./src/hub/daemon/entry.ts"],
+		outdir: "./dist/hub/daemon",
 		...buildConfig,
 	},
 	{

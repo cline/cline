@@ -21,9 +21,9 @@
 			"import": "./dist/hub/index.js"
 		},
 		"./hub/daemon-entry": {
-			"development": "./src/hub/daemon-entry.ts",
-			"types": "./dist/hub/daemon-entry.d.ts",
-			"import": "./dist/hub/daemon-entry.js"
+			"development": "./src/hub/daemon/entry.ts",
+			"types": "./dist/hub/daemon/entry.d.ts",
+			"import": "./dist/hub/daemon/entry.js"
 		},
 		"./telemetry": {
 			"development": "./src/services/telemetry/index.ts",

@@ -85,7 +85,7 @@ export {
 	resolveCoreSelectedToolIds,
 	TEAM_TOOL_NAMES,
 } from "./extensions/tools";
-export type { SessionBackend } from "./runtime/host";
+export type { SessionBackend } from "./runtime/host/host";
 export type {
 	PendingPromptMutationResult,
 	PendingPromptsAction,
@@ -99,18 +99,18 @@ export type {
 	SessionAccumulatedUsage,
 	StartSessionInput,
 	StartSessionResult,
-} from "./runtime/runtime-host";
+} from "./runtime/host/runtime-host";
 export type {
 	BuiltRuntime as RuntimeEnvironment,
 	RuntimeBuilder,
 	RuntimeBuilderInput,
 	SessionRuntime,
-} from "./runtime/session-runtime";
+} from "./runtime/orchestration/session-runtime";
 export type {
 	SandboxCallOptions,
 	SubprocessSandboxOptions,
-} from "./runtime/subprocess-sandbox";
-export { SubprocessSandbox } from "./runtime/subprocess-sandbox";
+} from "./runtime/tools/subprocess-sandbox";
+export { SubprocessSandbox } from "./runtime/tools/subprocess-sandbox";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledTools,
@@ -123,16 +123,16 @@ export {
 } from "./services/global-settings";
 export type { PluginToolSummary } from "./services/plugin-tools";
 export { listPluginTools } from "./services/plugin-tools";
-export type { SessionManifest } from "./session/session-manifest";
-export type { SessionRow } from "./session/session-row";
-export type {
-	CreateRootSessionWithArtifactsInput,
-	RootSessionArtifacts,
-} from "./session/session-service";
 export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,
-} from "./session/workspace-manager";
+} from "./services/workspace/workspace-manager";
+export type { SessionManifest } from "./session/models/session-manifest";
+export type { SessionRow } from "./session/models/session-row";
+export type {
+	CreateRootSessionWithArtifactsInput,
+	RootSessionArtifacts,
+} from "./session/services/session-service";
 export type {
 	ChatMessage,
 	ChatSessionConfig,

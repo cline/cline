@@ -1,4 +1,3 @@
-import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms";
@@ -6,29 +5,18 @@ import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
-	type AutomationEventEnvelope,
-	type BasicLogger,
-	type BasicLogMetadata,
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
-	type Tool,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
-import { nanoid } from "nanoid";
 import { createContextCompactionPrepareTurn } from "../extensions/context/compaction";
-import {
-	createBuiltinTools,
-	resolveToolPresetName,
-	type ToolExecutors,
-	ToolPresets,
-} from "../extensions/tools";
-import { createSpawnAgentTool, type TeamEvent } from "../extensions/tools/team";
+import type { ToolExecutors } from "../extensions/tools";
+import type { TeamEvent } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
-import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type {
 	PendingPromptMutationResult,
 	PendingPromptsAction,
@@ -41,22 +29,17 @@ import type {
 	SessionAccumulatedUsage,
 	StartSessionInput,
 	StartSessionResult,
-} from "../runtime/runtime-host";
+} from "../runtime/host/runtime-host";
+import { DefaultRuntimeBuilder } from "../runtime/orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
 	type RuntimeOAuthResolution,
 	RuntimeOAuthTokenManager,
-} from "../runtime/runtime-oauth-token-manager";
-import type { RuntimeBuilder } from "../runtime/session-runtime";
-import { SessionRuntime } from "../runtime/session-runtime-orchestrator";
-import {
-	type AgentEventContext,
-	buildTelemetryAgentIdentity,
-	extractAgentEventMetadata,
-	handleAgentEvent,
-} from "../services/agent-events";
+} from "../runtime/orchestration/runtime-oauth-token-manager";
+import type { RuntimeBuilder } from "../runtime/orchestration/session-runtime";
+import { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
+import { buildTelemetryAgentIdentity } from "../services/agent-events";
 import { resolveWorkspacePath } from "../services/config";
-import { filterDisabledTools } from "../services/global-settings";
 import { prepareLocalRuntimeBootstrap } from "../services/local-runtime-bootstrap";
 import { nowIso } from "../services/session-artifacts";
 import {
@@ -73,7 +56,6 @@ import {
 	captureAgentTeamCreated,
 	captureConversationTurnEvent,
 	captureModeSwitch,
-	captureSubagentExecution,
 	captureTaskCompleted,
 } from "../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../services/telemetry/distinct-id";
@@ -82,36 +64,41 @@ import {
 	createInitialAccumulatedUsage,
 } from "../services/usage";
 import { enrichPromptWithMentions } from "../services/workspace";
-import type { FileSessionService } from "../session/file-session-service";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
-} from "../session/session-manifest";
-import type { SessionRow } from "../session/session-row";
-import type {
-	CoreSessionService,
-	RootSessionArtifacts,
-} from "../session/session-service";
+} from "../session/models/session-manifest";
+import type { SessionRow } from "../session/models/session-row";
+import type { RootSessionArtifacts } from "../session/services/session-service";
 import {
 	buildTeamRunContinuationPrompt,
-	dispatchTeamEventToBackend,
-	emitTeamProgress,
 	formatModePrompt,
 	hasPendingTeamRunWork,
 	notifyTeamRunWaiters,
 	shouldAutoContinueTeamRuns,
-	trackTeamRunState,
 	waitForTeamRunUpdates,
-} from "../session/session-team-coordination";
+} from "../session/team";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
-import type {
-	ActiveSession,
-	PendingPrompt,
-	PreparedTurnInput,
-} from "../types/session";
+import type { ActiveSession, PreparedTurnInput } from "../types/session";
 import type { SessionRecord } from "../types/sessions";
+import { AgentEventBridge } from "./local/agent-event-bridge";
+import { PendingPromptsController } from "./local/pending-prompts";
+import {
+	type SessionBackend,
+	toActiveSessionRecord,
+} from "./local/session-record";
+import {
+	invokeBackend,
+	invokeBackendOptional,
+	invokeBackendOptionalValue,
+} from "./local/session-service-invoker";
+import {
+	createSessionSpawnTool,
+	type SubAgentStartTracker,
+} from "./local/spawn-tool";
+import { loadUserFileContent } from "./local/user-files";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -119,70 +106,7 @@ import {
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
 
-type SessionBackend = CoreSessionService | FileSessionService;
-
 const MAX_SCAN_LIMIT = 5000;
-const MAX_USER_FILE_BYTES = 20 * 1_000 * 1_024;
-
-async function loadUserFileContent(path: string): Promise<string> {
-	const fileStat = await stat(path);
-	if (!fileStat.isFile()) {
-		throw new Error("Path is not a file");
-	}
-	if (fileStat.size > MAX_USER_FILE_BYTES) {
-		throw new Error("File is too large to read into context.");
-	}
-	const content = await readFile(path, "utf8");
-	if (content.includes("\u0000")) {
-		throw new Error("Cannot read binary file into context.");
-	}
-	return content;
-}
-
-function toActiveSessionRecord(session: ActiveSession): SessionRecord {
-	return {
-		sessionId: session.sessionId,
-		source: session.source,
-		pid: process.pid,
-		startedAt: session.startedAt,
-		endedAt: session.endedAt ?? null,
-		exitCode: session.exitCode ?? null,
-		status: session.status,
-		interactive: session.interactive,
-		provider: session.config.providerId,
-		model: session.config.modelId,
-		cwd: session.config.cwd,
-		workspaceRoot: resolveWorkspacePath(session.config),
-		teamName: session.config.teamName?.trim() || undefined,
-		enableTools: session.config.enableTools,
-		enableSpawn: session.config.enableSpawnAgent,
-		enableTeams: session.config.enableAgentTeams,
-		parentSessionId:
-			typeof session.sessionMetadata?.parentSessionId === "string"
-				? session.sessionMetadata.parentSessionId
-				: undefined,
-		parentAgentId:
-			typeof session.sessionMetadata?.parentAgentId === "string"
-				? session.sessionMetadata.parentAgentId
-				: undefined,
-		agentId:
-			typeof session.sessionMetadata?.agentId === "string"
-				? session.sessionMetadata.agentId
-				: undefined,
-		conversationId:
-			typeof session.sessionMetadata?.conversationId === "string"
-				? session.sessionMetadata.conversationId
-				: undefined,
-		isSubagent:
-			typeof session.sessionMetadata?.isSubagent === "boolean"
-				? session.sessionMetadata.isSubagent
-				: false,
-		prompt: session.pendingPrompt,
-		metadata: session.sessionMetadata,
-		messagesPath: session.artifacts?.messagesPath,
-		updatedAt: session.startedAt,
-	};
-}
 
 export interface LocalRuntimeHostOptions {
 	distinctId?: string;
@@ -222,10 +146,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
-	private readonly subAgentStarts = new Map<
-		string,
-		{ startedAt: number; rootSessionId: string }
-	>();
+	private readonly subAgentStarts: SubAgentStartTracker = new Map();
+	private readonly pendingPromptsController: PendingPromptsController;
+	private readonly eventBridge: AgentEventBridge;
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -249,6 +172,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
 		this.defaultRequestToolApproval = options.requestToolApproval;
+
+		this.pendingPromptsController = new PendingPromptsController({
+			getSession: (sid) => this.sessions.get(sid),
+			emit: (event) => this.emit(event),
+			send: (input) => this.send(input),
+		});
+		this.eventBridge = new AgentEventBridge({
+			getSession: (sid) => this.sessions.get(sid),
+			usageBySession: this.usageBySession,
+			emit: (event) => this.emit(event),
+			persistMessages: (sid, messages, systemPrompt) => {
+				void this.invoke<void>(
+					"persistSessionMessages",
+					sid,
+					messages,
+					systemPrompt,
+				);
+			},
+			enqueuePendingPrompt: (sid, entry) =>
+				this.pendingPromptsController.enqueue(sid, entry),
+			invokeBackendOptional: (method, ...args) =>
+				this.invokeOptional(method, ...args),
+		});
 	}
 
 	// ── Public API ──────────────────────────────────────────────────────
@@ -318,25 +264,37 @@ export class LocalRuntimeHost implements RuntimeHost {
 			defaultFetch: this.defaultFetch,
 			onPluginEvent: (event) => {
 				if (event.name === "plugin_log") {
-					this.handlePluginLog(
+					this.eventBridge.handlePluginLog(
 						sessionId,
 						event.payload,
 						pluginEventFallbackLogger,
 					);
 					return;
 				}
-				void this.handlePluginEvent(
+				void this.eventBridge.handlePluginEvent(
 					sessionId,
 					event,
 					pluginEventFallbackAutomation,
 				);
 			},
 			onTeamEvent: (event: TeamEvent) => {
-				void this.handleTeamEvent(sessionId, event);
+				void this.eventBridge.handleTeamEvent(sessionId, event);
 				bootstrap.config.onTeamEvent?.(event);
 			},
 			createSpawnTool: () =>
-				this.createSpawnTool(bootstrap.config, sessionId, sessionToolExecutors),
+				createSessionSpawnTool(
+					{
+						getSession: (sid) => this.sessions.get(sid),
+						subAgentStarts: this.subAgentStarts,
+						onAgentEvent: (rootSessionId, config, event) =>
+							this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
+						invokeBackendOptional: (method, ...args) =>
+							this.invokeOptional(method, ...args),
+					},
+					bootstrap.config,
+					sessionId,
+					sessionToolExecutors,
+				),
 			readSessionMetadata: async () =>
 				(await this.get(sessionId))?.metadata as
 					| Record<string, unknown>
@@ -383,11 +341,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionGuard: runtime.completionGuard,
-			consumePendingUserMessage: () => this.consumeSteerMessage(sessionId),
+			consumePendingUserMessage: () =>
+				this.pendingPromptsController.consumeSteer(sessionId),
 			logger: runtime.logger ?? configWithProvider.logger,
 			extensionContext: configWithProvider.extensionContext,
 			onEvent: (event: AgentEvent) =>
-				this.onAgentEvent(sessionId, configWithProvider, event),
+				this.eventBridge.dispatchAgentEvent(
+					sessionId,
+					configWithProvider,
+					event,
+				),
 		} as AgentConfig;
 		const agent = this.createAgentInstance(agentConfig);
 		if (agentConfig.onEvent) {
@@ -505,7 +468,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		});
 		if (delivery === "queue" || delivery === "steer") {
-			this.enqueuePendingPrompt(input.sessionId, {
+			this.pendingPromptsController.enqueue(input.sessionId, {
 				prompt: input.prompt,
 				delivery,
 				userImages: input.userImages,
@@ -523,7 +486,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.finalizeSingleRun(session, result.finishReason);
 			}
 			queueMicrotask(() => {
-				void this.drainPendingPrompts(input.sessionId);
+				void this.pendingPromptsController.drain(input.sessionId);
 			});
 			return result;
 		} catch (error) {
@@ -553,99 +516,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
 		switch (action) {
 			case "list":
-				return this.listPendingPromptEntries(input.sessionId);
+				return this.pendingPromptsController.list(input.sessionId);
 			case "update":
-				return this.editPendingPromptEntry(input as PendingPromptsUpdateInput);
+				return this.pendingPromptsController.update(
+					input as PendingPromptsUpdateInput,
+				);
 			case "delete":
-				return this.deletePendingPromptEntry(
+				return this.pendingPromptsController.delete(
 					input as PendingPromptsDeleteInput,
 				);
 		}
-	}
-
-	private listPendingPromptEntries(sessionId: string): SessionPendingPrompt[] {
-		const session = this.sessions.get(sessionId);
-		return session ? this.snapshotPendingPrompts(session) : [];
-	}
-
-	private editPendingPromptEntry(
-		input: PendingPromptsUpdateInput,
-	): PendingPromptMutationResult {
-		const session = this.sessions.get(input.sessionId);
-		if (!session || session.aborting) {
-			return { sessionId: input.sessionId, prompts: [], updated: false };
-		}
-		const promptId = input.promptId.trim();
-		const index = session.pendingPrompts.findIndex(
-			(entry) => entry.id === promptId,
-		);
-		if (index < 0) {
-			return {
-				sessionId: input.sessionId,
-				prompts: this.snapshotPendingPrompts(session),
-				updated: false,
-			};
-		}
-
-		const existing = session.pendingPrompts[index]!;
-		const prompt =
-			input.prompt === undefined
-				? existing.prompt
-				: normalizeUserInput(input.prompt).trim();
-		if (!prompt) {
-			throw new Error("prompt cannot be empty");
-		}
-		const delivery = input.delivery ?? existing.delivery;
-		const next: PendingPrompt = {
-			...existing,
-			prompt,
-			delivery,
-		};
-		session.pendingPrompts.splice(index, 1);
-		if (delivery === "steer") {
-			session.pendingPrompts.unshift(next);
-		} else if (existing.delivery === "steer") {
-			session.pendingPrompts.push(next);
-		} else {
-			session.pendingPrompts.splice(index, 0, next);
-		}
-		this.emitPendingPrompts(session);
-		this.schedulePendingPromptDrain(input.sessionId, session);
-		return {
-			sessionId: input.sessionId,
-			prompts: this.snapshotPendingPrompts(session),
-			prompt: this.snapshotPendingPrompt(next),
-			updated: true,
-		};
-	}
-
-	private deletePendingPromptEntry(
-		input: PendingPromptsDeleteInput,
-	): PendingPromptMutationResult {
-		const session = this.sessions.get(input.sessionId);
-		if (!session || session.aborting) {
-			return { sessionId: input.sessionId, prompts: [], removed: false };
-		}
-		const promptId = input.promptId.trim();
-		const index = session.pendingPrompts.findIndex(
-			(entry) => entry.id === promptId,
-		);
-		if (index < 0) {
-			return {
-				sessionId: input.sessionId,
-				prompts: this.snapshotPendingPrompts(session),
-				removed: false,
-			};
-		}
-		const [removed] = session.pendingPrompts.splice(index, 1);
-		this.emitPendingPrompts(session);
-		this.schedulePendingPromptDrain(input.sessionId, session);
-		return {
-			sessionId: input.sessionId,
-			prompts: this.snapshotPendingPrompts(session),
-			prompt: removed ? this.snapshotPendingPrompt(removed) : undefined,
-			removed: true,
-		};
 	}
 
 	async getAccumulatedUsage(
@@ -662,10 +542,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			properties: { sessionId },
 		});
 		session.aborting = true;
-		if (session.pendingPrompts.length > 0) {
-			session.pendingPrompts.length = 0;
-			this.emitPendingPrompts(session);
-		}
+		this.pendingPromptsController.clearAborted(session);
 		session.agent.abort(reason);
 	}
 
@@ -793,7 +670,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
 			modelId,
 		});
-		this.updateAgentConnection(session, { modelId });
+		session.agent.updateConnection({ modelId });
+	}
+
+	// Retained for unit tests that reach in via Reflect.
+	handlePluginEvent(
+		rootSessionId: string,
+		event: { name: string; payload?: unknown },
+		fallbackAutomation?: NonNullable<
+			CoreSessionConfig["extensionContext"]
+		>["automation"],
+	): Promise<void> {
+		return this.eventBridge.handlePluginEvent(
+			rootSessionId,
+			event,
+			fallbackAutomation,
+		);
 	}
 
 	// ── Turn execution ──────────────────────────────────────────────────
@@ -1138,530 +1030,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.emitStatus(session.sessionId, status);
 	}
 
-	private async handlePluginEvent(
-		rootSessionId: string,
-		event: { name: string; payload?: unknown },
-		fallbackAutomation?: NonNullable<
-			CoreSessionConfig["extensionContext"]
-		>["automation"],
-	): Promise<void> {
-		if (event.name === "plugin_log") {
-			this.handlePluginLog(rootSessionId, event.payload);
-			return;
-		}
-		if (event.name === "automation_event") {
-			const session = this.sessions.get(rootSessionId);
-			const automation =
-				session?.config.extensionContext?.automation ?? fallbackAutomation;
-			if (!automation) {
-				return;
-			}
-			const payload =
-				event.payload && typeof event.payload === "object"
-					? (event.payload as AutomationEventEnvelope)
-					: undefined;
-			if (!payload) {
-				return;
-			}
-			await automation.ingestEvent(payload);
-			return;
-		}
-		if (
-			event.name !== "steer_message" &&
-			event.name !== "queue_message" &&
-			event.name !== "pending_prompt"
-		) {
-			return;
-		}
-		const payload =
-			event.payload && typeof event.payload === "object"
-				? (event.payload as Record<string, unknown>)
-				: undefined;
-		const targetSessionId =
-			typeof payload?.sessionId === "string" &&
-			payload.sessionId.trim().length > 0
-				? payload.sessionId.trim()
-				: rootSessionId;
-		const prompt =
-			typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
-		if (!prompt) {
-			return;
-		}
-		const delivery =
-			event.name === "steer_message"
-				? "steer"
-				: event.name === "queue_message"
-					? "queue"
-					: payload?.delivery === "steer"
-						? "steer"
-						: "queue";
-		this.enqueuePendingPrompt(targetSessionId, {
-			prompt,
-			delivery,
-		});
-	}
-
-	private handlePluginLog(
-		rootSessionId: string,
-		payload: unknown,
-		fallbackLogger?: BasicLogger,
-	): void {
-		const session = this.sessions.get(rootSessionId);
-		const logger =
-			fallbackLogger ??
-			session?.config.extensionContext?.logger ??
-			session?.config.logger;
-		if (!logger || !payload || typeof payload !== "object") {
-			return;
-		}
-		const record = payload as Record<string, unknown>;
-		const message = typeof record.message === "string" ? record.message : "";
-		if (!message) {
-			return;
-		}
-		const metadata =
-			record.metadata && typeof record.metadata === "object"
-				? ({
-						...(record.metadata as Record<string, unknown>),
-					} as BasicLogMetadata)
-				: {};
-		metadata.sessionId ??= rootSessionId;
-		if (typeof record.pluginName === "string" && record.pluginName) {
-			metadata.pluginName = record.pluginName;
-		}
-		if (record.level === "debug") {
-			logger.debug(message, metadata);
-			return;
-		}
-		if (record.level === "error") {
-			if (logger.error) {
-				logger.error(message, metadata);
-			} else {
-				logger.log(message, { ...metadata, severity: "error" });
-			}
-			return;
-		}
-		logger.log(message, metadata);
-	}
-
-	/**
-	 * Consume the first steer-delivery pending prompt for injection into the
-	 * running agent loop. Called synchronously by the agent between iterations.
-	 */
-	private consumeSteerMessage(sessionId: string): string | undefined {
-		const session = this.sessions.get(sessionId);
-		if (!session) {
-			return undefined;
-		}
-		const steerIndex = session.pendingPrompts.findIndex(
-			(entry) => entry.delivery === "steer",
-		);
-		if (steerIndex < 0) {
-			return undefined;
-		}
-		const [steer] = session.pendingPrompts.splice(steerIndex, 1);
-		this.emitPendingPrompts(session);
-		this.emitPendingPromptSubmitted(session, steer);
-		return steer.prompt;
-	}
-
-	private enqueuePendingPrompt(
-		sessionId: string,
-		entry: {
-			prompt: string;
-			delivery: "queue" | "steer";
-			userImages?: string[];
-			userFiles?: string[];
-		},
-	): void {
-		const session = this.sessions.get(sessionId);
-		if (!session || session.aborting) {
-			return;
-		}
-		const { prompt, delivery, userImages, userFiles } = entry;
-		const existingIndex = session.pendingPrompts.findIndex(
-			(queued) => queued.prompt === prompt,
-		);
-		if (existingIndex >= 0) {
-			const [existing] = session.pendingPrompts.splice(existingIndex, 1);
-			if (delivery === "steer" || existing.delivery === "steer") {
-				session.pendingPrompts.unshift({
-					id: existing.id,
-					prompt,
-					delivery: "steer",
-					userImages: userImages ?? existing.userImages,
-					userFiles: userFiles ?? existing.userFiles,
-				});
-			} else {
-				session.pendingPrompts.push({
-					...existing,
-					userImages: userImages ?? existing.userImages,
-					userFiles: userFiles ?? existing.userFiles,
-				});
-			}
-		} else if (delivery === "steer") {
-			session.pendingPrompts.unshift({
-				id: `pending_${Date.now()}_${nanoid(5)}`,
-				prompt,
-				delivery,
-				userImages,
-				userFiles,
-			});
-		} else {
-			session.pendingPrompts.push({
-				id: `pending_${Date.now()}_${nanoid(5)}`,
-				prompt,
-				delivery,
-				userImages,
-				userFiles,
-			});
-		}
-		this.emitPendingPrompts(session);
-		this.schedulePendingPromptDrain(sessionId, session);
-	}
-
-	private schedulePendingPromptDrain(
-		sessionId: string,
-		session: ActiveSession,
-	): void {
-		if (
-			session.pendingPrompts.length === 0 ||
-			session.aborting ||
-			session.drainingPendingPrompts ||
-			!session.agent.canStartRun()
-		) {
-			return;
-		}
-		queueMicrotask(() => {
-			void this.drainPendingPrompts(sessionId);
-		});
-	}
-
-	private async drainPendingPrompts(sessionId: string): Promise<void> {
-		const session = this.sessions.get(sessionId);
-		if (!session || session.aborting || session.drainingPendingPrompts) {
-			return;
-		}
-		const canStartRun = session.agent.canStartRun();
-		if (!canStartRun) {
-			return;
-		}
-		const next = session.pendingPrompts.shift();
-		if (!next) {
-			return;
-		}
-		this.emitPendingPrompts(session);
-		this.emitPendingPromptSubmitted(session, next);
-		session.drainingPendingPrompts = true;
-		try {
-			await this.send({
-				sessionId,
-				prompt: next.prompt,
-				userImages: next.userImages,
-				userFiles: next.userFiles,
-			});
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			if (message.includes("already in progress")) {
-				session.pendingPrompts.unshift(next);
-				this.emitPendingPrompts(session);
-			} else {
-				throw error;
-			}
-		} finally {
-			session.drainingPendingPrompts = false;
-			if (session.pendingPrompts.length > 0) {
-				queueMicrotask(() => {
-					void this.drainPendingPrompts(sessionId);
-				});
-			}
-		}
-	}
-
-	// ── Agent event handling ────────────────────────────────────────────
-
-	private onAgentEvent(
-		sessionId: string,
-		config: CoreSessionConfig,
-		event: AgentEvent,
-	): void {
-		const liveSession = this.sessions.get(sessionId);
-		const ctx: AgentEventContext = {
-			sessionId,
-			config,
-			liveSession,
-			usageBySession: this.usageBySession,
-			persistMessages: (sid, messages, systemPrompt) => {
-				void this.invoke<void>(
-					"persistSessionMessages",
-					sid,
-					messages,
-					systemPrompt,
-				);
-			},
-			emit: (e) => this.emit(e),
-		};
-		const eventMetadata = extractAgentEventMetadata(event);
-		const isRootAgentEvent =
-			liveSession &&
-			eventMetadata.agentId === this.readAgentId(liveSession.agent);
-		handleAgentEvent(
-			ctx,
-			event,
-			isRootAgentEvent
-				? {
-						isPrimaryAgentEvent: true,
-						...(liveSession?.runtime.teamRuntime
-							? { teamRole: "lead" as const }
-							: {}),
-					}
-				: { isPrimaryAgentEvent: false },
-		);
-	}
-
-	private emitPendingPrompts(session: ActiveSession): void {
-		this.emit({
-			type: "pending_prompts",
-			payload: {
-				sessionId: session.sessionId,
-				prompts: this.snapshotPendingPrompts(session),
-			},
-		});
-	}
-
-	private snapshotPendingPrompt(entry: PendingPrompt): SessionPendingPrompt {
-		return {
-			id: entry.id,
-			prompt: entry.prompt,
-			delivery: entry.delivery,
-			attachmentCount:
-				(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
-		};
-	}
-
-	private snapshotPendingPrompts(
-		session: ActiveSession,
-	): SessionPendingPrompt[] {
-		return session.pendingPrompts.map((entry) =>
-			this.snapshotPendingPrompt(entry),
-		);
-	}
-
-	private emitPendingPromptSubmitted(
-		session: ActiveSession,
-		entry: {
-			id: string;
-			prompt: string;
-			delivery: "queue" | "steer";
-			userImages?: string[];
-			userFiles?: string[];
-		},
-	): void {
-		this.emit({
-			type: "pending_prompt_submitted",
-			payload: {
-				sessionId: session.sessionId,
-				id: entry.id,
-				prompt: entry.prompt,
-				delivery: entry.delivery,
-				attachmentCount:
-					(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
-			},
-		});
-	}
-
-	// ── Spawn / sub-agents ──────────────────────────────────────────────
-
-	private createSpawnTool(
-		config: CoreSessionConfig,
-		rootSessionId: string,
-		toolExecutors?: Partial<ToolExecutors>,
-	): Tool {
-		const createSubAgentTools = () => {
-			const tools: Tool[] = config.enableTools
-				? createBuiltinTools({
-						cwd: config.cwd,
-						...ToolPresets[
-							resolveToolPresetName({
-								mode: config.mode,
-							})
-						],
-						executors: toolExecutors,
-					})
-				: [];
-			if (config.enableSpawnAgent) {
-				tools.push(this.createSpawnTool(config, rootSessionId, toolExecutors));
-			}
-			return filterDisabledTools(tools);
-		};
-
-		return createSpawnAgentTool({
-			configProvider: {
-				getRuntimeConfig: () =>
-					this.sessions
-						.get(rootSessionId)
-						?.runtime.delegatedAgentConfigProvider?.getRuntimeConfig() ?? {
-						providerId: config.providerId,
-						modelId: config.modelId,
-						cwd: config.cwd,
-						apiKey: config.apiKey,
-						baseUrl: config.baseUrl,
-						headers: config.headers,
-						providerConfig: config.providerConfig,
-						knownModels: config.knownModels,
-						thinking: config.thinking,
-						maxIterations: config.maxIterations,
-						hooks: config.hooks,
-						extensions: config.extensions,
-						logger: config.logger,
-						telemetry: config.telemetry,
-					},
-				getConnectionConfig: () =>
-					this.sessions
-						.get(rootSessionId)
-						?.runtime.delegatedAgentConfigProvider?.getConnectionConfig() ?? {
-						providerId: config.providerId,
-						modelId: config.modelId,
-						apiKey: config.apiKey,
-						baseUrl: config.baseUrl,
-						headers: config.headers,
-						providerConfig: config.providerConfig,
-						knownModels: config.knownModels,
-						thinking: config.thinking,
-					},
-				updateConnectionDefaults: () => {},
-			},
-			createSubAgentTools,
-			onSubAgentEvent: (event) =>
-				this.onAgentEvent(rootSessionId, config, event),
-			onSubAgentStart: (context) => {
-				const teamRuntime =
-					this.sessions.get(rootSessionId)?.runtime.teamRuntime;
-				this.subAgentStarts.set(context.subAgentId, {
-					startedAt: Date.now(),
-					rootSessionId,
-				});
-				const agentIdentity = buildTelemetryAgentIdentity({
-					agentId: context.subAgentId,
-					conversationId: context.conversationId,
-					parentAgentId: context.parentAgentId,
-					teamId: teamRuntime?.getTeamId(),
-					teamName: teamRuntime?.getTeamName(),
-					createdByAgentId: context.parentAgentId,
-				});
-				if (agentIdentity) {
-					captureAgentCreated(config.telemetry, {
-						ulid: rootSessionId,
-						modelId: config.modelId,
-						provider: config.providerId,
-						...agentIdentity,
-					});
-				}
-				captureSubagentExecution(config.telemetry, {
-					event: "started",
-					ulid: rootSessionId,
-					durationMs: 0,
-					parentId: context.parentAgentId,
-					agentId: context.subAgentId,
-					...agentIdentity,
-				});
-				void this.invokeOptional("handleSubAgentStart", rootSessionId, context);
-			},
-			onSubAgentEnd: (context) => {
-				const teamRuntime =
-					this.sessions.get(rootSessionId)?.runtime.teamRuntime;
-				const started = this.subAgentStarts.get(context.subAgentId);
-				const durationMs = started ? Date.now() - started.startedAt : 0;
-				const outputLines = context.result?.text
-					? context.result.text.split("\n").length
-					: 0;
-				captureSubagentExecution(config.telemetry, {
-					event: "ended",
-					ulid: rootSessionId,
-					durationMs,
-					outputLines,
-					errorMessage: context.error ? String(context.error) : undefined,
-					agentId: context.subAgentId,
-					parentId: context.parentAgentId,
-					...buildTelemetryAgentIdentity({
-						agentId: context.subAgentId,
-						conversationId: context.conversationId,
-						parentAgentId: context.parentAgentId,
-						teamId: teamRuntime?.getTeamId(),
-						teamName: teamRuntime?.getTeamName(),
-						createdByAgentId: context.parentAgentId,
-					}),
-				});
-				this.subAgentStarts.delete(context.subAgentId);
-				void this.invokeOptional("handleSubAgentEnd", rootSessionId, context);
-			},
-		}) as Tool;
-	}
-
-	// ── Team run coordination ───────────────────────────────────────────
-
-	private async handleTeamEvent(
-		rootSessionId: string,
-		event: TeamEvent,
-	): Promise<void> {
-		const session = this.sessions.get(rootSessionId);
-		if (session) {
-			trackTeamRunState(session, event);
-			if (event.type === "agent_event") {
-				const ctx: AgentEventContext = {
-					sessionId: rootSessionId,
-					config: session.config,
-					liveSession: session,
-					usageBySession: this.usageBySession,
-					persistMessages: (sid, messages, systemPrompt) => {
-						void this.invoke<void>(
-							"persistSessionMessages",
-							sid,
-							messages,
-							systemPrompt,
-						);
-					},
-					emit: (e) => this.emit(e),
-				};
-				handleAgentEvent(ctx, event.event, {
-					teamRole: "teammate",
-					teamAgentId: event.agentId,
-					isPrimaryAgentEvent: false,
-				});
-			}
-			if (event.type === "teammate_spawned") {
-				const agentIdentity = buildTelemetryAgentIdentity({
-					agentId: event.teammate.runtimeAgentId ?? event.agentId,
-					conversationId: event.teammate.conversationId,
-					parentAgentId: event.teammate.parentAgentId,
-					createdByAgentId: this.readAgentId(session.agent),
-					teamId: session.runtime.teamRuntime?.getTeamId(),
-					teamName: session.runtime.teamRuntime?.getTeamName(),
-					teamRole: "teammate",
-					teamAgentId: event.agentId,
-				});
-				if (agentIdentity) {
-					captureAgentCreated(session.config.telemetry, {
-						ulid: rootSessionId,
-						modelId: event.teammate.modelId ?? session.config.modelId,
-						provider: session.config.providerId,
-						...agentIdentity,
-					});
-				}
-			}
-		}
-
-		await dispatchTeamEventToBackend(
-			rootSessionId,
-			event,
-			this.invokeOptional.bind(this),
-		);
-
-		if (session) {
-			emitTeamProgress(session, rootSessionId, event, (e) => this.emit(e));
-		}
-	}
-
 	// ── OAuth & auth ────────────────────────────────────────────────────
 
 	private async runWithAuthRetry(
@@ -1699,7 +1067,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
 		session.config.apiKey = resolved.apiKey;
-		this.updateAgentConnection(session, { apiKey: resolved.apiKey });
+		session.agent.updateConnection({ apiKey: resolved.apiKey });
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
 			apiKey: resolved.apiKey,
 		});
@@ -1725,29 +1093,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return Array.from(new Set(resolved));
 	}
 
-	private updateAgentConnection(
-		session: ActiveSession,
-		overrides: { apiKey?: string; modelId?: string },
-	): void {
-		session.agent.updateConnection(overrides);
-	}
-
 	private getSessionAgentTelemetryIdentity(session: ActiveSession) {
 		return buildTelemetryAgentIdentity({
-			agentId: this.readAgentId(session.agent),
-			conversationId: this.readAgentConversationId(session.agent),
+			agentId: session.agent.getAgentId(),
+			conversationId: session.agent.getConversationId(),
 			teamId: session.runtime.teamRuntime?.getTeamId(),
 			teamName: session.runtime.teamRuntime?.getTeamName(),
 			teamRole: session.runtime.teamRuntime ? "lead" : undefined,
 		});
-	}
-
-	private readAgentId(agent: SessionRuntime): string {
-		return agent.getAgentId();
-	}
-
-	private readAgentConversationId(agent: SessionRuntime): string {
-		return agent.getConversationId();
 	}
 
 	private emitStatus(sessionId: string, status: string): void {
@@ -1777,50 +1130,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	// ── Session service invocation ──────────────────────────────────────
 
-	private async invoke<T>(method: string, ...args: unknown[]): Promise<T> {
-		const callable = (
-			this.sessionService as unknown as Record<string, unknown>
-		)[method];
-		if (typeof callable !== "function") {
-			throw new Error(`session service method not available: ${method}`);
-		}
-		return Promise.resolve(
-			(callable as (...params: unknown[]) => T | Promise<T>).apply(
-				this.sessionService,
-				args,
-			),
-		);
+	private invoke<T>(method: string, ...args: unknown[]): Promise<T> {
+		return invokeBackend<T>(this.sessionService, method, ...args);
 	}
 
-	private async invokeOptional(
-		method: string,
-		...args: unknown[]
-	): Promise<void> {
-		const callable = (
-			this.sessionService as unknown as Record<string, unknown>
-		)[method];
-		if (typeof callable !== "function") return;
-		await Promise.resolve(
-			(callable as (...params: unknown[]) => unknown).apply(
-				this.sessionService,
-				args,
-			),
-		);
+	private invokeOptional(method: string, ...args: unknown[]): Promise<void> {
+		return invokeBackendOptional(this.sessionService, method, ...args);
 	}
 
-	private async invokeOptionalValue<T = unknown>(
+	private invokeOptionalValue<T = unknown>(
 		method: string,
 		...args: unknown[]
 	): Promise<T | undefined> {
-		const callable = (
-			this.sessionService as unknown as Record<string, unknown>
-		)[method];
-		if (typeof callable !== "function") return undefined;
-		return await Promise.resolve(
-			(callable as (...params: unknown[]) => T | Promise<T>).apply(
-				this.sessionService,
-				args,
-			),
-		);
+		return invokeBackendOptionalValue<T>(this.sessionService, method, ...args);
 	}
 }

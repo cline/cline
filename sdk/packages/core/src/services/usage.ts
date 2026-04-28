@@ -1,4 +1,4 @@
-import type { SessionAccumulatedUsage } from "../runtime/runtime-host";
+import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 
 export function createInitialAccumulatedUsage(): SessionAccumulatedUsage {
 	return {

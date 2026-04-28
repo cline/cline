@@ -11,7 +11,7 @@ import type {
 	Tool,
 	WorkspaceInfo,
 } from "@clinebot/shared";
-import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
+import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
 

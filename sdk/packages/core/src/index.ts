@@ -343,23 +343,12 @@ export type {
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
 export * from "./hub";
-export type { SessionBackend } from "./runtime/host";
+export type { SessionBackend } from "./runtime/host/host";
 export {
 	createRuntimeHost,
 	createRuntimeHost as createSessionHost,
 	resolveSessionBackend,
-} from "./runtime/host";
-export {
-	formatRulesForSystemPrompt,
-	isRuleEnabled,
-	listEnabledRulesFromWatcher,
-	loadRulesForSystemPromptFromWatcher,
-	mergeRulesForSystemPrompt,
-} from "./runtime/rules";
-export {
-	createTeamName,
-	DefaultRuntimeBuilder,
-} from "./runtime/runtime-builder";
+} from "./runtime/host/host";
 export type {
 	PendingPromptMutationResult,
 	PendingPromptsAction,
@@ -374,23 +363,34 @@ export type {
 	SessionAccumulatedUsage,
 	StartSessionInput,
 	StartSessionResult,
-} from "./runtime/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/runtime-host";
+} from "./runtime/host/runtime-host";
+export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	createTeamName,
+	DefaultRuntimeBuilder,
+} from "./runtime/orchestration/runtime-builder";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
 	RuntimeBuilderInput,
 	SessionRuntime,
-} from "./runtime/session-runtime";
+} from "./runtime/orchestration/session-runtime";
+export {
+	formatRulesForSystemPrompt,
+	isRuleEnabled,
+	listEnabledRulesFromWatcher,
+	loadRulesForSystemPromptFromWatcher,
+	mergeRulesForSystemPrompt,
+} from "./runtime/safety/rules";
 export {
 	type SandboxCallOptions,
 	SubprocessSandbox,
 	type SubprocessSandboxOptions,
-} from "./runtime/subprocess-sandbox";
+} from "./runtime/tools/subprocess-sandbox";
 export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
-} from "./runtime/tool-approval";
+} from "./runtime/tools/tool-approval";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledTools,
@@ -484,33 +484,33 @@ export {
 	getFileIndex,
 	prewarmFileIndex,
 } from "./services/workspace";
+export type {
+	WorkspaceManager,
+	WorkspaceManagerEvent,
+} from "./services/workspace/workspace-manager";
+export { InMemoryWorkspaceManager } from "./services/workspace/workspace-manager";
 export {
 	buildWorkspaceMetadata,
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
-} from "./services/workspace-manifest";
+} from "./services/workspace/workspace-manifest";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,
 	sanitizeSessionToken,
-} from "./session/session-graph";
-export type { SessionManifest } from "./session/session-manifest";
-export type { SessionRow } from "./session/session-row";
+} from "./session/models/session-graph";
+export type { SessionManifest } from "./session/models/session-manifest";
+export type { SessionRow } from "./session/models/session-row";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
-} from "./session/session-service";
-export { CoreSessionService } from "./session/session-service";
+} from "./session/services/session-service";
+export { CoreSessionService } from "./session/services/session-service";
 export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
-} from "./session/team-persistence-store";
-export type {
-	WorkspaceManager,
-	WorkspaceManagerEvent,
-} from "./session/workspace-manager";
-export { InMemoryWorkspaceManager } from "./session/workspace-manager";
+} from "./session/stores/team-persistence-store";
 export { HubRuntimeHost } from "./transports/hub";
 export { LocalRuntimeHost } from "./transports/local";
 export { RemoteRuntimeHost } from "./transports/remote";
@@ -569,7 +569,7 @@ export {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	type FetchClineRecommendedModelsOptions,
 	fetchClineRecommendedModels,
-} from "./llms/cline-recommended-models";
+} from "./services/llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
@@ -578,7 +578,7 @@ export {
 	getProviderConfig,
 	OPENAI_COMPATIBLE_PROVIDERS,
 	resolveProviderConfig,
-} from "./llms/provider-defaults";
+} from "./services/llms/provider-defaults";
 export type {
 	AuthSettings,
 	AwsSettings,
@@ -597,7 +597,7 @@ export type {
 	ProviderSettings,
 	ReasoningSettings,
 	SapSettings,
-} from "./llms/provider-settings";
+} from "./services/llms/provider-settings";
 export {
 	AuthSettingsSchema,
 	AwsSettingsSchema,
@@ -620,12 +620,15 @@ export {
 	safeCreateProviderConfig,
 	safeParseSettings,
 	toProviderConfig,
-} from "./llms/provider-settings";
+} from "./services/llms/provider-settings";
 export {
 	defineLlmsConfig,
 	loadLlmsConfigFromFile,
-} from "./llms/runtime-config";
-export { createLlmsSdk, DefaultLlmsSdk } from "./llms/runtime-registry";
+} from "./services/llms/runtime-config";
+export {
+	createLlmsSdk,
+	DefaultLlmsSdk,
+} from "./services/llms/runtime-registry";
 export type {
 	BuiltInProviderSummary,
 	CreateHandlerInput,
@@ -637,7 +640,7 @@ export type {
 	RegisteredProviderSummary,
 	RegisterModelInput,
 	RegisterProviderInput,
-} from "./llms/runtime-types";
+} from "./services/llms/runtime-types";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

@@ -6,7 +6,7 @@ import type { HookEventPayload } from "../hooks";
 import type {
 	RuntimeHostSubscribeOptions,
 	SessionAccumulatedUsage,
-} from "../runtime/runtime-host";
+} from "../runtime/host/runtime-host";
 import type { CoreSessionEvent } from "../types/events";
 
 export class RuntimeHostEventBus {

@@ -354,6 +354,13 @@ export type {
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
 } from "./session/runtime-config";
+export {
+	DEFAULT_RUNTIME_CONFIG_EXTENSIONS,
+	hasRuntimeConfigExtension,
+	isRuntimeConfigExtensionKind,
+	parseRuntimeConfigExtensions,
+	RUNTIME_CONFIG_EXTENSION_KINDS,
+} from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export * from "./team";

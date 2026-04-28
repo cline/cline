@@ -4,29 +4,29 @@ export {
 	type WorkspaceManifest,
 	WorkspaceManifestSchema,
 } from "@clinebot/shared";
+export type {
+	WorkspaceManager,
+	WorkspaceManagerEvent,
+} from "../services/workspace/workspace-manager";
+export { InMemoryWorkspaceManager } from "../services/workspace/workspace-manager";
 export {
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
-} from "../services/workspace-manifest";
+} from "../services/workspace/workspace-manifest";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,
 	sanitizeSessionToken,
-} from "./session-graph";
-export type { SessionManifest } from "./session-manifest";
+} from "./models/session-graph";
+export type { SessionManifest } from "./models/session-manifest";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
 	SessionRow,
-} from "./session-row";
-export { CoreSessionService } from "./session-service";
+} from "./models/session-row";
+export { CoreSessionService } from "./services/session-service";
 export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
-} from "./team-persistence-store";
-export type {
-	WorkspaceManager,
-	WorkspaceManagerEvent,
-} from "./workspace-manager";
-export { InMemoryWorkspaceManager } from "./workspace-manager";
+} from "./stores/team-persistence-store";

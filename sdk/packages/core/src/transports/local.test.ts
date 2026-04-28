@@ -12,9 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type StartSessionInput,
 	splitCoreSessionConfig,
-} from "../runtime/runtime-host";
+} from "../runtime/host/runtime-host";
 import { TelemetryService } from "../services/telemetry/TelemetryService";
-import type { SessionManifest } from "../session/session-manifest";
+import type { SessionManifest } from "../session/models/session-manifest";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local";

@@ -7,12 +7,12 @@ import { nanoid } from "nanoid";
 import {
 	parseSubSessionId,
 	parseTeamTaskSubSessionId,
-} from "../session/session-graph";
+} from "../session/models/session-graph";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
-} from "../session/session-manifest";
-import type { SessionRow } from "../session/session-row";
+} from "../session/models/session-manifest";
+import type { SessionRow } from "../session/models/session-row";
 import type { SessionSource, SessionStatus } from "../types/common";
 import type { StoredMessageWithMetadata } from "../types/session";
 import type { SessionRecord } from "../types/sessions";
