@@ -2197,7 +2197,7 @@ export const deepSeekModels = {
 		maxTokens: 8_000,
 		contextWindow: 128_000,
 		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		supportsPromptCache: true, // deepseek reports input tokens as cache_hit + cache_miss (OpenAI-style), unlike anthropic which separates them
 		inputPrice: 0.27, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
 		outputPrice: 1.1,
 		cacheWritesPrice: 0.27,
@@ -2212,7 +2212,7 @@ export const deepSeekModels = {
 		maxTokens: 8_192,
 		contextWindow: 128_000,
 		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
+		supportsPromptCache: true, // deepseek reports input tokens as cache_hit + cache_miss (OpenAI-style), unlike anthropic which separates them
 		inputPrice: 0.55, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
