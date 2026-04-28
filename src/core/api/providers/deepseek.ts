@@ -6,6 +6,7 @@ import type { ChatCompletionReasoningEffort, ChatCompletionTool as OpenAITool } 
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -234,6 +235,11 @@ export class DeepSeekHandler implements ApiHandler {
 		if (modelId && modelId in deepSeekModels) {
 			const id = modelId as DeepSeekModelId
 			return { id, info: deepSeekModels[id] }
+		}
+		if (modelId) {
+			Logger.warn(
+				`[DeepSeekHandler] Model ID "${modelId}" not found in deepSeekModels, falling back to default "${deepSeekDefaultModelId}"`,
+			)
 		}
 		return {
 			id: deepSeekDefaultModelId,
