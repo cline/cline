@@ -116,7 +116,7 @@ jobs:
           echo "Publish version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update all package versions
+      - name: Update all package versions and lockfile
         if: steps.check_commits.outputs.skip != 'true'
         run: bun scripts/version.ts "${{ steps.version.outputs.version }}"
 

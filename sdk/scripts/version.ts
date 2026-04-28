@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -106,6 +106,10 @@ console.log(
 );
 
 if (!values.dry) {
+	const lockPath = join(root, "bun.lock");
+	await rm(lockPath, { force: true });
+	console.log("Removed stale bun.lock if present");
+	await runCommandOrThrow(["bun", "install", "--lockfile-only"], root);
 	await runCommandOrThrow(
 		["bun", "-F", "@clinebot/llms", "generate:models"],
 		root,

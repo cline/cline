@@ -16,7 +16,7 @@
  *   bun release sdk --skip-git-tags          # skip git tag creation
  */
 
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -373,40 +373,23 @@ async function releaseSDK(version: string): Promise<number> {
 
 	// Step 1: Tests
 	if (!skipTests) {
-		header("Step 1/6: Running tests");
+		header("Step 1/5: Running tests");
 		await run(["bun", "run", "test"]);
 	} else {
-		header("Step 1/6: Skipping tests (--skip-tests)");
+		header("Step 1/5: Skipping tests (--skip-tests)");
 	}
 
 	// Step 2: Update versions
-	// version.ts handles: version bump -> generate:models -> format -> build
-	header("Step 2/6: Updating package versions");
+	// version.ts handles: version bump -> lockfile regeneration -> generate:models -> format -> build
+	header("Step 2/5: Updating package versions and lockfile");
 	await run(["bun", "scripts/version.ts", version]);
 
-	// Step 3: Regenerate lockfile
-	// With Bun 1.3.10, bun pm pack resolves workspace:* versions from bun.lock.
-	// A stale lockfile can keep old workspace package versions.
-	header("Step 3/6: Regenerating lockfile");
-	const lockPath = join(root, "bun.lock");
-	if (!dryRun) {
-		try {
-			await rm(lockPath);
-			console.log("  Removed stale bun.lock");
-		} catch {
-			console.log("  No existing bun.lock to remove");
-		}
-	} else {
-		console.log("  [dry-run] rm bun.lock");
-	}
-	await run(["bun", "install", "--lockfile-only"]);
-
-	// Step 4: Verify publishability
-	header("Step 4/6: Verifying packed tarballs");
+	// Step 3: Verify publishability
+	header("Step 3/5: Verifying packed tarballs");
 	await run(["bun", "scripts/check-publish.ts"]);
 
-	// Step 5: Publish in dependency order
-	header("Step 5/6: Publishing packages");
+	// Step 4: Publish in dependency order
+	header("Step 4/5: Publishing packages");
 	for (const workspace of SDK_PUBLISH_ORDER) {
 		const pkgDir = join(packagesDir, workspace);
 		const name = `@clinebot/${workspace}`;
@@ -416,9 +399,9 @@ async function releaseSDK(version: string): Promise<number> {
 		});
 	}
 
-	// Step 6: Git tag
+	// Step 5: Git tag
 	if (npmTag === "latest" && !skipGitTags) {
-		header("Step 6/6: Creating git tag");
+		header("Step 5/5: Creating git tag");
 		const gitTag = `sdk-v${version}`;
 		console.log(`  Creating tag: ${gitTag}`);
 		await run(["git", "tag", "-a", gitTag, "-m", `SDK v${version}`]);
@@ -435,9 +418,9 @@ async function releaseSDK(version: string): Promise<number> {
 			}
 		}
 	} else if (skipGitTags) {
-		header("Step 6/6: Skipping git tag (--skip-git-tags)");
+		header("Step 5/5: Skipping git tag (--skip-git-tags)");
 	} else {
-		header("Step 6/6: Skipping git tag (non-latest channel)");
+		header("Step 5/5: Skipping git tag (non-latest channel)");
 	}
 
 	// Done

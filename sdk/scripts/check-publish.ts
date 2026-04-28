@@ -160,7 +160,7 @@ async function main(): Promise<number> {
 				"\nPacked manifest dependency versions are not aligned. Please ensure that all workspace dependencies are declared with exact versions that match the packed versions.\n",
 			);
 			console.info(
-				"Try running `rm bun.lock && bun install --lockfile-only` to regenerate lockfile entries with exact versions for workspace dependencies, before running this script again.",
+				"Try running `bun scripts/version.ts <version>` to update package manifests and regenerate lockfile entries with exact versions for workspace dependencies, before running this script again.",
 			);
 			return 1;
 		}
