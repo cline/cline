@@ -539,7 +539,7 @@ describe("translateSessionEvent — agent_event done", () => {
 		expect(result.turnComplete).toBe(true)
 	})
 
-	it("suppresses done completion_result when attempt_completion was already seen", () => {
+	it("done always emits ask:completion_result even when attempt_completion was seen (ENG-1887)", () => {
 		const state = new MessageTranslatorState()
 
 		// Simulate attempt_completion being called (content_start)
@@ -560,7 +560,7 @@ describe("translateSessionEvent — agent_event done", () => {
 		)
 
 		// Simulate content_end for attempt_completion
-		translateSessionEvent(
+		const endResult = translateSessionEvent(
 			{
 				type: "agent_event",
 				payload: {
@@ -575,7 +575,14 @@ describe("translateSessionEvent — agent_event done", () => {
 			state,
 		)
 
-		// Now the done event should NOT emit any messages
+		// content_end should emit say:"completion_result" but NOT ask:"completion_result"
+		// (the ask is deferred to done so it comes after the usage event)
+		const sayMessages = endResult.messages.filter((m) => m.type === "say" && m.say === "completion_result")
+		const askMessages = endResult.messages.filter((m) => m.type === "ask" && m.ask === "completion_result")
+		expect(sayMessages).toHaveLength(1)
+		expect(askMessages).toHaveLength(0)
+
+		// Now the done event SHOULD emit ask:"completion_result" so it is the last message
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -591,7 +598,10 @@ describe("translateSessionEvent — agent_event done", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(0)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0].type).toBe("ask")
+		expect(doneResult.messages[0].ask).toBe("completion_result")
+		expect(doneResult.messages[0].text).toBe("")
 		expect(doneResult.turnComplete).toBe(true)
 	})
 })
