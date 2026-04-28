@@ -2,7 +2,11 @@ import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { withResolvedClineBuildEnv } from "@clinebot/shared";
+import {
+	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	isHubDaemonProcess,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 import { verifyHubConnection } from "./client";
 import {
 	type HubEndpointOverrides,
@@ -75,6 +79,7 @@ function resolveLaunchCommand(
 		env: {
 			...withResolvedClineBuildEnv(process.env),
 			CLINE_NO_INTERACTIVE: "1",
+			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
 		},
 	};
 }
@@ -83,6 +88,9 @@ export function spawnDetachedHubServer(
 	workspaceRoot: string,
 	endpoint: HubEndpointOverrides = {},
 ): void {
+	if (isHubDaemonProcess()) {
+		return;
+	}
 	const command = resolveLaunchCommand(workspaceRoot, endpoint);
 	const logFile = openDetachedHubLogFile();
 	try {
@@ -104,6 +112,9 @@ export function prewarmDetachedHubServer(
 	workspaceRoot: string,
 	endpoint: HubEndpointOverrides = {},
 ): void {
+	if (isHubDaemonProcess()) {
+		return;
+	}
 	const owner = resolveSharedHubOwnerContext();
 	const hasExplicitPort =
 		endpoint.port !== undefined || !!process.env.CLINE_HUB_PORT?.trim();

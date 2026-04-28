@@ -309,6 +309,10 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
+export {
+	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	isHubDaemonProcess,
+} from "./runtime/hub-daemon-env";
 export type {
 	ITelemetryService,
 	OpenTelemetryClientConfig,

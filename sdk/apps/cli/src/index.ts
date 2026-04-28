@@ -1,9 +1,8 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
-import { disposeAll, initVcr } from "@clinebot/shared";
+import { disposeAll, initVcr, isHubDaemonProcess } from "@clinebot/shared";
 import { logCliProcessError } from "./logging/errors";
-import { runCli } from "./main";
 import {
 	abortActiveRuntime,
 	cleanupActiveRuntime,
@@ -51,8 +50,14 @@ if (!isMainThread) {
 	});
 
 	void (async () => {
+		if (isHubDaemonProcess()) {
+			await import("@clinebot/core/hub/daemon-entry");
+			return;
+		}
+
 		let exitCode = 0;
 		try {
+			const { runCli } = await import("./main");
 			await runCli();
 		} catch (err) {
 			logCliProcessError("runCli", err);
