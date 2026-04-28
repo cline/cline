@@ -1,9 +1,11 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import {
+	clearHubDiscovery,
 	probeHubServer,
 	readHubDiscovery,
 	resolveSharedHubOwnerContext,
+	stopLocalHubServerGracefully,
 } from "@clinebot/core";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";
@@ -135,10 +137,23 @@ function waitForProcessExit(child: ChildProcess): Promise<number> {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+async function waitForHubToStop(
+	url: string,
+	timeoutMs: number,
+): Promise<boolean> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const check = await probeHubServer(url).catch(() => undefined);
+		if (!check?.url) return true;
+		await sleep(100);
+	}
+	return false;
+}
+
 /**
  * Restart the hub server if one is currently running.
- * Sends SIGTERM to the running hub process, waits for it to stop, then
- * re-ensures a new instance is spawned so clients reconnect to the updated binary.
+ * Gracefully asks the running hub process to stop, falls back to process signals,
+ * clears stale discovery, then re-ensures a fresh instance is spawned.
  */
 async function restartHubServerIfRunning(): Promise<void> {
 	const owner = resolveSharedHubOwnerContext();
@@ -154,7 +169,8 @@ async function restartHubServerIfRunning(): Promise<void> {
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
 
-	if (pid) {
+	let stopped = await stopLocalHubServerGracefully().catch(() => false);
+	if (!stopped && pid) {
 		try {
 			process.kill(pid, "SIGTERM");
 		} catch {
@@ -162,14 +178,17 @@ async function restartHubServerIfRunning(): Promise<void> {
 		}
 	}
 
-	// Wait for the server to fully stop (up to ~3 s).
-	for (let i = 0; i < 30; i++) {
-		const check = discovery?.url
-			? await probeHubServer(discovery.url).catch(() => undefined)
-			: undefined;
-		if (!check?.url) break;
-		await sleep(100);
+	stopped = await waitForHubToStop(health.url, 3_000);
+	if (!stopped && pid) {
+		try {
+			process.kill(pid, "SIGKILL");
+		} catch {
+			// best-effort
+		}
+		stopped = await waitForHubToStop(health.url, 2_000);
 	}
+
+	await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 
 	// Re-ensure a fresh hub instance is spawned.
 	try {

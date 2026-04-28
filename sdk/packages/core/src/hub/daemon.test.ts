@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
 	spawn,
@@ -8,9 +8,12 @@ const {
 	verifyHubConnection,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
+	clearHubDiscovery,
 	probeHubServer,
+	requestHubShutdown,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildId,
 	writeHubDiscovery,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
@@ -26,9 +29,12 @@ const {
 		(host: string, port: number, pathname: string) =>
 			`ws://${host}:${port}${pathname}`,
 	),
+	clearHubDiscovery: vi.fn(async () => undefined),
 	probeHubServer: vi.fn(),
+	requestHubShutdown: vi.fn(async () => true),
 	readHubDiscovery: vi.fn(),
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
+	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
@@ -56,6 +62,7 @@ vi.mock("@clinebot/shared", () => ({
 }));
 
 vi.mock("./client", () => ({
+	requestHubShutdown,
 	verifyHubConnection,
 }));
 
@@ -64,16 +71,25 @@ vi.mock("./workspace", () => ({
 }));
 
 vi.mock("./discovery", () => ({
+	clearHubDiscovery,
 	createHubServerUrl,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildId,
 	writeHubDiscovery,
 }));
 
 describe("ensureDetachedHubServer", () => {
+	const fetchMock = vi.fn(async () => ({ ok: true }));
+
+	beforeEach(() => {
+		vi.stubGlobal("fetch", fetchMock);
+	});
+
 	afterEach(() => {
 		vi.clearAllMocks();
+		vi.unstubAllGlobals();
 		if (originalRunAsHubDaemon === undefined) {
 			delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
 		} else {
@@ -86,16 +102,19 @@ describe("ensureDetachedHubServer", () => {
 		probeHubServer
 			.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
+				buildId: "current-build",
 			})
 			.mockResolvedValueOnce(undefined)
 			.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:5555/hub",
+				buildId: "current-build",
 			});
 		verifyHubConnection
 			.mockResolvedValueOnce(false)
 			.mockResolvedValueOnce(true);
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
 			url: "ws://127.0.0.1:5555/hub",
+			buildId: "current-build",
 		});
 
 		const { ensureDetachedHubServer } = await import("./daemon");
@@ -132,5 +151,123 @@ describe("ensureDetachedHubServer", () => {
 
 		expect(readHubDiscovery).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("clears stale discovery when prewarm finds an unreachable discovered hub", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+		});
+		probeHubServer
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce(undefined);
+
+		const { prewarmDetachedHubServer } = await import("./daemon");
+		prewarmDetachedHubServer("/workspace");
+		await vi.waitFor(() => {
+			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+		});
+
+		expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
+			probeHubServer.mock.invocationCallOrder[0],
+		);
+		expect(spawn).toHaveBeenCalledOnce();
+	});
+
+	it("does not reuse a healthy hub from a different build", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:5555/hub",
+					buildId: "current-build",
+				});
+			probeHubServer
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					buildId: "old-build",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					buildId: "old-build",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:5555/hub",
+					buildId: "current-build",
+				});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import("./daemon");
+			const url = await ensureDetachedHubServer("/workspace");
+
+			expect(url).toBe("ws://127.0.0.1:5555/hub");
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+			);
+			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
+				probeHubServer.mock.invocationCallOrder[2],
+			);
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(spawn).toHaveBeenCalledOnce();
+			expect(verifyHubConnection).toHaveBeenCalledOnce();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("does not reuse a healthy hub without build metadata", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:5555/hub",
+					buildId: "current-build",
+				});
+			probeHubServer
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:5555/hub",
+					buildId: "current-build",
+				});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import("./daemon");
+			const url = await ensureDetachedHubServer("/workspace");
+
+			expect(url).toBe("ws://127.0.0.1:5555/hub");
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+			);
+			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
+				probeHubServer.mock.invocationCallOrder[2],
+			);
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(spawn).toHaveBeenCalledOnce();
+			expect(verifyHubConnection).toHaveBeenCalledOnce();
+		} finally {
+			kill.mockRestore();
+		}
 	});
 });

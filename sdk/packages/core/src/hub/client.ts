@@ -513,7 +513,8 @@ async function probeCompatibleHubUrl(
 		};
 	}
 	const buildId = resolveHubBuildId();
-	if (record.buildId?.trim() && record.buildId !== buildId) {
+	const recordBuildId = record.buildId?.trim();
+	if (!recordBuildId || recordBuildId !== buildId) {
 		return {
 			status: "build_mismatch",
 			url: normalized,

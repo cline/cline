@@ -473,4 +473,50 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			"/tmp/hub-discovery.json",
 		);
 	});
+
+	it("clears discovery when a hub omits build metadata", async () => {
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("./workspace", () => ({
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("./discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("./discovery")>("./discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import("./client");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
+			"/tmp/hub-discovery.json",
+		);
+	});
 });

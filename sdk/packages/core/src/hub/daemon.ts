@@ -7,22 +7,27 @@ import {
 	isHubDaemonProcess,
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
-import { verifyHubConnection } from "./client";
+import { requestHubShutdown, verifyHubConnection } from "./client";
 import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
 } from "./defaults";
 import {
+	clearHubDiscovery,
 	createHubServerUrl,
+	type HubServerDiscoveryRecord,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildId,
 	writeHubDiscovery,
 } from "./discovery";
 import { resolveSharedHubOwnerContext } from "./workspace";
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
+const HUB_RETIRE_TIMEOUT_MS = 3_000;
+const HUB_RETIRE_POLL_MS = 100;
 
 function endpointArgs(endpoint: HubEndpointOverrides): string[] {
 	return [
@@ -42,6 +47,45 @@ function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+function isCompatibleHubRecord(record: HubServerDiscoveryRecord): boolean {
+	const recordBuildId = record.buildId?.trim();
+	return !!recordBuildId && recordBuildId === resolveHubBuildId();
+}
+
+async function waitForHubToRetire(
+	url: string,
+	timeoutMs: number,
+): Promise<boolean> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const healthy = await probeHubServer(url).catch(() => undefined);
+		if (!healthy?.url) {
+			return true;
+		}
+		await new Promise((resolve) => setTimeout(resolve, HUB_RETIRE_POLL_MS));
+	}
+	return false;
+}
+
+async function retireIncompatibleHub(
+	record: HubServerDiscoveryRecord,
+	discoveryPath: string,
+): Promise<void> {
+	if (isCompatibleHubRecord(record)) {
+		return;
+	}
+	await requestHubShutdown(record.url).catch(() => false);
+	if (record.pid) {
+		try {
+			process.kill(record.pid, "SIGTERM");
+		} catch {
+			// Best-effort cleanup only. A compatible hub may still start on a fallback port.
+		}
+	}
+	await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	await clearHubDiscovery(discoveryPath).catch(() => undefined);
 }
 
 function resolveDaemonEntryPath(): string {
@@ -128,14 +172,30 @@ export function prewarmDetachedHubServer(
 		.then(async (discovered) => {
 			if (discovered?.url) {
 				const healthy = await probeHubServer(discovered.url);
-				if (healthy?.url && (await verifyHubConnection(healthy.url))) {
+				if (
+					healthy?.url &&
+					isCompatibleHubRecord(healthy) &&
+					(await verifyHubConnection(healthy.url))
+				) {
 					return;
+				}
+				if (healthy?.url) {
+					await retireIncompatibleHub(healthy, owner.discoveryPath);
+				} else {
+					await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 				}
 			}
 			const expected = await probeHubServer(expectedUrl);
-			if (expected?.url && (await verifyHubConnection(expected.url))) {
+			if (
+				expected?.url &&
+				isCompatibleHubRecord(expected) &&
+				(await verifyHubConnection(expected.url))
+			) {
 				await writeHubDiscovery(owner.discoveryPath, expected);
 				return;
+			}
+			if (expected?.url) {
+				await retireIncompatibleHub(expected, owner.discoveryPath);
 			}
 			const shouldUseFallbackPort =
 				!hasExplicitPort && resolvedEndpoint.port !== 0;
@@ -166,14 +226,30 @@ export async function ensureDetachedHubServer(
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	if (discovered?.url) {
 		const healthy = await probeHubServer(discovered.url);
-		if (healthy?.url && (await verifyHubConnection(healthy.url))) {
+		if (
+			healthy?.url &&
+			isCompatibleHubRecord(healthy) &&
+			(await verifyHubConnection(healthy.url))
+		) {
 			return healthy.url;
+		}
+		if (healthy?.url) {
+			await retireIncompatibleHub(healthy, owner.discoveryPath);
+		} else {
+			await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 		}
 	}
 	const expected = await probeHubServer(expectedUrl);
-	if (expected?.url && (await verifyHubConnection(expected.url))) {
+	if (
+		expected?.url &&
+		isCompatibleHubRecord(expected) &&
+		(await verifyHubConnection(expected.url))
+	) {
 		await writeHubDiscovery(owner.discoveryPath, expected);
 		return expected.url;
+	}
+	if (expected?.url) {
+		await retireIncompatibleHub(expected, owner.discoveryPath);
 	}
 	const shouldUseFallbackPort = !hasExplicitPort && endpoint.port !== 0;
 	const spawnEndpoint = shouldUseFallbackPort
@@ -185,12 +261,20 @@ export async function ensureDetachedHubServer(
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url) {
 			const healthy = await probeHubServer(nextDiscovery.url);
-			if (healthy?.url && (await verifyHubConnection(healthy.url))) {
+			if (
+				healthy?.url &&
+				isCompatibleHubRecord(healthy) &&
+				(await verifyHubConnection(healthy.url))
+			) {
 				return healthy.url;
 			}
 		}
 		const nextExpected = await probeHubServer(expectedUrl);
-		if (nextExpected?.url && (await verifyHubConnection(nextExpected.url))) {
+		if (
+			nextExpected?.url &&
+			isCompatibleHubRecord(nextExpected) &&
+			(await verifyHubConnection(nextExpected.url))
+		) {
 			await writeHubDiscovery(owner.discoveryPath, nextExpected);
 			return nextExpected.url;
 		}
