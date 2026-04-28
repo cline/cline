@@ -9,9 +9,14 @@ import {
 	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	type HookEventPayload,
+	type PendingPromptMutationResult,
+	type PendingPromptsDeleteInput,
+	type PendingPromptsListInput,
+	type PendingPromptsUpdateInput,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
 	type SessionHost,
+	type SessionPendingPrompt,
 	type SessionRecord,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -160,6 +165,14 @@ export class VscodeSessionHost implements SessionHost {
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {
 		return this.inner.handleHookEvent(payload)
+	}
+
+	pendingPrompts(action: "list", input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>
+	pendingPrompts(action: "update", input: PendingPromptsUpdateInput): Promise<PendingPromptMutationResult>
+	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	pendingPrompts(action: any, input: any): any {
+		return this.inner.pendingPrompts(action, input)
 	}
 
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
