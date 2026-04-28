@@ -126,11 +126,14 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
+      - name: Build SDK packages
+        run: bun run build:sdk
+
       - name: Run tests
         run: bun run test
 
       - name: Build platform binaries
-        run: bun script/build.ts --install-native-variants
+        run: bun script/build.ts --install-native-variants --skip-sdk-build
         working-directory: apps/cli
 
       - name: Verify build output
@@ -280,6 +283,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build SDK packages
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun run build:sdk
+
       - name: Run tests
         if: steps.check_commits.outputs.skip != 'true'
         run: bun run test
@@ -314,7 +321,7 @@ jobs:
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun script/build.ts --install-native-variants
+        run: bun script/build.ts --install-native-variants --skip-sdk-build
         working-directory: apps/cli
 
       - name: Verify build output
