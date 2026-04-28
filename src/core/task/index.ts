@@ -140,11 +140,6 @@ type TaskParams = {
 	postStateToWebview: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
-	shellIntegrationTimeout: number
-	terminalReuseEnabled: boolean
-	terminalOutputLineLimit: number
-	defaultTerminalProfile: string
-	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -279,11 +274,6 @@ export class Task {
 			postStateToWebview,
 			reinitExistingTaskFromId,
 			cancelTask,
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			terminalOutputLineLimit,
-			defaultTerminalProfile,
-			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -317,24 +307,10 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
-		// Determine terminal execution mode and create appropriate terminal manager
-		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-
-		// When backgroundExec mode is selected, use StandaloneTerminalManager for hidden execution
-		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
-		if (this.terminalExecutionMode === "backgroundExec") {
-			// Import StandaloneTerminalManager for background execution
-			this.terminalManager = new StandaloneTerminalManager()
-			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
-		} else {
-			// Use the host-provided terminal manager (VSCode terminal in VSCode environment)
-			this.terminalManager = HostProvider.get().createTerminalManager()
-			Logger.info(`[Task ${taskId}] Using HostProvider terminal manager for vscodeTerminal mode`)
-		}
-		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
-		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
-		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
-		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
+		// Foreground terminal mode has been removed; all task commands now use background execution.
+		this.terminalExecutionMode = "backgroundExec"
+		this.terminalManager = new StandaloneTerminalManager()
+		Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for command execution`)
 
 		this.urlContentFetcher = new UrlContentFetcher()
 		this.browserSession = new BrowserSession(stateManager)
@@ -595,7 +571,6 @@ export class Task {
 			cwd,
 			this.taskId,
 			this.ulid,
-			this.terminalExecutionMode,
 			this.workspaceManager,
 			isMultiRootEnabled(this.stateManager),
 			this.say.bind(this),
@@ -2080,6 +2055,7 @@ export class Task {
 
 				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
 				const isSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
+				const quotaExceeded = clineError.isErrorType(ClineErrorType.QuotaExceeded)
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2096,12 +2072,13 @@ export class Task {
 
 				let response: ClineAskResponse
 				// Skip auto-retry for Cline provider insufficient credits, auth errors, or spend limit errors
-				if (
+				const shouldRetry =
 					!isClineProviderInsufficientCredits &&
 					!isAuthError &&
 					!isSpendLimitError &&
+					!quotaExceeded &&
 					this.taskState.autoRetryAttempts < 3
-				) {
+				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -2152,7 +2129,8 @@ export class Task {
 					await setTimeoutPromise(delay)
 				} else {
 					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits or spend limit)
-					if (!isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError) {
+					const showRetry = !isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError && !quotaExceeded
+					if (showRetry) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({

@@ -47,9 +47,10 @@ jobs:
 
             - name: Resolve Release Tag
               id: resolve_tag
+              env:
+                  TAG: ${{ github.event.inputs.tag }}
+                  AUTO_CREATE: ${{ github.event.inputs.auto_create_tag_from_main }}
               run: |
-                  TAG="${{ github.event.inputs.tag }}"
-                  AUTO_CREATE="${{ github.event.inputs.auto_create_tag_from_main }}"
                   TESTED_SHA="${{ github.sha }}"
                   WORKFLOW_REF="${{ github.ref }}"
 
@@ -157,11 +158,12 @@ jobs:
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+                  RELEASE_TYPE: ${{ github.event.inputs.release-type }}
               run: |
                   # Required to generate the .vsix
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
-                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
+                  if [ "$RELEASE_TYPE" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else

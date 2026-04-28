@@ -1,40 +1,33 @@
-name: "Publish Nightly Release"
+name: "Publish SDK Nightly Release"
 
 on:
-  schedule:
-    - cron: '0 12 * * *'  # 4 AM PST (UTC-8) = 12 UTC
-  workflow_dispatch:
+    workflow_dispatch:
 
 permissions:
-    contents: write
+    contents: read
     packages: write
     checks: write
     pull-requests: write
 
-jobs:
-    test:
-        uses: ./.github/workflows/test.yml
+env:
+    # Keep the publish source pinned to one reviewed branch instead of accepting arbitrary refs.
+    SDK_NIGHTLY_REF: dpc/sdk-migration-simpler-login
 
+jobs:
     publish:
-        needs: test
-        name: Publish Cline (Nightly) Extension
-        if: github.repository == 'cline/cline'
+        name: Publish Cline (Nightly SDK) Extension
+        if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         environment: PublishNightly
 
         steps:
-            - uses: actions/checkout@v4
+            - name: Checkout trusted SDK nightly branch
+              uses: actions/checkout@v4
               with:
+                  ref: ${{ env.SDK_NIGHTLY_REF }}
                   lfs: true
+                  persist-credentials: false
 
-            - name: Check for recent commits
-              run: |
-                if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
-                  echo "No commits in last 24 hours, exiting"
-                  exit 0
-                fi
-                echo "Found recent commits, proceeding with build"
-                
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
@@ -60,7 +53,7 @@ jobs:
                     fi
                   done
 
-            - name: Publish Nightly Extension
+            - name: Publish SDK nightly extension as pre-release
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -74,4 +67,4 @@ jobs:
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-              run: npm run publish:marketplace:nightly
+              run: npm run publish:marketplace:nightly -- --pre-release

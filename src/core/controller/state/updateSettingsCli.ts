@@ -6,8 +6,6 @@ import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-
 import { Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { telemetryService } from "../../../services/telemetry"
@@ -53,7 +51,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				subagentsEnabled,
 				focusChainSettings,
 				browserSettings,
-				defaultTerminalProfile,
 				...simpleSettings
 			} = request.settings
 
@@ -220,51 +217,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				}
 
 				controller.stateManager.setGlobalState("browserSettings", newBrowserSettings)
-			}
-
-			// Update default terminal profile (requires terminal manager updates and notifications)
-			if (defaultTerminalProfile !== undefined && defaultTerminalProfile !== "") {
-				const profileId = defaultTerminalProfile
-
-				// Update the terminal profile in the state
-				controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
-
-				let closedCount = 0
-				let busyTerminalsCount = 0
-
-				// Update the terminal manager of the current task if it exists
-				if (controller.task) {
-					// Terminal manager must exist when task is active
-					if (!controller.task.terminalManager) {
-						throw new Error("Cannot update terminal profile: Terminal manager missing from active task")
-					}
-
-					// Call the updated setDefaultTerminalProfile method that returns closed terminal info
-					// Use `as any` to handle type incompatibility between VSCode's TerminalInfo and standalone TerminalInfo
-					const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId) as any
-					closedCount = result.closedCount
-					busyTerminalsCount = result.busyTerminals?.length ?? 0
-
-					// Show information message if terminals were closed
-					if (closedCount > 0) {
-						const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
-						HostProvider.window.showMessage({
-							type: ShowMessageType.INFORMATION,
-							message,
-						})
-					}
-
-					// Show warning if there are busy terminals that couldn't be closed
-					if (busyTerminalsCount > 0) {
-						const message =
-							`${busyTerminalsCount} busy ${busyTerminalsCount === 1 ? "terminal has" : "terminals have"} a different profile. ` +
-							`Close ${busyTerminalsCount === 1 ? "it" : "them"} to use the new profile for all commands.`
-						HostProvider.window.showMessage({
-							type: ShowMessageType.WARNING,
-							message,
-						})
-					}
-				}
 			}
 		}
 

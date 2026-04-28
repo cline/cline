@@ -7,7 +7,6 @@ import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
-import WelcomeView from "./components/welcome/WelcomeView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
@@ -28,7 +27,6 @@ const AppContent = () => {
 		showAccount,
 		showWorktrees,
 		showAnnouncement,
-		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
 		closeMcpView,
@@ -100,7 +98,7 @@ const AppContent = () => {
 	}
 
 	if (showWelcome) {
-		return onboardingModels ? <OnboardingView onboardingModels={onboardingModels} /> : <WelcomeView />
+		return <OnboardingView />
 	}
 
 	return (

@@ -45,7 +45,6 @@ export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
  */
 export enum TerminalOutputFailureReason {
 	TIMEOUT = "timeout",
-	NO_SHELL_INTEGRATION = "no_shell_integration",
 	CLIPBOARD_FAILED = "clipboard_failed",
 }
 
