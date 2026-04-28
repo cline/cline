@@ -29,9 +29,14 @@ export function getContextWindowInfo(api: ApiHandler) {
 	} else if (contextWindow <= 200_000) {
 		// Claude models: reserve 20%
 		maxAllowedSize = contextWindow - 40_000
+	} else if (contextWindow <= 500_000) {
+		// Mid-large windows: reserve 100K (conservative)
+		maxAllowedSize = contextWindow - 100_000
 	} else {
-		// Large windows (deepseek-v4-pro 1M, etc.): reserve 10% with a 100K floor
-		maxAllowedSize = Math.max(contextWindow - 100_000, contextWindow * 0.9)
+		// Extra-large windows (deepseek-v4-pro 1M, etc.): reserve 60K
+		// 384K maxTokens output ceiling far exceeds the 60K buffer requirement,
+		// so we can safely use a smaller buffer to maximize available input context.
+		maxAllowedSize = Math.max(contextWindow - 60_000, contextWindow * 0.94)
 	}
 
 	return { contextWindow, maxAllowedSize }
