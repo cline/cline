@@ -197,6 +197,12 @@ export class DeepSeekHandler implements ApiHandler {
 				}
 			}
 		} catch (error: any) {
+			// If the request was intentionally aborted (e.g., user cancelled),
+			// silently return instead of delegating to error handling which
+			// may trigger retries via the @withRetry() decorator.
+			if (error?.name === "AbortError" || this.abortController?.signal.aborted) {
+				return
+			}
 			this.handleStreamError(error)
 		}
 	}
