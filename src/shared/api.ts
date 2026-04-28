@@ -2217,7 +2217,7 @@ export const deepSeekModels = {
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
-		supportsReasoning: false,
+		supportsReasoning: true, // DeepSeek Reasoner uses R1 format with reasoning_content
 		supportsReasoningEffort: false,
 		apiFormat: ApiFormat.R1_CHAT,
 		isR1FormatRequired: true,
