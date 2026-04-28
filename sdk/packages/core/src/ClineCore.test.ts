@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AgentResult } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClineCoreStartInput } from "./ClineCore";
 import type {
@@ -40,6 +44,28 @@ function createStartResult(sessionId: string): StartSessionResult {
 		manifest: {} as StartSessionResult["manifest"],
 		manifestPath: `/tmp/${sessionId}.json`,
 		messagesPath: `/tmp/${sessionId}.messages.json`,
+	};
+}
+
+function createAgentResult(text: string): AgentResult {
+	const now = new Date("2026-04-24T10:00:00.000Z");
+	return {
+		text,
+		usage: {
+			inputTokens: 1,
+			outputTokens: 1,
+		},
+		messages: [],
+		toolCalls: [],
+		iterations: 1,
+		finishReason: "completed",
+		model: {
+			id: "test-model",
+			provider: "test-provider",
+		},
+		startedAt: now,
+		endedAt: now,
+		durationMs: 1,
 	};
 }
 
@@ -323,5 +349,84 @@ describe("ClineCore", () => {
 				totalCost: 0.02,
 			},
 		});
+	});
+
+	it("exposes event automation through ClineCore instead of CronService", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-core-automation-"));
+		const cronDir = join(root, ".cline", "cron");
+		const reportsDir = join(cronDir, "reports");
+		const dbPath = join(root, ".cline", "data", "db", "cron.db");
+		mkdirSync(join(cronDir, "events"), { recursive: true });
+		writeFileSync(
+			join(cronDir, "events", "local.event.md"),
+			`---
+id: local-test
+title: Local Test
+workspaceRoot: ${root}
+event: local.manual_test
+filters:
+  topic: cron-feature-2
+---
+Summarize the local event.
+`,
+			"utf8",
+		);
+
+		const host = {
+			runtimeAddress: undefined,
+			start: vi.fn(async () => createStartResult("automation-session")),
+			send: vi.fn(async () => createAgentResult("automation complete")),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stop: vi.fn(),
+			dispose: vi.fn(),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(),
+			delete: vi.fn(),
+			update: vi.fn(),
+			readMessages: vi.fn(),
+			handleHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		try {
+			const core = await ClineCore.create({
+				automation: {
+					cronDir,
+					reportsDir,
+					dbPath,
+					autoStart: false,
+					pollIntervalMs: 10_000,
+				},
+			});
+			await core.automation.reconcileNow();
+			const result = core.automation.ingestEvent({
+				eventId: "evt_local_1",
+				eventType: "local.manual_test",
+				source: "local",
+				subject: "manual smoke test",
+				occurredAt: "2026-04-24T10:00:00.000Z",
+				attributes: { topic: "cron-feature-2" },
+			});
+
+			expect(result.matchedSpecIds).toHaveLength(1);
+			expect(result.queuedRuns).toHaveLength(1);
+
+			await core.automation.start();
+			await core.automation.stop();
+			await core.dispose();
+
+			expect(host.start).toHaveBeenCalledTimes(1);
+			expect(host.send).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId: "automation-session",
+					prompt: expect.stringContaining("Trigger event:"),
+				}),
+			);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 });

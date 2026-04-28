@@ -1,11 +1,28 @@
 import type {
 	AgentConfig,
+	AgentResult,
+	AutomationEventEnvelope,
 	BasicLogger,
+	ChatRunTurnRequest,
+	ChatStartSessionRequest,
+	ChatTurnResult,
 	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
+import type {
+	CronEventIngressResult,
+	CronEventSuppression,
+} from "./cron/cron-event-ingress";
+import { CronService } from "./cron/cron-service";
+import type { HubScheduleRuntimeHandlers } from "./cron/schedule-service";
+import type {
+	CronEventLogRecord,
+	CronRunRecord,
+	CronSpecRecord,
+} from "./cron/sqlite-cron-store";
 import type { ToolExecutors } from "./extensions/tools";
+import { normalizeProviderId } from "./llms/provider-settings";
 import type { SessionHistoryListOptions } from "./runtime/history";
 import { listSessionHistory } from "./runtime/history";
 import type { SessionBackend } from "./runtime/host";
@@ -48,6 +65,80 @@ export interface RemoteOptions {
 	displayName?: string;
 	workspaceRoot?: string;
 	cwd?: string;
+}
+
+export interface ClineCoreAutomationOptions {
+	/** @deprecated Use `cronSpecsDir`. */
+	cronDir?: string;
+	cronSpecsDir?: string;
+	/** @deprecated Reports are written under the resolved cron specs directory. */
+	reportsDir?: string;
+	cronScope?: "global" | "user" | "workspace";
+	workspaceRoot?: string;
+	dbPath?: string;
+	pollIntervalMs?: number;
+	claimLeaseSeconds?: number;
+	globalMaxConcurrency?: number;
+	watcherDebounceMs?: number;
+	autoStart?: boolean;
+}
+
+export type ClineAutomationSpec = CronSpecRecord;
+export type ClineAutomationRun = CronRunRecord;
+export type ClineAutomationEventLog = CronEventLogRecord;
+export type ClineAutomationEventSuppression = CronEventSuppression;
+export type ClineAutomationRunStatus =
+	| "queued"
+	| "running"
+	| "done"
+	| "failed"
+	| "cancelled";
+
+export interface ClineAutomationListSpecsOptions {
+	triggerKind?: "one_off" | "schedule" | "event";
+	enabled?: boolean;
+	parseStatus?: "valid" | "invalid";
+	includeRemoved?: boolean;
+	limit?: number;
+}
+
+export interface ClineAutomationListRunsOptions {
+	specId?: string;
+	status?: ClineAutomationRunStatus | ClineAutomationRunStatus[];
+	limit?: number;
+}
+
+export interface ClineAutomationListEventsOptions {
+	eventType?: string;
+	source?: string;
+	processingStatus?:
+		| "received"
+		| "unmatched"
+		| "queued"
+		| "suppressed"
+		| "failed";
+	limit?: number;
+}
+
+export interface ClineAutomationEventIngressResult {
+	event: ClineAutomationEventLog;
+	duplicate: boolean;
+	matchedSpecIds: string[];
+	queuedRuns: ClineAutomationRun[];
+	suppressions: ClineAutomationEventSuppression[];
+}
+
+export interface ClineCoreAutomationApi {
+	start(): Promise<void>;
+	stop(): Promise<void>;
+	reconcileNow(): Promise<void>;
+	ingestEvent(event: any): ClineAutomationEventIngressResult;
+	listEvents(
+		options?: ClineAutomationListEventsOptions,
+	): ClineAutomationEventLog[];
+	getEvent(eventId: string): ClineAutomationEventLog | undefined;
+	listSpecs(options?: ClineAutomationListSpecsOptions): ClineAutomationSpec[];
+	listRuns(options?: ClineAutomationListRunsOptions): ClineAutomationRun[];
 }
 
 export type { RuntimeHostMode };
@@ -124,6 +215,12 @@ export interface ClineCoreOptions {
 	 */
 	messagesArtifactUploader?: SessionMessagesArtifactUploader;
 	/**
+	 * Enables file-based and event-driven automation through this ClineCore
+	 * instance. When configured, callers use `cline.automation.*` instead of
+	 * constructing cron services directly.
+	 */
+	automation?: boolean | ClineCoreAutomationOptions;
+	/**
 	 * Custom `fetch` implementation forwarded to the AI gateway providers used
 	 * by local sessions. When supplied, it is threaded into each
 	 * `ProviderConfig.fetch` built during session bootstrap, which in turn
@@ -170,6 +267,102 @@ export interface StartSessionBootstrap {
 	dispose?(): Promise<void> | void;
 }
 
+function normalizeAutomationOptions(
+	options: ClineCoreOptions["automation"],
+): ClineCoreAutomationOptions | undefined {
+	if (options === true) return {};
+	if (!options) return undefined;
+	return options;
+}
+
+function normalizeAutomationCronScope(
+	scope: ClineCoreAutomationOptions["cronScope"],
+): "global" | "workspace" | undefined {
+	if (scope === "user") return "global";
+	return scope;
+}
+
+function toChatTurnResult(result: AgentResult): ChatTurnResult {
+	return {
+		text: result.text,
+		usage: {
+			inputTokens: result.usage.inputTokens,
+			outputTokens: result.usage.outputTokens,
+			cacheReadTokens: result.usage.cacheReadTokens,
+			cacheWriteTokens: result.usage.cacheWriteTokens,
+			totalCost: result.usage.totalCost,
+		},
+		inputTokens: result.usage.inputTokens,
+		outputTokens: result.usage.outputTokens,
+		iterations: result.iterations,
+		finishReason: result.finishReason,
+		toolCalls: result.toolCalls.map((call) => ({
+			name: call.name,
+			input: call.input,
+			output: call.output,
+			error: call.error,
+			durationMs: call.durationMs,
+		})),
+	};
+}
+
+function resolveMode(
+	request: ChatStartSessionRequest | ChatRunTurnRequest["config"],
+): "act" | "plan" | "yolo" {
+	return request.mode === "plan"
+		? "plan"
+		: request.mode === "yolo"
+			? "yolo"
+			: "act";
+}
+
+class ClineCoreAutomationController implements ClineCoreAutomationApi {
+	constructor(private readonly getService: () => CronService) {}
+
+	async start(): Promise<void> {
+		await this.getService().start();
+	}
+
+	async stop(): Promise<void> {
+		await this.getService().stop();
+	}
+
+	async reconcileNow(): Promise<void> {
+		await this.getService().reconcileNow();
+	}
+
+	ingestEvent(
+		event: AutomationEventEnvelope,
+	): ClineAutomationEventIngressResult {
+		const result: CronEventIngressResult = this.getService().ingestEvent(event);
+		return {
+			event: result.event,
+			duplicate: result.duplicate,
+			matchedSpecIds: result.matchedSpecs.map((spec) => spec.specId),
+			queuedRuns: result.queuedRuns,
+			suppressions: result.suppressions,
+		};
+	}
+
+	listEvents(
+		options?: ClineAutomationListEventsOptions,
+	): ClineAutomationEventLog[] {
+		return this.getService().listEventLogs(options);
+	}
+
+	getEvent(eventId: string): ClineAutomationEventLog | undefined {
+		return this.getService().getEventLog(eventId);
+	}
+
+	listSpecs(options?: ClineAutomationListSpecsOptions): ClineAutomationSpec[] {
+		return this.getService().listSpecs(options);
+	}
+
+	listRuns(options?: ClineAutomationListRunsOptions): ClineAutomationRun[] {
+		return this.getService().listRuns(options);
+	}
+}
+
 /**
  * The primary entry point for the Cline Core SDK.
  *
@@ -184,10 +377,12 @@ export interface StartSessionBootstrap {
 export class ClineCore implements RuntimeHost {
 	readonly clientName: string | undefined;
 	readonly runtimeAddress: string | undefined;
+	readonly automation: ClineCoreAutomationApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly defaultToolExecutors: Partial<ToolExecutors> | undefined;
 	private readonly telemetry: ITelemetryService | undefined;
+	private readonly automationService: CronService | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
 		StartSessionBootstrap
@@ -201,6 +396,9 @@ export class ClineCore implements RuntimeHost {
 		prepare: ClineCoreOptions["prepare"],
 		defaultToolExecutors: Partial<ToolExecutors> | undefined,
 		telemetry: ITelemetryService | undefined,
+		automationOptions:
+			| (ClineCoreAutomationOptions & { logger?: BasicLogger })
+			| undefined,
 	) {
 		this.clientName = clientName;
 		this.runtimeAddress = runtimeAddress;
@@ -208,6 +406,32 @@ export class ClineCore implements RuntimeHost {
 		this.prepare = prepare;
 		this.defaultToolExecutors = defaultToolExecutors;
 		this.telemetry = telemetry;
+		this.automationService = automationOptions
+			? new CronService({
+					workspaceRoot: automationOptions.workspaceRoot ?? process.cwd(),
+					specs: {
+						cronSpecsDir:
+							automationOptions.cronSpecsDir ?? automationOptions.cronDir,
+						scope: normalizeAutomationCronScope(automationOptions.cronScope),
+						workspaceRoot: automationOptions.workspaceRoot,
+					},
+					runtimeHandlers: this.createAutomationRuntimeHandlers(host),
+					dbPath: automationOptions.dbPath,
+					logger: automationOptions.logger,
+					pollIntervalMs: automationOptions.pollIntervalMs,
+					claimLeaseSeconds: automationOptions.claimLeaseSeconds,
+					globalMaxConcurrency: automationOptions.globalMaxConcurrency,
+					watcherDebounceMs: automationOptions.watcherDebounceMs,
+				})
+			: undefined;
+		this.automation = new ClineCoreAutomationController(() => {
+			if (!this.automationService) {
+				throw new Error(
+					"ClineCore automation is not enabled. Pass `automation: true` or automation options to ClineCore.create().",
+				);
+			}
+			return this.automationService;
+		});
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -236,14 +460,91 @@ export class ClineCore implements RuntimeHost {
 	 */
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
 		const host = await createRuntimeHost(options);
-		return new ClineCore(
+		const automationOptions = normalizeAutomationOptions(options.automation);
+		const core = new ClineCore(
 			host,
 			options.clientName,
 			host.runtimeAddress,
 			options.prepare,
 			options.defaultToolExecutors,
 			options.telemetry,
+			automationOptions
+				? { ...automationOptions, logger: options.logger }
+				: undefined,
 		);
+		if (automationOptions && automationOptions.autoStart !== false) {
+			await core.automation.start();
+		}
+		return core;
+	}
+
+	private createAutomationRuntimeHandlers(
+		host: RuntimeHost,
+	): HubScheduleRuntimeHandlers {
+		return {
+			async startSession(request) {
+				const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
+				const started = await host.start({
+					source: request.source?.trim() || SessionSource.CLI,
+					interactive: false,
+					config: {
+						providerId: normalizeProviderId(request.provider),
+						modelId: request.model,
+						apiKey: request.apiKey?.trim() || undefined,
+						cwd,
+						workspaceRoot: request.workspaceRoot,
+						systemPrompt: request.systemPrompt ?? "",
+						mode: resolveMode(request),
+						maxIterations: request.maxIterations,
+						enableTools: request.enableTools !== false,
+						enableSpawnAgent: request.enableSpawn !== false,
+						enableAgentTeams: request.enableTeams !== false,
+						disableMcpSettingsTools: request.disableMcpSettingsTools,
+						missionLogIntervalSteps: request.missionStepInterval,
+						missionLogIntervalMs: request.missionTimeIntervalMs,
+					},
+					toolPolicies: request.toolPolicies ?? {
+						"*": {
+							autoApprove: request.autoApproveTools !== false,
+						},
+					},
+					localRuntime: {
+						configExtensions: request.configExtensions,
+					},
+				});
+				return {
+					sessionId: started.sessionId,
+					startResult: {
+						sessionId: started.sessionId,
+						manifestPath: started.manifestPath,
+						messagesPath: started.messagesPath,
+					},
+				};
+			},
+			async sendSession(sessionId, request) {
+				const result = await host.send({
+					sessionId,
+					prompt: request.prompt,
+					userImages: request.attachments?.userImages,
+					userFiles: request.attachments?.userFiles?.map(
+						(file) => file.content,
+					),
+					delivery: request.delivery,
+				});
+				if (!result) {
+					throw new Error("ClineCore automation runtime returned no result");
+				}
+				return { result: toChatTurnResult(result) };
+			},
+			async abortSession(sessionId) {
+				await host.abort(sessionId, new Error("ClineCore automation abort"));
+				return { applied: true };
+			},
+			async stopSession(sessionId) {
+				await host.stop(sessionId);
+				return { applied: true };
+			},
+		};
 	}
 
 	private async disposeSessionBootstrap(sessionId: string): Promise<void> {
@@ -499,6 +800,7 @@ export class ClineCore implements RuntimeHost {
 	 */
 	dispose: RuntimeHost["dispose"] = async (...args) => {
 		try {
+			await this.automationService?.dispose();
 			await this.host.dispose(...args);
 		} finally {
 			this.unsubscribeBootstrapCleanup();

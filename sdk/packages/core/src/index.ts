@@ -19,6 +19,7 @@ export type {
 	AgentResult,
 	AgentRunResult,
 	AgentRunStatus,
+	AutomationEventEnvelope,
 	BasicLogger,
 	ChatRunTurnRequest,
 	ChatRuntimeConfig,
@@ -156,14 +157,24 @@ export type {
 	OcaTokenResolution,
 } from "./auth/types";
 export {
+	type ClineAutomationEventIngressResult,
+	type ClineAutomationEventLog,
+	type ClineAutomationEventSuppression,
+	type ClineAutomationListEventsOptions,
+	type ClineAutomationListRunsOptions,
+	type ClineAutomationListSpecsOptions,
+	type ClineAutomationRun,
+	type ClineAutomationRunStatus,
+	type ClineAutomationSpec,
 	ClineCore,
+	type ClineCoreAutomationApi,
+	type ClineCoreAutomationOptions,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreOptions,
 	type ClineCoreStartInput,
 	type HubOptions,
 	type RemoteOptions,
 } from "./ClineCore";
-export * from "./cron";
 export type {
 	LoadAgentPluginFromPathOptions,
 	PluginInitializationFailure,

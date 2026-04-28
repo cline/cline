@@ -74,7 +74,9 @@ function extractFileMentions(
 		FILE_MENTION_PATTERN_EXEC.flags,
 	);
 
-	while ((match = pattern.exec(prompt)) !== null) {
+	for (;;) {
+		match = pattern.exec(prompt);
+		if (!match) break;
 		const path = match[1] ?? match[2];
 		if (!path) continue;
 		matches.push({

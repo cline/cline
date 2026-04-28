@@ -55,9 +55,11 @@ function RobotFrame(props: { frame: CroppedFrame }) {
 			{frame.rows.map((row, rowIdx) => {
 				const segments = buildRowSegments(row, rowIdx, frame.colors);
 				return (
-					<text key={rowIdx}>
+					// biome-ignore lint/suspicious/noArrayIndexKey: static animation frame with fixed row order
+					<text key={`row-${rowIdx}`}>
 						{segments.map((seg, j) => (
-							<span key={j} fg={seg.fg}>
+							// biome-ignore lint/suspicious/noArrayIndexKey: static animation frame with fixed row order
+							<span key={`seg-${rowIdx}-${j}`} fg={seg.fg}>
 								{seg.text}
 							</span>
 						))}

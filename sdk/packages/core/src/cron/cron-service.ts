@@ -1,5 +1,9 @@
-import type { BasicLogger } from "@clinebot/shared";
+import type { AutomationEventEnvelope, BasicLogger } from "@clinebot/shared";
 import type { ResolveCronSpecsDirOptions } from "@clinebot/shared/storage";
+import {
+	CronEventIngress,
+	type CronEventIngressResult,
+} from "./cron-event-ingress";
 import { CronMaterializer } from "./cron-materializer";
 import { CronReconciler } from "./cron-reconciler";
 import { CronRunner } from "./cron-runner";
@@ -8,6 +12,7 @@ import type { HubScheduleRuntimeHandlers } from "./schedule-service";
 import type {
 	CronRunRecord,
 	CronSpecRecord,
+	ListEventLogsOptions,
 	ListRunsOptions,
 	ListSpecsOptions,
 } from "./sqlite-cron-store";
@@ -46,6 +51,7 @@ export class CronService {
 	private readonly store: SqliteCronStore;
 	private readonly reconciler: CronReconciler;
 	private readonly watcher: CronWatcher;
+	private readonly eventIngress: CronEventIngress;
 	private readonly materializer: CronMaterializer;
 	private readonly runner: CronRunner;
 	private started = false;
@@ -59,6 +65,10 @@ export class CronService {
 			specs,
 		});
 		this.materializer = new CronMaterializer({ store: this.store });
+		this.eventIngress = new CronEventIngress({
+			store: this.store,
+			logger: options.logger,
+		});
 		this.runner = new CronRunner({
 			store: this.store,
 			materializer: this.materializer,
@@ -137,5 +147,17 @@ export class CronService {
 	public async reconcileNow(): Promise<void> {
 		await this.reconciler.reconcileAll();
 		this.materializer.materializeAll();
+	}
+
+	public ingestEvent(event: AutomationEventEnvelope): CronEventIngressResult {
+		return this.eventIngress.ingestEvent(event);
+	}
+
+	public listEventLogs(options?: ListEventLogsOptions) {
+		return this.store.listEventLogs(options);
+	}
+
+	public getEventLog(eventId: string) {
+		return this.store.getEventLog(eventId);
 	}
 }

@@ -1,3 +1,4 @@
+export * from "./cron-event-ingress";
 export * from "./cron-materializer";
 export * from "./cron-reconciler";
 export * from "./cron-report-writer";

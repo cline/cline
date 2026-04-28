@@ -69,6 +69,26 @@ const CRON_SCHEMA_STATEMENTS: readonly string[] = [
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL
 	);`,
+	`CREATE TABLE IF NOT EXISTS cron_event_log (
+		event_id TEXT PRIMARY KEY,
+		event_type TEXT NOT NULL,
+		source TEXT NOT NULL,
+		subject TEXT,
+		occurred_at TEXT NOT NULL,
+		received_at TEXT NOT NULL,
+		workspace_root TEXT,
+		dedupe_key TEXT,
+		payload_json TEXT,
+		attributes_json TEXT,
+		processing_status TEXT NOT NULL DEFAULT 'received'
+			CHECK (processing_status IN ('received', 'unmatched', 'queued', 'suppressed', 'failed')),
+		matched_spec_count INTEGER NOT NULL DEFAULT 0,
+		queued_run_count INTEGER NOT NULL DEFAULT 0,
+		suppressed_count INTEGER NOT NULL DEFAULT 0,
+		error TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS cron_runs_one_off_active_idx
 		ON cron_runs(spec_id, spec_revision)
 		WHERE trigger_kind = 'one_off' AND status IN ('queued', 'running', 'done');`,
@@ -76,6 +96,16 @@ const CRON_SCHEMA_STATEMENTS: readonly string[] = [
 		ON cron_runs(status, scheduled_for, claim_until_at);`,
 	`CREATE INDEX IF NOT EXISTS cron_runs_spec_idx
 		ON cron_runs(spec_id, created_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS cron_runs_trigger_event_idx
+		ON cron_runs(trigger_event_id);`,
+	`CREATE INDEX IF NOT EXISTS cron_runs_event_spec_status_idx
+		ON cron_runs(spec_id, trigger_kind, status, scheduled_for);`,
+	`CREATE INDEX IF NOT EXISTS cron_event_log_type_idx
+		ON cron_event_log(event_type, received_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS cron_event_log_received_idx
+		ON cron_event_log(received_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS cron_event_log_dedupe_idx
+		ON cron_event_log(event_type, source, dedupe_key, received_at DESC);`,
 	`CREATE INDEX IF NOT EXISTS cron_specs_next_run_idx
 		ON cron_specs(trigger_kind, enabled, next_run_at);`,
 	`CREATE INDEX IF NOT EXISTS cron_specs_event_match_idx

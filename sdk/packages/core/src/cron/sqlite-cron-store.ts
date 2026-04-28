@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+	AutomationEventEnvelope,
 	CronSpec,
 	CronSpecExtensionKind,
 	CronTriggerKind,
@@ -36,6 +37,13 @@ export type CronRunTriggerKind =
 	| "retry";
 
 export type CronParseStatus = "valid" | "invalid";
+
+export type CronEventProcessingStatus =
+	| "received"
+	| "unmatched"
+	| "queued"
+	| "suppressed"
+	| "failed";
 
 export interface CronSpecRecord {
 	specId: string;
@@ -96,6 +104,26 @@ export interface CronRunRecord {
 	reportPath?: string;
 	error?: string;
 	attemptCount: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface CronEventLogRecord {
+	eventId: string;
+	eventType: string;
+	source: string;
+	subject?: string;
+	occurredAt: string;
+	receivedAt: string;
+	workspaceRoot?: string;
+	dedupeKey?: string;
+	payload?: Record<string, unknown>;
+	attributes?: Record<string, unknown>;
+	processingStatus: CronEventProcessingStatus;
+	matchedSpecCount: number;
+	queuedRunCount: number;
+	suppressedCount: number;
+	error?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -233,6 +261,34 @@ function runToRecord(row: Record<string, unknown>): CronRunRecord {
 	};
 }
 
+function eventLogToRecord(row: Record<string, unknown>): CronEventLogRecord {
+	return {
+		eventId: asString(row.event_id),
+		eventType: asString(row.event_type),
+		source: asString(row.source),
+		subject: asOptionalString(row.subject),
+		occurredAt: asString(row.occurred_at),
+		receivedAt: asString(row.received_at),
+		workspaceRoot: asOptionalString(row.workspace_root),
+		dedupeKey: asOptionalString(row.dedupe_key),
+		payload: parseJsonRecord(asOptionalString(row.payload_json)),
+		attributes: parseJsonRecord(asOptionalString(row.attributes_json)),
+		processingStatus: asString(
+			row.processing_status,
+		) as CronEventProcessingStatus,
+		matchedSpecCount: Number(row.matched_spec_count ?? 0),
+		queuedRunCount: Number(row.queued_run_count ?? 0),
+		suppressedCount: Number(row.suppressed_count ?? 0),
+		error: asOptionalString(row.error),
+		createdAt: asString(row.created_at),
+		updatedAt: asString(row.updated_at),
+	};
+}
+
+function jsonOrNull(value: Record<string, unknown> | undefined): string | null {
+	return value ? JSON.stringify(value) : null;
+}
+
 const MEANINGFUL_FIELD_KEYS = [
 	"prompt",
 	"workspaceRoot",
@@ -334,6 +390,18 @@ export interface EnqueueRunInput {
 	triggerEventId?: string;
 }
 
+export interface InsertEventLogResult {
+	record: CronEventLogRecord;
+	created: boolean;
+}
+
+export interface ListEventLogsOptions {
+	eventType?: string;
+	source?: string;
+	processingStatus?: CronEventProcessingStatus;
+	limit?: number;
+}
+
 export class SqliteCronStore {
 	private readonly db: SqliteDb;
 
@@ -395,6 +463,21 @@ export class SqliteCronStore {
 				`SELECT * FROM cron_specs ${whereClause} ORDER BY created_at DESC LIMIT ?`,
 			)
 			.all(...params, limit);
+		return rows.map((row) => specToRecord(row));
+	}
+
+	public listEventSpecsForType(eventType: string): CronSpecRecord[] {
+		const rows = this.db
+			.prepare(
+				`SELECT * FROM cron_specs
+					WHERE trigger_kind = 'event'
+						AND event_type = ?
+						AND enabled = 1
+						AND removed = 0
+						AND parse_status = 'valid'
+					ORDER BY created_at ASC`,
+			)
+			.all(eventType);
 		return rows.map((row) => specToRecord(row));
 	}
 
@@ -729,6 +812,130 @@ export class SqliteCronStore {
 		return row ? runToRecord(row) : undefined;
 	}
 
+	public insertEventLog(
+		event: AutomationEventEnvelope,
+		options: { receivedAtIso?: string } = {},
+	): InsertEventLogResult {
+		const now = nowIso();
+		const receivedAt = options.receivedAtIso ?? now;
+		const eventId = event.eventId.trim();
+		if (!eventId) {
+			throw new Error("automation event requires eventId");
+		}
+		const eventType = event.eventType.trim();
+		if (!eventType) {
+			throw new Error("automation event requires eventType");
+		}
+		const source = event.source.trim();
+		if (!source) {
+			throw new Error("automation event requires source");
+		}
+		const occurredAt = event.occurredAt.trim() || receivedAt;
+		const changes =
+			this.db
+				.prepare(
+					`INSERT OR IGNORE INTO cron_event_log (
+						event_id, event_type, source, subject,
+						occurred_at, received_at, workspace_root, dedupe_key,
+						payload_json, attributes_json, processing_status,
+						matched_spec_count, queued_run_count, suppressed_count,
+						error, created_at, updated_at
+					) VALUES (?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?, ?,?,?)`,
+				)
+				.run(
+					eventId,
+					eventType,
+					source,
+					event.subject?.trim() || null,
+					occurredAt,
+					receivedAt,
+					event.workspaceRoot?.trim() || null,
+					event.dedupeKey?.trim() || null,
+					jsonOrNull(event.payload),
+					jsonOrNull(event.attributes),
+					"received",
+					0,
+					0,
+					0,
+					null,
+					now,
+					now,
+				).changes ?? 0;
+		const record = this.getEventLog(eventId);
+		if (!record) throw new Error("failed to insert cron_event_log row");
+		return { record, created: changes === 1 };
+	}
+
+	public getEventLog(eventId: string): CronEventLogRecord | undefined {
+		const row = this.db
+			.prepare("SELECT * FROM cron_event_log WHERE event_id = ?")
+			.get(eventId);
+		return row ? eventLogToRecord(row) : undefined;
+	}
+
+	public listEventLogs(
+		options: ListEventLogsOptions = {},
+	): CronEventLogRecord[] {
+		const where: string[] = [];
+		const params: unknown[] = [];
+		if (options.eventType) {
+			where.push("event_type = ?");
+			params.push(options.eventType);
+		}
+		if (options.source) {
+			where.push("source = ?");
+			params.push(options.source);
+		}
+		if (options.processingStatus) {
+			where.push("processing_status = ?");
+			params.push(options.processingStatus);
+		}
+		const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+		const limit = Math.max(1, Math.floor(options.limit ?? 200));
+		const rows = this.db
+			.prepare(
+				`SELECT * FROM cron_event_log ${whereClause}
+					ORDER BY received_at DESC, created_at DESC
+					LIMIT ?`,
+			)
+			.all(...params, limit);
+		return rows.map((row) => eventLogToRecord(row));
+	}
+
+	public updateEventLogProcessing(
+		eventId: string,
+		update: {
+			status: CronEventProcessingStatus;
+			matchedSpecCount?: number;
+			queuedRunCount?: number;
+			suppressedCount?: number;
+			error?: string;
+		},
+	): boolean {
+		const changes =
+			this.db
+				.prepare(
+					`UPDATE cron_event_log SET
+						processing_status = ?,
+						matched_spec_count = COALESCE(?, matched_spec_count),
+						queued_run_count = COALESCE(?, queued_run_count),
+						suppressed_count = COALESCE(?, suppressed_count),
+						error = ?,
+						updated_at = ?
+					WHERE event_id = ?`,
+				)
+				.run(
+					update.status,
+					update.matchedSpecCount ?? null,
+					update.queuedRunCount ?? null,
+					update.suppressedCount ?? null,
+					update.error ?? null,
+					nowIso(),
+					eventId,
+				).changes ?? 0;
+		return changes === 1;
+	}
+
 	public listRuns(options: ListRunsOptions = {}): CronRunRecord[] {
 		const where: string[] = [];
 		const params: unknown[] = [];
@@ -754,6 +961,88 @@ export class SqliteCronStore {
 			)
 			.all(...params, limit);
 		return rows.map((row) => runToRecord(row));
+	}
+
+	public hasRecentEventRunForDedupe(options: {
+		specId: string;
+		dedupeKey: string;
+		sinceIso: string;
+	}): boolean {
+		const row = this.db
+			.prepare(
+				`SELECT r.run_id FROM cron_runs r
+					INNER JOIN cron_event_log e ON e.event_id = r.trigger_event_id
+					WHERE r.spec_id = ?
+						AND r.trigger_kind = 'event'
+						AND e.dedupe_key = ?
+						AND e.received_at >= ?
+					LIMIT 1`,
+			)
+			.get(options.specId, options.dedupeKey, options.sinceIso);
+		return !!row;
+	}
+
+	public hasRecentEventRunForSpec(options: {
+		specId: string;
+		sinceIso: string;
+	}): boolean {
+		const row = this.db
+			.prepare(
+				`SELECT r.run_id FROM cron_runs r
+					INNER JOIN cron_event_log e ON e.event_id = r.trigger_event_id
+					WHERE r.spec_id = ?
+						AND r.trigger_kind = 'event'
+						AND e.received_at >= ?
+					LIMIT 1`,
+			)
+			.get(options.specId, options.sinceIso);
+		return !!row;
+	}
+
+	public findQueuedEventRunForDedupe(options: {
+		specId: string;
+		dedupeKey: string;
+	}): CronRunRecord | undefined {
+		const row = this.db
+			.prepare(
+				`SELECT r.* FROM cron_runs r
+					INNER JOIN cron_event_log e ON e.event_id = r.trigger_event_id
+					WHERE r.spec_id = ?
+						AND r.trigger_kind = 'event'
+						AND r.status = 'queued'
+						AND e.dedupe_key = ?
+					ORDER BY COALESCE(r.scheduled_for, r.created_at) DESC
+					LIMIT 1`,
+			)
+			.get(options.specId, options.dedupeKey);
+		return row ? runToRecord(row) : undefined;
+	}
+
+	public updateQueuedEventRunForDebounce(options: {
+		runId: string;
+		triggerEventId: string;
+		scheduledFor: string;
+	}): CronRunRecord | undefined {
+		const updatedAt = nowIso();
+		const changes =
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET
+						trigger_event_id = ?,
+						scheduled_for = ?,
+						updated_at = ?
+					WHERE run_id = ?
+						AND trigger_kind = 'event'
+						AND status = 'queued'`,
+				)
+				.run(
+					options.triggerEventId,
+					options.scheduledFor,
+					updatedAt,
+					options.runId,
+				).changes ?? 0;
+		if (changes !== 1) return undefined;
+		return this.getRun(options.runId);
 	}
 
 	public hasActiveOrDoneOneOffRun(specId: string, revision: number): boolean {

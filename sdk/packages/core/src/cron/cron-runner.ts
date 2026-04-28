@@ -20,6 +20,7 @@ import { ResourceLimiter } from "./resource-limiter";
 import type { HubScheduleRuntimeHandlers } from "./schedule-service";
 import type {
 	ClaimedCronRun,
+	CronEventLogRecord,
 	CronSpecRecord,
 	SqliteCronStore,
 } from "./sqlite-cron-store";
@@ -274,6 +275,9 @@ export class CronRunner {
 		}
 
 		this.activeRuns.set(run.runId, { claimToken: claim.claimToken });
+		const triggerEvent = run.triggerEventId
+			? this.store.getEventLog(run.triggerEventId)
+			: undefined;
 		let sessionId: string | undefined;
 		let releaseLeaseHeartbeat: (() => void) | undefined;
 		const startMs = Date.now();
@@ -297,7 +301,7 @@ export class CronRunner {
 
 			const turnRequest: ChatRunTurnRequest = {
 				config: startRequest,
-				prompt: spec.prompt ?? "",
+				prompt: this.buildPrompt(spec, triggerEvent),
 			};
 			const sendPromise = this.options.runtimeHandlers.sendSession(
 				sessionId,
@@ -366,6 +370,26 @@ export class CronRunner {
 			this.activeRuns.delete(run.runId);
 			this.limiter.release(spec.specId, run.runId);
 		}
+	}
+
+	private buildPrompt(
+		spec: CronSpecRecord,
+		triggerEvent: CronEventLogRecord | undefined,
+	): string {
+		const prompt = spec.prompt ?? "";
+		if (!triggerEvent) return prompt;
+		const eventContext = {
+			eventId: triggerEvent.eventId,
+			eventType: triggerEvent.eventType,
+			source: triggerEvent.source,
+			subject: triggerEvent.subject,
+			occurredAt: triggerEvent.occurredAt,
+			workspaceRoot: triggerEvent.workspaceRoot,
+			dedupeKey: triggerEvent.dedupeKey,
+			attributes: triggerEvent.attributes,
+			payload: triggerEvent.payload,
+		};
+		return `${prompt}\n\nTrigger event:\n${JSON.stringify(eventContext, null, 2)}`;
 	}
 
 	private startClaimLeaseHeartbeat(claim: ClaimedCronRun): () => void {

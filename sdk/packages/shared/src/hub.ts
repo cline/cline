@@ -332,6 +332,9 @@ export type HubCommandName =
 	| "schedule.stats"
 	| "schedule.active"
 	| "schedule.upcoming"
+	| "cron.event.ingest"
+	| "cron.event.list"
+	| "cron.event.get"
 	| "ui.notify"
 	| "ui.show_window";
 
