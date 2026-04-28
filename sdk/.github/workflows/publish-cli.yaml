@@ -167,11 +167,10 @@ jobs:
             ls -lh "$dir/bin/"
           done
 
+      # TODO: re-enable NPM_CONFIG_PROVENANCE: "true" when repo is public
       - name: Publish to NPM with latest tag
         run: bun script/publish-npm.ts --tag latest
         working-directory: apps/cli
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
 
       - name: Create GitHub release
         env:
@@ -356,12 +355,11 @@ jobs:
             ls -lh "$dir/bin/"
           done
 
+      # TODO: re-enable NPM_CONFIG_PROVENANCE: "true" when repo is public
       - name: Publish to NPM with nightly tag
         if: steps.check_commits.outputs.skip != 'true'
         run: bun script/publish-npm.ts --tag nightly
         working-directory: apps/cli
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
