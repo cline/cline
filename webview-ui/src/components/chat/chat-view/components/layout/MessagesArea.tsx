@@ -239,8 +239,6 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					rangeChanged={handleRangeChanged}
 					ref={virtuosoRef} // anything lower causes issues with followOutput
 					style={{
-						scrollbarWidth: "none", // Firefox
-						msOverflowStyle: "none", // IE/Edge
 						overflowAnchor: "none", // prevent scroll jump when content expands
 					}}
 				/>
