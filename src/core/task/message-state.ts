@@ -61,6 +61,11 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	// This follows the same pattern as Task.stateMutex for consistency
 	private stateMutex = new Mutex()
 
+	// Buffering system to reduce disk I/O during streaming
+	// When true, updateClineMessage will NOT write to disk immediately
+	private skipDiskWrite = false
+	private pendingDiskWrite = false
+
 	constructor(params: MessageStateHandlerParams) {
 		super()
 		this.taskId = params.taskId
@@ -233,8 +238,52 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	/**
+	 * Enable streaming buffer mode - skips disk writes during streaming
+	 * Call this BEFORE streaming starts to buffer updates in memory
+	 */
+	async startStreamingBuffer(): Promise<void> {
+		return await this.withStateLock(async () => {
+			this.skipDiskWrite = true
+			this.pendingDiskWrite = false
+			Logger.debug(`[MessageStateHandler] Streaming buffer enabled for task ${this.taskId}`)
+		})
+	}
+
+	/**
+	 * Disable streaming buffer mode and flush pending writes to disk
+	 * Call this AFTER streaming completes to persist all buffered updates
+	 */
+	async endStreamingBuffer(): Promise<void> {
+		return await this.withStateLock(async () => {
+			this.skipDiskWrite = false
+			if (this.pendingDiskWrite) {
+				Logger.debug(`[MessageStateHandler] Flushing pending disk write for task ${this.taskId}`)
+				await this.saveClineMessagesAndUpdateHistoryInternal()
+				this.pendingDiskWrite = false
+			}
+		})
+	}
+
+	/**
+	 * Force flush any pending writes to disk (e.g., before tool execution)
+	 * Safe to call even if not in buffer mode
+	 */
+	async flushToDisk(): Promise<void> {
+		return await this.withStateLock(async () => {
+			if (this.pendingDiskWrite) {
+				await this.saveClineMessagesAndUpdateHistoryInternal()
+				this.pendingDiskWrite = false
+			}
+		})
+	}
+
+	/**
 	 * Update a specific message in the clineMessages array
 	 * The entire operation (validate, update, save) is atomic to prevent races (RC-4)
+	 *
+	 * When skipDiskWrite is true (during streaming), updates are buffered in memory
+	 * and only written to disk when endStreamingBuffer() or flushToDisk() is called.
+	 * This dramatically reduces I/O during LLM response streaming.
 	 */
 	async updateClineMessage(index: number, updates: Partial<ClineMessage>): Promise<void> {
 		return await this.withStateLock(async () => {
@@ -256,7 +305,14 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				message: this.clineMessages[index],
 			})
 
-			// Save changes and update history
+			// Skip disk write during streaming to reduce I/O
+			// Mark as pending and flush later when streaming ends
+			if (this.skipDiskWrite) {
+				this.pendingDiskWrite = true
+				return
+			}
+
+			// Save changes and update history (normal mode)
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}

@@ -569,6 +569,10 @@ export class ToolExecutor {
 				return
 			}
 
+			// Flush pending streaming writes before tool execution
+			// This ensures message state is persisted even if tool execution crashes
+			await this.messageStateHandler.flushToDisk()
+
 			// Execute the actual tool
 			toolResult = await this.coordinator.execute(config, block)
 			toolWasExecuted = true
