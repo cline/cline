@@ -1,3 +1,4 @@
+import fs from "node:fs/promises"
 import path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
@@ -470,6 +471,43 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			return
+		}
+
+		// Reject directory paths early — the model sometimes passes a directory
+		// instead of a file path, causing an EISDIR error on read. Return a clear
+		// error so the model can self-correct. See #9912
+		try {
+			const stat = await fs.stat(absolutePath)
+			if (stat.isDirectory()) {
+				config.taskState.consecutiveMistakeCount++
+				await config.callbacks.say(
+					"error",
+					`Cline tried to use ${block.name} on '${resolvedPath}', but that path is a directory, not a file. Retrying...`,
+				)
+
+				const errorResponse = formatResponse.toolError(
+					`The path '${resolvedPath}' is a directory, not a file. You must provide a file path, not a directory path. For example, use a specific file inside '${resolvedPath}' such as '${resolvedPath}/index.ts' or another file within that directory.`,
+				)
+				ToolResultUtils.pushToolResult(
+					errorResponse,
+					block,
+					config.taskState.userMessageContent,
+					ToolDisplayUtils.getToolDescription,
+					config.coordinator,
+					config.taskState.toolUseIdMap,
+				)
+				if (!config.enableParallelToolCalling) {
+					config.taskState.didAlreadyUseTool = true
+				}
+
+				return
+			}
+		} catch (err: unknown) {
+			// Path doesn't exist yet (new file) — that's fine, continue.
+			// Re-throw any unexpected errors so they surface properly.
+			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+				throw err
+			}
 		}
 
 		// Check if file exists to determine the correct UI message
