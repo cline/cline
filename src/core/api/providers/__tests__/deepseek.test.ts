@@ -367,7 +367,7 @@ describe("DeepSeekHandler", () => {
 			handler.abort()
 
 			spy.calledOnce.should.be.true()
-			;(handler as any).abortController.should.be.null()
+			should((handler as any).abortController).be.null()
 		})
 
 		it("should handle abort when no controller exists", () => {
