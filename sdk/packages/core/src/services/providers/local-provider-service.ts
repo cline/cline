@@ -408,7 +408,8 @@ export async function updateLocalProvider(
 		existingEntry = {
 			provider: {
 				name: request.name?.trim() || titleCaseFromId(providerId),
-				baseUrl: request.baseUrl?.trim() ?? existingSettings.baseUrl?.trim() ?? "",
+				baseUrl:
+					request.baseUrl?.trim() ?? existingSettings.baseUrl?.trim() ?? "",
 				defaultModelId: seedModelId,
 				protocol: existingSettings.protocol,
 				client: existingSettings.client,

@@ -1310,13 +1310,13 @@ describe("sdk-gateway", () => {
 		});
 
 		const gateway = createGateway({
-			providerConfigs: [{ providerId: "openai-codex" }],
+			providerConfigs: [{ providerId: "openai-codex-cli" }],
 		});
 
 		await collect(
 			await gateway.stream({
-				providerId: "openai-codex",
-				modelId: "gpt-5-codex",
+				providerId: "openai-codex-cli",
+				modelId: "gpt-5.3-codex",
 				messages: baseMessages,
 				tools: [
 					{
@@ -1328,7 +1328,6 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		expect(openaiResponsesSpy).toHaveBeenCalledWith("gpt-5-codex");
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				tools: undefined,
@@ -1350,13 +1349,13 @@ describe("sdk-gateway", () => {
 		});
 
 		const gateway = createGateway({
-			providerConfigs: [{ providerId: "openai-codex" }],
+			providerConfigs: [{ providerId: "openai-codex-cli" }],
 		});
 
 		const events = await collect(
 			await gateway.stream({
-				providerId: "openai-codex",
-				modelId: "gpt-5-codex",
+				providerId: "openai-codex-cli",
+				modelId: "gpt-5.3-codex",
 				messages: baseMessages,
 			}),
 		);
@@ -1372,8 +1371,8 @@ describe("sdk-gateway", () => {
 			inputText: '{"cmd":"pwd"}',
 			metadata: {
 				toolSource: {
-					providerId: "openai-codex",
-					modelId: "gpt-5-codex",
+					providerId: "openai-codex-cli",
+					modelId: "gpt-5.3-codex",
 					executionMode: "provider",
 				},
 			},

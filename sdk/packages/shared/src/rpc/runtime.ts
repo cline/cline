@@ -190,6 +190,8 @@ export const ProviderCapabilitySchema = z.enum([
 	"streaming",
 	"vision",
 	"computer-use",
+	// Authenticate provider through local credentials store
+	"local-auth",
 ]);
 
 export type ProviderCapability = z.infer<typeof ProviderCapabilitySchema>;

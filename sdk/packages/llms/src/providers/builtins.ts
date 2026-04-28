@@ -572,7 +572,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description:
 			"OpenAI ChatGPT subscription access uses an OAuth device code flow.",
 		family: "openai",
-		capabilities: ["reasoning", "oauth", "provider-tools"],
+		capabilities: ["reasoning", "oauth"],
 		defaultModelId: "gpt-5.4",
 		modelsProviderId: "openai",
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
