@@ -280,7 +280,6 @@ message Settings {
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
-  optional bool lazy_teammate_mode_enabled = 183;
 }
 
 message State {
@@ -406,7 +405,7 @@ message UpdateSettingsRequest {
   optional bool worktrees_enabled = 40;
   optional bool double_check_completion_enabled = 41;
   optional bool show_feature_tips = 42;
-  optional bool lazy_teammate_mode_enabled = 43;
+  reserved 43; // was lazy_teammate_mode_enabled
 }
 
 message FocusChainSettings {
