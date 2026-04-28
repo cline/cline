@@ -149,32 +149,7 @@ export class DeepSeekHandler implements ApiHandler {
 
 		const reasoningEffort = isDeepseekV4Pro ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
 
-		let maxTokens = model.info.maxTokens
-
-		// For V4 Pro, thinkingBudgetTokens serves as an explicit cap on total output tokens
-		// (including reasoning). Since DeepSeek does NOT have a dedicated reasoning budget API
-		// parameter like Anthropic's `thinking.budget_tokens`, thinkingBudgetTokens here acts
-		// as a user-specified ceiling to prevent runaway costs.
-		//
-		// IMPORTANT: We MUST NOT blindly replace maxTokens with thinkingBudgetTokens, because
-		// the total output includes tool call results. If thinkingBudgetTokens is too low, tool
-		// calls may be truncated mid-execution, causing task failures.
-		//
-		// Strategy:
-		// 1. Keep model.info.maxTokens as the default ceiling.
-		// 2. If thinkingBudgetTokens is explicitly set AND smaller than maxTokens, cap at
-		//    thinkingBudgetTokens (user wants a stricter limit).
-		// 3. Enforce a minimum floor of 8192 tokens to prevent tool call starvation.
-		// 4. The primary reasoning control for V4 Pro remains the `reasoning_effort` parameter.
-		if (isDeepseekV4Pro && this.options.thinkingBudgetTokens !== undefined && this.options.thinkingBudgetTokens > 0) {
-			const MIN_TOKENS_FLOOR = 8192 // Minimum to prevent tool call truncation
-			const modelMaxTokens = model.info.maxTokens ?? 0
-			const cappedTokens =
-				modelMaxTokens > 0
-					? Math.min(modelMaxTokens, this.options.thinkingBudgetTokens)
-					: this.options.thinkingBudgetTokens
-			maxTokens = Math.max(MIN_TOKENS_FLOOR, cappedTokens)
-		}
+		const maxTokens = model.info.maxTokens
 
 		this.abortController = new AbortController()
 
