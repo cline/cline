@@ -47,10 +47,17 @@ export async function openMention(mention?: string): Promise<void> {
 export async function getFileMentionFromPath(filePath: string) {
 	const cwd = await getCwd()
 	if (!cwd) {
-		return "@/" + filePath
+		return formatFileMention(filePath)
 	}
 	const relativePath = path.relative(cwd, filePath)
-	return "@/" + relativePath
+	return formatFileMention(relativePath)
+}
+
+function formatFileMention(filePath: string): string {
+	const normalizedPath = filePath.replace(/\\/g, "/")
+	const mentionPath = normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`
+	// Quoted mention syntax expects the slash to be inside the quotes: @"/path with spaces"
+	return mentionPath.includes(" ") ? `@"${mentionPath}"` : `@${mentionPath}`
 }
 
 export async function parseMentions(
