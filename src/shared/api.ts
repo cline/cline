@@ -2253,6 +2253,8 @@ export const deepSeekModels = {
 		apiFormat: ApiFormat.OPENAI_CHAT,
 		supportsTools: true,
 		supportsStreaming: true,
+		description:
+			"DeepSeek V4 Pro — 1M context window with reasoning capabilities. Supports reasoning_effort (high/Xhigh->max) for complex problem-solving and agent tasks.",
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
