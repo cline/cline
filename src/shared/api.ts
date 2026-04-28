@@ -160,7 +160,6 @@ export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
 }
 
 export const anthropicModelInfoSaneDefaults: ModelInfo = {
-	name: "Deepseek V4 Pro",
 	maxTokens: 384000,
 	contextWindow: 1_000_000,
 	supportsImages: false,
@@ -173,7 +172,6 @@ export const anthropicModelInfoSaneDefaults: ModelInfo = {
 	},
 	cacheWritesPrice: 0.2,
 	cacheReadsPrice: 0.2,
-	description: "DeepSeek V4 Pro",
 }
 
 // Anthropic

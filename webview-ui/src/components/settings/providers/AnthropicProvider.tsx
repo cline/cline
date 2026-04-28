@@ -1,7 +1,14 @@
-import { ANTHROPIC_FAST_MODE_SUFFIX, anthropicModelInfoSaneDefaults, anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import {
+	ANTHROPIC_FAST_MODE_SUFFIX,
+	anthropicDefaultModelId,
+	anthropicModelInfoSaneDefaults,
+	anthropicModels,
+	CLAUDE_SONNET_1M_SUFFIX,
+} from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useState } from "react"
 import styled from "styled-components"
 import { Label } from "@/components/ui/label"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -56,14 +63,23 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	const { handleFieldChange, handleFieldsChange, handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
+	const [useCustomModel, setUseCustomModel] = useState(!!modeFields.anthropicModelInfo)
+
+	useEffect(() => {
+		setUseCustomModel(!!modeFields.anthropicModelInfo)
+	}, [currentMode])
+
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const baseSelection = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const selectedModelId = baseSelection.selectedModelId
+	const selectedModelInfo = useCustomModel
+		? baseSelection.selectedModelInfo
+		: modeFields.apiModelId && modeFields.apiModelId in anthropicModels
+			? anthropicModels[modeFields.apiModelId as keyof typeof anthropicModels]
+			: anthropicModels[anthropicDefaultModelId]
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
-
-	const useCustomModel =
-		(modeFields.apiModelId && !(modeFields.apiModelId in anthropicModels)) || !!modeFields.anthropicModelInfo
 
 	// Helper function for model switching
 	const handleModelChange = (modelId: string) => {
@@ -83,15 +99,17 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	}
 
 	const handleToggleCustomModel = (checked: boolean) => {
+		setUseCustomModel(checked)
+		const modeModelIdKey = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
+		const modeModelInfoKey = currentMode === "plan" ? "planModeAnthropicModelInfo" : "actModeAnthropicModelInfo"
 		if (checked) {
-			// Initialize with sane defaults if no model ID is set
-			if (!modeFields.apiModelId) {
-				handleModelChange("custom-model")
-			}
+			// Initialize with sane defaults, keeping current model ID if set
+			handleFieldsChange({
+				[modeModelIdKey]: modeFields.apiModelId || "custom-model",
+				[modeModelInfoKey]: modeFields.anthropicModelInfo || { ...anthropicModelInfoSaneDefaults },
+			} as any)
 		} else {
 			// Clear custom model info for CURRENT mode only, switch to first predefined model
-			const modeModelIdKey = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
-			const modeModelInfoKey = currentMode === "plan" ? "planModeAnthropicModelInfo" : "actModeAnthropicModelInfo"
 			handleFieldsChange({
 				[modeModelInfoKey]: undefined,
 				[modeModelIdKey]: Object.keys(anthropicModels)[0],
@@ -221,7 +239,10 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							label="Adaptive Thinking"
 						/>
 					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+						<ThinkingBudgetSlider
+							currentMode={currentMode}
+							maxBudget={(selectedModelInfo as any).thinkingConfig?.maxBudget}
+						/>
 					) : null}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
