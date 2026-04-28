@@ -4,6 +4,7 @@ interface RetryOptions {
 	maxRetries?: number
 	baseDelay?: number
 	maxDelay?: number
+	maxRetryAfter?: number
 	retryAllErrors?: boolean
 }
 
@@ -11,11 +12,12 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	maxRetries: 3,
 	baseDelay: 1_000,
 	maxDelay: 10_000,
+	maxRetryAfter: 60_000,
 	retryAllErrors: false,
 }
 
 export class RetriableError extends Error {
-	status: number = 429
+	status = 429
 	retryAfter?: number
 
 	constructor(message: string, retryAfter?: number, options?: ErrorOptions) {
@@ -27,7 +29,7 @@ export class RetriableError extends Error {
 }
 
 export function withRetry(options: RetryOptions = {}) {
-	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
+	const { maxRetries, baseDelay, maxDelay, maxRetryAfter, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
 
 	return (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => {
 		const originalMethod = descriptor.value
@@ -56,13 +58,17 @@ export function withRetry(options: RetryOptions = {}) {
 					let delay: number
 					if (retryAfter) {
 						// Handle both delta-seconds and Unix timestamp formats
-						const retryValue = parseInt(retryAfter, 10)
+						const retryValue = Number.parseInt(retryAfter, 10)
 						if (retryValue > Date.now() / 1000) {
 							// Unix timestamp
 							delay = retryValue * 1000 - Date.now()
 						} else {
 							// Delta seconds
 							delay = retryValue * 1000
+						}
+
+						if (delay > maxRetryAfter) {
+							throw error
 						}
 					} else {
 						// Use exponential backoff if no header
