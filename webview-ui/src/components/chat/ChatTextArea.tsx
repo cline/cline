@@ -257,10 +257,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
-		// Structured error_reason / error_message from the most recent searchFiles
-		// response; rendered as a subtitle below "No results found".
-		const [searchErrorReason, setSearchErrorReason] = useState<string>("")
-		const [searchErrorMessage, setSearchErrorMessage] = useState<string>("")
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Fetch git commits when Git is selected or when typing a hash
@@ -362,17 +358,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)
 								.then((results) => {
 									setFileSearchResults((results.results || []) as SearchResult[])
-									setSearchErrorReason(results.errorReason || "")
-									setSearchErrorMessage(results.errorMessage || "")
 									setSearchLoading(false)
 								})
 								.catch((error) => {
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
-									setSearchErrorReason("unknown")
-									setSearchErrorMessage(
-										error instanceof Error ? error.message : "RPC unavailable",
-									)
 									setSearchLoading(false)
 								})
 						}
@@ -778,17 +768,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)
 								.then((results) => {
 									setFileSearchResults((results.results || []) as SearchResult[])
-									setSearchErrorReason(results.errorReason || "")
-									setSearchErrorMessage(results.errorMessage || "")
 									setSearchLoading(false)
 								})
 								.catch((error) => {
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
-									setSearchErrorReason("unknown")
-									setSearchErrorMessage(
-										error instanceof Error ? error.message : "RPC unavailable",
-									)
 									setSearchLoading(false)
 								})
 						}, 200) // 200ms debounce
@@ -799,8 +783,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
 					setFileSearchResults([])
-					setSearchErrorReason("")
-					setSearchErrorMessage("")
 				}
 			},
 			[setInputValue, setFileSearchResults, selectedType],
@@ -1393,8 +1375,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
 								dynamicSearchResults={fileSearchResults}
-								errorMessage={searchErrorMessage}
-								errorReason={searchErrorReason}
 								isLoading={searchLoading}
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleMentionSelect}

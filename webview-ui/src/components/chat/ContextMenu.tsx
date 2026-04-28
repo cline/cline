@@ -14,29 +14,6 @@ interface ContextMenuProps {
 	queryItems: ContextMenuQueryItem[]
 	dynamicSearchResults?: SearchResult[]
 	isLoading?: boolean
-	// Structured error_reason / error_message from FileSearchResults; rendered
-	// as a grey italic subtitle on the NoResults row.
-	errorReason?: string
-	errorMessage?: string
-}
-
-function renderErrorSubtitle(reason: string, message: string): string | null {
-	if (!reason) {
-		return null
-	}
-	switch (reason) {
-		case "workspace_not_ready":
-			return "(your IDE is still loading the project — try again in a moment)"
-		case "workspace_unavailable":
-			return "(workspace path unavailable)"
-		case "ripgrep_spawn_failed":
-			return message ? `(ripgrep failed: ${message})` : "(ripgrep failed)"
-		case "results_truncated":
-			return "(showing first 5000 results; refine your query)"
-		case "unknown":
-		default:
-			return message ? `(internal error: ${message})` : "(internal error)"
-	}
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -49,8 +26,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	queryItems,
 	dynamicSearchResults = [],
 	isLoading = false,
-	errorReason = "",
-	errorMessage = "",
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -139,31 +114,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}, [])
 
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
-		if (option.type === ContextMenuOptionType.NoResults) {
-			const subtitle = renderErrorSubtitle(errorReason, errorMessage)
-			if (subtitle) {
-				return (
-					<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-						<span style={{ lineHeight: "1.2" }}>No results found</span>
-						<span
-							style={{
-								fontSize: "0.85em",
-								opacity: 0.7,
-								fontStyle: "italic",
-								whiteSpace: "nowrap",
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								lineHeight: "1.2",
-							}}
-							title={errorMessage || subtitle}>
-							{subtitle}
-						</span>
-					</div>
-				)
-			}
-			return <span>No results found</span>
-		}
-
 		// Handle simple label types
 		const simpleLabel = SIMPLE_OPTION_LABELS[option.type]
 		if (simpleLabel) {
