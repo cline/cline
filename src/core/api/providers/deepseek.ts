@@ -84,12 +84,13 @@ export class DeepSeekHandler implements ApiHandler {
 		//   - Anthropic: input_tokens = non-cached tokens (separate cache_read/write tokens)
 		//   - DeepSeek: prompt_tokens = cache_hit_tokens + cache_miss_tokens (no non-cached input)
 		//
-		// This affects:
-		// 1) Context management truncation — inputTokens is always 0, so truncation
-		//    decisions must rely on cacheReadTokens and cacheWriteTokens as proxies for
-		//    actual prompt processing cost.
-		// 2) Cost calculation — uses the OpenAI formula which expects prompt_tokens,
-		//    cache_hit_tokens, and cache_miss_tokens.
+		// For context management, we report cacheWriteTokens (cache misses) as inputTokens
+		// since cache misses represent the actual new prompt tokens that consume context window.
+		// Reporting 0 (as the non-cached remainder would be) makes context truncation unable to
+		// detect when the window is filling up.
+		//
+		// Cost calculation uses the OpenAI formula which expects prompt_tokens,
+		// cache_hit_tokens, and cache_miss_tokens.
 
 		interface DeepSeekUsage extends OpenAI.CompletionUsage {
 			prompt_cache_hit_tokens?: number
@@ -102,12 +103,12 @@ export class DeepSeekHandler implements ApiHandler {
 		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
 		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
 		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
-		// In DeepSeek's model, all input tokens are accounted as either cache hits or misses,
-		// so the non-cached token count is always 0.
-		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
+		// Cache miss tokens are the actual new input that consumes context window.
+		// Report them as inputTokens so context management can properly track window usage
+		// for truncation decisions. Cache hits don't count toward the window.
 		yield {
 			type: "usage",
-			inputTokens: nonCachedInputTokens,
+			inputTokens: cacheWriteTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,
