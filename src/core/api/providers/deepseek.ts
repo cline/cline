@@ -6,6 +6,7 @@ import type { ChatCompletionReasoningEffort, ChatCompletionTool as OpenAITool } 
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/cline/models"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
@@ -138,11 +139,13 @@ export class DeepSeekHandler implements ApiHandler {
 		const model = this.getModel()
 
 		const modelInfo = model.info as OpenAiCompatibleModelInfo
-		const isDeepseekReasoner = modelInfo.isR1FormatRequired === true
+		// Use apiFormat to detect R1 format requirements instead of the isR1FormatRequired flag,
+		// which provides a more consistent format detection mechanism across providers.
+		const isDeepseekReasoner = modelInfo.apiFormat === ApiFormat.R1_CHAT
 		const isDeepseekV4Pro = modelInfo.supportsReasoningEffort === true
 
 		const convertedMessages = convertToOpenAiMessages(messages)
-		// Models that support reasoning (R1 via isR1FormatRequired, V4 Pro via supportsReasoning)
+		// Models that support reasoning (R1 via apiFormat, V4 Pro via supportsReasoning)
 		// must pass reasoning_content back in subsequent turns to maintain chain continuity.
 		const needsReasoningContent = isDeepseekReasoner || modelInfo.supportsReasoning === true
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = needsReasoningContent
