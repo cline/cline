@@ -18,14 +18,14 @@ export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 export class RipgrepSpawnError extends Error {
 	public readonly stderr: string
 	public readonly exitCode: number | null
-	public readonly cause?: Error
 
 	constructor(message: string, opts: { stderr?: string; exitCode?: number | null; cause?: Error } = {}) {
-		super(message)
+		// Pass `cause` via the standard ES2022 ErrorOptions so we don't need to
+		// redeclare/override the base-class field.
+		super(message, opts.cause ? { cause: opts.cause } : undefined)
 		this.name = "RipgrepSpawnError"
 		this.stderr = opts.stderr ?? ""
 		this.exitCode = opts.exitCode ?? null
-		this.cause = opts.cause
 	}
 }
 
