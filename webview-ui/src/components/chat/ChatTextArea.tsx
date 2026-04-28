@@ -257,9 +257,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
-		// CLINE-1814: structured error_reason / error_message from the most recent
-		// searchFiles response, surfaced as a subtitle below "No results found".
-		// Cleared (set to "") on every success or on a fresh search submission.
+		// Structured error_reason / error_message from the most recent searchFiles
+		// response; rendered as a subtitle below "No results found".
 		const [searchErrorReason, setSearchErrorReason] = useState<string>("")
 		const [searchErrorMessage, setSearchErrorMessage] = useState<string>("")
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
@@ -363,7 +362,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)
 								.then((results) => {
 									setFileSearchResults((results.results || []) as SearchResult[])
-									// CLINE-1814: capture structured error info if any.
 									setSearchErrorReason(results.errorReason || "")
 									setSearchErrorMessage(results.errorMessage || "")
 									setSearchLoading(false)
@@ -371,8 +369,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								.catch((error) => {
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
-									// CLINE-1814: a thrown gRPC error (e.g. cline-core down)
-									// is itself a diagnostic signal — surface it.
 									setSearchErrorReason("unknown")
 									setSearchErrorMessage(
 										error instanceof Error ? error.message : "RPC unavailable",
@@ -782,7 +778,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)
 								.then((results) => {
 									setFileSearchResults((results.results || []) as SearchResult[])
-									// CLINE-1814: surface error_reason (if any) to the picker.
 									setSearchErrorReason(results.errorReason || "")
 									setSearchErrorMessage(results.errorMessage || "")
 									setSearchLoading(false)

@@ -14,33 +14,12 @@ interface ContextMenuProps {
 	queryItems: ContextMenuQueryItem[]
 	dynamicSearchResults?: SearchResult[]
 	isLoading?: boolean
-	// CLINE-1814: structured error_reason / error_message from the most recent
-	// FileService.searchFiles response. When present and the picker would
-	// otherwise show "no results found", we render a grey italic subtitle so
-	// the user can tell a "still loading", "ripgrep is broken", or "workspace
-	// is missing" state apart from a genuinely empty result set. See proto
-	// `cline.FileSearchResults.error_reason` for the closed enumeration.
+	// Structured error_reason / error_message from FileSearchResults; rendered
+	// as a grey italic subtitle on the NoResults row.
 	errorReason?: string
 	errorMessage?: string
 }
 
-/**
- * CLINE-1814: map a structured `error_reason` to a short, user-readable
- * subtitle that gets rendered in grey beneath the "No results found" row.
- *
- * Phrasing rules:
- *   - `workspace_not_ready` is rendered neutrally — it is *expected* during
- *     IDE startup and the picker self-heals on the next keystroke. Do not use
- *     the word "indexing"; the trigger is project-model-not-yet-applied,
- *     which is a different (narrower) IntelliJ window than dumb mode.
- *   - `workspace_unavailable` is the non-transient form. Tell the user the
- *     workspace itself is missing.
- *   - `ripgrep_spawn_failed` carries the first line of stderr from rg in
- *     `error_message`; render it verbatim because it's typically the most
- *     useful diagnostic (`ENOENT`, `Operation not permitted`, etc.).
- *   - `results_truncated` is a Phase 2C signal — already wired in the proto
- *     so the UI is forwards-compatible.
- */
 function renderErrorSubtitle(reason: string, message: string): string | null {
 	if (!reason) {
 		return null
@@ -160,12 +139,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}, [])
 
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
-		// CLINE-1814: when the row is the NoResults sentinel and we have a
-		// structured error_reason, render a two-line layout:
-		//   "No results found"
-		//   "(workspace path unavailable)"  -- grey, italic, smaller
-		// so the user can tell a healthy-but-empty result set apart from a
-		// real failure mode. Keep the simple label for the URL/Problems rows.
 		if (option.type === ContextMenuOptionType.NoResults) {
 			const subtitle = renderErrorSubtitle(errorReason, errorMessage)
 			if (subtitle) {

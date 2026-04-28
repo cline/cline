@@ -14,12 +14,7 @@ import { getBinaryLocation } from "@/utils/fs"
 export type SpawnFunction = typeof childProcess.spawn
 export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
-/**
- * Typed error thrown when the bundled ripgrep binary fails to spawn or exits
- * non-zero. We capture stderr and (when available) the exit code so the
- * controller can map this to a structured `error_reason` instead of silently
- * returning an empty result list. See CLINE-1814 implementation plan §4.1.1.
- */
+/** Thrown when ripgrep fails to spawn or exits non-zero. */
 export class RipgrepSpawnError extends Error {
 	public readonly stderr: string
 	public readonly exitCode: number | null
@@ -95,22 +90,13 @@ export async function executeRipgrepForFiles(
 			errorOutput += data.toString()
 		})
 
-		// Track ripgrep's exit code so we can detect non-zero exits even when
-		// stderr is empty (e.g. SIGPIPE'd by us once the limit is reached).
 		rgProcess.on("exit", (code) => {
 			exitCode = code
 		})
 
-		// When ripgrep finishes or is closed
 		rl.on("close", () => {
-			// CLINE-1814: if ripgrep exited non-zero AND we have no results, treat
-			// this as a hard failure rather than a successful empty result. We do
-			// not fail when we *have* results because we proactively SIGTERM the
-			// process once the limit is reached; that is a normal control-flow
-			// case where the exit code is nonzero but the data is good.
-			//
-			// Note: an empty workspace-path argument or a permissions issue tend
-			// to surface here as exitCode === 2 with stderr describing the reason.
+			// Only reject when we have nothing to return: a non-zero exit with
+			// results is normal — we proactively SIGTERM after hitting the limit.
 			if (fileResults.length === 0 && (errorOutput || (exitCode !== null && exitCode !== 0))) {
 				reject(
 					new RipgrepSpawnError(
@@ -134,7 +120,6 @@ export async function executeRipgrepForFiles(
 			resolve([...fileResults, ...dirResults])
 		})
 
-		// Handle process-level errors (spawn-time ENOENT / EACCES land here)
 		rgProcess.on("error", (error) =>
 			reject(
 				new RipgrepSpawnError(`ripgrep failed to spawn: ${error.message}`, {
@@ -232,10 +217,7 @@ export async function searchWorkspaceFiles(
 
 		return await Promise.all(verifiedResultsPromises)
 	} catch (error) {
-		// CLINE-1814: do not swallow. Re-throw so the controller can attach a
-		// structured error_reason to the picker response. Healthy installs hit
-		// no errors and see no behaviour change; broken installs now produce a
-		// real, user-readable diagnostic instead of a silent empty list.
+		// Re-throw so the controller can attach a structured error_reason.
 		Logger.error("Error in searchWorkspaceFiles:", error)
 		throw error
 	}
@@ -292,11 +274,9 @@ export async function searchWorkspaceFilesMultiroot(
 			workspacesToSearch = workspaceRoots
 		}
 
-		// Execute parallel searches across workspaces.
-		// CLINE-1814: in single-workspace mode we re-throw so the controller can
-		// surface a typed error_reason. In genuine multi-workspace mode we still
-		// soldier on per-workspace (a broken vendored root shouldn't kill all
-		// results) but we re-throw if *every* sub-search failed.
+		// In a true multi-root search, swallow per-root errors so a single broken
+		// root doesn't kill the rest; we still re-throw below if *every* root
+		// failed. In single-root mode the throw propagates up unchanged.
 		let firstError: unknown = undefined
 		const searchPromises = workspacesToSearch.map(async (workspace) => {
 			try {
@@ -346,17 +326,12 @@ export async function searchWorkspaceFilesMultiroot(
 			flatResults = flatResults.slice(0, limit)
 		}
 
-		// If we ran searches but every one of them failed and produced nothing,
-		// re-throw so the controller surfaces a real error_reason rather than a
-		// silent empty list. (A *partial* failure across multiple roots still
-		// yields the useful subset of results.)
 		if (firstError && flatResults.length === 0) {
 			throw firstError
 		}
 
 		return flatResults
 	} catch (error) {
-		// CLINE-1814: re-throw so the controller can attach error_reason.
 		Logger.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
 		throw error
 	}
