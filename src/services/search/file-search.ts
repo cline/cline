@@ -14,6 +14,17 @@ import { getBinaryLocation } from "@/utils/fs"
 export type SpawnFunction = typeof childProcess.spawn
 export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
+/** Thrown when ripgrep fails to spawn or exits non-zero. */
+export class RipgrepError extends Error {
+	public readonly stderr: string
+
+	constructor(message: string, opts: { stderr?: string } = {}) {
+		super(message)
+		this.name = "RipgrepError"
+		this.stderr = opts.stderr ?? ""
+	}
+}
+
 export async function executeRipgrepForFiles(
 	workspacePath: string,
 	limit: number = 5000,
@@ -39,6 +50,7 @@ export async function executeRipgrepForFiles(
 		const fileResults: { path: string; type: "file" | "folder"; label?: string }[] = []
 		const dirSet = new Set<string>()
 		let count = 0
+		let exitCode: number | null = null
 
 		// Handle each line of output from ripgrep (each line is a file path)
 		rl.on("line", (line) => {
@@ -74,26 +86,50 @@ export async function executeRipgrepForFiles(
 			errorOutput += data.toString()
 		})
 
-		// When ripgrep finishes or is closed
-		rl.on("close", () => {
-			if (errorOutput && fileResults.length === 0) {
-				reject(new Error(`ripgrep process error: ${errorOutput.trim()}`))
+		// On Windows the readline 'close' and the child-process 'exit' events
+		// fire in non-deterministic order; await both so we can read exitCode
+		// before deciding to resolve or reject.
+		let resolveOutputClosed!: () => void
+		const outputClosed = new Promise<void>((r) => {
+			resolveOutputClosed = r
+		})
+		let resolveExited!: () => void
+		const exited = new Promise<void>((r) => {
+			resolveExited = r
+		})
+
+		rgProcess.on("exit", (code) => {
+			exitCode = code
+			resolveExited()
+		})
+		rl.on("close", () => resolveOutputClosed())
+
+		Promise.all([outputClosed, exited]).then(() => {
+			// A non-zero exit with results is normal — we proactively SIGTERM
+			// after hitting the limit. Only reject when we have nothing to return.
+			if (fileResults.length === 0 && (errorOutput || (exitCode !== null && exitCode !== 0))) {
+				reject(
+					new RipgrepError(
+						errorOutput
+							? `ripgrep exited with code ${exitCode}: ${errorOutput.trim()}`
+							: `ripgrep exited with code ${exitCode}`,
+						{ stderr: errorOutput.trim() },
+					),
+				)
 				return
 			}
 
-			// Transform directory paths from Set into structured results
 			const dirResults = Array.from(dirSet, (dirPath): { path: string; type: "folder"; label?: string } => ({
 				path: dirPath,
 				type: "folder",
 				label: path.basename(dirPath),
 			}))
-
-			// Resolve combined results of files and directories
 			resolve([...fileResults, ...dirResults])
 		})
 
-		// Handle process-level errors
-		rgProcess.on("error", (error) => reject(new Error(`ripgrep process error: ${error.message}`)))
+		rgProcess.on("error", (error) => {
+			reject(new RipgrepError(`ripgrep failed to spawn: ${error.message}`))
+		})
 	})
 }
 
@@ -183,8 +219,9 @@ export async function searchWorkspaceFiles(
 
 		return await Promise.all(verifiedResultsPromises)
 	} catch (error) {
+		// Re-throw so the controller can attach a structured error_reason.
 		Logger.error("Error in searchWorkspaceFiles:", error)
-		return []
+		throw error
 	}
 }
 
@@ -239,12 +276,18 @@ export async function searchWorkspaceFilesMultiroot(
 			workspacesToSearch = workspaceRoots
 		}
 
-		// Execute parallel searches across workspaces
+		// In a true multi-root search, swallow per-root errors so a single broken
+		// root doesn't kill the rest; we still re-throw below if *every* root
+		// failed. In single-root mode the throw propagates up unchanged.
+		let firstError: unknown = undefined
 		const searchPromises = workspacesToSearch.map(async (workspace) => {
 			try {
 				const results = await searchWorkspaceFiles(query, workspace.path, limit, selectedType, workspace.name)
 				return results
 			} catch (error) {
+				if (!firstError) {
+					firstError = error
+				}
 				Logger.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
 				return []
 			}
@@ -285,9 +328,13 @@ export async function searchWorkspaceFilesMultiroot(
 			flatResults = flatResults.slice(0, limit)
 		}
 
+		if (firstError && flatResults.length === 0) {
+			throw firstError
+		}
+
 		return flatResults
 	} catch (error) {
 		Logger.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
-		return []
+		throw error
 	}
 }

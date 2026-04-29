@@ -2002,14 +2002,23 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records when a mention fails to retrieve content
-	 * @param mentionType Type of mention that failed
-	 * @param errorType Category of error (not_found, permission_denied, network_error, parse_error)
-	 * @param errorMessage Optional error message for debugging (will be truncated)
+	 * Records when a mention fails to retrieve content or when the mention
+	 * picker's file/folder search itself fails.
+	 *
+	 * `ripgrep_spawn_failed` and `workspace_unavailable` are picker-search
+	 * failures, surfaced by the `searchFiles` controller; the others are
+	 * mention-content retrieval failures.
 	 */
 	public captureMentionFailed(
 		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
-		errorType: "not_found" | "permission_denied" | "network_error" | "parse_error" | "unknown",
+		errorType:
+			| "not_found"
+			| "permission_denied"
+			| "network_error"
+			| "parse_error"
+			| "ripgrep_spawn_failed"
+			| "workspace_unavailable"
+			| "unknown",
 		errorMessage?: string,
 	) {
 		this.capture({

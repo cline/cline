@@ -1,10 +1,27 @@
-import { searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
+import { RipgrepError, searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
 import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
 import { getWorkspacePath } from "@utils/path"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
+
+// error_reason values surfaced on FileSearchResults; see proto/cline/file.proto.
+const ERROR_REASON_WORKSPACE_UNAVAILABLE = "workspace_unavailable"
+const ERROR_REASON_RIPGREP_SPAWN_FAILED = "ripgrep_spawn_failed"
+const ERROR_REASON_UNKNOWN = "unknown"
+
+function classifyError(error: unknown): { errorReason: string; errorMessage: string } {
+	const errorMessage = error instanceof Error ? error.message : String(error)
+	if (error instanceof RipgrepError) {
+		const firstStderrLine = error.stderr ? error.stderr.trim().split("\n", 1)[0] : ""
+		return {
+			errorReason: ERROR_REASON_RIPGREP_SPAWN_FAILED,
+			errorMessage: firstStderrLine || errorMessage,
+		}
+	}
+	return { errorReason: ERROR_REASON_UNKNOWN, errorMessage }
+}
 
 /**
  * Searches for files in the workspace with fuzzy matching
@@ -43,8 +60,17 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 
 			if (!workspacePath) {
 				Logger.error("Error in searchFiles: No workspace path available")
-				telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
-				return { results: [], mentionsRequestId: request.mentionsRequestId }
+				telemetryService.captureMentionFailed(
+					"folder",
+					"workspace_unavailable",
+					"No workspace path available",
+				)
+				return {
+					results: [],
+					mentionsRequestId: request.mentionsRequestId,
+					errorReason: ERROR_REASON_WORKSPACE_UNAVAILABLE,
+					errorMessage: "No workspace path available",
+				}
 			}
 
 			// Call file search service with query from request
@@ -78,14 +104,9 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		// Return successful results
 		return { results: protoResults, mentionsRequestId: request.mentionsRequestId }
 	} catch (error) {
-		// Log the error but don't include it in the response, following the pattern in searchCommits
-		Logger.error("Error in searchFiles:", error)
+		const { errorReason, errorMessage } = classifyError(error)
+		Logger.error(`Error in searchFiles (errorReason=${errorReason}):`, error)
 
-		// Track as a search execution error with appropriate error type
-		const errorMessage = error instanceof Error ? error.message : String(error)
-		const errorType = error instanceof Error && error.message.includes("permission") ? "permission_denied" : "unknown"
-
-		// Determine mention type based on the search request
 		const mentionType =
 			request.selectedType === FileSearchType.FILE
 				? "file"
@@ -93,9 +114,20 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 					? "folder"
 					: "folder" // Default to folder for "all" searches
 
+		const errorType: "ripgrep_spawn_failed" | "permission_denied" | "unknown" =
+			errorReason === ERROR_REASON_RIPGREP_SPAWN_FAILED
+				? "ripgrep_spawn_failed"
+				: error instanceof Error && error.message.includes("permission")
+					? "permission_denied"
+					: "unknown"
+
 		await telemetryService.captureMentionFailed(mentionType, errorType, errorMessage)
 
-		// Return empty results without error message
-		return { results: [], mentionsRequestId: request.mentionsRequestId }
+		return {
+			results: [],
+			mentionsRequestId: request.mentionsRequestId,
+			errorReason,
+			errorMessage,
+		}
 	}
 }
