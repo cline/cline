@@ -36,13 +36,13 @@ Manage Cline rules that guide AI behavior:
 
 Rules help Cline understand your project's conventions, coding standards, and preferences.
 
-### Workflows Tab
+### Skills Tab
 
-View and manage [workflows](/customization/workflows):
+View and manage [skills](/customization/skills#triggering-skills-with-slash-commands):
 
-- List available workflows
-- View workflow definitions
-- Workflows appear as slash commands in interactive mode
+- List available skills
+- View skill definitions
+- Skills can be triggered as slash commands in interactive mode
 
 ### Hooks Tab
 
@@ -50,7 +50,7 @@ Configure [hooks](/customization/hooks) for custom logic integration:
 
 - Enable/disable hooks globally
 - View configured hook scripts
-- Hooks run at key points in Cline's workflow
+- Hooks run at key points in Cline's task lifecycle
 
 <Note>
 Hooks must be enabled via settings. Use `cline config` to toggle `hooks-enabled`.
@@ -88,7 +88,6 @@ Project-level configuration lives in `.cline/` at the workspace root:
 .cline/
   rules/                       # Project rules
   skills/                      # Project skills
-  workflows/                   # Workflows (slash commands)
   hooks/                       # Lifecycle hooks
   plugins/                     # Project plugins
   mcp.json                     # MCP server config
@@ -297,7 +296,7 @@ cline auth  # Re-authenticate
 
 <Columns cols={2}>
   <Card title="Headless Mode" icon="robot" href="/cli/three-core-flows">
-    Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
+    Run Cline autonomously in scripts, CI/CD pipelines, and automated tasks.
   </Card>
   
   <Card title="CLI Reference" icon="terminal" href="/cli/cli-reference">

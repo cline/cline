@@ -78,7 +78,7 @@ interface StartSessionResult {
 | `systemPrompt` | `string` | Custom system prompt (optional, ClineCore has a default) |
 | `enableTools` | `boolean` | Enable the built-in tool suite |
 | `enableSpawnAgent` | `boolean` | Allow spawning sub-agents |
-| `enableAgentTeams` | `boolean` | Enable multi-agent team workflows |
+| `enableAgentTeams` | `boolean` | Enable multi-agent team coordination |
 | `plugins` | `AgentPlugin[]` | Plugins that add tools, hooks, and capabilities |
 | `toolPolicies` | `Record<string, ToolPolicy>` | Per-tool approval rules |
 | `maxIterations` | `number` | Maximum iterations |
@@ -222,11 +222,10 @@ ClineCore automatically discovers and watches configuration files:
 .cline/                          # Project root config
   rules/                         # Project-specific rules
   skills/                        # Project-specific skills
-  workflows/                     # Workflow definitions
   hooks/                         # Lifecycle hook scripts
   plugins/                       # JS/TS plugin modules
   mcp.json                       # MCP server config
   agents.yaml                    # Custom agent definitions
 ```
 
-These files are watched for changes during a session. Rules, skills, and workflows update in real time without restarting the agent.
+These files are watched for changes during a session. Rules, skills, hooks, and plugins update in real time without restarting the agent.

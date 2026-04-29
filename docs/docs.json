@@ -156,7 +156,8 @@
 							"customization/overview",
 							"customization/cline-rules",
 							"customization/skills",
-							"customization/workflows",
+							"customization/plugins",
+							"mcp/mcp-overview",
 							"customization/hooks",
 							"customization/clineignore"
 						]
@@ -175,21 +176,9 @@
 						]
 					},
 					{
-						"group": "MCP (Extending Cline)",
-						"pages": [
-							"mcp/mcp-overview",
-							"mcp/mcp-marketplace",
-							"mcp/adding-and-configuring-servers",
-							"mcp/mcp-server-development-protocol",
-							"mcp/connecting-to-a-remote-server",
-							"mcp/mcp-transport-mechanisms"
-						]
-					},
-					{
 						"group": "Tools Reference",
 						"pages": [
-							"tools-reference/all-cline-tools",
-							"tools-reference/browser-automation"
+							"tools-reference/all-cline-tools"
 						]
 					},
 					{
@@ -198,13 +187,6 @@
 							"troubleshooting/terminal-quick-fixes",
 							"troubleshooting/networking-and-proxies",
 							"troubleshooting/task-history-recovery"
-						]
-					},
-					{
-						"group": "Contributing",
-						"pages": [
-							"contributing/documentation-guide",
-							"contributing/doc-templates"
 						]
 					}
 				]
@@ -662,18 +644,6 @@
 			"destination": "/core-workflows/using-commands"
 		},
 		{
-			"source": "/features/slash-commands/workflows/index",
-			"destination": "/customization/workflows"
-		},
-		{
-			"source": "/features/slash-commands/workflows/quickstart",
-			"destination": "/customization/workflows"
-		},
-		{
-			"source": "/features/slash-commands/workflows/best-practices",
-			"destination": "/customization/workflows"
-		},
-		{
 			"source": "/exploring-clines-tools/cline-tools-guide",
 			"destination": "/tools-reference/all-cline-tools"
 		},
@@ -683,15 +653,15 @@
 		},
 		{
 			"source": "/exploring-clines-tools/remote-browser-support",
-			"destination": "/tools-reference/browser-automation"
+			"destination": "/tools-reference/all-cline-tools"
 		},
 		{
 			"source": "/mcp/adding-mcp-servers-from-github",
-			"destination": "/mcp/adding-and-configuring-servers"
+			"destination": "/mcp/mcp-overview"
 		},
 		{
 			"source": "/mcp/configuring-mcp-servers",
-			"destination": "/mcp/adding-and-configuring-servers"
+			"destination": "/mcp/mcp-overview"
 		},
 		{
 			"source": "/more-info/telemetry",
@@ -964,6 +934,26 @@
 		{
 			"source": "/cline-sdk/guides/writing-extensions",
 			"destination": "/sdk/guides/writing-plugins"
+		},
+		{
+			"source": "/mcp/mcp-marketplace",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/adding-and-configuring-servers",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/mcp-server-development-protocol",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/connecting-to-a-remote-server",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/mcp-transport-mechanisms",
+			"destination": "/mcp/mcp-overview"
 		}
 	],
 	"search": {
