@@ -1,5 +1,7 @@
 import "opentui-spinner/react";
 import type { AgentMode } from "@clinebot/core";
+import type { ScrollBoxRenderable } from "@opentui/core";
+import { useEffect, useRef } from "react";
 import { getModeAccent } from "../palette";
 import type { ChatEntry } from "../types";
 import { ChatEntryView } from "./chat-entry";
@@ -9,8 +11,34 @@ export function ChatMessageList(props: {
 	isStreaming?: boolean;
 	uiMode?: AgentMode;
 }) {
+	const scrollboxRef = useRef<ScrollBoxRenderable | null>(null);
+	const lastEntry = props.entries.at(-1);
+	const userSubmissionScrollKey =
+		lastEntry?.kind === "user_submitted" ? props.entries.length : 0;
+
+	useEffect(() => {
+		if (!userSubmissionScrollKey) return;
+
+		const scrollToBottom = () => {
+			const scrollbox = scrollboxRef.current;
+			if (!scrollbox) return;
+
+			scrollbox.scrollTo(scrollbox.scrollHeight);
+		};
+
+		scrollToBottom();
+		queueMicrotask(scrollToBottom);
+		const timeout = setTimeout(scrollToBottom, 0);
+		return () => clearTimeout(timeout);
+	}, [userSubmissionScrollKey]);
+
 	return (
-		<scrollbox flexGrow={1} stickyScroll stickyStart="bottom">
+		<scrollbox
+			ref={scrollboxRef}
+			flexGrow={1}
+			stickyScroll
+			stickyStart="bottom"
+		>
 			<box flexDirection="column" paddingX={1} paddingY={1} gap={1}>
 				{props.entries.map((entry, i) => {
 					const key = `${i}:${entry.kind}`;
