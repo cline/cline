@@ -78,6 +78,8 @@ describe("CLI Commands", () => {
 			.option("-k, --apikey <key>", "API key")
 			.option("-m, --modelid <id>", "Model ID")
 			.option("-b, --baseurl <url>", "Base URL")
+			.option("--vertex-project-id <id>", "Google Cloud Project ID")
+			.option("--vertex-region <region>", "Google Cloud Region")
 			.option("-v, --verbose", "Verbose output")
 			.option("-c, --cwd <path>", "Working directory")
 			.option("--config <path>", "Configuration directory")
@@ -377,6 +379,30 @@ describe("CLI Commands", () => {
 			expect(authCmd.opts().provider).toBe("anthropic")
 			expect(authCmd.opts().apikey).toBe("key123")
 			expect(authCmd.opts().modelid).toBe("claude-sonnet-4-20250514")
+		})
+
+		it("should parse --vertex-project-id option", () => {
+			const authCmd = program.commands.find((c) => c.name() === "auth")!
+			const args = ["--vertex-project-id", "my-gcp-project"]
+			authCmd.parse(args, { from: "user" })
+			expect(authCmd.opts().vertexProjectId).toBe("my-gcp-project")
+		})
+
+		it("should parse --vertex-region option", () => {
+			const authCmd = program.commands.find((c) => c.name() === "auth")!
+			const args = ["--vertex-region", "us-east5"]
+			authCmd.parse(args, { from: "user" })
+			expect(authCmd.opts().vertexRegion).toBe("us-east5")
+		})
+
+		it("should parse vertex quick setup flags together", () => {
+			const authCmd = program.commands.find((c) => c.name() === "auth")!
+			const args = ["-p", "vertex", "-m", "gemini-3-flash-preview", "--vertex-project-id", "my-project", "--vertex-region", "us-east5"]
+			authCmd.parse(args, { from: "user" })
+			expect(authCmd.opts().provider).toBe("vertex")
+			expect(authCmd.opts().modelid).toBe("gemini-3-flash-preview")
+			expect(authCmd.opts().vertexProjectId).toBe("my-project")
+			expect(authCmd.opts().vertexRegion).toBe("us-east5")
 		})
 	})
 

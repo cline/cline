@@ -28,10 +28,11 @@ import { useStdinContext } from "../context/StdinContext"
 import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig, applyVertexConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
+import { type VertexConfig, VertexSetup } from "./VertexSetup"
 import { Checkbox } from "./Checkbox"
 import {
 	FeaturedModelPicker,
@@ -173,6 +174,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
+	const [isConfiguringVertex, setIsConfiguringVertex] = useState(false)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
 	const [isShowingOcaEmployeeCheck, setIsShowingOcaEmployeeCheck] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
@@ -1156,6 +1158,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for Vertex - needs project ID and region
+			if (providerId === "vertex") {
+				setPendingProvider(providerId)
+				setIsPickingProvider(false)
+				setIsConfiguringVertex(true)
+				return
+			}
+
 			// Check if this provider needs an API key
 			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {
@@ -1207,6 +1217,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Apply config and rebuild API handler in background
 			applyBedrockConfig({ bedrockConfig, controller })
+		},
+		[controller, refreshModelIds],
+	)
+
+	// Handle Vertex configuration complete
+	const handleVertexComplete = useCallback(
+		(vertexConfig: VertexConfig) => {
+			// Update UI state first for responsiveness
+			setProvider("vertex")
+			refreshModelIds()
+			setIsConfiguringVertex(false)
+			setPendingProvider(null)
+
+			// Apply config and rebuild API handler in background
+			applyVertexConfig({ vertexConfig, controller })
 		},
 		[controller, refreshModelIds],
 	)
@@ -1439,7 +1464,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isShowingOcaEmployeeCheck },
+		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isConfiguringVertex && !isShowingOcaEmployeeCheck },
 	)
 
 	// Render content
@@ -1486,6 +1511,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						setPendingProvider(null)
 					}}
 					onComplete={handleBedrockComplete}
+				/>
+			)
+		}
+
+		if (isConfiguringVertex) {
+			return (
+				<VertexSetup
+					isActive={isConfiguringVertex}
+					onCancel={() => {
+						setIsConfiguringVertex(false)
+						setPendingProvider(null)
+					}}
+					onComplete={handleVertexComplete}
 				/>
 			)
 		}
@@ -1820,6 +1858,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isPickingLanguage ||
 		isEnteringApiKey ||
 		isConfiguringBedrock ||
+		isConfiguringVertex ||
 		isWaitingForCodexAuth ||
 		!!codexAuthError ||
 		isPickingOrganization ||

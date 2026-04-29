@@ -12,6 +12,7 @@ import { refreshVercelAiGatewayModels } from "@/core/controller/models/refreshVe
 import { StateManager } from "@/core/storage/StateManager"
 import type { BedrockConfig } from "../components/BedrockSetup"
 import { getDefaultModelId } from "../components/ModelPicker"
+import type { VertexConfig } from "../components/VertexSetup"
 
 export interface ApplyProviderConfigOptions {
 	providerId: string
@@ -150,3 +151,44 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
 	}
 }
+
+export interface ApplyVertexConfigOptions {
+	vertexConfig: VertexConfig
+	modelId?: string
+	controller?: Controller
+}
+
+/**
+ * Apply Vertex AI provider configuration to state.
+ * Handles GCP-specific fields (project ID, region).
+ * Authentication uses Google Application Default Credentials (ADC).
+ */
+export async function applyVertexConfig(options: ApplyVertexConfigOptions): Promise<void> {
+	const { vertexConfig, modelId, controller } = options
+	const stateManager = StateManager.get()
+
+	const config: Record<string, string> = {
+		actModeApiProvider: "vertex",
+		planModeApiProvider: "vertex",
+		vertexProjectId: vertexConfig.vertexProjectId,
+		vertexRegion: vertexConfig.vertexRegion,
+	}
+
+	const finalModelId = modelId || getDefaultModelId("vertex")
+	if (finalModelId) {
+		const actModelKey = getProviderModelIdKey("vertex" as ApiProvider, "act")
+		const planModelKey = getProviderModelIdKey("vertex" as ApiProvider, "plan")
+		if (actModelKey) config[actModelKey] = finalModelId
+		if (planModelKey) config[planModelKey] = finalModelId
+	}
+
+	stateManager.setApiConfiguration(config)
+	await stateManager.flushPendingState()
+
+	if (controller?.task) {
+		const currentMode = stateManager.getGlobalSettingsKey("mode")
+		const apiConfig = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+	}
+}
+
