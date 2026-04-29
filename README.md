@@ -95,6 +95,7 @@ npm install @clinebot/sdk
 ```
 
 <a href="https://docs.cline.bot/sdk/overview">Documentation</a>
+<br>
 
 </td>
 </tr>
