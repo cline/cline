@@ -65,7 +65,7 @@ export async function executeRipgrepForFiles(
 
 			// Add file result to array
 			fileResults.push({
-				path: relativePath,
+				path: relativePath.replace(/\\/g, "/"), // Normalize Windows backslashes to forward slashes
 				type: "file",
 				label: path.basename(relativePath),
 			})
@@ -120,7 +120,7 @@ export async function executeRipgrepForFiles(
 			}
 
 			const dirResults = Array.from(dirSet, (dirPath): { path: string; type: "folder"; label?: string } => ({
-				path: dirPath,
+				path: dirPath.replace(/\\/g, "/"), // Normalize Windows backslashes to forward slashes
 				type: "folder",
 				label: path.basename(dirPath),
 			}))
