@@ -537,7 +537,7 @@
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
 		"aws4fetch": "^1.0.20",
-		"axios": "1.15.0",
+		"axios": "1.15.1",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
@@ -600,7 +600,8 @@
 		"protobufjs": "7.5.5",
 		"mocha": {
 			"diff": ">=8.0.3"
-		}
+		},
+		"brace-expansion@<=2.1.0": "2.1.0"
 	},
 	"c8": {
 		"reporter": [
