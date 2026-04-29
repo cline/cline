@@ -19,7 +19,7 @@
 <div align="center">
 <table>
 <tr>
-<td align="center" width="33%">
+<td align="center" width="50%">
 
 ### CLI
 
@@ -34,7 +34,24 @@ npm i -g cline
 <a href="./cli/README.md">Learn more</a>
 
 </td>
-<td align="center" width="33%">
+<td align="center" width="50%">
+
+### Kanban
+
+Run many agents in parallel from a
+web-based task board. Each card gets its own
+worktree, auto-commit, and dependency chains.
+
+```
+npx kanban
+```
+
+<a href="https://github.com/cline/kanban">Learn more</a>
+
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
 
 ### VS Code Extension
 
@@ -45,7 +62,7 @@ and use tools with human-in-the-loop approval.
 <a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev">Install from VS Marketplace</a>
 
 </td>
-<td align="center" width="33%">
+<td align="center" width="50%">
 
 ### JetBrains Plugin
 
@@ -67,7 +84,7 @@ the JetBrains family.
 
 ### SDK
 
-Build your own AI agents and integrations powered by the same engine that runs the CLI, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
+Build your own AI agents and integrations powered by the same engine that runs the CLI, Kanban, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
 
 ```
 npm install @clinebot/sdk
