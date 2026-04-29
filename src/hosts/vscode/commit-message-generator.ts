@@ -2,6 +2,12 @@ import { buildApiHandler } from "@core/api"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
+import {
+	getGlobalClineRules,
+	getLocalClineRules,
+	refreshClineRulesToggles,
+} from "@/core/context/instructions/user-instructions/cline-rules"
+import { ensureRulesDirectoryExists } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -162,15 +168,31 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 			title: `Generating commit message for ${repoPath.split(path.sep).pop() || "repository"}...`,
 			cancellable: true,
 		},
-		() => performCommitMsgGeneration(controller, gitDiff, inputBox),
+		() => performCommitMsgGeneration(controller, gitDiff, inputBox, repoPath),
 	)
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any) {
+async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any, repoPath: string) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
+
+		// Load cline rules (global + local) so commit messages follow user's custom instructions
+		try {
+			const { globalToggles, localToggles } = await refreshClineRulesToggles(controller, repoPath)
+			const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+			const globalRules = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
+			const localRules = await getLocalClineRules(repoPath, localToggles)
+
+			const ruleInstructions = [globalRules.instructions, localRules.instructions].filter(Boolean).join("\n\n")
+
+			if (ruleInstructions) {
+				prompts.push(`# User's Custom Instructions\n${ruleInstructions}`)
+			}
+		} catch (error) {
+			Logger.error("Failed to load cline rules for commit message generation:", error)
+		}
 
 		const workspaceManager = await controller.ensureWorkspaceManager()
 		if (workspaceManager) {
