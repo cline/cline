@@ -64,7 +64,6 @@ function createConfig() {
 		strictPlanModeEnabled: false,
 		yoloModeToggled: true,
 		doubleCheckCompletionEnabled: false,
-		vscodeTerminalExecutionMode: "backgroundExec",
 		enableParallelToolCalling: true,
 		isSubagentExecution: true, // skip UI calls and approval flow
 		taskState,

@@ -1,6 +1,7 @@
 import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import BedrockData from "@shared/providers/bedrock.json"
 import type { Mode } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import {
 	VSCodeCheckbox,
 	VSCodeDropdown,
@@ -17,13 +18,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 export const SUPPORTED_BEDROCK_THINKING_MODELS = [
-	"anthropic.claude-opus-4-6-v1",
-	`anthropic.claude-opus-4-6-v1${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-sonnet-4-6",
 	`anthropic.claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -31,7 +31,6 @@ export const SUPPORTED_BEDROCK_THINKING_MODELS = [
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
 	`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
 	`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
-	"anthropic.claude-opus-4-5-20251101-v1:0",
 	"anthropic.claude-opus-4-1-20250805-v1:0",
 	"anthropic.claude-opus-4-20250514-v1:0",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -54,6 +53,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const isAdaptiveThinkingModel =
+		isClaudeOpusAdaptiveThinkingModel(selectedModelId) ||
+		isClaudeOpusAdaptiveThinkingModel(modeFields.awsBedrockCustomModelBaseId)
+	const adaptiveThinkingDefaultEffort =
+		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 
 	// Region combobox state
@@ -524,12 +528,20 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						</div>
 					)}
 
-					{(SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId) ||
+					{isAdaptiveThinkingModel ? (
+						<ReasoningEffortSelector
+							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
+							currentMode={currentMode}
+							defaultEffort={adaptiveThinkingDefaultEffort}
+							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+							label="Adaptive Thinking"
+						/>
+					) : SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId) ||
 						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId &&
-							SUPPORTED_BEDROCK_THINKING_MODELS.includes(modeFields.awsBedrockCustomModelBaseId))) && (
+							SUPPORTED_BEDROCK_THINKING_MODELS.includes(modeFields.awsBedrockCustomModelBaseId)) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} />
-					)}
+					) : null}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>

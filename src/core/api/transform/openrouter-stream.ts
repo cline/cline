@@ -4,11 +4,13 @@ import {
 	ModelInfo,
 	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeOpus461mModelId,
+	openRouterClaudeOpus471mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isGeminiFlashModel,
@@ -42,7 +44,8 @@ export async function createOpenRouterStream(
 		model.id === openRouterClaudeSonnet41mModelId ||
 		model.id === openRouterClaudeSonnet451mModelId ||
 		model.id === openRouterClaudeSonnet461mModelId ||
-		model.id === openRouterClaudeOpus461mModelId
+		model.id === openRouterClaudeOpus461mModelId ||
+		model.id === openRouterClaudeOpus471mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id openrouter API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
@@ -109,37 +112,47 @@ export async function createOpenRouterStream(
 
 	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
 
-	let reasoning: { max_tokens: number } | undefined
-	switch (model.id) {
-		case "anthropic/claude-opus-4.6":
-		case "anthropic/claude-haiku-4.5":
-		case "anthropic/claude-4.5-haiku":
-		case "anthropic/claude-sonnet-4.6":
-		case "anthropic/claude-4.6-sonnet":
-		case "anthropic/claude-sonnet-4.5":
-		case "anthropic/claude-4.5-sonnet":
-		case "anthropic/claude-sonnet-4":
-		case "anthropic/claude-opus-4.5":
-		case "anthropic/claude-opus-4.1":
-		case "anthropic/claude-opus-4":
-		case "anthropic/claude-3.7-sonnet":
-		case "anthropic/claude-3.7-sonnet:beta":
-		case "anthropic/claude-3.7-sonnet:thinking":
-		case "anthropic/claude-3-7-sonnet":
-		case "anthropic/claude-3-7-sonnet:beta":
-			const budget_tokens = thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0
-			if (reasoningOn) {
-				temperature = undefined // extended thinking does not support non-1 temperature
-				reasoning = { max_tokens: budget_tokens }
-			}
-			break
-		default:
-			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !supportsReasoningEffort) {
-				temperature = undefined // extended thinking does not support non-1 temperature
-				reasoning = { max_tokens: thinkingBudgetTokens }
+	// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
+	const adaptiveThinking = isAdaptiveThinkingModel
+		? resolveClaudeOpusAdaptiveThinking(reasoningEffort, thinkingBudgetTokens)
+		: undefined
+	if (isAdaptiveThinkingModel) {
+		temperature = undefined
+		topP = undefined
+	}
+
+	let reasoning: Record<string, unknown> | undefined
+	if (!isAdaptiveThinkingModel) {
+		switch (model.id) {
+			case "anthropic/claude-haiku-4.5":
+			case "anthropic/claude-4.5-haiku":
+			case "anthropic/claude-sonnet-4.6":
+			case "anthropic/claude-4.6-sonnet":
+			case "anthropic/claude-sonnet-4.5":
+			case "anthropic/claude-4.5-sonnet":
+			case "anthropic/claude-sonnet-4":
+			case "anthropic/claude-opus-4.1":
+			case "anthropic/claude-opus-4":
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3.7-sonnet:thinking":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
+				const budget_tokens = thinkingBudgetTokens || 0
+				const reasoningOn = budget_tokens !== 0
+				if (reasoningOn) {
+					temperature = undefined // extended thinking does not support non-1 temperature
+					reasoning = { max_tokens: budget_tokens }
+				}
 				break
-			}
+			default:
+				if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !supportsReasoningEffort) {
+					temperature = undefined // extended thinking does not support non-1 temperature
+					reasoning = { max_tokens: thinkingBudgetTokens }
+					break
+				}
+		}
 	}
 
 	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
@@ -150,9 +163,14 @@ export async function createOpenRouterStream(
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
-	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
-	const reasoningPayload =
-		reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined)
+	const includeReasoning = isAdaptiveThinkingModel
+		? !!adaptiveThinking?.enabled
+		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+	const reasoningPayload = isAdaptiveThinkingModel
+		? adaptiveThinking?.enabled
+			? { enabled: true }
+			: undefined
+		: (reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined))
 	const maxTokens = isGeminiFlashModel(model.id)
 		? Math.min(model.info.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
 		: undefined
@@ -167,6 +185,7 @@ export async function createOpenRouterStream(
 		stream_options: { include_usage: true },
 		include_reasoning: includeReasoning,
 		...(reasoningPayload ? { reasoning: reasoningPayload } : {}),
+		...(isAdaptiveThinkingModel && adaptiveThinking?.effort ? { verbosity: adaptiveThinking.effort } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),

@@ -7,6 +7,7 @@ export enum ClineErrorType {
 	RateLimit = "rateLimit",
 	Balance = "balance",
 	SpendLimit = "spendLimit",
+	QuotaExceeded = "quotaExceeded",
 }
 
 interface ErrorDetails {
@@ -155,6 +156,10 @@ export class ClineError extends Error {
 		const isAuthStatus = status !== undefined && status > 400 && status < 429
 		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
 			return ClineErrorType.Auth
+		}
+
+		if (code === "INFERENCE_CAP_ERROR") {
+			return ClineErrorType.QuotaExceeded
 		}
 
 		if (message) {

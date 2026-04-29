@@ -1,6 +1,5 @@
 import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
-import { PLATFORM_CONFIG } from "@/config/platform.config"
 
 export interface SearchResult {
 	path: string
@@ -13,7 +12,7 @@ export function insertMention(
 	text: string,
 	position: number,
 	value: string,
-	partialQueryLength: number = 0,
+	partialQueryLength = 0,
 ): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
@@ -83,7 +82,6 @@ export enum ContextMenuOptionType {
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
-	Terminal = "terminal",
 	URL = "url",
 	Git = "git",
 	NoResults = "noResults",
@@ -98,17 +96,13 @@ export interface ContextMenuQueryItem {
 }
 
 function getContextMenuEntries(): ContextMenuOptionType[] {
-	const entries = [
+	return [
 		ContextMenuOptionType.URL,
 		ContextMenuOptionType.Problems,
 		ContextMenuOptionType.Git,
 		ContextMenuOptionType.Folder,
 		ContextMenuOptionType.File,
 	]
-	if (PLATFORM_CONFIG.supportsTerminalMentions) {
-		entries.splice(2, 0, ContextMenuOptionType.Terminal)
-	}
-	return entries
 }
 
 export function getContextMenuOptionIndex(option: ContextMenuOptionType) {
@@ -298,8 +292,8 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 		return false
 	}
 
-	// Don't show the menu if it's a problems or terminal
-	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) {
+	// Don't show the menu if it's a problems mention
+	if (textAfterAt.toLowerCase().startsWith("problems")) {
 		return false
 	}
 

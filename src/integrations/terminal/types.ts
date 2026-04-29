@@ -1,7 +1,7 @@
 /**
- * Shared terminal types and interfaces for both VSCode and Standalone terminal managers.
- * These types ensure compatibility between the VSCode-based TerminalManager and
- * the StandaloneTerminalManager used in CLI/JetBrains environments.
+ * Shared terminal types and interfaces for terminal manager implementations.
+ * These types allow the active background terminal path and any compatibility
+ * host implementations to share the same orchestration contracts.
  */
 
 import type { ClineToolResponseContent } from "@shared/messages"
@@ -26,19 +26,17 @@ export interface TerminalProcessEvents {
 	continue: []
 	completed: [details?: TerminalCompletionDetails]
 	error: [error: Error]
-	no_shell_integration: []
 }
 
 /**
  * Interface for terminal process implementations.
- * Both VscodeTerminalProcess and StandaloneTerminalProcess implement this interface.
+ * Any host-specific terminal process can implement this contract.
  *
  * Events emitted:
  * - 'line': Emitted for each line of output
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
- * - 'no_shell_integration': Emitted when shell integration is not available (VSCode only)
  */
 export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	/**
@@ -48,7 +46,8 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	/**
 	 * Whether to wait for shell integration before running commands.
-	 * VSCode processes may need to wait, standalone processes don't.
+	 * Compatibility-oriented terminal implementations may need this, while the
+	 * active standalone/background process path does not.
 	 */
 	waitForShellIntegration: boolean
 
@@ -153,8 +152,6 @@ export type TerminalProcessResultPromise = Promise<void> &
 		on(event: "continue", listener: () => void): TerminalProcessResultPromise
 		/** Listen for error events */
 		on(event: "error", listener: (error: Error) => void): TerminalProcessResultPromise
-		/** Listen for no shell integration event */
-		on(event: "no_shell_integration", listener: () => void): TerminalProcessResultPromise
 		/** Listen once for any event */
 		once(event: string, listener: (...args: any[]) => void): TerminalProcessResultPromise
 	}
@@ -204,30 +201,6 @@ export interface ITerminalManager {
 	 * Dispose of all terminals and clean up resources.
 	 */
 	disposeAll(): void
-
-	/**
-	 * Set the timeout for waiting for shell integration.
-	 * @param timeout Timeout in milliseconds
-	 */
-	setShellIntegrationTimeout(timeout: number): void
-
-	/**
-	 * Enable or disable terminal reuse.
-	 * @param enabled Whether to enable terminal reuse
-	 */
-	setTerminalReuseEnabled(enabled: boolean): void
-
-	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void
-
-	/**
-	 * Set the default terminal profile.
-	 * @param profile The profile identifier
-	 */
-	setDefaultTerminalProfile(profile: string): void
 
 	/**
 	 * Process output lines, potentially truncating if over limit.
@@ -280,17 +253,6 @@ export interface BackgroundCommand {
 // =============================================================================
 // Command Executor Types
 // =============================================================================
-
-/**
- * Tracker for shell integration warnings to determine when to show background terminal suggestion.
- * Used internally by CommandExecutor to track warning frequency.
- */
-export interface ShellIntegrationWarningTracker {
-	/** Timestamps of recent shell integration warnings */
-	timestamps: number[]
-	/** Timestamp when the suggestion was last shown */
-	lastSuggestionShown?: number
-}
 
 /**
  * Represents an active background command that can be cancelled
@@ -392,8 +354,6 @@ export interface OrchestrationOptions {
 	timeoutSeconds?: number
 	/** Callback to track output lines for background command tracking */
 	onOutputLine?: (line: string) => void
-	/** Whether to show shell integration warning with suggestion */
-	showShellIntegrationSuggestion?: boolean
 	/**
 	 * Callback invoked when user clicks "Proceed While Running".
 	 * Used to start background command tracking in the terminal manager.

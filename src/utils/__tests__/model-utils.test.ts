@@ -154,7 +154,9 @@ describe("isGLMModelFamily", () => {
 		isGLMModelFamily("glm-4.6").should.equal(true)
 		isGLMModelFamily("glm-4.5").should.equal(true)
 		isGLMModelFamily("glm-4.7").should.equal(true)
+		isGLMModelFamily("glm-5.1").should.equal(true)
 		isGLMModelFamily("glm-5").should.equal(true)
+		isGLMModelFamily("z-ai/glm-5.1").should.equal(true)
 		isGLMModelFamily("z-ai/glm-4.6").should.equal(true)
 		isGLMModelFamily("zai-org/glm-4.5").should.equal(true)
 	})
@@ -182,6 +184,7 @@ describe("modelDoesntSupportWebp", () => {
 	it("should return true for GLM models (hyphen-separated)", () => {
 		modelDoesntSupportWebp(m("glm-4.6")).should.equal(true)
 		modelDoesntSupportWebp(m("glm-4.5")).should.equal(true)
+		modelDoesntSupportWebp(m("glm-5.1")).should.equal(true)
 		modelDoesntSupportWebp(m("z-ai/glm-4.6")).should.equal(true)
 	})
 

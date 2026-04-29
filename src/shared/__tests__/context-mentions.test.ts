@@ -96,7 +96,6 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string]> = [
 				["@problems", "@problems"],
 				["@git-changes", "@git-changes"],
-				["@terminal", "@terminal"],
 			]
 
 			cases.forEach(([input, expected]) => {
@@ -132,7 +131,7 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string]> = [
 				["Check the file at @/C:\\folder\\file.txt for details.", "@/C:\\folder\\file.txt"],
 				["Review @problems and @git-changes.", "@problems"],
-				["Multiple: @/file1.txt and @/C:\\file2.txt and @terminal", "@/file1.txt"],
+				["Multiple: @/file1.txt and @/C:\\file2.txt and @git-changes", "@/file1.txt"],
 			]
 
 			cases.forEach(([input, expected]) => {
@@ -230,7 +229,7 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string]> = [
 				["@/path/file.txt.", "@/path/file.txt"],
 				["@problems:", "@problems"],
-				["@terminal;", "@terminal"],
+				["@git-changes;", "@git-changes"],
 				["@/path/file.txt!", "@/path/file.txt"],
 				["@/path/file.txt?", "@/path/file.txt"],
 				["@git-changes,", "@git-changes"],
@@ -246,7 +245,7 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string]> = [
 				["@/path/file.txt!?", "@/path/file.txt"],
 				["@problems...", "@problems"],
-				["@terminal!!", "@terminal"],
+				["@git-changes!!", "@git-changes"],
 			]
 
 			cases.forEach(([input, expected]) => {
@@ -259,7 +258,10 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string[]]> = [
 				["Check the file at @/C:\\folder\\file.txt! for details.", ["@/C:\\folder\\file.txt"]],
 				["Review @problems, and @git-changes.", ["@problems", "@git-changes"]],
-				["Multiple: @/file1.txt, and @/C:\\file2.txt; and @terminal?", ["@/file1.txt", "@/C:\\file2.txt", "@terminal"]],
+				[
+					"Multiple: @/file1.txt, and @/C:\\file2.txt; and @git-changes?",
+					["@/file1.txt", "@/C:\\file2.txt", "@git-changes"],
+				],
 			]
 
 			cases.forEach(([input, expected]) => {
@@ -305,7 +307,6 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string]> = [
 				["Check @/path/file.txt", "@/path/file.txt"],
 				["Review @problems", "@problems"],
-				["Open @terminal", "@terminal"],
 				["See @git-changes", "@git-changes"],
 			]
 
@@ -392,7 +393,6 @@ describe("Mention Regex", () => {
 		it("only matches exact keywords", () => {
 			const cases: Array<[string, string | null]> = [
 				["@problemsolver", null], // Should not match
-				["@terminals", null], // Should not match
 				["@git-changeset", null], // Should not match
 				["@problem", null], // Should not match
 				["@git-change", null], // Should not match
@@ -408,7 +408,6 @@ describe("Mention Regex", () => {
 		it("matches keywords with trailing punctuation", () => {
 			const cases: Array<[string, string]> = [
 				["@problems!", "@problems"],
-				["@terminal.", "@terminal"],
 				["@git-changes,", "@git-changes"],
 			]
 

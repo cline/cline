@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import OpenAI from "openai"
 import { StateManager } from "@/core/storage/StateManager"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
@@ -17,6 +18,7 @@ interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	liteLlmModelInfo?: LiteLLMModelInfo
+	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	liteLlmUsePromptCache?: boolean
 	ulid?: string
@@ -222,11 +224,23 @@ export class LiteLlmHandler implements ApiHandler {
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = budgetTokens !== 0
-		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		const adaptiveThinking = isAdaptiveThinkingModel
+			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budgetTokens)
+			: undefined
+		const thinkingConfig = isAdaptiveThinkingModel
+			? adaptiveThinking?.enabled
+				? ({ type: "adaptive" } as any)
+				: undefined
+			: reasoningOn
+				? { type: "enabled", budget_tokens: budgetTokens }
+				: undefined
 
 		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 1
 
-		if ((isOminiModel || isAnthropicModelId(modelId)) && reasoningOn) {
+		if (isAdaptiveThinkingModel) {
+			temperature = undefined
+		} else if ((isOminiModel || isAnthropicModelId(modelId)) && reasoningOn) {
 			temperature = undefined // OAI omni and Anthropic extended thinking mode doesn't support temperature
 		}
 
@@ -305,6 +319,9 @@ export class LiteLlmHandler implements ApiHandler {
 			drop_params: true,
 			...(!isCodexModel && { stream_options: { include_usage: true } }), // Codex models are only on the responses api, which doesn't take the stream_options parameter. we will need to migrate to the responses api for this to work
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
+			...(isAdaptiveThinkingModel && adaptiveThinking?.effort
+				? { output_config: { effort: adaptiveThinking.effort } }
+				: {}),
 			...(this.options.ulid && { litellm_session_id: `cline-${this.options.ulid}` }), // Add session ID for LiteLLM tracking
 		} as LiteLlmChatCompletionCreateParams)
 

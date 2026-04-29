@@ -151,6 +151,16 @@ message FileSearchRequest {
 message FileSearchResults {
   repeated FileInfo results = 1; // Array of file/folder results
   optional string mentions_request_id = 2; // Echo of the request ID for tracking
+  // Machine-readable reason for an empty result list. Unset on success.
+  // Known values:
+  //   "workspace_not_ready"   - host project model not yet loaded; retry-able.
+  //   "workspace_unavailable" - no workspace path; configuration error.
+  //   "ripgrep_spawn_failed"  - rg binary failed to spawn or exited non-zero.
+  //   "results_truncated"     - result cap hit (reserved for Phase 2C).
+  //   "unknown"               - catch-all; see error_message.
+  optional string error_reason = 3;
+  // Optional human-readable detail; rendered as a subtitle in the picker UI.
+  optional string error_message = 4;
 }
 
 // File information structure for search results
@@ -295,8 +305,9 @@ message DeleteHookResponse {
 message SkillInfo {
   string name = 1; // Name of the skill (matches directory name)
   string description = 2; // Description from SKILL.md frontmatter
-  string path = 3; // Full path to SKILL.md file
+  string path = 3; // Full path to SKILL.md file (or "remote:<name>" for remote skills)
   bool enabled = 4; // Whether the skill is enabled
+  bool always_enabled = 5; // Whether the skill is always enabled (remote only, user cannot toggle off)
 }
 
 // Response for refreshSkills operation
@@ -309,6 +320,7 @@ message RefreshedSkills {
 message SkillsToggles {
   map<string, bool> global_skills_toggles = 1;
   map<string, bool> local_skills_toggles = 2;
+  map<string, bool> remote_skills_toggles = 3;
 }
 
 // Request to toggle a skill

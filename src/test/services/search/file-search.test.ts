@@ -124,8 +124,42 @@ describe("File Search", () => {
 			} as unknown as childProcess.ChildProcess)
 
 			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
-				`ripgrep process error: ${mockError}`,
+				`ripgrep failed to spawn: ${mockError}`,
 			)
+		})
+
+		it("should reject with RipgrepError when ripgrep exits non-zero with no results", async () => {
+			const mockStdout = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push("rg: /bogus: No such file or directory (os error 2)")
+					this.push(null)
+				},
+			})
+
+			let exitHandler: ((code: number | null) => void) | null = null
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						exitHandler = callback as (code: number | null) => void
+						// Schedule the exit-code emission for after the readline 'close'
+						setImmediate(() => exitHandler?.(2))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as childProcess.ChildProcess)
+
+			const err = await fileSearch.executeRipgrepForFiles("/workspace", 5000).catch((e) => e)
+			should(err.message).match(/ripgrep exited with code 2/)
+			should(err).have.property("name", "RipgrepError")
+			should(err.stderr).match(/No such file or directory/)
 		})
 	})
 

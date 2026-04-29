@@ -88,8 +88,18 @@ export class BannerService {
 	public static reset(): void {
 		const instance = BannerService.instance
 		if (instance) {
-			if (instance.debounceTimer) clearTimeout(instance.debounceTimer)
+			if (instance.debounceTimer) {
+				clearTimeout(instance.debounceTimer)
+				instance.debounceTimer = null
+			}
+			if (instance.pendingDebounceResolve) {
+				instance.pendingDebounceResolve()
+				instance.pendingDebounceResolve = null
+			}
 			instance.abortController?.abort()
+			instance.abortController = null
+			instance.fetchPromise = null
+			instance.authFetchPending = false
 		}
 		BannerService.instance = null
 	}
@@ -176,6 +186,13 @@ export class BannerService {
 			.filter((b): b is BannerCardData => b !== null)
 
 		return welcomeBanners
+	}
+
+	/**
+	 * Testing hook for draining in-flight background fetch work deterministically.
+	 */
+	public async drainForTesting(): Promise<void> {
+		await this.fetchPromise
 	}
 
 	private ensureFreshCache(): void {

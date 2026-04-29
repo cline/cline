@@ -60,7 +60,7 @@ jobs:
                     fi
                   done
 
-            - name: Publish Extension as Pre-release
+            - name: Publish Nightly Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}

@@ -76,7 +76,6 @@ export class ToolExecutor {
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
-		private vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec",
 
 		// Workspace Management
 		private workspaceManager: WorkspaceRootManager | undefined,
@@ -140,7 +139,6 @@ export class ToolExecutor {
 			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			doubleCheckCompletionEnabled: this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled"),
-			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			isSubagentExecution: false,
 			cwd: this.cwd,

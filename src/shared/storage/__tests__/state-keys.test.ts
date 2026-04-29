@@ -246,6 +246,26 @@ describe("State Keys Type Safety", () => {
 			expect(isSettingsKey("nonExistentKey123")).to.be.false
 		})
 
+		it("should not expose removed foreground terminal settings keys", () => {
+			const removedKeys = [
+				"vscodeTerminalExecutionMode",
+				"shellIntegrationTimeout",
+				"defaultTerminalProfile",
+				"terminalReuseEnabled",
+				"terminalOutputLineLimit",
+			] as const
+
+			for (const key of removedKeys) {
+				expect(isSettingsKey(key), `${key} should not remain a SettingsKey`).to.be.false
+				expect(isGlobalStateKey(key), `${key} should not remain a GlobalStateKey`).to.be.false
+				expect(SettingsKeys.includes(key as any), `${key} should not be exported in SettingsKeys`).to.be.false
+				expect(
+					GlobalStateAndSettingKeys.includes(key as any),
+					`${key} should not be exported in GlobalStateAndSettingKeys`,
+				).to.be.false
+			}
+		})
+
 		it("should correctly identify Secret keys", () => {
 			// Sample known secret keys
 			const knownSecretKeys = ["apiKey", "openRouterApiKey", "awsAccessKey"]
@@ -288,7 +308,6 @@ describe("State Keys Type Safety", () => {
 			const testCases: Array<{ key: GlobalStateAndSettingsKey; expectedType: string }> = [
 				{ key: "autoApprovalSettings", expectedType: "object" },
 				{ key: "browserSettings", expectedType: "object" },
-				{ key: "shellIntegrationTimeout", expectedType: "number" },
 				{ key: "preferredLanguage", expectedType: "string" },
 				{ key: "yoloModeToggled", expectedType: "boolean" },
 				{ key: "autoApproveAllToggled", expectedType: "boolean" },
@@ -402,7 +421,6 @@ describe("State Keys Type Safety", () => {
 		it("should export usable Settings type", () => {
 			const partialSettings: Partial<Settings> = {
 				preferredLanguage: "English",
-				shellIntegrationTimeout: 5000,
 			}
 			expect(partialSettings.preferredLanguage).to.equal("English")
 		})

@@ -38,6 +38,46 @@ import { SkillsPanelContent } from "./SkillsPanelContent"
 // Helper to wait for async state updates
 const delay = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms))
 
+type WaitForConditionOptions = {
+	timeoutMs?: number
+	intervalMs?: number
+	errorMessage: string
+}
+
+const waitForCondition = async (
+	condition: () => boolean,
+	{ timeoutMs = 1000, intervalMs = 25, errorMessage }: WaitForConditionOptions,
+) => {
+	const start = Date.now()
+	while (Date.now() - start < timeoutMs) {
+		if (condition()) {
+			return
+		}
+		await delay(intervalMs)
+	}
+	throw new Error(errorMessage)
+}
+
+const waitForFrameToInclude = async (lastFrame: () => string | undefined, text: string) =>
+	waitForCondition(() => (lastFrame() || "").includes(text), {
+		errorMessage: `Expected frame to include: ${text}`,
+	})
+
+const waitForFrameToExclude = async (lastFrame: () => string | undefined, text: string) =>
+	waitForCondition(() => !(lastFrame() || "").includes(text), {
+		errorMessage: `Expected frame to exclude: ${text}`,
+	})
+
+const waitForMockToBeCalled = async (mockFn: { mock: { calls: unknown[] } }) =>
+	waitForCondition(() => mockFn.mock.calls.length > 0, {
+		errorMessage: "Expected mock to be called",
+	})
+
+const waitForSkillsPanelReady = async (lastFrame: () => string | undefined, expectedText: string) => {
+	await waitForFrameToExclude(lastFrame, "Loading skills...")
+	await waitForFrameToInclude(lastFrame, expectedText)
+}
+
 describe("SkillsPanelContent", () => {
 	const mockController = {} as any
 	const mockOnClose = vi.fn()
@@ -64,11 +104,11 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "No skills installed.")
 
 			stdin.write("\x1B") // Escape
-			await delay()
+			await waitForMockToBeCalled(mockOnClose)
 
 			expect(mockOnClose).toHaveBeenCalled()
 		})
@@ -79,11 +119,11 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "test-skill")
 
 			stdin.write("\r") // Enter
-			await delay()
+			await waitForMockToBeCalled(mockOnUseSkill)
 
 			expect(mockOnUseSkill).toHaveBeenCalledWith("/test/path/SKILL.md")
 		})
@@ -94,11 +134,11 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "test-skill")
 
 			stdin.write(" ") // Space
-			await delay()
+			await waitForMockToBeCalled(mockToggleSkill)
 
 			expect(mockToggleSkill).toHaveBeenCalledWith(
 				mockController,
@@ -116,17 +156,17 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "skill")
 
 			// Navigate down to marketplace (past the one skill)
 			// Use vim-style navigation here because it's more deterministic in the
 			// full suite than raw arrow escape sequences on Windows.
 			stdin.write("j")
-			await delay()
+			await waitForFrameToInclude(lastFrame, "❯ Browse more skills at https://skills.sh/")
 
 			stdin.write("\r") // Enter
-			await delay()
+			await waitForMockToBeCalled(mockExec)
 
 			// Should have called exec with open command
 			expect(mockExec).toHaveBeenCalled()
@@ -143,16 +183,16 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "skill-1")
 
 			// Navigate down
 			stdin.write("\x1B[B") // Down arrow
-			await delay()
+			await waitForFrameToInclude(lastFrame, "❯ ● skill-2")
 
 			// Press Enter - should use second skill
 			stdin.write("\r")
-			await delay()
+			await waitForMockToBeCalled(mockOnUseSkill)
 
 			expect(mockOnUseSkill).toHaveBeenCalledWith("/path2")
 		})
@@ -166,16 +206,16 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "skill-1")
 
 			// Navigate down with j
 			stdin.write("j")
-			await delay()
+			await waitForFrameToInclude(lastFrame, "❯ ● skill-2")
 
 			// Press Enter - should use second skill
 			stdin.write("\r")
-			await delay()
+			await waitForMockToBeCalled(mockOnUseSkill)
 
 			expect(mockOnUseSkill).toHaveBeenCalledWith("/path2")
 		})
@@ -188,10 +228,11 @@ describe("SkillsPanelContent", () => {
 			mockToggleSkill.mockRejectedValueOnce(new Error("toggle failed"))
 
 			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			await waitForSkillsPanelReady(lastFrame, "test-skill")
 
 			stdin.write(" ") // Space to toggle
-			await delay(100)
+			await waitForMockToBeCalled(mockToggleSkill)
+			await waitForFrameToInclude(lastFrame, "● test-skill")
 
 			// toggleSkill was called with enabled: false (toggled from true)
 			expect(mockToggleSkill).toHaveBeenCalledWith(mockController, expect.objectContaining({ enabled: false }))
@@ -206,15 +247,15 @@ describe("SkillsPanelContent", () => {
 				localSkills: [],
 			})
 
-			const { stdin } = render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForSkillsPanelReady(lastFrame, "only-skill")
 
 			// Navigate up from first item (should wrap to last - marketplace)
 			stdin.write("\x1B[A") // Up arrow
-			await delay()
+			await waitForFrameToInclude(lastFrame, "❯ Browse more skills at https://skills.sh/")
 
 			stdin.write("\r") // Enter
-			await delay()
+			await waitForMockToBeCalled(mockExec)
 
 			// Should have opened marketplace (wrapped to last item)
 			expect(mockExec).toHaveBeenCalled()
@@ -223,8 +264,9 @@ describe("SkillsPanelContent", () => {
 
 	describe("skill loading", () => {
 		it("should call refreshSkills on mount", async () => {
-			render(<SkillsPanelContent {...defaultProps} />)
-			await delay()
+			const { lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await waitForMockToBeCalled(mockRefreshSkills)
+			await waitForFrameToExclude(lastFrame, "Loading skills...")
 
 			expect(mockRefreshSkills).toHaveBeenCalled()
 		})

@@ -9,7 +9,7 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
-import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
@@ -30,7 +30,6 @@ import {
 	PencilIcon,
 	RefreshCwIcon,
 	SearchIcon,
-	SettingsIcon,
 	SquareArrowOutUpRightIcon,
 	SquareMinusIcon,
 	TerminalIcon,
@@ -148,15 +147,8 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const {
-			backgroundEditEnabled,
-			mcpServers,
-			mcpMarketplaceCatalog,
-			onRelinquishControl,
-			vscodeTerminalExecutionMode,
-			clineMessages,
-			showFeatureTips,
-		} = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, mcpMarketplaceCatalog, onRelinquishControl, clineMessages, showFeatureTips } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -760,7 +752,7 @@ export const ChatRowContent = memo(
 			return (
 				<CommandOutputRow
 					icon={icon}
-					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
+					isBackgroundExec={true}
 					isCommandCompleted={isCommandCompleted}
 					isCommandExecuting={isCommandExecuting}
 					isCommandPending={isCommandPending}
@@ -1037,26 +1029,6 @@ export const ChatRowContent = memo(
 								text={text || ""}
 							/>
 						)
-					case "shell_integration_warning":
-						return (
-							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
-								<div className="flex items-center mb-1">
-									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-error" />
-									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
-								</div>
-								<div className="text-foreground opacity-80">
-									Cline may have trouble viewing the command's output. Please update VSCode (
-									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
-									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
-									Profile").
-									<a
-										className="px-1"
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable">
-										Still having trouble?
-									</a>
-								</div>
-							</div>
-						)
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")
@@ -1110,41 +1082,6 @@ export const ChatRowContent = memo(
 						return <InvisibleSpacer />
 					case "subagent":
 						return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
-					case "shell_integration_warning_with_suggestion":
-						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
-						return (
-							<div className="p-2 bg-link/10 border border-link/30 rounded-xs">
-								<div className="flex items-center mb-1">
-									<LightbulbIcon className="mr-1.5 size-2 text-link" />
-									<span className="font-medium text-foreground">Shell integration issues</span>
-								</div>
-								<div className="text-foreground opacity-90 mb-2">
-									Since you're experiencing repeated shell integration issues, we recommend switching to
-									Background Terminal mode for better reliability.
-								</div>
-								<button
-									className={cn(
-										"bg-button-background text-button-foreground border-0 rounded-xs py-1.5 px-3 text-[12px] flex items-center gap-1.5 cursor-pointer hover:bg-button-hover",
-										{
-											"cursor-default opacity-80 bg-success": isBackgroundModeEnabled,
-										},
-									)}
-									disabled={isBackgroundModeEnabled}
-									onClick={async () => {
-										try {
-											// Enable background terminal execution mode
-											await UiServiceClient.setTerminalExecutionMode(BooleanRequest.create({ value: true }))
-										} catch (error) {
-											console.error("Failed to enable background terminal:", error)
-										}
-									}}>
-									<SettingsIcon className="size-2" />
-									{isBackgroundModeEnabled
-										? "Background Terminal Enabled"
-										: "Enable Background Terminal (Recommended)"}
-								</button>
-							</div>
-						)
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:

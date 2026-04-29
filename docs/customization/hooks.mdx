@@ -129,7 +129,7 @@ Create a file called `file-logger` in your hooks directory with this content:
 # Logs all file operations to ~/cline-activity.log
 
 INPUT=$(cat)
-TOOL=$(echo "$INPUT" | jq -r '.preToolUse.tool')
+TOOL=$(echo "$INPUT" | jq -r '.preToolUse.toolName')
 FILE_PATH=$(echo "$INPUT" | jq -r '.preToolUse.parameters.path // "N/A"')
 
 # Log to file
@@ -221,7 +221,11 @@ Every hook receives a JSON object with common fields plus hook-specific data:
   
   // Hook-specific field (name matches hook type in camelCase)
   "taskStart": {
-    "task": "Add authentication to the API"
+    "taskMetadata": {
+      "taskId": "abc123",
+      "ulid": "01J...",
+      "initialTask": "Add authentication to the API"
+    }
   }
 }
 ```
@@ -238,11 +242,11 @@ If your scripts previously read `.workspacePath`, switch to `.workspaceRoots[0]`
 </Note>
 
 The hook-specific field name matches the hook type:
-- `taskStart`, `taskResume`, `taskCancel`, `taskComplete` contain `{ task: string }`
-- `preToolUse` contains `{ tool: string, parameters: object }`
-- `postToolUse` contains `{ tool: string, parameters: object, result: string, success: boolean, durationMs: number }`
-- `userPromptSubmit` contains `{ prompt: string }`
-- `preCompact` contains `{ conversationLength: number, estimatedTokens: number }`
+- `taskStart`, `taskResume`, `taskCancel`, `taskComplete` contain `{ taskMetadata: { taskId, ulid, ... } }`
+- `preToolUse` contains `{ toolName: string, parameters: object }`
+- `postToolUse` contains `{ toolName: string, parameters: object, result: string, success: boolean, executionTimeMs: number }`
+- `userPromptSubmit` contains `{ prompt: string, attachments: string[] }`
+- `preCompact` contains `{ taskId, ulid, contextSize, compactionStrategy, tokensIn, tokensOut, ... }`
 
 ### Output Structure
 
@@ -287,7 +291,7 @@ Runs when you start a new task. Use it to:
 ```bash
 #!/bin/bash
 INPUT=$(cat)
-TASK=$(echo "$INPUT" | jq -r '.taskStart.task')
+TASK=$(echo "$INPUT" | jq -r '.taskStart.taskMetadata.initialTask')
 echo "[TaskStart] Starting: $TASK" >&2
 echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 ```
@@ -329,7 +333,7 @@ The input includes the tool name and its parameters:
 ```json
 {
   "preToolUse": {
-    "tool": "write_to_file",
+    "toolName": "write_to_file",
     "parameters": {
       "path": "src/config.ts",
       "content": "..."
@@ -343,7 +347,7 @@ Example that blocks `.js` files in a TypeScript project:
 ```bash
 #!/bin/bash
 INPUT=$(cat)
-TOOL=$(echo "$INPUT" | jq -r '.preToolUse.tool')
+TOOL=$(echo "$INPUT" | jq -r '.preToolUse.toolName')
 FILE_PATH=$(echo "$INPUT" | jq -r '.preToolUse.parameters.path // empty')
 
 if [[ "$TOOL" == "write_to_file" && "$FILE_PATH" == *.js ]]; then
@@ -367,11 +371,11 @@ The input includes execution results:
 ```json
 {
   "postToolUse": {
-    "tool": "execute_command",
+    "toolName": "execute_command",
     "parameters": { "command": "npm test" },
     "result": "All tests passed",
     "success": true,
-    "durationMs": 3450
+    "executionTimeMs": 3450
   }
 }
 ```
@@ -401,8 +405,14 @@ The input includes context metrics:
 ```json
 {
   "preCompact": {
-    "conversationLength": 45,
-    "estimatedTokens": 125000
+    "taskId": "abc123",
+    "ulid": "01J...",
+    "contextSize": 45,
+    "compactionStrategy": "auto-condense",
+    "tokensIn": 125000,
+    "tokensOut": 8500,
+    "tokensInCache": 0,
+    "tokensOutCache": 0
   }
 }
 ```
@@ -418,7 +428,7 @@ Block creation of `.js` files in a TypeScript project:
 # PreToolUse hook
 
 INPUT=$(cat)
-TOOL=$(echo "$INPUT" | jq -r '.preToolUse.tool')
+TOOL=$(echo "$INPUT" | jq -r '.preToolUse.toolName')
 FILE_PATH=$(echo "$INPUT" | jq -r '.preToolUse.parameters.path // empty')
 
 if [[ "$TOOL" == "write_to_file" && "$FILE_PATH" == *.js ]]; then
@@ -438,9 +448,9 @@ Log all tool executions to a file:
 # PostToolUse hook
 
 INPUT=$(cat)
-TOOL=$(echo "$INPUT" | jq -r '.postToolUse.tool')
+TOOL=$(echo "$INPUT" | jq -r '.postToolUse.toolName')
 SUCCESS=$(echo "$INPUT" | jq -r '.postToolUse.success')
-DURATION=$(echo "$INPUT" | jq -r '.postToolUse.durationMs')
+DURATION=$(echo "$INPUT" | jq -r '.postToolUse.executionTimeMs')
 
 echo "$(date -Iseconds) | $TOOL | success=$SUCCESS | ${DURATION}ms" >> ~/.cline-tool-log.txt
 

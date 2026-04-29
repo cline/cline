@@ -15,9 +15,29 @@
  * 5. Publishes to OpenVSX Registry (if OVSX_PAT is set)
  * 6. Restores the original package.json
  *
+ * Channels:
+ *   By default, the extension is published to the RELEASE channel of
+ *   `cline-nightly` (this is what the scheduled daily nightly workflow
+ *   uses). Pass --pre-release to instead publish to the pre-release
+ *   channel of `cline-nightly` (used for manual publishes from feature
+ *   branches that need tester opt-in via "Switch to Pre-Release Version").
+ *
+ *   Note on version ordering: because VS Code serves pre-release users
+ *   whichever version is highest across *both* channels, the pre-release
+ *   build only stays selected while its version number is greater than
+ *   the latest release nightly. Since both channels use
+ *   `major.minor.<unix-timestamp>`, the most recently published build
+ *   wins. When this script is used for a manual pre-release publish, the
+ *   scheduled release nightly workflow will eventually publish a newer
+ *   timestamp and pull pre-release users forward onto release — which is
+ *   the desired behavior once an experimental branch is abandoned, but
+ *   means ongoing previews require re-publishing from the branch at
+ *   least as often as the scheduled release nightly runs.
+ *
  * Usage:
- *   npm run publish:marketplace:nightly
- *   npm run publish:marketplace:nightly -- --dry-run
+ *   npm run publish:marketplace:nightly                    # release channel
+ *   npm run publish:marketplace:nightly -- --pre-release   # pre-release channel
+ *   npm run publish:marketplace:nightly -- --dry-run       # package only
  *
  * Environment variables:
  *   VSCE_PAT  - Personal Access Token for VS Code Marketplace
@@ -326,17 +346,17 @@ class NightlyPublisher {
 	/**
 	 * Package the extension
 	 */
-	packageExtension() {
+	packageExtension(isPreRelease = false) {
 		// Ensure dist directory exists
 		if (!fs.existsSync(config.distDir)) {
 			fs.mkdirSync(config.distDir, { recursive: true })
 		}
 
-		log.info("Packaging extension")
+		log.info(`Packaging extension${isPreRelease ? " (pre-release)" : ""}`)
 
 		const args = [
 			"package",
-			"--pre-release",
+			...(isPreRelease ? ["--pre-release"] : []),
 			"--no-update-package-json",
 			"--no-git-tag-version",
 			"--allow-package-secrets",
@@ -359,7 +379,7 @@ class NightlyPublisher {
 	/**
 	 * Publish to VS Code Marketplace
 	 */
-	publishToVSCodeMarketplace() {
+	publishToVSCodeMarketplace(isPreRelease = false) {
 		const token = process.env.VSCE_PAT
 
 		if (!token) {
@@ -367,9 +387,15 @@ class NightlyPublisher {
 			return false
 		}
 
-		log.info("Publishing to VS Code Marketplace")
+		log.info(`Publishing to VS Code Marketplace${isPreRelease ? " (pre-release channel)" : ""}`)
 
-		const args = ["publish", "--pre-release", "--no-git-tag-version", "--packagePath", config.vsixPath]
+		const args = [
+			"publish",
+			...(isPreRelease ? ["--pre-release"] : []),
+			"--no-git-tag-version",
+			"--packagePath",
+			config.vsixPath,
+		]
 
 		try {
 			execFileSync("vsce", args, {
@@ -387,7 +413,7 @@ class NightlyPublisher {
 	/**
 	 * Publish to OpenVSX Registry
 	 */
-	publishToOpenVSX() {
+	publishToOpenVSX(isPreRelease = false) {
 		const token = process.env.OVSX_PAT
 
 		if (!token) {
@@ -395,9 +421,17 @@ class NightlyPublisher {
 			return false
 		}
 
-		log.info("Publishing to OpenVSX Registry")
+		log.info(`Publishing to OpenVSX Registry${isPreRelease ? " (pre-release channel)" : ""}`)
 
-		const args = ["ovsx", "publish", "--pre-release", "--packagePath", config.vsixPath, "--pat", token]
+		const args = [
+			"ovsx",
+			"publish",
+			...(isPreRelease ? ["--pre-release"] : []),
+			"--packagePath",
+			config.vsixPath,
+			"--pat",
+			token,
+		]
 
 		try {
 			execFileSync("npx", args, {
@@ -414,9 +448,10 @@ class NightlyPublisher {
 	/**
 	 * Main execution flow
 	 */
-	async run(isDryRun = false) {
+	async run({ isDryRun = false, isPreRelease = false } = {}) {
 		try {
-			log.info(`Starting nightly publish process${isDryRun ? " (dry run)" : ""}`)
+			const channelLabel = isPreRelease ? " (pre-release channel)" : " (release channel)"
+			log.info(`Starting nightly publish process${channelLabel}${isDryRun ? " (dry run)" : ""}`)
 
 			// Step 1: Check dependencies
 			this.checkDependencies()
@@ -431,7 +466,7 @@ class NightlyPublisher {
 			this.reconcileWorkspaceSelfLinkForNightly()
 
 			// Step 4: Package extension
-			this.packageExtension()
+			this.packageExtension(isPreRelease)
 
 			// Step 5: Publish to marketplaces (skip if dry run)
 			let vsCodePublished = false
@@ -440,8 +475,8 @@ class NightlyPublisher {
 			if (isDryRun) {
 				log.info("Dry run mode: Skipping marketplace publishing")
 			} else {
-				vsCodePublished = this.publishToVSCodeMarketplace()
-				openVSXPublished = this.publishToOpenVSX()
+				vsCodePublished = this.publishToVSCodeMarketplace(isPreRelease)
+				openVSXPublished = this.publishToOpenVSX(isPreRelease)
 			}
 
 			// Summary
@@ -490,6 +525,13 @@ process.on("SIGTERM", () => {
 // Parse command line arguments
 const args = process.argv.slice(2)
 const isDryRun = args.includes("--dry-run") || args.includes("-n")
+const isPreRelease = args.includes("--pre-release")
+const knownFlags = ["--dry-run", "-n", "--pre-release", "--help", "-h"]
+const unknownArgs = args.filter((a) => !knownFlags.includes(a))
+if (unknownArgs.length > 0) {
+	log.error(`Unknown argument(s): ${unknownArgs.join(", ")}. Run with --help for usage.`)
+	process.exit(1)
+}
 const showHelp = args.includes("--help") || args.includes("-h")
 
 if (showHelp) {
@@ -500,6 +542,9 @@ Usage:
   npm run publish:marketplace:nightly [options]
 
 Options:
+  --pre-release    Publish to the pre-release channel of cline-nightly.
+                   Default is the release channel (used by the scheduled
+                   nightly workflow).
   --dry-run, -n    Run without actually publishing (package only)
   --help, -h       Show this help message
 
@@ -508,15 +553,16 @@ Environment variables:
   OVSX_PAT         Personal Access Token for OpenVSX Registry
 
 Examples:
-  npm run publish:marketplace:nightly                    # Full publish
-  npm run publish:marketplace:nightly  -- --dry-run      # Package only
-  VSCE_PAT="token" npm run publish:marketplace:nightly   # Publish to VS Code only
+  npm run publish:marketplace:nightly                      # Release channel publish
+  npm run publish:marketplace:nightly -- --pre-release     # Pre-release channel publish
+  npm run publish:marketplace:nightly -- --dry-run         # Package only
+  VSCE_PAT="token" npm run publish:marketplace:nightly     # Publish to VS Code only
 `)
 	process.exit(0)
 }
 
 // Run the publisher
-publisher.run(isDryRun).catch((error) => {
+publisher.run({ isDryRun, isPreRelease }).catch((error) => {
 	log.error(error.message)
 	process.exit(1)
 })

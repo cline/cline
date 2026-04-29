@@ -1,4 +1,3 @@
-// biome-ignore-all lint/suspicious/noUselessEscapeInString: keep shell JSON echo pattern aligned with existing templates
 /**
  * Hook script templates for all supported hook types.
  * On Unix, templates are Bash scripts with comprehensive examples.
@@ -53,7 +52,13 @@ function getTaskStartTemplate(): string {
 # 
 # Executes when a new task begins.
 # 
-# Input: { taskId, taskStart: { task: string }, clineVersion, timestamp, ... }
+# Input: { 
+#   taskId, 
+#   taskStart: { 
+#     taskMetadata: { taskId: string, ulid: string, initialTask: string } 
+#   }, 
+#   clineVersion, timestamp, ... 
+# }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -67,7 +72,7 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  TASK=$(echo "$INPUT" | jq -r '.taskStart.task')
+  TASK=$(echo "$INPUT" | jq -r '.taskStart.taskMetadata.initialTask')
   TASK_ID=$(echo "$INPUT" | jq -r '.taskId')
   TIMESTAMP=$(echo "$INPUT" | jq -r '.timestamp')
 else
@@ -85,8 +90,13 @@ echo "[TaskStart] Task ID: $TASK_ID" >&2
 TIMESTAMP_ISO=$(date -u -d @"$((TIMESTAMP/1000))" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
 CONTEXT_MOD="Note: Task started at $TIMESTAMP_ISO"
 
-# Return result as JSON
-echo "{\"cancel\":false,\"contextModification\":\"$CONTEXT_MOD\",\"errorMessage\":\"\"}"
+# Return result as JSON (use jq to safely encode the variable, with a simple fallback)
+if command -v jq &> /dev/null; then
+  jq -n --arg ctx "$CONTEXT_MOD" '{"cancel":false,"contextModification":$ctx,"errorMessage":""}'
+else
+  ESCAPED_MOD=$(printf '%s' "$CONTEXT_MOD" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+  echo '{"cancel":false,"contextModification":"'"$ESCAPED_MOD"'","errorMessage":""}'
+fi
 `
 }
 
@@ -97,7 +107,14 @@ function getTaskResumeTemplate(): string {
 # 
 # Executes when a task is resumed after being interrupted.
 # 
-# Input: { taskId, taskResume: { task: string }, clineVersion, timestamp, ... }
+# Input: { 
+#   taskId, 
+#   taskResume: { 
+#     taskMetadata: { taskId: string, ulid: string },
+#     previousState: { lastMessageTs: string, messageCount: string, conversationHistoryDeleted: string }
+#   }, 
+#   clineVersion, timestamp, ... 
+# }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -110,15 +127,17 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  TASK=$(echo "$INPUT" | jq -r '.taskResume.task')
+  TASK_ID=$(echo "$INPUT" | jq -r '.taskResume.taskMetadata.taskId')
+  MSG_COUNT=$(echo "$INPUT" | jq -r '.taskResume.previousState.messageCount')
 else
-  TASK="<task>"
+  TASK_ID="<taskId>"
+  MSG_COUNT="0"
 fi
 
-echo "[TaskResume] Resuming task: $TASK" >&2
+echo "[TaskResume] Resuming task: $TASK_ID (previous messages: $MSG_COUNT)" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -129,7 +148,13 @@ function getTaskCancelTemplate(): string {
 # 
 # Executes when a task is cancelled by the user.
 # 
-# Input: { taskId, taskCancel: { task: string }, clineVersion, timestamp, ... }
+# Input: { 
+#   taskId, 
+#   taskCancel: { 
+#     taskMetadata: { taskId: string, ulid: string, completionStatus: string } 
+#   }, 
+#   clineVersion, timestamp, ... 
+# }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -142,15 +167,17 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  TASK=$(echo "$INPUT" | jq -r '.taskCancel.task')
+  TASK_ID=$(echo "$INPUT" | jq -r '.taskCancel.taskMetadata.taskId')
+  STATUS=$(echo "$INPUT" | jq -r '.taskCancel.taskMetadata.completionStatus')
 else
-  TASK="<task>"
+  TASK_ID="<taskId>"
+  STATUS="cancelled"
 fi
 
-echo "[TaskCancel] Task cancelled: $TASK" >&2
+echo "[TaskCancel] Task cancelled: $TASK_ID (status: $STATUS)" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -161,7 +188,13 @@ function getTaskCompleteTemplate(): string {
 # 
 # Executes when a task completes successfully.
 # 
-# Input: { taskId, taskComplete: { task: string }, clineVersion, timestamp, ... }
+# Input: { 
+#   taskId, 
+#   taskComplete: { 
+#     taskMetadata: { taskId: string, ulid: string, result: string, command: string } 
+#   }, 
+#   clineVersion, timestamp, ... 
+# }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -175,15 +208,17 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  TASK=$(echo "$INPUT" | jq -r '.taskComplete.task')
+  TASK_ID=$(echo "$INPUT" | jq -r '.taskComplete.taskMetadata.taskId')
+  RESULT=$(echo "$INPUT" | jq -r '.taskComplete.taskMetadata.result')
 else
-  TASK="<task>"
+  TASK_ID="<taskId>"
+  RESULT="<result>"
 fi
 
-echo "[TaskComplete] Task completed: $TASK" >&2
+echo "[TaskComplete] Task completed: $TASK_ID (result: $RESULT)" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -194,7 +229,7 @@ function getPreToolUseTemplate(): string {
 # 
 # Executes before any tool is used (read_file, write_to_file, execute_command, etc.)
 # 
-# Input: { taskId, preToolUse: { tool: string, parameters: object }, ... }
+# Input: { taskId, preToolUse: { toolName: string, parameters: object }, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -208,7 +243,7 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  TOOL=$(echo "$INPUT" | jq -r '.preToolUse.tool')
+  TOOL=$(echo "$INPUT" | jq -r '.preToolUse.toolName')
   COMMAND=$(echo "$INPUT" | jq -r '.preToolUse.parameters.command // empty')
 else
   TOOL="<tool>"
@@ -217,7 +252,7 @@ fi
 
 # Example: Block dangerous operations
 if [[ "$TOOL" == "execute_command" ]] && [[ "$COMMAND" == *"rm -rf /"* ]]; then
-  echo "{\"cancel\":true,\"errorMessage\":\"Dangerous command blocked by PreToolUse hook\"}"
+  echo '{"cancel":true,"errorMessage":"Dangerous command blocked by PreToolUse hook"}'
   exit 0
 fi
 
@@ -225,7 +260,7 @@ fi
 echo "[PreToolUse] Tool about to execute: $TOOL" >&2
 
 # Allow execution
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -239,11 +274,11 @@ function getPostToolUseTemplate(): string {
 # Input: { 
 #   taskId, 
 #   postToolUse: { 
-#     tool: string, 
+#     toolName: string, 
 #     parameters: object,
 #     result: string,
 #     success: boolean,
-#     durationMs: number
+#     executionTimeMs: number
 #   }, 
 #   ... 
 # }
@@ -260,9 +295,9 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  TOOL=$(echo "$INPUT" | jq -r '.postToolUse.tool')
+  TOOL=$(echo "$INPUT" | jq -r '.postToolUse.toolName')
   SUCCESS=$(echo "$INPUT" | jq -r '.postToolUse.success')
-  DURATION=$(echo "$INPUT" | jq -r '.postToolUse.durationMs')
+  DURATION=$(echo "$INPUT" | jq -r '.postToolUse.executionTimeMs')
 else
   TOOL="<tool>"
   SUCCESS="true"
@@ -275,7 +310,7 @@ STATUS="success"
 echo "[PostToolUse] Tool completed: $TOOL ($STATUS) in \${DURATION}ms" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -286,7 +321,7 @@ function getUserPromptSubmitTemplate(): string {
 # 
 # Executes when the user submits a prompt to Cline.
 # 
-# Input: { taskId, userPromptSubmit: { prompt: string }, clineVersion, timestamp, ... }
+# Input: { taskId, userPromptSubmit: { prompt: string, attachments: string[] }, clineVersion, timestamp, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -309,7 +344,7 @@ fi
 echo "[UserPromptSubmit] User submitted prompt (length: $PROMPT_LENGTH)" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -372,7 +407,7 @@ fi
 
 echo "[Notification] event=$EVENT source=$SOURCE sourceType=$SOURCE_TYPE waitingForUserInput=$WAITING requiresUserAction=$REQUIRES_ACTION severity=$SEVERITY eventVersion=$EVENT_VERSION" >&2
 
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -386,8 +421,19 @@ function getPreCompactTemplate(): string {
 # Input: { 
 #   taskId, 
 #   preCompact: { 
-#     conversationLength: number,
-#     estimatedTokens: number 
+#     taskId: string,
+#     ulid: string,
+#     contextSize: number,
+#     compactionStrategy: string,
+#     previousApiReqIndex: number,
+#     tokensIn: number,
+#     tokensOut: number,
+#     tokensInCache: number,
+#     tokensOutCache: number,
+#     deletedRangeStart: number,
+#     deletedRangeEnd: number,
+#     contextJsonPath: string,
+#     contextRawPath: string
 #   }, 
 #   ... 
 # }
@@ -403,17 +449,21 @@ INPUT=$(cat)
 
 # Parse input using jq (or fallback to basic parsing)
 if command -v jq &> /dev/null; then
-  CONV_LENGTH=$(echo "$INPUT" | jq -r '.preCompact.conversationLength')
-  EST_TOKENS=$(echo "$INPUT" | jq -r '.preCompact.estimatedTokens')
+  CONTEXT_SIZE=$(echo "$INPUT" | jq -r '.preCompact.contextSize')
+  STRATEGY=$(echo "$INPUT" | jq -r '.preCompact.compactionStrategy')
+  TOKENS_IN=$(echo "$INPUT" | jq -r '.preCompact.tokensIn')
+  TOKENS_OUT=$(echo "$INPUT" | jq -r '.preCompact.tokensOut')
 else
-  CONV_LENGTH="<length>"
-  EST_TOKENS="<tokens>"
+  CONTEXT_SIZE="<size>"
+  STRATEGY="<strategy>"
+  TOKENS_IN="<tokens>"
+  TOKENS_OUT="<tokens>"
 fi
 
-echo "[PreCompact] About to compact conversation (messages: $CONV_LENGTH, tokens: $EST_TOKENS)" >&2
+echo "[PreCompact] About to compact conversation (contextSize: $CONTEXT_SIZE, strategy: $STRATEGY, tokensIn: $TOKENS_IN, tokensOut: $TOKENS_OUT)" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }
 
@@ -439,6 +489,6 @@ fi
 echo "[${hookName}] Executed for task $TASK_ID" >&2
 
 # Return result
-echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }

@@ -21,32 +21,7 @@ For example:
 
 Pass this string as the `model` parameter in your [Chat Completions](/api/chat-completions) request.
 
-## Popular Models
-
-| Model ID | Provider | Context Window | Reasoning | Best For |
-|----------|----------|---------------|-----------|----------|
-| `anthropic/claude-sonnet-4-6` | Anthropic | 200K | Yes | General coding, analysis, complex tasks |
-| `anthropic/claude-sonnet-4-5` | Anthropic | 200K | Yes | Balanced performance and cost |
-| `openai/gpt-4o` | OpenAI | 128K | No | Multimodal tasks, fast responses |
-| `google/gemini-2.5-pro` | Google | 1M | Yes | Very long context, document analysis |
-| `deepseek/deepseek-chat` | DeepSeek | 64K | No | Cost-effective coding tasks |
-| `x-ai/grok-3` | xAI | 128K | Yes | Reasoning-heavy tasks |
-
-<Note>
-  Model availability and pricing change over time. Check [app.cline.bot](https://app.cline.bot) for the latest catalog.
-</Note>
-
-## Free Models
-
-These models are available at no cost. They are a good starting point for experimentation and lightweight tasks:
-
-| Model ID | Provider | Context Window |
-|----------|----------|---------------|
-| `minimax/minimax-m2.5` | MiniMax | 1M |
-| `kwaipilot/kat-coder-pro` | Kwaipilot | 32K |
-| `z-ai/glm-5` | Z-AI | 128K |
-
-Free models have the same API interface as paid models. Just use their model ID:
+Example:
 
 ```bash
 curl -X POST https://api.cline.bot/api/v1/chat/completions \
