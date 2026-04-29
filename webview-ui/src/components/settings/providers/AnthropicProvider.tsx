@@ -8,7 +8,7 @@ import {
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import styled from "styled-components"
 import { Label } from "@/components/ui/label"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -64,10 +64,6 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [useCustomModel, setUseCustomModel] = useState(!!modeFields.anthropicModelInfo)
-
-	useEffect(() => {
-		setUseCustomModel(!!modeFields.anthropicModelInfo)
-	}, [currentMode])
 
 	// Get the normalized configuration
 	const baseSelection = normalizeApiConfiguration(apiConfiguration, currentMode)
