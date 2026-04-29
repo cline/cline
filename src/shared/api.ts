@@ -2202,9 +2202,14 @@ export const deepSeekModels = {
 		outputPrice: 1.1,
 		cacheWritesPrice: 0.27,
 		cacheReadsPrice: 0.07,
+		supportsReasoning: false,
+		supportsReasoningEffort: false,
+		apiFormat: ApiFormat.OPENAI_CHAT,
+		supportsTools: true,
+		supportsStreaming: true,
 	},
 	"deepseek-reasoner": {
-		maxTokens: 8_000,
+		maxTokens: 8_192,
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
@@ -2212,8 +2217,46 @@ export const deepSeekModels = {
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
+		supportsReasoning: false,
+		supportsReasoningEffort: false,
+		apiFormat: ApiFormat.R1_CHAT,
+		isR1FormatRequired: true,
+		supportsTools: true,
+		supportsStreaming: true,
 	},
-} as const satisfies Record<string, ModelInfo>
+	"deepseek-v4-flash": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.07,
+		cacheReadsPrice: 0.028,
+		supportsReasoning: false,
+		supportsReasoningEffort: false,
+		apiFormat: ApiFormat.OPENAI_CHAT,
+		supportsTools: true,
+		supportsStreaming: true,
+	},
+	"deepseek-v4-pro": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0, // uses cache-based pricing
+		outputPrice: 3.48,
+		cacheWritesPrice: 1.74,
+		cacheReadsPrice: 0.145,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+		apiFormat: ApiFormat.OPENAI_CHAT,
+		supportsTools: true,
+		supportsStreaming: true,
+		description:
+			"DeepSeek V4 Pro — 1M context window with reasoning capabilities. Supports reasoning_effort (high/Xhigh->max) for complex problem-solving and agent tasks.",
+	},
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Hugging Face Inference Providers
 // https://huggingface.co/docs/inference-providers/en/index
@@ -4642,21 +4685,11 @@ export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
-// https://docs.z.ai/guides/llm/glm-5.1
 // https://docs.z.ai/guides/llm/glm-5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5.1"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5"
 export const internationalZAiModels = {
-	"glm-5.1": {
-		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		cacheReadsPrice: 0.26,
-		inputPrice: 1.4,
-		outputPrice: 4.4,
-	},
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -4711,17 +4744,8 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5.1"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5"
 export const mainlandZAiModels = {
-	"glm-5.1": {
-		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		cacheReadsPrice: 0.26,
-		inputPrice: 1.4,
-		outputPrice: 4.4,
-	},
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,

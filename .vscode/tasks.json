@@ -262,7 +262,7 @@
 			"dependsOn": [
 				"watch"
 			],
-			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
+			"command": "Remove-Item -Recurse -Force \"${workspaceFolder}\\dist\\tmp\\user\" -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force -Path \"${workspaceFolder}\\dist\\tmp\\user\" | Out-Null"
 		},
 		{
 			"type": "npm",

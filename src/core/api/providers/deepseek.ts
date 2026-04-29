@@ -1,7 +1,8 @@
-import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } from "@shared/api"
+import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo, OpenAiCompatibleModelInfo } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import type { ChatCompletionReasoningEffort, ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -12,17 +13,50 @@ import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
+type DeepSeekReasoningEffort = "high" | "max"
+
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
+	deepSeekBaseUrl?: string
 	apiModelId?: string
+	reasoningEffort?: string
+	thinkingBudgetTokens?: number
 }
 
+/**
+ * DeepSeek API handler implementing OpenAI-compatible chat completions.
+ *
+ * ## Billing Model Differences (DeepSeek vs Anthropic)
+ *
+ * DeepSeek reports total input tokens as the sum of cache hits and misses:
+ *   `prompt_tokens = cache_hit_tokens + cache_miss_tokens`
+ *
+ * Anthropic reports them separately:
+ *   `input_tokens = non-cached tokens` (cache_read/write are separate fields)
+ *
+ * This affects:
+ * 1. Context management truncation — `inputTokens` is always 0 for DeepSeek,
+ *    so truncation decisions must rely on `cacheReadTokens` and `cacheWriteTokens`
+ *    as proxies for actual prompt processing cost.
+ * 2. Cost calculation — uses the OpenAI formula which expects `prompt_tokens`,
+ *    `cache_hit_tokens`, and `cache_miss_tokens`.
+ *
+ * @see https://api-docs.deepseek.com/guides/kv_cache
+ */
 export class DeepSeekHandler implements ApiHandler {
 	private options: DeepSeekHandlerOptions
 	private client: OpenAI | undefined
+	private abortController: AbortController | null = null
+	private isAborted = false
 
 	constructor(options: DeepSeekHandlerOptions) {
 		this.options = options
+	}
+
+	abort(): void {
+		this.isAborted = true
+		this.abortController?.abort()
+		this.abortController = null
 	}
 
 	private ensureClient(): OpenAI {
@@ -32,7 +66,7 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.deepseek.com/v1",
+					baseURL: this.options.deepSeekBaseUrl || "https://api.deepseek.com",
 					apiKey: this.options.deepSeekApiKey,
 					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
@@ -45,15 +79,21 @@ export class DeepSeekHandler implements ApiHandler {
 	}
 
 	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
-		// Deepseek reports total input AND cache reads/writes,
-		// see context caching: https://api-docs.deepseek.com/guides/kv_cache)
-		// where the input tokens is the sum of the cache hits/misses, just like OpenAI.
+		// DeepSeek reports total input AND cache reads/writes,
+		// see context caching: https://api-docs.deepseek.com/guides/kv_cache
+		// where the input tokens (prompt_tokens) is the sum of cache hits and misses, just like OpenAI.
+		//
+		// DeepSeek's caching model differs from Anthropic's:
+		//   - Anthropic: input_tokens = non-cached tokens (separate cache_read/write tokens)
+		//   - DeepSeek: prompt_tokens = cache_hit_tokens + cache_miss_tokens (no non-cached input)
+		//
 		// This affects:
-		// 1) context management truncation algorithm, and
-		// 2) cost calculation
+		// 1) Context management truncation — inputTokens is always 0, so truncation
+		//    decisions must rely on cacheReadTokens and cacheWriteTokens as proxies for
+		//    actual prompt processing cost.
+		// 2) Cost calculation — uses the OpenAI formula which expects prompt_tokens,
+		//    cache_hit_tokens, and cache_miss_tokens.
 
-		// Deepseek usage includes extra fields.
-		// Safely cast the prompt token details section to the appropriate structure.
 		interface DeepSeekUsage extends OpenAI.CompletionUsage {
 			prompt_cache_hit_tokens?: number
 			prompt_cache_miss_tokens?: number
@@ -65,7 +105,9 @@ export class DeepSeekHandler implements ApiHandler {
 		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
 		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
 		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
-		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens) // this will always be 0
+		// In DeepSeek's model, all input tokens are accounted as either cache hits or misses,
+		// so the non-cached token count is always 0.
+		const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 		yield {
 			type: "usage",
 			inputTokens: nonCachedInputTokens,
@@ -76,32 +118,87 @@ export class DeepSeekHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Maps OpenAI-standard reasoning effort levels to DeepSeek V4 Pro supported values.
+	 * DeepSeek V4 Pro only supports "high" and "max".
+	 * - "none" → undefined (disables reasoning)
+	 * - "xhigh" → "max"
+	 * - Any other value (low/medium/high) → "high"
+	 */
+	private toDeepSeekReasoningEffort(effort?: string): DeepSeekReasoningEffort | undefined {
+		const normalized = normalizeOpenaiReasoningEffort(effort)
+		if (normalized === "none") {
+			return undefined
+		}
+		return normalized === "xhigh" ? "max" : "high"
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
+		const modelInfo = model.info as OpenAiCompatibleModelInfo
+		const isDeepseekReasoner = modelInfo.isR1FormatRequired === true
+		const isDeepseekV4Pro = modelInfo.supportsReasoningEffort === true
 
 		const convertedMessages = convertToOpenAiMessages(messages)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
-		const stream = await client.chat.completions.create({
-			model: model.id,
-			max_completion_tokens: model.info.maxTokens,
-			messages: openAiMessages,
-			stream: true,
-			stream_options: { include_usage: true },
-			// Only set temperature for non-reasoner models
-			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
-			...getOpenAIToolParams(tools),
-		})
+		const reasoningEffort = isDeepseekV4Pro ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
+
+		let maxTokens = model.info.maxTokens
+
+		// For V4 Pro, thinkingBudgetTokens serves as an explicit cap on total output tokens
+		// (including reasoning). Since DeepSeek does NOT have a dedicated reasoning budget API
+		// parameter like Anthropic's `thinking.budget_tokens`, thinkingBudgetTokens here acts
+		// as a user-specified ceiling to prevent runaway costs.
+		//
+		// IMPORTANT: We MUST NOT blindly replace maxTokens with thinkingBudgetTokens, because
+		// the total output includes tool call results. If thinkingBudgetTokens is too low, tool
+		// calls may be truncated mid-execution, causing task failures.
+		//
+		// Strategy:
+		// 1. Keep model.info.maxTokens as the default ceiling.
+		// 2. If thinkingBudgetTokens is explicitly set AND smaller than maxTokens, cap at
+		//    thinkingBudgetTokens (user wants a stricter limit).
+		// 3. Enforce a minimum floor of 8192 tokens to prevent tool call starvation.
+		// 4. The primary reasoning control for V4 Pro remains the `reasoning_effort` parameter.
+		if (isDeepseekV4Pro && this.options.thinkingBudgetTokens !== undefined && this.options.thinkingBudgetTokens > 0) {
+			const MIN_TOKENS_FLOOR = 8192 // Minimum to prevent tool call truncation
+			const modelMaxTokens = model.info.maxTokens ?? 0
+			const cappedTokens =
+				modelMaxTokens > 0
+					? Math.min(modelMaxTokens, this.options.thinkingBudgetTokens)
+					: this.options.thinkingBudgetTokens
+			maxTokens = Math.max(MIN_TOKENS_FLOOR, cappedTokens)
+		}
+
+		this.abortController = new AbortController()
+
+		const stream = await client.chat.completions.create(
+			{
+				model: model.id,
+				max_completion_tokens: maxTokens,
+				messages: openAiMessages,
+				stream: true,
+				stream_options: { include_usage: true },
+				// Only set temperature for non-reasoner models (reasoner uses R1 format which doesn't support temperature)
+				...(isDeepseekReasoner ? {} : { temperature: 0 }),
+				...(reasoningEffort ? { reasoning_effort: reasoningEffort as ChatCompletionReasoningEffort } : {}),
+				...getOpenAIToolParams(tools),
+			},
+			{ signal: this.abortController.signal },
+		)
 
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
+			if (this.isAborted) {
+				break
+			}
 			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
