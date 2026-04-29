@@ -159,7 +159,6 @@ describe("File Search", () => {
 			const err = await fileSearch.executeRipgrepForFiles("/workspace", 5000).catch((e) => e)
 			should(err.message).match(/ripgrep exited with code 2/)
 			should(err).have.property("name", "RipgrepError")
-			should(err).have.property("exitCode", 2)
 			should(err.stderr).match(/No such file or directory/)
 		})
 	})

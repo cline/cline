@@ -17,13 +17,11 @@ export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 /** Thrown when ripgrep fails to spawn or exits non-zero. */
 export class RipgrepError extends Error {
 	public readonly stderr: string
-	public readonly exitCode: number | null
 
-	constructor(message: string, opts: { stderr?: string; exitCode?: number | null } = {}) {
+	constructor(message: string, opts: { stderr?: string } = {}) {
 		super(message)
 		this.name = "RipgrepError"
 		this.stderr = opts.stderr ?? ""
-		this.exitCode = opts.exitCode ?? null
 	}
 }
 
@@ -115,7 +113,7 @@ export async function executeRipgrepForFiles(
 						errorOutput
 							? `ripgrep exited with code ${exitCode}: ${errorOutput.trim()}`
 							: `ripgrep exited with code ${exitCode}`,
-						{ stderr: errorOutput.trim(), exitCode },
+						{ stderr: errorOutput.trim() },
 					),
 				)
 				return
@@ -130,7 +128,7 @@ export async function executeRipgrepForFiles(
 		})
 
 		rgProcess.on("error", (error) => {
-			reject(new RipgrepError(`ripgrep failed to spawn: ${error.message}`, { exitCode: null }))
+			reject(new RipgrepError(`ripgrep failed to spawn: ${error.message}`))
 		})
 	})
 }
