@@ -34,7 +34,7 @@ const session = await cline.start({
 Your application inherits everything the user has already set up:
 
 - Model providers and API keys configured through `cline auth`
-- Rules, skills, and workflows from `.cline/` directories
+- Rules, skills, hooks, and plugins from `.cline/` directories
 - MCP servers configured through `cline mcp`
 - Tool policies and auto-approve settings
 - Session history and checkpoints
@@ -48,7 +48,7 @@ If your app needs to override any of these (a different model, a custom system p
     Build editor integrations for any IDE. Your extension connects to the hub and gets full agent capabilities without bundling its own runtime. The user's existing provider config, rules, and tools just work.
   </Card>
   <Card title="CLI Tools" icon="terminal">
-    Build specialized command-line tools for your team's workflows. A `deploy` CLI, a `review` CLI, a `migrate` CLI -- each connecting to the same hub and sharing session history.
+    Build specialized command-line tools for your team's processes. A `deploy` CLI, a `review` CLI, a `migrate` CLI -- each connecting to the same hub and sharing session history.
   </Card>
   <Card title="Browser Extensions" icon="globe">
     Build Chrome extensions that can read the current page and send it to an agent for analysis, summarization, or action. Register browser-specific capabilities (reading page content, filling forms) that the agent can call.

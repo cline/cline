@@ -150,7 +150,7 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 | `task.checkpoint_used` | Checkpoint action used | action (create/restore/compare), task_id |
 | `task.option_selected` | User selected one of AI-provided options | option_index, total_options |
 | `task.options_ignored` | User ignored AI options and entered custom input | options_count |
-| `task.slash_command_used` | Slash command/workflow/MCP prompt command used | command_name, is_workflow |
+| `task.slash_command_used` | Slash command or MCP prompt command used | command_name |
 | `task.mention_used` | Mention resolution succeeded | mention_type (file/url/folder/terminal/problems/git) |
 | `task.mention_failed` | Mention resolution failed | mention_type, error_reason |
 | `task.mention_search_results` | Mention search query result telemetry | query, results_count |
@@ -232,7 +232,7 @@ Events tracking user interface interactions.
 | `ui.model_selected` | Model selected in UI | model, provider, previous_model |
 | `ui.model_favorite_toggled` | Model favorite toggled | model_id, is_favorited |
 | `ui.button_clicked` | UI button click event | button_id, context |
-| `ui.rules_menu_opened` | Rules/workflows menu/modal opened | menu_type |
+| `ui.rules_menu_opened` | Rules/skills menu/modal opened | menu_type |
 
 ### Example: ui.model_selected
 
