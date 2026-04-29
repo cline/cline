@@ -70,7 +70,68 @@
 						"group": "Getting Started",
 						"pages": [
 							"getting-started/installing-cline",
-							"getting-started/authorizing-with-cline"
+							{
+								"group": "Models & Providers",
+								"pages": [
+									"getting-started/authorizing-with-cline",
+									"getting-started/cline-provider",
+									"running-models-locally/overview",
+									{
+										"group": "Cloud Providers",
+										"pages": [
+											"provider-config/qwen",
+											"provider-config/anthropic",
+											"provider-config/asksage",
+											"provider-config/baseten",
+											"provider-config/cerebras",
+											"provider-config/claude-code",
+											"provider-config/deepseek",
+											"provider-config/doubao",
+											"provider-config/fireworks",
+											"provider-config/gcp-vertex-ai",
+											"provider-config/google-gemini",
+											"provider-config/groq",
+											"provider-config/huawei-cloud-maas",
+											"provider-config/huggingface",
+											"provider-config/minimax",
+											"provider-config/mistral-ai",
+											"provider-config/moonshot",
+											"provider-config/nebius",
+											"provider-config/nousresearch",
+											"provider-config/openai",
+											"provider-config/openai-codex",
+											"provider-config/openrouter",
+											"provider-config/oracle-code-assist",
+											"provider-config/qwen-code",
+											"provider-config/sambanova",
+											"provider-config/together",
+											"provider-config/xai-grok",
+											"provider-config/zai",
+											{
+												"group": "AWS Bedrock",
+												"pages": [
+													"provider-config/aws-bedrock/api-key",
+													"provider-config/aws-bedrock/iam-credentials",
+													"provider-config/aws-bedrock/cli-profile"
+												]
+											}
+										]
+									},
+									{
+										"group": "Advanced Configuration",
+										"pages": [
+											"provider-config/aihubmix",
+											"provider-config/dify",
+											"provider-config/hicap",
+											"provider-config/openai-compatible",
+											"provider-config/requesty",
+											"provider-config/sap-aicore",
+											"provider-config/vercel-ai-gateway",
+											"provider-config/vscode-language-model-api"
+										]
+									}
+								]
+							}
 						]
 					},
 					{
@@ -111,81 +172,6 @@
 							"features/jupyter-notebooks",
 							"features/web-tools",
 							"features/worktrees"
-						]
-					},
-					{
-						"group": "Models & Providers",
-						"pages": [
-							{
-								"group": "Choosing & Configuring Models",
-								"pages": [
-									"core-features/model-selection-guide",
-									"model-config/context-windows"
-								]
-							},
-							{
-								"group": "Running Models Locally",
-								"pages": [
-									"running-models-locally/overview",
-									"running-models-locally/ollama",
-									"running-models-locally/lm-studio"
-								]
-							},
-							{
-								"group": "Cloud Providers",
-								"pages": [
-									"provider-config/qwen",
-									"provider-config/anthropic",
-									"provider-config/asksage",
-									"provider-config/baseten",
-									"provider-config/cerebras",
-									"provider-config/claude-code",
-									"provider-config/deepseek",
-									"provider-config/doubao",
-									"provider-config/fireworks",
-									"provider-config/gcp-vertex-ai",
-									"provider-config/google-gemini",
-									"provider-config/groq",
-									"provider-config/huawei-cloud-maas",
-									"provider-config/huggingface",
-									"provider-config/minimax",
-									"provider-config/mistral-ai",
-									"provider-config/moonshot",
-									"provider-config/nebius",
-									"provider-config/nousresearch",
-									"provider-config/openai",
-									"provider-config/openai-codex",
-									"provider-config/openrouter",
-									"provider-config/oracle-code-assist",
-									"provider-config/qwen-code",
-									"provider-config/sambanova",
-									"provider-config/together",
-									"provider-config/xai-grok",
-									"provider-config/zai",
-									{
-										"group": "AWS Bedrock",
-										"pages": [
-											"provider-config/aws-bedrock/api-key",
-											"provider-config/aws-bedrock/iam-credentials",
-											"provider-config/aws-bedrock/cli-profile"
-										]
-									}
-								]
-							},
-							{
-								"group": "Advanced Configuration",
-								"pages": [
-									"provider-config/aihubmix",
-									"provider-config/dify",
-									"provider-config/hicap",
-									"provider-config/litellm-and-cline-using-codestral",
-									"provider-config/openai-compatible",
-									"provider-config/requesty",
-									"provider-config/sap-aicore",
-									"provider-config/vercel-ai-gateway",
-									"provider-config/vscode-language-model-api"
-								]
-							}
 						]
 					},
 					{
@@ -497,27 +483,43 @@
 		},
 		{
 			"source": "/getting-started/model-selection-guide",
-			"destination": "/core-features/model-selection-guide"
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/provider-config/ollama",
-			"destination": "/running-models-locally/ollama"
+			"destination": "/running-models-locally/overview#runtime-options"
 		},
 		{
 			"source": "/running-models-locally/read-me-first",
 			"destination": "/running-models-locally/overview"
 		},
 		{
+			"source": "/running-models-locally/ollama",
+			"destination": "/running-models-locally/overview#runtime-options"
+		},
+		{
+			"source": "/running-models-locally/lm-studio",
+			"destination": "/running-models-locally/overview#runtime-options"
+		},
+		{
 			"source": "/getting-started/understanding-context-management",
-			"destination": "/model-config/context-windows"
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/best-practices/understanding-context-management",
-			"destination": "/model-config/context-windows"
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/prompting/understanding-context-management",
-			"destination": "/model-config/context-windows"
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/model-config/context-windows",
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/core-features/model-selection-guide",
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/prompting/prompt-engineering-guide",

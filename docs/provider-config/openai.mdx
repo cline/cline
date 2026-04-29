@@ -1,60 +1,25 @@
 ---
 title: "OpenAI"
-description: "Learn how to configure and use official OpenAI models with Cline."
+description: "Learn how to configure and use official OpenAI provider with Cline."
 ---
 
 Cline supports accessing models directly through the official OpenAI API.
 
 **Website:** [https://openai.com/](https://openai.com/)
 
-### Getting an API Key
+### Get API Credentials
 
 1.  **Sign Up/Sign In:** Visit the [OpenAI Platform](https://platform.openai.com/). You'll need to create an account or sign in if you already have one.
 2.  **Navigate to API Keys:** Once logged in, go to the [API keys section](https://platform.openai.com/api-keys) of your account.
 3.  **Create a Key:** Click on "Create new secret key". It's good practice to give your key a descriptive name (e.g., "Cline API Key").
 4.  **Copy the Key:** **Crucial:** Copy the generated API key immediately. For security reasons, OpenAI will not show it to you again. Store this key in a safe and secure location.
 
-### Supported Models
-
-Cline is compatible with a variety of OpenAI models, including the latest frontier and reasoning models:
-
-#### GPT-5 Series
--   `gpt-5.2` (Default) - Latest flagship model with reasoning support
--   `gpt-5.2-codex` - Codex variant using Responses API (400K context)
--   `gpt-5.1` - Previous GPT-5 generation
--   `gpt-5.1-2025-11-13` - Dated snapshot of GPT-5.1
--   `gpt-5.1-codex` - Codex variant using Responses API
--   `gpt-5.1-chat-latest` - Chat-optimized variant (400K context)
--   `gpt-5-2025-08-07` - Original GPT-5 release
--   `gpt-5-codex` - GPT-5 Codex variant
--   `gpt-5-mini-2025-08-07` - Compact, cost-effective GPT-5
--   `gpt-5-nano-2025-08-07` - Ultra-compact GPT-5 for budget use
--   `gpt-5-chat-latest` - Chat-optimized GPT-5
-
-#### Reasoning Models
--   `o3` - Advanced reasoning with 200K context
--   `o4-mini` - Fast reasoning model
--   `o3-mini` - Compact reasoning model
--   `o1` - Original reasoning model
--   `o1-preview` - Preview reasoning model
--   `o1-mini` - Compact original reasoning model
-
-#### GPT-4 Series
--   `gpt-4.1` - 1M+ context window model
--   `gpt-4.1-mini` - Compact 1M context model
--   `gpt-4.1-nano` - Ultra-compact 1M context model
--   `gpt-4o` - Multimodal model with 128K context
--   `gpt-4o-mini` - Fast, affordable multimodal model
--   `chatgpt-4o-latest` - Latest ChatGPT-optimized variant
-
-For the most current list of available models and their capabilities, please refer to the official [OpenAI Models documentation](https://platform.openai.com/docs/models).
-
 ### Configuration in Cline
 
 1.  **Open Cline Settings:** Click the settings gear icon (⚙️) in the Cline panel.
 2.  **Select Provider:** Choose "OpenAI" from the "API Provider" dropdown menu.
 3.  **Enter API Key:** Paste your OpenAI API key into the "OpenAI API Key" field.
-4.  **Select Model:** Choose your desired model from the "Model" dropdown list.
+4.  **Select Provider Model:** Choose your desired model from the "Model" dropdown list.
 5.  **(Optional) Base URL:** If you need to use a proxy or a custom base URL for the OpenAI API, you can enter it here. Most users will not need to change this from the default.
 
 ### Tips and Notes
