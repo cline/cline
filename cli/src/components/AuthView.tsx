@@ -43,6 +43,7 @@ type AuthStep =
 	| "apikey"
 	| "modelid"
 	| "baseurl"
+	| "headers"
 	| "saving"
 	| "success"
 	| "error"
@@ -177,6 +178,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
+	const [headersJson, setHeadersJson] = useState("")
+	const [headersError, setHeadersError] = useState("")
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -426,7 +429,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	)
 
 	const saveConfiguration = useCallback(
-		async (model: string, base: string) => {
+		async (model: string, base: string, headers?: Record<string, string>) => {
 			try {
 				if (selectedProvider === "bedrock" && bedrockConfig) {
 					await applyBedrockConfig({
@@ -440,6 +443,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						apiKey,
 						modelId: model,
 						baseUrl: base,
+						headers,
 						controller,
 					})
 				}
@@ -469,7 +473,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setModelId(value)
 			}
 			// Only show baseurl step for OpenAI-like providers
-			if (["openai", "openai-native"].includes(selectedProvider)) {
+			if (["openai", "openai-native", "openai-compatible"].includes(selectedProvider)) {
 				setStep("baseurl")
 			} else {
 				setStep("saving")
@@ -482,10 +486,44 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const handleBaseUrlSubmit = useCallback(
 		(value: string) => {
 			setBaseUrl(value)
-			setStep("saving")
-			saveConfiguration(modelId, value)
+			// openai-compatible gets a headers step; other providers save immediately
+			if (selectedProvider === "openai-compatible") {
+				setStep("headers")
+			} else {
+				setStep("saving")
+				saveConfiguration(modelId, value)
+			}
 		},
-		[modelId, saveConfiguration],
+		[modelId, selectedProvider, saveConfiguration],
+	)
+
+	const handleHeadersSubmit = useCallback(
+		(value: string) => {
+			let parsedHeaders: Record<string, string> | undefined
+			if (value.trim()) {
+				try {
+					const parsed = JSON.parse(value.trim())
+					if (typeof parsed !== "object" || Array.isArray(parsed) || parsed === null) {
+						setHeadersError('Must be a JSON object, e.g. {"X-Key": "value"}')
+						return
+					}
+					// Validate all values are strings (HTTP headers must be string values)
+					const allStrings = Object.values(parsed).every((v) => typeof v === "string")
+					if (!allStrings) {
+						setHeadersError('All header values must be strings, e.g. {"X-Key": "value"}')
+						return
+					}
+					parsedHeaders = parsed as Record<string, string>
+				} catch {
+					setHeadersError('Invalid JSON. Try: {"X-Key": "value"}')
+					return
+				}
+			}
+			setHeadersError("")
+			setStep("saving")
+			saveConfiguration(modelId, baseUrl, parsedHeaders)
+		},
+		[modelId, baseUrl, saveConfiguration],
 	)
 
 	const handleClineModelSelect = useCallback(
@@ -582,6 +620,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "baseurl":
 				setBaseUrl("")
 				setStep("modelid")
+				break
+			case "headers":
+				setHeadersJson("")
+				setHeadersError("")
+				setStep("baseurl")
 				break
 			case "oca_employee_check":
 				setStep("provider")
@@ -717,6 +760,29 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					</Box>
 				)
 
+			case "headers":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">Custom headers (optional)</Text>
+						<Text> </Text>
+						<Text color="gray">For providers that need extra HTTP headers</Text>
+						<Text color="gray">{'e.g. {"X-API-Key": "your-key"}'}</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setHeadersJson}
+							onSubmit={handleHeadersSubmit}
+							placeholder="{}"
+							value={headersJson}
+						/>
+						<Text> </Text>
+						{headersError ? (
+							<Text color="red">{headersError}</Text>
+						) : (
+							<Text color="gray">Leave blank to skip, Enter to continue, Esc to go back</Text>
+						)}
+					</Box>
+				)
+
 			case "saving":
 				return (
 					<Box>
@@ -832,6 +898,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"provider",
 		"modelid",
 		"baseurl",
+		"headers",
 		"cline_auth",
 		"oca_auth",
 		"cline_model",
