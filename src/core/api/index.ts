@@ -8,6 +8,7 @@ import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
 import { AwsBedrockHandler } from "./providers/bedrock"
+import { BrainiallHandler } from "./providers/brainiall"
 import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
@@ -460,6 +461,12 @@ function createHandlerForProvider(
 			return new WandbHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				wandbApiKey: options.wandbApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "brainiall":
+			return new BrainiallHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				brainiallApiKey: options.brainiallApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		default:
