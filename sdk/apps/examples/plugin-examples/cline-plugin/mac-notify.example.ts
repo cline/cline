@@ -5,7 +5,7 @@
  *
  * CLI usage:
  *   mkdir -p .cline/plugins
- *   cp apps/examples/cline-plugin/mac-notify.example.ts .cline/plugins/mac-notify.ts
+ *   cp apps/examples/plugin-examples/cline-plugin/mac-notify.example.ts .cline/plugins/mac-notify.ts
  *   cline -i "Run the test suite"
  */
 

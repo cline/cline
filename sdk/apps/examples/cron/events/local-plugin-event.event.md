@@ -14,7 +14,7 @@ tags:
   - plugin
   - automation
 metadata:
-  source: apps/examples/cline-plugin/automation-events.ts
+  source: apps/examples/plugin-examples/cline-plugin/automation-events.ts
 ---
 Summarize the local plugin event and report the event subject, topic, and
 message payload.

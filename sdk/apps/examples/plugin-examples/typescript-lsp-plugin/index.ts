@@ -9,11 +9,11 @@
  * at runtime, so it has zero dependencies beyond Node builtins.
  *
  * CLI usage:
- *   cp apps/examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
+ *   cp apps/examples/plugin-examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
  *   clite -i "Find where createTool is defined"
  *
  * Direct demo usage:
- *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/typescript-lsp-plugin/index.ts
+ *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/typescript-lsp-plugin/index.ts
  */
 
 import { existsSync } from "node:fs";

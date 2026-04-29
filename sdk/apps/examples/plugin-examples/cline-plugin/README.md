@@ -9,7 +9,7 @@ Shows how to author a reusable plugin module that works in both the SDK and the 
 
 Example plugins:
 
-- [weathe-plugin.example.ts](./weathe-plugin.example.ts) - weather tool plus lifecycle metrics hooks
+- [weather-plugin.example.ts](./weather-plugin.example.ts) - weather tool plus lifecycle metrics hooks
 - [mac-notify.example.ts](./mac-notify.example.ts) - macOS Notification Center alert on successful run completion
 - [automation-events.ts](./automation-events.ts) - local plugin-emitted automation event example
 - [custom-compaction.example.ts](./custom-compaction.example.ts) - custom summary-based message compaction
@@ -20,7 +20,7 @@ The CLI does not have a `--plugin` flag yet. It discovers plugin modules from `.
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/cline-plugin/weathe-plugin.example.ts .cline/plugins/weather-metrics.ts
+cp apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts .cline/plugins/weather-metrics.ts
 
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
@@ -31,7 +31,7 @@ To send a macOS Notification Center alert when a run completes successfully:
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/cline-plugin/mac-notify.example.ts .cline/plugins/mac-notify.ts
+cp apps/examples/plugin-examples/cline-plugin/mac-notify.example.ts .cline/plugins/mac-notify.ts
 
 cline -i "Run the test suite"
 ```
@@ -42,7 +42,7 @@ To add custom provider-message compaction before each model call:
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/cline-plugin/custom-compaction.example.ts .cline/plugins/custom-compaction.ts
+cp apps/examples/plugin-examples/cline-plugin/custom-compaction.example.ts .cline/plugins/custom-compaction.ts
 
 cline -i "Search the codebase for dispatcher usage, then summarize it"
 ```
@@ -50,7 +50,7 @@ cline -i "Search the codebase for dispatcher usage, then summarize it"
 ## Run The Demo Directly
 
 ```bash
-ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/weathe-plugin.example.ts
+ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts
 ```
 
 ## How it works
@@ -82,7 +82,7 @@ const myPlugin: Plugin = {
 Then pass it to the agent:
 
 ```ts
-import plugin from "./weathe-plugin.example";
+import plugin from "./weather-plugin.example";
 
 const host = await ClineCore.create({});
 await host.start({

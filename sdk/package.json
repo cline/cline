@@ -5,6 +5,7 @@
 		"packages/*",
 		"apps/*",
 		"apps/examples/*",
+		"apps/examples/plugin-examples/*",
 		"apps/vscode/src/webview"
 	],
 	"scripts": {

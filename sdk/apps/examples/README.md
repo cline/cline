@@ -2,7 +2,7 @@
 
 Learn how to build with the Cline SDK through practical, runnable examples.
 
-## 📁 Example Collections
+## 📁 SDK Walk-through
 
 ### [`cline-sdk/`](./cline-sdk)
 
@@ -19,7 +19,9 @@ cd apps/examples/cline-sdk
 bun run 01-minimal.ts  # Get started in 30 seconds
 ```
 
-### [`cline-plugin/`](./cline-plugin)
+## 📁 Plugin Examples
+
+### [`cline-plugin/`](./plugin-examples/cline-plugin)
 
 **Plugin module example** showing how to extend the CLI and SDK with custom capabilities:
 
@@ -28,12 +30,12 @@ bun run 01-minimal.ts  # Get started in 30 seconds
 - Export a reusable plugin module for `.cline/plugins`
 
 ```bash
-mkdir -p .clinerules/plugins
-cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
+mkdir -p .cline/plugins
+cp apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts .cline/plugins/weather-metrics.ts
 clite -i "What's the weather like in Tokyo and Paris?"
 ```
 
-### [`typescript-lsp-plugin/`](./typescript-lsp-plugin)
+### [`typescript-lsp-plugin/`](./plugin-examples/typescript-lsp-plugin)
 
 TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by the TypeScript Language Service API. Resolves through imports, re-exports, and type aliases -- much more precise than text search.
 
@@ -43,11 +45,11 @@ TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by t
 - Zero extra dependencies -- resolves `typescript` from the target project
 
 ```bash
-cp apps/examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
+cp apps/examples/plugin-examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
 clite -i "Find where createTool is defined"
 ```
 
-### [`subagent-plugin/`](./subagent-plugin)
+### [`subagent-plugin/`](./plugin-examples/subagent-plugin)
 
 **Portable subagent plugin** that adds background agent orchestration tools to the CLI and SDK:
 
@@ -57,11 +59,13 @@ clite -i "Find where createTool is defined"
 
 ```bash
 mkdir -p ~/.cline/plugins
-cp apps/examples/subagent-plugin/index.ts ~/.cline/plugins/portable-subagents.ts
+cp apps/examples/plugin-examples/subagent-plugin/index.ts ~/.cline/plugins/portable-subagents.ts
 clite -i "Use subagents to inspect this repository and report back."
 ```
 
 Once loaded, the agent can call tools like `start_subagent`, `message_subagent`, `get_subagent`, `list_agent_presets`, `list_skills`, and the handoff tools.
+
+## 📁 App Examples
 
 ### [`slack-bot/`](./slack-bot)
 
@@ -135,7 +139,7 @@ Current SDK layering:
 
 **Building integrations?**
 - Check out the [`slack-bot/`](./slack-bot) for production patterns
-- See [`cline-plugin/`](./cline-plugin), [`typescript-lsp-plugin/`](./typescript-lsp-plugin), and [`subagent-plugin/`](./subagent-plugin) for reusable extensions
+- See [`cline-plugin/`](./plugin-examples/cline-plugin), [`typescript-lsp-plugin/`](./plugin-examples/typescript-lsp-plugin), and [`subagent-plugin/`](./plugin-examples/subagent-plugin) for reusable extensions
 
 **Going to production?**
 - Session management: [`cline-sdk/09-sessions.ts`](./cline-sdk/09-sessions.ts)

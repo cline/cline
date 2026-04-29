@@ -18,7 +18,7 @@ await cline.start({
     cwd: process.cwd(),
     enableTools: true,
     systemPrompt: "You are a coding assistant with access to subagents.",
-    pluginPaths: ["./apps/examples/subagent-plugin"],
+    pluginPaths: ["./apps/examples/plugin-examples/subagent-plugin"],
   },
   prompt: "Use subagents to investigate and refactor this repo.",
   interactive: true,

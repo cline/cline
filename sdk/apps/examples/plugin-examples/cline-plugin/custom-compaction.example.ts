@@ -12,7 +12,7 @@
  *
  * CLI usage:
  *   mkdir -p .cline/plugins
- *   cp apps/examples/cline-plugin/custom-compaction.example.ts .cline/plugins/custom-compaction.ts
+ *   cp apps/examples/plugin-examples/cline-plugin/custom-compaction.example.ts .cline/plugins/custom-compaction.ts
  *   cline -i "Search the codebase for dispatcher usage, then summarize it"
  */
 

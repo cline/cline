@@ -28,7 +28,7 @@ The same pattern applies for enterprise use cases: you can build plugins that wr
 ## Use it with the CLI
 
 ```bash
-cp apps/examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
+cp apps/examples/plugin-examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
 clite -i "Find where createTool is defined"
 ```
 
@@ -37,7 +37,7 @@ The plugin resolves `typescript` from the target project's own `node_modules` at
 ## Run the demo directly
 
 ```bash
-ANTHROPIC_API_KEY=sk-... bun run apps/examples/typescript-lsp-plugin/index.ts
+ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/typescript-lsp-plugin/index.ts
 ```
 
 ## How it works
