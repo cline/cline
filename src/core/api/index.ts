@@ -85,6 +85,7 @@ function createHandlerForProvider(
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				anthropicModelInfo: mode === "plan" ? options.planModeAnthropicModelInfo : options.actModeAnthropicModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,

@@ -373,7 +373,12 @@ const ApiOptions = ({
 			)}
 
 			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<AnthropicProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					key={currentMode}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "claude-code" && (

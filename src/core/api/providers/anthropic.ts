@@ -29,6 +29,7 @@ interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
 	anthropicBaseUrl?: string
 	apiModelId?: string
+	anthropicModelInfo?: ModelInfo
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 }
@@ -97,7 +98,9 @@ export class AnthropicHandler implements ApiHandler {
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
 		// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
-		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		const isCustomModel = !(modelId in anthropicModels)
+		const hasReasoningEffort = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId) || (isCustomModel && hasReasoningEffort)
 		const adaptiveThinking = isAdaptiveThinkingModel
 			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
 			: undefined
@@ -135,7 +138,7 @@ export class AnthropicHandler implements ApiHandler {
 				// tool_choice options:
 				// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 				// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-				// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+				// - any: tells Claude that it must use one of the provided tools, but doesn't force a particular tool.
 				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
 				tool_choice: nativeToolsOn && !thinkingEnabled ? { type: "any" } : undefined,
 			}
@@ -304,6 +307,14 @@ export class AnthropicHandler implements ApiHandler {
 
 	getModel(): { id: AnthropicModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
+		// If model info is explicitly provided, use it
+		if (this.options.anthropicModelInfo) {
+			return {
+				id: (modelId || anthropicDefaultModelId) as AnthropicModelId,
+				info: this.options.anthropicModelInfo,
+			}
+		}
+		// If model is in predefined list
 		if (modelId && modelId in anthropicModels) {
 			const id = modelId as AnthropicModelId
 			return { id, info: anthropicModels[id] }
