@@ -191,6 +191,7 @@ interface ChatMessageProps {
 	message: ClineMessage
 	isStreaming?: boolean
 	mode?: "act" | "plan"
+	verbose?: boolean
 }
 
 /**
@@ -307,7 +308,7 @@ function formatToolResult(result: string, maxLines = 5): string[] {
 	return displayLines
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStreaming }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStreaming, verbose }) => {
 	const { type, ask, say, text, partial } = message
 	const toolColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
 	const { columns: terminalWidth } = useTerminalSize()
@@ -337,9 +338,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 		)
 	}
 
-	// Assistant text response (hide reasoning traces - they're verbose and clutter the UI)
 	if (say === "reasoning") {
-		return null
+		if (!verbose || !text?.trim()) return null
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="gray">
+					<Text color="gray">{text}</Text>
+				</DotRow>
+			</Box>
+		)
 	}
 	if (say === "text") {
 		if (!text?.trim()) return null
