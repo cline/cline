@@ -32,6 +32,7 @@ npm i -g cline
 ```
 
 <a href="./cli/README.md">Learn more</a>
+<br>
 
 </td>
 <td align="center" width="50%">
@@ -47,6 +48,7 @@ npx kanban
 ```
 
 <a href="https://github.com/cline/kanban">Learn more</a>
+<br>
 
 </td>
 </tr>
@@ -60,6 +62,7 @@ Create files, run commands, browse the web,
 and use tools with human-in-the-loop approval.
 
 <a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev">Install from VS Marketplace</a>
+<br>
 
 </td>
 <td align="center" width="50%">
@@ -71,6 +74,7 @@ PyCharm, WebStorm, GoLand, and the rest of
 the JetBrains family.
 
 <a href="https://plugins.jetbrains.com/plugin/27189-cline">Install from JetBrains Marketplace</a>
+<br>
 
 </td>
 </tr>
