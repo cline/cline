@@ -104,11 +104,11 @@ npm install @clinebot/sdk
 
 ---
 
-## Edit Code Across Your Entire Codebase
+## Edit Code Across All Your Codebases
 
 Cline reads your project structure, understands the relationships between files, and makes coordinated changes across your codebase. It monitors linter and compiler errors as it works, fixing issues like missing imports, type mismatches, and syntax errors before you even see them. In VS Code and JetBrains, every edit shows up as a diff you can review, modify, or revert. All changes are tracked in your file timeline.
 
-## Run Commands and React to Output
+## Run Commands and Act to Output
 
 Cline executes commands directly in your terminal and watches the output in real time. Install packages, run build scripts, execute tests, deploy applications, manage databases. For long-running processes like dev servers, Cline continues working in the background and reacts to new output as it appears, catching compile errors, test failures, and server crashes as they happen.
 
@@ -118,7 +118,9 @@ Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebas
 
 ## Extend With Plugins and MCP Servers
 
-Cline's capabilities are extensible. Use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`. With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities:
+Cline's capabilities are extensible. 
+1. MCP: Use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`. 
+2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below. Discover more example plugs here (TODO add link when moved over example folder) and more community plugins upcoming.
 
 ```typescript
 import { Agent, createTool } from "@clinebot/sdk"
@@ -142,6 +144,16 @@ Coordinate multiple agents working together on complex tasks. A coordinator agen
 ```bash
 cline --team-name auth-sprint "Plan and implement user authentication with tests"
 ```
+## Scheduled Agents
+
+Run agents on cron schedules for recurring automations. Daily PR summaries, weekly dependency checks, codebase health reports. Schedules persist across restarts and run independently of any terminal session.
+
+```bash
+cline schedule create "PR summary" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "List all open PRs and their review status" \
+  --workspace /path/to/repo
+```
 
 ## Connect to Slack, Telegram, Discord, and More
 
@@ -153,17 +165,6 @@ cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $UR
 ```
 
 Supported platforms: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear.
-
-## Scheduled Agents
-
-Run agents on cron schedules for recurring automations. Daily PR summaries, weekly dependency checks, codebase health reports. Schedules persist across restarts and run independently of any terminal session.
-
-```bash
-cline schedule create "PR summary" \
-  --cron "0 9 * * MON-FRI" \
-  --prompt "List all open PRs and their review status" \
-  --workspace /path/to/repo
-```
 
 ## Headless Mode for CI/CD
 
@@ -186,11 +187,11 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | Provider | Models |
 |----------|--------|
 | Anthropic | Claude Opus, Sonnet, Haiku |
-| OpenAI | GPT-4o, GPT-4.1, o1, o3 |
-| Google | Gemini 2.5 Pro, Flash |
+| OpenAI | GPT series model |
+| Google | Gemini series model |
+| OpenRouter | 200+ models from any provider |
 | AWS Bedrock | Claude, Llama, and more |
 | Azure / GCP Vertex | All hosted models |
-| OpenRouter | 200+ models from any provider |
 | Cerebras / Groq | Fast inference models |
 | Ollama / LM Studio | Run local models on your machine |
 | Any OpenAI-compatible API | Self-hosted or third-party endpoints |
