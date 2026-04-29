@@ -4,6 +4,11 @@ let _instance: SyntaxStyle | null = null;
 
 export function getSyntaxStyle(): SyntaxStyle {
 	if (_instance) return _instance;
+	const markdownCode = RGBA.fromHex("#98c379");
+	const markdownHeading = RGBA.fromHex("#56b6c2");
+	const markdownMuted = RGBA.fromHex("#808080");
+	const markdownLink = RGBA.fromHex("#56b6c2");
+
 	_instance = SyntaxStyle.fromStyles({
 		keyword: { fg: RGBA.fromHex("#c678dd"), bold: true },
 		"keyword.control": { fg: RGBA.fromHex("#c678dd"), bold: true },
@@ -26,6 +31,27 @@ export function getSyntaxStyle(): SyntaxStyle {
 		tag: { fg: RGBA.fromHex("#e06c75") },
 		attribute: { fg: RGBA.fromHex("#d19a66") },
 		escape: { fg: RGBA.fromHex("#56b6c2") },
+		"markup.heading": { fg: markdownHeading, bold: true },
+		"markup.heading.1": { fg: markdownHeading, bold: true },
+		"markup.heading.2": { fg: markdownHeading, bold: true },
+		"markup.heading.3": { fg: markdownHeading, bold: true },
+		"markup.heading.4": { fg: markdownHeading, bold: true },
+		"markup.heading.5": { fg: markdownHeading, bold: true },
+		"markup.heading.6": { fg: markdownHeading, bold: true },
+		"markup.raw": { fg: markdownCode },
+		"markup.raw.inline": { fg: markdownCode },
+		"markup.raw.block": { fg: markdownCode },
+		"markup.strong": { fg: markdownHeading, bold: true },
+		"markup.bold": { fg: markdownHeading, bold: true },
+		"markup.italic": { fg: RGBA.fromHex("#e5c07b"), italic: true },
+		"markup.quote": { fg: markdownMuted, italic: true },
+		"markup.list": { fg: markdownHeading },
+		"markup.link": { fg: markdownLink, underline: true },
+		"markup.link.label": { fg: markdownLink, underline: true },
+		"markup.link.url": { fg: markdownLink, underline: true },
+		label: { fg: markdownLink },
+		conceal: { fg: markdownMuted },
+		"string.special.url": { fg: markdownLink, underline: true },
 	});
 	return _instance;
 }
