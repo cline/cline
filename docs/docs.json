@@ -160,6 +160,7 @@
 									"provider-config/qwen",
 									"provider-config/anthropic",
 									"provider-config/asksage",
+									"provider-config/avian",
 									"provider-config/baseten",
 									"provider-config/cerebras",
 									"provider-config/claude-code",
