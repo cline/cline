@@ -186,6 +186,7 @@ interface ChatViewProps {
 	initialPrompt?: string
 	initialImages?: string[]
 	taskId?: string
+	verbose?: boolean
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -352,6 +353,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	initialPrompt,
 	initialImages,
 	taskId,
+	verbose,
 }) => {
 	// Get Ink app instance for graceful exit
 	const { exit: inkExit } = useApp()
@@ -1505,7 +1507,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					// Completed message
 					return (
 						<Box key={item.message.ts} paddingX={1} width="100%">
-							<ChatMessage message={item.message} mode={mode} />
+							<ChatMessage message={item.message} mode={mode} verbose={verbose} />
 						</Box>
 					)
 				}}
@@ -1527,7 +1529,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				{/* Current streaming message */}
 				{currentMessage && (
 					<Box paddingX={1} width="100%">
-						<ChatMessage isStreaming message={currentMessage} mode={mode} />
+						<ChatMessage isStreaming message={currentMessage} mode={mode} verbose={verbose} />
 					</Box>
 				)}
 

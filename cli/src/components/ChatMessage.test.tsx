@@ -104,3 +104,33 @@ describe("ChatMessage subagent rendering", () => {
 		expect(frame).toContain("5 tool uses · 28.9k tokens · $0.00")
 	})
 })
+
+describe("ChatMessage reasoning rendering (verbose flag)", () => {
+	const reasoningMessage: ClineMessage = {
+		ts: Date.now(),
+		type: "say",
+		say: "reasoning",
+		text: "The user just said hi, so I should greet them back politely.",
+	}
+
+	it("hides reasoning messages by default", () => {
+		const { lastFrame } = render(React.createElement(ChatMessage, { message: reasoningMessage, mode: "act" }))
+		expect(lastFrame() ?? "").not.toContain("greet them back")
+	})
+
+	it("hides reasoning messages when verbose is explicitly false", () => {
+		const { lastFrame } = render(React.createElement(ChatMessage, { message: reasoningMessage, mode: "act", verbose: false }))
+		expect(lastFrame() ?? "").not.toContain("greet them back")
+	})
+
+	it("renders reasoning messages when verbose is true", () => {
+		const { lastFrame } = render(React.createElement(ChatMessage, { message: reasoningMessage, mode: "act", verbose: true }))
+		expect(lastFrame() ?? "").toContain("greet them back")
+	})
+
+	it("hides empty/whitespace-only reasoning even when verbose is true", () => {
+		const blank: ClineMessage = { ts: Date.now(), type: "say", say: "reasoning", text: "   \n\n  " }
+		const { lastFrame } = render(React.createElement(ChatMessage, { message: blank, mode: "act", verbose: true }))
+		expect(lastFrame() ?? "").toBe("")
+	})
+})
