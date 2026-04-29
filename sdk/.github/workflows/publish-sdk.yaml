@@ -35,6 +35,12 @@ jobs:
     name: Publish SDK Packages
     if: github.repository == 'cline/sdk-wip' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      # `bun publish` reads NPM_CONFIG_TOKEN directly. It does NOT expand
+      # ${NODE_AUTH_TOKEN} placeholders inside the .npmrc that
+      # actions/setup-node writes, so we must expose the token under the
+      # name Bun expects. See https://bun.sh/docs/cli/publish.
+      NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     steps:
       - name: Checkout code
