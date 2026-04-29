@@ -69,10 +69,14 @@
 					{
 						"group": "Getting Started",
 						"pages": [
-							"getting-started/what-is-cline",
 							"getting-started/installing-cline",
-							"getting-started/authorizing-with-cline",
-							"getting-started/your-first-project"
+							"getting-started/authorizing-with-cline"
+						]
+					},
+					{
+						"group": "Usage",
+						"pages": [
+							"usage/ide"
 						]
 					},
 					{
@@ -463,7 +467,7 @@
 		{
 			"name": "Overview",
 			"icon": "house",
-			"url": "getting-started/what-is-cline"
+			"url": "getting-started/quick-start"
 		}
 	],
 	"redirects": [
@@ -473,19 +477,23 @@
 		},
 		{
 			"source": "/getting-started/overview",
-			"destination": "/getting-started/what-is-cline"
+			"destination": "/getting-started/quick-start"
+		},
+		{
+			"source": "/getting-started/your-first-project",
+			"destination": "/usage/ide"
 		},
 		{
 			"source": "/introduction",
-			"destination": "/getting-started/what-is-cline"
+			"destination": "/getting-started/quick-start"
 		},
 		{
 			"source": "/introduction/welcome",
-			"destination": "/getting-started/what-is-cline"
+			"destination": "/getting-started/quick-start"
 		},
 		{
 			"source": "/introduction/overview",
-			"destination": "/getting-started/what-is-cline"
+			"destination": "/getting-started/quick-start"
 		},
 		{
 			"source": "/getting-started/model-selection-guide",

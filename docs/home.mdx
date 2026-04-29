@@ -9,41 +9,69 @@ Welcome to the Cline documentation. Whether you're just getting started or looki
 ## What is Cline?
 
 Cline is an AI coding agent that lives in your editor and your terminal. It can read and write files, run terminal commands, use a browser, and help you build features through natural conversation. Every action requires your explicit approval. You're always in control.
+### Agent Core (SDK)
 
-<CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/getting-started/quick-start">
-    Get Cline running in under 2 minutes. Install, authenticate, and build your first piece of code.
-  </Card>
-  <Card title="What is Cline?" icon="circle-info" href="/getting-started/what-is-cline">
-    Understand Cline's full capabilities, how it works, and what makes it different.
-  </Card>
-  <Card title="Your First Project" icon="hammer" href="/getting-started/your-first-project">
-    A hands-on tutorial that walks you through building a complete project with Cline.
-  </Card>
-  <Card title="Install Cline" icon="download" href="/getting-started/installing-cline">
-    Detailed installation instructions for VS Code, Cursor, Windsurf, JetBrains, Antigravity, and the CLI.
+The SDK is Cline's agent core—use it to build your own applications, automations, and integrations.
+
+<CardGroup cols={1}>
+  <Card title="SDK" icon="cube" href="https://docs.cline.bot/sdk/overview">
+    Build AI agents and integrations powered by the same core engine behind the CLI, Kanban, VS Code extension, and JetBrains plugin.
+
+    `npm install @clinebot/sdk`
   </Card>
 </CardGroup>
 
-## Explore the Docs
+### Applications
 
-<CardGroup cols={3}>
-  <Card title="Core Workflows" icon="arrows-spin" href="/core-workflows/task-management">
-    Learn the daily patterns: task management, plan & act, working with files, commands, and checkpoints.
+These are end-user applications built on top of Cline's agent core:
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/cli/getting-started">
+    Run Cline in your terminal with interactive chat or fully headless automation for CI/CD and scripting.
+
+    `npm i -g cline`
   </Card>
-  <Card title="Customization" icon="sliders" href="/customization/overview">
-    Tailor Cline to your workflow with rules, skills, workflows, hooks, and .clineignore.
+  <Card title="Kanban" icon="table-columns" href="https://github.com/cline/kanban">
+    Run many agents in parallel from a web-based task board with per-card worktrees, auto-commit, and dependency chains.
+
+    `npx kanban`
   </Card>
-  <Card title="Features" icon="sparkles" href="/features/memory-bank">
-    Discover Memory Bank, Focus Chain, auto-approve, subagents, Jupyter support, and more.
+  <Card title="VS Code Extension" icon="code" href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev">
+    AI coding assistant in your editor. Create files, run commands, browse the web, and use tools with human-in-the-loop approval.
   </Card>
-  <Card title="Models & Providers" icon="microchip" href="/core-features/model-selection-guide">
-    Choose and configure AI models: cloud providers, local models, and advanced setups.
+  <Card title="JetBrains Plugin" icon="brain" href="https://plugins.jetbrains.com/plugin/27189-cline">
+    The same Cline experience in IntelliJ IDEA, PyCharm, WebStorm, GoLand, and the rest of the JetBrains family.
   </Card>
-  <Card title="MCP Servers" icon="plug" href="/mcp/mcp-overview">
-    Extend Cline's capabilities with Model Context Protocol servers and tools.
+</CardGroup>
+
+
+## Other IDE Supports
+
+Cline works across all major editors: **VS Code**, **Cursor**, **Windsurf**, **JetBrains** (IntelliJ, PyCharm, WebStorm), **Antigravity**, and **Zed**, **Neovim** via ACP mode.
+
+## Core Tools
+
+Cline comes with a powerful set of built-in tools to help you build faster:
+
+- **File Operations** — Read, write, search, replace, list files, and list code definitions (functions, classes, methods)
+- **Terminal Integration** — Execute shell commands; run tests, builds, scripts; integrates with npm, git, docker, and more
+- **Browser Automation** — Web search, web page fetching, screenshot capture, browser interaction and testing
+- **Multi-Provider AI Models** — 30+ providers (Anthropic, OpenAI, Google, DeepSeek, Ollama, and more) with seamless switching
+
+
+## Enterprise Solutions
+
+<CardGroup cols={2}>
+  <Card title="Security & Governance" icon="shield-halved" href="/enterprise-solutions/overview">
+    SSO, role-based access control, model and tool controls per team, and remote configuration.
   </Card>
-  <Card title="Cline CLI" icon="terminal" href="/cli/overview">
-    Use Cline from the command line: interactive mode, headless automation, and CI/CD integration.
+  <Card title="Observability" icon="chart-line" href="/enterprise-solutions/monitoring/overview">
+    OpenTelemetry, Datadog, Grafana, Splunk integrations with real-time analytics.
+  </Card>
+  <Card title="Team Management" icon="users-gear" href="/enterprise-solutions/team-management/managing-members">
+    Manage members, roles, and permissions across your organization.
+  </Card>
+  <Card title="API Reference" icon="code" href="/enterprise-solutions/api-reference">
+    Programmatic access to Cline's enterprise features.
   </Card>
 </CardGroup>
