@@ -1738,8 +1738,100 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.2"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.5"
 export const openAiNativeModels = {
+	"gpt-5.5": {
+		maxTokens: 8_192,
+		contextWindow: 1_050_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 30.0,
+		cacheReadsPrice: 0.5,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.4": {
+		maxTokens: 8_192,
+		contextWindow: 1_050_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15.0,
+		cacheReadsPrice: 0.25,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.4-mini": {
+		maxTokens: 8_192,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.75,
+		outputPrice: 4.5,
+		cacheReadsPrice: 0.075,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.4-nano": {
+		maxTokens: 8_192,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.2,
+		outputPrice: 1.25,
+		cacheReadsPrice: 0.02,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.3-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		apiFormat: ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.3-chat-latest": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		temperature: 1,
+		systemRole: "developer",
+	},
+	"gpt-5.2-chat-latest": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		temperature: 1,
+		systemRole: "developer",
+	},
 	"gpt-5.2": {
 		maxTokens: 8_192,
 		contextWindow: 272000,
@@ -4565,11 +4657,21 @@ export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
+// https://docs.z.ai/guides/llm/glm-5.1
 // https://docs.z.ai/guides/llm/glm-5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5.1"
 export const internationalZAiModels = {
+	"glm-5.1": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.26,
+		inputPrice: 1.4,
+		outputPrice: 4.4,
+	},
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -4624,8 +4726,17 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5.1"
 export const mainlandZAiModels = {
+	"glm-5.1": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.26,
+		inputPrice: 1.4,
+		outputPrice: 4.4,
+	},
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
