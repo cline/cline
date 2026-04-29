@@ -202,6 +202,7 @@
 									"provider-config/dify",
 									"provider-config/hicap",
 									"provider-config/litellm-and-cline-using-codestral",
+									"provider-config/ofoxai",
 									"provider-config/openai-compatible",
 									"provider-config/requesty",
 									"provider-config/sap-aicore",

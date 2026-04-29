@@ -1,0 +1,59 @@
+---
+title: "OfoxAI"
+description: "Learn how to configure and use OfoxAI with Cline. Access 100+ LLMs through a single unified API gateway with OpenAI, Anthropic, and Gemini protocol support."
+---
+
+OfoxAI is a unified LLM API gateway that provides access to 100+ models — including OpenAI, Anthropic, Google Gemini, Meta Llama, DeepSeek, Qwen, Mistral, and more — through a single API key. It is wire-compatible with the OpenAI, Anthropic, and Gemini protocols, so you can switch by only updating the base URL and key.
+
+**Website:** [https://ofox.ai](https://ofox.ai/zh)
+**Documentation:** [https://docs.ofox.ai](https://docs.ofox.ai)
+
+### Getting an API Key
+
+1.  **Sign Up / Sign In:** Go to the [OfoxAI Console](https://app.ofox.ai/auth) and create an account or sign in.
+2.  **Navigate to API Keys:** Open the API key section in your dashboard.
+3.  **Create a Key:** Generate a new API key.
+4.  **Copy the Key:** Copy the key immediately and store it securely — you will not be able to view it again.
+
+### Base URLs
+
+OfoxAI exposes three protocol-compatible endpoints. The same API key works for all of them:
+
+| Protocol  | Base URL                          | Use For                                      |
+| :-------- | :-------------------------------- | :------------------------------------------- |
+| OpenAI    | `https://api.ofox.ai/v1`          | GPT, DeepSeek, Qwen, Llama, and most others   |
+| Anthropic | `https://api.ofox.ai/anthropic`   | Claude family                                |
+| Gemini    | `https://api.ofox.ai/gemini`      | Gemini family                                |
+
+For Cline, the recommended setup is the OpenAI-compatible endpoint, which can call any model in the catalog (including Claude and Gemini through OpenAI-style requests).
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose **"OpenAI Compatible"** from the **API Provider** dropdown.
+3.  **Base URL:** Enter `https://api.ofox.ai/v1`.
+4.  **API Key:** Paste your OfoxAI API key.
+5.  **Model ID:** Enter the model you want to use, for example:
+    -   `gpt-4o`
+    -   `claude-sonnet-4-20250514`
+    -   `gemini-2.5-pro`
+    -   `deepseek-v3`
+    -   `qwen2.5-coder-32b-instruct`
+6.  **Model Configuration:** Optionally adjust context window size, max output tokens, and pricing fields to match the upstream model.
+
+You can verify the connection with the **Verify** button before starting a session.
+
+### Tips and Notes
+
+-   **OpenAI-Compatible:** OfoxAI's `/v1` endpoint follows the OpenAI Chat Completions API, so all of Cline's existing features — streaming, tool/function calling, image inputs (for multimodal models) — work out of the box.
+-   **Native Anthropic / Gemini Protocols:** If you prefer to use Cline's native Anthropic or Gemini providers, set the corresponding base URL (`https://api.ofox.ai/anthropic` or `https://api.ofox.ai/gemini`) using a custom-base-URL setup. Most users do not need this.
+-   **Model Catalog:** The full list of supported models and their model IDs is available in the [OfoxAI dashboard](https://app.ofox.ai) and at [docs.ofox.ai](https://docs.ofox.ai).
+-   **Pricing:** OfoxAI offers a free tier for evaluation and pay-per-token usage thereafter. Costs are charged at the upstream provider's rate plus a small gateway fee.
+-   **Region:** OfoxAI's endpoints are routed for global access and optimized for users in mainland China via Hong Kong express routing.
+
+### Troubleshooting
+
+-   **"Invalid API Key":** Confirm the key was copied without trailing whitespace and that it is active in the [OfoxAI Console](https://app.ofox.ai).
+-   **"Model Not Found":** Make sure the Model ID exactly matches one in the OfoxAI catalog. Model IDs are case-sensitive.
+-   **Connection Errors:** Verify the Base URL is `https://api.ofox.ai/v1` (with the `/v1` suffix) and that your network can reach `api.ofox.ai`.
+-   **Slow Responses:** OfoxAI adds minimal routing latency. If responses are slow, try a faster model or contact OfoxAI support.
