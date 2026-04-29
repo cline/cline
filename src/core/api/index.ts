@@ -33,6 +33,7 @@ import { OpenAiHandler } from "./providers/openai"
 import { OpenAiCodexHandler } from "./providers/openai-codex"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { OpenRouterHandler } from "./providers/openrouter"
+import { PerplexityHandler } from "./providers/perplexity"
 import { QwenHandler } from "./providers/qwen"
 import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
@@ -461,6 +462,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				wandbApiKey: options.wandbApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "perplexity":
+			return new PerplexityHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				perplexityApiKey: options.perplexityApiKey,
+				perplexityModelId: mode === "plan" ? options.planModePerplexityModelId : options.actModePerplexityModelId,
 			})
 		default:
 			return new AnthropicHandler({

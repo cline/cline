@@ -42,6 +42,7 @@ import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
+import { PerplexityProvider } from "./providers/PerplexityProvider"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
@@ -446,6 +447,10 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "fireworks" && (
 				<FireworksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "perplexity" && (
+				<PerplexityProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}

@@ -44,6 +44,7 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "perplexity"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -5058,5 +5059,54 @@ export const nousResearchModels = {
 		outputPrice: 0.2,
 		description:
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Perplexity Sonar
+// https://docs.perplexity.ai/docs/getting-started
+// https://docs.perplexity.ai/guides/pricing
+export type PerplexityModelId = keyof typeof perplexityModels
+export const perplexityDefaultModelId: PerplexityModelId = "sonar-pro"
+export const perplexityModels = {
+	sonar: {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 1.0,
+		description:
+			"Lightweight, cost-effective Sonar model with built-in web search grounding. Best for quick lookups and short answers.",
+	},
+	"sonar-pro": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description:
+			"Perplexity's flagship Sonar model with built-in web search grounding. Best for complex queries that benefit from up-to-date information.",
+	},
+	"sonar-reasoning": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		description: "Sonar reasoning model with chain-of-thought and built-in web search grounding.",
+	},
+	"sonar-reasoning-pro": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 2.0,
+		outputPrice: 8.0,
+		description:
+			"Sonar reasoning pro model with extended chain-of-thought reasoning and built-in web search grounding for complex multi-step problems.",
 	},
 } as const satisfies Record<string, ModelInfo>
