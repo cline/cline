@@ -12,7 +12,7 @@ import * as sinon from "sinon"
 import * as disk from "@/core/storage/disk"
 import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
-import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
+import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries, validateSkillFrontmatter } from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -384,6 +384,7 @@ Content`)
 			const skills = await discoverSkills(TEST_CWD)
 
 			expect(skills).to.have.lengthOf(0)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /malformed YAML frontmatter/)
 		})
 
 		it("should handle file without frontmatter", async () => {
@@ -400,6 +401,42 @@ Content`)
 			const skills = await discoverSkills(TEST_CWD)
 
 			expect(skills).to.have.lengthOf(0)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /missing YAML frontmatter/)
+		})
+
+		it("should reject empty SKILL.md file with actionable error", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "empty-skill")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["empty-skill"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves("")
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(0)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /SKILL\.md.*is empty/)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /name: empty-skill/)
+		})
+
+		it("should reject whitespace-only SKILL.md file as empty", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "blank-skill")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["blank-skill"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves("   \n\n\t\n  ")
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(0)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /SKILL\.md.*is empty/)
 		})
 	})
 
@@ -653,6 +690,62 @@ description: Test
 				await getSkillContent("Remote Only", [skill], entries)
 				sinon.assert.notCalled(readFileStub)
 			})
+		})
+	})
+
+	describe("validateSkillFrontmatter", () => {
+		const SKILL_PATH = path.join("/skills", "my-skill", "SKILL.md")
+
+		it("returns frontmatter on a valid file", () => {
+			const result = validateSkillFrontmatter(
+				`---\nname: my-skill\ndescription: Does a thing\n---\nBody`,
+				SKILL_PATH,
+				"my-skill",
+			)
+			expect(result).to.deep.equal({ name: "my-skill", description: "Does a thing" })
+		})
+
+		it("rejects empty content with a specific message", () => {
+			expect(validateSkillFrontmatter("", SKILL_PATH, "my-skill")).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /SKILL\.md.*is empty/)
+		})
+
+		it("rejects whitespace-only content as empty", () => {
+			expect(validateSkillFrontmatter("\n\t  \n", SKILL_PATH, "my-skill")).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /SKILL\.md.*is empty/)
+		})
+
+		it("rejects content without frontmatter with a specific message", () => {
+			expect(validateSkillFrontmatter("Just a body, no frontmatter\n", SKILL_PATH, "my-skill")).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /missing YAML frontmatter/)
+		})
+
+		it("rejects malformed YAML frontmatter with a specific message", () => {
+			const result = validateSkillFrontmatter(`---\nname: [bad yaml\n---\nBody`, SKILL_PATH, "my-skill")
+			expect(result).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /malformed YAML frontmatter/)
+		})
+
+		it("rejects missing 'name' field", () => {
+			const result = validateSkillFrontmatter(`---\ndescription: No name\n---\nBody`, SKILL_PATH, "my-skill")
+			expect(result).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /missing required 'name' field/)
+		})
+
+		it("rejects missing 'description' field", () => {
+			const result = validateSkillFrontmatter(`---\nname: my-skill\n---\nBody`, SKILL_PATH, "my-skill")
+			expect(result).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /missing required 'description' field/)
+		})
+
+		it("rejects name/directory mismatch", () => {
+			const result = validateSkillFrontmatter(
+				`---\nname: other-name\ndescription: Mismatch\n---\nBody`,
+				SKILL_PATH,
+				"my-skill",
+			)
+			expect(result).to.be.null
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /doesn't match directory/)
 		})
 	})
 })

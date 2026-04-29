@@ -98,6 +98,57 @@ async function scanSkillsDirectory(dirPath: string, source: "global" | "project"
 	return skills
 }
 
+/** Validate a SKILL.md file and return its frontmatter, or null after logging an actionable warning. */
+export function validateSkillFrontmatter(
+	fileContent: string,
+	skillMdPath: string,
+	expectedName: string,
+): { name: string; description: string } | null {
+	if (fileContent.trim().length === 0) {
+		Logger.warn(
+			`Invalid skill: SKILL.md at ${skillMdPath} is empty. ` +
+				`Add YAML frontmatter with 'name' and 'description', e.g.:\n` +
+				`---\nname: ${expectedName}\ndescription: <one-line summary>\n---\n<instructions>`,
+		)
+		return null
+	}
+
+	const result = parseYamlFrontmatter(fileContent)
+
+	if (result.parseError) {
+		Logger.warn(`Invalid skill: SKILL.md at ${skillMdPath} has malformed YAML frontmatter: ${result.parseError}`)
+		return null
+	}
+
+	if (!result.hadFrontmatter) {
+		Logger.warn(
+			`Invalid skill: SKILL.md at ${skillMdPath} is missing YAML frontmatter. ` +
+				`Add a '---' delimited block with 'name' and 'description' at the top of the file.`,
+		)
+		return null
+	}
+
+	const frontmatter = result.data
+
+	if (!frontmatter.name || typeof frontmatter.name !== "string") {
+		Logger.warn(`Invalid skill at ${skillMdPath}: missing required 'name' field in frontmatter.`)
+		return null
+	}
+	if (!frontmatter.description || typeof frontmatter.description !== "string") {
+		Logger.warn(`Invalid skill at ${skillMdPath}: missing required 'description' field in frontmatter.`)
+		return null
+	}
+
+	if (frontmatter.name !== expectedName) {
+		Logger.warn(
+			`Invalid skill at ${skillMdPath}: frontmatter name "${frontmatter.name}" doesn't match directory name "${expectedName}".`,
+		)
+		return null
+	}
+
+	return { name: frontmatter.name, description: frontmatter.description }
+}
+
 /**
  * Load skill metadata from a skill directory.
  */
@@ -111,27 +162,12 @@ async function loadSkillMetadata(
 
 	try {
 		const fileContent = await fs.readFile(skillMdPath, "utf-8")
-		const { data: frontmatter } = parseFrontmatter(fileContent)
-
-		// Validate required fields
-		if (!frontmatter.name || typeof frontmatter.name !== "string") {
-			Logger.warn(`Skill at ${skillDir} missing required 'name' field`)
-			return null
-		}
-		if (!frontmatter.description || typeof frontmatter.description !== "string") {
-			Logger.warn(`Skill at ${skillDir} missing required 'description' field`)
-			return null
-		}
-
-		// Name must match directory name per spec
-		if (frontmatter.name !== skillName) {
-			Logger.warn(`Skill name "${frontmatter.name}" doesn't match directory "${skillName}"`)
-			return null
-		}
+		const validated = validateSkillFrontmatter(fileContent, skillMdPath, skillName)
+		if (!validated) return null
 
 		return {
 			name: skillName,
-			description: frontmatter.description,
+			description: validated.description,
 			path: skillMdPath,
 			source,
 		}

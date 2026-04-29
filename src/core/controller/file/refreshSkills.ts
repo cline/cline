@@ -1,8 +1,7 @@
-import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
+import { parseRemoteSkillEntries, validateSkillFrontmatter } from "@core/context/instructions/user-instructions/skills"
 import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
-import { parseYamlFrontmatter } from "@/core/context/instructions/user-instructions/frontmatter"
 import { getSkillsDirectoriesForScan } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
@@ -32,27 +31,19 @@ async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
 
 			try {
 				const fileContent = await fs.readFile(skillMdPath, "utf-8")
-				const result = parseYamlFrontmatter(fileContent)
-				if (result.parseError) {
-					Logger.warn("Failed to parse YAML frontmatter:", result.parseError)
-				}
-				const frontmatter = result.data
-
-				// Validate required fields
-				if (!frontmatter.name || typeof frontmatter.name !== "string") continue
-				if (!frontmatter.description || typeof frontmatter.description !== "string") continue
-				if (frontmatter.name !== entryName) continue
+				const validated = validateSkillFrontmatter(fileContent, skillMdPath, entryName)
+				if (!validated) continue
 
 				skills.push(
 					SkillInfo.create({
 						name: entryName,
-						description: frontmatter.description,
+						description: validated.description,
 						path: skillMdPath,
 						enabled: true, // Will be updated with toggle state
 					}),
 				)
-			} catch {
-				// Skip invalid skills
+			} catch (error) {
+				Logger.warn(`Failed to load skill at ${entryPath}:`, error)
 			}
 		}
 	} catch {
