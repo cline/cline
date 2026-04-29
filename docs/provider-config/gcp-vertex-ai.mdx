@@ -1,12 +1,11 @@
 ---
 title: "GCP Vertex AI"
-description: "Configure GCP Vertex AI with Cline to access leading generative AI models like Claude 3.5 Sonnet v2. This guide covers GCP environment setup, authentication, and secure integration for enterprise teams."
+description: "Configure GCP Vertex AI with Cline. This guide covers environment setup, authentication, and secure integration for enterprise teams."
 ---
 
 ### Overview
 
 **GCP Vertex AI:**\
-A fully managed service that provides access to leading generative AI models-such as Anthropic's Claude 3.5 Sonnet v2-through Google Cloud.\
 [Learn more about GCP Vertex AI](https://cloud.google.com/vertex-ai).
 
 This guide is tailored for organizations with established GCP environments (leveraging IAM roles, service accounts, and best practices in resource management) to ensure secure and compliant usage.
@@ -40,7 +39,7 @@ This guide is tailored for organizations with established GCP environments (leve
 
 ---
 
-### Step 2: Verify Regional and Model Access
+### Step 2: Verify Regional Access
 
 #### 2.1 Choose and Confirm a Region
 
@@ -52,15 +51,6 @@ Vertex AI supports multiple regions. Select a region that meets your latency, co
 -   **europe-west4 (Netherlands)**
 -   **asia-southeast1 (Singapore)**
 -   **global (Global)**
-
-The Global endpoint may offer higher availability and reduce resource exhausted errors. Only Gemini models are supported.
-
-#### 2.2 Enable the Claude 3.5 Sonnet v2 Model
-
--   **Open Vertex AI Model Garden:**\
-    In the Cloud Console, navigate to **Vertex AI → Model Garden**
--   **Enable Claude 3.5 Sonnet v2:**\
-    Locate the model card for Claude 3.5 Sonnet v2 and click **Enable**
 
 ---
 
@@ -92,8 +82,6 @@ The Global endpoint may offer higher availability and reduce resource exhausted 
     Provide the project ID you set up earlier
 -   **Select the Region:**\
     Choose one of the supported regions (e.g., `us-east5`)
--   **Select the Model:**\
-    From the available list, choose **Claude 3.5 Sonnet v2**
 -   **Save and Test:**\
     Save your settings and test by sending a simple prompt (e.g., "Generate a Python function to check if a number is prime.")
 
@@ -187,23 +175,3 @@ The Global endpoint may offer higher availability and reduce resource exhausted 
     For resources in other projects (e.g., BigQuery, Cloud Storage), ensure that the appropriate roles (BigQuery Data Viewer, Storage Object Viewer) are assigned
 
 ---
-
-### Conclusion
-
-By following these steps, your enterprise team can securely integrate GCP Vertex AI with the Cline VS Code extension to harness the power of **Claude 3.5 Sonnet v2**:
-
--   **Prepare Your GCP Environment:**\
-    Create or use a project, configure IAM with least privilege, and ensure necessary roles (including the Vertex AI Service Agent role) are attached
--   **Verify Regional and Model Access:**\
-    Confirm that your chosen region supports Claude 3.5 Sonnet v2 and that the model is enabled
--   **Configure Cline in VS Code:**\
-    Install Cline, enter your project ID, select the appropriate region, and choose the model
--   **Set Up Authentication:**\
-    Use either user credentials (via `gcloud auth application-default login`) or a service account with a JSON key
--   **Implement Security and Monitoring:**\
-    Adhere to best practices for IAM, manage resource access carefully, and monitor usage with the Model Observability dashboard
-
-For further details, please consult the [GCP Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs) and your internal security policies.\
-Happy coding!
-
-_This guide will be updated as GCP Vertex AI and Cline evolve. Always refer to the latest documentation for current practices._
