@@ -103,15 +103,12 @@
 					{
 						"group": "Features",
 						"pages": [
-							"features/memory-bank",
-							"features/focus-chain",
 							"features/auto-approve",
 							"features/auto-compact",
 							"features/multiroot-workspace",
 							"features/subagents",
 							"features/background-edit",
 							"features/jupyter-notebooks",
-							"features/deep-planning",
 							"features/web-tools",
 							"features/worktrees"
 						]
@@ -525,15 +522,19 @@
 		},
 		{
 			"source": "/prompting/cline-memory-bank",
-			"destination": "/features/memory-bank"
+			"destination": "/core-workflows/task-management"
 		},
 		{
 			"source": "/customization/memory-bank",
-			"destination": "/features/memory-bank"
+			"destination": "/core-workflows/task-management"
 		},
 		{
 			"source": "/customization/focus-chain",
-			"destination": "/features/focus-chain"
+			"destination": "/core-workflows/using-commands#deep-planning"
+		},
+		{
+			"source": "/features/deep-planning",
+			"destination": "/core-workflows/using-commands#deep-planning"
 		},
 		{
 			"source": "/customization/auto-approve",
@@ -750,6 +751,14 @@
 		{
 			"source": "/features/slash-commands/new-rule",
 			"destination": "/core-workflows/using-commands#newrule"
+		},
+		{
+			"source": "/features/memory-bank",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/features/focus-chain",
+			"destination": "/features/deep-planning"
 		},
 		{
 			"source": "/features/skills",
