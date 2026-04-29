@@ -30,8 +30,18 @@ import type {
 	WebviewSessionSummary,
 } from "./webview-protocol";
 
-const llmModels = Llms;
-const llmProviders = Llms;
+const SESSION_REFRESH_INTERVAL_MS = 4_000;
+const HUB_DAEMON_TIMEOUT_MS = 8_000;
+const HUB_POLL_INTERVAL_MS = 200;
+const REFRESH_SESSION_EVENTS = new Set([
+	"session.created",
+	"session.updated",
+	"session.attached",
+	"session.detached",
+	"run.started",
+	"run.completed",
+	"run.aborted",
+]);
 
 export function activate(context: vscode.ExtensionContext): void {
 	const outputChannel = vscode.window.createOutputChannel("Cline");
@@ -46,14 +56,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			sidebarProvider,
 			{ webviewOptions: { retainContextWhenHidden: true } },
 		),
-	);
-
-	const openChat = vscode.commands.registerCommand(
-		"clineVscode.openChat",
-		() => {
-			const localResourceRoots = [
-				vscode.Uri.joinPath(context.extensionUri, "dist", "webview"),
-			];
+		vscode.commands.registerCommand("clineVscode.openChat", () => {
 			const panel = vscode.window.createWebviewPanel(
 				"clineChat",
 				"Cline Chat",
@@ -61,7 +64,9 @@ export function activate(context: vscode.ExtensionContext): void {
 				{
 					enableScripts: true,
 					retainContextWhenHidden: true,
-					localResourceRoots,
+					localResourceRoots: [
+						vscode.Uri.joinPath(context.extensionUri, "dist", "webview"),
+					],
 				},
 			);
 			const controller = new CoreChatWebviewController(
@@ -71,9 +76,8 @@ export function activate(context: vscode.ExtensionContext): void {
 				panel.onDidDispose,
 			);
 			context.subscriptions.push(controller);
-		},
+		}),
 	);
-	context.subscriptions.push(openChat);
 }
 
 export function deactivate(): void {
@@ -81,19 +85,12 @@ export function deactivate(): void {
 }
 
 class ClineChatViewProvider implements vscode.WebviewViewProvider {
-	private readonly extensionUri: vscode.Uri;
-	private readonly outputChannel: vscode.OutputChannel;
+	constructor(
+		private readonly extensionUri: vscode.Uri,
+		private readonly outputChannel: vscode.OutputChannel,
+	) {}
 
-	constructor(extensionUri: vscode.Uri, outputChannel: vscode.OutputChannel) {
-		this.extensionUri = extensionUri;
-		this.outputChannel = outputChannel;
-	}
-
-	public resolveWebviewView(
-		webviewView: vscode.WebviewView,
-		_context: vscode.WebviewViewResolveContext,
-		_token: vscode.CancellationToken,
-	): void {
+	public resolveWebviewView(webviewView: vscode.WebviewView): void {
 		webviewView.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [
@@ -124,8 +121,10 @@ type StartConfig = {
 	teamName: string;
 	missionLogIntervalSteps: number;
 	missionLogIntervalMs: number;
+	checkpoint: { enabled: true };
 	mode: "act" | "plan";
 	apiKey: string;
+	autoApproveTools?: boolean;
 	logger: BasicLogger;
 	extensionContext?: import("@clinebot/shared").ExtensionContext;
 };
@@ -143,25 +142,34 @@ type HubEventEnvelope = {
 	payload?: Record<string, unknown>;
 };
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-	return value && typeof value === "object"
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
 type LlmModelInfo = {
 	name?: string;
 	capabilities?: string[];
 	thinkingConfig?: unknown;
 };
 
+type WebviewSendConfig = {
+	provider?: string;
+	model?: string;
+	mode?: "act" | "plan";
+	systemPrompt?: string;
+	maxIterations?: number;
+	thinking?: boolean;
+	enableTools?: boolean;
+	enableSpawn?: boolean;
+	enableTeams?: boolean;
+	autoApproveTools?: boolean;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
 function stringifyContent(value: unknown): string {
-	if (typeof value === "string") {
-		return value;
-	}
-	if (value == null) {
-		return "";
-	}
+	if (typeof value === "string") return value;
+	if (value == null) return "";
 	try {
 		return JSON.stringify(value, null, 2);
 	} catch {
@@ -179,32 +187,75 @@ function parseSessionTimestamp(value: unknown): number | undefined {
 	return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
+function readCheckpointEntriesByRunCount(
+	value: unknown,
+): Map<number, NonNullable<WebviewChatMessage["checkpoint"]>> {
+	const entries = new Map<
+		number,
+		NonNullable<WebviewChatMessage["checkpoint"]>
+	>();
+	const history = asRecord(value)?.history;
+	if (!Array.isArray(history)) return entries;
+
+	for (const item of history) {
+		const entry = asRecord(item);
+		if (!entry) continue;
+		const { ref, createdAt, runCount, kind } = entry;
+		if (
+			typeof ref !== "string" ||
+			typeof createdAt !== "number" ||
+			!Number.isFinite(createdAt) ||
+			typeof runCount !== "number" ||
+			!Number.isInteger(runCount) ||
+			runCount < 1
+		) {
+			continue;
+		}
+		const validKind = kind === "stash" || kind === "commit" ? kind : undefined;
+		entries.set(runCount, {
+			ref,
+			createdAt,
+			runCount,
+			...(validKind ? { kind: validKind } : {}),
+		});
+	}
+	return entries;
+}
+
+type PersistedMessage = {
+	id?: string;
+	role?: string;
+	content?:
+		| string
+		| Array<
+				| { type: "text"; text: string }
+				| { type: "reasoning"; text: string; redacted?: boolean }
+				| {
+						type: "tool-call";
+						toolCallId: string;
+						toolName: string;
+						input?: unknown;
+				  }
+				| {
+						type: "tool-result";
+						toolCallId: string;
+						toolName: string;
+						output?: unknown;
+						isError?: boolean;
+				  }
+		  >;
+};
+
 function mapPersistedMessagesToWebviewMessages(
-	messages: Array<{
-		id?: string;
-		role?: string;
-		content?:
-			| string
-			| Array<
-					| { type: "text"; text: string }
-					| { type: "reasoning"; text: string; redacted?: boolean }
-					| {
-							type: "tool-call";
-							toolCallId: string;
-							toolName: string;
-							input?: unknown;
-					  }
-					| {
-							type: "tool-result";
-							toolCallId: string;
-							toolName: string;
-							output?: unknown;
-							isError?: boolean;
-					  }
-			  >;
-	}>,
+	messages: PersistedMessage[],
+	checkpointMetadata?: unknown,
 ): WebviewChatMessage[] {
+	const checkpointsByRunCount =
+		readCheckpointEntriesByRunCount(checkpointMetadata);
+	let userRunCount = 0;
+
 	return messages.flatMap((message, messageIndex) => {
+		const messageKey = message.id ?? messageIndex;
 		const textParts: string[] = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
@@ -214,58 +265,49 @@ function mapPersistedMessagesToWebviewMessages(
 			NonNullable<WebviewChatMessage["toolEvents"]>[number]
 		>();
 
-		if (typeof message.content === "string") {
-			const text = message.content.trim();
-			if (text) {
-				textParts.push(text);
-				blocks.push({
-					id: `${message.id ?? messageIndex}:text:0`,
-					type: "text",
-					text,
-				});
-			}
-		}
-
-		for (const [partIndex, part] of (Array.isArray(message.content)
+		const parts = Array.isArray(message.content)
 			? message.content
-			: []
-		).entries()) {
+			: typeof message.content === "string" && message.content.trim()
+				? [{ type: "text" as const, text: message.content.trim() }]
+				: [];
+
+		for (const [partIndex, part] of parts.entries()) {
 			switch (part.type) {
-				case "text":
-					if (part.text.trim()) {
-						const text = part.text.trim();
-						textParts.push(text);
-						blocks.push({
-							id: `${message.id ?? messageIndex}:text:${partIndex}`,
-							type: "text",
-							text,
-						});
-					}
+				case "text": {
+					const text = part.text.trim();
+					if (!text) break;
+					textParts.push(text);
+					blocks.push({
+						id: `${messageKey}:text:${partIndex}`,
+						type: "text",
+						text,
+					});
 					break;
-				case "reasoning":
-					if (part.text.trim()) {
-						reasoningParts.push(part.text);
-						blocks.push({
-							id: `${message.id ?? messageIndex}:reasoning:${partIndex}`,
-							type: "reasoning",
-							text: part.text,
-							redacted: part.redacted,
-						});
-					}
+				}
+				case "reasoning": {
+					if (!part.text.trim()) break;
+					reasoningParts.push(part.text);
+					blocks.push({
+						id: `${messageKey}:reasoning:${partIndex}`,
+						type: "reasoning",
+						text: part.text,
+						redacted: part.redacted,
+					});
 					reasoningRedacted = reasoningRedacted || part.redacted === true;
 					break;
+				}
 				case "tool-call": {
 					const toolEvent = {
-						id: `${message.id ?? messageIndex}:${part.toolCallId}`,
+						id: `${messageKey}:${part.toolCallId}`,
 						toolCallId: part.toolCallId,
 						name: part.toolName,
 						text: `Running ${part.toolName}...`,
-						state: "input-available",
+						state: "input-available" as const,
 						input: part.input,
-					} satisfies NonNullable<WebviewChatMessage["toolEvents"]>[number];
+					};
 					toolEvents.set(part.toolCallId, toolEvent);
 					blocks.push({
-						id: `${message.id ?? messageIndex}:tool:${part.toolCallId}`,
+						id: `${messageKey}:tool:${part.toolCallId}`,
 						type: "tool",
 						toolEvent,
 					});
@@ -274,20 +316,21 @@ function mapPersistedMessagesToWebviewMessages(
 				case "tool-result": {
 					const existing = toolEvents.get(part.toolCallId);
 					const toolEvent = {
-						id:
-							existing?.id ??
-							`${message.id ?? messageIndex}:${part.toolCallId}`,
+						id: existing?.id ?? `${messageKey}:${part.toolCallId}`,
 						toolCallId: part.toolCallId,
 						name: part.toolName,
 						text: part.isError
 							? `${part.toolName} failed`
 							: `${part.toolName} completed`,
-						state: part.isError ? "output-error" : "output-available",
+						state: part.isError
+							? ("output-error" as const)
+							: ("output-available" as const),
 						input: existing?.input,
 						output: part.output,
 						error: part.isError ? stringifyContent(part.output) : undefined,
-					} satisfies NonNullable<WebviewChatMessage["toolEvents"]>[number];
+					};
 					toolEvents.set(part.toolCallId, toolEvent);
+					const blockId = `${messageKey}:tool:${part.toolCallId}`;
 					const existingBlockIndex = blocks.findIndex(
 						(block) =>
 							block.type === "tool" &&
@@ -295,16 +338,12 @@ function mapPersistedMessagesToWebviewMessages(
 					);
 					if (existingBlockIndex >= 0) {
 						blocks[existingBlockIndex] = {
-							...blocks[existingBlockIndex],
+							id: blockId,
 							type: "tool",
 							toolEvent,
 						};
 					} else {
-						blocks.push({
-							id: `${message.id ?? messageIndex}:tool:${part.toolCallId}`,
-							type: "tool",
-							toolEvent,
-						});
+						blocks.push({ id: blockId, type: "tool", toolEvent });
 					}
 					break;
 				}
@@ -316,20 +355,24 @@ function mapPersistedMessagesToWebviewMessages(
 		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
 			return [];
 		}
+		const role =
+			message.role === "user"
+				? "user"
+				: message.role === "assistant"
+					? "assistant"
+					: "meta";
+		const checkpoint =
+			role === "user" ? checkpointsByRunCount.get(++userRunCount) : undefined;
 
 		return [
 			{
 				id: message.id || `history-${messageIndex}`,
-				role:
-					message.role === "user"
-						? "user"
-						: message.role === "assistant"
-							? "assistant"
-							: "meta",
+				role,
 				text,
 				reasoning:
 					reasoningParts.length > 0 ? reasoningParts.join("\n") : undefined,
 				reasoningRedacted: reasoningRedacted || undefined,
+				checkpoint,
 				toolEvents: toolEventList.length > 0 ? toolEventList : undefined,
 				blocks: blocks.length > 0 ? blocks : undefined,
 			},
@@ -338,12 +381,10 @@ function mapPersistedMessagesToWebviewMessages(
 }
 
 class CoreChatWebviewController implements vscode.Disposable {
-	private static readonly SESSION_REFRESH_INTERVAL_MS = 4_000;
-	private readonly webview: vscode.Webview;
-	private readonly extensionUri: vscode.Uri;
 	private readonly logger: BasicLogger;
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly providerSettingsManager = new ProviderSettingsManager();
+	private readonly telemetry: ITelemetryService;
 	private host: ClineCore | undefined;
 	private hubClient: NodeHubClient | undefined;
 	private stopHostSubscription: (() => void) | undefined;
@@ -353,16 +394,13 @@ class CoreChatWebviewController implements vscode.Disposable {
 	private startConfig: StartConfig | undefined;
 	private hubUrl: string | undefined;
 	private sending = false;
-	private telemetry: ITelemetryService | undefined;
 
 	constructor(
-		webview: vscode.Webview,
-		extensionUri: vscode.Uri,
+		private readonly webview: vscode.Webview,
+		private readonly extensionUri: vscode.Uri,
 		outputChannel: vscode.OutputChannel,
 		onDidDispose?: vscode.Event<void>,
 	) {
-		this.webview = webview;
-		this.extensionUri = extensionUri;
 		this.logger = createOutputChannelLogger(outputChannel);
 		this.disposables.push(
 			this.webview.onDidReceiveMessage((message: WebviewInboundMessage) => {
@@ -370,11 +408,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 			}),
 		);
 		if (onDidDispose) {
-			this.disposables.push(
-				onDidDispose(() => {
-					this.dispose();
-				}),
-			);
+			this.disposables.push(onDidDispose(() => this.dispose()));
 		}
 
 		const { telemetry } = createConfiguredTelemetryService(
@@ -403,61 +437,43 @@ class CoreChatWebviewController implements vscode.Disposable {
 		this.hubClient?.close();
 		this.hubClient = undefined;
 		if (this.sessionId && this.host) {
-			void this.host.stop(this.sessionId).catch(() => {
-				// best-effort cleanup
-			});
+			void this.host.stop(this.sessionId).catch(() => undefined);
 		}
-		void this.host?.dispose("vscode_webview_dispose").catch(() => {
-			// best-effort cleanup
-		});
+		void this.host?.dispose("vscode_webview_dispose").catch(() => undefined);
 		this.host = undefined;
 		this.sessionId = undefined;
 		this.startConfig = undefined;
 		while (this.disposables.length > 0) {
-			const disposable = this.disposables.pop();
-			disposable?.dispose();
+			this.disposables.pop()?.dispose();
 		}
 	}
 
 	private async handleMessage(message: WebviewInboundMessage): Promise<void> {
-		if (message.type === "ready") {
-			await this.initialize();
-			return;
-		}
-		if (message.type === "loadModels") {
-			await this.loadModels(message.providerId);
-			return;
-		}
-		if (message.type === "attachSession") {
-			await this.attachSession(message.sessionId);
-			return;
-		}
-		if (message.type === "deleteSession") {
-			await this.deleteSession(message.sessionId);
-			return;
-		}
-		if (message.type === "updateSessionMetadata") {
-			await this.updateSessionMetadata(message.sessionId, message.metadata);
-			return;
-		}
-		if (message.type === "abort") {
-			await this.abortTurn();
-			return;
-		}
-		if (message.type === "reset") {
-			await this.resetSession();
-			return;
-		}
-		if (message.type === "forkSession") {
-			await this.forkSession();
-			return;
-		}
-		if (message.type === "send") {
-			await this.sendPrompt(
-				message.prompt,
-				message.config,
-				message.attachments,
-			);
+		switch (message.type) {
+			case "ready":
+				return this.initialize();
+			case "loadModels":
+				return this.loadModels(message.providerId);
+			case "attachSession":
+				return this.attachSession(message.sessionId);
+			case "deleteSession":
+				return this.deleteSession(message.sessionId);
+			case "updateSessionMetadata":
+				return this.updateSessionMetadata(message.sessionId, message.metadata);
+			case "abort":
+				return this.abortTurn();
+			case "reset":
+				return this.resetSession();
+			case "forkSession":
+				return this.forkSession();
+			case "restore":
+				return this.restore(message.checkpointRunCount);
+			case "send":
+				return this.sendPrompt(
+					message.prompt,
+					message.config,
+					message.attachments,
+				);
 		}
 	}
 
@@ -465,10 +481,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		try {
 			await this.ensureHub();
 			await this.getSessionHost();
-			await this.post({
-				type: "status",
-				text: "Cline is Ready",
-			});
+			await this.post({ type: "status", text: "Cline is Ready" });
 			const defaults = this.resolveWorkspaceDefaults();
 			await this.post({ type: "defaults", defaults });
 			await this.loadProviders(defaults.provider);
@@ -476,10 +489,8 @@ class CoreChatWebviewController implements vscode.Disposable {
 			if (!this.stopSessionRefreshInterval) {
 				const interval = setInterval(() => {
 					void this.refreshSessions().catch(() => undefined);
-				}, CoreChatWebviewController.SESSION_REFRESH_INTERVAL_MS);
-				this.stopSessionRefreshInterval = () => {
-					clearInterval(interval);
-				};
+				}, SESSION_REFRESH_INTERVAL_MS);
+				this.stopSessionRefreshInterval = () => clearInterval(interval);
 			}
 		} catch (error) {
 			await this.postError(error);
@@ -487,7 +498,6 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async ensureHub(): Promise<void> {
-		const defaults = this.resolveWorkspaceDefaults();
 		if (this.hubClient && this.hubUrl) {
 			try {
 				await this.hubClient.connect();
@@ -498,62 +508,13 @@ class CoreChatWebviewController implements vscode.Disposable {
 				this.hubUrl = undefined;
 			}
 		}
-		const owner = resolveSharedHubOwnerContext();
-		if (this.hubUrl) {
-			const healthy = await probeHubServer(this.hubUrl);
-			if (healthy?.url) {
-				this.hubUrl = healthy.url;
-			} else {
-				this.hubUrl = undefined;
-			}
-		}
-		if (!this.hubUrl) {
-			const discovery = await readHubDiscovery(owner.discoveryPath);
-			if (discovery?.url) {
-				const healthy = await probeHubServer(discovery.url);
-				if (healthy?.url) {
-					this.hubUrl = healthy.url;
-				}
-			}
-		}
-		if (!this.hubUrl) {
-			const daemonScriptPath = join(
-				this.extensionUri.fsPath,
-				"dist",
-				"hub-daemon.js",
-			);
-			const payload = Buffer.from(
-				JSON.stringify({
-					workspaceRoot: defaults.workspaceRoot,
-					cwd: defaults.cwd,
-					systemPrompt: "",
-				}),
-				"utf8",
-			).toString("base64");
-			const child = spawn(process.execPath, [daemonScriptPath, payload], {
-				cwd: this.extensionUri.fsPath,
-				detached: true,
-				stdio: "ignore",
-				env: process.env,
-			});
-			child.unref();
 
-			const deadline = Date.now() + 8_000;
-			while (Date.now() < deadline) {
-				const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
-				if (nextDiscovery?.url) {
-					const healthy = await probeHubServer(nextDiscovery.url);
-					if (healthy?.url) {
-						this.hubUrl = healthy.url;
-						break;
-					}
-				}
-				await new Promise((resolve) => setTimeout(resolve, 200));
-			}
-		}
+		this.hubUrl = await this.discoverOrSpawnHub();
 		if (!this.hubUrl) {
 			throw new Error("No compatible hub runtime is available.");
 		}
+
+		const defaults = this.resolveWorkspaceDefaults();
 		this.hubClient = new NodeHubClient({
 			url: this.hubUrl,
 			clientType: "vscode",
@@ -567,6 +528,61 @@ class CoreChatWebviewController implements vscode.Disposable {
 		});
 	}
 
+	private async discoverOrSpawnHub(): Promise<string | undefined> {
+		const owner = resolveSharedHubOwnerContext();
+
+		if (this.hubUrl) {
+			const healthy = await probeHubServer(this.hubUrl);
+			if (healthy?.url) return healthy.url;
+		}
+
+		const url = await this.probeDiscoveredHub(owner.discoveryPath);
+		if (url) return url;
+
+		this.spawnHubDaemon();
+
+		const deadline = Date.now() + HUB_DAEMON_TIMEOUT_MS;
+		while (Date.now() < deadline) {
+			const url = await this.probeDiscoveredHub(owner.discoveryPath);
+			if (url) return url;
+			await new Promise((resolve) => setTimeout(resolve, HUB_POLL_INTERVAL_MS));
+		}
+		return undefined;
+	}
+
+	private async probeDiscoveredHub(
+		discoveryPath: string,
+	): Promise<string | undefined> {
+		const discovery = await readHubDiscovery(discoveryPath);
+		if (!discovery?.url) return undefined;
+		const healthy = await probeHubServer(discovery.url);
+		return healthy?.url;
+	}
+
+	private spawnHubDaemon(): void {
+		const defaults = this.resolveWorkspaceDefaults();
+		const daemonScriptPath = join(
+			this.extensionUri.fsPath,
+			"dist",
+			"hub-daemon.js",
+		);
+		const payload = Buffer.from(
+			JSON.stringify({
+				workspaceRoot: defaults.workspaceRoot,
+				cwd: defaults.cwd,
+				systemPrompt: "",
+			}),
+			"utf8",
+		).toString("base64");
+		const child = spawn(process.execPath, [daemonScriptPath, payload], {
+			cwd: this.extensionUri.fsPath,
+			detached: true,
+			stdio: "ignore",
+			env: process.env,
+		});
+		child.unref();
+	}
+
 	private async initializeWebview(): Promise<void> {
 		try {
 			this.webview.html = await this.getWebviewHtml();
@@ -577,21 +593,20 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async getWebviewHtml(): Promise<string> {
 		const devServerUrl = process.env.VITE_DEV_SERVER_URL;
-		if (devServerUrl) {
-			return this.getDevWebviewHtml(devServerUrl);
-		}
-		return this.getProductionWebviewHtml();
+		return devServerUrl
+			? this.getDevWebviewHtml(devServerUrl)
+			: this.getProductionWebviewHtml();
 	}
 
 	private getDevWebviewHtml(devServerUrl: string): string {
-		const host = new URL(devServerUrl).host;
+		const url = new URL(devServerUrl);
 		const csp = [
 			"default-src 'none'",
 			`img-src ${this.webview.cspSource} data: ${devServerUrl}`,
 			`style-src ${this.webview.cspSource} 'unsafe-inline' ${devServerUrl}`,
 			`font-src ${this.webview.cspSource} ${devServerUrl}`,
 			`script-src 'unsafe-inline' ${devServerUrl}`,
-			`connect-src ${devServerUrl} ws://${host} ws://localhost:${new URL(devServerUrl).port}`,
+			`connect-src ${devServerUrl} ws://${url.host} ws://localhost:${url.port}`,
 		].join("; ");
 
 		return `<!DOCTYPE html>
@@ -615,40 +630,36 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async getProductionWebviewHtml(): Promise<string> {
-		const webview = this.webview;
 		const distDir = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
 		const indexPath = join(distDir.fsPath, "index.html");
 		const nonce = createNonce();
-		let html = await vscode.workspace.fs
-			.readFile(vscode.Uri.file(indexPath))
-			.then((buffer) => Buffer.from(buffer).toString("utf8"));
-
-		html = html.replace(
-			/<(script|link)([^>]+?(?:src|href))="([^"]+)"([^>]*)>/g,
-			(_match, tag, attrPrefix, assetPath, suffix) => {
-				if (
-					assetPath.startsWith("http://") ||
-					assetPath.startsWith("https://") ||
-					assetPath.startsWith("data:")
-				) {
-					return `<${tag}${attrPrefix}="${assetPath}"${suffix}>`;
-				}
-				const normalizedAssetPath = assetPath.replace(/^\.?\//, "");
-				const assetUri = webview.asWebviewUri(
-					vscode.Uri.joinPath(distDir, normalizedAssetPath),
-				);
-				const nonceAttr = tag === "script" ? ` nonce="${nonce}"` : "";
-				return `<${tag}${nonceAttr}${attrPrefix}="${assetUri.toString()}"${suffix}>`;
-			},
+		const buffer = await vscode.workspace.fs.readFile(
+			vscode.Uri.file(indexPath),
 		);
+
+		let html = Buffer.from(buffer)
+			.toString("utf8")
+			.replace(
+				/<(script|link)([^>]+?(?:src|href))="([^"]+)"([^>]*)>/g,
+				(_match, tag, attrPrefix, assetPath, suffix) => {
+					if (/^(?:https?:|data:)/.test(assetPath)) {
+						return `<${tag}${attrPrefix}="${assetPath}"${suffix}>`;
+					}
+					const normalizedAssetPath = assetPath.replace(/^\.?\//, "");
+					const assetUri = this.webview.asWebviewUri(
+						vscode.Uri.joinPath(distDir, normalizedAssetPath),
+					);
+					const nonceAttr = tag === "script" ? ` nonce="${nonce}"` : "";
+					return `<${tag}${nonceAttr}${attrPrefix}="${assetUri.toString()}"${suffix}>`;
+				},
+			);
 
 		const csp = [
 			"default-src 'none'",
-			`img-src ${webview.cspSource} data:`,
-			`style-src ${webview.cspSource} 'unsafe-inline'`,
-			`font-src ${webview.cspSource}`,
-			// Allow the nonce-gated entry module and subsequent same-webview chunk loads.
-			`script-src ${webview.cspSource} 'nonce-${nonce}'`,
+			`img-src ${this.webview.cspSource} data:`,
+			`style-src ${this.webview.cspSource} 'unsafe-inline'`,
+			`font-src ${this.webview.cspSource}`,
+			`script-src ${this.webview.cspSource} 'nonce-${nonce}'`,
 		].join("; ");
 
 		if (html.includes("<head>")) {
@@ -657,7 +668,6 @@ class CoreChatWebviewController implements vscode.Disposable {
 				`<head>\n<meta http-equiv="Content-Security-Policy" content="${csp}" />`,
 			);
 		}
-
 		return html;
 	}
 
@@ -669,11 +679,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 	} {
 		const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		const cwd = folder ?? process.cwd();
-		const lastUsedProviderSettings =
-			this.providerSettingsManager.getLastUsedProviderSettings();
+		const lastUsed = this.providerSettingsManager.getLastUsedProviderSettings();
 		return {
-			provider: lastUsedProviderSettings?.provider,
-			model: lastUsedProviderSettings?.model,
+			provider: lastUsed?.provider,
+			model: lastUsed?.model,
 			workspaceRoot: cwd,
 			cwd,
 		};
@@ -681,13 +690,11 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async loadProviders(preferredProvider?: string): Promise<void> {
 		const state = this.providerSettingsManager.read();
-		const ids = llmModels
-			.getProviderIds()
-			.sort((a: string, b: string) => a.localeCompare(b));
+		const ids = Llms.getProviderIds().sort((a, b) => a.localeCompare(b));
 		const providers: ProviderListItem[] = (
 			await Promise.all(
-				ids.map(async (id: string) => {
-					const info = await llmModels.getProvider(id);
+				ids.map(async (id) => {
+					const info = await Llms.getProvider(id);
 					return {
 						id,
 						name: info?.name ?? id,
@@ -696,14 +703,12 @@ class CoreChatWebviewController implements vscode.Disposable {
 					};
 				}),
 			)
-		).filter((provider: ProviderListItem) => provider.enabled);
+		).filter((p) => p.enabled);
 		await this.post({ type: "providers", providers });
 
 		const selected =
 			(preferredProvider &&
-				providers.find(
-					(item: ProviderListItem) => item.id === preferredProvider,
-				)) ||
+				providers.find((p) => p.id === preferredProvider)) ||
 			providers[0];
 		if (selected) {
 			await this.loadModels(selected.id);
@@ -712,16 +717,14 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async loadModels(providerId: string): Promise<void> {
 		const provider = providerId.trim();
-		if (!provider) {
-			return;
-		}
-		const modelMap = (await llmModels.getModelsForProvider(provider)) as Record<
+		if (!provider) return;
+		const modelMap = (await Llms.getModelsForProvider(provider)) as Record<
 			string,
 			LlmModelInfo
 		>;
 		const models: ProviderModel[] = Object.entries(modelMap)
 			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([modelId, info]: [string, LlmModelInfo]) => ({
+			.map(([modelId, info]) => ({
 				id: modelId,
 				name: info.name ?? modelId,
 				supportsAttachments: info.capabilities?.includes("files"),
@@ -730,11 +733,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 					info.capabilities?.includes("reasoning"),
 				supportsVision: info.capabilities?.includes("images"),
 			}));
-		await this.post({
-			type: "models",
-			providerId: provider,
-			models,
-		});
+		await this.post({ type: "models", providerId: provider, models });
 	}
 
 	private async refreshSessions(): Promise<void> {
@@ -781,9 +780,9 @@ class CoreChatWebviewController implements vscode.Disposable {
 			role: "participant",
 			metadata: { source: "vscode-webview" },
 		});
-		const persistedMessages = (await host.readMessages(trimmed)) as Parameters<
-			typeof mapPersistedMessagesToWebviewMessages
-		>[0];
+		const persistedMessages = (await host.readMessages(
+			trimmed,
+		)) as PersistedMessage[];
 		this.startConfig = await this.buildStartConfigFromSession(session);
 		await this.post({ type: "session_started", sessionId: trimmed });
 		await this.post({
@@ -792,7 +791,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 			status: session.status,
 			providerId: session.provider,
 			modelId: session.model,
-			messages: mapPersistedMessagesToWebviewMessages(persistedMessages),
+			messages: mapPersistedMessagesToWebviewMessages(
+				persistedMessages,
+				session.metadata?.checkpoint,
+			),
 		});
 		await this.post({
 			type: "status",
@@ -809,9 +811,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		metadata: Record<string, unknown>,
 	): Promise<void> {
 		const trimmed = sessionId.trim();
-		if (!trimmed) {
-			return;
-		}
+		if (!trimmed) return;
 		const host = await this.getSessionHost();
 		await host.update(trimmed, { metadata });
 		await this.refreshSessions();
@@ -819,9 +819,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async deleteSession(sessionId: string): Promise<void> {
 		const trimmed = sessionId.trim();
-		if (!trimmed) {
-			return;
-		}
+		if (!trimmed) return;
 		const host = await this.getSessionHost();
 		const deleted = await host.delete(trimmed);
 		if (!deleted) {
@@ -843,21 +841,8 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async sendPrompt(
 		prompt: string,
-		config?: {
-			provider?: string;
-			model?: string;
-			mode?: "act" | "plan";
-			systemPrompt?: string;
-			maxIterations?: number;
-			thinking?: boolean;
-			enableTools?: boolean;
-			enableSpawn?: boolean;
-			enableTeams?: boolean;
-			autoApproveTools?: boolean;
-		},
-		attachments?: {
-			userImages?: string[];
-		},
+		config?: WebviewSendConfig,
+		attachments?: { userImages?: string[] },
 	): Promise<void> {
 		const trimmedPrompt = prompt.trim();
 		if (!trimmedPrompt && (attachments?.userImages?.length ?? 0) === 0) {
@@ -875,10 +860,26 @@ class CoreChatWebviewController implements vscode.Disposable {
 		try {
 			await this.ensureSession(config);
 			const host = await this.getSessionHost();
+			const activeSessionId = this.sessionId as string;
 			await host.send({
-				sessionId: this.sessionId as string,
+				sessionId: activeSessionId,
 				prompt: trimmedPrompt,
 				userImages: attachments?.userImages,
+			});
+			const [persistedMessages, session] = await Promise.all([
+				host.readMessages(activeSessionId) as Promise<PersistedMessage[]>,
+				host.get(activeSessionId),
+			]);
+			await this.post({
+				type: "session_hydrated",
+				sessionId: activeSessionId,
+				status: session?.status,
+				providerId: session?.provider,
+				modelId: session?.model,
+				messages: mapPersistedMessagesToWebviewMessages(
+					persistedMessages,
+					session?.metadata?.checkpoint,
+				),
 			});
 			await this.refreshSessions();
 		} catch (error) {
@@ -888,23 +889,42 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 	}
 
+	private buildExtensionContext(workspaceRoot: string, cwd: string) {
+		return {
+			client: { name: "cline-vscode", version },
+			workspace: {
+				rootPath: workspaceRoot,
+				cwd,
+				workspaceName: basename(cwd),
+				ide: "VS Code",
+				platform: os.platform(),
+			},
+			logger: this.logger,
+			telemetry: this.telemetry,
+		};
+	}
+
 	private async buildStartConfigFromSession(
 		session: NonNullable<Awaited<ReturnType<ClineCore["get"]>>>,
 	): Promise<StartConfig> {
+		const mode: "act" | "plan" =
+			session.metadata?.mode === "plan" ? "plan" : "act";
+		const explicitSystemPrompt =
+			typeof session.metadata?.systemPrompt === "string"
+				? session.metadata.systemPrompt
+				: undefined;
 		const resolvedSystemPrompt = await this.resolveSystemPrompt(
 			session.cwd,
 			session.provider,
-			typeof session.metadata?.systemPrompt === "string"
-				? session.metadata.systemPrompt
-				: undefined,
-			session.metadata?.mode === "plan" ? "plan" : "act",
+			explicitSystemPrompt,
+			mode,
 		);
 		return {
 			workspaceRoot: session.workspaceRoot,
 			cwd: session.cwd,
 			providerId: session.provider,
 			modelId: session.model,
-			mode: session.metadata?.mode === "plan" ? "plan" : "act",
+			mode,
 			apiKey: "",
 			systemPrompt: resolvedSystemPrompt,
 			maxIterations:
@@ -918,39 +938,28 @@ class CoreChatWebviewController implements vscode.Disposable {
 			teamName: session.teamName ?? "vscode-chat",
 			missionLogIntervalSteps: 3,
 			missionLogIntervalMs: 120000,
+			checkpoint: { enabled: true },
+			autoApproveTools:
+				typeof session.metadata?.autoApproveTools === "boolean"
+					? session.metadata.autoApproveTools
+					: undefined,
 			logger: this.logger,
-			extensionContext: {
-				client: { name: "cline-vscode", version },
-				workspace: {
-					rootPath: session.workspaceRoot,
-					cwd: session.cwd,
-					workspaceName: basename(session.cwd),
-					ide: "VS Code",
-					platform: os.platform(),
-				},
-				logger: this.logger,
-				telemetry: this.telemetry,
-			},
+			extensionContext: this.buildExtensionContext(
+				session.workspaceRoot,
+				session.cwd,
+			),
 		};
 	}
 
-	private async ensureSession(config?: {
-		provider?: string;
-		model?: string;
-		mode?: "act" | "plan";
-		systemPrompt?: string;
-		maxIterations?: number;
-		thinking?: boolean;
-		enableTools?: boolean;
-		enableSpawn?: boolean;
-		enableTeams?: boolean;
-		autoApproveTools?: boolean;
-	}): Promise<StartConfig> {
+	private async ensureSession(
+		config?: WebviewSendConfig,
+	): Promise<StartConfig> {
 		const defaults = this.resolveWorkspaceDefaults();
-		const providerId = llmProviders.normalizeProviderId(
+		const providerId = Llms.normalizeProviderId(
 			config?.provider?.trim() || "cline",
 		);
 		const modelId = config?.model?.trim() || "openai/gpt-5.4";
+		const mode: "act" | "plan" = config?.mode === "plan" ? "plan" : "act";
 		const normalizedMaxIterations =
 			typeof config?.maxIterations === "number" && config.maxIterations > 0
 				? Math.floor(config.maxIterations)
@@ -959,14 +968,14 @@ class CoreChatWebviewController implements vscode.Disposable {
 			defaults.cwd,
 			providerId,
 			config?.systemPrompt,
-			config?.mode,
+			mode,
 		);
 		const startConfig: StartConfig = {
 			workspaceRoot: defaults.workspaceRoot,
 			cwd: defaults.cwd,
 			providerId,
 			modelId,
-			mode: config?.mode === "plan" ? "plan" : "act",
+			mode,
 			apiKey: "",
 			systemPrompt: resolvedSystemPrompt,
 			maxIterations: normalizedMaxIterations,
@@ -977,19 +986,13 @@ class CoreChatWebviewController implements vscode.Disposable {
 			teamName: "vscode-chat",
 			missionLogIntervalSteps: 3,
 			missionLogIntervalMs: 120000,
+			checkpoint: { enabled: true },
+			autoApproveTools: config?.autoApproveTools !== false,
 			logger: this.logger,
-			extensionContext: {
-				client: { name: "cline-vscode", version },
-				workspace: {
-					rootPath: defaults.workspaceRoot,
-					cwd: defaults.cwd,
-					workspaceName: basename(defaults.cwd),
-					ide: "VS Code",
-					platform: os.platform(),
-				},
-				logger: this.logger,
-				telemetry: this.telemetry,
-			},
+			extensionContext: this.buildExtensionContext(
+				defaults.workspaceRoot,
+				defaults.cwd,
+			),
 		};
 
 		if (this.sessionId && this.startConfig) {
@@ -999,11 +1002,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 			await this.stopExistingSession();
 		}
 
-		const toolPolicies: Record<string, ToolPolicy> = {
-			"*": {
-				autoApprove: config?.autoApproveTools !== false,
-			},
-		};
+		const toolPolicies = createToolPolicies(startConfig);
 
 		const host = await this.getSessionHost();
 		const response = await host.start({
@@ -1041,9 +1040,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		this.stopEventStream();
 		this.sessionId = sessionId;
 		this.stopSessionSubscription = this.hubClient?.subscribe((event) => {
-			if (event.sessionId !== sessionId) {
-				return;
-			}
+			if (event.sessionId !== sessionId) return;
 			void this.forwardSessionHubEvent(event as HubEventEnvelope);
 		});
 	}
@@ -1069,9 +1066,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async abortTurn(): Promise<void> {
-		if (!this.sessionId) {
-			return;
-		}
+		if (!this.sessionId) return;
 		try {
 			const host = await this.getSessionHost();
 			await host.abort(this.sessionId);
@@ -1092,7 +1087,6 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 		try {
 			const host = await this.getSessionHost();
-			// Read the messages from the source session — fails fast if empty.
 			const rawMessages = await host.readMessages(forkedFromSessionId);
 			if (rawMessages.length === 0) {
 				await this.post({
@@ -1101,10 +1095,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 				});
 				return;
 			}
-			// Retrieve the session record to copy checkpoint metadata.
 			const sourceSession = await host.get(forkedFromSessionId);
 			const checkpointMetadata = sourceSession?.metadata?.checkpoint;
 			const forkMetadata: Record<string, unknown> = {
+				...(sourceSession?.metadata ?? {}),
 				fork: {
 					forkedFromSessionId,
 					forkedAt: new Date().toISOString(),
@@ -1114,28 +1108,17 @@ class CoreChatWebviewController implements vscode.Disposable {
 						: {}),
 				},
 			};
-			// Carry forward any other metadata fields (e.g. title, totalCost).
-			if (sourceSession?.metadata) {
-				for (const [key, value] of Object.entries(sourceSession.metadata)) {
-					if (key !== "fork") {
-						forkMetadata[key] = value;
-					}
-				}
-			}
 			const forkStartConfig = sourceSession
 				? await this.buildStartConfigFromSession(sourceSession)
 				: this.startConfig;
 			if (!forkStartConfig) {
 				throw new Error("Could not resolve start config for fork.");
 			}
-			// Stop the current session before spawning the fork.
 			await this.stopExistingSession();
-			const toolPolicies: Record<string, import("@clinebot/core").ToolPolicy> =
-				{ "*": { autoApprove: true } };
 			const response = await host.start({
 				interactive: true,
 				config: forkStartConfig,
-				toolPolicies,
+				toolPolicies: createToolPolicies(forkStartConfig),
 				initialMessages: rawMessages as import("@clinebot/llms").Message[],
 				sessionMetadata: forkMetadata,
 			});
@@ -1148,16 +1131,14 @@ class CoreChatWebviewController implements vscode.Disposable {
 			this.startConfig = forkStartConfig;
 			this.startEventStream(newSessionId);
 			await this.post({ type: "session_started", sessionId: newSessionId });
-			const forkMessages = mapPersistedMessagesToWebviewMessages(
-				rawMessages as Parameters<
-					typeof mapPersistedMessagesToWebviewMessages
-				>[0],
-			);
 			await this.post({
 				type: "session_hydrated",
 				sessionId: newSessionId,
 				status: newSession?.status,
-				messages: forkMessages,
+				messages: mapPersistedMessagesToWebviewMessages(
+					rawMessages as PersistedMessage[],
+					newSession?.metadata?.checkpoint,
+				),
 			});
 			await this.post({
 				type: "fork_done",
@@ -1186,14 +1167,15 @@ class CoreChatWebviewController implements vscode.Disposable {
 	private async getSessionHost(): Promise<ClineCore> {
 		if (!this.host) {
 			await this.ensureHub();
+			const defaults = this.resolveWorkspaceDefaults();
 			this.host = await ClineCore.create({
 				backendMode: "hub",
 				hub: {
 					endpoint: this.hubUrl,
 					clientType: "vscode",
 					displayName: "VS Code",
-					workspaceRoot: this.resolveWorkspaceDefaults().workspaceRoot,
-					cwd: this.resolveWorkspaceDefaults().cwd,
+					workspaceRoot: defaults.workspaceRoot,
+					cwd: defaults.cwd,
 				},
 				telemetry: this.telemetry,
 			});
@@ -1202,15 +1184,66 @@ class CoreChatWebviewController implements vscode.Disposable {
 		return this.host;
 	}
 
+	private async restore(checkpointRunCount: number): Promise<void> {
+		const sourceSessionId = this.sessionId;
+		const startConfig = this.startConfig;
+		if (!sourceSessionId || !startConfig) {
+			await this.post({
+				type: "error",
+				text: "No active session to restore.",
+			});
+			return;
+		}
+		if (!Number.isInteger(checkpointRunCount) || checkpointRunCount < 1) {
+			await this.post({ type: "error", text: "Invalid checkpoint run count." });
+			return;
+		}
+		try {
+			const host = await this.getSessionHost();
+			const restored = await host.restore({
+				sessionId: sourceSessionId,
+				checkpointRunCount,
+				cwd: startConfig.cwd || startConfig.workspaceRoot,
+				restore: { messages: true, workspace: true },
+				start: {
+					interactive: true,
+					config: startConfig,
+					toolPolicies: createToolPolicies(startConfig),
+				},
+			});
+			const newSessionId = restored.sessionId?.trim() ?? "";
+			if (!newSessionId) {
+				throw new Error("Checkpoint restore did not return a session id.");
+			}
+			const newSession = await host.get(newSessionId);
+			await this.stopExistingSession();
+			this.sessionId = newSessionId;
+			this.startConfig = startConfig;
+			this.startEventStream(newSessionId);
+			await this.post({ type: "session_started", sessionId: newSessionId });
+			await this.post({
+				type: "session_hydrated",
+				sessionId: newSessionId,
+				status: newSession?.status,
+				providerId: newSession?.provider,
+				modelId: newSession?.model,
+				messages: mapPersistedMessagesToWebviewMessages(
+					(restored.messages ?? []) as PersistedMessage[],
+					newSession?.metadata?.checkpoint,
+				),
+			});
+			await this.post({
+				type: "status",
+				text: `Restored checkpoint ${checkpointRunCount}`,
+			});
+			await this.refreshSessions();
+		} catch (error) {
+			await this.postError(error);
+		}
+	}
+
 	private async handleHubEvent(event: HubEventEnvelope): Promise<void> {
-		const shouldRefreshSessions =
-			event.event === "session.created" ||
-			event.event === "session.updated" ||
-			event.event === "session.attached" ||
-			event.event === "session.detached" ||
-			event.event === "run.started" ||
-			event.event === "run.completed" ||
-			event.event === "run.aborted";
+		const shouldRefreshSessions = REFRESH_SESSION_EVENTS.has(event.event);
 		if (!this.sessionId || event.sessionId !== this.sessionId) {
 			if (shouldRefreshSessions) {
 				void this.refreshSessions().catch(() => undefined);
@@ -1223,18 +1256,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async forwardSessionHubEvent(event: HubEventEnvelope): Promise<void> {
-		if (!this.sessionId || event.sessionId !== this.sessionId) {
-			return;
-		}
+		if (!this.sessionId || event.sessionId !== this.sessionId) return;
 		const payload = asRecord(event.payload);
-		const shouldRefreshSessions =
-			event.event === "session.created" ||
-			event.event === "session.updated" ||
-			event.event === "session.attached" ||
-			event.event === "session.detached" ||
-			event.event === "run.started" ||
-			event.event === "run.completed" ||
-			event.event === "run.aborted";
+		const shouldRefreshSessions = REFRESH_SESSION_EVENTS.has(event.event);
+
 		switch (event.event) {
 			case "assistant.delta":
 				await this.post({
@@ -1249,74 +1274,70 @@ class CoreChatWebviewController implements vscode.Disposable {
 					redacted: payload?.redacted === true,
 				});
 				return;
-			case "tool.started":
+			case "tool.started": {
+				const toolName =
+					typeof payload?.toolName === "string" ? payload.toolName : "tool";
 				await this.post({
 					type: "tool_event",
-					text: `Running ${String(payload?.toolName ?? "tool")}...`,
+					text: `Running ${toolName}...`,
 					event: {
 						toolCallId:
 							typeof payload?.toolCallId === "string"
 								? payload.toolCallId
 								: undefined,
-						toolName:
-							typeof payload?.toolName === "string" ? payload.toolName : "tool",
+						toolName,
 						status: "running",
 						input: payload?.input,
 					},
 				});
 				return;
-			case "tool.finished":
+			}
+			case "tool.finished": {
+				const toolName =
+					typeof payload?.toolName === "string" ? payload.toolName : "tool";
+				const error =
+					typeof payload?.error === "string" ? payload.error : undefined;
 				await this.post({
 					type: "tool_event",
-					text:
-						typeof payload?.error === "string"
-							? `${String(payload?.toolName ?? "tool")} failed: ${payload.error}`
-							: `${String(payload?.toolName ?? "tool")} completed`,
+					text: error
+						? `${toolName} failed: ${error}`
+						: `${toolName} completed`,
 					event: {
 						toolCallId:
 							typeof payload?.toolCallId === "string"
 								? payload.toolCallId
 								: undefined,
-						toolName:
-							typeof payload?.toolName === "string" ? payload.toolName : "tool",
-						status: typeof payload?.error === "string" ? "failed" : "completed",
+						toolName,
+						status: error ? "failed" : "completed",
 						output: payload?.output,
-						error:
-							typeof payload?.error === "string" ? payload.error : undefined,
+						error,
 					},
 				});
 				return;
-			case "run.completed":
+			}
+			case "run.completed": {
+				const result = asRecord(payload?.result);
 				await this.post({
 					type: "turn_done",
 					finishReason:
 						typeof payload?.reason === "string" ? payload.reason : "completed",
 					iterations:
-						typeof payload?.result === "object" &&
-						payload.result &&
-						typeof (payload.result as Record<string, unknown>).iterations ===
-							"number"
-							? ((payload.result as Record<string, unknown>)
-									.iterations as number)
-							: 0,
-					usage:
-						typeof payload?.result === "object" &&
-						payload.result &&
-						typeof (payload.result as Record<string, unknown>).usage ===
-							"object"
-							? ((payload.result as Record<string, unknown>).usage as {
-									inputTokens?: number;
-									outputTokens?: number;
-									cacheCreationInputTokens?: number;
-									cacheReadInputTokens?: number;
-									totalCost?: number;
-								})
-							: undefined,
+						typeof result?.iterations === "number" ? result.iterations : 0,
+					usage: asRecord(result?.usage) as
+						| {
+								inputTokens?: number;
+								outputTokens?: number;
+								cacheCreationInputTokens?: number;
+								cacheReadInputTokens?: number;
+								totalCost?: number;
+						  }
+						| undefined,
 				});
 				if (shouldRefreshSessions) {
 					void this.refreshSessions().catch(() => undefined);
 				}
 				return;
+			}
 			case "run.aborted":
 				await this.post({
 					type: "turn_done",
@@ -1370,10 +1391,17 @@ function areStartConfigsEqual(a: StartConfig, b: StartConfig): boolean {
 		a.missionLogIntervalMs === b.missionLogIntervalMs &&
 		a.mode === b.mode &&
 		a.apiKey === b.apiKey &&
+		a.autoApproveTools === b.autoApproveTools &&
 		a.extensionContext?.client?.name === b.extensionContext?.client?.name &&
 		a.extensionContext?.user?.distinctId ===
 			b.extensionContext?.user?.distinctId
 	);
+}
+
+function createToolPolicies(config: StartConfig): Record<string, ToolPolicy> {
+	return {
+		"*": { autoApprove: config.autoApproveTools !== false },
+	};
 }
 
 function createNonce(): string {
@@ -1394,21 +1422,17 @@ function createOutputChannelLogger(
 		message: string,
 		metadata?: Record<string, unknown>,
 	): void => {
-		const suffix = formatLogMetadata(metadata);
 		outputChannel.appendLine(
-			`[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}${suffix}`,
+			`[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}${formatLogMetadata(metadata)}`,
 		);
 	};
 
 	return {
 		debug: (message, metadata) => write("debug", message, metadata),
 		log: (message, metadata) => {
+			const severity = metadata?.severity;
 			const level =
-				metadata?.severity === "warn"
-					? ("warn" as const)
-					: metadata?.severity === "error"
-						? ("error" as const)
-						: ("info" as const);
+				severity === "warn" ? "warn" : severity === "error" ? "error" : "info";
 			const { severity: _s, ...rest } = metadata ?? {};
 			write(level, message, Object.keys(rest).length > 0 ? rest : undefined);
 		},
@@ -1417,9 +1441,7 @@ function createOutputChannelLogger(
 }
 
 function formatLogMetadata(metadata?: Record<string, unknown>): string {
-	if (!metadata || Object.keys(metadata).length === 0) {
-		return "";
-	}
+	if (!metadata || Object.keys(metadata).length === 0) return "";
 	try {
 		return ` ${JSON.stringify(metadata)}`;
 	} catch {

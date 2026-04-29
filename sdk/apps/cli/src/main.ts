@@ -11,6 +11,7 @@ import {
 	createProgram,
 } from "./commands/program";
 import { autoUpdateOnStartup } from "./commands/update";
+import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import {
 	configureSandboxEnvironment,
 	normalizeAutoApproveArgs,
@@ -739,6 +740,7 @@ export async function runCli(): Promise<void> {
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
+			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
 			compaction: {
 				enabled: true,
 			},

@@ -301,6 +301,7 @@ export type HubCommandName =
 	| "session.detach"
 	| "session.get"
 	| "session.messages"
+	| "session.restore"
 	| "session.delete"
 	| "session.update"
 	| "session.pending_prompts"

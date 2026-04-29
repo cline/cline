@@ -148,6 +148,30 @@ export function createCheckpointHooks(
 			return undefined;
 		}
 
+		const createHeadCheckpoint = async (
+			warnPrefix: string,
+		): Promise<CheckpointEntry | undefined> => {
+			try {
+				const result = await runGit(options.cwd, ["rev-parse", "HEAD"]);
+				const ref = result.stdout.trim();
+				if (!ref) {
+					return undefined;
+				}
+				return {
+					ref,
+					createdAt: Date.now(),
+					runCount,
+					kind: "commit",
+				};
+			} catch (error) {
+				warn(
+					options.logger,
+					`${warnPrefix}: ${error instanceof Error ? error.message : String(error)}`,
+				);
+				return undefined;
+			}
+		};
+
 		const message = `cline checkpoint session=${options.sessionId} run=${runCount}`;
 		let ref = "";
 		try {
@@ -158,28 +182,10 @@ export function createCheckpointHooks(
 				options.logger,
 				`Checkpoint snapshot failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
-			return undefined;
+			return createHeadCheckpoint("Checkpoint HEAD fallback failed");
 		}
 		if (!ref) {
-			try {
-				const result = await runGit(options.cwd, ["rev-parse", "HEAD"]);
-				ref = result.stdout.trim();
-			} catch (error) {
-				warn(
-					options.logger,
-					`Checkpoint HEAD fallback failed: ${error instanceof Error ? error.message : String(error)}`,
-				);
-				return undefined;
-			}
-			if (!ref) {
-				return undefined;
-			}
-			return {
-				ref,
-				createdAt: Date.now(),
-				runCount,
-				kind: "commit",
-			};
+			return createHeadCheckpoint("Checkpoint HEAD fallback failed");
 		}
 
 		// Store the stash commit under a private ref namespace so it is
@@ -224,6 +230,9 @@ export function createCheckpointHooks(
 			}
 			const metadata = await options.readSessionMetadata();
 			const existing = readCheckpointMetadata(metadata);
+			if (existing?.latest.ref === entry.ref) {
+				return undefined;
+			}
 			const history = [...(existing?.history ?? []), entry];
 			await options.writeSessionMetadata({
 				...(metadata ?? {}),

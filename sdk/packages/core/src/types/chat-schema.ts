@@ -54,6 +54,14 @@ export const ChatMessageSchema = z.object({
 			hookEventName: z.string().optional(),
 			inputTokens: z.number().int().nonnegative().optional(),
 			outputTokens: z.number().int().nonnegative().optional(),
+			checkpoint: z
+				.object({
+					ref: z.string(),
+					createdAt: z.number().int().nonnegative(),
+					runCount: z.number().int().positive(),
+					kind: z.enum(["stash", "commit"]).optional(),
+				})
+				.optional(),
 		})
 		.optional(),
 });

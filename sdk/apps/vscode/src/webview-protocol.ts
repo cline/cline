@@ -1,3 +1,9 @@
+import type {
+	ChatMessage as CoreChatMessage,
+	ProviderListItem,
+	ProviderModel,
+} from "@clinebot/core";
+
 export type WebviewUsage = {
 	inputTokens?: number;
 	outputTokens?: number;
@@ -6,9 +12,10 @@ export type WebviewUsage = {
 	totalCost?: number;
 };
 
-export type WebviewProviderModel = {
-	id: string;
-	name?: string;
+export type WebviewProviderModel = Pick<
+	ProviderModel,
+	"id" | "name" | "supportsReasoning"
+> & {
 	supportsThinking?: boolean;
 };
 
@@ -30,12 +37,17 @@ export type WebviewChatMessageBlock =
 			toolEvent: NonNullable<WebviewChatMessage["toolEvents"]>[number];
 	  };
 
-export type WebviewChatMessage = {
-	id: string;
-	role: "user" | "assistant" | "meta" | "error";
+export type WebviewChatMessage = Omit<
+	CoreChatMessage,
+	"content" | "createdAt" | "meta" | "role" | "sessionId"
+> & {
+	role:
+		| Extract<CoreChatMessage["role"], "user" | "assistant" | "error">
+		| "meta";
 	text: string;
 	reasoning?: string;
 	reasoningRedacted?: boolean;
+	checkpoint?: NonNullable<CoreChatMessage["meta"]>["checkpoint"];
 	toolEvents?: Array<{
 		id: string;
 		toolCallId?: string;
@@ -99,6 +111,7 @@ export type WebviewInboundMessage =
 			sessionId: string;
 			metadata: Record<string, unknown>;
 	  }
+	| { type: "restore"; checkpointRunCount: number }
 	| { type: "forkSession" };
 
 export type WebviewOutboundMessage =
@@ -124,12 +137,9 @@ export type WebviewOutboundMessage =
 	  }
 	| {
 			type: "providers";
-			providers: Array<{
-				id: string;
-				name: string;
-				enabled: boolean;
-				defaultModelId?: string;
-			}>;
+			providers: Array<
+				Pick<ProviderListItem, "defaultModelId" | "enabled" | "id" | "name">
+			>;
 	  }
 	| { type: "models"; providerId: string; models: WebviewProviderModel[] }
 	| { type: "sessions"; sessions: WebviewSessionSummary[] }

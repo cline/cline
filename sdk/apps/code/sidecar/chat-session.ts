@@ -1,7 +1,5 @@
-import { execFile as execFileCallback } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { promisify } from "node:util";
 import {
 	buildWorkspaceMetadata,
 	type ClineCore,
@@ -22,8 +20,6 @@ import type {
 	PromptInQueue,
 	SidecarContext,
 } from "./types";
-
-const execFile = promisify(execFileCallback);
 
 // ---------------------------------------------------------------------------
 // Session data helpers
@@ -75,106 +71,6 @@ function derivePromptFromMessages(messages: unknown[]): string {
 		}
 	}
 	return "";
-}
-
-// ---------------------------------------------------------------------------
-// Checkpoint helpers
-// ---------------------------------------------------------------------------
-
-type CheckpointEntry = {
-	ref: string;
-	createdAt: number;
-	runCount: number;
-	kind?: "stash" | "commit";
-};
-
-function readCheckpointHistory(sessionId: string): CheckpointEntry[] {
-	const manifestPath = join(
-		sharedSessionDataDir(),
-		sessionId,
-		`${sessionId}.json`,
-	);
-	if (!existsSync(manifestPath)) return [];
-	try {
-		const manifest = JSON.parse(
-			readFileSync(manifestPath, "utf8"),
-		) as JsonRecord;
-		const md =
-			manifest.metadata && typeof manifest.metadata === "object"
-				? (manifest.metadata as JsonRecord)
-				: undefined;
-		const cp =
-			md?.checkpoint && typeof md.checkpoint === "object"
-				? (md.checkpoint as JsonRecord)
-				: undefined;
-		const history = cp?.history;
-		if (!Array.isArray(history)) return [];
-		return history
-			.filter((e): e is JsonRecord => !!e && typeof e === "object")
-			.map((e) => ({
-				ref: String(e.ref ?? "").trim(),
-				createdAt: Number(e.createdAt ?? 0),
-				runCount: Number(e.runCount ?? 0),
-				kind:
-					e.kind === "stash" || e.kind === "commit"
-						? (e.kind as "stash" | "commit")
-						: undefined,
-			}))
-			.filter(
-				(e) =>
-					e.ref.length > 0 &&
-					Number.isFinite(e.createdAt) &&
-					Number.isInteger(e.runCount) &&
-					e.runCount > 0,
-			);
-	} catch {
-		return [];
-	}
-}
-
-function trimMessagesToCheckpoint(
-	messages: unknown[],
-	runCount: number,
-): unknown[] {
-	let userRunCount = 0;
-	for (let i = 0; i < messages.length; i++) {
-		const raw = messages[i];
-		if (!raw || typeof raw !== "object") continue;
-		const msg = raw as JsonRecord;
-		if (msg.role !== "user") continue;
-		const md =
-			msg.metadata && typeof msg.metadata === "object"
-				? (msg.metadata as JsonRecord)
-				: undefined;
-		if (md?.kind === "recovery_notice") continue;
-		userRunCount++;
-		if (userRunCount === runCount) return messages.slice(0, i + 1);
-	}
-	throw new Error(`Could not find user message for checkpoint run ${runCount}`);
-}
-
-async function applyCheckpointToWorktree(
-	cwd: string,
-	cp: CheckpointEntry,
-): Promise<void> {
-	const check = await execFile(
-		"git",
-		["-C", cwd, "rev-parse", "--is-inside-work-tree"],
-		{ windowsHide: true },
-	);
-	if (check.stdout.trim() !== "true")
-		throw new Error(`${cwd} is not a git repository`);
-	await execFile("git", ["-C", cwd, "reset", "--hard"], { windowsHide: true });
-	await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
-	if (cp.kind === "commit") {
-		await execFile("git", ["-C", cwd, "reset", "--hard", cp.ref], {
-			windowsHide: true,
-		});
-		return;
-	}
-	await execFile("git", ["-C", cwd, "stash", "apply", cp.ref], {
-		windowsHide: true,
-	});
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +131,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
+		checkpoint: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
@@ -747,41 +644,35 @@ async function handleRestoreCheckpoint(
 		throw new Error("checkpointRunCount must be a positive integer");
 	if (!request.config)
 		throw new Error("config is required to restore a checkpoint");
-	const sourceMessages =
-		readPersistedChatMessages(sourceSessionId) ??
-		ctx.liveSessions.get(sourceSessionId)?.messages;
-	if (!sourceMessages?.length)
-		throw new Error(`No messages found for session ${sourceSessionId}`);
-	const checkpoint = readCheckpointHistory(sourceSessionId).find(
-		(e) => e.runCount === runCount,
-	);
-	if (!checkpoint)
-		throw new Error(
-			`No checkpoint found for run ${runCount} in session ${sourceSessionId}`,
-		);
 	const cwd =
 		(typeof request.config.cwd === "string" && request.config.cwd.trim()) ||
 		(typeof request.config.workspaceRoot === "string" &&
 			request.config.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
-	const restoredMessages = trimMessagesToCheckpoint(sourceMessages, runCount);
-	await applyCheckpointToWorktree(cwd, checkpoint);
 	const manager = getSessionManager(ctx);
-	const startResult = await manager.start({
-		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
-				...request.config,
-				systemPrompt: await resolveSystemPrompt(request.config),
-				initialMessages: restoredMessages,
-			}) as any,
-		),
-		source: SessionSource.DESKTOP,
-		interactive: true,
-		initialMessages: restoredMessages as any[],
-		toolPolicies: resolveToolPolicies(request.config),
+	const restored = await manager.restore({
+		sessionId: sourceSessionId,
+		checkpointRunCount: runCount,
+		cwd,
+		restore: { messages: true, workspace: true },
+		start: {
+			...splitCoreSessionConfig(
+				buildCoreSessionConfig({
+					...request.config,
+					systemPrompt: await resolveSystemPrompt(request.config),
+				}) as any,
+			),
+			source: SessionSource.DESKTOP,
+			interactive: true,
+			toolPolicies: resolveToolPolicies(request.config),
+		},
 	});
-	const sessionId = startResult.sessionId;
+	const sessionId = restored.sessionId;
+	const restoredMessages = restored.messages;
+	if (!sessionId || !restoredMessages) {
+		throw new Error("Checkpoint restore did not return a new session");
+	}
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		sessionId,
@@ -799,7 +690,11 @@ async function handleRestoreCheckpoint(
 		const read = await manager.readMessages(sessionId);
 		if (read?.length > 0) messages = read;
 	} catch {}
-	return { sessionId, messages, restoredCheckpoint: checkpoint };
+	return {
+		sessionId,
+		messages,
+		restoredCheckpoint: restored.checkpoint,
+	};
 }
 
 async function handlePendingPrompts(

@@ -182,6 +182,9 @@ export {
 	type ClineCoreStartInput,
 	type HubOptions,
 	type RemoteOptions,
+	type RestoreInput,
+	type RestoreOptions,
+	type RestoreResult,
 } from "./ClineCore";
 export type {
 	LoadAgentPluginFromPathOptions,

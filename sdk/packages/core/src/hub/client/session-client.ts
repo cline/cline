@@ -7,6 +7,7 @@ import type {
 	HubEventEnvelope,
 	TeamProgressProjectionEvent,
 } from "@clinebot/shared";
+import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { NodeHubClient } from "../client";
 
 export interface HubSessionClientOptions {
@@ -30,6 +31,27 @@ export interface HubStreamEvent {
 	sessionId: string;
 	eventType: string;
 	payload: Record<string, unknown>;
+}
+
+export interface HubRestoreRequest {
+	sessionId: string;
+	checkpointRunCount: number;
+	config?: ChatStartSessionRequest;
+	restore?: {
+		messages?: boolean;
+		workspace?: boolean;
+	};
+}
+
+export interface HubRestoreResponse {
+	sessionId?: string;
+	startResult?: {
+		sessionId: string;
+		manifestPath: string;
+		messagesPath: string;
+	};
+	messages?: LlmsProviders.Message[];
+	checkpoint: CheckpointEntry;
 }
 
 export interface HubEventStreamHandlers {
@@ -81,6 +103,28 @@ function hubReplyErrorMessage(
 	command: string,
 ): string {
 	return reply.error?.message ?? `hub command failed: ${command}`;
+}
+
+function extractCheckpoint(
+	payload: Record<string, unknown> | undefined,
+): CheckpointEntry {
+	const checkpoint = payload?.checkpoint;
+	if (
+		!checkpoint ||
+		typeof checkpoint !== "object" ||
+		Array.isArray(checkpoint)
+	) {
+		throw new Error("hub checkpoint restore returned no checkpoint");
+	}
+	const record = checkpoint as Partial<CheckpointEntry>;
+	if (
+		typeof record.ref !== "string" ||
+		typeof record.createdAt !== "number" ||
+		typeof record.runCount !== "number"
+	) {
+		throw new Error("hub checkpoint restore returned an invalid checkpoint");
+	}
+	return record as CheckpointEntry;
 }
 
 function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
@@ -321,6 +365,100 @@ export class HubSessionClient {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages) ? (messages as LlmsProviders.Message[]) : [];
+	}
+
+	async restore(input: HubRestoreRequest): Promise<HubRestoreResponse> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const restoreMessages = input.restore?.messages !== false;
+		if (restoreMessages && !input.config) {
+			throw new Error("config is required when restore.messages is true");
+		}
+		await this.ensureMetadataApplied();
+		const request = input.config;
+		const reply = await this.client.command(
+			"session.restore",
+			{
+				sessionId,
+				checkpointRunCount: input.checkpointRunCount,
+				restore: input.restore,
+				...(request
+					? {
+							workspaceRoot: request.workspaceRoot,
+							cwd: request.cwd,
+							sessionConfig: {
+								providerId: request.provider,
+								modelId: request.model,
+								apiKey: request.apiKey,
+								cwd: request.cwd ?? request.workspaceRoot,
+								workspaceRoot: request.workspaceRoot,
+								systemPrompt: request.systemPrompt ?? "",
+								mode: request.mode ?? "act",
+								rules: request.rules,
+								maxIterations: request.maxIterations,
+								enableTools: request.enableTools,
+								enableSpawnAgent: request.enableSpawn !== false,
+								enableAgentTeams: request.enableTeams !== false,
+								disableMcpSettingsTools: request.disableMcpSettingsTools,
+								missionLogIntervalSteps: request.missionStepInterval,
+								missionLogIntervalMs: request.missionTimeIntervalMs,
+							},
+							metadata: {
+								source: request.source ?? "cli",
+								provider: request.provider,
+								model: request.model,
+								enableTools: request.enableTools,
+								enableSpawn: request.enableSpawn,
+								enableTeams: request.enableTeams,
+								prompt: undefined,
+								interactive: request.interactive !== false,
+							},
+							runtimeOptions: {
+								mode: request.mode,
+								systemPrompt: request.systemPrompt,
+								maxIterations: request.maxIterations,
+								enableTools: request.enableTools,
+								enableSpawn: request.enableSpawn,
+								enableTeams: request.enableTeams,
+								autoApproveTools: request.autoApproveTools,
+								configExtensions: request.configExtensions,
+							},
+							modelSelection: {
+								provider: request.provider,
+								model: request.model,
+								apiKey: request.apiKey,
+							},
+							toolPolicies: request.toolPolicies,
+						}
+					: {}),
+			},
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.restore"));
+		}
+		const row = extractSessionRow(reply.payload);
+		if (restoreMessages && !row?.sessionId) {
+			throw new Error("hub checkpoint restore returned no session id");
+		}
+		const messages = Array.isArray(reply.payload?.messages)
+			? (reply.payload.messages as LlmsProviders.Message[])
+			: undefined;
+		const checkpoint = extractCheckpoint(reply.payload);
+		return {
+			sessionId: row?.sessionId,
+			startResult: row?.sessionId
+				? {
+						sessionId: row.sessionId,
+						manifestPath: "",
+						messagesPath: row.messagesPath ?? "",
+					}
+				: undefined,
+			...(messages ? { messages } : {}),
+			checkpoint,
+		};
 	}
 
 	async listSessions(input?: { limit?: number }): Promise<HubSessionRow[]> {

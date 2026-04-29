@@ -4,12 +4,17 @@ import { GitBranchIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
 import { nanoid } from "nanoid";
 import {
 	type MutableRefObject,
-	type ReactNode,
+	type ReactElement,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
+import {
+	Checkpoint,
+	CheckpointIcon,
+	CheckpointTrigger,
+} from "@/components/ai-elements/checkpoint";
 import {
 	Conversation,
 	ConversationContent,
@@ -37,6 +42,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
 	WebviewChatAttachments,
+	WebviewChatMessage,
+	WebviewChatMessageBlock,
 	WebviewDefaults,
 	WebviewOutboundMessage,
 	WebviewProviderModel,
@@ -44,14 +51,19 @@ import type {
 	WebviewToolEvent,
 } from "../../webview-protocol";
 import { Composer } from "./components/Composer";
-import type {
-	ChatMessage,
-	ChatMessageBlock,
-	ModelSelectionStorage,
-	ProviderOption,
-	ToolEvent,
-} from "./types";
 import { getVsCodeApi, postToHost } from "./vscode";
+
+type ChatMessage = WebviewChatMessage;
+type ChatMessageBlock = WebviewChatMessageBlock;
+type ToolEvent = NonNullable<WebviewChatMessage["toolEvents"]>[number];
+type ProviderOption = Extract<
+	WebviewOutboundMessage,
+	{ type: "providers" }
+>["providers"][number];
+type ModelSelectionStorage = {
+	lastProvider: string;
+	lastModelByProvider: Record<string, string>;
+};
 
 const EMPTY_SELECTION: ModelSelectionStorage = {
 	lastProvider: "",
@@ -527,7 +539,10 @@ function mergeHydratedMessagesWithLive(
 	return next;
 }
 
-function renderToolEvent(toolEvent: ToolEvent, className: string): ReactNode[] {
+function renderToolEvent(
+	toolEvent: ToolEvent,
+	className: string,
+): ReactElement[] {
 	return expandToolEvent(toolEvent).map((expanded) => (
 		<Tool className={className} key={expanded.id}>
 			<ToolHeader
@@ -569,7 +584,7 @@ function legacyMessageBlocks(message: ChatMessage): ChatMessageBlock[] {
 function renderMessageBlocks(
 	message: ChatMessage,
 	options: { isMeta?: boolean; sending?: boolean },
-): ReactNode[] {
+): ReactElement[] {
 	const blocks = message.blocks?.length
 		? message.blocks
 		: legacyMessageBlocks(message);
@@ -645,6 +660,19 @@ function formatSessionLabel(session: WebviewSessionSummary): string {
 	return [title, status ? `(${status})` : undefined, workspaceName]
 		.filter(Boolean)
 		.join(" • ");
+}
+
+function formatCheckpointTime(createdAt: number): string {
+	try {
+		return new Intl.DateTimeFormat(undefined, {
+			month: "short",
+			day: "numeric",
+			hour: "numeric",
+			minute: "2-digit",
+		}).format(new Date(createdAt));
+	} catch {
+		return "Checkpoint";
+	}
 }
 
 export default function Chat() {
@@ -1083,6 +1111,28 @@ export default function Chat() {
 								<Message from={message.role} key={message.id}>
 									<div>
 										{renderMessageBlocks(message, { sending })}
+										{message.role === "user" && message.checkpoint ? (
+											<Checkpoint className="mt-1 justify-end">
+												<CheckpointTrigger
+													className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+													disabled={sending}
+													onClick={() => {
+														if (message.checkpoint) {
+															postToHost({
+																type: "restore",
+																checkpointRunCount: message.checkpoint.runCount,
+															});
+														}
+													}}
+													tooltip={`Checkpoint from run ${message.checkpoint.runCount}`}
+													type="button"
+													variant="ghost"
+												>
+													<CheckpointIcon className="size-3" />
+													{formatCheckpointTime(message.checkpoint.createdAt)}
+												</CheckpointTrigger>
+											</Checkpoint>
+										) : null}
 										{message.role === "assistant" && !sending ? (
 											<div className="mt-1 flex items-center gap-1">
 												<Button

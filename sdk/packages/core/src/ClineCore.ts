@@ -24,6 +24,7 @@ import type {
 	CronSpecRecord,
 } from "./cron/store/sqlite-cron-store";
 import type { ToolExecutors } from "./extensions/tools";
+import type { CheckpointEntry } from "./hooks/checkpoint-hooks";
 import type { SessionHistoryListOptions } from "./runtime/host/history";
 import { listSessionHistory } from "./runtime/host/history";
 import type { SessionBackend } from "./runtime/host/host";
@@ -44,6 +45,10 @@ import type {
 import { splitCoreSessionConfig } from "./runtime/host/runtime-host";
 import { normalizeProviderId } from "./services/llms/provider-settings";
 import { CORE_TELEMETRY_EVENTS } from "./services/telemetry/core-events";
+import {
+	applyCheckpointToWorktree,
+	createCheckpointRestorePlan,
+} from "./session/checkpoint-restore";
 import { SessionSource } from "./types/common";
 import type { CoreSessionConfig } from "./types/config";
 import type { CoreSessionEvent, SessionPendingPrompt } from "./types/events";
@@ -151,6 +156,34 @@ export interface ClineCoreStartInput
 	extends Omit<StartSessionInput, "config" | "localRuntime"> {
 	config: CoreSessionConfig;
 	localRuntime?: LocalRuntimeStartOptions;
+}
+
+export interface RestoreOptions {
+	/**
+	 * Restore the message history by starting a new session fork trimmed to
+	 * `checkpointRunCount`. Defaults to true.
+	 */
+	messages?: boolean;
+	/**
+	 * Restore the workspace files from the checkpoint's git snapshot.
+	 * Defaults to true.
+	 */
+	workspace?: boolean;
+}
+
+export interface RestoreInput {
+	sessionId: string;
+	checkpointRunCount: number;
+	start?: ClineCoreStartInput;
+	cwd?: string;
+	restore?: RestoreOptions;
+}
+
+export interface RestoreResult {
+	sessionId?: string;
+	startResult?: StartSessionResult;
+	messages?: import("@clinebot/llms").Message[];
+	checkpoint: CheckpointEntry;
 }
 
 export interface ClineCoreOptions {
@@ -970,6 +1003,55 @@ export class ClineCore implements RuntimeHost {
 	 */
 	readMessages: RuntimeHost["readMessages"] = (...args) =>
 		this.host.readMessages(...args);
+
+	async restore(input: RestoreInput): Promise<RestoreResult> {
+		const sourceSessionId = input.sessionId.trim();
+		if (!sourceSessionId) {
+			throw new Error("sessionId is required");
+		}
+		const restoreMessages = input.restore?.messages !== false;
+		const restoreWorkspace = input.restore?.workspace !== false;
+		if (!restoreMessages && !restoreWorkspace) {
+			throw new Error("restore.messages or restore.workspace must be true");
+		}
+		if (restoreMessages && !input.start) {
+			throw new Error("start is required when restore.messages is true");
+		}
+		const sourceSession = await this.host.get(sourceSessionId);
+		if (!sourceSession) {
+			throw new Error(`Session ${sourceSessionId} not found`);
+		}
+		const sourceMessages = restoreMessages
+			? await this.host.readMessages(sourceSessionId)
+			: undefined;
+		if (restoreMessages && sourceMessages?.length === 0) {
+			throw new Error(`No messages found for session ${sourceSessionId}`);
+		}
+		const plan = createCheckpointRestorePlan({
+			session: sourceSession,
+			messages: sourceMessages,
+			checkpointRunCount: input.checkpointRunCount,
+			cwd: input.cwd,
+			restoreMessages,
+		});
+		if (restoreWorkspace) {
+			await applyCheckpointToWorktree(plan.cwd, plan.checkpoint);
+		}
+		if (!restoreMessages) {
+			return { checkpoint: plan.checkpoint };
+		}
+		const startResult = await this.start({
+			...input.start!,
+			initialMessages: plan.messages ?? [],
+		});
+		return {
+			sessionId: startResult.sessionId,
+			startResult,
+			messages: plan.messages,
+			checkpoint: plan.checkpoint,
+		};
+	}
+
 	/**
 	 * Handles hook events from the runtime environment.
 	 *

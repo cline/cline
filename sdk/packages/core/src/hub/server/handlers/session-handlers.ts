@@ -6,6 +6,10 @@ import type {
 } from "@clinebot/shared";
 import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
 import {
+	applyCheckpointToWorktree,
+	createCheckpointRestorePlan,
+} from "../../../session/checkpoint-restore";
+import {
 	createCapabilityBackedToolExecutors,
 	isHubToolExecutorName,
 	parseRuntimeConfigExtensions,
@@ -187,6 +191,260 @@ export async function handleSessionCreate(
 		);
 	}
 	return okReply(envelope, { session });
+}
+
+export async function handleSessionRestore(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	const payload =
+		envelope.payload && typeof envelope.payload === "object"
+			? envelope.payload
+			: {};
+	const sourceSessionId =
+		typeof payload.sessionId === "string"
+			? payload.sessionId.trim()
+			: envelope.sessionId?.trim() || "";
+	const checkpointRunCount = payload.checkpointRunCount;
+	if (!sourceSessionId) {
+		return errorReply(
+			envelope,
+			"invalid_restore",
+			"session.restore requires a session id",
+		);
+	}
+	const restoreOptions =
+		payload.restore && typeof payload.restore === "object"
+			? (payload.restore as Record<string, unknown>)
+			: {};
+	const restoreMessages = restoreOptions.messages !== false;
+	const restoreWorkspace = restoreOptions.workspace !== false;
+	if (!restoreMessages && !restoreWorkspace) {
+		return errorReply(
+			envelope,
+			"invalid_restore",
+			"restore.messages or restore.workspace must be true",
+		);
+	}
+	if (
+		typeof checkpointRunCount !== "number" ||
+		!Number.isInteger(checkpointRunCount) ||
+		checkpointRunCount < 1
+	) {
+		return errorReply(
+			envelope,
+			"invalid_restore",
+			"checkpointRunCount must be a positive integer",
+		);
+	}
+	const sourceSession = await ctx.sessionHost.get(sourceSessionId);
+	if (!sourceSession) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sourceSessionId}`,
+		);
+	}
+	const sourceMessages = restoreMessages
+		? await ctx.sessionHost.readMessages(sourceSessionId)
+		: undefined;
+	if (restoreMessages && sourceMessages?.length === 0) {
+		return errorReply(
+			envelope,
+			"session_messages_not_found",
+			`No messages found for session ${sourceSessionId}`,
+		);
+	}
+
+	try {
+		const sessionConfig =
+			payload.sessionConfig && typeof payload.sessionConfig === "object"
+				? (JSON.parse(
+						JSON.stringify(payload.sessionConfig),
+					) as Partial<RuntimeSessionConfig>)
+				: undefined;
+		if (restoreMessages && !sessionConfig) {
+			return errorReply(
+				envelope,
+				"invalid_restore",
+				"sessionConfig is required when restore.messages is true",
+			);
+		}
+		const runtimeOptions =
+			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
+				? (payload.runtimeOptions as Record<string, unknown>)
+				: {};
+		const restoreCwd =
+			(typeof sessionConfig?.cwd === "string" && sessionConfig.cwd.trim()) ||
+			(typeof sessionConfig?.workspaceRoot === "string" &&
+				sessionConfig.workspaceRoot.trim()) ||
+			sourceSession.cwd ||
+			sourceSession.workspaceRoot;
+		const plan = createCheckpointRestorePlan({
+			session: sourceSession,
+			messages: sourceMessages,
+			checkpointRunCount,
+			cwd: restoreCwd,
+			restoreMessages,
+		});
+		if (restoreWorkspace) {
+			await applyCheckpointToWorktree(plan.cwd, plan.checkpoint);
+		}
+		if (!restoreMessages) {
+			return okReply(envelope, { checkpoint: plan.checkpoint });
+		}
+
+		const metadata =
+			payload.metadata && typeof payload.metadata === "object"
+				? JSON.parse(JSON.stringify(payload.metadata))
+				: {};
+		if (typeof sessionConfig?.mode === "string") {
+			metadata.mode = sessionConfig.mode;
+		} else if (typeof runtimeOptions.mode === "string") {
+			metadata.mode = runtimeOptions.mode;
+		}
+		if (typeof sessionConfig?.systemPrompt === "string") {
+			metadata.systemPrompt = sessionConfig.systemPrompt;
+		} else if (typeof runtimeOptions.systemPrompt === "string") {
+			metadata.systemPrompt = runtimeOptions.systemPrompt;
+		}
+		if (sessionConfig?.checkpoint?.enabled === true) {
+			metadata.checkpointEnabled = true;
+		} else if (runtimeOptions.checkpointEnabled === true) {
+			metadata.checkpointEnabled = true;
+		}
+
+		const modelSelection =
+			payload.modelSelection && typeof payload.modelSelection === "object"
+				? (payload.modelSelection as Record<string, unknown>)
+				: {};
+		const workspaceRoot =
+			typeof payload.workspaceRoot === "string" && payload.workspaceRoot.trim()
+				? payload.workspaceRoot.trim()
+				: typeof payload.cwd === "string" && payload.cwd.trim()
+					? payload.cwd.trim()
+					: sourceSession.workspaceRoot || sourceSession.cwd;
+		const clientId = envelope.clientId?.trim() || "hub-client";
+		const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
+			? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
+			: [];
+		const configExtensions = parseRuntimeConfigExtensions(
+			runtimeOptions.configExtensions,
+		);
+		const started = await ctx.sessionHost.start({
+			source: typeof metadata.source === "string" ? metadata.source : undefined,
+			interactive: metadata.interactive !== false,
+			sessionMetadata: {
+				...metadata,
+				restoredFromSessionId: sourceSessionId,
+				restoredCheckpointRunCount: checkpointRunCount,
+			},
+			initialMessages: plan.messages ?? [],
+			localRuntime: {
+				modelCatalogDefaults: {
+					loadLatestOnInit: true,
+					loadPrivateOnAuth: true,
+				},
+				configExtensions,
+				defaultToolExecutors:
+					advertisedToolExecutors.length > 0
+						? createCapabilityBackedToolExecutors(
+								clientId,
+								advertisedToolExecutors,
+								ctx.requestCapability,
+							)
+						: undefined,
+			},
+			requestToolApproval,
+			config: {
+				...(sessionConfig ?? {}),
+				providerId:
+					sessionConfig?.providerId ??
+					(typeof modelSelection.provider === "string"
+						? modelSelection.provider
+						: sourceSession.provider),
+				modelId:
+					sessionConfig?.modelId ??
+					(typeof modelSelection.model === "string"
+						? modelSelection.model
+						: sourceSession.model),
+				apiKey:
+					sessionConfig?.apiKey ??
+					(typeof modelSelection.apiKey === "string"
+						? modelSelection.apiKey
+						: ""),
+				cwd: sessionConfig?.cwd ?? plan.cwd,
+				workspaceRoot: sessionConfig?.workspaceRoot ?? workspaceRoot,
+				systemPrompt:
+					sessionConfig?.systemPrompt ??
+					(typeof runtimeOptions.systemPrompt === "string"
+						? runtimeOptions.systemPrompt
+						: ""),
+				mode:
+					sessionConfig?.mode ??
+					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+						? runtimeOptions.mode
+						: "act"),
+				maxIterations:
+					sessionConfig?.maxIterations ??
+					(typeof runtimeOptions.maxIterations === "number"
+						? runtimeOptions.maxIterations
+						: undefined),
+				enableTools:
+					sessionConfig?.enableTools ?? runtimeOptions.enableTools !== false,
+				enableSpawnAgent:
+					sessionConfig?.enableSpawnAgent ??
+					runtimeOptions.enableSpawn !== false,
+				enableAgentTeams:
+					sessionConfig?.enableAgentTeams ??
+					runtimeOptions.enableTeams !== false,
+				checkpoint:
+					sessionConfig?.checkpoint ??
+					(runtimeOptions.checkpointEnabled === true
+						? { enabled: true }
+						: undefined),
+				teamName:
+					sessionConfig?.teamName ??
+					(typeof metadata.teamName === "string"
+						? metadata.teamName
+						: undefined),
+			},
+			toolPolicies:
+				payload.toolPolicies &&
+				typeof payload.toolPolicies === "object" &&
+				!Array.isArray(payload.toolPolicies)
+					? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
+							string,
+							{ autoApprove?: boolean; enabled?: boolean }
+						>)
+					: runtimeOptions.autoApproveTools === true
+						? { "*": { autoApprove: true } }
+						: undefined,
+		});
+		ensureSessionState(ctx, started.sessionId, clientId, "creator", {
+			interactive: metadata.interactive !== false,
+		});
+		const session = await readHubSessionRecord(ctx, started.sessionId);
+		if (session) {
+			ctx.publish(
+				ctx.buildEvent("session.created", { session }, started.sessionId),
+			);
+		}
+		return okReply(envelope, {
+			session,
+			messages: plan.messages ?? [],
+			checkpoint: plan.checkpoint,
+		});
+	} catch (error) {
+		return errorReply(
+			envelope,
+			"restore_failed",
+			error instanceof Error ? error.message : String(error),
+		);
+	}
 }
 
 export async function handleSessionAttach(

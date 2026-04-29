@@ -902,6 +902,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (result?.updated === false) {
 			return;
 		}
+		session.sessionMetadata = metadata;
 		session.artifacts.manifest.metadata = metadata;
 	}
 

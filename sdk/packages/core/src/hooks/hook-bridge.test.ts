@@ -268,6 +268,23 @@ describe("HookBridge — constructor registration", () => {
 			]);
 		});
 
+		it("beforeModel includes iteration in legacy hook payloads", async () => {
+			const { bridge, engine } = makeBridge();
+			const hooks = bridge.toRuntimeHooks();
+			const ctx: AgentBeforeModelContext = {
+				snapshot: makeSnapshot({ iteration: 3 }),
+				request: makeRequest(),
+			};
+			await hooks.beforeModel?.(ctx);
+			expect(engine.calls).toHaveLength(2);
+			expect(engine.calls.map((call) => call.iteration)).toEqual([3, 3]);
+			expect(
+				engine.calls.map(
+					(call) => (call.payload as { iteration?: number }).iteration,
+				),
+			).toEqual([3, 3]);
+		});
+
 		it("afterModel → dispatches `turn_end` with assistantMessage", async () => {
 			const { bridge, engine } = makeBridge();
 			const hooks = bridge.toRuntimeHooks();

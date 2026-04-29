@@ -50,11 +50,16 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { ProviderOption } from "@/types";
 import type {
 	WebviewChatAttachments,
+	WebviewOutboundMessage,
 	WebviewProviderModel,
 } from "../../../webview-protocol";
+
+type ProviderOption = Extract<
+	WebviewOutboundMessage,
+	{ type: "providers" }
+>["providers"][number];
 
 function PromptAttachmentsDisplay() {
 	const attachments = usePromptInputAttachments();

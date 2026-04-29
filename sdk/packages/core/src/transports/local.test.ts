@@ -1136,7 +1136,19 @@ describe("LocalRuntimeHost", () => {
 					checkpoint: { enabled: true },
 				},
 				prompt: "hello",
-				interactive: false,
+				interactive: true,
+			}),
+		);
+		await expect(manager.get(sessionId)).resolves.toEqual(
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					checkpoint: expect.objectContaining({
+						latest: expect.objectContaining({
+							ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+							runCount: 1,
+						}),
+					}),
+				}),
 			}),
 		);
 		expect(updateSession).toHaveBeenCalledTimes(2);
@@ -1154,6 +1166,12 @@ describe("LocalRuntimeHost", () => {
 		expect(updateSession).toHaveBeenNthCalledWith(2, {
 			sessionId,
 			metadata: expect.objectContaining({
+				checkpoint: expect.objectContaining({
+					latest: expect.objectContaining({
+						ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+						runCount: 1,
+					}),
+				}),
 				totalCost: 0,
 			}),
 		});

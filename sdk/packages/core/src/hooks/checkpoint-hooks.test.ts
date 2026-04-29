@@ -30,8 +30,7 @@ async function createGitRepo(): Promise<string> {
 	return cwd;
 }
 
-// Currently disabled for process?.env?.CLINE_CHECKPOINT
-describe.skip("createCheckpointHooks", () => {
+describe("createCheckpointHooks", () => {
 	it("creates one checkpoint at the start of each root run and appends metadata", async () => {
 		const cwd = await createGitRepo();
 		let metadata: Record<string, unknown> | undefined;
@@ -126,6 +125,61 @@ describe.skip("createCheckpointHooks", () => {
 			expect(checkpoint.history).toHaveLength(1);
 			expect(checkpoint.latest.kind).toBe("commit");
 			expect(checkpoint.latest.ref).toMatch(/^[0-9a-f]{40}$/);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("does not append a checkpoint when the snapshot matches the latest checkpoint", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_no_change",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await hooks.onRunStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				userMessage: "first",
+			});
+			await hooks.onBeforeAgentStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				iteration: 1,
+				systemPrompt: "system",
+				messages: [],
+			});
+
+			const first = metadata?.checkpoint as CheckpointMetadata;
+			expect(first.history).toHaveLength(1);
+			expect(first.latest.kind).toBe("commit");
+
+			await hooks.onRunStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				userMessage: "second",
+			});
+			await hooks.onBeforeAgentStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				iteration: 1,
+				systemPrompt: "system",
+				messages: [],
+			});
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.history).toHaveLength(1);
+			expect(checkpoint.latest.runCount).toBe(1);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
