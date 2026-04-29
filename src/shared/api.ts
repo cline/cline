@@ -94,6 +94,7 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
+	supportsWebP?: boolean // false for llama.cpp-based servers whose STB decoder doesn't support WebP
 	isR1FormatRequired?: boolean
 	systemRole?: "developer" | "system"
 	supportsReasoningEffort?: boolean
@@ -3180,6 +3181,7 @@ export type LiteLLMModelId = string
 export const liteLlmDefaultModelId = "anthropic/claude-3-7-sonnet-20250219"
 export interface LiteLLMModelInfo extends ModelInfo {
 	temperature?: number
+	supportsWebP?: boolean // false for llama.cpp-based servers whose STB decoder doesn't support WebP
 }
 
 export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
