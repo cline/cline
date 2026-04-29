@@ -20,7 +20,7 @@ Ready to get started? Check out the [installation guide](/cli/installation) to i
     **For hands-on development.** Launch `cline` in your terminal and collaborate with Cline in real-time — chat, review plans, approve actions, and iterate on tasks with a rich visual interface.
   </Card>
   <Card title="Headless Mode" icon="robot" href="/cli/three-core-flows">
-    **For automation & CI/CD.** Run `cline -y "task"` to let Cline work autonomously — no interaction needed. Pipe input/output, get JSON results, and chain commands in scripts and pipelines.
+    **For automation & CI/CD.** Run `cline --autoapprove true "task"` to let Cline work autonomously — no interaction needed. Pipe input/output, get JSON results, and chain commands in scripts and pipelines.
   </Card>
 </Columns>
 
@@ -54,11 +54,11 @@ Interactive mode keeps you in control. You review Cline's plan, approve or modif
 
 Headless mode is designed for **automation, scripting, and CI/CD pipelines** where human interaction isn't possible or desired.
 
-**When it activates:** Using the `-y`/`--yolo` flag, `--json` flag, piping input/output, or when stdin is not a TTY.
+**When it activates:** Using `--autoapprove true`, the `--json` flag, piping input/output, or when stdin is not a TTY.
 
 ```bash
-# Headless with auto-approval (YOLO mode)
-cline -y "Run tests and fix any failures"
+# Headless with auto-approval
+cline --autoapprove true "Run tests and fix any failures"
 
 # Headless with JSON output for parsing
 cline --json "List all TODO comments" | jq '.text'
@@ -67,19 +67,19 @@ cline --json "List all TODO comments" | jq '.text'
 cat README.md | cline "Summarize this document"
 
 # Chain multiple headless commands
-git diff | cline -y "explain these changes" | cline -y "write a commit message"
+git diff | cline --autoapprove true "explain these changes" | cline --autoapprove true "write a commit message"
 ```
 
 Key features:
 
 - **No visual interface** - Clean text or JSON output suitable for scripting
-- **Automatic execution** - With `-y`, Cline approves all actions and runs autonomously
+- **Automatic execution** - With `--autoapprove true`, Cline approves all actions and runs autonomously
 - **Process control** - Exits automatically when the task completes
 - **Piped workflows** - Read from stdin, write to stdout, chain with other commands
 - **Machine-readable output** - Use `--json` to get structured output for parsing
 
 <Warning>
-Headless mode with `-y` gives Cline full autonomy. Run on a clean git branch so you can easily revert changes if needed.
+Headless mode with `--autoapprove true` gives Cline full autonomy. Run on a clean git branch so you can easily revert changes if needed.
 </Warning>
 
 ### Mode Detection Summary
@@ -90,7 +90,7 @@ Cline automatically detects which mode to use based on your invocation. This tab
 |------------|------|--------|
 | `cline` | Interactive | No arguments, TTY connected |
 | `cline "task"` | Interactive | TTY connected |
-| `cline -y "task"` | Headless | YOLO flag forces headless |
+| `cline --autoapprove true "task"` | Headless | auto-approval mode |
 | `cline --json "task"` | Headless | JSON flag forces headless |
 | `cat file \| cline "task"` | Headless | stdin is piped |
 | `cline "task" > output.txt` | Headless | stdout is redirected |
@@ -123,17 +123,17 @@ During setup, authenticate with `cline auth` to configure your preferred provide
 Keep your codebase healthy with automated fixes. Cline scans for issues and applies corrections across multiple files.
 
 ```bash
-cline -y "Fix all ESLint errors in src/"
+cline --autoapprove true "Fix all ESLint errors in src/"
 ```
 Finds and fixes linting violations throughout your source directory.
 
 ```bash
-cline -y "Update all deprecated React lifecycle methods"
+cline --autoapprove true "Update all deprecated React lifecycle methods"
 ```
 Migrates legacy code patterns to modern equivalents (e.g., `componentWillMount` → `useEffect`).
 
 ```bash
-cline -y "Update dependencies with known vulnerabilities"
+cline --autoapprove true "Update dependencies with known vulnerabilities"
 ```
 Identifies outdated packages with security issues and updates them to safe versions.
 
@@ -142,17 +142,17 @@ Identifies outdated packages with security issues and updates them to safe versi
 Integrate Cline into your continuous integration pipelines for automated code review and documentation.
 
 ```bash
-git diff origin/main | cline -y "Review these changes for issues"
+git diff origin/main | cline --autoapprove true "Review these changes for issues"
 ```
 Pipes your PR diff to Cline for automated code review, catching bugs and style issues before merge.
 
 ```bash
-git log --oneline v1.0..v1.1 | cline -y "Write release notes"
+git log --oneline v1.0..v1.1 | cline --autoapprove true "Write release notes"
 ```
 Generates human-readable release notes from your commit history between two tags.
 
 ```bash
-cline -y "Run tests and fix failures" --timeout 600
+cline --autoapprove true "Run tests and fix failures" --timeout 600
 ```
 Executes your test suite, analyzes failures, and attempts fixes with a 10-minute timeout.
 
@@ -180,7 +180,7 @@ Uses file mentions (`@`) to give Cline context about specific files in your work
 Chain Cline with other CLI tools to build powerful automation workflows.
 
 ```bash
-gh pr diff 123 | cline -y "Review this PR"
+gh pr diff 123 | cline --autoapprove true "Review this PR"
 ```
 Fetches a GitHub PR diff and pipes it directly to Cline for review.
 
@@ -190,7 +190,7 @@ cline --json "List all TODO comments" | jq '.text'
 Outputs structured JSON that you can process with tools like `jq` for scripting.
 
 ```bash
-git diff | cline -y "explain" | cline -y "write a haiku about these changes"
+git diff | cline --autoapprove true "explain" | cline --autoapprove true "write a haiku about these changes"
 ```
 Chains multiple Cline invocations together for creative multi-step workflows.
 
@@ -203,7 +203,7 @@ Chains multiple Cline invocations together for creative multi-step workflows.
 | Slash commands (/) | ✓ | - |
 | Settings panel | ✓ | `cline config` |
 | Plan/Act toggle | ✓ (Tab) | `-p` / `-a` flags |
-| Auto-approve | ✓ (Shift+Tab) | `-y` flag |
+| Auto-approve | ✓ (Shift+Tab) | `--autoapprove true` |
 | Session summary | ✓ | - |
 | JSON output | - | `--json` |
 | Piped input | - | ✓ |

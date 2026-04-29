@@ -4,246 +4,215 @@ description: "Complete command reference for Cline CLI including all commands, f
 ---
 
 ```bash
-cline --help          # Show all commands
+cline --help           # Show all commands
 cline <command> --help # Show help for a specific command
 ```
 
 ## Synopsis
 
 ```bash
-cline [prompt] [options]
-cline <command> [options] [arguments]
+cline [options] [command] [prompt]
+```
+
+## Help Menu (Source of Truth)
+
+```text
+Usage: cline [options] [command] [prompt]
+
+Cline CLI - AI coding assistant in your terminal
+
+Arguments:
+  prompt                       Task prompt (starts task immediately)
+
+Options:
+  -V, --version                Output the version number
+  -a, --act                    Run in act mode
+  -p, --plan                   Run in plan mode
+  --autoapprove [value]        Set tool auto-approval for all tools (`true` or `false`)
+  -t, --timeout <seconds>      Optional timeout in seconds (applies only when provided)
+  -m, --model <model>          Model to use for the task
+  -v, --verbose                Show verbose output
+  -c, --cwd <path>             Working directory
+  --config <dir>               Configuration directory
+  --data-dir <dir>             Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)
+  --thinking                   Enable extended thinking (default: medium effort)
+  --reasoning-effort <level>   Reasoning effort: none|low|medium|high|xhigh
+  --retries <count>            Maximum consecutive mistakes (retries) before halting
+  --json                       Output messages as JSON instead of styled text
+  --hooks-dir <dir>            Path to additional hooks directory for runtime hook injection
+  --acp                        Run in ACP (Agent Client Protocol) mode for editor integration
+  -i, --tui                    Start interactive TUI chat mode
+  --id <id>                    Resume an existing task by ID
+  -k, --key <api-key>          API key override for this run
+  -P, --provider <id>          Provider id (default: cline)
+  -s, --system <prompt>        Override the system prompt
+  --team-name <name>           Override the runtime team state name
+  -z, --zen                    Run the task in the background hub and exit immediately (menubar app notifies on completion)
+  -h, --help                   display help for command
+
+Commands:
+  auth [options] [provider]    Authenticate a provider and configure what model is used
+  config [options]             Show current configuration
+  connect [options] [adapter]  Connect to an editor or IDE adapter
+  mcp                          Manage MCP servers
+  dev                          Developer tools and utilities
+  doctor                       Diagnose and fix configuration issues
+  history|h [options]          List session history or manage saved sessions
+  hook                         Handle a hook payload from stdin
+  schedule                     Manage scheduled tasks
+  hub                          Manage the local hub daemon
+  update [options]             Check for updates and install if available
+  version                      Show Cline CLI version number
+  kanban                       Launch the kanban app and exit
 ```
 
 ## Global Options
 
 | Option | Description |
 |--------|-------------|
-| `-P, --provider <id>` | Provider ID (default: `cline`) |
-| `-k, --key <api-key>` | API key override |
-| `-m, --model <id>` | Model to use (e.g., `claude-sonnet-4-6`, `gpt-4o`) |
-| `-a, --act` | Run in act mode (default) |
-| `-p, --plan` | Run in plan mode (planning only, no execution) |
-| `-y, --yolo` | Auto-approve all actions, plain text output, exit on completion |
-| `-i, --interactive` | Start interactive chat mode |
-| `-s, --system <prompt>` | Override the system prompt |
-| `-c, --cwd <path>` | Set working directory |
-| `-n, --max-iterations <count>` | Maximum agent iterations |
-| `-t, --timeout <seconds>` | Timeout in seconds |
-| `-T, --taskId <id>` | Resume an existing task by ID |
-| `--config <dir>` | Custom configuration directory |
-| `--json` | Output as newline-delimited JSON |
-| `-u, --usage` | Show token usage and estimated cost |
-| `--timings` | Show timing details |
-| `-v, --verbose` | Verbose output |
-
-### Tool Control
-
-| Option | Description |
-|--------|-------------|
-| `--tools` | Enable tools (default) |
-| `--no-tools` | Disable all tools |
-| `--autoapprove <value>` | Set auto-approval for all tools (`true` or `false`) |
-| `--auto-approve-all` | Auto-approve all actions while keeping interactive mode |
-| `--tool-enable <name>` | Enable a specific tool (repeatable, comma-separated) |
-| `--tool-disable <name>` | Disable a specific tool (repeatable, comma-separated) |
-| `--max-consecutive-mistakes <n>` | Max consecutive mistakes before halting in yolo mode |
-
-### Reasoning
-
-| Option | Description |
-|--------|-------------|
+| `-V, --version` | Output the version number |
+| `-a, --act` | Run in act mode |
+| `-p, --plan` | Run in plan mode |
+| `--autoapprove [value]` | Set tool auto-approval for all tools (`true` or `false`) |
+| `-t, --timeout <seconds>` | Optional timeout in seconds (applies only when provided) |
+| `-m, --model <model>` | Model to use for the task |
+| `-v, --verbose` | Show verbose output |
+| `-c, --cwd <path>` | Working directory |
+| `--config <dir>` | Configuration directory |
+| `--data-dir <dir>` | Use isolated local state at `<dir>` instead of `~/.cline` (enables sandbox mode) |
 | `--thinking` | Enable extended thinking (default: medium effort) |
-| `--reasoning-effort <level>` | Set reasoning effort: `none`, `low`, `medium`, `high`, `xhigh` |
-
-### Agent Teams and Spawning
-
-| Option | Description |
-|--------|-------------|
-| `--teams` | Enable agent team tools (default) |
-| `--no-teams` | Disable agent team tools |
-| `--team-name <name>` | Set team name for team workflows |
-| `--spawn` | Enable sub-agent spawning (default) |
-| `--no-spawn` | Disable sub-agent spawning |
-| `--enable-spawn` | Force enable spawning (overrides other settings) |
-
-### Sandbox
-
-| Option | Description |
-|--------|-------------|
-| `--sandbox` | Use isolated local state instead of `~/.cline` |
-| `--sandbox-dir <dir>` | Custom sandbox directory (default: `/tmp/cline-sandbox`) |
-
-### Hooks
-
-| Option | Description |
-|--------|-------------|
-| `--hooks-dir <dir>` | Path to additional hooks directory |
+| `--reasoning-effort <level>` | Reasoning effort: `none\|low\|medium\|high\|xhigh` |
+| `--retries <count>` | Maximum consecutive mistakes (retries) before halting |
+| `--json` | Output messages as JSON instead of styled text |
+| `--hooks-dir <dir>` | Path to additional hooks directory for runtime hook injection |
+| `--acp` | Run in ACP (Agent Client Protocol) mode for editor integration |
+| `-i, --tui` | Start interactive TUI chat mode |
+| `--id <id>` | Resume an existing task by ID |
+| `-k, --key <api-key>` | API key override for this run |
+| `-P, --provider <id>` | Provider id (default: `cline`) |
+| `-s, --system <prompt>` | Override the system prompt |
+| `--team-name <name>` | Override the runtime team state name |
+| `-z, --zen` | Run the task in the background hub and exit immediately |
+| `-h, --help` | Display help for command |
 
 ## Commands
 
-### cline (default)
+### `cline` (default)
 
 Start a task or enter interactive mode.
 
 ```bash
-cline                              # Interactive mode
-cline "your prompt here"           # Start a task
-cline -y "do something"            # Yolo mode
-echo "prompt" | cline              # Piped input
+cline
+cline "your prompt here"
+cline --autoapprove true "Run tests and fix failures"
+echo "prompt" | cline
 ```
 
-### cline task (alias: t)
-
-Run a task with a prompt. Equivalent to `cline "prompt"`.
-
-```bash
-cline task "Create a REST API endpoint"
-cline t "Fix the bug in utils.js"
-```
-
-### cline auth
+### `auth [options] [provider]`
 
 Configure authentication with an AI provider.
 
 ```bash
-cline auth                         # Interactive wizard
-cline auth -p anthropic -k sk-ant-... -m claude-sonnet-4-6
-cline auth -p openai-native -k sk-... -m gpt-4o
-cline auth -p openai -k key -b https://api.example.com/v1
+cline auth
 ```
 
-The interactive wizard supports OAuth sign-in (Cline, ChatGPT subscription, OCA) and manual API key entry for any provider.
+### `config [options]`
 
-| Option | Description |
-|--------|-------------|
-| `[provider]` | Provider ID (positional shorthand for `-p`) |
-| `-p, --provider <id>` | Provider ID |
-| `-k, --apikey <key>` | API key |
-| `-m, --modelid <id>` | Model ID |
-| `-b, --baseurl <url>` | Base URL (OpenAI-compatible providers only) |
+Show current configuration.
 
-### cline connect
+```bash
+cline config
+```
+
+### `connect [options] [adapter]`
 
 Connect to messaging platforms. See [Connectors](/cli/connectors).
 
 ```bash
-cline connect                      # Interactive wizard
-cline connect telegram -m <BOT-ID> -k <BOT-TOKEN>
-cline connect --stop               # Stop all connectors
-cline connect <adapter> --stop     # Stop specific connector
+cline connect
+cline connect [adapter]
 ```
 
-### cline mcp
+### `mcp`
 
 Manage MCP servers. See [MCP Servers](/cli/mcp-servers).
 
 ```bash
-cline mcp                          # Interactive wizard
+cline mcp
 ```
 
-### cline schedule
+### `dev`
 
-Manage scheduled agents. See [Scheduling](/cli/scheduling).
+Developer tools and utilities.
 
 ```bash
-cline schedule                     # Interactive wizard
-cline schedule create "Name" --cron "0 9 * * MON-FRI" --prompt "Task"
-cline schedule list
-cline schedule trigger <id>
-cline schedule pause <id>
-cline schedule resume <id>
-cline schedule delete <id>
-cline schedule executions <id>
+cline dev
 ```
 
-### cline history (alias: h)
+### `doctor`
 
-Browse and manage session history.
-
-```bash
-cline history                      # Interactive session selector
-cline history --json               # List as JSON
-cline history --limit 50           # Limit results
-cline history delete --session-id <id>
-cline history update --session-id <id> --title "New Title"
-```
-
-| Option | Description |
-|--------|-------------|
-| `--json` | Output as JSON |
-| `--limit <n>` | Maximum sessions to show (default: 200) |
-| `--page <n>` | Page number for pagination |
-| `--session-id <id>` | Session ID for update/delete |
-
-### cline checkpoint
-
-Inspect or restore session checkpoints.
-
-```bash
-cline checkpoint status --session-id <id>
-cline checkpoint list --session-id <id>
-cline checkpoint restore latest --session-id <id>
-cline checkpoint restore 1 --session-id <id>    # Restore by index
-cline checkpoint restore latest -y              # Skip confirmation
-```
-
-| Option | Description |
-|--------|-------------|
-| `--session-id <id>` | Target session (required) |
-| `-y, --yes` | Skip confirmation prompt |
-| `--json` | Output as JSON |
-
-### cline config
-
-View and manage configuration.
-
-```bash
-cline config                       # Interactive config browser
-cline config rules                 # List rules
-cline config skills                # List skills
-cline config agents                # List configured agents
-cline config plugins               # List plugins
-cline config hooks                 # List hooks
-cline config mcp                   # List MCP servers
-cline config tools                 # List available tools
-cline config --json <target>       # Output as JSON
-```
-
-### cline hub
-
-Manage the hub daemon. The hub starts automatically when `ClineCore` needs it, so most users don't need these commands. Use `cline hub stop` to shut down a hub running in the background.
-
-```bash
-cline hub start                    # Start the hub daemon
-cline hub stop                     # Stop it
-cline hub status                   # Check if running
-cline hub ensure                   # Start if not running, return URL
-```
-
-### cline doctor
-
-Diagnose configuration and connectivity issues.
+Diagnose and fix configuration issues.
 
 ```bash
 cline doctor
 ```
 
-Checks hub health, active processes, connector status, hook workers, and stale locks.
+### `history|h [options]`
 
-### cline dev
-
-Developer tools.
+List session history or manage saved sessions.
 
 ```bash
-cline dev log                      # Open the CLI log file
+cline history
+cline h
 ```
 
-### cline version
+### `hook`
+
+Handle a hook payload from stdin.
+
+```bash
+cat payload.json | cline hook
+```
+
+### `schedule`
+
+Manage scheduled agents. See [Scheduling](/cli/scheduling).
+
+```bash
+cline schedule
+```
+
+### `hub`
+
+Manage the local hub daemon.
+
+```bash
+cline hub
+```
+
+### `update [options]`
+
+Check for updates and install if available.
+
+```bash
+cline update
+```
+
+### `version`
+
+Show Cline CLI version number.
 
 ```bash
 cline version
 cline -V
+```
+
+### `kanban`
+
+Launch the kanban app and exit.
+
+```bash
+cline kanban
 ```
 
 ## Environment Variables
