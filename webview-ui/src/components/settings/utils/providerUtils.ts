@@ -859,6 +859,8 @@ export async function syncModeConfigurations(
 			updates.actModeApiModelId = sourceFields.apiModelId
 			updates.planModeAnthropicModelInfo = sourceFields.anthropicModelInfo
 			updates.actModeAnthropicModelInfo = sourceFields.anthropicModelInfo
+			updates.planModeAnthropicCustomModelEnabled = sourceFields.anthropicCustomModelEnabled
+			updates.actModeAnthropicCustomModelEnabled = sourceFields.anthropicCustomModelEnabled
 			break
 
 		case "claude-code":
