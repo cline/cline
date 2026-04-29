@@ -1,4 +1,3 @@
-import type { Selection } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import {
 	DialogProvider,
@@ -27,6 +26,7 @@ import { TerminalColorsContext } from "./hooks/use-terminal-background";
 import type { AppView, TuiProps } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
+import { createSelectionCopyHandler } from "./utils/selection-copy";
 import { ChatView } from "./views/chat-view";
 import { HomeView } from "./views/home-view";
 import { type OnboardingResult, OnboardingView } from "./views/onboarding";
@@ -176,21 +176,14 @@ function App(props: TuiProps) {
 	}, [props]);
 
 	useEffect(() => {
-		const handleSelection = (selection: Selection) => {
-			const text = selection.getSelectedText();
-			if (!text) {
-				return;
-			}
-
-			if (renderer.copyToClipboardOSC52(text)) {
-				showToast("Copied to clipboard", "success");
-			} else {
-				showToast("Unable to copy selection", "error");
-			}
-		};
+		const { handleSelection, dispose } = createSelectionCopyHandler({
+			copyToClipboardOSC52: (text) => renderer.copyToClipboardOSC52(text),
+			showToast,
+		});
 
 		renderer.on("selection", handleSelection);
 		return () => {
+			dispose();
 			renderer.off("selection", handleSelection);
 		};
 	}, [renderer, showToast]);
