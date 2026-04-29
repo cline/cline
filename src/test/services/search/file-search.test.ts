@@ -128,7 +128,7 @@ describe("File Search", () => {
 			)
 		})
 
-		it("should reject with RipgrepSpawnError when ripgrep exits non-zero with no results", async () => {
+		it("should reject with RipgrepError when ripgrep exits non-zero with no results", async () => {
 			const mockStdout = new Readable({
 				read() {
 					this.push(null)
@@ -158,7 +158,7 @@ describe("File Search", () => {
 
 			const err = await fileSearch.executeRipgrepForFiles("/workspace", 5000).catch((e) => e)
 			should(err.message).match(/ripgrep exited with code 2/)
-			should(err).have.property("name", "RipgrepSpawnError")
+			should(err).have.property("name", "RipgrepError")
 			should(err).have.property("exitCode", 2)
 			should(err.stderr).match(/No such file or directory/)
 		})

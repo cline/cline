@@ -1,4 +1,4 @@
-import { RipgrepSpawnError, searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
+import { RipgrepError, searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
 import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
@@ -13,8 +13,8 @@ const ERROR_REASON_UNKNOWN = "unknown"
 
 function classifyError(error: unknown): { errorReason: string; errorMessage: string } {
 	const errorMessage = error instanceof Error ? error.message : String(error)
-	if (error instanceof RipgrepSpawnError) {
-		const firstStderrLine = error.stderr ? error.stderr.split("\n", 1)[0] : ""
+	if (error instanceof RipgrepError) {
+		const firstStderrLine = error.stderr ? error.stderr.trim().split("\n", 1)[0] : ""
 		return {
 			errorReason: ERROR_REASON_RIPGREP_SPAWN_FAILED,
 			errorMessage: firstStderrLine || errorMessage,
@@ -107,7 +107,6 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		const { errorReason, errorMessage } = classifyError(error)
 		Logger.error(`Error in searchFiles (errorReason=${errorReason}):`, error)
 
-		// Determine mention type based on the search request
 		const mentionType =
 			request.selectedType === FileSearchType.FILE
 				? "file"
@@ -115,8 +114,6 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 					? "folder"
 					: "folder" // Default to folder for "all" searches
 
-		// Pass the precise errorReason straight through; the telemetry enum was
-		// extended in this commit to accept "ripgrep_spawn_failed" as a value.
 		const errorType: "ripgrep_spawn_failed" | "permission_denied" | "unknown" =
 			errorReason === ERROR_REASON_RIPGREP_SPAWN_FAILED
 				? "ripgrep_spawn_failed"

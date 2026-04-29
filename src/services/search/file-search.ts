@@ -15,15 +15,13 @@ export type SpawnFunction = typeof childProcess.spawn
 export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 /** Thrown when ripgrep fails to spawn or exits non-zero. */
-export class RipgrepSpawnError extends Error {
+export class RipgrepError extends Error {
 	public readonly stderr: string
 	public readonly exitCode: number | null
 
-	constructor(message: string, opts: { stderr?: string; exitCode?: number | null; cause?: Error } = {}) {
-		// Pass `cause` via the standard ES2022 ErrorOptions so we don't need to
-		// redeclare/override the base-class field.
-		super(message, opts.cause ? { cause: opts.cause } : undefined)
-		this.name = "RipgrepSpawnError"
+	constructor(message: string, opts: { stderr?: string; exitCode?: number | null } = {}) {
+		super(message)
+		this.name = "RipgrepError"
 		this.stderr = opts.stderr ?? ""
 		this.exitCode = opts.exitCode ?? null
 	}
@@ -90,26 +88,30 @@ export async function executeRipgrepForFiles(
 			errorOutput += data.toString()
 		})
 
-		// Coordinate the readline 'close' and the child-process 'exit' events.
-		// On Windows their order is non-deterministic, so we must wait for both
-		// before deciding whether to resolve or reject — otherwise the
-		// rejection message can race in with `exitCode === null` even when the
-		// process actually exited with a real non-zero code.
-		let rlClosed = false
-		let processExited = false
-		let finalised = false
+		// On Windows the readline 'close' and the child-process 'exit' events
+		// fire in non-deterministic order; await both so we can read exitCode
+		// before deciding to resolve or reject.
+		let resolveOutputClosed!: () => void
+		const outputClosed = new Promise<void>((r) => {
+			resolveOutputClosed = r
+		})
+		let resolveExited!: () => void
+		const exited = new Promise<void>((r) => {
+			resolveExited = r
+		})
 
-		const finalise = () => {
-			if (finalised || !rlClosed || !processExited) {
-				return
-			}
-			finalised = true
+		rgProcess.on("exit", (code) => {
+			exitCode = code
+			resolveExited()
+		})
+		rl.on("close", () => resolveOutputClosed())
 
-			// Only reject when we have nothing to return: a non-zero exit with
-			// results is normal — we proactively SIGTERM after hitting the limit.
+		Promise.all([outputClosed, exited]).then(() => {
+			// A non-zero exit with results is normal — we proactively SIGTERM
+			// after hitting the limit. Only reject when we have nothing to return.
 			if (fileResults.length === 0 && (errorOutput || (exitCode !== null && exitCode !== 0))) {
 				reject(
-					new RipgrepSpawnError(
+					new RipgrepError(
 						errorOutput
 							? `ripgrep exited with code ${exitCode}: ${errorOutput.trim()}`
 							: `ripgrep exited with code ${exitCode}`,
@@ -119,41 +121,16 @@ export async function executeRipgrepForFiles(
 				return
 			}
 
-			// Transform directory paths from Set into structured results
 			const dirResults = Array.from(dirSet, (dirPath): { path: string; type: "folder"; label?: string } => ({
 				path: dirPath,
 				type: "folder",
 				label: path.basename(dirPath),
 			}))
-
-			// Resolve combined results of files and directories
 			resolve([...fileResults, ...dirResults])
-		}
-
-		rgProcess.on("exit", (code) => {
-			exitCode = code
-			processExited = true
-			finalise()
-		})
-
-		rl.on("close", () => {
-			rlClosed = true
-			finalise()
 		})
 
 		rgProcess.on("error", (error) => {
-			// Mark finalised so a subsequent (close, exit) pair can't try to
-			// settle the promise a second time. The double-reject would be a
-			// no-op (settled promises swallow further reject() calls), but
-			// keeping the guard semantics consistent makes the lifecycle of
-			// this Promise easier to reason about.
-			finalised = true
-			reject(
-				new RipgrepSpawnError(`ripgrep failed to spawn: ${error.message}`, {
-					cause: error,
-					exitCode: null,
-				}),
-			)
+			reject(new RipgrepError(`ripgrep failed to spawn: ${error.message}`, { exitCode: null }))
 		})
 	})
 }
