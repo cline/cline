@@ -103,6 +103,8 @@ message TaskItem {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_current_workspace = 12;
+  string workspace_name = 13;
 }
 
 // Request for ask response operation
