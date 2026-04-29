@@ -14,6 +14,7 @@ function makeActions(
 		openModelSelector: vi.fn(),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
+		runUndo: vi.fn(async () => {}),
 		clearConversation: vi.fn(async () => {}),
 		openHelp: vi.fn(),
 		openHistory: vi.fn(),
@@ -49,6 +50,37 @@ describe("runLocalSlashCommandAction", () => {
 		expect(settled).toBe(false);
 
 		resolveClear?.();
+
+		expect(await handledPromise).toBe(true);
+		expect(settled).toBe(true);
+	});
+
+	it("waits for undo to finish restoring", async () => {
+		let resolveUndo: (() => void) | undefined;
+		const runUndo = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveUndo = resolve;
+				}),
+		);
+		const actions = makeActions({ runUndo });
+
+		const handled = runLocalSlashCommandAction({
+			name: "undo",
+			...actions,
+		});
+		const handledPromise = Promise.resolve(handled);
+		let settled = false;
+		void handledPromise.then(() => {
+			settled = true;
+		});
+
+		await Promise.resolve();
+
+		expect(runUndo).toHaveBeenCalledOnce();
+		expect(settled).toBe(false);
+
+		resolveUndo?.();
 
 		expect(await handledPromise).toBe(true);
 		expect(settled).toBe(true);

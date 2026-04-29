@@ -18,6 +18,7 @@ export type LocalSlashCommandName =
 	| "model"
 	| "compact"
 	| "fork"
+	| "undo"
 	| "clear"
 	| "history"
 	| "quit"
@@ -74,6 +75,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 		description: "Create a copy of the current session into a new session",
 	},
 	{
+		name: "undo",
+		description: "Restore to a previous checkpoint",
+	},
+	{
 		name: "clear",
 		description: "Start a new session",
 	},
@@ -98,6 +103,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"mcp",
 	"compact",
 	"fork",
+	"undo",
 	"clear",
 	"team",
 	"history",

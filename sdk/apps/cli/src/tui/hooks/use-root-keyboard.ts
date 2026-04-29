@@ -1,5 +1,6 @@
 import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
+import { useRef } from "react";
 import { useSession } from "../contexts/session-context";
 import type { AppView } from "../types";
 import type { AutocompleteOption, useAutocomplete } from "./use-autocomplete";
@@ -20,8 +21,10 @@ export function useRootKeyboard(input: {
 	onExit: () => void;
 	onToggleMode: () => void;
 	onClearConversation: () => Promise<void>;
+	onRestoreCheckpoint: () => Promise<void>;
 }) {
 	const session = useSession();
+	const lastEscapeRef = useRef(0);
 
 	useKeyboard((key) => {
 		if (session.isExitRequested) return;
@@ -117,6 +120,14 @@ export function useRootKeyboard(input: {
 			if (session.isRunning) {
 				if (!session.abortRequested && input.onAbort()) {
 					session.setAbortRequested(true);
+				}
+			} else {
+				const now = Date.now();
+				if (now - lastEscapeRef.current < 300) {
+					lastEscapeRef.current = 0;
+					void input.onRestoreCheckpoint();
+				} else {
+					lastEscapeRef.current = now;
 				}
 			}
 			return;

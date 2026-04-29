@@ -34,6 +34,13 @@ type CreateCheckpointHooksOptions = {
 		sessionId: string;
 		runCount: number;
 	}) => Promise<CheckpointEntry | undefined> | CheckpointEntry | undefined;
+	/**
+	 * Starting value for the internal run counter. Use this when a session
+	 * is created with initial messages (e.g. after a checkpoint restore) so
+	 * that new checkpoint entries get runCount values that don't collide
+	 * with entries carried over from the source session.
+	 */
+	initialRunCount?: number;
 };
 
 function warn(logger: BasicLogger | undefined, message: string): void {
@@ -89,7 +96,7 @@ async function runGit(
 /**
  * Deletes all private git refs under refs/cline/checkpoints/{sessionId}/ that
  * were created by the checkpoint system to keep stash objects reachable.
- * Errors are swallowed — if the cwd is not a git repo or the refs don't exist,
+ * Errors are swallowed - if the cwd is not a git repo or the refs don't exist,
  * the delete is a no-op.
  */
 export async function deleteCheckpointRefs(
@@ -109,14 +116,46 @@ export async function deleteCheckpointRefs(
 			refs.map((ref) => runGit(cwd, ["update-ref", "-d", ref])),
 		);
 	} catch {
-		// Not a git repo or git not available — ignore.
+		// Not a git repo or git not available - ignore.
 	}
+}
+
+export async function retainCheckpointRefs(
+	cwd: string | null | undefined,
+	sessionId: string,
+	checkpoints: readonly CheckpointEntry[],
+): Promise<void> {
+	if (!cwd || checkpoints.length === 0) return;
+	await Promise.allSettled(
+		checkpoints.map((entry) =>
+			runGit(cwd, [
+				"update-ref",
+				`refs/cline/checkpoints/${sessionId}/${entry.runCount}`,
+				entry.ref,
+			]),
+		),
+	);
+}
+
+function upsertCheckpointHistory(
+	history: readonly CheckpointEntry[],
+	entry: CheckpointEntry,
+): CheckpointEntry[] {
+	const existingIndex = history.findIndex(
+		(candidate) => candidate.runCount === entry.runCount,
+	);
+	if (existingIndex < 0) {
+		return [...history, entry];
+	}
+	return history.map((candidate, index) =>
+		index === existingIndex ? entry : candidate,
+	);
 }
 
 export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {
-	let runCount = 0;
+	let runCount = options.initialRunCount ?? 0;
 	let repoSupported: boolean | undefined;
 
 	const ensureGitRepository = async (): Promise<boolean> => {
@@ -233,7 +272,7 @@ export function createCheckpointHooks(
 			if (existing?.latest.ref === entry.ref) {
 				return undefined;
 			}
-			const history = [...(existing?.history ?? []), entry];
+			const history = upsertCheckpointHistory(existing?.history ?? [], entry);
 			await options.writeSessionMetadata({
 				...(metadata ?? {}),
 				checkpoint: {

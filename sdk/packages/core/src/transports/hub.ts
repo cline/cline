@@ -20,6 +20,8 @@ import type {
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
 	PendingPromptsUpdateInput,
+	RestoreSessionInput,
+	RestoreSessionResult,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
@@ -362,6 +364,109 @@ export class HubRuntimeHost implements RuntimeHost {
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
+		};
+	}
+
+	async restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const restoreMessages = input.restore?.messages !== false;
+		if (restoreMessages && !input.start) {
+			throw new Error("start is required when restore.messages is true");
+		}
+		const startConfig = input.start;
+		const advertisedToolExecutors = startConfig
+			? Object.keys(
+					startConfig.localRuntime?.defaultToolExecutors ?? {},
+				).filter(isHubToolExecutorName)
+			: [];
+		const reply = await this.client.command(
+			"session.restore",
+			{
+				sessionId,
+				checkpointRunCount: input.checkpointRunCount,
+				restore: input.restore,
+				...(startConfig
+					? {
+							workspaceRoot:
+								startConfig.config.workspaceRoot?.trim() ||
+								startConfig.config.cwd,
+							cwd: startConfig.config.cwd ?? input.cwd,
+							sessionConfig: toJsonRecord(
+								startConfig.config as Record<string, unknown>,
+							),
+							metadata: {
+								...(startConfig.sessionMetadata ?? {}),
+								source: startConfig.source ?? SessionSource.CORE,
+								provider: startConfig.config.providerId,
+								model: startConfig.config.modelId,
+								enableTools: startConfig.config.enableTools,
+								enableSpawn: startConfig.config.enableSpawnAgent,
+								enableTeams: startConfig.config.enableAgentTeams,
+								teamName: startConfig.config.teamName,
+								prompt: startConfig.prompt,
+								interactive: startConfig.interactive === true,
+							},
+							runtimeOptions: {
+								toolExecutors: advertisedToolExecutors,
+							},
+							toolPolicies: toJsonRecord(
+								startConfig.toolPolicies as Record<string, unknown> | undefined,
+							),
+						}
+					: {}),
+			},
+			sessionId,
+		);
+		if (!reply.ok) {
+			const errorMsg =
+				typeof reply.payload?.error === "string"
+					? reply.payload.error
+					: "session.restore failed";
+			throw new Error(errorMsg);
+		}
+		const session = reply.payload?.session as HubSessionRecord | undefined;
+		const newSessionId = session?.sessionId?.trim();
+		if (restoreMessages && !newSessionId) {
+			throw new Error("Hub checkpoint restore returned no session id");
+		}
+		if (newSessionId && startConfig?.localRuntime?.defaultToolExecutors) {
+			this.sessionToolExecutors.set(
+				newSessionId,
+				startConfig.localRuntime.defaultToolExecutors,
+			);
+		}
+		if (newSessionId) {
+			this.ensureSessionSubscription(newSessionId);
+		}
+		const messages = Array.isArray(reply.payload?.messages)
+			? (reply.payload.messages as import("@clinebot/llms").Message[])
+			: undefined;
+		const checkpoint = reply.payload?.checkpoint as
+			| RestoreSessionResult["checkpoint"]
+			| undefined;
+		if (!checkpoint) {
+			throw new Error("Hub checkpoint restore returned no checkpoint");
+		}
+		return {
+			sessionId: newSessionId,
+			startResult: newSessionId
+				? {
+						sessionId: newSessionId,
+						manifest: buildManifest(
+							newSessionId,
+							startConfig ?? ({} as StartSessionInput),
+							session,
+						),
+						manifestPath: "",
+						messagesPath: "",
+						result: undefined,
+					}
+				: undefined,
+			messages,
+			checkpoint,
 		};
 	}
 

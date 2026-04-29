@@ -1136,6 +1136,11 @@ describe("LocalRuntimeHost", () => {
 					checkpoint: { enabled: true },
 				},
 				prompt: "hello",
+				initialMessages: [
+					{ role: "user", content: "first" },
+					{ role: "assistant", content: "first response" },
+					{ role: "user", content: "second" },
+				],
 				interactive: true,
 			}),
 		);
@@ -1145,7 +1150,7 @@ describe("LocalRuntimeHost", () => {
 					checkpoint: expect.objectContaining({
 						latest: expect.objectContaining({
 							ref: expect.stringMatching(/^[0-9a-f]{40}$/),
-							runCount: 1,
+							runCount: 3,
 						}),
 					}),
 				}),
@@ -1158,7 +1163,7 @@ describe("LocalRuntimeHost", () => {
 				checkpoint: expect.objectContaining({
 					latest: expect.objectContaining({
 						ref: expect.stringMatching(/^[0-9a-f]{40}$/),
-						runCount: 1,
+						runCount: 3,
 					}),
 				}),
 			}),
@@ -1169,7 +1174,7 @@ describe("LocalRuntimeHost", () => {
 				checkpoint: expect.objectContaining({
 					latest: expect.objectContaining({
 						ref: expect.stringMatching(/^[0-9a-f]{40}$/),
-						runCount: 1,
+						runCount: 3,
 					}),
 				}),
 				totalCost: 0,

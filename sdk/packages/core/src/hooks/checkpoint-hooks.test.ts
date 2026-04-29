@@ -219,4 +219,107 @@ describe("createCheckpointHooks", () => {
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});
+
+	it("continues checkpoint numbering after seeded messages", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_seeded",
+				initialRunCount: 2,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "note.txt"), "run-three\n", "utf8");
+			await hooks.onRunStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				userMessage: "third",
+			});
+			await hooks.onBeforeAgentStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				iteration: 1,
+				systemPrompt: "system",
+				messages: [],
+			});
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.latest.runCount).toBe(3);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("replaces an existing checkpoint entry for the same run count", async () => {
+		let metadata: Record<string, unknown> | undefined = {
+			checkpoint: {
+				latest: {
+					ref: "old-three",
+					createdAt: 3,
+					runCount: 3,
+					kind: "commit",
+				},
+				history: [
+					{ ref: "one", createdAt: 1, runCount: 1, kind: "commit" },
+					{ ref: "two", createdAt: 2, runCount: 2, kind: "commit" },
+					{
+						ref: "old-three",
+						createdAt: 3,
+						runCount: 3,
+						kind: "commit",
+					},
+				],
+			},
+		};
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_replace",
+			initialRunCount: 2,
+			createCheckpoint: ({ runCount }) => ({
+				ref: "new-three",
+				createdAt: 4,
+				runCount,
+				kind: "commit",
+			}),
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (next) => {
+				metadata = next;
+			},
+		});
+
+		await hooks.onRunStart?.({
+			agentId: "agent_1",
+			conversationId: "conv_1",
+			parentAgentId: null,
+			userMessage: "third",
+		});
+		await hooks.onBeforeAgentStart?.({
+			agentId: "agent_1",
+			conversationId: "conv_1",
+			parentAgentId: null,
+			iteration: 1,
+			systemPrompt: "system",
+			messages: [],
+		});
+
+		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+		expect(checkpoint.latest).toMatchObject({
+			ref: "new-three",
+			runCount: 3,
+		});
+		expect(checkpoint.history.map((entry) => entry.runCount)).toEqual([
+			1, 2, 3,
+		]);
+		expect(checkpoint.history.at(-1)).toMatchObject({
+			ref: "new-three",
+			runCount: 3,
+		});
+	});
 });

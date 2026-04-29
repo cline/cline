@@ -1,4 +1,9 @@
-import type { AgentEvent, AgentMode, TeamEvent } from "@clinebot/core";
+import type {
+	AgentEvent,
+	AgentMode,
+	CheckpointEntry,
+	TeamEvent,
+} from "@clinebot/core";
 import type {
 	Message,
 	ToolApprovalRequest,
@@ -112,6 +117,13 @@ export interface TuiProps {
 	onFork: () => Promise<
 		{ forkedFromSessionId: string; newSessionId: string } | undefined
 	>;
+	getCheckpointData: () => Promise<
+		{ messages: Message[]; checkpointHistory: CheckpointEntry[] } | undefined
+	>;
+	onRestoreCheckpoint: (
+		runCount: number,
+		restoreWorkspace: boolean,
+	) => Promise<{ newSessionId: string; messages: Message[] } | undefined>;
 	setToolApprover: (
 		approver:
 			| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)

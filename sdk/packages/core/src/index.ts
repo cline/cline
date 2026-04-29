@@ -358,6 +358,8 @@ export type {
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
 	PendingPromptsUpdateInput,
+	RestoreSessionInput,
+	RestoreSessionResult,
 	RuntimeHost,
 	RuntimeHost as SessionHost,
 	RuntimeHostMode,
@@ -497,6 +499,7 @@ export {
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
 } from "./services/workspace/workspace-manifest";
+export { readSessionCheckpointHistory } from "./session/checkpoint-restore";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,

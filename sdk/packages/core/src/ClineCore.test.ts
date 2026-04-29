@@ -483,4 +483,73 @@ Summarize the local event.
 			rmSync(root, { recursive: true, force: true });
 		}
 	});
+
+	it("delegates restore to the runtime host", async () => {
+		const restoreResult = {
+			sessionId: "restored-session",
+			startResult: createStartResult("restored-session"),
+			messages: [
+				{ role: "user" as const, content: "first" },
+				{ role: "assistant" as const, content: "first response" },
+				{ role: "user" as const, content: "second" },
+			],
+			checkpoint: {
+				ref: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				createdAt: 2,
+				runCount: 2,
+				kind: "commit" as const,
+			},
+		};
+		const host = {
+			runtimeAddress: undefined,
+			start: vi.fn(async () => createStartResult("restored-session")),
+			send: vi.fn(),
+			restore: vi.fn(async () => restoreResult),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stop: vi.fn(),
+			dispose: vi.fn(),
+			get: vi.fn(),
+			list: vi.fn(),
+			delete: vi.fn(),
+			update: vi.fn(),
+			readMessages: vi.fn(),
+			handleHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const core = await ClineCore.create();
+		const result = await core.restore({
+			sessionId: "source-session",
+			checkpointRunCount: 2,
+			restore: {
+				messages: true,
+				workspace: false,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: createStartInput(),
+		});
+
+		expect(host.restore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "source-session",
+				checkpointRunCount: 2,
+				restore: {
+					messages: true,
+					workspace: false,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: expect.objectContaining({
+					config: expect.objectContaining({
+						providerId: "anthropic",
+						modelId: "claude-sonnet-4-6",
+					}),
+				}),
+			}),
+		);
+		expect(result.messages).toEqual(restoreResult.messages);
+		expect(result.sessionId).toBe("restored-session");
+	});
 });

@@ -17,12 +17,15 @@ import { createContextCompactionPrepareTurn } from "../extensions/context/compac
 import type { ToolExecutors } from "../extensions/tools";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
+import { retainCheckpointRefs } from "../hooks/checkpoint-hooks";
 import type {
 	PendingPromptMutationResult,
 	PendingPromptsAction,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
 	PendingPromptsUpdateInput,
+	RestoreSessionInput,
+	RestoreSessionResult,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
@@ -64,6 +67,12 @@ import {
 	createInitialAccumulatedUsage,
 } from "../services/usage";
 import { enrichPromptWithMentions } from "../services/workspace";
+import {
+	applyCheckpointToWorktree,
+	createCheckpointRestorePlan,
+	createRestoredCheckpointMetadata,
+	trimMessagesBeforeCheckpoint,
+} from "../session/checkpoint-restore";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
@@ -448,6 +457,77 @@ export class LocalRuntimeHost implements RuntimeHost {
 			manifestPath,
 			messagesPath,
 			result,
+		};
+	}
+
+	async restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
+		const sourceSessionId = input.sessionId.trim();
+		if (!sourceSessionId) {
+			throw new Error("sessionId is required");
+		}
+		const restoreMessages = input.restore?.messages !== false;
+		const restoreWorkspace = input.restore?.workspace !== false;
+		if (!restoreMessages && !restoreWorkspace) {
+			throw new Error("restore.messages or restore.workspace must be true");
+		}
+		if (restoreMessages && !input.start) {
+			throw new Error("start is required when restore.messages is true");
+		}
+		const sourceSession = await this.get(sourceSessionId);
+		if (!sourceSession) {
+			throw new Error(`Session ${sourceSessionId} not found`);
+		}
+		const sourceMessages = restoreMessages
+			? await this.readMessages(sourceSessionId)
+			: undefined;
+		if (restoreMessages && sourceMessages?.length === 0) {
+			throw new Error(`No messages found for session ${sourceSessionId}`);
+		}
+		const plan = createCheckpointRestorePlan({
+			session: sourceSession,
+			messages: sourceMessages,
+			checkpointRunCount: input.checkpointRunCount,
+			cwd: input.cwd,
+			restoreMessages,
+		});
+		if (restoreWorkspace) {
+			await applyCheckpointToWorktree(plan.cwd, plan.checkpoint);
+		}
+		if (!restoreMessages) {
+			return { checkpoint: plan.checkpoint };
+		}
+		const restoredCheckpointMetadata = createRestoredCheckpointMetadata(
+			sourceSession,
+			input.checkpointRunCount,
+		);
+		const startInput = input.start!;
+		const sessionMetadata = restoredCheckpointMetadata
+			? {
+					...(startInput.sessionMetadata ?? {}),
+					checkpoint: restoredCheckpointMetadata,
+				}
+			: startInput.sessionMetadata;
+		const initialMessages = input.restore?.omitCheckpointMessageFromSession
+			? trimMessagesBeforeCheckpoint(
+					sourceMessages ?? [],
+					input.checkpointRunCount,
+				)
+			: (plan.messages ?? []);
+		const startResult = await this.start({
+			...startInput,
+			...(sessionMetadata ? { sessionMetadata } : {}),
+			initialMessages,
+		});
+		await retainCheckpointRefs(
+			plan.cwd,
+			startResult.sessionId,
+			restoredCheckpointMetadata?.history ?? [],
+		);
+		return {
+			sessionId: startResult.sessionId,
+			startResult,
+			messages: plan.messages,
+			checkpoint: plan.checkpoint,
 		};
 	}
 

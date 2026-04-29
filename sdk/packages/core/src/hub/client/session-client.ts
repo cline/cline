@@ -40,6 +40,7 @@ export interface HubRestoreRequest {
 	restore?: {
 		messages?: boolean;
 		workspace?: boolean;
+		omitCheckpointMessageFromSession?: boolean;
 	};
 }
 

@@ -1,4 +1,7 @@
+import type { Message } from "@clinebot/shared";
+import { formatDisplayUserInput, truncateStr } from "@clinebot/shared";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
+import type { ChoiceContext } from "@opentui-ui/dialog";
 import {
 	DialogProvider,
 	useDialog,
@@ -7,6 +10,15 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
+import {
+	CheckpointConfirmContent,
+	type CheckpointRestoreMode,
+} from "./components/dialogs/checkpoint-confirm";
+import {
+	CheckpointPickerContent,
+	type CheckpointPickerItem,
+	type CheckpointPickerResult,
+} from "./components/dialogs/checkpoint-picker";
 import { Toast, type ToastState, type ToastVariant } from "./components/toast";
 import { EventBridgeProvider } from "./contexts/event-bridge-context";
 import { SessionProvider, useSession } from "./contexts/session-context";
@@ -54,6 +66,7 @@ function App(props: TuiProps) {
 	);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const checkpointRestoreInFlightRef = useRef(false);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
@@ -83,6 +96,7 @@ function App(props: TuiProps) {
 	}, [props.config.cwd]);
 
 	const refocusTextareaRef = useRef<() => void>(() => {});
+	const populateInputRef = useRef<(value: string) => void>(() => {});
 
 	const clearToastTimeout = useCallback(() => {
 		if (toastTimeoutRef.current) {
@@ -170,6 +184,158 @@ function App(props: TuiProps) {
 			refocusTextareaRef.current();
 		}
 	}, [props, session]);
+
+	const openCheckpointRestore = useCallback(async () => {
+		if (checkpointRestoreInFlightRef.current) {
+			showToast("Checkpoint restore already in progress", "info");
+			return;
+		}
+		if (session.isRunning) {
+			showToast("Wait for the current run to finish before restoring", "info");
+			return;
+		}
+		checkpointRestoreInFlightRef.current = true;
+		let restoreStatusEntryAppended = false;
+		try {
+			const data = await props.getCheckpointData();
+			if (!data) {
+				showToast("No checkpoint data available", "error");
+				return;
+			}
+			const { messages: rawMessages, checkpointHistory } = data;
+			if (checkpointHistory.length === 0) {
+				showToast("No checkpoints available", "info");
+				return;
+			}
+			const checkpointForRun = (runCount: number) =>
+				checkpointHistory.reduce<
+					(typeof checkpointHistory)[number] | undefined
+				>((best, checkpoint) => {
+					if (checkpoint.runCount > runCount) {
+						return best;
+					}
+					if (!best || checkpoint.runCount > best.runCount) {
+						return checkpoint;
+					}
+					return best;
+				}, undefined);
+			const items: CheckpointPickerItem[] = [];
+			let userRunCount = 0;
+			for (const msg of rawMessages as Array<
+				Message & { metadata?: Record<string, unknown> }
+			>) {
+				if (msg.role !== "user") continue;
+				const metadata =
+					"metadata" in msg && msg.metadata && typeof msg.metadata === "object"
+						? msg.metadata
+						: undefined;
+				if (metadata?.kind === "recovery_notice") continue;
+				userRunCount += 1;
+				const checkpoint = checkpointForRun(userRunCount);
+				if (!checkpoint) continue;
+				const text =
+					typeof msg.content === "string"
+						? msg.content
+						: Array.isArray(msg.content)
+							? msg.content
+									.filter(
+										(b): b is { type: "text"; text: string } =>
+											typeof b === "object" &&
+											b !== null &&
+											"type" in b &&
+											b.type === "text" &&
+											"text" in b &&
+											typeof b.text === "string",
+									)
+									.map((b) => b.text)
+									.join(" ")
+							: "";
+				const preview = truncateStr(
+					formatDisplayUserInput(text).replace(/\s+/g, " "),
+					60,
+				);
+				if (!preview) continue;
+				items.push({
+					runCount: userRunCount,
+					text: preview,
+					fullText: text,
+					createdAt: checkpoint.createdAt,
+				});
+			}
+			if (items.length === 0) {
+				showToast("No checkpoints to restore", "info");
+				return;
+			}
+
+			const picked = await dialog.choice<CheckpointPickerResult>({
+				size: "large",
+				style: { maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<CheckpointPickerResult>) => (
+					<CheckpointPickerContent {...ctx} items={items} />
+				),
+			});
+			if (!picked) {
+				return;
+			}
+			const restoreMode = await dialog.choice<CheckpointRestoreMode>({
+				closeOnEscape: true,
+				content: (ctx: ChoiceContext<CheckpointRestoreMode>) => (
+					<CheckpointConfirmContent
+						{...ctx}
+						messagePreview={picked.messagePreview}
+					/>
+				),
+			});
+			if (!restoreMode) {
+				return;
+			}
+			const restoreWorkspace = restoreMode === "chat-and-workspace";
+			session.appendEntry({
+				kind: "status",
+				text: `Restoring to checkpoint${restoreWorkspace ? " (chat + workspace)" : " (chat only)"}...`,
+			});
+			restoreStatusEntryAppended = true;
+			const result = await props.onRestoreCheckpoint(
+				picked.runCount,
+				restoreWorkspace,
+			);
+			if (!result) {
+				session.updateLastEntry(() => ({
+					kind: "error",
+					text: "Checkpoint restore failed: no result returned.",
+				}));
+				return;
+			}
+			session.clearEntries();
+			const entries = hydrateSessionMessages(result.messages);
+			// Remove the trailing user message -- it goes into the input
+			// field so the user can edit and re-send it.
+			const lastEntry = entries[entries.length - 1];
+			if (lastEntry && lastEntry.kind === "user_submitted") {
+				entries.pop();
+			}
+			for (const entry of entries) {
+				session.appendEntry(entry);
+			}
+			session.setHasSubmitted(entries.length > 0);
+			setAppView(entries.length > 0 ? "chat" : "home");
+			populateInputRef.current(picked.fullText);
+			showToast("Restored to checkpoint", "success");
+		} catch (error) {
+			const message = `Checkpoint restore failed: ${error instanceof Error ? error.message : String(error)}`;
+			if (restoreStatusEntryAppended) {
+				session.updateLastEntry(() => ({
+					kind: "error",
+					text: message,
+				}));
+			} else {
+				showToast(message, "error");
+			}
+		} finally {
+			checkpointRestoreInFlightRef.current = false;
+			refocusTextareaRef.current();
+		}
+	}, [dialog, props, session, showToast, termHeight]);
 
 	const exitCline = useCallback(() => {
 		props.onExit();
@@ -265,6 +431,7 @@ function App(props: TuiProps) {
 		onResumeSession: props.onResumeSession,
 		onCompact: props.onCompact,
 		onFork: props.onFork,
+		onUndo: openCheckpointRestore,
 		onExit: exitCline,
 	});
 
@@ -292,6 +459,10 @@ function App(props: TuiProps) {
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
 	refocusTextareaRef.current = promptInput.refocusTextarea;
+	populateInputRef.current = (value: string) => {
+		promptInput.setInputValue(value);
+		promptInput.setInputKey((k) => k + 1);
+	};
 	const initialPromptSubmittedRef = useRef(false);
 
 	useEffect(() => {
@@ -326,6 +497,7 @@ function App(props: TuiProps) {
 		onExit: props.onExit,
 		onToggleMode: toggleMode,
 		onClearConversation: clearConversation,
+		onRestoreCheckpoint: openCheckpointRestore,
 	});
 
 	useRuntimeDialogBridge({

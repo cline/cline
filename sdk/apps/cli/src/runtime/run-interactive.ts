@@ -415,6 +415,14 @@ export async function runInteractive(
 			await sessionRuntime.ensureReady();
 			return await sessionRuntime.forkCurrentSession();
 		},
+		getCheckpointData: async () => {
+			await sessionRuntime.ensureReady();
+			return await sessionRuntime.getCheckpointData();
+		},
+		onRestoreCheckpoint: async (runCount, restoreWorkspace) => {
+			await sessionRuntime.ensureReady();
+			return await sessionRuntime.restoreCheckpoint(runCount, restoreWorkspace);
+		},
 		setToolApprover: (fn) => {
 			tuiToolApprover.current = fn;
 		},

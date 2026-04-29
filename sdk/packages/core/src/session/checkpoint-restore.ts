@@ -1,7 +1,10 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@clinebot/llms";
-import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
+import type {
+	CheckpointEntry,
+	CheckpointMetadata,
+} from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
 
 const execFile = promisify(execFileCallback);
@@ -47,10 +50,36 @@ export function readSessionCheckpointHistory(
 		});
 }
 
-export function trimMessagesToCheckpoint(
+export function createRestoredCheckpointMetadata(
+	session: Pick<SessionRecord, "metadata"> | undefined,
+	runCount: number,
+): CheckpointMetadata | undefined {
+	const history = readSessionCheckpointHistory(session).filter(
+		(entry) => entry.runCount <= runCount,
+	);
+	const latest = history.at(-1);
+	return latest ? { latest, history } : undefined;
+}
+
+function findCheckpointForRun(
+	history: readonly CheckpointEntry[],
+	runCount: number,
+): CheckpointEntry | undefined {
+	return history.reduce<CheckpointEntry | undefined>((best, entry) => {
+		if (entry.runCount > runCount) {
+			return best;
+		}
+		if (!best || entry.runCount > best.runCount) {
+			return entry;
+		}
+		return best;
+	}, undefined);
+}
+
+function findCheckpointMessageIndex(
 	messages: LlmsProviders.Message[],
 	runCount: number,
-): LlmsProviders.Message[] {
+): number {
 	let userRunCount = 0;
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
@@ -68,10 +97,26 @@ export function trimMessagesToCheckpoint(
 		}
 		userRunCount += 1;
 		if (userRunCount === runCount) {
-			return messages.slice(0, index + 1);
+			return index;
 		}
 	}
 	throw new Error(`Could not find user message for checkpoint run ${runCount}`);
+}
+
+export function trimMessagesToCheckpoint(
+	messages: LlmsProviders.Message[],
+	runCount: number,
+): LlmsProviders.Message[] {
+	const index = findCheckpointMessageIndex(messages, runCount);
+	return messages.slice(0, index + 1);
+}
+
+export function trimMessagesBeforeCheckpoint(
+	messages: LlmsProviders.Message[],
+	runCount: number,
+): LlmsProviders.Message[] {
+	const index = findCheckpointMessageIndex(messages, runCount);
+	return messages.slice(0, index);
 }
 
 export function createCheckpointRestorePlan(input: {
@@ -85,12 +130,13 @@ export function createCheckpointRestorePlan(input: {
 	if (!Number.isInteger(runCount) || runCount < 1) {
 		throw new Error("checkpointRunCount must be a positive integer");
 	}
-	const checkpoint = readSessionCheckpointHistory(input.session).find(
-		(entry) => entry.runCount === runCount,
+	const checkpoint = findCheckpointForRun(
+		readSessionCheckpointHistory(input.session),
+		runCount,
 	);
 	if (!checkpoint) {
 		throw new Error(
-			`No checkpoint found for run ${runCount} in session ${input.session.sessionId}`,
+			`No checkpoint found at or before run ${runCount} in session ${input.session.sessionId}`,
 		);
 	}
 	const cwd = (

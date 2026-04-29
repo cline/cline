@@ -45,10 +45,6 @@ import type {
 import { splitCoreSessionConfig } from "./runtime/host/runtime-host";
 import { normalizeProviderId } from "./services/llms/provider-settings";
 import { CORE_TELEMETRY_EVENTS } from "./services/telemetry/core-events";
-import {
-	applyCheckpointToWorktree,
-	createCheckpointRestorePlan,
-} from "./session/checkpoint-restore";
 import { SessionSource } from "./types/common";
 import type { CoreSessionConfig } from "./types/config";
 import type { CoreSessionEvent, SessionPendingPrompt } from "./types/events";
@@ -169,6 +165,13 @@ export interface RestoreOptions {
 	 * Defaults to true.
 	 */
 	workspace?: boolean;
+	/**
+	 * Start the forked session with messages before the checkpoint user message
+	 * while still returning messages through that user message. This is for
+	 * clients that put the checkpoint message back into a compose box so it can
+	 * be edited and submitted again without duplicating it in session history.
+	 */
+	omitCheckpointMessageFromSession?: boolean;
 }
 
 export interface RestoreInput {
@@ -200,11 +203,11 @@ export interface ClineCoreOptions {
 	distinctId?: string;
 	/**
 	 * Controls how the runtime host is selected:
-	 * - `"auto"` (default) — prefers a compatible local hub when one is available and falls
+	 * - `"auto"` (default) - prefers a compatible local hub when one is available and falls
 	 *   back to local in-process execution when not.
-	 * - `"hub"` — requires a compatible websocket hub runtime; throws if one is not reachable.
-	 * - `"remote"` — requires an explicit remote websocket hub endpoint.
-	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
+	 * - `"hub"` - requires a compatible websocket hub runtime; throws if one is not reachable.
+	 * - `"remote"` - requires an explicit remote websocket hub endpoint.
+	 * - `"local"` - always uses local in-process execution and local SQLite/file storage.
 	 */
 	backendMode?: RuntimeHostMode;
 	/**
@@ -218,7 +221,7 @@ export interface ClineCoreOptions {
 	remote?: RemoteOptions;
 	/**
 	 * Override one or more default tool executors (e.g. file I/O, shell, browser).
-	 * Partial — only the keys you supply are replaced; the rest use built-in implementations.
+	 * Partial - only the keys you supply are replaced; the rest use built-in implementations.
 	 */
 	defaultToolExecutors?: Partial<ToolExecutors>;
 	/**
@@ -1005,51 +1008,16 @@ export class ClineCore implements RuntimeHost {
 		this.host.readMessages(...args);
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
-		const sourceSessionId = input.sessionId.trim();
-		if (!sourceSessionId) {
-			throw new Error("sessionId is required");
-		}
-		const restoreMessages = input.restore?.messages !== false;
-		const restoreWorkspace = input.restore?.workspace !== false;
-		if (!restoreMessages && !restoreWorkspace) {
-			throw new Error("restore.messages or restore.workspace must be true");
-		}
-		if (restoreMessages && !input.start) {
-			throw new Error("start is required when restore.messages is true");
-		}
-		const sourceSession = await this.host.get(sourceSessionId);
-		if (!sourceSession) {
-			throw new Error(`Session ${sourceSessionId} not found`);
-		}
-		const sourceMessages = restoreMessages
-			? await this.host.readMessages(sourceSessionId)
+		const normalizedStart = input.start
+			? this.normalizeStartInput(input.start)
 			: undefined;
-		if (restoreMessages && sourceMessages?.length === 0) {
-			throw new Error(`No messages found for session ${sourceSessionId}`);
-		}
-		const plan = createCheckpointRestorePlan({
-			session: sourceSession,
-			messages: sourceMessages,
+		return this.host.restore({
+			sessionId: input.sessionId,
 			checkpointRunCount: input.checkpointRunCount,
 			cwd: input.cwd,
-			restoreMessages,
+			restore: input.restore,
+			start: normalizedStart,
 		});
-		if (restoreWorkspace) {
-			await applyCheckpointToWorktree(plan.cwd, plan.checkpoint);
-		}
-		if (!restoreMessages) {
-			return { checkpoint: plan.checkpoint };
-		}
-		const startResult = await this.start({
-			...input.start!,
-			initialMessages: plan.messages ?? [],
-		});
-		return {
-			sessionId: startResult.sessionId,
-			startResult,
-			messages: plan.messages,
-			checkpoint: plan.checkpoint,
-		};
 	}
 
 	/**

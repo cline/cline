@@ -25,6 +25,7 @@ export function useLocalCommandActions(input: {
 	onResumeSession: TuiProps["onResumeSession"];
 	onCompact: TuiProps["onCompact"];
 	onFork: TuiProps["onFork"];
+	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
 }) {
 	const dialog = useDialog();
@@ -43,6 +44,7 @@ export function useLocalCommandActions(input: {
 		onResumeSession,
 		onCompact,
 		onFork,
+		onUndo,
 		onExit,
 	} = input;
 
@@ -160,6 +162,7 @@ export function useLocalCommandActions(input: {
 				openModelSelector,
 				runCompact,
 				runFork,
+				runUndo: onUndo,
 				clearConversation: onClearConversation,
 				openHelp,
 				openHistory,
@@ -169,6 +172,7 @@ export function useLocalCommandActions(input: {
 		[
 			onClearConversation,
 			onExit,
+			onUndo,
 			openAccount,
 			openConfig,
 			openMcpManager,

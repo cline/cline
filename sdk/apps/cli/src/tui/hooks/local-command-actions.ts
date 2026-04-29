@@ -6,6 +6,7 @@ export interface LocalSlashCommandActionInput {
 	openModelSelector: () => void;
 	runCompact: () => void;
 	runFork: () => void;
+	runUndo: () => Promise<void>;
 	clearConversation: () => Promise<void>;
 	openHelp: () => void;
 	openHistory: () => void;
@@ -38,6 +39,9 @@ export function runLocalSlashCommandAction(
 	if (normalized === "fork") {
 		input.runFork();
 		return true;
+	}
+	if (normalized === "undo") {
+		return input.runUndo().then(() => true);
 	}
 	if (normalized === "clear") {
 		return input.clearConversation().then(() => true);

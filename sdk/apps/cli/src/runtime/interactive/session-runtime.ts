@@ -1,5 +1,7 @@
 import {
 	type AgentEvent,
+	type CheckpointEntry,
+	readSessionCheckpointHistory,
 	SessionSource,
 	type TeamEvent,
 	type ToolApprovalRequest,
@@ -345,6 +347,79 @@ export function createInteractiveSessionRuntime(input: {
 		};
 	};
 
+	const getCheckpointData = async (): Promise<
+		| {
+				messages: Message[];
+				checkpointHistory: CheckpointEntry[];
+		  }
+		| undefined
+	> => {
+		if (!sessionManager || !activeSessionId) {
+			return undefined;
+		}
+		const sessionRecord = await sessionManager.get(activeSessionId);
+		if (!sessionRecord) {
+			return undefined;
+		}
+		const checkpointHistory = readSessionCheckpointHistory(sessionRecord);
+		const messages = await readCurrentMessages();
+		return { messages, checkpointHistory };
+	};
+
+	const restoreCheckpoint = async (
+		runCount: number,
+		restoreWorkspace: boolean,
+	): Promise<{ newSessionId: string; messages: Message[] } | undefined> => {
+		const manager = sessionManager;
+		if (!manager || !activeSessionId) {
+			return undefined;
+		}
+		const sourceSessionId = activeSessionId;
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: runCount,
+			cwd: input.config.cwd,
+			restore: {
+				messages: true,
+				workspace: restoreWorkspace,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: {
+				source: SessionSource.CLI,
+				config: buildSessionConfig(),
+				toolPolicies: input.config.toolPolicies,
+				interactive: true,
+				localRuntime: {
+					userInstructionWatcher: input.userInstructionWatcher,
+					onTeamRestored: () => {},
+				},
+			},
+		});
+		if (!restored.startResult || !restored.sessionId) {
+			throw new Error("Checkpoint restore did not return a new session");
+		}
+		applyStartedSession(restored.startResult);
+		if (restored.sessionId !== sourceSessionId) {
+			try {
+				await manager.stop(sourceSessionId);
+			} catch (error) {
+				input.config.logger?.log(
+					"Failed to stop source session after restore",
+					{
+						sessionId: sourceSessionId,
+						error,
+						severity: "warn",
+					},
+				);
+			}
+		}
+		const restoredMessages = restored.messages ?? [];
+		return {
+			newSessionId: restored.sessionId,
+			messages: restoredMessages,
+		};
+	};
+
 	const resetAbortRequest = (): void => {
 		abortRequested = false;
 	};
@@ -399,6 +474,8 @@ export function createInteractiveSessionRuntime(input: {
 		resumeSession,
 		forkCurrentSession,
 		compactCurrentSession,
+		getCheckpointData,
+		restoreCheckpoint,
 		applyMode,
 		resetAbortRequest,
 		abortAll,

@@ -4,10 +4,13 @@ import type {
 	JsonValue,
 	ToolApprovalRequest,
 } from "@clinebot/shared";
+import { retainCheckpointRefs } from "../../../hooks/checkpoint-hooks";
 import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
 import {
 	applyCheckpointToWorktree,
 	createCheckpointRestorePlan,
+	createRestoredCheckpointMetadata,
+	trimMessagesBeforeCheckpoint,
 } from "../../../session/checkpoint-restore";
 import {
 	createCapabilityBackedToolExecutors,
@@ -222,6 +225,8 @@ export async function handleSessionRestore(
 			: {};
 	const restoreMessages = restoreOptions.messages !== false;
 	const restoreWorkspace = restoreOptions.workspace !== false;
+	const omitCheckpointMessage =
+		restoreOptions.omitCheckpointMessageFromSession === true;
 	if (!restoreMessages && !restoreWorkspace) {
 		return errorReply(
 			envelope,
@@ -297,10 +302,17 @@ export async function handleSessionRestore(
 			return okReply(envelope, { checkpoint: plan.checkpoint });
 		}
 
+		const restoredCheckpointMetadata = createRestoredCheckpointMetadata(
+			sourceSession,
+			checkpointRunCount,
+		);
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
 				? JSON.parse(JSON.stringify(payload.metadata))
 				: {};
+		if (restoredCheckpointMetadata) {
+			metadata.checkpoint = restoredCheckpointMetadata;
+		}
 		if (typeof sessionConfig?.mode === "string") {
 			metadata.mode = sessionConfig.mode;
 		} else if (typeof runtimeOptions.mode === "string") {
@@ -342,7 +354,10 @@ export async function handleSessionRestore(
 				restoredFromSessionId: sourceSessionId,
 				restoredCheckpointRunCount: checkpointRunCount,
 			},
-			initialMessages: plan.messages ?? [],
+			initialMessages:
+				omitCheckpointMessage && sourceMessages
+					? trimMessagesBeforeCheckpoint(sourceMessages, checkpointRunCount)
+					: (plan.messages ?? []),
 			localRuntime: {
 				modelCatalogDefaults: {
 					loadLatestOnInit: true,
@@ -424,6 +439,11 @@ export async function handleSessionRestore(
 						? { "*": { autoApprove: true } }
 						: undefined,
 		});
+		await retainCheckpointRefs(
+			plan.cwd,
+			started.sessionId,
+			restoredCheckpointMetadata?.history ?? [],
+		);
 		ensureSessionState(ctx, started.sessionId, clientId, "creator", {
 			interactive: metadata.interactive !== false,
 		});

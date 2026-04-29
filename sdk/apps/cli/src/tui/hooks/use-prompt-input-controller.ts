@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
-import { expandUserCommandPrompt } from "../commands/slash-command-registry";
+import {
+	expandUserCommandPrompt,
+	resolveSlashCommand,
+} from "../commands/slash-command-registry";
 import type { TextareaHandle } from "../components/input-bar";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
@@ -127,12 +130,14 @@ export function usePromptInputController(input: {
 
 			if (autocomplete.mode === "/") {
 				const cmd = option.commandName ?? option.display.slice(1);
-				if (await runSlashCommand(cmd)) {
+				if (option.commandExecution === "local") {
 					ta.setText("");
 					ta.cursorOffset = 0;
-					autocomplete.close();
 					setInputValue("");
 					clearPasteAttachments();
+				}
+				if (await runSlashCommand(cmd)) {
+					autocomplete.close();
 					return;
 				}
 				const text = inputValueRef.current;
@@ -183,10 +188,13 @@ export function usePromptInputController(input: {
 			if (!delivery && prompt.startsWith("/")) {
 				const parts = prompt.split(/\s+/);
 				const cmd = (parts[0] ?? "").slice(1);
-				if (await runSlashCommand(cmd)) {
+				const command = resolveSlashCommand(slashCommandRegistry, cmd);
+				if (command?.execution === "local") {
 					setInputKey((k) => k + 1);
 					setInputValue("");
 					clearPasteAttachments();
+				}
+				if (await runSlashCommand(cmd)) {
 					return;
 				}
 			}

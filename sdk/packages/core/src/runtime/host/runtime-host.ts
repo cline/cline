@@ -7,6 +7,7 @@ import type {
 } from "@clinebot/shared";
 import type { ToolExecutors } from "../../extensions/tools";
 import type { HookEventPayload } from "../../hooks";
+import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
@@ -203,6 +204,25 @@ export interface RuntimeHostSubscribeOptions {
 	sessionId?: string;
 }
 
+export interface RestoreSessionInput {
+	sessionId: string;
+	checkpointRunCount: number;
+	cwd?: string;
+	restore?: {
+		messages?: boolean;
+		workspace?: boolean;
+		omitCheckpointMessageFromSession?: boolean;
+	};
+	start?: StartSessionInput;
+}
+
+export interface RestoreSessionResult {
+	sessionId?: string;
+	startResult?: StartSessionResult;
+	messages?: LlmsProviders.Message[];
+	checkpoint: CheckpointEntry;
+}
+
 /**
  * RuntimeHost is the transport/runtime boundary for core session execution.
  * Callers must normalize broad local config into `RuntimeSessionConfig`
@@ -212,6 +232,7 @@ export interface RuntimeHost {
 	readonly runtimeAddress?: string;
 	start(input: StartSessionInput): Promise<StartSessionResult>;
 	send(input: SendSessionInput): Promise<AgentResult | undefined>;
+	restore(input: RestoreSessionInput): Promise<RestoreSessionResult>;
 	pendingPrompts(
 		action: "list",
 		input: PendingPromptsListInput,

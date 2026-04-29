@@ -65,6 +65,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "k-esc-esc",
+		key: "Esc Esc",
+		desc: "Restore to a previous checkpoint",
+	},
+	{
+		kind: "entry",
 		id: "k-updown",
 		key: "Up/Down",
 		desc: "Navigate autocomplete or input history",
@@ -125,6 +131,12 @@ const HELP_ROWS: HelpRow[] = [
 		id: "c-fork",
 		key: "/fork",
 		desc: "Fork current session into a new one",
+	},
+	{
+		kind: "entry",
+		id: "c-undo",
+		key: "/undo",
+		desc: "Restore to a previous checkpoint",
 	},
 	{ kind: "entry", id: "c-quit", key: "/quit", desc: "Exit Cline" },
 	{ kind: "entry", id: "c-help", key: "/help", desc: "Show this help" },
