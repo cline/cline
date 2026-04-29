@@ -52,6 +52,10 @@ export function usePromptInputController(input: {
 
 	const inputHistory = useInputHistory(textareaRef);
 
+	const focusTextarea = useCallback(() => {
+		textareaRef.current?.focus();
+	}, []);
+
 	const refocusTextarea = useCallback(() => {
 		setInputKey((k) => k + 1);
 	}, []);
@@ -363,6 +367,7 @@ export function usePromptInputController(input: {
 		submitRef,
 		setInputKey,
 		setInputValue,
+		focusTextarea,
 		refocusTextarea,
 		submitInitialPrompt,
 		selectAutocompleteOption,

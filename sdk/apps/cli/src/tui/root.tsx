@@ -302,6 +302,11 @@ function App(props: TuiProps) {
 	const initialPromptSubmittedRef = useRef(false);
 
 	useEffect(() => {
+		if (isDialogOpen || appView === "onboarding") return;
+		promptInput.focusTextarea();
+	}, [isDialogOpen, appView, promptInput.focusTextarea]);
+
+	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
 		if (appView === "onboarding") return;
 		if (!props.initialPrompt?.trim()) return;

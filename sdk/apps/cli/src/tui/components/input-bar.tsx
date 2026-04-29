@@ -17,6 +17,7 @@ export type TextareaHandle = Pick<
 	TextareaRenderable,
 	| "plainText"
 	| "onSubmit"
+	| "focus"
 	| "setText"
 	| "insertText"
 	| "cursorOffset"
