@@ -561,6 +561,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 		planModeAnthropicModelInfo: convertModelInfoToProtoOpenRouter(config.planModeAnthropicModelInfo),
+		planModeAnthropicCustomModelEnabled: config.planModeAnthropicCustomModelEnabled,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -606,6 +607,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeAnthropicModelInfo: convertModelInfoToProtoOpenRouter(config.actModeAnthropicModelInfo),
+		actModeAnthropicCustomModelEnabled: config.actModeAnthropicCustomModelEnabled,
 	}
 }
 
@@ -746,6 +748,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 		planModeAnthropicModelInfo: convertProtoToModelInfo(protoConfig.planModeAnthropicModelInfo),
+		planModeAnthropicCustomModelEnabled: protoConfig.planModeAnthropicCustomModelEnabled,
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -792,5 +795,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 		actModeAnthropicModelInfo: convertProtoToModelInfo(protoConfig.actModeAnthropicModelInfo),
+		actModeAnthropicCustomModelEnabled: protoConfig.actModeAnthropicCustomModelEnabled,
 	}
 }

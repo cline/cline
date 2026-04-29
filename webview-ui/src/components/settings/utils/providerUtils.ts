@@ -590,6 +590,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			thinkingBudgetTokens: undefined,
 			reasoningEffort: undefined,
 			anthropicModelInfo: undefined,
+			anthropicCustomModelEnabled: undefined,
 		}
 	}
 
@@ -679,6 +680,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		ocaModelInfo: mode === "plan" ? apiConfiguration.planModeOcaModelInfo : apiConfiguration.actModeOcaModelInfo,
 		anthropicModelInfo:
 			mode === "plan" ? apiConfiguration.planModeAnthropicModelInfo : apiConfiguration.actModeAnthropicModelInfo,
+		anthropicCustomModelEnabled:
+			mode === "plan"
+				? apiConfiguration.planModeAnthropicCustomModelEnabled
+				: apiConfiguration.actModeAnthropicCustomModelEnabled,
 	}
 }
 

@@ -142,6 +142,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 
 	// Plan mode configurations
 	planModeAnthropicModelInfo: { default: undefined as ModelInfo | undefined },
+	planModeAnthropicCustomModelEnabled: { default: undefined as boolean | undefined },
 	planModeApiModelId: { default: undefined as string | undefined },
 	planModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	geminiPlanModeThinkingLevel: { default: undefined as string | undefined },
@@ -187,6 +188,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 
 	// Act mode configurations
 	actModeAnthropicModelInfo: { default: undefined as ModelInfo | undefined },
+	actModeAnthropicCustomModelEnabled: { default: undefined as boolean | undefined },
 	actModeApiModelId: { default: undefined as string | undefined },
 	actModeThinkingBudgetTokens: { default: undefined as number | undefined },
 	geminiActModeThinkingLevel: { default: undefined as string | undefined },

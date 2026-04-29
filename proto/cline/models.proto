@@ -645,6 +645,7 @@ message ModelsApiConfiguration {
   optional string plan_mode_cline_model_id = 140;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 141;
   optional OpenRouterModelInfo plan_mode_anthropic_model_info = 142;
+  optional bool plan_mode_anthropic_custom_model_enabled = 143;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -690,4 +691,5 @@ message ModelsApiConfiguration {
   optional string act_mode_cline_model_id = 240;
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
   optional OpenRouterModelInfo act_mode_anthropic_model_info = 242;
+  optional bool act_mode_anthropic_custom_model_enabled = 243;
 }

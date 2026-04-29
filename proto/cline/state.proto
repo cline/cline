@@ -283,6 +283,8 @@ message Settings {
   optional bool lazy_teammate_mode_enabled = 183;
   optional OpenRouterModelInfo plan_mode_anthropic_model_info = 184;
   optional OpenRouterModelInfo act_mode_anthropic_model_info = 185;
+  optional bool plan_mode_anthropic_custom_model_enabled = 186;
+  optional bool act_mode_anthropic_custom_model_enabled = 187;
 }
 
 message State {

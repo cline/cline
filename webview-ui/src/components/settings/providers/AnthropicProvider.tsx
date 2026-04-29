@@ -8,7 +8,7 @@ import {
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import styled from "styled-components"
 import { Label } from "@/components/ui/label"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -42,10 +42,6 @@ const StyledCheckbox = styled(VSCodeCheckbox)`
 	margin-bottom: 4px;
 `
 
-const isCustomModel = (modelId: string | undefined) => {
-	return modelId && !(modelId in anthropicModels)
-}
-
 /**
  * Props for the AnthropicProvider component
  */
@@ -63,7 +59,12 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	const { handleFieldChange, handleFieldsChange, handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
-	const [useCustomModel, setUseCustomModel] = useState(!!modeFields.anthropicModelInfo)
+	const [useCustomModel, setUseCustomModel] = useState(!!modeFields.anthropicCustomModelEnabled)
+	const [enableAdaptiveThinking, setEnableAdaptiveThinking] = useState(!!modeFields.reasoningEffort)
+
+	useEffect(() => {
+		setEnableAdaptiveThinking(!!modeFields.reasoningEffort)
+	}, [modeFields.reasoningEffort])
 
 	// Get the normalized configuration
 	const baseSelection = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -91,25 +92,29 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 			actModeApiModelId: currentMode === "act" ? modeFields.apiModelId : apiConfiguration?.actModeApiModelId,
 			planModeAnthropicModelInfo: currentMode === "plan" ? updatedInfo : apiConfiguration?.planModeAnthropicModelInfo,
 			actModeAnthropicModelInfo: currentMode === "act" ? updatedInfo : apiConfiguration?.actModeAnthropicModelInfo,
-		} as any)
+		})
 	}
 
 	const handleToggleCustomModel = (checked: boolean) => {
 		setUseCustomModel(checked)
 		const modeModelIdKey = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
 		const modeModelInfoKey = currentMode === "plan" ? "planModeAnthropicModelInfo" : "actModeAnthropicModelInfo"
+		const modeCustomEnabledKey =
+			currentMode === "plan" ? "planModeAnthropicCustomModelEnabled" : "actModeAnthropicCustomModelEnabled"
 		if (checked) {
 			// Initialize with sane defaults, keeping current model ID if set
 			handleFieldsChange({
+				[modeCustomEnabledKey]: true,
 				[modeModelIdKey]: modeFields.apiModelId || "custom-model",
 				[modeModelInfoKey]: modeFields.anthropicModelInfo || { ...anthropicModelInfoSaneDefaults },
-			} as any)
+			})
 		} else {
 			// Clear custom model info for CURRENT mode only, switch to first predefined model
 			handleFieldsChange({
+				[modeCustomEnabledKey]: false,
 				[modeModelInfoKey]: undefined,
 				[modeModelIdKey]: Object.keys(anthropicModels)[0],
-			} as any)
+			})
 		}
 	}
 
@@ -216,14 +221,33 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 									maxBudget={customModelInfo.thinkingConfig?.maxBudget}
 								/>
 							)}
-							{customModelInfo.supportsReasoning && (modeFields.thinkingBudgetTokens || 0) > 0 && (
-								<ReasoningEffortSelector
-									allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
-									currentMode={currentMode}
-									defaultEffort={adaptiveThinkingDefaultEffort}
-									description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-									label="Adaptive Thinking"
-								/>
+							{customModelInfo.supportsReasoning && (
+								<>
+									<div style={{ marginTop: 8 }}>
+										<VSCodeCheckbox
+											checked={enableAdaptiveThinking}
+											onChange={(e: any) => {
+												const checked = e.target.checked === true
+												setEnableAdaptiveThinking(checked)
+												handleModeFieldChange(
+													{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+													checked ? modeFields.reasoningEffort || "medium" : "",
+													currentMode,
+												)
+											}}>
+											Enable Adaptive Thinking
+										</VSCodeCheckbox>
+									</div>
+									{enableAdaptiveThinking && (
+										<ReasoningEffortSelector
+											allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
+											currentMode={currentMode}
+											defaultEffort={adaptiveThinkingDefaultEffort}
+											description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+											label="Adaptive Thinking"
+										/>
+									)}
+								</>
 							)}
 						</>
 					) : isAdaptiveThinkingModel ? (
