@@ -612,7 +612,7 @@ describe("translateSessionEvent — agent_event done", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event error", () => {
-	it("translates error event to error message", () => {
+	it("translates error event to api_req_started + api_req_failed messages", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -626,11 +626,153 @@ describe("translateSessionEvent — agent_event error", () => {
 		}
 
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].say).toBe("error")
-		expect(result.messages[0].text).toBe("API rate limit exceeded")
+		expect(result.messages).toHaveLength(2)
+		// First message: api_req_started with streamingFailedMessage
+		expect(result.messages[0].say).toBe("api_req_started")
+		const apiReqInfo = JSON.parse(result.messages[0].text!)
+		expect(apiReqInfo.streamingFailedMessage).toBe("API rate limit exceeded")
 		expect(result.messages[0].partial).toBe(false)
+		// Second message: ask api_req_failed
+		expect(result.messages[1].type).toBe("ask")
+		expect(result.messages[1].ask).toBe("api_req_failed")
+		expect(result.messages[1].text).toBe("API rate limit exceeded")
+		expect(result.messages[1].partial).toBe(false)
 		expect(result.turnComplete).toBe(true)
+	})
+
+	it("reshapes insufficient_credits error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const errorJson = JSON.stringify({
+			code: "insufficient_credits",
+			current_balance: -0.14,
+			message: "Not enough credits available",
+		})
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: errorJson },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		// The api_req_failed text should be structured JSON that ClineError.parse() can handle
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.current_balance).toBe(-0.14)
+		expect(parsed.details.message).toBe("Not enough credits available")
+	})
+
+	it("reshapes SPEND_LIMIT_EXCEEDED error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const errorJson = JSON.stringify({
+			code: "SPEND_LIMIT_EXCEEDED",
+			limit_scope: "user",
+			budget_period: "daily",
+			limit_usd: 20.0,
+			spent_usd: 20.5,
+			resets_at: "2026-05-01T00:00:00Z",
+			message: "Your daily spend limit of $20.00 has been reached.",
+		})
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: errorJson },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("SPEND_LIMIT_EXCEEDED")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.budget_period).toBe("daily")
+		expect(parsed.details.limit_usd).toBe(20.0)
+	})
+
+	it("reshapes plain-text insufficient credits error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		// The SDK often extracts human-readable text from the API response,
+		// losing the structured JSON. This tests that plain-text balance errors
+		// are still detected and reshaped.
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Insufficient balance. Your Cline Credits balance is $-0.14" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.current_balance).toBe(-0.14)
+		expect(parsed.details.message).toContain("Insufficient balance")
+	})
+
+	it("reshapes plain-text 'Not enough credits' error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Not enough credits available" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.current_balance).toBe(0)
+	})
+
+	it("reshapes plain-text spend limit error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Your daily spend limit of $20.00 has been reached." },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("SPEND_LIMIT_EXCEEDED")
+		expect(parsed.providerId).toBe("cline")
 	})
 })
 
