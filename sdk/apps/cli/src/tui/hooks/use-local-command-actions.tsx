@@ -76,19 +76,13 @@ export function useLocalCommandActions(input: {
 	]);
 
 	const openHelp = useCallback(async () => {
-		const accountCommand = resolveSlashCommand(slashCommandRegistry, "account");
 		await dialog.choice<void>({
 			size: "large",
 			style: { maxHeight: termHeight - 2 },
-			content: (ctx: ChoiceContext<void>) => (
-				<HelpDialogContent
-					{...ctx}
-					showAccountCommand={accountCommand?.visible === true}
-				/>
-			),
+			content: (ctx: ChoiceContext<void>) => <HelpDialogContent {...ctx} />,
 		});
 		refocusTextarea();
-	}, [dialog, refocusTextarea, slashCommandRegistry, termHeight]);
+	}, [dialog, refocusTextarea, termHeight]);
 
 	const runCompact = useCallback(async () => {
 		session.appendEntry({

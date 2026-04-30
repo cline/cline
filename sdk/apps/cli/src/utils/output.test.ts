@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installStreamErrorGuards } from "./output";
+import {
+	formatCreditBalance,
+	installStreamErrorGuards,
+	normalizeCreditBalance,
+} from "./output";
 
 describe("installStreamErrorGuards", () => {
 	const originalExitCode = process.exitCode;
@@ -37,5 +41,14 @@ describe("installStreamErrorGuards", () => {
 		}).toThrow("exit:0");
 
 		expect(exitSpy).toHaveBeenCalledWith(0);
+	});
+});
+
+describe("credit balance formatting", () => {
+	it("normalizes Cline micro-credit balances before display", () => {
+		expect(formatCreditBalance(normalizeCreditBalance(500_000))).toBe("$0.50");
+		expect(formatCreditBalance(normalizeCreditBalance(5_000_000))).toBe(
+			"$5.00",
+		);
 	});
 });

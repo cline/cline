@@ -61,16 +61,12 @@ function App(props: TuiProps) {
 			? "chat"
 			: "home";
 	});
-	const [activeProviderId, setActiveProviderId] = useState(
-		props.config.providerId,
-	);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
-	const showClineAccountCommand = activeProviderId === "cline";
 
 	const {
 		registry: slashCommandRegistry,
@@ -80,7 +76,6 @@ function App(props: TuiProps) {
 		workflowSlashCommands: props.workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
-		showClineAccountCommand,
 	});
 
 	const autocomplete = useAutocomplete({
@@ -125,7 +120,6 @@ function App(props: TuiProps) {
 
 	const handleModelChange = useCallback(async () => {
 		await props.onModelChange();
-		setActiveProviderId(props.config.providerId);
 	}, [props]);
 
 	const openModelSelector = useModelSelector({

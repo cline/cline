@@ -179,14 +179,16 @@ describe("slash command registry", () => {
 		).toContain("settings");
 	});
 
-	it("hides the account command when Cline account is not active", () => {
-		const registry = buildSlashCommandRegistry({
-			showClineAccountCommand: false,
-		});
+	it("always exposes the account command", () => {
+		const registry = buildSlashCommandRegistry({});
 
-		expect(resolveSlashCommand(registry, "account")).toBeUndefined();
+		expect(resolveSlashCommand(registry, "account")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			visible: true,
+		});
 		expect(
 			getVisibleSystemSlashCommands(registry).map((command) => command.name),
-		).not.toContain("account");
+		).toContain("account");
 	});
 });

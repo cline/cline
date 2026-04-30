@@ -192,23 +192,19 @@ export function formatUsd(value: number, fixed = 6): string {
 	return `$${value.toFixed(fixed)}`;
 }
 
-export function formatCreditBalance(value: number): string {
+export function formatCreditBalance(value: number, decimalPlaces = 2): string {
 	if (!Number.isFinite(value)) {
-		return "$0";
+		return "$0.00";
 	}
-	if (Number.isInteger(value)) {
-		return `$${value}`;
-	}
-	return `$${value.toFixed(4).replace(/\.?0+$/, "")}`;
+	return `$${value.toLocaleString("en-US", {
+		minimumFractionDigits: decimalPlaces,
+		maximumFractionDigits: decimalPlaces,
+	})}`;
 }
 
 export function normalizeCreditBalance(value: number): number {
 	if (!Number.isFinite(value)) {
 		return 0;
 	}
-	// Cline account APIs may return raw integer micro-credit units.
-	if (Number.isInteger(value) && Math.abs(value) >= 1_000_000) {
-		return value / 1_000_000;
-	}
-	return value;
+	return value / 1_000_000;
 }

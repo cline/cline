@@ -6,16 +6,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	type ClineAccountSnapshot,
 	formatClineCredits,
+	isClineAccountAuthErrorMessage,
 } from "../../cline-account";
 import { palette } from "../../palette";
 
-export type AccountDialogAction = "change-model";
+export type AccountDialogAction =
+	| "change-model"
+	| "change-provider"
+	| "learn-more"
+	| "login";
 
 type AccountView = "overview" | "organizations";
 
 type AccountState =
 	| { status: "loading"; message: string }
 	| { status: "loaded"; snapshot: ClineAccountSnapshot }
+	| { status: "unauthenticated"; message: string }
 	| { status: "error"; message: string };
 
 interface OrganizationRowData {
@@ -27,13 +33,18 @@ interface OrganizationRowData {
 }
 
 interface AccountAction {
-	id: "change-model" | "change-account";
+	id:
+		| "change-model"
+		| "change-account"
+		| "change-provider"
+		| "learn-more"
+		| "login";
 	label: string;
 	description: string;
 	enabled: boolean;
 }
 
-const ACTIONS: AccountAction[] = [
+const LOADED_ACTIONS: AccountAction[] = [
 	{
 		id: "change-model",
 		label: "Change model",
@@ -44,6 +55,27 @@ const ACTIONS: AccountAction[] = [
 		id: "change-account",
 		label: "Change account",
 		description: "Switch personal account or organization",
+		enabled: true,
+	},
+	{
+		id: "change-provider",
+		label: "Change provider",
+		description: "Open provider picker",
+		enabled: true,
+	},
+];
+
+const UNAUTHENTICATED_ACTIONS: AccountAction[] = [
+	{
+		id: "login",
+		label: "Sign in or create account",
+		description: "Use Cline OAuth",
+		enabled: true,
+	},
+	{
+		id: "learn-more",
+		label: "Learn more",
+		description: "Open cline.bot",
 		enabled: true,
 	},
 ];
@@ -169,7 +201,7 @@ function OrganizationRow(props: {
 }
 
 function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
-	return ACTIONS.map((action) => {
+	return LOADED_ACTIONS.map((action) => {
 		if (action.id !== "change-account") {
 			return action;
 		}
@@ -222,11 +254,15 @@ export function AccountDialogContent(
 				setSelectedAction(0);
 			}
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			if (generation.current === currentGeneration) {
 				setState({
-					status: "error",
-					message: error instanceof Error ? error.message : String(error),
+					status: isClineAccountAuthErrorMessage(message)
+						? "unauthenticated"
+						: "error",
+					message,
 				});
+				setSelectedAction(0);
 			}
 		}
 	}, [loadAccount]);
@@ -237,8 +273,13 @@ export function AccountDialogContent(
 
 	const snapshot = state.status === "loaded" ? state.snapshot : undefined;
 	const actions = useMemo(
-		() => (snapshot ? accountActions(snapshot) : ACTIONS),
-		[snapshot],
+		() =>
+			snapshot
+				? accountActions(snapshot)
+				: state.status === "unauthenticated"
+					? UNAUTHENTICATED_ACTIONS
+					: LOADED_ACTIONS,
+		[snapshot, state.status],
 	);
 	const orgRows = useMemo(() => {
 		if (!snapshot) {
@@ -307,6 +348,18 @@ export function AccountDialogContent(
 			if (!action.enabled) return;
 			if (action.id === "change-model") {
 				resolve("change-model");
+				return;
+			}
+			if (action.id === "login") {
+				resolve("login");
+				return;
+			}
+			if (action.id === "learn-more") {
+				resolve("learn-more");
+				return;
+			}
+			if (action.id === "change-provider") {
+				resolve("change-provider");
 				return;
 			}
 			if (action.id === "change-account") {
@@ -384,6 +437,35 @@ export function AccountDialogContent(
 				<text fg="cyan">Cline Account</text>
 				<text fg="red">{state.message}</text>
 				<text fg="gray">Esc to close</text>
+			</box>
+		);
+	}
+
+	if (state.status === "unauthenticated") {
+		return (
+			<box flexDirection="column" paddingX={1} gap={1}>
+				<text fg="cyan">Cline Account</text>
+				<text>Sign in or create a Cline account.</text>
+				<text fg="gray">
+					Get access to the latest models with regular free promos and
+					discounts.
+				</text>
+
+				<box flexDirection="column">
+					{actions.map((action, index) => (
+						<AccountActionRow
+							key={action.id}
+							action={action}
+							selected={index === selectedAction}
+							onSelect={() => {
+								setSelectedAction(index);
+								runAction(action);
+							}}
+						/>
+					))}
+				</box>
+
+				<text fg="gray">↑/↓ navigate, Enter to select, Esc to close</text>
 			</box>
 		);
 	}

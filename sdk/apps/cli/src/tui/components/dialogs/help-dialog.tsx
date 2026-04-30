@@ -204,11 +204,8 @@ const HELP_ROWS: HelpRow[] = [
 
 const KEY_WIDTH = 16;
 
-export function HelpDialogContent(
-	props: ChoiceContext<void> & { showAccountCommand?: boolean },
-) {
+export function HelpDialogContent(props: ChoiceContext<void>) {
 	const { dismiss, dialogId } = props;
-	const showAccountCommand = props.showAccountCommand ?? true;
 
 	useDialogKeyboard((key) => {
 		if (
@@ -225,9 +222,7 @@ export function HelpDialogContent(
 		<box flexDirection="column" paddingX={1}>
 			<scrollbox flexGrow={1}>
 				<box flexDirection="column">
-					{HELP_ROWS.filter(
-						(row) => showAccountCommand || row.id !== "c-account",
-					).map((row) => {
+					{HELP_ROWS.map((row) => {
 						if (row.kind === "spacer") {
 							return <text key={row.id}> </text>;
 						}

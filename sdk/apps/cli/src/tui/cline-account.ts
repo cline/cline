@@ -15,6 +15,8 @@ import type { Config } from "../utils/types";
 const DEFAULT_CLINE_API_BASE_URL = "https://api.cline.bot";
 const WORKOS_TOKEN_PREFIX = "workos:";
 
+type ClineAccountConfig = Pick<Config, "apiKey" | "providerId">;
+
 export interface ClineAccountSnapshot {
 	user: ClineAccountUser;
 	balance: ClineAccountBalance;
@@ -26,6 +28,14 @@ export interface ClineAccountSnapshot {
 
 export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
+}
+
+export function isClineAccountAuthErrorMessage(message: string): boolean {
+	const normalized = message.trim().toLowerCase();
+	return (
+		normalized === "no cline account auth token found" ||
+		normalized.includes("requires re-authentication")
+	);
 }
 
 function resolveAccountApiBaseUrl(input: {
@@ -44,7 +54,7 @@ function resolveAccountApiBaseUrl(input: {
 }
 
 function resolveClineAccountAuthToken(input: {
-	config: Config;
+	config: ClineAccountConfig;
 	clineProviderSettings?: ProviderSettings;
 }): string | undefined {
 	const persistedAccessToken =
@@ -70,7 +80,7 @@ function stripWorkosTokenPrefix(accessToken: string): string {
 }
 
 async function resolveValidClineAccountAuthToken(input: {
-	config: Config;
+	config: ClineAccountConfig;
 	clineProviderSettings?: ProviderSettings;
 	manager: ProviderSettingsManager;
 	apiBaseUrl: string;
@@ -124,7 +134,7 @@ async function resolveValidClineAccountAuthToken(input: {
 }
 
 export async function createClineAccountService(input: {
-	config: Config;
+	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;
 }): Promise<ClineAccountService | undefined> {
@@ -151,7 +161,7 @@ export async function createClineAccountService(input: {
 }
 
 export async function loadClineAccountSnapshot(input: {
-	config: Config;
+	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;
 }): Promise<ClineAccountSnapshot> {
@@ -185,7 +195,7 @@ export async function loadClineAccountSnapshot(input: {
 }
 
 export async function switchClineAccount(input: {
-	config: Config;
+	config: ClineAccountConfig;
 	organizationId?: string | null;
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;

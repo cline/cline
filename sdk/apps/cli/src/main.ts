@@ -675,7 +675,7 @@ export async function runCli(): Promise<void> {
 			(!process.stdin.isTTY && !args.interactive);
 		const isInteractive = (args.interactive || !args.prompt) && !isHeadless;
 
-		if (!apiKey && isOAuthProvider(provider) && !isHeadless) {
+		if (!apiKey && isOAuthProvider(provider) && !isHeadless && !isInteractive) {
 			const oauthResult = await ensureOAuthProviderApiKey({
 				providerId: provider,
 				currentApiKey: apiKey,

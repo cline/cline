@@ -161,14 +161,10 @@ export function buildSlashCommandRegistry(input: {
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	additionalSlashCommands?: InteractiveSlashCommand[];
 	canFork?: boolean;
-	showClineAccountCommand?: boolean;
 }): SlashCommandRegistry {
 	const byName = new Map<string, SlashCommandRegistryEntry>();
 
 	for (const command of TUI_LOCAL_COMMANDS) {
-		if (command.name === "account" && input.showClineAccountCommand === false) {
-			continue;
-		}
 		const isFork = command.name === "fork";
 		const visible =
 			(command.visible ?? true) && (!isFork || input.canFork === true);

@@ -289,6 +289,29 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("does not start OAuth before onboarding in interactive mode", async () => {
+		authMocks.isOAuthProvider.mockReturnValue(true);
+		authMocks.normalizeProviderId.mockReturnValue("cline");
+		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
+		authMocks.ensureOAuthProviderApiKey.mockClear();
+		process.argv = ["bun", "src/index.ts", "-i"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(authMocks.ensureOAuthProviderApiKey).not.toHaveBeenCalled();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline",
+				apiKey: "",
+			}),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
 	it("loads live catalog models for default interactive model selection", async () => {
 		llmMocks.resolveProviderConfig.mockResolvedValue({
 			knownModels: {
