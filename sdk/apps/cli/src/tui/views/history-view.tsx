@@ -14,9 +14,16 @@ import { listSessions } from "../../session/session";
 import { formatUsd } from "../../utils/output";
 import { palette } from "../palette";
 
+function hasForkMetadata(row: SessionHistoryRecord): boolean {
+	const fork = row.metadata?.fork;
+	return typeof fork === "object" && fork !== null && !Array.isArray(fork);
+}
+
 function formatTitle(row: SessionHistoryRecord, maxLen: number): string {
 	const raw = row.metadata?.title?.trim() || row.prompt?.trim() || "Untitled";
-	const normalized = formatDisplayUserInput(raw);
+	const forkTitle =
+		hasForkMetadata(row) && !raw.endsWith(" (fork)") ? `${raw} (fork)` : raw;
+	const normalized = formatDisplayUserInput(forkTitle);
 	return truncateStr(normalized.replace(/\s+/g, " "), maxLen);
 }
 

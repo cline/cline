@@ -1056,8 +1056,14 @@ describe("LocalRuntimeHost", () => {
 
 	it("installs checkpoint hooks when checkpoint.enabled=true in config", async () => {
 		const sessionId = "sess-checkpoint-config-on";
-		const repoCwd = mkdtempSync(join(isolatedHomeDir, "checkpoint-repo-"));
-		createGitRepo(repoCwd);
+		const checkpointRef = "a".repeat(40);
+		const repoCwd = join(isolatedHomeDir, "checkpoint-repo");
+		const createCheckpoint = vi.fn(({ runCount }) => ({
+			ref: checkpointRef,
+			createdAt: 123,
+			runCount,
+			kind: "commit" as const,
+		}));
 		const manifest = createManifest(sessionId);
 		const updateSession = vi.fn().mockResolvedValue({ updated: true });
 		const sessionService = {
@@ -1133,7 +1139,7 @@ describe("LocalRuntimeHost", () => {
 			normalizeStartInput({
 				config: {
 					...createConfig({ sessionId, cwd: repoCwd }),
-					checkpoint: { enabled: true },
+					checkpoint: { enabled: true, createCheckpoint },
 				},
 				prompt: "hello",
 				initialMessages: [
@@ -1149,20 +1155,25 @@ describe("LocalRuntimeHost", () => {
 				metadata: expect.objectContaining({
 					checkpoint: expect.objectContaining({
 						latest: expect.objectContaining({
-							ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+							ref: checkpointRef,
 							runCount: 3,
 						}),
 					}),
 				}),
 			}),
 		);
+		expect(createCheckpoint).toHaveBeenCalledWith({
+			cwd: repoCwd,
+			sessionId,
+			runCount: 3,
+		});
 		expect(updateSession).toHaveBeenCalledTimes(2);
 		expect(updateSession).toHaveBeenNthCalledWith(1, {
 			sessionId,
 			metadata: expect.objectContaining({
 				checkpoint: expect.objectContaining({
 					latest: expect.objectContaining({
-						ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+						ref: checkpointRef,
 						runCount: 3,
 					}),
 				}),
@@ -1173,7 +1184,7 @@ describe("LocalRuntimeHost", () => {
 			metadata: expect.objectContaining({
 				checkpoint: expect.objectContaining({
 					latest: expect.objectContaining({
-						ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+						ref: checkpointRef,
 						runCount: 3,
 					}),
 				}),

@@ -119,14 +119,14 @@ export function useLocalCommandActions(input: {
 		if (!confirmed) return;
 		session.appendEntry({
 			kind: "status",
-			text: "Forking session...",
+			text: "Creating forked session...",
 		});
 		try {
 			const result = await onFork();
 			if (result) {
 				session.updateLastEntry(() => ({
 					kind: "status",
-					text: `Forked into new session ${result.newSessionId}. Future messages will be sent to the fork.`,
+					text: `Forked into new session ${result.newSessionId}. This is now the active session. Use /history to switch sessions.`,
 				}));
 			} else {
 				session.updateLastEntry(() => ({

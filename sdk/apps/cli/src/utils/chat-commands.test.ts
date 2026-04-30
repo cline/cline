@@ -114,7 +114,7 @@ describe("chat commands", () => {
 		expect(handled).toBe(true);
 		expect(fork).toHaveBeenCalledTimes(1);
 		expect(reply).toHaveBeenCalledWith(
-			"Forked session sess_original → new session sess_fork",
+			"Forked session sess_original into new session sess_fork. This is now the active session. Use /history to switch sessions.",
 		);
 	});
 
@@ -179,7 +179,7 @@ describe("chat commands", () => {
 			}),
 			setState: async () => undefined,
 			reply,
-			// No fork callback — command should not be available
+			// No fork callback, so the command should not be available.
 		});
 
 		// isAvailable returns false when fork is not defined, so the command

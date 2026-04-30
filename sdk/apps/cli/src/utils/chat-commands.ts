@@ -348,7 +348,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					return;
 				}
 				await context.reply(
-					`Forked session ${result.forkedFromSessionId} → new session ${result.newSessionId}`,
+					`Forked session ${result.forkedFromSessionId} into new session ${result.newSessionId}. This is now the active session. Use /history to switch sessions.`,
 				);
 			},
 		})

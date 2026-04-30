@@ -12,7 +12,11 @@ export function ForkConfirmContent(ctx: ChoiceContext<boolean>) {
 
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<text>Create a new session from the current conversation?</text>
+			<text>Create a fork of the current conversation?</text>
+			<text fg="gray" marginTop={1}>
+				The fork becomes the active session. Use /history to switch back or open
+				another session.
+			</text>
 			<text fg="gray" marginTop={1}>
 				<em>Y/Enter to confirm, N/Esc to cancel</em>
 			</text>

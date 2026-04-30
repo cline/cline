@@ -28,6 +28,7 @@ import {
 	subscribeToPendingPromptEvents,
 } from "../session-events";
 import { compactInteractiveMessages } from "./compaction";
+import { buildForkSessionMetadata } from "./fork/metadata";
 import { applyInteractiveModeConfig } from "./mode";
 import { buildInteractiveSessionConfig } from "./session-config";
 
@@ -293,24 +294,12 @@ export function createInteractiveSessionRuntime(input: {
 			throw new Error("Cannot fork an empty session.");
 		}
 		await manager.stop(forkedFromSessionId);
-		const checkpointMetadata = sessionRecord?.metadata?.checkpoint ?? undefined;
-		const forkMetadata: Record<string, unknown> = {
-			fork: {
-				forkedFromSessionId,
-				forkedAt: new Date().toISOString(),
-				source: sessionRecord?.source ?? SessionSource.CLI,
-				...(checkpointMetadata !== undefined
-					? { checkpoints: checkpointMetadata }
-					: {}),
-			},
-		};
-		if (sessionRecord?.metadata) {
-			for (const [key, value] of Object.entries(sessionRecord.metadata)) {
-				if (key !== "fork") {
-					forkMetadata[key] = value;
-				}
-			}
-		}
+		const forkMetadata = buildForkSessionMetadata({
+			forkedFromSessionId,
+			forkedAt: new Date().toISOString(),
+			sourceSession: sessionRecord,
+			messages,
+		});
 		await startFreshSession(messages, forkMetadata);
 		return { forkedFromSessionId, newSessionId: activeSessionId };
 	};

@@ -72,7 +72,7 @@ const TUI_LOCAL_COMMANDS: Array<{
 	},
 	{
 		name: "fork",
-		description: "Create a copy of the current session into a new session",
+		description: "Create a named fork of the current session",
 	},
 	{
 		name: "undo",

@@ -130,7 +130,7 @@ const HELP_ROWS: HelpRow[] = [
 		kind: "entry",
 		id: "c-fork",
 		key: "/fork",
-		desc: "Fork current session into a new one",
+		desc: "Fork this session and continue there",
 	},
 	{
 		kind: "entry",

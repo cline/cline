@@ -60,7 +60,7 @@ export function listInteractiveSlashCommands(
 		{
 			name: "fork",
 			instructions: "/fork",
-			description: "Create a copy of the current session into a new session",
+			description: "Create a named fork of the current session",
 		},
 		{
 			name: "team",

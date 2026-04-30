@@ -483,6 +483,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 				headers: { Authorization: "Bearer token" },
 			}),
 			createBaseTools: () => [],
+			includeManagementTools: false,
 		});
 		const spawnTool = tools.find((tool) => tool.name === "team_spawn_teammate");
 		expect(spawnTool).toBeDefined();
