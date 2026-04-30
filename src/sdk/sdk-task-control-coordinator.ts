@@ -58,6 +58,7 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async clearTask(): Promise<void> {
+		const startedAt = Date.now()
 		this.options.interactions.clearPending("Task cleared")
 
 		const activeSession = this.options.sessions.clearActiveSessionReference()
@@ -65,9 +66,38 @@ export class SdkTaskControlCoordinator {
 			const { sessionManager, unsubscribe, sessionId } = activeSession
 			unsubscribe()
 
-			const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
-				Promise.race([promise, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))])
+			// Do not block the webview on SDK shutdown. `stop()`/`dispose()` can take
+			// seconds (or hit their timeouts) while the UI only needs the active
+			// session reference and task proxy cleared synchronously.
+			this.stopAndDisposeSessionInBackground(sessionManager, sessionId)
+		}
 
+		const task = this.options.getTask()
+		if (task) {
+			// SDK session persistence owns conversation history. Do not write classic
+			// ui_messages.json here; history viewing reloads from SDK readMessages().
+			this.options.messages.cancelPendingSave()
+			task.messageStateHandler.clear()
+			this.options.setTask(undefined)
+		}
+
+		this.options.resetMessageTranslator()
+
+		const elapsed = Date.now() - startedAt
+		if (elapsed > 250) {
+			Logger.warn(`[SdkController] clearTask synchronous path took ${elapsed}ms`)
+		}
+	}
+
+	private stopAndDisposeSessionInBackground(
+		sessionManager: { stop(sessionId: string): Promise<unknown>; dispose(reason: string): Promise<unknown> },
+		sessionId: string,
+	): void {
+		const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
+			Promise.race([promise, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))])
+
+		void (async () => {
+			const startedAt = Date.now()
 			try {
 				await withTimeout(sessionManager.stop(sessionId), 3000)
 			} catch (error) {
@@ -79,36 +109,22 @@ export class SdkTaskControlCoordinator {
 			} catch (error) {
 				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
 			}
-		}
 
-		const task = this.options.getTask()
-		if (task) {
-			const taskId = task.taskId
-			const messages = task.messageStateHandler.getClineMessages()
-			if (taskId && messages.length > 0) {
-				const finalizedMessages = this.options.messages.finalizeMessagesForSave(messages)
-				try {
-					const { saveClineMessages } = await import("@core/storage/disk")
-					await saveClineMessages(taskId, finalizedMessages)
-				} catch (err) {
-					Logger.error("[SdkController] Failed to save finalized messages during clearTask:", err)
-				}
+			const elapsed = Date.now() - startedAt
+			if (elapsed > 250) {
+				Logger.log(`[SdkController] Background session cleanup after clearTask took ${elapsed}ms for ${sessionId}`)
 			}
-
-			this.options.messages.cancelPendingSave()
-			task.messageStateHandler.clear()
-			this.options.setTask(undefined)
-		}
-
-		this.options.resetMessageTranslator()
+		})()
 	}
 
-	async showTaskWithId(taskId: string): Promise<void> {
+	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
 		try {
-			const historyItem = this.options.taskHistory.findHistoryItem(taskId)
-			if (!historyItem) {
-				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-				return
+			if (!options.skipHistoryLookup) {
+				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
+				if (!historyItem) {
+					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
+					return
+				}
 			}
 
 			this.silentlyTearDownActiveSession()
@@ -127,13 +143,12 @@ export class SdkTaskControlCoordinator {
 			)
 			this.options.setTask(task)
 
-			const { getSavedClineMessages } = await import("@core/storage/disk")
-			const rawMessages = await getSavedClineMessages(taskId)
+			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 
 			if (messages.length > 0) {
 				const cleanedMessages = this.appendFreshResumeMessage(messages)
-				this.options.messages.appendMessages(cleanedMessages, { save: false })
+				this.options.messages.appendMessages(cleanedMessages)
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
 
 				const { pushMessageToWebview } = await import("./webview-grpc-bridge")

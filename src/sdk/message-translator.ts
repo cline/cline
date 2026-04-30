@@ -26,6 +26,7 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@clinebot/core"
+import type { Message as SdkMessage } from "@clinebot/llms"
 import type { AgentEvent } from "@clinebot/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
@@ -1363,6 +1364,184 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 	}
 
 	return result
+}
+
+// ---------------------------------------------------------------------------
+// Persisted SDK message history translation
+// ---------------------------------------------------------------------------
+
+type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
+type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
+
+function textContentBlocksToText(content: SdkMessage["content"]): string {
+	if (typeof content === "string") {
+		return content.trim()
+	}
+
+	const text: string[] = []
+	for (const block of content) {
+		if (block.type === "text" && block.text.trim()) {
+			text.push(block.text.trim())
+		} else if (block.type === "file" && block.content.trim()) {
+			text.push(block.content.trim())
+		}
+	}
+	return text.join("\n").trim()
+}
+
+function agentEventToMessages(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
+	return translateSessionEvent(
+		{
+			type: "agent_event",
+			payload: {
+				sessionId: "history",
+				event,
+			},
+		},
+		state,
+	).messages
+}
+
+function finalizePersistedToolUse(
+	toolUse: SdkToolUseBlock,
+	state: MessageTranslatorState,
+	output?: unknown,
+	isError?: boolean,
+): ClineMessage[] {
+	// Reuse the same content_start → content_end path as live SDK events. The
+	// start event seeds MessageTranslatorState with the tool input; the end event
+	// produces the final non-partial ClineMessage shape the webview expects.
+	agentEventToMessages(
+		{
+			type: "content_start",
+			contentType: "tool",
+			toolName: toolUse.name,
+			toolCallId: toolUse.id,
+			input: toolUse.input,
+		} as AgentEvent,
+		state,
+	)
+
+	return agentEventToMessages(
+		{
+			type: "content_end",
+			contentType: "tool",
+			toolName: toolUse.name,
+			toolCallId: toolUse.id,
+			output,
+			error: isError ? extractToolOutputText(output) : undefined,
+		} as AgentEvent,
+		state,
+	)
+}
+
+/**
+ * Convert SDK-persisted LLM messages back into the ClineMessage format used by
+ * the webview. Keep this in the live message translator so history rendering
+ * and streaming rendering share the same SDK tool → Cline UI mapping.
+ */
+export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage[] {
+	const clineMessages: ClineMessage[] = []
+	const state = new MessageTranslatorState()
+	const pendingToolUses = new Map<string, SdkToolUseBlock>()
+
+	const flushUnmatchedToolUses = () => {
+		for (const toolUse of pendingToolUses.values()) {
+			clineMessages.push(...finalizePersistedToolUse(toolUse, state))
+		}
+		pendingToolUses.clear()
+	}
+
+	for (const message of messages) {
+		if (message.role === "assistant") {
+			flushUnmatchedToolUses()
+
+			if (typeof message.content === "string") {
+				const text = message.content.trim()
+				if (text) {
+					clineMessages.push(
+						...agentEventToMessages({ type: "content_end", contentType: "text", text } as AgentEvent, state),
+					)
+				}
+				continue
+			}
+
+			for (const block of message.content) {
+				switch (block.type) {
+					case "text":
+						if (block.text.trim()) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{ type: "content_end", contentType: "text", text: block.text.trim() } as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "thinking":
+						if (block.thinking.trim()) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "reasoning",
+										reasoning: block.thinking.trim(),
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "tool_use":
+						pendingToolUses.set(block.id, block)
+						break
+				}
+			}
+			continue
+		}
+
+		if (typeof message.content === "string") {
+			const text = message.content.trim()
+			if (text) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: clineMessages.length === 0 ? "task" : "user_feedback",
+					text,
+					partial: false,
+				})
+			}
+			continue
+		}
+
+		const userText = textContentBlocksToText(message.content)
+		if (userText) {
+			clineMessages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: clineMessages.length === 0 ? "task" : "user_feedback",
+				text: userText,
+				partial: false,
+			})
+		}
+
+		for (const block of message.content) {
+			if (block.type !== "tool_result") {
+				continue
+			}
+
+			const toolUse = pendingToolUses.get(block.tool_use_id)
+			if (!toolUse) {
+				continue
+			}
+
+			pendingToolUses.delete(block.tool_use_id)
+			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
+		}
+	}
+
+	flushUnmatchedToolUses()
+	return clineMessages
 }
 
 // ---------------------------------------------------------------------------

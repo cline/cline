@@ -9,6 +9,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
+import type { SessionHistoryRecord } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -16,10 +17,10 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
+import { GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
-import type { UserInfo } from "@shared/UserInfo"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
@@ -34,6 +35,7 @@ import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
+import { arePathsEqual } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
@@ -49,7 +51,7 @@ import { SdkSessionFactory } from "./sdk-session-factory"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
-import { SdkTaskHistory, type TaskWithId } from "./sdk-task-history"
+import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import type { TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -60,6 +62,45 @@ import { WebviewGrpcBridge } from "./webview-grpc-bridge"
  */
 function stubWarn(name: string): void {
 	Logger.warn(`[SdkController] STUB: ${name} not yet implemented`)
+}
+
+function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
+	const value = metadata?.[key]
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): boolean | undefined {
+	const value = metadata?.[key]
+	return typeof value === "boolean" ? value : undefined
+}
+
+function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): string | undefined {
+	const value = metadata?.[key]
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function dateStringToTimestamp(value: string | null | undefined): number {
+	if (!value) {
+		return 0
+	}
+	const timestamp = Date.parse(value)
+	return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function sdkHistoryRecordToTaskResponse(item: SessionHistoryRecord): TaskResponse {
+	const metadata = item.metadata
+	return TaskResponse.create({
+		id: item.sessionId,
+		task: metadataString(metadata, "title") ?? item.prompt ?? "",
+		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
+		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
+		size: metadataNumber(metadata, "size") ?? 0,
+		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
+		tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
+		tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
+		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
+		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +179,6 @@ export class Controller {
 		this.messageTranslatorState = new MessageTranslatorState()
 		this.messages = new SdkMessageCoordinator({ getTask: () => this.task })
 		this.sessionHistory = new SdkSessionHistoryLoader()
-		this.taskHistory = new SdkTaskHistory(this.stateManager)
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
@@ -204,6 +244,10 @@ export class Controller {
 				this.postStateToWebview().catch(() => {})
 			},
 		})
+		this.taskHistory = new SdkTaskHistory({
+			mcpHub: this.mcpHub,
+			sessions: this.sessions,
+		})
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -240,7 +284,7 @@ export class Controller {
 			getTask: () => this.task,
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
+			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
@@ -561,8 +605,14 @@ export class Controller {
 	 * 2. Create the new task proxy with loaded messages BEFORE any state push
 	 * 3. Only then push state to the webview
 	 */
-	async showTaskWithId(taskId: string): Promise<void> {
-		await this.taskControl.showTaskWithId(taskId)
+	async showTaskWithId(taskId: string): Promise<TaskResponse> {
+		const historyItem = (await this.taskHistory.listHistory()).find((item) => item.sessionId === taskId)
+		if (!historyItem) {
+			throw new Error(`Task not found in history: ${taskId}`)
+		}
+
+		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
+		return sdkHistoryRecordToTaskResponse(historyItem)
 	}
 
 	// ---- Mode switching (Step 8) ----
@@ -594,11 +644,6 @@ export class Controller {
 		// OCA uses the same auth service — clear Cline auth on OCA sign out
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
 		await this.postStateToWebview()
-	}
-
-	async setUserInfo(_info?: UserInfo): Promise<void> {
-		// User info is now managed by the SDK-backed AuthService
-		// This method is kept for interface compatibility
 	}
 
 	async handleAuthCallback(customToken: string, provider: string | null = null): Promise<void> {
@@ -652,10 +697,89 @@ export class Controller {
 		return undefined
 	}
 
-	// ---- Task history (Step 4) ----
+	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
+		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false })
 
-	async getTaskWithId(id: string): Promise<TaskWithId> {
-		return this.taskHistory.getTaskWithId(id)
+		let filteredTasks = sessionHistory.filter((item) => {
+			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
+			const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
+
+			if (!ts || !task) {
+				return false
+			}
+
+			const isFavorited =
+				metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
+			if (favoritesOnly && !isFavorited) {
+				return false
+			}
+
+			if (currentWorkspaceOnly && workspacePath) {
+				const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
+				if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
+					return false
+				}
+			}
+
+			return true
+		})
+
+		if (searchQuery) {
+			const query = searchQuery.toLowerCase()
+			filteredTasks = filteredTasks.filter((item) => {
+				const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
+				return task.toLowerCase().includes(query)
+			})
+		}
+
+		filteredTasks.sort((a, b) => {
+			switch (sortBy) {
+				case "oldest":
+					return (
+						dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt) -
+						dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt)
+					)
+				case "mostExpensive":
+					return (metadataNumber(b.metadata, "totalCost") ?? 0) - (metadataNumber(a.metadata, "totalCost") ?? 0)
+				case "mostTokens":
+					return (
+						(metadataNumber(b.metadata, "tokensIn") ?? 0) +
+						(metadataNumber(b.metadata, "tokensOut") ?? 0) +
+						(metadataNumber(b.metadata, "cacheWrites") ?? 0) +
+						(metadataNumber(b.metadata, "cacheReads") ?? 0) -
+						((metadataNumber(a.metadata, "tokensIn") ?? 0) +
+							(metadataNumber(a.metadata, "tokensOut") ?? 0) +
+							(metadataNumber(a.metadata, "cacheWrites") ?? 0) +
+							(metadataNumber(a.metadata, "cacheReads") ?? 0))
+					)
+				default:
+					return (
+						dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
+						dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
+					)
+			}
+		})
+
+		const tasks = filteredTasks.map((item) => {
+			const metadata = item.metadata
+			return {
+				id: item.sessionId,
+				task: metadataString(metadata, "title") ?? item.prompt ?? "",
+				ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
+				isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
+				size: metadataNumber(metadata, "size") ?? 0,
+				totalCost: metadataNumber(metadata, "totalCost") ?? 0,
+				tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
+				tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
+				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
+				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
+				modelId: item.model || metadataString(metadata, "modelId") || "",
+			}
+		})
+
+		return TaskHistoryArray.create({ tasks })
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
@@ -683,15 +807,21 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
+		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()
 		await sendStateUpdate(state)
+
+		const elapsed = Date.now() - startedAt
+		if (elapsed > 250) {
+			Logger.warn(`[SdkController] postStateToWebview took ${elapsed}ms`)
+		}
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Delegate to the classic implementation which reads from StateManager.
-		// This will be gradually replaced with SDK-sourced state in Steps 4-8.
+		// This will be gradually replaced with SDK-sourced state in later Steps
 		// For now, we import the classic getStateToPostToWebview logic.
 		try {
 			const { getStateToPostToWebview: classicGetState } = await import("@core/controller/state/getStateToPostToWebview")
@@ -702,14 +832,24 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			// NOTE: Prior to the foreground-terminal removal on main (PR #10196,
-			// commit 1862f1595), we had to override state.vscodeTerminalExecutionMode
-			// = "backgroundExec" so CommandOutputRow would render the background-exec
-			// UI (cancel button, log file links, correct status text). After that PR
-			// the webview unconditionally treats every command as background-exec
-			// (ChatRow hardcodes isBackgroundExec={true}), and the field was removed
-			// from ExtensionState, so the override is no longer necessary.
-			return state
+			const historyStartedAt = Date.now()
+			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
+				.map(sessionHistoryRecordToHistoryItem)
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts)
+			const historyElapsed = Date.now() - historyStartedAt
+			if (historyElapsed > 250) {
+				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
+			}
+			const processedTaskHistory = sdkTaskHistory.slice(0, 100)
+
+			return {
+				...state,
+				currentTaskItem: this.task?.taskId
+					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
+					: undefined,
+				taskHistory: processedTaskHistory,
+			}
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error

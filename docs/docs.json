@@ -116,8 +116,7 @@
 											"cli/samples/github-pr-review",
 											"cli/samples/model-orchestration"
 										]
-									},
-									"cli/acp-editor-integrations"
+									}
 								]
 							},
 							{

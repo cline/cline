@@ -29,7 +29,7 @@ describe("SdkMessageCoordinator", () => {
 		const coordinator = new SdkMessageCoordinator({ getTask: () => task })
 		const messages = [{ ts: 1, type: "say" as const, say: "text" as const, text: "hello", partial: false }]
 
-		coordinator.appendMessages(messages, { save: false })
+		coordinator.appendMessages(messages)
 
 		expect(task.messageStateHandler.getClineMessages()).toEqual(messages)
 	})
