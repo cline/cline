@@ -18,6 +18,7 @@ import type { ToolExecutors } from "../extensions/tools";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
 import { retainCheckpointRefs } from "../hooks/checkpoint-hooks";
+import { manifestToSessionRecord } from "../runtime/host/history";
 import type {
 	PendingPromptMutationResult,
 	PendingPromptsAction,
@@ -665,8 +666,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (active) {
 			return toActiveSessionRecord(active);
 		}
-		const row = await this.getRow(sessionId);
-		return row ? toSessionRecord(row) : undefined;
+		const target = sessionId.trim();
+		if (!target) {
+			return undefined;
+		}
+		const row = await this.getRow(target);
+		if (row) {
+			return toSessionRecord(row);
+		}
+		const manifest = await this.readManifest(target);
+		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
 	async list(limit = 200): Promise<SessionRecord[]> {
@@ -717,8 +726,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
-		const row = await this.getRow(sessionId);
-		return readPersistedMessagesFile(row?.messagesPath);
+		const target = sessionId.trim();
+		if (!target) {
+			return [];
+		}
+		const row = await this.getRow(target);
+		if (row?.messagesPath) {
+			return readPersistedMessagesFile(row.messagesPath);
+		}
+		const manifest = await this.readManifest(target);
+		return readPersistedMessagesFile(manifest?.messages_path);
 	}
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {
@@ -1207,6 +1224,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!target) return undefined;
 		const rows = await this.listRows(MAX_SCAN_LIMIT);
 		return rows.find((row) => row.sessionId === target);
+	}
+
+	private async readManifest(
+		sessionId: string,
+	): Promise<SessionManifest | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		return await this.invokeOptionalValue<SessionManifest>(
+			"readSessionManifest",
+			target,
+		);
 	}
 
 	// ── Session service invocation ──────────────────────────────────────

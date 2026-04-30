@@ -82,7 +82,9 @@ function extractSessionRecencyToken(sessionId: string): number {
 	return best;
 }
 
-function manifestToSessionRecord(manifest: SessionManifest): SessionRecord {
+export function manifestToSessionRecord(
+	manifest: SessionManifest,
+): SessionRecord {
 	return {
 		sessionId: manifest.session_id,
 		source: manifest.source,

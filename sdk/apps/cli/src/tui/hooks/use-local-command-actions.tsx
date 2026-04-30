@@ -57,12 +57,29 @@ export function useLocalCommandActions(input: {
 			),
 		});
 		if (sessionId) {
-			session.clearEntries();
-			const messages = await onResumeSession(sessionId);
-			for (const entry of hydrateSessionMessages(messages)) {
-				session.appendEntry(entry);
+			try {
+				const messages = await onResumeSession(sessionId);
+				const entries = hydrateSessionMessages(messages);
+				session.replaceEntries(
+					entries.length > 0
+						? entries
+						: [
+								{
+									kind: "status",
+									text: `No saved messages found for session ${sessionId}.`,
+								},
+							],
+				);
+				session.setHasSubmitted(entries.length > 0);
+			} catch (error) {
+				session.replaceEntries([
+					{
+						kind: "error",
+						text: `Resume failed: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				]);
+				session.setHasSubmitted(false);
 			}
-			session.setHasSubmitted(true);
 			setAppView("chat");
 		}
 		refocusTextarea();
