@@ -14,7 +14,6 @@ import {
 } from "@shared/storage/state-keys"
 import { Logger } from "@/shared/services/Logger"
 import { ClineMemento } from "@/shared/storage"
-import { readTaskHistoryFromState } from "../disk"
 import { StateManager } from "../StateManager"
 
 // ─── File-backed storage readers (used by StateManager) ────────────────────
@@ -76,7 +75,6 @@ export async function readGlobalStateFromStorage(store: ClineMemento): Promise<G
 		}
 
 		await handleComputedProperties(result, stateValues)
-		await handleAsyncProperties(result)
 
 		return result as GlobalStateAndSettings
 	} catch (error) {
@@ -104,14 +102,6 @@ async function handleComputedProperties(result: any, stateValues: Map<string, an
 		// Default to false when not explicitly set
 		result.planActSeparateModelsSetting = false
 	}
-}
-
-/**
- * Handle properties that require async operations
- */
-async function handleAsyncProperties(result: any): Promise<void> {
-	// Task history requires async disk read
-	result.taskHistory = await readTaskHistoryFromState()
 }
 
 export async function resetWorkspaceState() {

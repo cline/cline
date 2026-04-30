@@ -84,10 +84,14 @@ export class SdkSessionEventCoordinator {
 			}
 
 			if (result.usage && activeSession.startResult) {
-				this.options.taskHistory.updateTaskUsage(
-					this.options.getTask()?.taskId ?? this.options.sessions.getActiveSession()?.sessionId,
-					result.usage,
-				)
+				this.options.taskHistory
+					.updateTaskUsage(
+						this.options.getTask()?.taskId ?? this.options.sessions.getActiveSession()?.sessionId,
+						result.usage,
+					)
+					.catch((error) => {
+						Logger.error("[SdkController] Failed to persist task usage:", error)
+					})
 			}
 		}
 

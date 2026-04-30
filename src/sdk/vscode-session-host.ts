@@ -6,6 +6,7 @@
 
 import {
 	ClineCore,
+	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	type HookEventPayload,
@@ -13,8 +14,11 @@ import {
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
+	RestoreSessionInput,
+	RestoreSessionResult,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
+	type SessionHistoryRecord,
 	type SessionHost,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -52,6 +56,13 @@ export class VscodeSessionHost implements SessionHost {
 	private constructor(inner: ClineCore) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
+	}
+	restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
+		return this.inner.restore(input)
+	}
+	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
+		this.inner.updateSessionModel?.(sessionId, modelId)
+		throw new Error("Method not implemented.")
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
@@ -140,8 +151,12 @@ export class VscodeSessionHost implements SessionHost {
 		return this.inner.get(sessionId)
 	}
 
-	async list(limit?: number): Promise<SessionRecord[]> {
-		return this.inner.list(limit)
+	async list(limit?: number, options: Omit<ClineCoreListHistoryOptions, "limit"> = {}): Promise<SessionRecord[]> {
+		return this.inner.list(limit, options)
+	}
+
+	async listHistory(options: ClineCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
+		return this.inner.listHistory(options)
 	}
 
 	async delete(sessionId: string): Promise<boolean> {
