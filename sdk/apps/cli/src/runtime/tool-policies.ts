@@ -1,5 +1,17 @@
 import type { ToolPolicy } from "@clinebot/core";
 
+const SAFE_AUTO_APPROVE_TOOL_NAMES = [
+	"ask_followup_question",
+	"ask_question",
+	"fetch_web_content",
+	"read_files",
+	"search_codebase",
+	"skills",
+	"submit_and_exit",
+];
+
+const SAFE_AUTO_APPROVE_TOOLS = new Set<string>(SAFE_AUTO_APPROVE_TOOL_NAMES);
+
 function clonePolicy(policy: ToolPolicy | undefined): ToolPolicy {
 	return policy ? { ...policy } : {};
 }
@@ -20,14 +32,25 @@ export function applyInteractiveAutoApproveOverride(input: {
 	baselinePolicies: Record<string, ToolPolicy>;
 	enabled: boolean;
 }): void {
-	const nextPolicies = input.enabled
+	const nextPolicies: Record<string, ToolPolicy> = input.enabled
 		? cloneToolPolicies(input.baselinePolicies)
 		: Object.fromEntries(
 				Object.entries(input.baselinePolicies).map(([name, policy]) => [
 					name,
-					{ ...policy, autoApprove: false },
+					{
+						...policy,
+						autoApprove: SAFE_AUTO_APPROVE_TOOLS.has(name)
+							? (policy.autoApprove ?? true)
+							: false,
+					},
 				]),
 			);
+
+	if (!input.enabled) {
+		for (const name of SAFE_AUTO_APPROVE_TOOL_NAMES) {
+			nextPolicies[name] ??= { autoApprove: true };
+		}
+	}
 
 	const globalPolicy = clonePolicy(nextPolicies["*"]);
 	globalPolicy.autoApprove = input.enabled

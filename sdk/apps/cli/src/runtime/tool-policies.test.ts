@@ -5,7 +5,7 @@ import {
 } from "./tool-policies";
 
 describe("tool policy helpers", () => {
-	it("disables auto-approval for every live tool policy when toggled off", () => {
+	it("keeps safe tools auto-approved when toggled off", () => {
 		const baseline = {
 			"*": { autoApprove: true },
 			run_commands: { autoApprove: true, enabled: true },
@@ -21,8 +21,35 @@ describe("tool policy helpers", () => {
 
 		expect(target).toEqual({
 			"*": { autoApprove: false },
+			ask_followup_question: { autoApprove: true },
+			ask_question: { autoApprove: true },
+			fetch_web_content: { autoApprove: true },
 			run_commands: { autoApprove: false, enabled: true },
-			read_files: { autoApprove: false, enabled: true },
+			read_files: { autoApprove: true, enabled: true },
+			search_codebase: { autoApprove: true },
+			skills: { autoApprove: true },
+			submit_and_exit: { autoApprove: true },
+		});
+	});
+
+	it("keeps explicit per-tool approval requirements when toggled off", () => {
+		const baseline = {
+			"*": { autoApprove: true },
+			ask_question: { autoApprove: false, enabled: true },
+			editor: { autoApprove: true, enabled: true },
+		};
+		const target = cloneToolPolicies(baseline);
+
+		applyInteractiveAutoApproveOverride({
+			targetPolicies: target,
+			baselinePolicies: baseline,
+			enabled: false,
+		});
+
+		expect(target).toMatchObject({
+			"*": { autoApprove: false },
+			ask_question: { autoApprove: false, enabled: true },
+			editor: { autoApprove: false, enabled: true },
 		});
 	});
 
