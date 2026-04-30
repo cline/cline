@@ -1,0 +1,42 @@
+---
+title: "TUI"
+sidebarTitle: "TUI"
+description: "Use Cline's terminal UI (TUI) for interactive coding workflows in your terminal."
+---
+
+## What is the TUI?
+
+The TUI is Cline's interactive terminal interface. It is designed for conversational, in-terminal work: ask questions, review plans, approve actions, and iterate quickly.
+
+## Prerequisites
+Install CLI via `npm install -g cline`
+
+## Launch the TUI
+
+```bash
+# default interactive launch
+cline
+
+# explicit TUI mode
+cline -i
+```
+
+## Core TUI Actions
+
+- `Tab` to toggle Plan/Act
+- `Shift+Tab` to toggle auto-approve all
+- `/settings`, `/models`, `/history`, `/clear`, `/help`, `/exit`
+- `@file` mentions for workspace context
+
+## When to Use TUI vs Headless
+
+- Use **TUI** when you want collaboration and approvals.
+- Use **headless** (`--json`, piped stdin/stdout, CI scripts) for automation.
+
+See: [CLI Headless Mode](/cli/three-core-flows)
+
+## Next Steps
+
+- [Interactive Mode](/cli/interactive-mode)
+- [CLI Usage](/usage/cli)
+- [CLI Reference](/cli/cli-reference)
