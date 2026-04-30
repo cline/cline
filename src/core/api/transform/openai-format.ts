@@ -69,6 +69,9 @@ export function convertToOpenAiMessages(
 	provider?: ApiProvider,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+	// Track emitted tool_call_ids to prevent duplicates that cause
+	// "each tool_use must have a single result" errors from Anthropic.
+	const emittedToolCallIds = new Set<string>()
 
 	for (const anthropicMessage of anthropicMessages) {
 		if (typeof anthropicMessage.content === "string") {
@@ -104,6 +107,19 @@ export function convertToOpenAiMessages(
 				// Process tool result messages FIRST since they must follow the tool use messages
 				const toolResultImages: ClineImageContentBlock[] = []
 				toolMessages.forEach((toolMessage) => {
+					const toolCallId = transformToolCallIdForNativeApi(toolMessage.tool_use_id, provider)
+
+					// Skip duplicate tool results for the same tool_call_id.
+					// The primary fix is in initial-message-sanitizer.ts which consolidates
+					// split tool results on session resume. This is a defensive safety net.
+					if (emittedToolCallIds.has(toolCallId)) {
+						Logger.warn(
+							`[convertToOpenAiMessages] Skipping duplicate tool_result for tool_call_id="${toolCallId}" (tool_use_id="${toolMessage.tool_use_id}")`,
+						)
+						return
+					}
+					emittedToolCallIds.add(toolCallId)
+
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string
 
@@ -128,7 +144,7 @@ export function convertToOpenAiMessages(
 						role: "tool",
 						// The tool_call_id must match the id used in the assistant's tool_calls array.
 						// Use the same transformation logic as tool_calls to ensure IDs match.
-						tool_call_id: transformToolCallIdForNativeApi(toolMessage.tool_use_id, provider),
+						tool_call_id: toolCallId,
 						content: content,
 					})
 				})
