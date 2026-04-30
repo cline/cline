@@ -42,7 +42,6 @@ test.describe("cline --help", () => {
 			"--max-consecutive-mistakes",
 			"--json",
 			"--double-check-completion",
-			"--acp",
 			"--tui",
 			"--taskId",
 		])
