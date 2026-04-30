@@ -2,7 +2,6 @@ import { buildApiHandler } from "@core/api"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
-import type { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -196,14 +195,6 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
-
-		const workspaceManager: WorkspaceRootManager | undefined = await controller.ensureWorkspaceManager()
-		if (workspaceManager) {
-			const workspacesJson = await workspaceManager.buildWorkspacesJson()
-			if (workspacesJson) {
-				prompts.push(`# Workspace Configuration\n${workspacesJson}`)
-			}
-		}
 
 		const currentInput = inputBox.value?.trim() || ""
 		if (currentInput) {

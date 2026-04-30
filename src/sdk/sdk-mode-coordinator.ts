@@ -179,17 +179,6 @@ export class SdkModeCoordinator {
 
 		const current = task.messageStateHandler.getClineMessages()
 		const finalized = this.options.messages.finalizeMessagesForSave(current)
-		this.options.messages.appendMessages(finalized, { save: false })
-
-		if (!task.taskId || finalized.length === 0) {
-			return
-		}
-
-		try {
-			const { saveClineMessages } = await import("@core/storage/disk")
-			await saveClineMessages(task.taskId, finalized)
-		} catch (err) {
-			Logger.error("[SdkController] Failed to persist finalized messages during mode rebuild:", err)
-		}
+		this.options.messages.appendMessages(finalized)
 	}
 }

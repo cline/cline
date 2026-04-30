@@ -135,7 +135,7 @@ underlying patterns that caused them are relevant.
 ### S4-3: Workspace root not available from ClineExtensionContext
 - **Status**: 🟢 Verified Fixed
 - **Description**: `ClineExtensionContext` doesn't have a `workspaceRoot` property. The SdkController fell back to `process.cwd()` for the session's working directory, which in VSCode returns the extension host's directory — NOT the user's workspace.
-- **Root cause**: The shared context type was designed for CLI/ACP use and doesn't include VSCode-specific workspace info.
+- **Root cause**: The shared context type doesn't include VSCode-specific workspace info.
 - **Fix applied**: Added `SdkController.getWorkspaceRoot()` private method that resolves the workspace root via `HostProvider.workspace.getWorkspacePaths()` (which calls `vscode.workspace.workspaceFolders[0].uri.fsPath` under the hood), falling back to `process.cwd()` only when no workspace folder is open. Replaced all 4 `process.cwd()` calls in SdkController (in `initTask()`, `reinitExistingTaskFromId()`, `resumeSessionFromTask()`, `restartSessionForMcpTools()`) with `await this.getWorkspaceRoot()`. Also added a defensive warning log in `buildSessionConfig()` for the `process.cwd()` fallback path. See S6-38 for the full fix entry.
 - **Verification**: TypeScript compiles with 0 new errors (5 pre-existing SDK type errors). All `process.cwd()` calls replaced with host-aware workspace resolution.
 - **Evidence**: Code review — `HostProvider.workspace.getWorkspacePaths()` delegates to the same `vscode.workspace.workspaceFolders` API used in `common.ts:131` and throughout the classic extension.
@@ -657,7 +657,7 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 ### S6-38: Cline doesn't know the user's working directory (process.cwd() fallback)
 - **Status**: 🟢 Verified Fixed
 - **Description**: The SdkController used `process.cwd()` as the working directory in 4 places (in `initTask()`, `reinitExistingTaskFromId()`, `resumeSessionFromTask()`, `restartSessionForMcpTools()`). In VSCode, `process.cwd()` returns the extension host's directory (e.g., `/Applications/Visual Studio Code.app/...`), not the user's workspace. This meant Cline couldn't find files in the user's project without being told the path explicitly. Related to S4-3 which was marked minor but is actually a blocker.
-- **Root cause**: The shared `ClineExtensionContext` type doesn't have a `workspaceRoot` property (designed for CLI/ACP). The SdkController had no way to resolve the user's workspace root and fell back to `process.cwd()`.
+- **Root cause**: The shared `ClineExtensionContext` type doesn't have a `workspaceRoot` property. The SdkController had no way to resolve the user's workspace root and fell back to `process.cwd()`.
 - **Fix applied**:
   1. Added `SdkController.getWorkspaceRoot()` private async method that resolves the workspace root via `HostProvider.workspace.getWorkspacePaths()` — which delegates to `vscode.workspace.workspaceFolders[0].uri.fsPath` in VSCode. Falls back to `process.cwd()` only when no workspace folder is open.
   2. Replaced all 4 `process.cwd()` calls in `SdkController.ts` with `await this.getWorkspaceRoot()`.

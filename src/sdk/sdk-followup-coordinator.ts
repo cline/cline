@@ -1,3 +1,4 @@
+import { SessionHost } from "@clinebot/core"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
@@ -24,12 +25,9 @@ export interface SdkFollowupCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
-	createTempSessionHost: () => Promise<{ readMessages(id: string): Promise<unknown[]>; dispose(reason: string): Promise<void> }>
+	createTempSessionHost: () => Promise<SessionHost>
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (
-		reader: { readMessages(id: string): Promise<unknown[]> },
-		taskId: string,
-	) => Promise<unknown[] | undefined>
+	loadInitialMessages: (sessionHost: SessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
@@ -118,7 +116,7 @@ export class SdkFollowupCoordinator {
 	private async resumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
 
-		const historyItem = this.options.taskHistory.findHistoryItem(taskId)
+		const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
 		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.options.getWorkspaceRoot())
 
 		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")

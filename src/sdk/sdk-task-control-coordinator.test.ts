@@ -3,14 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
 import { pushMessageToWebview } from "./webview-grpc-bridge"
 
-const saveClineMessages = vi.fn().mockResolvedValue(undefined)
-const getSavedClineMessages = vi.fn().mockResolvedValue([])
-
-vi.mock("@core/storage/disk", () => ({
-	getSavedClineMessages,
-	saveClineMessages,
-}))
-
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
 }))
@@ -27,7 +19,6 @@ vi.mock("@/shared/services/Logger", () => ({
 describe("SdkTaskControlCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		getSavedClineMessages.mockResolvedValue([])
 	})
 
 	it("cancels the active session and emits a resume task ask", async () => {
@@ -46,7 +37,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it("clears the active session and saves finalized task messages", async () => {
+	it("clears the active session and task proxy without writing classic UI message persistence", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("task-1", [{ ts: 1, type: "say", say: "text", text: "hi", partial: true }])
 		const { coordinator, options, state } = makeCoordinator({ activeSession, task })
@@ -57,8 +48,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
 		expect(activeSession.sessionManager.stop).toHaveBeenCalledWith("session-123")
 		expect(activeSession.sessionManager.dispose).toHaveBeenCalledWith("clearTask")
-		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
-		expect(saveClineMessages).toHaveBeenCalledWith("task-1", [{ ts: 1, type: "say", say: "text", text: "final" }])
+		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(state.task).toBeUndefined()
@@ -68,11 +58,16 @@ describe("SdkTaskControlCoordinator", () => {
 	it("shows a task by creating a proxy, loading messages, and appending a fresh resume ask", async () => {
 		const existingTask = makeTask("old-task")
 		const activeSession = makeActiveSession()
-		getSavedClineMessages.mockResolvedValue([
+		const sdkClineMessages: ClineMessage[] = [
 			{ ts: 1, type: "say", say: "task", text: "hello" },
 			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
-		])
-		const { coordinator, options, state } = makeCoordinator({ activeSession, task: existingTask, hasHistoryItem: true })
+		]
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task: existingTask,
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+		})
 
 		await coordinator.showTaskWithId("task-1")
 
@@ -83,7 +78,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
-		expect(getSavedClineMessages).toHaveBeenCalledWith("task-1")
+		expect(options.taskHistory.getClineMessages).toHaveBeenCalledWith("task-1")
 		expect(options.messages.appendMessages).toHaveBeenCalledWith(
 			[
 				{ ts: 1, type: "say", say: "task", text: "hello" },
@@ -102,7 +97,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.showTaskWithId("missing-task")
 
 		expect(options.setTask).not.toHaveBeenCalled()
-		expect(getSavedClineMessages).not.toHaveBeenCalled()
+		expect(options.taskHistory.getClineMessages).not.toHaveBeenCalled()
 	})
 })
 
@@ -134,6 +129,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			),
 		},
 		taskHistory: {
+			getClineMessages: vi.fn().mockResolvedValue(input.clineMessages ?? []),
 			findHistoryItem: vi.fn(() =>
 				input.hasHistoryItem === false
 					? undefined
@@ -167,7 +163,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			cancelPendingSave: ReturnType<typeof vi.fn>
 			finalizeMessagesForSave: ReturnType<typeof vi.fn>
 		}
-		taskHistory: SdkTaskControlCoordinatorOptions["taskHistory"] & { findHistoryItem: ReturnType<typeof vi.fn> }
+		taskHistory: SdkTaskControlCoordinatorOptions["taskHistory"] & {
+			findHistoryItem: ReturnType<typeof vi.fn>
+			getClineMessages: ReturnType<typeof vi.fn>
+		}
 		getTask: ReturnType<typeof vi.fn>
 		setTask: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
@@ -185,6 +184,7 @@ interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	task: ReturnType<typeof makeTask>
 	hasHistoryItem: boolean
+	clineMessages: ClineMessage[]
 }
 
 function makeActiveSession() {
