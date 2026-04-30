@@ -1,0 +1,149 @@
+---
+title: "Config"
+sidebarTitle: "Config"
+description: "Understand where Cline stores configuration and how global and project config work together."
+---
+
+Cline configuration lives in two scopes:
+
+- **Global configuration** in `~/.cline/` (applies globally across all Cline applications, including IDE, CLI, and SDK)
+- **Project configuration** in `.cline/` (applies only to the current workspace)
+
+## Configuration Directory Layout
+
+Cline stores shared configuration under `~/.cline/`:
+
+```text
+~/.cline/
+  data/
+    settings/
+      providers.json           # API keys and provider configuration
+      global-settings.json     # Global settings
+      cline_mcp_settings.json  # MCP settings
+    rules/                     # Global rules
+    hooks/                     # Global hooks
+    teams/                     # Team state
+    sessions/                  # Session data
+    db/                        # SQLite databases (for example cron.db)
+    logs/
+      hub-daemon.log           # Hub logs
+  skills/                      # Global skills
+  agents/                      # Global agent definitions
+  plugins/                     # Global plugins (.js, .ts)
+  cron/                        # Global cron specs
+```
+
+Project-level configuration lives in `.cline/` at your repository root:
+
+```text
+.cline/
+  rules/                       # Project rules
+  skills/                      # Project skills
+  hooks/                       # Lifecycle hooks
+  agents/                      # Project agent definitions
+  plugins/                     # Project plugins
+  cron/                        # Workspace cron specs
+```
+
+## What Goes Where?
+
+- Use **global (`~/.cline/`)** for defaults shared across all Cline applications (IDE, CLI, SDK) on your machine.
+- Use **project (`.cline/`)** for team-shared behavior that should travel with the repo.
+
+Commit `.cline/` files you want to share with your team. Keep secrets out of the repo.
+
+## Configure Through the CLI
+
+Use the interactive config UI:
+
+```bash
+cline config
+```
+
+From there, you can view/edit:
+
+- Settings (global + workspace)
+- Rules
+- Skills
+- Hooks
+
+## Useful Configuration Commands
+
+Use a custom configuration directory:
+
+```bash
+cline --config /path/to/custom/config "your task"
+```
+
+Or via environment variable:
+
+```bash
+export CLINE_DATA_DIR=/custom/path/to/cline
+cline "your task"
+```
+
+View CLI logs when troubleshooting:
+
+```bash
+cline dev log
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLINE_DATA_DIR` | Custom data directory (replaces `~/.cline/data/`) |
+| `CLINE_HUB_ADDRESS` | Override hub address (default: `127.0.0.1:25463`) |
+| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
+| `CLINE_SANDBOX` | Enable sandbox mode |
+| `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
+| `CLINE_HOOKS_DIR` | Additional hooks directory |
+| `CLINE_COMMAND_PERMISSIONS` | JSON policy restricting shell commands |
+
+### CLINE_DATA_DIR
+
+```bash
+export CLINE_DATA_DIR=/custom/path/to/cline
+cline "your task"
+```
+
+### CLINE_COMMAND_PERMISSIONS
+
+Restrict which shell commands Cline can execute:
+
+```bash
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *"]}'
+```
+
+Format:
+
+```json
+{
+  "allow": ["pattern1", "pattern2"],
+  "deny": ["pattern3"],
+  "allowRedirects": true
+}
+```
+
+Rules:
+
+- `deny` overrides `allow`
+- If `allow` is set, commands not matching `allow` are denied
+- `allowRedirects` controls shell redirects (`>`, `>>`, `<`), default `false`
+
+## Related Docs
+
+- [CLI Configuration](/cli/configuration)
+- [Rules](/customization/cline-rules)
+- [Skills](/customization/skills)
+- [Hooks](/customization/hooks)
+- [Plugins](/customization/plugins)
+- [.clineignore](/customization/clineignore)
+
+## Security Notes
+
+<Warning>
+Only use rules, hooks, skills, and plugins from sources you trust.
+</Warning>
+
+Hooks and plugins can execute code. Review them like any other executable artifact before adding them globally or to a project.
