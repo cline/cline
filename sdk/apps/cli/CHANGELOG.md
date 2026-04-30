@@ -1,5 +1,22 @@
 # Cline CLI Changelog
 
+## 0.0.7 (2026-04-30)
+
+- Fix graceful recovery when the model returns malformed tool call inputs, preventing crashes mid-conversation
+- Add settings toggles for core skills (enable/disable individual skills from the settings panel)
+- Secure the local hub daemon with a discovery auth token, preventing unauthorized local access
+- Fix auto-approve tool policies being incorrectly reset after session restore
+- Fix npm wrapper detection for auto updates, so self-update works when the CLI is invoked through npm/npx shims
+- Improve fork session UX with clearer prompts and smoother flow
+- Fix manual thinking budget not being applied when using Anthropic models directly
+- Improve account onboarding flow with better error messages and step sequencing
+- Add enable/disable controls for individual tools and plugins
+- Fix abort handling so the public run promise resolves correctly when a run is cancelled
+- Fix markdown token styling in chat output
+- Fix chat auto-scrolling to bottom on message submit
+- Fix hub tool capabilities being routed to the wrong session
+- Revert loading extension-created sessions from history (was causing issues)
+
 ## 0.0.6 (2026-04-29)
 
 - Add checkpoint restore: press Esc twice or type `/undo` to rewind to a previous checkpoint, with options to restore chat only or chat + workspace
