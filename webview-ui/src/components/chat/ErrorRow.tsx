@@ -125,10 +125,6 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 							{/* Display raw API error if different from parsed error message */}
 							{errorMessage !== rawApiError && <div>{rawApiError}</div>}
-
-							<div className="mt-4">
-								<span className="text-description">(Click "Retry" below)</span>
-							</div>
 						</p>
 					)
 				}

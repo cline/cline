@@ -41,7 +41,7 @@ import { arePathsEqual } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
-import { MessageTranslatorState } from "./message-translator"
+import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -244,6 +244,8 @@ export class Controller {
 
 				if (isClineAuthError) {
 					this.emitClineAuthError()
+				} else if (this.isClineProviderActive() && this.isClineBalanceError(errorMessage)) {
+					this.emitClineBalanceError(errorMessage)
 				} else {
 					this.messages.emitSessionEvents(
 						[
@@ -541,6 +543,63 @@ export class Controller {
 			},
 			{
 				ts: ts + 2,
+				type: "ask",
+				ask: "api_req_failed",
+				text: serializedError,
+				partial: false,
+			},
+		]
+
+		this.messages.appendAndEmit(messages, {
+			type: "status",
+			payload: { sessionId: this.sessions.getActiveSession()?.sessionId ?? "", status: "error" },
+		})
+
+		this.postStateToWebview().catch(() => {})
+	}
+
+	/**
+	 * Check if an error message indicates an insufficient credits / balance error
+	 * by reshaping it into ClineError format and inspecting the result.
+	 */
+	private isClineBalanceError(errorMessage: string): boolean {
+		try {
+			const shaped = JSON.parse(reshapeErrorForWebview({ message: errorMessage }))
+			return shaped.code === "insufficient_credits"
+		} catch {
+			return false
+		}
+	}
+
+	/**
+	 * Emit a balance error for the 'cline' provider when the user has insufficient
+	 * credits. Produces the same message sequence as emitClineAuthError so the
+	 * webview renders the "Buy Credits" button via CreditLimitError.
+	 *
+	 * Message sequence:
+	 *   1. say:'api_req_started' – streamingFailedMessage holds the ClineError JSON
+	 *   2. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders balance UI
+	 */
+	private emitClineBalanceError(rawErrorMessage: string): void {
+		const ts = Date.now()
+
+		// reshapeErrorForWebview extracts structured fields from the SDK error
+		// message (which may be plain text or embedded JSON) and produces the
+		// ClineError-serialized JSON that the webview's ErrorRow expects.
+		const serializedError = reshapeErrorForWebview({ message: rawErrorMessage })
+
+		const messages: ClineMessage[] = [
+			{
+				ts,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					streamingFailedMessage: serializedError,
+				} satisfies ClineApiReqInfo),
+				partial: false,
+			},
+			{
+				ts: ts + 1,
 				type: "ask",
 				ask: "api_req_failed",
 				text: serializedError,
