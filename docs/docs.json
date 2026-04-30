@@ -81,32 +81,6 @@
 										"pages": [
 											"provider-config/qwen",
 											"provider-config/anthropic",
-											"provider-config/asksage",
-											"provider-config/baseten",
-											"provider-config/cerebras",
-											"provider-config/claude-code",
-											"provider-config/deepseek",
-											"provider-config/doubao",
-											"provider-config/fireworks",
-											"provider-config/gcp-vertex-ai",
-											"provider-config/google-gemini",
-											"provider-config/groq",
-											"provider-config/huawei-cloud-maas",
-											"provider-config/huggingface",
-											"provider-config/minimax",
-											"provider-config/mistral-ai",
-											"provider-config/moonshot",
-											"provider-config/nebius",
-											"provider-config/nousresearch",
-											"provider-config/openai",
-											"provider-config/openai-codex",
-											"provider-config/openrouter",
-											"provider-config/oracle-code-assist",
-											"provider-config/qwen-code",
-											"provider-config/sambanova",
-											"provider-config/together",
-											"provider-config/xai-grok",
-											"provider-config/zai",
 											{
 												"group": "AWS Bedrock",
 												"pages": [
@@ -114,20 +88,15 @@
 													"provider-config/aws-bedrock/iam-credentials",
 													"provider-config/aws-bedrock/cli-profile"
 												]
-											}
-										]
-									},
-									{
-										"group": "Advanced Configuration",
-										"pages": [
-											"provider-config/aihubmix",
-											"provider-config/dify",
-											"provider-config/hicap",
+											},
+											"provider-config/deepseek",
+											"provider-config/google-gemini",
+											"provider-config/minimax",
+											"provider-config/openai",
 											"provider-config/openai-compatible",
-											"provider-config/requesty",
-											"provider-config/sap-aicore",
-											"provider-config/vercel-ai-gateway",
-											"provider-config/vscode-language-model-api"
+											"provider-config/openrouter",
+											"provider-config/zai",
+											"provider-config/other-30-plus-providers"
 										]
 									}
 								]
@@ -782,6 +751,14 @@
 		{
 			"source": "/cline-cli/configuration",
 			"destination": "/getting-started/config"
+		},
+		{
+			"source": "/provider-config/claude-code",
+			"destination": "/provider-config/anthropic"
+		},
+		{
+			"source": "/provider-config/openai-codex",
+			"destination": "/provider-config/openai"
 		},
 		{
 			"source": "/cli/configuration",

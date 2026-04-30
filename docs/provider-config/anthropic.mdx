@@ -1,9 +1,16 @@
 ---
-title: "Anthropic"
-description: "Learn how to configure and use Anthropic Claude models with Cline. Covers API key setup, model selection, and advanced features like prompt caching."
+title: "Anthropic / Claude Code"
+description: "Configure Anthropic API keys or Claude Code subscription with Cline."
 ---
 
 **Website:** [https://www.anthropic.com/](https://www.anthropic.com/)
+
+## Choose an Anthropic Path
+
+- **[Anthropic API (key-based)](#getting-an-api-key):** Use an Anthropic API key.
+- **[Claude Code (subscription-based)](#claude-code-subscription):** Use your Claude Max/Pro subscription through the Claude CLI.
+
+## Anthropic API (key-based)
 
 ### Getting an API Key
 
@@ -12,48 +19,32 @@ description: "Learn how to configure and use Anthropic Claude models with Cline.
 3.  **Create a Key:** Click "Create Key". Give your key a descriptive name (e.g., "Cline").
 4.  **Copy the Key:** **Important:** Copy the API key _immediately_. You will not be able to see it again. Store it securely.
 
-### Supported Models
-
-Cline supports the following Anthropic Claude models:
-
-#### Claude Opus 4.7 Series
--   `claude-opus-4-7` - Most capable Opus model, best for complex reasoning and long-horizon tasks
--   `claude-opus-4-7:1m` - 1M context window variant
-
-#### Claude 4.6 Series
--   `claude-sonnet-4-6` - Latest Sonnet with extended thinking support
--   `claude-sonnet-4-6:1m` - 1M context window variant with tiered pricing
-
-#### Claude 4.5 Series
--   `claude-sonnet-4-5-20250929` (Recommended) - Stable default Sonnet with reasoning support
--   `claude-sonnet-4-5-20250929:1m` - 1M context window variant with tiered pricing
-
-#### Claude 4 Series
--   `claude-haiku-4-5-20251001` - Fast, affordable model with reasoning support
--   `claude-sonnet-4-20250514` - High-performance coding and reasoning
--   `claude-sonnet-4-20250514:1m` - 1M context window variant
--   `claude-opus-4-6` - Previous Opus generation
--   `claude-opus-4-6:1m` - 1M context window variant
--   `claude-opus-4-5-20251101` - Earlier Opus release
--   `claude-opus-4-1-20250805` - Earlier Opus release
--   `claude-opus-4-20250514` - Original Opus 4
-
-#### Claude 3 Series (Legacy)
--   `claude-3-7-sonnet-20250219` - Extended thinking support
--   `claude-3-5-sonnet-20241022` - Previous generation Sonnet
--   `claude-3-5-haiku-20241022` - Fast and affordable
--   `claude-3-opus-20240229` - Previous generation Opus
--   `claude-3-haiku-20240307` - Most affordable Claude model
-
-See [Anthropic's Model Documentation](https://docs.anthropic.com/en/docs/about-claude/models) for more details on each model's capabilities.
-
 ### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
 
 1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
 2.  **Select Provider:** Choose "Anthropic" from the "API Provider" dropdown.
 3.  **Enter API Key:** Paste your Anthropic API key into the "Anthropic API Key" field.
 4.  **Select Model:** Choose your desired Claude model from the "Model" dropdown.
 5.  **(Optional) Custom Base URL:** If you need to use a custom base URL for the Anthropic API, check "Use custom base URL" and enter the URL. Most users won't need to adjust this setting.
+
+## Claude Code (Subscription)
+
+Use this path if you already have Claude Max/Pro and want to use subscription-based access in Cline.
+
+1. Install and authenticate Claude CLI via Anthropic docs: [Claude Code setup](https://docs.anthropic.com/en/docs/claude-code/setup).
+2. In Cline settings, select **Claude Code** as provider.
+3. Set the Claude CLI path (usually `claude` if available in PATH).
+
+Find Claude path:
+- macOS / Linux / WSL / Git Bash: `which claude`
+- Windows Command Prompt: `where claude`
+
+Notes:
+- Uses your Claude subscription limits instead of API token billing.
+- Responses may not stream token-by-token.
+- Image uploads and prompt caching are limited in this mode.
 
 ### Extended Thinking
 
@@ -64,7 +55,6 @@ Cline users can leverage this by checking the `Enable Extended Thinking` box bel
 
 **Key Aspects of Extended Thinking:**
 
--   **Supported Models:** This feature is available for select models, including Claude Opus 4, Claude Sonnet 3.7+.
 -   **Summarized Thinking (Claude 3.7+):** For Claude 3.7+ models, the API returns a summary of the full thinking process to balance insight with efficiency and prevent misuse. You are billed for the full thinking tokens, not just the summary.
 -   **Streaming:** Extended thinking responses, including the `thinking` blocks, can be streamed.
 -   **Tool Use & Prompt Caching:** Extended thinking interacts with tool use (requiring thinking blocks to be passed back) and prompt caching (with specific behaviors around cache invalidation and context).
