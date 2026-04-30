@@ -26,7 +26,6 @@ import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey } from "@/shared/storage"
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@/shared/storage/types"
 import { version as CLI_VERSION } from "../package.json"
-import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
 import { KanbanMigrationView } from "./components/KanbanMigrationView"
 import { checkRawModeSupport } from "./context/StdinContext"
@@ -1182,7 +1181,6 @@ program
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
-	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("--update", "Check for updates and install if available")
 	.option("--kanban", `Run ${KANBAN_LAUNCH_COMMAND}`)
 	.option("--tui", "Open the legacy terminal UI instead of the kanban experience")
@@ -1195,7 +1193,7 @@ program
 		}
 
 		if (options.update) {
-			if (prompt || options.taskId || options.continue || options.kanban || options.tui || options.acp) {
+			if (prompt || options.taskId || options.continue || options.kanban || options.tui) {
 				printWarning("Use --update without a prompt or task flags.")
 				exit(1)
 			}
@@ -1211,17 +1209,6 @@ program
 			}
 
 			runKanbanAlias({ cwd: options.cwd })
-			return
-		}
-
-		// Check for ACP mode first - this takes precedence over everything else
-		if (options.acp) {
-			await runAcpMode({
-				config: options.config,
-				cwd: options.cwd,
-				hooksDir: options.hooksDir,
-				verbose: options.verbose,
-			})
 			return
 		}
 

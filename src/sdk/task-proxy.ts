@@ -66,8 +66,8 @@ export interface ClineMessageChange {
 
 /**
  * Message state handler that accumulates ClineMessages and emits change events.
- * Extends EventEmitter for compatibility with the classic MessageStateHandler
- * used by the CLI's ClineAgent (on/off event subscription pattern).
+ * Extends EventEmitter for compatibility with consumers that use the
+ * on/off event subscription pattern.
  *
  * The classic Task had a full MessageStateHandler; this provides the
  * getClineMessages() and event emitter interface that consumers expect.
