@@ -1595,26 +1595,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer
-								data-testid="mode-switch"
-								disabled={false}
-								onClick={onModeToggle}
-								aria-label={`Plan/Act mode toggle, currently in ${mode} mode`}
-								role="switch"
-								aria-checked={mode === "act"}
-								tabIndex={0}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										e.preventDefault()
-										onModeToggle()
-									}
-								}}
-							>
+							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
+										role="switch"
 										aria-checked={mode === m.toLowerCase()}
-										aria-hidden="true"
+										aria-label={`${m} mode, currently ${mode === m.toLowerCase() ? "active" : "inactive"}`}
+										tabIndex={0}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault()
+												onModeToggle()
+											}
+										}}
 										className={cn(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
