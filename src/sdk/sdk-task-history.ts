@@ -4,6 +4,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -51,56 +52,6 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	}
 	const timestamp = Date.parse(value)
 	return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-function contentToText(content: SdkMessage["content"]): string {
-	if (typeof content === "string") {
-		return content.trim()
-	}
-
-	const text: string[] = []
-	for (const block of content) {
-		switch (block.type) {
-			case "text":
-				if (block.text.trim()) {
-					text.push(block.text.trim())
-				}
-				break
-			case "thinking":
-				if (block.thinking.trim()) {
-					text.push(block.thinking.trim())
-				}
-				break
-			case "tool_result":
-				if (typeof block.content === "string" && block.content.trim()) {
-					text.push(block.content.trim())
-				}
-				break
-		}
-	}
-	return text.join("\n").trim()
-}
-
-export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage[] {
-	const clineMessages: ClineMessage[] = []
-	let ts = Date.now()
-
-	for (const message of messages) {
-		const text = contentToText(message.content)
-		if (!text) {
-			continue
-		}
-
-		clineMessages.push({
-			ts: ++ts,
-			type: "say",
-			say: message.role === "user" ? "task" : "text",
-			text,
-			partial: false,
-		})
-	}
-
-	return clineMessages
 }
 
 export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): HistoryItem {

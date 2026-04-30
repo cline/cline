@@ -1,8 +1,10 @@
 import type { SessionHistoryRecord } from "@clinebot/core"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { McpHub } from "@/services/mcp/McpHub"
+import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { SdkTaskHistory, sdkMessagesToClineMessages, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
@@ -79,6 +81,49 @@ describe("SdkTaskHistory", () => {
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
 			{ type: "say", say: "text", text: "Done", partial: false },
 		])
+	})
+
+	it("renders persisted SDK tool calls as structured tool rows instead of raw tool result JSON", () => {
+		const rawToolResult = JSON.stringify({
+			query: "edit:/Users/maxpaulus/c/c2/README.md",
+			result: "Edited /Users/maxpaulus/c/c2/README.md",
+			success: true,
+		})
+
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "add a joke" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_1",
+						name: "editor",
+						input: {
+							path: "/Users/maxpaulus/c/c2/README.md",
+							old_text: "## License",
+							new_text: "## A Note from Cline\n\n> Why do programmers prefer dark mode?",
+						},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "tool_result", tool_use_id: "toolu_1", content: rawToolResult }],
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Done!" }] },
+		])
+
+		expect(result).toMatchObject([
+			{ type: "say", say: "task", text: "add a joke", partial: false },
+			{ type: "say", say: "tool", partial: false },
+			{ type: "say", say: "text", text: "Done!", partial: false },
+		])
+		expect(result.map((message) => message.text).join("\n")).not.toContain(rawToolResult)
+		expect(JSON.parse(result[1].text ?? "{}")).toMatchObject({
+			tool: "editedExistingFile",
+			path: "/Users/maxpaulus/c/c2/README.md",
+		})
 	})
 
 	it("finds a task from SDK history", async () => {
@@ -212,7 +257,7 @@ function makeHistory(records: SessionHistoryRecord[]) {
 		getActiveSession: () => ({ sessionManager: host }),
 	} as unknown as SdkSessionLifecycle
 	const history = new SdkTaskHistory({
-		mcpHub: {} as any,
+		mcpHub: {} as McpHub,
 		sessions,
 	})
 
