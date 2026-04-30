@@ -1599,8 +1599,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
+										role="switch"
 										aria-checked={mode === m.toLowerCase()}
-										aria-label={`${m} mode, currently ${mode === m.toLowerCase() ? "active" : "inactive"}`}
 										tabIndex={0}
 										onKeyDown={(e) => {
 											if (e.key === "Enter" || e.key === " ") {
