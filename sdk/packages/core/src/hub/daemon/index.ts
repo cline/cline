@@ -16,7 +16,6 @@ import {
 	readHubDiscovery,
 	resolveClineDataDir,
 	resolveHubBuildId,
-	writeHubDiscovery,
 } from "../discovery";
 import {
 	type HubEndpointOverrides,
@@ -76,7 +75,7 @@ async function retireIncompatibleHub(
 	if (isCompatibleHubRecord(record)) {
 		return;
 	}
-	await requestHubShutdown(record.url).catch(() => false);
+	await requestHubShutdown(record.url, record.authToken).catch(() => false);
 	if (record.pid) {
 		try {
 			process.kill(record.pid, "SIGTERM");
@@ -175,25 +174,22 @@ export function prewarmDetachedHubServer(
 				if (
 					healthy?.url &&
 					isCompatibleHubRecord(healthy) &&
-					(await verifyHubConnection(healthy.url))
+					(await verifyHubConnection(healthy.url, {
+						authToken: discovered.authToken,
+					}))
 				) {
 					return;
 				}
 				if (healthy?.url) {
-					await retireIncompatibleHub(healthy, owner.discoveryPath);
+					await retireIncompatibleHub(
+						{ ...healthy, authToken: discovered.authToken },
+						owner.discoveryPath,
+					);
 				} else {
 					await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 				}
 			}
 			const expected = await probeHubServer(expectedUrl);
-			if (
-				expected?.url &&
-				isCompatibleHubRecord(expected) &&
-				(await verifyHubConnection(expected.url))
-			) {
-				await writeHubDiscovery(owner.discoveryPath, expected);
-				return;
-			}
 			if (expected?.url) {
 				await retireIncompatibleHub(expected, owner.discoveryPath);
 			}
@@ -209,10 +205,15 @@ export function prewarmDetachedHubServer(
 		});
 }
 
+export interface DetachedHubResolution {
+	url: string;
+	authToken: string;
+}
+
 export async function ensureDetachedHubServer(
 	workspaceRoot: string,
 	endpointOverrides: HubEndpointOverrides = {},
-): Promise<string> {
+): Promise<DetachedHubResolution> {
 	const owner = resolveSharedHubOwnerContext();
 	const hasExplicitPort =
 		endpointOverrides.port !== undefined ||
@@ -229,25 +230,22 @@ export async function ensureDetachedHubServer(
 		if (
 			healthy?.url &&
 			isCompatibleHubRecord(healthy) &&
-			(await verifyHubConnection(healthy.url))
+			(await verifyHubConnection(healthy.url, {
+				authToken: discovered.authToken,
+			}))
 		) {
-			return healthy.url;
+			return { url: healthy.url, authToken: discovered.authToken };
 		}
 		if (healthy?.url) {
-			await retireIncompatibleHub(healthy, owner.discoveryPath);
+			await retireIncompatibleHub(
+				{ ...healthy, authToken: discovered.authToken },
+				owner.discoveryPath,
+			);
 		} else {
 			await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 		}
 	}
 	const expected = await probeHubServer(expectedUrl);
-	if (
-		expected?.url &&
-		isCompatibleHubRecord(expected) &&
-		(await verifyHubConnection(expected.url))
-	) {
-		await writeHubDiscovery(owner.discoveryPath, expected);
-		return expected.url;
-	}
 	if (expected?.url) {
 		await retireIncompatibleHub(expected, owner.discoveryPath);
 	}
@@ -264,19 +262,16 @@ export async function ensureDetachedHubServer(
 			if (
 				healthy?.url &&
 				isCompatibleHubRecord(healthy) &&
-				(await verifyHubConnection(healthy.url))
+				(await verifyHubConnection(healthy.url, {
+					authToken: nextDiscovery.authToken,
+				}))
 			) {
-				return healthy.url;
+				return { url: healthy.url, authToken: nextDiscovery.authToken };
 			}
 		}
 		const nextExpected = await probeHubServer(expectedUrl);
-		if (
-			nextExpected?.url &&
-			isCompatibleHubRecord(nextExpected) &&
-			(await verifyHubConnection(nextExpected.url))
-		) {
-			await writeHubDiscovery(owner.discoveryPath, nextExpected);
-			return nextExpected.url;
+		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
+			await retireIncompatibleHub(nextExpected, owner.discoveryPath);
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}

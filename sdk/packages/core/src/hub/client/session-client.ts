@@ -12,6 +12,7 @@ import { NodeHubClient } from "../client";
 
 export interface HubSessionClientOptions {
 	address: string;
+	authToken?: string;
 	clientId?: string;
 	clientType?: string;
 	displayName?: string;
@@ -194,6 +195,7 @@ export class HubSessionClient {
 	constructor(private readonly options: HubSessionClientOptions) {
 		this.client = new NodeHubClient({
 			url: options.address,
+			authToken: options.authToken,
 			clientId: options.clientId,
 			clientType: options.clientType ?? "hub-session-client",
 			displayName: options.displayName ?? "hub session client",

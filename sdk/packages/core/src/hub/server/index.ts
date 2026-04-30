@@ -1,9 +1,11 @@
+import { timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import { URL } from "node:url";
 import { WebSocketServer } from "ws";
 import { verifyHubConnection } from "../client";
 import {
 	clearHubDiscovery,
+	createHubAuthToken,
 	createHubServerUrl,
 	type HubServerDiscoveryRecord,
 	probeHubServer,
@@ -96,6 +98,32 @@ function rejectUpgradeSocket(socket: NodeUpgradeSocketLike): void {
 	}
 }
 
+function rejectUnauthorizedUpgradeSocket(socket: NodeUpgradeSocketLike): void {
+	try {
+		socket.write(
+			"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+		);
+		socket.end();
+	} catch {
+		socket.destroy();
+	}
+}
+
+function isValidHubAuthToken(
+	candidate: string | null,
+	expected: string,
+): boolean {
+	if (!candidate || !expected) {
+		return false;
+	}
+	const candidateBuffer = Buffer.from(candidate, "utf8");
+	const expectedBuffer = Buffer.from(expected, "utf8");
+	return (
+		candidateBuffer.length === expectedBuffer.length &&
+		timingSafeEqual(candidateBuffer, expectedBuffer)
+	);
+}
+
 function formatHubStartupError(
 	error: unknown,
 	context: {
@@ -138,6 +166,29 @@ function isAddressInUseError(error: unknown): boolean {
 }
 
 const SHARED_SERVERS = new Map<string, Promise<HubWebSocketServer>>();
+const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
+
+function parseHeaderValue(value: string | string[] | undefined): string {
+	return Array.isArray(value) ? value.join(",") : (value ?? "");
+}
+
+function readBearerToken(value: string | string[] | undefined): string | null {
+	const header = parseHeaderValue(value).trim();
+	const match = /^Bearer\s+(.+)$/i.exec(header);
+	return match?.[1]?.trim() || null;
+}
+
+function readWebSocketAuthToken(
+	value: string | string[] | undefined,
+): string | null {
+	for (const protocol of parseHeaderValue(value).split(",")) {
+		const trimmed = protocol.trim();
+		if (trimmed.startsWith(HUB_AUTH_PROTOCOL_PREFIX)) {
+			return trimmed.slice(HUB_AUTH_PROTOCOL_PREFIX.length).trim() || null;
+		}
+	}
+	return null;
+}
 
 export async function startHubWebSocketServer(
 	options: HubWebSocketServerOptions,
@@ -149,6 +200,7 @@ export async function startHubWebSocketServer(
 	let port = requestedPort;
 	let url = createHubServerUrl(host, requestedPort, pathname);
 	const buildId = resolveHubBuildId();
+	const authToken = createHubAuthToken();
 	const transport = new HubServerTransport(options);
 	await transport.start();
 	const adapter = new BrowserWebSocketHubAdapter(
@@ -205,6 +257,7 @@ export async function startHubWebSocketServer(
 			const body = JSON.stringify({
 				hubId: transport.getHubId(),
 				...versionPayload,
+				authToken: "",
 				host,
 				port,
 				url,
@@ -221,7 +274,18 @@ export async function startHubWebSocketServer(
 			res.end(JSON.stringify(versionPayload));
 			return;
 		}
-		if ((req.url ?? "/") === "/shutdown" && req.method === "POST") {
+		const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
+		if (requestUrl.pathname === "/shutdown" && req.method === "POST") {
+			if (
+				!isValidHubAuthToken(
+					readBearerToken(req.headers.authorization),
+					authToken,
+				)
+			) {
+				res.statusCode = 401;
+				res.end("Unauthorized");
+				return;
+			}
 			res.statusCode = 202;
 			res.setHeader("content-type", "application/json");
 			res.end(JSON.stringify({ ok: true }));
@@ -239,6 +303,15 @@ export async function startHubWebSocketServer(
 		const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
 		if (requestUrl.pathname !== pathname) {
 			socket.destroy();
+			return;
+		}
+		if (
+			!isValidHubAuthToken(
+				readWebSocketAuthToken(request.headers["sec-websocket-protocol"]),
+				authToken,
+			)
+		) {
+			rejectUnauthorizedUpgradeSocket(socket);
 			return;
 		}
 		try {
@@ -292,6 +365,7 @@ export async function startHubWebSocketServer(
 		hubId: transport.getHubId(),
 		protocolVersion: "v1",
 		buildId,
+		authToken,
 		host,
 		port,
 		url,
@@ -304,6 +378,7 @@ export async function startHubWebSocketServer(
 		host,
 		port,
 		url,
+		authToken,
 		close: closeServer,
 	};
 }
@@ -321,7 +396,12 @@ export async function ensureHubWebSocketServer(
 	if (existing) {
 		const server = await existing;
 		if (server.url === expectedUrl) {
-			return { server, url: server.url, action: "reuse" };
+			return {
+				server,
+				url: server.url,
+				authToken: server.authToken,
+				action: "reuse",
+			};
 		}
 	}
 
@@ -332,18 +412,22 @@ export async function ensureHubWebSocketServer(
 			(discovered.url === expectedUrl || options.allowPortFallback === true);
 		if (canReuseDiscovered) {
 			const healthy = await probeHubServer(discovered.url);
-			if (healthy?.url && (await verifyHubConnection(healthy.url))) {
-				return { url: healthy.url, action: "reuse" };
+			if (
+				healthy?.url &&
+				(await verifyHubConnection(healthy.url, {
+					authToken: discovered.authToken,
+				}))
+			) {
+				return {
+					url: healthy.url,
+					authToken: discovered.authToken,
+					action: "reuse",
+				};
 			}
 		}
 
 		const expected = await probeHubServer(expectedUrl);
-		if (expected?.url && (await verifyHubConnection(expected.url))) {
-			await writeHubDiscovery(owner.discoveryPath, expected);
-			return { url: expected.url, action: "reuse" };
-		}
-
-		if (discovered?.url) {
+		if (expected?.url || discovered?.url) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 
@@ -354,7 +438,12 @@ export async function ensureHubWebSocketServer(
 			SHARED_SERVERS.set(sharedKey, serverPromise);
 			try {
 				const server = await serverPromise;
-				return { server, url: server.url, action: "started" };
+				return {
+					server,
+					url: server.url,
+					authToken: server.authToken,
+					action: "started",
+				};
 			} catch (error) {
 				SHARED_SERVERS.delete(sharedKey);
 				throw error;

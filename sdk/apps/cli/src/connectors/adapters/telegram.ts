@@ -550,14 +550,16 @@ class TelegramConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const rpcAddress = await ensureCliHubServer(
-			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
-			parseHubEndpointOverride(options.rpcAddress),
-		);
+		const { url: rpcAddress, authToken: rpcAuthToken } =
+			await ensureCliHubServer(
+				startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+				parseHubEndpointOverride(options.rpcAddress),
+			);
 
 		const clientId = `telegram-${process.pid}-${Date.now()}`;
 		const client = new HubSessionClient({
 			address: rpcAddress,
+			authToken: rpcAuthToken,
 			clientId,
 			clientType: "cli",
 			displayName: "telegram connector",

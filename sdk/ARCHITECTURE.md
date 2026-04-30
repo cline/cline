@@ -147,6 +147,18 @@ Design rules:
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
 8. Hub client adapters exported from `@clinebot/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 
+Local hub discovery also carries the authentication contract for the shared
+daemon. On startup, the hub server generates a cryptographically random
+per-process auth token, stores it in the owner discovery record, and writes that
+record with owner-only file permissions. Local clients resolve the token from
+the discovery file at connection time rather than embedding it in endpoint URLs.
+The server validates the token with a constant-time comparison before accepting
+`/hub` WebSocket upgrades or `/shutdown` requests; WebSocket clients send it via
+the `Sec-WebSocket-Protocol` header and shutdown requests use an
+`Authorization: Bearer` header. Unauthenticated local processes can still probe
+public health/build metadata, but they cannot attach to sessions, issue
+commands, or stop the daemon.
+
 ### Interactive CLI Startup
 
 1. `apps/cli` owns OpenTUI startup and must render the first frame without waiting for detached hub startup.

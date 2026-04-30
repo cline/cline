@@ -38,6 +38,7 @@ export interface HubWebSocketServer {
 	host: string;
 	port: number;
 	url: string;
+	authToken: string;
 	close(): Promise<void>;
 }
 
@@ -49,5 +50,6 @@ export interface EnsureHubWebSocketServerOptions
 export interface EnsuredHubWebSocketServerResult {
 	server?: HubWebSocketServer;
 	url: string;
+	authToken?: string;
 	action: "reuse" | "started";
 }

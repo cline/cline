@@ -48,8 +48,11 @@ export async function runZen(
 
 	const workspaceRoot = config.workspaceRoot ?? config.cwd;
 	let hubUrl: string;
+	let hubAuthToken: string;
 	try {
-		hubUrl = await ensureCliHubServer(workspaceRoot);
+		const hub = await ensureCliHubServer(workspaceRoot);
+		hubUrl = hub.url;
+		hubAuthToken = hub.authToken;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		writeErr(`failed to start background hub: ${message}`);
@@ -59,6 +62,7 @@ export async function runZen(
 
 	const sessionClient = new HubSessionClient({
 		address: hubUrl,
+		authToken: hubAuthToken,
 		clientType: "cli-zen",
 		displayName: "Cline CLI (zen)",
 		workspaceRoot,

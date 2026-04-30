@@ -51,12 +51,38 @@ function normalizeHubConnectionError(error: unknown, url: string): Error {
 	);
 }
 
+const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
+
 function hasExplicitEndpoint(overrides: HubEndpointOverrides): boolean {
 	return (
 		overrides.host !== undefined ||
 		overrides.port !== undefined ||
 		overrides.pathname !== undefined
 	);
+}
+
+function sameHubEndpoint(left: string, right: string): boolean {
+	const leftUrl = new URL(left);
+	const rightUrl = new URL(right);
+	leftUrl.search = "";
+	leftUrl.hash = "";
+	rightUrl.search = "";
+	rightUrl.hash = "";
+	return leftUrl.toString() === rightUrl.toString();
+}
+
+async function resolveHubUrlAuthToken(url: URL): Promise<string | undefined> {
+	const queryToken = url.searchParams.get("authToken")?.trim();
+	url.searchParams.delete("authToken");
+	if (queryToken) {
+		return queryToken;
+	}
+	const owner = resolveHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	if (discovery?.url && sameHubEndpoint(url.toString(), discovery.url)) {
+		return discovery.authToken;
+	}
+	return undefined;
 }
 
 export async function resolveHubUrl(
@@ -75,56 +101,64 @@ export async function resolveHubUrl(
 
 export async function connectToHub(url: string): Promise<HubConnection> {
 	return await new Promise((resolve, reject) => {
-		const ws = new WebSocket(url);
-		const pending = new Map<
-			string,
-			{
-				resolve: (reply: HubReplyEnvelope) => void;
-				reject: (error: unknown) => void;
-			}
-		>();
-		let counter = 0;
-
-		ws.addEventListener("open", () => {
-			resolve({
-				send(envelope) {
-					const requestId = envelope.requestId ?? `hub-client-${++counter}`;
-					return new Promise<HubReplyEnvelope>((res, rej) => {
-						pending.set(requestId, { resolve: res, reject: rej });
-						const frame: HubTransportFrame = {
-							kind: "command",
-							envelope: { ...envelope, requestId },
-						};
-						ws.send(JSON.stringify(frame));
-					});
-				},
-				close() {
-					ws.close();
-				},
-			});
-		});
-
-		ws.addEventListener("message", (event) => {
-			const frame = JSON.parse(String(event.data)) as HubTransportFrame;
-			if (frame.kind === "reply" && frame.envelope.requestId) {
-				const entry = pending.get(frame.envelope.requestId);
-				if (entry) {
-					pending.delete(frame.envelope.requestId);
-					entry.resolve(frame.envelope);
+		void (async () => {
+			const parsed = new URL(url);
+			const authToken = await resolveHubUrlAuthToken(parsed);
+			parsed.hash = "";
+			const ws = new WebSocket(
+				parsed.toString(),
+				authToken ? [`${HUB_AUTH_PROTOCOL_PREFIX}${authToken}`] : undefined,
+			);
+			const pending = new Map<
+				string,
+				{
+					resolve: (reply: HubReplyEnvelope) => void;
+					reject: (error: unknown) => void;
 				}
-			}
-		});
+			>();
+			let counter = 0;
 
-		ws.addEventListener("close", () => {
-			for (const entry of pending.values()) {
-				entry.reject(new Error("Hub connection closed"));
-			}
-			pending.clear();
-		});
+			ws.addEventListener("open", () => {
+				resolve({
+					send(envelope) {
+						const requestId = envelope.requestId ?? `hub-client-${++counter}`;
+						return new Promise<HubReplyEnvelope>((res, rej) => {
+							pending.set(requestId, { resolve: res, reject: rej });
+							const frame: HubTransportFrame = {
+								kind: "command",
+								envelope: { ...envelope, requestId },
+							};
+							ws.send(JSON.stringify(frame));
+						});
+					},
+					close() {
+						ws.close();
+					},
+				});
+			});
 
-		ws.addEventListener("error", (error) => {
-			reject(normalizeHubConnectionError(error, url));
-		});
+			ws.addEventListener("message", (event) => {
+				const frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				if (frame.kind === "reply" && frame.envelope.requestId) {
+					const entry = pending.get(frame.envelope.requestId);
+					if (entry) {
+						pending.delete(frame.envelope.requestId);
+						entry.resolve(frame.envelope);
+					}
+				}
+			});
+
+			ws.addEventListener("close", () => {
+				for (const entry of pending.values()) {
+					entry.reject(new Error("Hub connection closed"));
+				}
+				pending.clear();
+			});
+
+			ws.addEventListener("error", (error) => {
+				reject(normalizeHubConnectionError(error, url));
+			});
+		})().catch(reject);
 	});
 }
 

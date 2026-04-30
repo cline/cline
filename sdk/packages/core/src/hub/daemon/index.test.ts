@@ -104,21 +104,19 @@ describe("ensureDetachedHubServer", () => {
 				url: "ws://127.0.0.1:25463/hub",
 				buildId: "current-build",
 			})
-			.mockResolvedValueOnce(undefined)
 			.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:5555/hub",
 				buildId: "current-build",
 			});
-		verifyHubConnection
-			.mockResolvedValueOnce(false)
-			.mockResolvedValueOnce(true);
+		verifyHubConnection.mockResolvedValueOnce(true);
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
 			url: "ws://127.0.0.1:5555/hub",
 			buildId: "current-build",
+			authToken: "new-token",
 		});
 
 		const { ensureDetachedHubServer } = await import(".");
-		const url = await ensureDetachedHubServer("/workspace");
+		const result = await ensureDetachedHubServer("/workspace");
 		const spawnCalls = (spawn as unknown as { mock: { calls: unknown[][] } })
 			.mock.calls;
 		const spawnArgs = spawnCalls[0]?.[1] as string[] | undefined;
@@ -126,7 +124,10 @@ describe("ensureDetachedHubServer", () => {
 			| { env?: NodeJS.ProcessEnv }
 			| undefined;
 
-		expect(url).toBe("ws://127.0.0.1:5555/hub");
+		expect(result).toEqual({
+			url: "ws://127.0.0.1:5555/hub",
+			authToken: "new-token",
+		});
 		expect(spawn).toHaveBeenCalledOnce();
 		expect(spawnArgs).toContain("--port");
 		expect(spawnArgs).toContain("0");
@@ -156,6 +157,7 @@ describe("ensureDetachedHubServer", () => {
 	it("clears stale discovery when prewarm finds an unreachable discovered hub", async () => {
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
 		});
 		probeHubServer
 			.mockResolvedValueOnce(undefined)
@@ -179,11 +181,12 @@ describe("ensureDetachedHubServer", () => {
 			readHubDiscovery
 				.mockResolvedValueOnce({
 					url: "ws://127.0.0.1:25463/hub",
+					authToken: "old-token",
 				})
-				.mockResolvedValueOnce(undefined)
 				.mockResolvedValueOnce({
 					url: "ws://127.0.0.1:5555/hub",
 					buildId: "current-build",
+					authToken: "new-token",
 				});
 			probeHubServer
 				.mockResolvedValueOnce({
@@ -205,11 +208,15 @@ describe("ensureDetachedHubServer", () => {
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
-			const url = await ensureDetachedHubServer("/workspace");
+			const result = await ensureDetachedHubServer("/workspace");
 
-			expect(url).toBe("ws://127.0.0.1:5555/hub");
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:5555/hub",
+				authToken: "new-token",
+			});
 			expect(requestHubShutdown).toHaveBeenCalledWith(
 				"ws://127.0.0.1:25463/hub",
+				"old-token",
 			);
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
@@ -229,11 +236,12 @@ describe("ensureDetachedHubServer", () => {
 			readHubDiscovery
 				.mockResolvedValueOnce({
 					url: "ws://127.0.0.1:25463/hub",
+					authToken: "old-token",
 				})
-				.mockResolvedValueOnce(undefined)
 				.mockResolvedValueOnce({
 					url: "ws://127.0.0.1:5555/hub",
 					buildId: "current-build",
+					authToken: "new-token",
 				});
 			probeHubServer
 				.mockResolvedValueOnce({
@@ -253,11 +261,15 @@ describe("ensureDetachedHubServer", () => {
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
-			const url = await ensureDetachedHubServer("/workspace");
+			const result = await ensureDetachedHubServer("/workspace");
 
-			expect(url).toBe("ws://127.0.0.1:5555/hub");
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:5555/hub",
+				authToken: "new-token",
+			});
 			expect(requestHubShutdown).toHaveBeenCalledWith(
 				"ws://127.0.0.1:25463/hub",
+				"old-token",
 			);
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(

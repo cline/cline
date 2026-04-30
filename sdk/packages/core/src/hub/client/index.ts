@@ -143,6 +143,25 @@ const HUB_STARTUP_POLL_MS = 200;
 const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_COMMAND_TIMEOUT_MS = 30_000;
+const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
+const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
+
+function rememberLocalHubAuthToken(url: string, authToken: string): string {
+	const parsed = new URL(url);
+	parsed.search = "";
+	parsed.hash = "";
+	LOCAL_HUB_AUTH_TOKENS.set(parsed.toString(), authToken);
+	return url;
+}
+
+function resolveLocalHubAuthToken(url: URL): string | undefined {
+	const queryToken = url.searchParams.get("authToken")?.trim();
+	url.searchParams.delete("authToken");
+	if (queryToken) {
+		return queryToken;
+	}
+	return LOCAL_HUB_AUTH_TOKENS.get(url.toString());
+}
 
 export class NodeHubClient {
 	private socket: WebSocketLike | undefined;
@@ -173,12 +192,15 @@ export class NodeHubClient {
 		}
 
 		const url = new URL(this.options.url);
-		if (this.options.authToken?.trim()) {
-			url.searchParams.set("authToken", this.options.authToken.trim());
-		}
+		const authToken =
+			this.options.authToken?.trim() || resolveLocalHubAuthToken(url);
+		url.hash = "";
 
 		const WebSocketImpl = getWebSocketCtor();
-		const socket = new WebSocketImpl(url.toString());
+		const socket = new WebSocketImpl(
+			url.toString(),
+			authToken ? [`${HUB_AUTH_PROTOCOL_PREFIX}${authToken}`] : undefined,
+		);
 		this.socket = socket;
 		let suppressCloseMessage = false;
 		this.connectPromise = new Promise<void>((resolve, reject) => {
@@ -467,10 +489,11 @@ export function normalizeHubWebSocketUrl(url: string): string {
 
 export async function verifyHubConnection(
 	url: string,
-	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
+	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd" | "authToken">,
 ): Promise<boolean> {
 	const client = new NodeHubClient({
 		url,
+		authToken: options?.authToken,
 		clientType: "hub-healthcheck",
 		displayName: "hub healthcheck",
 		workspaceRoot: options?.workspaceRoot,
@@ -502,6 +525,7 @@ async function probeCompatibleHubUrl(
 		verifyConnection?: boolean;
 		workspaceRoot?: string;
 		cwd?: string;
+		authToken?: string;
 	},
 ): Promise<HubProbeResult> {
 	const normalized = normalizeHubWebSocketUrl(url);
@@ -525,6 +549,7 @@ async function probeCompatibleHubUrl(
 		!(await verifyHubConnection(normalized, {
 			workspaceRoot: options.workspaceRoot,
 			cwd: options.cwd,
+			authToken: options.authToken,
 		}))
 	) {
 		return {
@@ -547,9 +572,10 @@ async function waitForCompatibleHubUrl(
 		if (record?.url) {
 			const compatible = await probeCompatibleHubUrl(record.url, {
 				verifyConnection: true,
+				authToken: record.authToken,
 			});
 			if (compatible.status === "compatible") {
-				return compatible.url;
+				return rememberLocalHubAuthToken(compatible.url, record.authToken);
 			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
@@ -572,7 +598,7 @@ export async function resolveCompatibleLocalHubUrl(
 	}
 	const compatible = await probeCompatibleHubUrl(record.url);
 	if (compatible.status === "compatible") {
-		return compatible.url;
+		return rememberLocalHubAuthToken(compatible.url, record.authToken);
 	}
 	if (compatible.status === "build_mismatch") {
 		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
@@ -601,17 +627,26 @@ export async function ensureCompatibleLocalHubUrl(
 	return await waitForCompatibleHubUrl(owner);
 }
 
-export async function requestHubShutdown(url: string): Promise<boolean> {
+export async function requestHubShutdown(
+	url: string,
+	authToken?: string,
+): Promise<boolean> {
 	const parsed = new URL(url);
+	const resolvedAuthToken =
+		authToken?.trim() || resolveLocalHubAuthToken(parsed);
 	if (parsed.protocol === "ws:") {
 		parsed.protocol = "http:";
 	} else if (parsed.protocol === "wss:") {
 		parsed.protocol = "https:";
 	}
 	parsed.pathname = "/shutdown";
-	parsed.search = "";
 	parsed.hash = "";
-	const response = await fetch(parsed, { method: "POST" });
+	const response = await fetch(parsed, {
+		method: "POST",
+		headers: resolvedAuthToken
+			? { authorization: `Bearer ${resolvedAuthToken}` }
+			: undefined,
+	});
 	return response.ok;
 }
 
@@ -622,7 +657,10 @@ export async function stopLocalHubServerGracefully(): Promise<boolean> {
 		return false;
 	}
 	try {
-		const stopped = await requestHubShutdown(discovery.url);
+		const stopped = await requestHubShutdown(
+			discovery.url,
+			discovery.authToken,
+		);
 		if (stopped) {
 			return true;
 		}

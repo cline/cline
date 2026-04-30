@@ -24,11 +24,13 @@ describe("hub UI events", () => {
 		// Connect two UI clients - one will send, one will receive
 		const sender = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-sender",
 			displayName: "Test Sender",
 		});
 		const receiver = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-receiver",
 			displayName: "Test Receiver",
 		});
@@ -76,10 +78,12 @@ describe("hub UI events", () => {
 
 		const sender = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-sender",
 		});
 		const receiver = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-receiver",
 		});
 
@@ -116,6 +120,7 @@ describe("hub UI events", () => {
 		// First client connects and subscribes to registration events
 		const monitor = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-monitor",
 			displayName: "Test Monitor",
 		});
@@ -135,6 +140,7 @@ describe("hub UI events", () => {
 		// Second client connects — should trigger registration event
 		const newClient = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-newcomer",
 			displayName: "New Client",
 		});
@@ -158,11 +164,13 @@ describe("hub UI events", () => {
 
 		const ui = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-ui",
 			displayName: "Test UI",
 		});
 		const worker = new HubUIClient({
 			address: server.url,
+			authToken: server.authToken,
 			clientType: "test-worker",
 			displayName: "Worker",
 		});

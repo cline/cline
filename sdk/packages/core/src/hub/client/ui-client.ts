@@ -9,6 +9,7 @@ import { NodeHubClient } from "../client";
 
 export interface HubUIClientOptions {
 	address: string;
+	authToken?: string;
 	clientId?: string;
 	clientType?: string;
 	displayName?: string;
@@ -25,6 +26,7 @@ export class HubUIClient {
 	constructor(options: HubUIClientOptions) {
 		this.client = new NodeHubClient({
 			url: options.address,
+			authToken: options.authToken,
 			clientId: options.clientId,
 			clientType: options.clientType ?? "hub-ui-client",
 			displayName: options.displayName ?? "hub ui client",

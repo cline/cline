@@ -35,6 +35,7 @@ describe("resolveHubUrl", () => {
 		).mockResolvedValue({
 			hubId: "hub-test",
 			protocolVersion: "v1",
+			authToken: "test-token",
 			host: "127.0.0.1",
 			port: 25463,
 			url: "ws://127.0.0.1:25463/hub",

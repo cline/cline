@@ -75,7 +75,10 @@ const loggingMocks = vi.hoisted(() => ({
 	flushCliLoggerAdapters: vi.fn(),
 }));
 const hubRuntimeMocks = vi.hoisted(() => ({
-	ensureCliHubServer: vi.fn(async () => "ws://127.0.0.1:25463"),
+	ensureCliHubServer: vi.fn(async () => ({
+		url: "ws://127.0.0.1:25463",
+		authToken: "test-token",
+	})),
 }));
 
 function forcePromptModeInput() {
@@ -172,9 +175,10 @@ describe("runCli lightweight command dispatch", () => {
 		});
 		runtimeMocks.runInteractive.mockReset();
 		hubRuntimeMocks.ensureCliHubServer.mockReset();
-		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue(
-			"ws://127.0.0.1:25463",
-		);
+		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463",
+			authToken: "test-token",
+		});
 		llmMocks.resolveProviderConfig.mockReset();
 		llmMocks.resolveProviderConfig.mockResolvedValue(undefined);
 		authMocks.ensureOAuthProviderApiKey.mockReset();

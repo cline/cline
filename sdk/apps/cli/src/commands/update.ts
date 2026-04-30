@@ -194,7 +194,7 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	// Re-ensure a fresh hub instance is spawned.
 	try {
-		await ensureCliHubServer(process.cwd());
+		await ensureCliHubServer(process.cwd()); // return value intentionally unused here
 		writeln(`${c.green}✓${c.reset} ${c.dim}[hub] server restarted${c.reset}`);
 	} catch (err) {
 		writeErr(

@@ -216,8 +216,11 @@ async function main(): Promise<void> {
 	const providerSettingsManager = new ProviderSettingsManager();
 	// Discover or start a detached shared hub
 	let hubUrl: string;
+	let hubAuthToken: string;
 	try {
-		hubUrl = await ensureDetachedHubServer(workspaceRoot);
+		const hub = await ensureDetachedHubServer(workspaceRoot);
+		hubUrl = hub.url;
+		hubAuthToken = hub.authToken;
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		emitNotification("Hub startup failed", msg, "error");
@@ -234,11 +237,13 @@ async function main(): Promise<void> {
 
 	const uiClient = new HubUIClient({
 		address: hubUrl,
+		authToken: hubAuthToken,
 		clientType: "menubar-app",
 		displayName: "Cline Menu Bar App",
 	});
 	const sessionClient = new HubSessionClient({
 		address: hubUrl,
+		authToken: hubAuthToken,
 		clientType: "menubar-background-client",
 		displayName: "Cline Background Client",
 	});

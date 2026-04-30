@@ -50,7 +50,10 @@ describe("runScheduleCommand list output", () => {
 	});
 
 	it('prints "No schedules found." for empty non-json list output', async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
 		mockSendHubCommand.mockResolvedValue({
 			ok: true,
 			payload: { schedules: [] },
@@ -85,7 +88,10 @@ describe("runScheduleCommand list output", () => {
 	});
 
 	it("keeps JSON list output unchanged when --json is provided", async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
 		mockSendHubCommand.mockResolvedValue({
 			ok: true,
 			payload: { schedules: [] },
@@ -115,7 +121,10 @@ describe("runScheduleCommand import", () => {
 	});
 
 	it("preserves exported modelSelection providerId/modelId values", async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
 		mockSendHubCommand.mockResolvedValue({
 			ok: true,
 			payload: { schedule: { scheduleId: "sched_123" } },
@@ -174,7 +183,10 @@ describe("runScheduleCommand export", () => {
 	});
 
 	it("writes JSON content to the --to file path", async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
 		const scheduleRecord = {
 			scheduleId: "sched_abc",
 			name: "Daily Review",
@@ -229,7 +241,10 @@ describe("runScheduleCommand export", () => {
 	});
 
 	it("writes YAML content when --to has a non-json extension", async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
 		const scheduleRecord = {
 			scheduleId: "sched_yaml",
 			name: "Weekly Sync",

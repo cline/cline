@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir, resolveClineDir } from "@clinebot/shared/storage";
 import corePackage from "../../../package.json";
@@ -15,6 +15,7 @@ export interface HubServerDiscoveryRecord {
 	hubId: string;
 	protocolVersion: string;
 	buildId?: string;
+	authToken: string;
 	host: string;
 	port: number;
 	url: string;
@@ -48,6 +49,10 @@ function isPidAlive(pid: number | undefined): boolean {
 			? String((error as NodeJS.ErrnoException).code) === "EPERM"
 			: false;
 	}
+}
+
+export function createHubAuthToken(): string {
+	return randomBytes(32).toString("hex");
 }
 
 function sleep(ms: number): Promise<void> {
@@ -117,6 +122,7 @@ export async function readHubDiscovery(
 		if (
 			typeof parsed.hubId !== "string" ||
 			typeof parsed.protocolVersion !== "string" ||
+			typeof parsed.authToken !== "string" ||
 			typeof parsed.host !== "string" ||
 			typeof parsed.port !== "number" ||
 			typeof parsed.url !== "string" ||
@@ -129,6 +135,7 @@ export async function readHubDiscovery(
 			hubId: parsed.hubId,
 			protocolVersion: parsed.protocolVersion,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+			authToken: parsed.authToken,
 			host: parsed.host,
 			port: parsed.port,
 			url: parsed.url,
@@ -146,11 +153,14 @@ export async function writeHubDiscovery(
 	record: HubServerDiscoveryRecord,
 ): Promise<void> {
 	await mkdir(dirname(discoveryPath), { recursive: true });
-	await writeFile(
-		discoveryPath,
-		`${JSON.stringify(record, null, 2)}\n`,
-		"utf8",
-	);
+	// Remove any existing file first so writeFile creates it fresh with the
+	// correct mode. On Linux, the mode option is ignored for existing files.
+	await rm(discoveryPath, { force: true }).catch(() => undefined);
+	await writeFile(discoveryPath, `${JSON.stringify(record, null, 2)}\n`, {
+		encoding: "utf8",
+		mode: 0o600,
+	});
+	await chmod(discoveryPath, 0o600);
 }
 
 export async function clearHubDiscovery(discoveryPath: string): Promise<void> {

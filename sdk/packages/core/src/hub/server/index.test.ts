@@ -76,6 +76,7 @@ describe("hub server startup", () => {
 		await writeHubDiscovery(owner.discoveryPath, {
 			hubId: "stale-hub",
 			protocolVersion: "v1",
+			authToken: "stale-token",
 			host: "127.0.0.1",
 			port: port + 1,
 			url: `ws://127.0.0.1:${port + 1}/hub`,
@@ -193,7 +194,16 @@ describe("hub server startup", () => {
 
 		const shutdownUrl = new URL(toHubHealthUrl(result.url));
 		shutdownUrl.pathname = "/shutdown";
-		const response = await fetch(shutdownUrl, { method: "POST" });
+		const discovery = await readHubDiscovery(owner.discoveryPath);
+		if (!discovery) {
+			throw new Error("Expected hub discovery to be written");
+		}
+		expect(discovery.authToken).toMatch(/^[a-f0-9]{64}$/);
+		const authToken = discovery.authToken;
+		const response = await fetch(shutdownUrl, {
+			method: "POST",
+			headers: { authorization: `Bearer ${authToken}` },
+		});
 		expect(response.status).toBe(202);
 
 		for (let index = 0; index < 50; index += 1) {
@@ -205,6 +215,71 @@ describe("hub server startup", () => {
 		}
 
 		throw new Error("Timed out waiting for hub shutdown");
+	});
+
+	it("rejects shutdown request with 401 when no auth token is provided", async () => {
+		const owner = createInMemoryHubOwnerContext(
+			"hub-server-test-shutdown-unauth",
+		);
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		expect(result.server).toBeDefined();
+		servers.add(result.server!);
+
+		const shutdownUrl = new URL(toHubHealthUrl(result.url));
+		shutdownUrl.pathname = "/shutdown";
+
+		// No Authorization header
+		const noTokenResponse = await fetch(shutdownUrl, { method: "POST" });
+		expect(noTokenResponse.status).toBe(401);
+
+		// Wrong token
+		const wrongTokenResponse = await fetch(shutdownUrl, {
+			method: "POST",
+			headers: { authorization: "Bearer wrong-token" },
+		});
+		expect(wrongTokenResponse.status).toBe(401);
+
+		// Server should still be alive
+		const health = await fetch(new URL("/health", toHubHealthUrl(result.url)));
+		expect(health.status).toBe(200);
+	});
+
+	it("rejects WebSocket upgrade with 401 when no auth token is provided", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-ws-unauth");
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		expect(result.server).toBeDefined();
+		servers.add(result.server!);
+
+		const hubUrl = new URL(result.url);
+
+		// WebSocket upgrade with no Sec-WebSocket-Protocol token
+		const response = await sendRawHttpRequest(
+			Number(hubUrl.port),
+			[
+				"GET /hub HTTP/1.1",
+				"Host: 127.0.0.1",
+				"Connection: Upgrade",
+				"Upgrade: websocket",
+				"Sec-WebSocket-Version: 13",
+				"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+				"",
+				"",
+			].join("\r\n"),
+		);
+
+		expect(response).toContain("401 Unauthorized");
 	});
 
 	it("survives websocket upgrade handler failures", async () => {
@@ -228,6 +303,11 @@ describe("hub server startup", () => {
 			servers.add(result.server!);
 
 			const hubUrl = new URL(result.url);
+			const discovery = await readHubDiscovery(owner.discoveryPath);
+			if (!discovery) {
+				throw new Error("Expected hub discovery to be written");
+			}
+			const authToken = discovery.authToken;
 			const response = await sendRawHttpRequest(
 				Number(hubUrl.port),
 				[
@@ -235,6 +315,7 @@ describe("hub server startup", () => {
 					"Host: 127.0.0.1",
 					"Connection: Upgrade",
 					"Upgrade: websocket",
+					`Sec-WebSocket-Protocol: cline-hub-auth.${authToken}`,
 					"Sec-WebSocket-Version: 13",
 					"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
 					"",

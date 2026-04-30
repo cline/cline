@@ -97,7 +97,10 @@ export async function ensureSchedulerHub(
 }> {
 	try {
 		const requestedEndpoint = parseHubEndpointOverride(address);
-		const hubUrl = await ensureCliHubServer(workspaceRoot, requestedEndpoint);
+		const { url: hubUrl } = await ensureCliHubServer(
+			workspaceRoot,
+			requestedEndpoint,
+		);
 		const endpoint = parseHubEndpointOverride(hubUrl);
 		return {
 			ok: true,

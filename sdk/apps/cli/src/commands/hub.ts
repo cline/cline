@@ -70,7 +70,7 @@ export function createHubCommand(
 				port?: number;
 				pathname?: string;
 			}>();
-			const url = await ensureDetachedHubServer(opts.cwd, {
+			const { url } = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
 				pathname: opts.pathname,
@@ -87,7 +87,7 @@ export function createHubCommand(
 				port?: number;
 				pathname?: string;
 			}>();
-			const url = await ensureDetachedHubServer(opts.cwd, {
+			const { url } = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
 				pathname: opts.pathname,

@@ -69,7 +69,10 @@ describe("runZen", () => {
 			userImages: [],
 			userFiles: [],
 		});
-		ensureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		ensureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
 
 		const run = runZen("ship it", {
 			sandbox: false,

@@ -1,4 +1,5 @@
 import {
+	type DetachedHubResolution,
 	ensureDetachedHubServer,
 	type HubEndpointOverrides,
 	resolveDefaultHubHost,
@@ -41,6 +42,6 @@ export function parseHubEndpointOverride(
 export async function ensureCliHubServer(
 	workspaceRoot: string,
 	endpoint: HubEndpointOverrides = {},
-): Promise<string> {
+): Promise<DetachedHubResolution> {
 	return await ensureDetachedHubServer(workspaceRoot, endpoint);
 }

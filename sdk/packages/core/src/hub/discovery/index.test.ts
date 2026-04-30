@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { chmod, mkdir, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearHubDiscovery,
@@ -65,6 +66,7 @@ describe("hub discovery", () => {
 		const record = {
 			hubId: "hub_123",
 			protocolVersion: "v1",
+			authToken: "test-token",
 			host: "127.0.0.1",
 			port: 25463,
 			url: "ws://127.0.0.1:25463/hub",
@@ -72,10 +74,17 @@ describe("hub discovery", () => {
 			updatedAt: new Date().toISOString(),
 		};
 
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		await writeFile(discoveryPath, "{}\n", "utf8");
+		await chmod(discoveryPath, 0o644);
 		await writeHubDiscovery(discoveryPath, record);
 		await expect(readHubDiscovery(discoveryPath)).resolves.toMatchObject(
 			record,
 		);
+		// Windows does not support Unix file permissions; chmod is a no-op there.
+		if (process.platform !== "win32") {
+			expect((await stat(discoveryPath)).mode & 0o777).toBe(0o600);
+		}
 		await clearHubDiscovery(discoveryPath);
 		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
 	});
