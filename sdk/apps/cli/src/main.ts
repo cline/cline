@@ -514,6 +514,18 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
+	const rootOpts = program.opts<{
+		update?: boolean;
+		verbose?: boolean;
+	}>();
+	if (rootOpts.update) {
+		const { checkForUpdates } = await import("./commands/update");
+		process.exitCode = await checkForUpdates({
+			verbose: rootOpts.verbose === true,
+		});
+		return;
+	}
+
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
 	const cwd = args.cwd ?? process.cwd();

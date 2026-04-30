@@ -47,6 +47,10 @@ const promptMocks = vi.hoisted(() => ({
 const kanbanMocks = vi.hoisted(() => ({
 	launchKanban: vi.fn(),
 }));
+const updateMocks = vi.hoisted(() => ({
+	autoUpdateOnStartup: vi.fn(),
+	checkForUpdates: vi.fn(async () => 0),
+}));
 const runtimeMocks = vi.hoisted(() => ({
 	runAgent: vi.fn(async () => {
 		mockState.runAgentCalls += 1;
@@ -139,6 +143,7 @@ vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
+vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
@@ -192,6 +197,9 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.saveProviderSettings.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
+		updateMocks.autoUpdateOnStartup.mockReset();
+		updateMocks.checkForUpdates.mockReset();
+		updateMocks.checkForUpdates.mockResolvedValue(0);
 		// CI: fd 0 is often a pipe with no EOF. If routing ever falls through to agent bootstrap,
 		// `main` can block forever in `for await (process.stdin)` (see `!process.stdin.isTTY && …`).
 		// Mark stdin as a TTY so that path is skipped in unit tests (real piped-input behavior is
@@ -222,6 +230,23 @@ describe("runCli lightweight command dispatch", () => {
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(process.exitCode).toBe(0);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("does not load runtime modules for root update", async () => {
+		mockState.runAgentImports = 0;
+		mockState.runInteractiveImports = 0;
+
+		process.argv = ["bun", "src/index.ts", "--update", "--verbose"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(updateMocks.checkForUpdates).toHaveBeenCalledWith({
+			verbose: true,
+		});
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});

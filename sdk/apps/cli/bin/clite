@@ -16,9 +16,17 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
+const scriptPath = fs.realpathSync(__filename);
+const scriptDir = path.dirname(scriptPath);
+const childEnv = {
+	...process.env,
+	CLITE_WRAPPER_PATH: scriptPath,
+};
+
 function run(target) {
 	const result = childProcess.spawnSync(target, process.argv.slice(2), {
 		stdio: "inherit",
+		env: childEnv,
 	});
 	if (result.error) {
 		console.error(result.error.message);
@@ -41,8 +49,6 @@ if (envPath) {
 }
 
 // 2. Check cached binary
-const scriptPath = fs.realpathSync(__filename);
-const scriptDir = path.dirname(scriptPath);
 const cached = path.join(scriptDir, ".clite");
 if (fs.existsSync(cached)) {
 	run(cached);

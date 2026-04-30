@@ -29,6 +29,7 @@ test.describe("root flag descriptions", () => {
 			"consecutive mistakes",
 			"Output messages as JSON",
 			"ACP",
+			"Check for updates and install if available",
 		]);
 	});
 

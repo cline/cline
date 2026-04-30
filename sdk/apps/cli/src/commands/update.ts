@@ -71,10 +71,12 @@ function compareVersions(v1: string, v2: string): number {
 	return 0;
 }
 
-function getInstallationInfo(currentVersion: string): InstallationInfo {
+export function getInstallationInfo(currentVersion: string): InstallationInfo {
 	const tag = getNpmTag(currentVersion);
 	try {
-		const scriptPath = realpathSync(process.argv[1] || "").replace(/\\/g, "/");
+		const scriptPath = realpathSync(
+			process.env.CLITE_WRAPPER_PATH || process.argv[1] || "",
+		).replace(/\\/g, "/");
 
 		if (scriptPath.includes("/.npm/_npx") || scriptPath.includes("/npm/_npx")) {
 			return { packageManager: PackageManager.NPX };
@@ -228,7 +230,7 @@ export function autoUpdateOnStartup(): void {
 				await restartHubServerIfRunning();
 			}
 		} catch {
-			// Best-effort — silently ignore
+			// Best-effort, silently ignore
 		}
 	})();
 }

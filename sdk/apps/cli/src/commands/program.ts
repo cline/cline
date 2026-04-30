@@ -63,6 +63,7 @@ export function addRootOptions(cmd: Command): Command {
 			"--acp",
 			"Run in ACP (Agent Client Protocol) mode for editor integration",
 		)
+		.option("--update", "Check for updates and install if available")
 		.option("-i, --tui", "Start interactive TUI chat mode")
 		.option("--id <id>", "Resume an existing task by ID")
 		.option("-k, --key <api-key>", "API key override for this run")

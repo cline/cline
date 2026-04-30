@@ -40,6 +40,7 @@ test.describe("clite --help", () => {
 			"--retries",
 			"--json",
 			"--acp",
+			"--update",
 		]);
 	});
 });

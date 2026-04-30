@@ -57,6 +57,18 @@ process.exit(Number(process.argv[2] ?? "0"));
 		expect(result.signal).toBeNull();
 	});
 
+	it("passes the wrapper path to the compiled binary", () => {
+		const target = createExecutableScript(`
+console.log(process.env.CLITE_WRAPPER_PATH ?? "");
+`);
+
+		const result = runWrapper(target);
+
+		expect(result.error).toBeUndefined();
+		expect(result.status).toBe(0);
+		expect(result.stdout.trim()).toMatch(/bin[/\\]clite$/);
+	});
+
 	it.skipIf(process.platform === "win32")(
 		"propagates child process signal termination on POSIX",
 		() => {
