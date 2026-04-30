@@ -64,6 +64,7 @@ type AgentItem = {
 type PluginItem = {
 	name: string;
 	path: string;
+	enabled: boolean;
 };
 
 type ToolItem = {
@@ -212,6 +213,11 @@ async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse
 	return normalizeInstructionListsResponse(response);
 }
 
+function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes(`unsupported desktop command: ${command}`);
+}
+
 export async function primeExtensionsListsCache(): Promise<void> {
 	const now = Date.now();
 	if (hasFreshExtensionsListsCache(extensionListsCache, now)) {
@@ -265,6 +271,9 @@ export function RulesView() {
 	>(() => extensionHookStatsCache?.hookExecutionSessionId ?? null);
 	const [hookExecutionLoading, setHookExecutionLoading] = useState(false);
 	const [togglingToolIds, setTogglingToolIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
 		() => new Set(),
 	);
 
@@ -408,24 +417,37 @@ export function RulesView() {
 		[],
 	);
 
-	const togglePluginTool = useCallback(
+	const setToolEnabled = useCallback(
 		async (tool: ToolItem) => {
-			if (
-				tool.source !== "workspace-plugin" &&
-				tool.source !== "global-plugin"
-			) {
-				return;
-			}
 			setTogglingToolIds((current) => new Set(current).add(tool.id));
 			setErrorMessage(null);
 			try {
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"toggle_disabled_plugin_tool",
+				const names = [tool.name, ...(tool.headlessToolNames ?? [])].filter(
+					Boolean,
+				);
+				if (names.length === 0) {
+					throw new Error("tool name is required");
+				}
+				let response: UserInstructionListsResponse;
+				try {
+					response = await desktopClient.invoke<UserInstructionListsResponse>(
+						"set_tool_disabled",
 						{
-							name: tool.name,
+							names,
+							disabled: tool.enabled,
 						},
 					);
+				} catch (error) {
+					if (!isUnsupportedDesktopCommand(error, "set_tool_disabled")) {
+						throw error;
+					}
+					for (const name of names) {
+						response = await desktopClient.invoke<UserInstructionListsResponse>(
+							"toggle_disabled_plugin_tool",
+							{ name },
+						);
+					}
+				}
 				applyResponse(response);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -434,6 +456,34 @@ export function RulesView() {
 				setTogglingToolIds((current) => {
 					const next = new Set(current);
 					next.delete(tool.id);
+					return next;
+				});
+			}
+		},
+		[applyResponse],
+	);
+
+	const setPluginEnabled = useCallback(
+		async (plugin: PluginItem) => {
+			setTogglingPluginPaths((current) => new Set(current).add(plugin.path));
+			setErrorMessage(null);
+			try {
+				const response =
+					await desktopClient.invoke<UserInstructionListsResponse>(
+						"set_plugin_disabled",
+						{
+							path: plugin.path,
+							disabled: plugin.enabled,
+						},
+					);
+				applyResponse(response);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setTogglingPluginPaths((current) => {
+					const next = new Set(current);
+					next.delete(plugin.path);
 					return next;
 				});
 			}
@@ -962,9 +1012,20 @@ export function RulesView() {
 									>
 										<div className="flex items-center gap-3">
 											<Puzzle className="h-4 w-4 shrink-0 text-primary" />
-											<h3 className="text-sm font-semibold text-foreground">
+											<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 												{plugin.name}
 											</h3>
+											<span className="text-xs text-muted-foreground">
+												{plugin.enabled ? "Enabled" : "Disabled"}
+											</span>
+											<Switch
+												checked={plugin.enabled}
+												onCheckedChange={() => {
+													void setPluginEnabled(plugin);
+												}}
+												disabled={togglingPluginPaths.has(plugin.path)}
+												aria-label={`Toggle ${plugin.name}`}
+											/>
 										</div>
 										<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 											{plugin.path}
@@ -997,9 +1058,9 @@ export function RulesView() {
 															<Switch
 																checked={tool.enabled}
 																onCheckedChange={() => {
-																	void togglePluginTool(tool);
+																	void setToolEnabled(tool);
 																}}
-																disabled={isToggling}
+																disabled={isToggling || !plugin.enabled}
 																aria-label={`Toggle ${tool.name}`}
 															/>
 														</div>
@@ -1036,9 +1097,20 @@ export function RulesView() {
 									>
 										<div className="flex items-center gap-3">
 											<Puzzle className="h-4 w-4 shrink-0 text-primary" />
-											<h3 className="text-sm font-semibold text-foreground">
+											<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 												{plugin.name}
 											</h3>
+											<span className="text-xs text-muted-foreground">
+												{plugin.enabled ? "Enabled" : "Disabled"}
+											</span>
+											<Switch
+												checked={plugin.enabled}
+												onCheckedChange={() => {
+													void setPluginEnabled(plugin);
+												}}
+												disabled={togglingPluginPaths.has(plugin.path)}
+												aria-label={`Toggle ${plugin.name}`}
+											/>
 										</div>
 										<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 											{plugin.path}
@@ -1071,9 +1143,9 @@ export function RulesView() {
 															<Switch
 																checked={tool.enabled}
 																onCheckedChange={() => {
-																	void togglePluginTool(tool);
+																	void setToolEnabled(tool);
 																}}
-																disabled={isToggling}
+																disabled={isToggling || !plugin.enabled}
 																aria-label={`Toggle ${tool.name}`}
 															/>
 														</div>
@@ -1112,32 +1184,44 @@ export function RulesView() {
 								Builtin Tools
 							</h3>
 							<div className="flex flex-col gap-3">
-								{builtinTools.map((tool) => (
-									<div
-										key={tool.id}
-										className="rounded-lg border border-border px-5 py-4"
-									>
-										<div className="flex items-center gap-3">
-											<Wrench className="h-4 w-4 shrink-0 text-primary" />
-											<h3 className="text-sm font-semibold text-foreground">
-												{tool.name}
-											</h3>
-											<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-												{tool.enabled
-													? "enabled by default"
-													: "disabled by default"}
-											</span>
-										</div>
-										<p className="mt-2 ml-7 text-xs text-muted-foreground">
-											{tool.description?.trim() || "No description available."}
-										</p>
-										{!!tool.headlessToolNames?.length && (
-											<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-												{tool.headlessToolNames.join(", ")}
-											</p>
-										)}
-									</div>
-								))}
+								{builtinTools.map((tool) =>
+									(() => {
+										const isToggling = togglingToolIds.has(tool.id);
+										return (
+											<div
+												key={tool.id}
+												className="rounded-lg border border-border px-5 py-4"
+											>
+												<div className="flex items-center gap-3">
+													<Wrench className="h-4 w-4 shrink-0 text-primary" />
+													<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+														{tool.name}
+													</h3>
+													<span className="text-xs text-muted-foreground">
+														{tool.enabled ? "Enabled" : "Disabled"}
+													</span>
+													<Switch
+														checked={tool.enabled}
+														onCheckedChange={() => {
+															void setToolEnabled(tool);
+														}}
+														disabled={isToggling}
+														aria-label={`Toggle ${tool.name}`}
+													/>
+												</div>
+												<p className="mt-2 ml-7 text-xs text-muted-foreground">
+													{tool.description?.trim() ||
+														"No description available."}
+												</p>
+												{!!tool.headlessToolNames?.length && (
+													<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+														{tool.headlessToolNames.join(", ")}
+													</p>
+												)}
+											</div>
+										);
+									})(),
+								)}
 								{builtinTools.length === 0 && (
 									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
 										No builtin tools found.
@@ -1151,35 +1235,49 @@ export function RulesView() {
 								Plugin Tools
 							</h3>
 							<div className="flex flex-col gap-3">
-								{pluginTools.map((tool) => (
-									<div
-										key={tool.id}
-										className="rounded-lg border border-border px-5 py-4"
-									>
-										<div className="flex items-center gap-3">
-											<Wrench className="h-4 w-4 shrink-0 text-primary" />
-											<h3 className="text-sm font-semibold text-foreground">
-												{tool.name}
-											</h3>
-											{tool.pluginName && (
-												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-													plugin: {tool.pluginName}
-												</span>
-											)}
-											<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-												{tool.enabled ? "enabled" : "disabled"}
-											</span>
-										</div>
-										<p className="mt-2 ml-7 text-xs text-muted-foreground">
-											{tool.description?.trim() || "No description available."}
-										</p>
-										{tool.path && (
-											<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-												{tool.path}
-											</p>
-										)}
-									</div>
-								))}
+								{pluginTools.map((tool) =>
+									(() => {
+										const isToggling = togglingToolIds.has(tool.id);
+										return (
+											<div
+												key={tool.id}
+												className="rounded-lg border border-border px-5 py-4"
+											>
+												<div className="flex items-center gap-3">
+													<Wrench className="h-4 w-4 shrink-0 text-primary" />
+													<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+														{tool.name}
+													</h3>
+													{tool.pluginName && (
+														<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+															plugin: {tool.pluginName}
+														</span>
+													)}
+													<span className="text-xs text-muted-foreground">
+														{tool.enabled ? "Enabled" : "Disabled"}
+													</span>
+													<Switch
+														checked={tool.enabled}
+														onCheckedChange={() => {
+															void setToolEnabled(tool);
+														}}
+														disabled={isToggling}
+														aria-label={`Toggle ${tool.name}`}
+													/>
+												</div>
+												<p className="mt-2 ml-7 text-xs text-muted-foreground">
+													{tool.description?.trim() ||
+														"No description available."}
+												</p>
+												{tool.path && (
+													<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+														{tool.path}
+													</p>
+												)}
+											</div>
+										);
+									})(),
+								)}
 								{pluginTools.length === 0 && (
 									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
 										No plugin tools found.

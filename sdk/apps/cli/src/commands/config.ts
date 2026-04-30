@@ -422,13 +422,13 @@ async function runToolsConfigCommand(
 	}
 	io.writeln("Available tools:");
 	for (const tool of tools) {
-		const defaultState = tool.defaultEnabled ? "enabled" : "disabled";
+		const state = tool.defaultEnabled ? "enabled" : "disabled";
 		const names =
 			tool.headlessToolNames.length === 1 &&
 			tool.headlessToolNames[0] === tool.id
 				? ""
 				: ` -> ${tool.headlessToolNames.join(", ")}`;
-		io.writeln(`  ${tool.id} [default: ${defaultState}]${names}`);
+		io.writeln(`  ${tool.id} [${state}]${names}`);
 	}
 	if (pluginTools.length > 0) {
 		io.writeln();

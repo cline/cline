@@ -32,6 +32,7 @@ import {
 	loginLocalProvider,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	resolvePluginConfigSearchPaths,
 	resolveRulesConfigSearchPaths,
@@ -43,6 +44,8 @@ import {
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 	sendHubCommand,
+	setDisabledPlugin,
+	setDisabledTools,
 	toggleDisabledTool,
 } from "@clinebot/core";
 import { broadcastEvent } from "./context";
@@ -548,8 +551,16 @@ async function listUserInstructionConfigs(
 		}
 	};
 
-	const loadPlugins = (): Array<{ name: string; path: string }> => {
-		const pluginsByPath = new Map<string, { name: string; path: string }>();
+	const loadPlugins = (): Array<{
+		name: string;
+		path: string;
+		enabled: boolean;
+	}> => {
+		const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
+		const pluginsByPath = new Map<
+			string,
+			{ name: string; path: string; enabled: boolean }
+		>();
 		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
 			(d) => existsSync(d),
 		);
@@ -562,6 +573,7 @@ async function listUserInstructionConfigs(
 					pluginsByPath.set(filePath, {
 						name: basename(filePath, extname(filePath)),
 						path: filePath,
+						enabled: !disabledPlugins.has(filePath),
 					});
 				}
 			} catch {
@@ -589,6 +601,11 @@ async function listUserInstructionConfigs(
 		}),
 	]);
 
+	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		disabledToolIds: disabledTools,
+	});
+
 	return {
 		workspaceRoot,
 		rules,
@@ -597,11 +614,13 @@ async function listUserInstructionConfigs(
 		agents: loadAgents(),
 		plugins: loadPlugins(),
 		tools: [
-			...getCoreBuiltinToolCatalog().map((tool) => ({
+			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
 				description: tool.description,
-				enabled: tool.defaultEnabled,
+				enabled:
+					tool.defaultEnabled &&
+					!tool.headlessToolNames.some((name) => disabledTools.has(name)),
 				source: "builtin",
 				headlessToolNames: tool.headlessToolNames,
 			})),
@@ -1117,6 +1136,25 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		toggleDisabledTool(toolName);
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "set_tool_disabled") {
+		const rawNames = Array.isArray(args?.names) ? args.names : [args?.name];
+		const toolNames = rawNames
+			.map((name) => String(name ?? "").trim())
+			.filter(Boolean);
+		if (toolNames.length === 0) {
+			throw new Error("tool name is required");
+		}
+		setDisabledTools(toolNames, args?.disabled === true);
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "set_plugin_disabled") {
+		const pluginPath = String(args?.path ?? "").trim();
+		if (!pluginPath) {
+			throw new Error("plugin path is required");
+		}
+		setDisabledPlugin(pluginPath, args?.disabled === true);
 		return await listUserInstructionConfigs(ctx.workspaceRoot);
 	}
 

@@ -13,10 +13,13 @@ import {
 describe("plugin-config-loader", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
+		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
 	};
 
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
+		process.env.CLINE_GLOBAL_SETTINGS_PATH =
+			envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
 		setHomeDir(envSnapshot.HOME ?? "~");
 	});
 
@@ -68,6 +71,8 @@ describe("plugin-config-loader", () => {
 	it("prefers package manifest plugin entries for configured directories", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
 		try {
+			process.env.HOME = root;
+			setHomeDir(root);
 			const pluginDir = join(root, "plugin-package");
 			const srcDir = join(pluginDir, "src");
 			await mkdir(srcDir, { recursive: true });
@@ -144,9 +149,39 @@ describe("plugin-config-loader", () => {
 		}
 	});
 
+	it("omits plugins disabled in global settings", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const enabledPlugin = join(root, "enabled.js");
+			const disabledPlugin = join(root, "disabled.js");
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+			await writeFile(enabledPlugin, "export default {}", "utf8");
+			await writeFile(disabledPlugin, "export default {}", "utf8");
+			await writeFile(
+				settingsPath,
+				JSON.stringify({ disabledPlugins: [disabledPlugin] }, null, 2),
+				"utf8",
+			);
+
+			const resolved = resolveAgentPluginPaths({
+				pluginPaths: [enabledPlugin, disabledPlugin],
+				cwd: root,
+			});
+
+			expect(resolved).toEqual([enabledPlugin]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("loads valid plugins while reporting failures and duplicate overrides", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
 		try {
+			process.env.HOME = root;
+			setHomeDir(root);
 			const first = join(root, "duplicate-one.js");
 			const second = join(root, "duplicate-two.js");
 			const invalid = join(root, "invalid.js");

@@ -398,11 +398,16 @@ export {
 } from "./runtime/tools/tool-approval";
 export type { GlobalSettings } from "./services/global-settings";
 export {
+	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
+	isPluginDisabledGlobally,
 	isToolDisabledGlobally,
 	readGlobalSettings,
+	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setDisabledPlugin,
+	setDisabledTools,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";

@@ -1,5 +1,5 @@
 import {
-	toggleDisabledTool,
+	setDisabledTools,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import {
@@ -33,10 +33,17 @@ export function createInteractiveConfigDataLoader(input: {
 	const onToggleConfigItem = async (
 		item: InteractiveConfigItem,
 	): Promise<InteractiveConfigData | undefined> => {
-		if (item.source !== "workspace-plugin" && item.source !== "global-plugin") {
+		if (
+			item.source !== "builtin" &&
+			item.source !== "workspace-plugin" &&
+			item.source !== "global-plugin"
+		) {
 			return undefined;
 		}
-		toggleDisabledTool(item.name);
+		const toolNames = [
+			...new Set([...(item.toolNames ?? []), item.name].filter(Boolean)),
+		];
+		setDisabledTools(toolNames, item.enabled !== false);
 		return await loadConfigData();
 	};
 

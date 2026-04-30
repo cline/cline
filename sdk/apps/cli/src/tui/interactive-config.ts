@@ -30,6 +30,7 @@ export interface InteractiveConfigItem {
 	name: string;
 	path: string;
 	enabled?: boolean;
+	toolNames?: string[];
 	source:
 		| "global"
 		| "workspace"
@@ -250,6 +251,7 @@ export async function loadInteractiveConfigData(input: {
 					? tool.id
 					: tool.headlessToolNames.join(", "),
 			enabled: tool.defaultEnabled,
+			toolNames: [tool.id, ...tool.headlessToolNames],
 			source: "builtin" as const,
 			description: tool.description,
 		})),
@@ -265,6 +267,7 @@ export async function loadInteractiveConfigData(input: {
 			name: pluginTool.name,
 			path: pluginTool.path,
 			enabled: pluginTool.enabled,
+			toolNames: [pluginTool.name],
 			source: pluginTool.source,
 			description: pluginTool.description,
 		});

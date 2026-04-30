@@ -268,7 +268,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			case "ext":
 				if (
 					typeof row.enabled === "boolean" &&
-					(row.source === "workspace-plugin" || row.source === "global-plugin")
+					(row.source === "builtin" ||
+						row.source === "workspace-plugin" ||
+						row.source === "global-plugin")
 				) {
 					resolve({ kind: "toggle-item", item: row.item });
 					break;

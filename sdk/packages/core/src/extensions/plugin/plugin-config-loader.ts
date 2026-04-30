@@ -9,6 +9,7 @@ import {
 	resolveConfiguredPluginModulePaths,
 	resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared,
 } from "@clinebot/shared/storage";
+import { filterDisabledPluginPaths } from "../../services/global-settings";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import { loadAgentPluginsFromPathsWithDiagnostics } from "./plugin-loader";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
@@ -55,7 +56,7 @@ export function resolveAgentPluginPaths(
 		seen.add(path);
 		deduped.push(path);
 	}
-	return deduped;
+	return filterDisabledPluginPaths(deduped);
 }
 
 export interface ResolveAndLoadAgentPluginsOptions

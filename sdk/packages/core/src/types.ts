@@ -113,11 +113,16 @@ export type {
 export { SubprocessSandbox } from "./runtime/tools/subprocess-sandbox";
 export type { GlobalSettings } from "./services/global-settings";
 export {
+	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
+	isPluginDisabledGlobally,
 	isToolDisabledGlobally,
 	readGlobalSettings,
+	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setDisabledPlugin,
+	setDisabledTools,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
