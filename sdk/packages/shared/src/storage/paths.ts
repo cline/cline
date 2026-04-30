@@ -323,7 +323,7 @@ export function resolveHooksConfigSearchPaths(
 ): string[] {
 	const hooks = [
 		resolveDocumentsExtensionPath("Hooks"),
-		join(resolveClineDataDir(), HOOKS_CONFIG_DIRECTORY_NAME),
+		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
 	];
 	if (workspacePath) {
 		hooks.push(
@@ -363,7 +363,7 @@ export function resolveRulesConfigSearchPaths(
 	return dedupePaths([
 		...workspaceAgentsFile,
 		...wsPaths,
-		join(resolveClineDataDir(), RULES_CONFIG_DIRECTORY_NAME),
+		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsExtensionPath("Rules"),
 	]);
 }

@@ -150,7 +150,7 @@ function normalizeStartInput(
 	};
 }
 
-function createGitRepo(cwd: string): void {
+function _createGitRepo(cwd: string): void {
 	execFileSync("git", ["-C", cwd, "init"], { stdio: "pipe" });
 	execFileSync("git", ["-C", cwd, "config", "user.name", "Codex Test"], {
 		stdio: "pipe",

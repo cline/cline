@@ -220,7 +220,7 @@ function supportsAnthropicAdaptiveThinkingPolicy(options: {
 
 	// See https://platform.claude.com/docs/en/build-with-claude/extended-thinking
 	if (version.major !== 4) {
-		return version.major > 4
+		return version.major > 4;
 	}
 
 	return (line === "opus" || line === "sonnet") && version.minor >= 6;

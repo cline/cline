@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
+	HOOKS_CONFIG_DIRECTORY_NAME,
+	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,
 	resolveDbDataDir,
 	resolveGlobalSettingsPath,
+	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
 	resolveProviderSettingsPath,
+	resolveRulesConfigSearchPaths,
 	resolveSessionDataDir,
 	resolveTeamDataDir,
 } from "./paths";
@@ -123,6 +127,36 @@ describe("storage path resolution", () => {
 
 		expect(resolveAgentsConfigDirPath()).toBe(
 			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
+		);
+	});
+
+	it("resolves global hooks from ~/.cline", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DIR = "/tmp/home/.cline";
+		process.env.CLINE_DATA_DIR = "/tmp/home/.cline/data";
+
+		expect(resolveHooksConfigSearchPaths()).toEqual(
+			expect.arrayContaining([
+				join("/tmp/home", ".cline", HOOKS_CONFIG_DIRECTORY_NAME),
+			]),
+		);
+		expect(resolveHooksConfigSearchPaths()).not.toContain(
+			join("/tmp/home", ".cline", "data", HOOKS_CONFIG_DIRECTORY_NAME),
+		);
+	});
+
+	it("resolves global rules from ~/.cline", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DIR = "/tmp/home/.cline";
+		process.env.CLINE_DATA_DIR = "/tmp/home/.cline/data";
+
+		expect(resolveRulesConfigSearchPaths()).toEqual(
+			expect.arrayContaining([
+				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
+			]),
+		);
+		expect(resolveRulesConfigSearchPaths()).not.toContain(
+			join("/tmp/home", ".cline", "data", RULES_CONFIG_DIRECTORY_NAME),
 		);
 	});
 });
