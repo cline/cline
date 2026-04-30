@@ -112,7 +112,7 @@ export const CommandOutputRow = memo(
 		isCommandExecuting = false,
 		isCommandPending = false,
 		isCommandCompleted = false,
-		isBackgroundExec = false,
+		isBackgroundExec = false, // vscodeTerminalExecutionMode === "backgroundExec"
 		onCancelCommand,
 		icon,
 		title,
