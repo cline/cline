@@ -2,6 +2,7 @@ import { RipgrepError, searchWorkspaceFiles, searchWorkspaceFilesMultiroot } fro
 import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { getFsInfo } from "@utils/fs-info"
 import { getWorkspacePath } from "@utils/path"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -30,6 +31,11 @@ function classifyError(error: unknown): { errorReason: string; errorMessage: str
  * @returns Results containing matching files/folders
  */
 export async function searchFiles(controller: Controller, request: FileSearchRequest): Promise<FileSearchResults> {
+	// Best-effort path used for FS-class telemetry. Declared in the function
+	// scope so the catch block can also reference it. For multi-root we tag
+	// against the primary root; tagging per-root would mean per-root events,
+	// which we'd rather defer until we see signal.
+	let fsContextPath: string | undefined
 	try {
 		// Map enum to string for the search service
 		let selectedTypeString: "file" | "folder" | undefined
@@ -47,6 +53,7 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		let searchResults: Array<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }>
 
 		if (hasMultirootSupport) {
+			fsContextPath = workspaceManager.getRoots()[0]?.path
 			searchResults = await searchWorkspaceFilesMultiroot(
 				request.query || "",
 				workspaceManager,
@@ -69,6 +76,7 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 				}
 			}
 
+			fsContextPath = workspacePath
 			// Call file search service with query from request
 			searchResults = await searchWorkspaceFiles(
 				request.query || "",
@@ -90,11 +98,14 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 			searchType = "folder"
 		}
 
+		const fsContext = await getFsInfo(fsContextPath)
+
 		await telemetryService.captureMentionSearchResults(
 			request.query || "",
 			protoResults.length,
 			searchType,
 			protoResults.length === 0,
+			fsContext,
 		)
 
 		// Return successful results
@@ -117,7 +128,10 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 					? "permission_denied"
 					: "unknown"
 
-		await telemetryService.captureMentionFailed(mentionType, errorType, errorMessage)
+		// fsContextPath may be unset if we threw before resolving the workspace;
+		// getFsInfo handles undefined and returns the unknown sentinel.
+		const fsContext = await getFsInfo(fsContextPath)
+		await telemetryService.captureMentionFailed(mentionType, errorType, errorMessage, fsContext)
 
 		return {
 			results: [],
