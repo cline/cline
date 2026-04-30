@@ -8,7 +8,7 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function clearTask(controller: Controller, _request: EmptyRequest): Promise<Empty> {
-	// clearTask is called here when the user closes the task
+	// clearTask is called h/Users/maxpaulus/c/cline/src/sdk/sdk-task-control-coordinator.teere when the user closes the task
 	await controller.clearTask()
 	await controller.postStateToWebview()
 	return Empty.create()

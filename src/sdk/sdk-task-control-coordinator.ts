@@ -83,18 +83,8 @@ export class SdkTaskControlCoordinator {
 
 		const task = this.options.getTask()
 		if (task) {
-			const taskId = task.taskId
-			const messages = task.messageStateHandler.getClineMessages()
-			if (taskId && messages.length > 0) {
-				const finalizedMessages = this.options.messages.finalizeMessagesForSave(messages)
-				try {
-					const { saveClineMessages } = await import("@core/storage/disk")
-					await saveClineMessages(taskId, finalizedMessages)
-				} catch (err) {
-					Logger.error("[SdkController] Failed to save finalized messages during clearTask:", err)
-				}
-			}
-
+			// SDK session persistence owns conversation history. Do not write classic
+			// ui_messages.json here; history viewing reloads from SDK readMessages().
 			this.options.messages.cancelPendingSave()
 			task.messageStateHandler.clear()
 			this.options.setTask(undefined)
