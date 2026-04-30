@@ -1503,14 +1503,26 @@ export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
-				clineMessages.push({ ts: state.nextTs(), type: "say", say: "task", text, partial: false })
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: clineMessages.length === 0 ? "task" : "user_feedback",
+					text,
+					partial: false,
+				})
 			}
 			continue
 		}
 
 		const userText = textContentBlocksToText(message.content)
 		if (userText) {
-			clineMessages.push({ ts: state.nextTs(), type: "say", say: "task", text: userText, partial: false })
+			clineMessages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: clineMessages.length === 0 ? "task" : "user_feedback",
+				text: userText,
+				partial: false,
+			})
 		}
 
 		for (const block of message.content) {

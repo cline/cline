@@ -75,11 +75,13 @@ describe("SdkTaskHistory", () => {
 		const result = sdkMessagesToClineMessages([
 			{ role: "user", content: "Build the feature" },
 			{ role: "assistant", content: [{ type: "text", text: "Done" }] },
+			{ role: "user", content: "Follow up" },
 		])
 
 		expect(result).toMatchObject([
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
 			{ type: "say", say: "text", text: "Done", partial: false },
+			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
 		])
 	})
 
