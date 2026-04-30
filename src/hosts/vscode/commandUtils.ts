@@ -68,6 +68,9 @@ export async function getContextForCommand(
 	  }
 > {
 	const activeWebview = await showWebview(options?.preserveEditorFocus ?? false)
+	if (!activeWebview) {
+		return
+	}
 	// Use the controller from the active instance
 	const controller = activeWebview.controller
 
@@ -100,8 +103,20 @@ export async function getContextForCommand(
 	return { controller, commandContext }
 }
 
-export async function showWebview(preserveEditorFocus: boolean = true): Promise<WebviewProvider> {
-	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput, preserveEditorFocus)
-
-	return WebviewProvider.getInstance()
+export async function showWebview(preserveEditorFocus: boolean = true): Promise<WebviewProvider | undefined> {
+	try {
+		await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput, preserveEditorFocus)
+		return WebviewProvider.getInstance()
+	} catch (error) {
+		// Webview panel is closed (disposed) - show user-friendly error
+		vscode.window.showInformationMessage(
+			"Cline panel is closed. Please open the Cline sidebar to use this feature.",
+			"Open Cline",
+		).then((selection) => {
+			if (selection === "Open Cline") {
+				vscode.commands.executeCommand(`${ExtensionRegistryInfo.extension.id}.OpenCline`)
+			}
+		})
+		return undefined
+	}
 }
