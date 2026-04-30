@@ -72,6 +72,9 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
+	// Sanitize text input to remove null bytes and ASCII control characters
+	// that could be used for prompt injection attacks
+	const sanitizedText = request.text ? request.text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim() : request.text
+	const taskId = await controller.initTask(sanitizedText, request.images, request.files, undefined, filteredTaskSettings)
 	return String.create({ value: taskId || "" })
 }
