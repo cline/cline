@@ -779,6 +779,59 @@ describe("SessionRuntime.abort", () => {
 		expect(abortCalls).toEqual(["user cancelled"]);
 	});
 
+	it("observes an abort rejection before the caller awaits the run", async () => {
+		let rejectRun: ((error: Error) => void) | undefined;
+		const runGate = new Promise<AgentRunResult>((_resolve, reject) => {
+			rejectRun = reject;
+		});
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const abortCalls: unknown[] = [];
+		const runtime = {
+			async run() {
+				markRunStarted?.();
+				return await runGate;
+			},
+			async continue() {
+				markRunStarted?.();
+				return await runGate;
+			},
+			abort(reason?: unknown) {
+				abortCalls.push(reason);
+				rejectRun?.(new Error(String(reason ?? "aborted")));
+			},
+			subscribe() {
+				return () => {};
+			},
+			snapshot() {
+				return makeSnapshot();
+			},
+		} as unknown as AgentRuntime;
+		const unhandledReasons: unknown[] = [];
+		const onUnhandledRejection = (reason: unknown): void => {
+			unhandledReasons.push(reason);
+		};
+
+		process.prependListener("unhandledRejection", onUnhandledRejection);
+		try {
+			const session = new SessionRuntime(makeAgentConfig(), {
+				createAgentRuntimeImpl: () => runtime,
+			});
+			const runPromise = session.run("slow");
+			await runStarted;
+			session.abort("user cancelled");
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(unhandledReasons).toEqual([]);
+			await expect(runPromise).rejects.toThrow("user cancelled");
+			expect(abortCalls).toEqual(["user cancelled"]);
+		} finally {
+			process.off("unhandledRejection", onUnhandledRejection);
+		}
+	});
+
 	it("is a no-op when no run is active", () => {
 		const { deps } = withFakeRuntime();
 		const session = new SessionRuntime(makeAgentConfig(), deps);

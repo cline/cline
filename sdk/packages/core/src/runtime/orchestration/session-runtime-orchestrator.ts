@@ -194,7 +194,7 @@ export class SessionRuntime {
 	private abortReason: string | undefined;
 	/** Reference to the current run's `AgentRuntime` so `abort` can forward. */
 	private activeRuntime: AgentRuntime | null = null;
-	/** Promise for the current run so shutdown can await an aborted run's drain. */
+	/** Promise returned from the current run so shutdown can await its drain. */
 	private activeRunPromise: Promise<AgentResult> | null = null;
 	/** Per-run `Agent → AgentEvent` adapter; `reset()` each run. */
 	private readonly eventAdapter = new RuntimeEventAdapter();
@@ -541,7 +541,7 @@ export class SessionRuntime {
 	// Run / continue
 	// -------------------------------------------------------------------
 
-	async run(
+	run(
 		userMessage: string,
 		userImages?: string[],
 		userFiles?: string[],
@@ -556,7 +556,7 @@ export class SessionRuntime {
 		});
 	}
 
-	async continue(
+	continue(
 		userMessage?: string,
 		userImages?: string[],
 		userFiles?: string[],
@@ -573,21 +573,20 @@ export class SessionRuntime {
 	// Private implementation
 	// -------------------------------------------------------------------
 
-	private async executeRun(input: {
+	private executeRun(input: {
 		userMessage?: string;
 		userImages?: string[];
 		userFiles?: string[];
 		isContinue: boolean;
 	}): Promise<AgentResult> {
-		const runPromise = this.executeRunInternal(input);
-		this.activeRunPromise = runPromise;
-		try {
-			return await runPromise;
-		} finally {
-			if (this.activeRunPromise === runPromise) {
+		let activePromise!: Promise<AgentResult>;
+		activePromise = this.executeRunInternal(input).finally(() => {
+			if (this.activeRunPromise === activePromise) {
 				this.activeRunPromise = null;
 			}
-		}
+		});
+		this.activeRunPromise = activePromise;
+		return activePromise;
 	}
 
 	private async executeRunInternal(input: {
