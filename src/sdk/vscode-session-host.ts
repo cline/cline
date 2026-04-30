@@ -6,6 +6,7 @@
 
 import {
 	ClineCore,
+	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	type HookEventPayload,
@@ -13,8 +14,11 @@ import {
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
+	type RestoreSessionInput,
+	type RestoreSessionResult,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
+	type SessionHistoryRecord,
 	type SessionHost,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -94,6 +98,10 @@ export class VscodeSessionHost implements SessionHost {
 		return this.inner.start(input as ClineCoreStartInput)
 	}
 
+	async restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
+		return this.inner.restore(input)
+	}
+
 	async send(input: SendSessionInput) {
 		Logger.log(`[VscodeSessionHost] send() called: sessionId=${input.sessionId}, prompt=${input.prompt?.substring(0, 50)}`)
 		try {
@@ -140,8 +148,12 @@ export class VscodeSessionHost implements SessionHost {
 		return this.inner.get(sessionId)
 	}
 
-	async list(limit?: number): Promise<SessionRecord[]> {
-		return this.inner.list(limit)
+	async list(limit?: number, options: Omit<ClineCoreListHistoryOptions, "limit"> = {}): Promise<SessionRecord[]> {
+		return this.inner.list(limit, options)
+	}
+
+	async listHistory(options: ClineCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
+		return this.inner.listHistory(options)
 	}
 
 	async delete(sessionId: string): Promise<boolean> {

@@ -9,6 +9,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
+import type { SessionHistoryRecord } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -16,6 +17,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
+import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -34,6 +36,7 @@ import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
+import { arePathsEqual } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
@@ -60,6 +63,29 @@ import { WebviewGrpcBridge } from "./webview-grpc-bridge"
  */
 function stubWarn(name: string): void {
 	Logger.warn(`[SdkController] STUB: ${name} not yet implemented`)
+}
+
+function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
+	const value = metadata?.[key]
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): boolean | undefined {
+	const value = metadata?.[key]
+	return typeof value === "boolean" ? value : undefined
+}
+
+function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): string | undefined {
+	const value = metadata?.[key]
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function dateStringToTimestamp(value: string | null | undefined): number {
+	if (!value) {
+		return 0
+	}
+	const timestamp = Date.parse(value)
+	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +679,113 @@ export class Controller {
 	}
 
 	// ---- Task history (Step 4) ----
+
+	private async listSdkTaskHistory(): Promise<SessionHistoryRecord[]> {
+		const activeSessionManager = this.sessions.getActiveSession()?.sessionManager
+		if (activeSessionManager instanceof VscodeSessionHost) {
+			return activeSessionManager.listHistory({ limit: 10_000, includeManifestFallback: true })
+		}
+
+		const historyHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+		try {
+			return await historyHost.listHistory({ limit: 10_000, includeManifestFallback: true })
+		} finally {
+			await historyHost.dispose("listTaskHistory").catch((error) => {
+				Logger.warn("[SdkController] Failed to dispose history host:", error)
+			})
+		}
+	}
+
+	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
+		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		const sessionHistory = await this.listSdkTaskHistory()
+
+		let filteredTasks = sessionHistory.filter((item) => {
+			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
+			const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
+
+			if (!ts || !task) {
+				return false
+			}
+
+			const isFavorited =
+				metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
+			if (favoritesOnly && !isFavorited) {
+				return false
+			}
+
+			if (currentWorkspaceOnly && workspacePath) {
+				const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
+				if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
+					return false
+				}
+			}
+
+			return true
+		})
+
+		if (searchQuery) {
+			const query = searchQuery.toLowerCase()
+			filteredTasks = filteredTasks.filter((item) => {
+				const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
+				return task.toLowerCase().includes(query)
+			})
+		}
+
+		const totalCount = filteredTasks.length
+
+		filteredTasks.sort((a, b) => {
+			switch (sortBy) {
+				case "oldest":
+					return (
+						dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt) -
+						dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt)
+					)
+				case "mostExpensive":
+					return (metadataNumber(b.metadata, "totalCost") ?? 0) - (metadataNumber(a.metadata, "totalCost") ?? 0)
+				case "mostTokens":
+					return (
+						(metadataNumber(b.metadata, "tokensIn") ?? 0) +
+						(metadataNumber(b.metadata, "tokensOut") ?? 0) +
+						(metadataNumber(b.metadata, "cacheWrites") ?? 0) +
+						(metadataNumber(b.metadata, "cacheReads") ?? 0) -
+						((metadataNumber(a.metadata, "tokensIn") ?? 0) +
+							(metadataNumber(a.metadata, "tokensOut") ?? 0) +
+							(metadataNumber(a.metadata, "cacheWrites") ?? 0) +
+							(metadataNumber(a.metadata, "cacheReads") ?? 0))
+					)
+				case "newest":
+				default:
+					return (
+						dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
+						dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
+					)
+			}
+		})
+
+		const tasks = filteredTasks.map((item) => {
+			const metadata = item.metadata
+			return {
+				id: item.sessionId,
+				task: metadataString(metadata, "title") ?? item.prompt ?? "",
+				ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
+				isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
+				size: metadataNumber(metadata, "size") ?? 0,
+				totalCost: metadataNumber(metadata, "totalCost") ?? 0,
+				tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
+				tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
+				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
+				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
+				modelId: item.model || metadataString(metadata, "modelId") || "",
+			}
+		})
+
+		return TaskHistoryArray.create({
+			tasks,
+			totalCount,
+		})
+	}
 
 	async getTaskWithId(id: string): Promise<TaskWithId> {
 		return this.taskHistory.getTaskWithId(id)
