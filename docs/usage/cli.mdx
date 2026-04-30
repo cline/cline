@@ -22,29 +22,20 @@ cline "refactor this module to use async/await"
 cline --json "list TODO comments"
 ```
 
-## Core Usage Modes
-
-### Interactive mode
-
-Use interactive mode when you want back-and-forth collaboration.
-
-```bash
-cline
-```
-
-Common interactive actions:
-- `Tab` toggles Plan/Act
-- `Shift+Tab` toggles auto-approve all in TUI
-- `/settings`, `/models`, `/history`, `/clear`, `/help`, `/exit`
-- `@file` mentions for workspace context
-
-See: [Interactive Mode](/cli/interactive-mode)
-
-### Headless mode
+## Headless mode
 
 Use headless mode for scripts/automation and processable output.
 
 Headless is triggered when using flags like `--json`, when stdin is piped, or when output is redirected.
+
+#### When headless activates
+
+| Invocation | Reason |
+|---|---|
+| `cline --autoapprove true "task"` | Auto-approval mode for unattended execution |
+| `cline --json "task"` | JSON output mode |
+| `cat file \| cline "task"` | stdin is piped |
+| `cline "task" > output.txt` | stdout is redirected |
 
 ```bash
 # CI/script style execution
@@ -55,6 +46,28 @@ cline --json "summarize this changelog" | jq -r '.text'
 ```
 
 See: [Headless Mode](/cli/three-core-flows)
+
+### Autonomous execution
+
+For fully unattended runs, use auto-approval:
+
+```bash
+cline --autoapprove true "run tests and fix failures"
+```
+
+Mode selection also works in headless runs:
+
+```bash
+# plan-first
+cline --autoapprove true -p "design migration plan"
+
+# act immediately
+cline --autoapprove true -a "apply migration"
+```
+
+<Warning>
+Autonomous execution can modify files and run commands without further prompts. Use a clean branch and review results.
+</Warning>
 
 ## High-Value Commands
 
@@ -114,6 +127,39 @@ git diff | cline "explain these changes" | cline "write a commit message"
 ```bash
 export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *", "sudo *"]}'
 ```
+
+### Include images in tasks
+
+```bash
+cline -i screenshot.png "fix the layout issue shown in this screenshot"
+
+# or reference inline
+cline "fix the UI shown in @./design-mockup.png"
+```
+
+### Set execution timeout
+
+```bash
+cline --autoapprove true --timeout 600 "run full test suite"
+```
+
+## JSON Output Schema
+
+When using `--json`, each line is a JSON message object.
+
+```json
+{"type":"say","text":"I'll create the file now.","ts":1760501486669,"say":"text"}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | `"ask"` or `"say"` | Message category |
+| `text` | `string` | Message content |
+| `ts` | `number` | Unix timestamp in milliseconds |
+| `say` | `string` | Subtype when `type` is `"say"` |
+| `ask` | `string` | Subtype when `type` is `"ask"` |
+| `reasoning` | `string` | Optional model reasoning |
+| `partial` | `boolean` | Streaming flag |
 
 ## Next Steps
 
