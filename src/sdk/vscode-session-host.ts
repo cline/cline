@@ -14,8 +14,8 @@ import {
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
-	type RestoreSessionInput,
-	type RestoreSessionResult,
+	RestoreSessionInput,
+	RestoreSessionResult,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
 	type SessionHistoryRecord,
@@ -57,6 +57,13 @@ export class VscodeSessionHost implements SessionHost {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
 	}
+	restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
+		return this.inner.restore(input)
+	}
+	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
+		this.inner.updateSessionModel?.(sessionId, modelId)
+		throw new Error("Method not implemented.")
+	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
 		// Build defaultToolExecutors from options — only include keys that are provided
@@ -96,10 +103,6 @@ export class VscodeSessionHost implements SessionHost {
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
 		return this.inner.start(input as ClineCoreStartInput)
-	}
-
-	async restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
-		return this.inner.restore(input)
 	}
 
 	async send(input: SendSessionInput) {

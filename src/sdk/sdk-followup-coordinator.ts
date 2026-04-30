@@ -118,7 +118,7 @@ export class SdkFollowupCoordinator {
 	private async resumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
 
-		const historyItem = this.options.taskHistory.findHistoryItem(taskId)
+		const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
 		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.options.getWorkspaceRoot())
 
 		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")

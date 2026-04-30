@@ -130,7 +130,7 @@ export class SdkTaskStartCoordinator {
 		try {
 			await this.options.clearTask()
 
-			const historyItem = this.options.taskHistory.findHistoryItem(taskId)
+			const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
 			if (!historyItem) {
 				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
 				return

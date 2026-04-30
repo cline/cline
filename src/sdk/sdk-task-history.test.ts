@@ -1,12 +1,9 @@
+import type { SessionHistoryRecord } from "@clinebot/core"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { StateManager } from "@/core/storage/StateManager"
-import { readTaskHistory } from "./legacy-state-reader"
-import { SdkTaskHistory } from "./sdk-task-history"
-
-vi.mock("./legacy-state-reader", () => ({
-	readTaskHistory: vi.fn(() => []),
-}))
+import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkTaskHistory, sdkMessagesToClineMessages, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
 	GlobalFileNames: {
@@ -44,88 +41,108 @@ describe("SdkTaskHistory", () => {
 		vi.restoreAllMocks()
 	})
 
-	it("finds a task in global state before falling back to disk history", () => {
-		const localItem = makeHistoryItem("local-task")
-		const { manager } = makeStateManager([localItem])
-		const history = new SdkTaskHistory(manager)
+	it("maps SDK session history records to legacy history items", () => {
+		const result = sessionHistoryRecordToHistoryItem(
+			makeSessionRecord("task-1", {
+				metadata: {
+					title: "Build feature",
+					tokensIn: 10,
+					tokensOut: 20,
+					totalCost: 0.01,
+					isFavorited: true,
+				},
+				model: "claude-test",
+				cwd: "/repo",
+			}),
+		)
 
-		expect(history.findHistoryItem("local-task")).toBe(localItem)
-		expect(readTaskHistory).not.toHaveBeenCalled()
-	})
-
-	it("falls back to disk history when a task is missing from global state", () => {
-		const fallbackItem = makeHistoryItem("fallback-task")
-		vi.mocked(readTaskHistory).mockReturnValue([fallbackItem])
-		const { manager } = makeStateManager([])
-		const history = new SdkTaskHistory(manager)
-
-		expect(history.findHistoryItem("fallback-task")).toBe(fallbackItem)
-		expect(readTaskHistory).toHaveBeenCalled()
-	})
-
-	it("adds new task history items to the front of history", async () => {
-		const existingItem = makeHistoryItem("existing-task")
-		const newItem = makeHistoryItem("new-task")
-		const { manager, state } = makeStateManager([existingItem])
-		const history = new SdkTaskHistory(manager)
-
-		await expect(history.updateTaskHistory(newItem)).resolves.toEqual([newItem, existingItem])
-
-		expect(state.taskHistory).toEqual([newItem, existingItem])
-		expect(manager.setGlobalState).toHaveBeenCalledWith("taskHistory", [newItem, existingItem])
-	})
-
-	it("replaces existing task history items in place", async () => {
-		const originalItem = makeHistoryItem("task-1", { task: "old" })
-		const otherItem = makeHistoryItem("task-2")
-		const updatedItem = makeHistoryItem("task-1", { task: "new" })
-		const { manager, state } = makeStateManager([originalItem, otherItem])
-		const history = new SdkTaskHistory(manager)
-
-		await expect(history.updateTaskHistory(updatedItem)).resolves.toEqual([updatedItem, otherItem])
-
-		expect(state.taskHistory).toEqual([updatedItem, otherItem])
-		expect(manager.setGlobalState).toHaveBeenCalledWith("taskHistory", [updatedItem, otherItem])
-	})
-
-	it("removes task history items from state", async () => {
-		const taskToKeep = makeHistoryItem("keep-task")
-		const taskToDelete = makeHistoryItem("delete-task")
-		const { manager, state } = makeStateManager([taskToDelete, taskToKeep])
-		const history = new SdkTaskHistory(manager)
-
-		await expect(history.deleteTaskFromState("delete-task")).resolves.toEqual([taskToKeep])
-
-		expect(state.taskHistory).toEqual([taskToKeep])
-		expect(manager.setGlobalState).toHaveBeenCalledWith("taskHistory", [taskToKeep])
-	})
-
-	it("updates usage for an existing task history item", async () => {
-		vi.spyOn(Date, "now").mockReturnValue(123_456)
-		const item = makeHistoryItem("task-1", {
+		expect(result).toMatchObject({
+			id: "task-1",
+			task: "Build feature",
 			tokensIn: 10,
 			tokensOut: 20,
 			totalCost: 0.01,
+			isFavorited: true,
+			modelId: "claude-test",
+			cwdOnTaskInitialization: "/repo",
 		})
-		const { manager, state } = makeStateManager([item])
-		const history = new SdkTaskHistory(manager)
+		expect(result.ts).toBeGreaterThan(0)
+	})
 
-		history.updateTaskUsage("task-1", {
+	it("converts SDK persisted conversation messages to Cline messages", () => {
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "Build the feature" },
+			{ role: "assistant", content: [{ type: "text", text: "Done" }] },
+		])
+
+		expect(result).toMatchObject([
+			{ type: "say", say: "task", text: "Build the feature", partial: false },
+			{ type: "say", say: "text", text: "Done", partial: false },
+		])
+	})
+
+	it("finds a task from SDK history", async () => {
+		const record = makeSessionRecord("task-1")
+		const { history } = makeHistory([record])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({ id: "task-1", task: "task-1" })
+	})
+
+	it("returns undefined when a task is missing from SDK history", async () => {
+		const { history } = makeHistory([])
+
+		await expect(history.findHistoryItem("missing-task")).resolves.toBeUndefined()
+	})
+
+	it("updates SDK session metadata for task history changes", async () => {
+		const existing = makeSessionRecord("task-1", { metadata: { existing: true } })
+		const { history, updateSession } = makeHistory([existing])
+		const updatedItem = makeHistoryItem("task-1", { task: "new title", tokensIn: 5, totalCost: 0.02 })
+
+		await history.updateTaskHistory(updatedItem)
+
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				prompt: "new title",
+				title: "new title",
+				metadata: expect.objectContaining({ existing: true, title: "new title", tokensIn: 5, totalCost: 0.02 }),
+			}),
+		)
+	})
+
+	it("deletes SDK sessions", async () => {
+		const { history, deleteSession } = makeHistory([makeSessionRecord("task-1")])
+
+		await history.deleteTaskFromState("task-1")
+
+		expect(deleteSession).toHaveBeenCalledWith("task-1")
+	})
+
+	it("updates usage for an existing SDK task", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(123_456)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				metadata: {
+					tokensIn: 10,
+					tokensOut: 20,
+					totalCost: 0.01,
+				},
+			}),
+		])
+
+		await history.updateTaskUsage("task-1", {
 			tokensIn: 100,
 			tokensOut: 200,
 			totalCost: 0.03,
 		})
 
-		await vi.waitFor(() => expect(manager.setGlobalState).toHaveBeenCalled())
-		expect(state.taskHistory).toEqual([
-			{
-				...item,
-				tokensIn: 110,
-				tokensOut: 220,
-				totalCost: 0.04,
-				ts: 123_456,
-			},
-		])
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ tokensIn: 110, tokensOut: 220, totalCost: 0.04 }),
+			}),
+		)
 	})
 })
 
@@ -141,19 +158,63 @@ function makeHistoryItem(id: string, overrides: Partial<HistoryItem> = {}): Hist
 	}
 }
 
-function makeStateManager(initialHistory: HistoryItem[]) {
-	const state: { taskHistory?: HistoryItem[] } = {
-		taskHistory: initialHistory,
+function makeSessionRecord(id: string, overrides: Partial<SessionHistoryRecord> = {}): SessionHistoryRecord {
+	return {
+		sessionId: id,
+		source: "vscode",
+		pid: 1,
+		startedAt: "2026-01-01T00:00:00.000Z",
+		endedAt: null,
+		exitCode: null,
+		status: "completed",
+		interactive: true,
+		provider: "anthropic",
+		model: "claude-test",
+		cwd: "/repo",
+		workspaceRoot: "/repo",
+		enableTools: true,
+		enableSpawn: true,
+		enableTeams: false,
+		isSubagent: false,
+		prompt: id,
+		metadata: {},
+		updatedAt: "2026-01-01T00:00:00.000Z",
+		...overrides,
 	}
-	const manager = {
-		getGlobalStateKey: vi.fn((key: string) => state[key as "taskHistory"]),
-		setGlobalState: vi.fn(async (key: string, value: HistoryItem[]) => {
-			state[key as "taskHistory"] = value
-		}),
-	} as unknown as StateManager & {
-		getGlobalStateKey: ReturnType<typeof vi.fn>
-		setGlobalState: ReturnType<typeof vi.fn>
-	}
+}
 
-	return { manager, state }
+function makeHistory(records: SessionHistoryRecord[]) {
+	let currentRecords = records
+	const updateSession = vi.fn(
+		async (
+			sessionId: string,
+			updates: { prompt?: string | null; metadata?: Record<string, unknown> | null; title?: string | null },
+		) => {
+			currentRecords = currentRecords.map((record) =>
+				record.sessionId === sessionId
+					? { ...record, prompt: updates.prompt ?? record.prompt, metadata: updates.metadata ?? record.metadata }
+					: record,
+			)
+			return { updated: true }
+		},
+	)
+	const deleteSession = vi.fn(async (sessionId: string) => {
+		currentRecords = currentRecords.filter((record) => record.sessionId !== sessionId)
+		return true
+	})
+	const listHistory = vi.fn(async () => currentRecords)
+	const host = {
+		listHistory,
+		update: updateSession,
+		delete: deleteSession,
+	} as unknown as VscodeSessionHost
+	const sessions = {
+		getActiveSession: () => ({ sessionManager: host }),
+	} as unknown as SdkSessionLifecycle
+	const history = new SdkTaskHistory({
+		mcpHub: {} as any,
+		sessions,
+	})
+
+	return { history, listHistory, updateSession, deleteSession }
 }
