@@ -1,3 +1,4 @@
+import { SessionHost } from "@clinebot/core"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -40,11 +41,8 @@ export interface SdkTaskStartCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	onCancelTask: () => Promise<void>
 	getWorkspaceRoot: () => Promise<string>
-	createTempSessionHost: () => Promise<{ readMessages(id: string): Promise<unknown[]>; dispose(reason: string): Promise<void> }>
-	loadInitialMessages: (
-		reader: { readMessages(id: string): Promise<unknown[]> },
-		taskId: string,
-	) => Promise<unknown[] | undefined>
+	createTempSessionHost: () => Promise<SessionHost>
+	loadInitialMessages: (reader: SessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void

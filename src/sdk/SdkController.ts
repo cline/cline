@@ -712,7 +712,7 @@ export class Controller {
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const sessionHistory = await this.listSdkTaskHistory()
+		const sessionHistory = await this.listSdkTaskHistory({ hydrate: false })
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)

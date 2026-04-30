@@ -1,14 +1,11 @@
+import { SessionHost } from "@clinebot/core"
 import { Logger } from "@/shared/services/Logger"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 
-export interface SessionHistoryReader {
-	readMessages(id: string): Promise<unknown[]>
-}
-
 export class SdkSessionHistoryLoader {
-	async loadInitialMessages(reader: SessionHistoryReader, taskId: string): Promise<unknown[] | undefined> {
+	async loadInitialMessages(sessionHost: SessionHost, taskId: string): Promise<unknown[] | undefined> {
 		try {
-			const sdkMessages = await reader.readMessages(taskId)
+			const sdkMessages = await sessionHost.readMessages(taskId)
 			if (sdkMessages.length > 0) {
 				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(sdkMessages)
 				if (sanitizedMessages !== sdkMessages) {
