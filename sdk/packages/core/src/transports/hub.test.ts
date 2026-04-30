@@ -1,3 +1,4 @@
+import type { HubEventEnvelope, ToolContext } from "@clinebot/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionSource } from "../types/common";
 
@@ -5,6 +6,7 @@ const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
+const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
 
 vi.mock("../hub/client", () => ({
 	NodeHubClient: class {
@@ -12,6 +14,7 @@ vi.mock("../hub/client", () => ({
 		subscribe = subscribeMock;
 		close = closeMock;
 		dispose = disposeMock;
+		getClientId = getClientIdMock;
 	},
 }));
 
@@ -36,6 +39,7 @@ describe("HubRuntimeHost", () => {
 		subscribeMock.mockReset();
 		closeMock.mockReset();
 		disposeMock.mockReset();
+		getClientIdMock.mockClear();
 	});
 
 	it("does not auto-start a run during session creation", async () => {
@@ -249,6 +253,91 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 		expect(eventOrder).toEqual(["tool-started", "approval-requested"]);
+	});
+
+	it("keeps local tool executors available after a run completes", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock
+			.mockResolvedValueOnce({
+				payload: {
+					session: {
+						sessionId: "sess-1",
+						status: "running",
+						createdAt: Date.now(),
+						updatedAt: Date.now(),
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+					},
+				},
+			})
+			.mockResolvedValueOnce({ ok: true, payload: {} });
+		const askQuestion = vi.fn(
+			async (_question: string, _options: string[], _context: ToolContext) =>
+				"Use the SDK",
+		);
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+			localRuntime: {
+				defaultToolExecutors: {
+					askQuestion,
+				},
+			},
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: { reason: "completed" },
+		});
+		onEvent?.({
+			version: "v1",
+			event: "capability.requested",
+			sessionId: "sess-1",
+			payload: {
+				requestId: "capreq-1",
+				targetClientId: "client-1",
+				capabilityName: "tool_executor.askQuestion",
+				payload: {
+					args: ["Which approach?", ["Use the SDK", "Write custom code"]],
+					context: {
+						agentId: "agent-1",
+						conversationId: "sess-1",
+						iteration: 1,
+					},
+				},
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(askQuestion).toHaveBeenCalledWith(
+			"Which approach?",
+			["Use the SDK", "Write custom code"],
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "sess-1",
+				iteration: 1,
+			}),
+		);
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"capability.respond",
+			{
+				requestId: "capreq-1",
+				ok: true,
+				payload: { result: "Use the SDK" },
+			},
+			"sess-1",
+		);
 	});
 
 	it("tears down session stream subscriptions when a session stops", async () => {

@@ -240,6 +240,7 @@ function serializeToolContext(context: ToolContext): Record<string, unknown> {
 }
 
 export function createCapabilityBackedToolExecutors(
+	sessionId: string,
 	targetClientId: string,
 	executors: HubToolExecutorName[],
 	requestCapability: (
@@ -256,7 +257,7 @@ export function createCapabilityBackedToolExecutors(
 		context: ToolContext,
 	): Promise<unknown> => {
 		const response = await requestCapability(
-			context.conversationId,
+			sessionId,
 			`tool_executor.${executor}`,
 			{
 				executor,

@@ -4,6 +4,7 @@ import type {
 	JsonValue,
 	ToolApprovalRequest,
 } from "@clinebot/shared";
+import { createSessionId } from "@clinebot/shared";
 import { retainCheckpointRefs } from "../../../hooks/checkpoint-hooks";
 import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
 import {
@@ -89,6 +90,11 @@ export async function handleSessionCreate(
 	const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
 		? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
 		: [];
+	const requestedSessionId =
+		typeof sessionConfig?.sessionId === "string"
+			? sessionConfig.sessionId.trim()
+			: "";
+	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
@@ -109,6 +115,7 @@ export async function handleSessionCreate(
 			},
 			configExtensions,
 			defaultToolExecutors: createCapabilityBackedToolExecutors(
+				sessionId,
 				clientId,
 				advertisedToolExecutors,
 				ctx.requestCapability,
@@ -117,6 +124,7 @@ export async function handleSessionCreate(
 		requestToolApproval,
 		config: {
 			...(sessionConfig ?? {}),
+			sessionId,
 			providerId:
 				sessionConfig?.providerId ??
 				(typeof modelSelection.provider === "string"
@@ -343,6 +351,11 @@ export async function handleSessionRestore(
 		const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
 			? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
 			: [];
+		const requestedSessionId =
+			typeof sessionConfig?.sessionId === "string"
+				? sessionConfig.sessionId.trim()
+				: "";
+		const sessionId = requestedSessionId || createSessionId();
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
@@ -367,6 +380,7 @@ export async function handleSessionRestore(
 				defaultToolExecutors:
 					advertisedToolExecutors.length > 0
 						? createCapabilityBackedToolExecutors(
+								sessionId,
 								clientId,
 								advertisedToolExecutors,
 								ctx.requestCapability,
@@ -376,6 +390,7 @@ export async function handleSessionRestore(
 			requestToolApproval,
 			config: {
 				...(sessionConfig ?? {}),
+				sessionId,
 				providerId:
 					sessionConfig?.providerId ??
 					(typeof modelSelection.provider === "string"

@@ -986,7 +986,6 @@ export class HubRuntimeHost implements RuntimeHost {
 			}
 			case "run.completed":
 			case "run.aborted": {
-				this.sessionToolExecutors.delete(sessionId);
 				this.events.emit({
 					type: "agent_event",
 					payload: {

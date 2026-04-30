@@ -1,4 +1,9 @@
+import type { HubEventEnvelope, ToolContext } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
+import type {
+	StartSessionInput,
+	StartSessionResult,
+} from "../../runtime/host/runtime-host";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "../server";
 import {
@@ -260,6 +265,131 @@ describe("HubServerTransport boundaries", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("publishes capability-backed tools on the hub session stream", async () => {
+		let capturedStartInput: StartSessionInput | undefined;
+		const start = vi.fn(
+			async (input: StartSessionInput): Promise<StartSessionResult> => {
+				capturedStartInput = input;
+				const sessionId = input.config.sessionId?.trim() || "missing-session";
+				return {
+					sessionId,
+					manifest: {
+						version: 1,
+						session_id: sessionId,
+						source: "cli",
+						pid: 1,
+						started_at: new Date(0).toISOString(),
+						status: "running",
+						interactive: true,
+						provider: "cline",
+						model: "test-model",
+						cwd: "/tmp/project",
+						workspace_root: "/tmp/project",
+						enable_tools: true,
+						enable_spawn: true,
+						enable_teams: false,
+					},
+					manifestPath: "",
+					messagesPath: "",
+					result: undefined,
+				};
+			},
+		);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				start,
+				stop: vi.fn(),
+				send: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				get: vi.fn().mockImplementation(async (sessionId: string) => ({
+					sessionId,
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				})),
+				list: vi.fn(),
+				delete: vi.fn(),
+				update: vi.fn(),
+				handleHookEvent: vi.fn(),
+				readMessages: vi.fn(),
+			} as never,
+		});
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("client-1", (event) => events.push(event));
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-create",
+			command: "session.create",
+			clientId: "client-1",
+			payload: {
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+				sessionConfig: {
+					providerId: "cline",
+					modelId: "test-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					systemPrompt: "system",
+				},
+				metadata: { source: "cli", interactive: true },
+				runtimeOptions: { toolExecutors: ["askQuestion"] },
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		const sessionId = capturedStartInput?.config.sessionId?.trim() || "";
+		expect(sessionId).toMatch(/^[0-9]/);
+		const askQuestion =
+			capturedStartInput?.localRuntime?.defaultToolExecutors?.askQuestion;
+		if (!askQuestion) {
+			throw new Error("Expected askQuestion executor to be registered");
+		}
+		const toolContext: ToolContext = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+		const answerPromise = askQuestion(
+			"Which path?",
+			["Use hub", "Use local"],
+			toolContext,
+		);
+		await Promise.resolve();
+
+		const request = events.find(
+			(event) => event.event === "capability.requested",
+		);
+		expect(request?.sessionId).toBe(sessionId);
+		expect(request?.payload?.payload).toMatchObject({
+			context: { conversationId: "conv-1" },
+		});
+		const requestId =
+			typeof request?.payload?.requestId === "string"
+				? request.payload.requestId
+				: "";
+		expect(requestId).toMatch(/^capreq_/);
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-response",
+			command: "capability.respond",
+			clientId: "client-1",
+			sessionId,
+			payload: {
+				requestId,
+				ok: true,
+				payload: { result: "Use hub" },
+			},
+		});
+
+		await expect(answerPromise).resolves.toBe("Use hub");
 	});
 
 	it("forwards run file attachment paths to the session host", async () => {
