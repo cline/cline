@@ -49,6 +49,26 @@ Edit your MCP config file and add either:
     - **Local (STDIO)** server using `command` + `args`
     - **Remote (HTTP/SSE)** server using `url`
 
+### CLI MCP wizard
+
+From CLI, run:
+
+```bash
+cline mcp
+```
+
+The wizard supports:
+
+| Action | Description |
+|---|---|
+| List servers | Show configured servers and enabled/disabled status |
+| Add server | Create a new MCP server entry |
+| Edit server | Modify an existing server |
+| Enable/Disable | Toggle a server without deleting it |
+| Delete server | Remove a server permanently |
+
+When adding a server, the CLI prompts for server name, transport type, command/args (for stdio), or URL/headers (for remote transports).
+
 ## Configuration examples
 
 ### Local server (STDIO)
@@ -121,3 +141,10 @@ In MCP settings you can:
 ## CLI
 
 MCP also works in Cline CLI. Configure servers in CLI MCP settings and use the same server definitions.
+
+You can also list servers non-interactively:
+
+```bash
+cline config mcp
+cline config mcp --json
+```

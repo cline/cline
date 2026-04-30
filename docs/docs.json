@@ -119,7 +119,14 @@
 									"cli/samples/model-orchestration"
 								]
 							},
-							"usage/kanban"
+							{
+								"group": "Kanban",
+								"pages": [
+									"usage/kanban",
+									"kanban/core-workflow",
+									"kanban/remote-access"
+								]
+							}
 						]
 					},
 					{
@@ -131,20 +138,22 @@
 							"customization/plugins",
 							"mcp/mcp-overview",
 							"customization/hooks",
+							"cli/scheduling",
+							"cli/connectors",
 							"customization/clineignore"
 						]
 					},
 					{
 						"group": "Features",
 						"pages": [
-							"core-workflows/task-management",
 							"core-workflows/plan-and-act",
 							"core-workflows/working-with-files",
 							"core-workflows/using-commands",
 							"core-workflows/checkpoints",
+							"cli/agent-teams",
+							"features/subagents",
 							"features/auto-approve",
 							"features/multiroot-workspace",
-							"features/subagents",
 							"features/jupyter-notebooks",
 							"features/web-tools"
 						]
@@ -154,8 +163,7 @@
 						"group": "Troubleshooting",
 						"pages": [
 							"troubleshooting/terminal-quick-fixes",
-							"troubleshooting/networking-and-proxies",
-							"troubleshooting/task-history-recovery"
+							"troubleshooting/networking-and-proxies"
 						]
 					}
 				]
@@ -176,15 +184,6 @@
 						"group": "Usage",
 						"pages": [
 							"cli/three-core-flows"
-						]
-					},
-					{
-						"group": "Features",
-						"pages": [
-							"cli/connectors",
-							"cli/scheduling",
-							"cli/mcp-servers",
-							"cli/agent-teams"
 						]
 					},
 					{
@@ -255,22 +254,7 @@
 					}
 				]
 			},
-			{
-				"tab": "Kanban",
-				"icon": "table-columns",
-				"groups": [
-					{
-						"group": "Cline Kanban",
-						"pages": [
-							"kanban/overview",
-							"kanban/getting-started",
-							"kanban/core-workflow",
-							"kanban/features",
-							"kanban/remote-access"
-						]
-					}
-				]
-			},
+
 			{
 				"tab": "Enterprise",
 				"icon": "building",
@@ -730,7 +714,11 @@
 		},
 		{
 			"source": "/cline-cli/mcp-servers",
-			"destination": "/cli/mcp-servers"
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/cli/mcp-servers",
+			"destination": "/mcp/mcp-overview"
 		},
 		{
 			"source": "/cline-cli/agent-teams",
