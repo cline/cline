@@ -89,33 +89,63 @@ export function sanitizeInitialMessagesForSessionStart(messages: unknown[]): unk
 			continue
 		}
 
-		const originalBlocks = toBlocks(next.content)
+		// Collect tool_result blocks from ALL consecutive user messages after
+		// the assistant.  The SDK persists each parallel tool result as a
+		// separate user message, so we must scan beyond just `i + 1`.
+		const toolUseIdSet = new Set(toolUseIds)
 		const matchingToolResults = new Map<string, GenericContentBlock>()
+		const otherBlocks: GenericContentBlock[] = []
+		let userSpan = 0 // how many consecutive user messages we consumed
 
-		for (const block of originalBlocks) {
-			for (const toolUseId of toolUseIds) {
-				if (!matchingToolResults.has(toolUseId) && isToolResultForId(block, toolUseId)) {
-					matchingToolResults.set(toolUseId, block)
+		for (let j = i + 1; j < sanitized.length; j++) {
+			const msg = sanitized[j]
+			if (!isRecord(msg) || msg.role !== "user") {
+				break
+			}
+
+			const blocks = toBlocks(msg.content)
+			for (const block of blocks) {
+				let matched = false
+				for (const toolUseId of toolUseIds) {
+					if (!matchingToolResults.has(toolUseId) && isToolResultForId(block, toolUseId)) {
+						matchingToolResults.set(toolUseId, block)
+						matched = true
+						break
+					}
+				}
+				if (!matched) {
+					// Keep non-matching tool_results (for other tool_use IDs)
+					// and any non-tool content.
+					if (
+						block.type === "tool_result" &&
+						typeof block.tool_use_id === "string" &&
+						toolUseIdSet.has(block.tool_use_id)
+					) {
+						// Duplicate tool_result for an ID we already matched — skip it
+					} else {
+						otherBlocks.push(block)
+					}
 				}
 			}
+			userSpan++
 		}
 
 		const missingToolResultIds = toolUseIds.filter((toolUseId) => !matchingToolResults.has(toolUseId))
 		const orderedToolResults = toolUseIds.map(
 			(toolUseId) => matchingToolResults.get(toolUseId) ?? createMissingToolResult(toolUseId),
 		)
-		const otherBlocks = originalBlocks.filter((block) => !toolUseIds.some((toolUseId) => isToolResultForId(block, toolUseId)))
 
 		// If we had to synthesize missing tool_result blocks (or are carrying the
 		// migration placeholder from a previous resume attempt), keep the immediate
 		// response message strictly tool_result-only for maximum provider compatibility.
 		// Move any existing non-tool-result content into a follow-up user message.
 		const hasMigrationPlaceholder = orderedToolResults.some(isMigrationPlaceholderToolResult)
-		if (missingToolResultIds.length > 0 || hasMigrationPlaceholder) {
-			sanitized[i + 1] = {
+		if (missingToolResultIds.length > 0 || hasMigrationPlaceholder || userSpan > 1) {
+			// Replace the span of user messages with a single consolidated message
+			sanitized.splice(i + 1, userSpan, {
 				...next,
 				content: orderedToolResults,
-			}
+			})
 			if (otherBlocks.length > 0) {
 				sanitized.splice(i + 2, 0, {
 					role: "user",
@@ -128,6 +158,7 @@ export function sanitizeInitialMessagesForSessionStart(messages: unknown[]): unk
 		}
 
 		const newContent = [...orderedToolResults, ...otherBlocks]
+		const originalBlocks = toBlocks(next.content)
 		const differsInLength = newContent.length !== originalBlocks.length
 		const differsInOrder = !differsInLength && newContent.some((block, index) => block !== originalBlocks[index])
 		if (differsInLength || differsInOrder) {
