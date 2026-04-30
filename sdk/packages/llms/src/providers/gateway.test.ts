@@ -1379,6 +1379,70 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("keeps AI SDK tool-error parts recoverable", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "run_commands",
+					input: '{"commands": find /workspace | head -20}',
+				},
+				{
+					type: "tool-error",
+					toolCallId: "call_1",
+					toolName: "run_commands",
+					input: '{"commands": find /workspace | head -20}',
+					error: "Invalid input for tool run_commands: JSON parsing failed",
+				},
+				{
+					type: "finish",
+					finishReason: "tool-calls",
+					usage: { inputTokens: 1, outputTokens: 1 },
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex-cli" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-codex-cli",
+				modelId: "gpt-5.3-codex",
+				messages: baseMessages,
+			}),
+		);
+
+		const toolCallEvents = events.filter(
+			(event): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> =>
+				event.type === "tool-call-delta",
+		);
+		expect(toolCallEvents).toHaveLength(2);
+		expect(toolCallEvents[0]).toMatchObject({
+			toolCallId: "call_1",
+			toolName: "run_commands",
+			inputText: '{"commands": find /workspace | head -20}',
+		});
+		expect(toolCallEvents[1]).toMatchObject({
+			toolCallId: "call_1",
+			toolName: "run_commands",
+			metadata: {
+				inputParseError: expect.stringContaining(
+					"Invalid input for tool run_commands",
+				),
+				aiSdkToolError:
+					"Invalid input for tool run_commands: JSON parsing failed",
+			},
+		});
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "tool-calls",
+			error: undefined,
+		});
+	});
+
 	it("passes Codex instructions through provider options and removes the system message from messages", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

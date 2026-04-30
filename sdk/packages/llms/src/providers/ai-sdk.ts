@@ -240,6 +240,23 @@ function buildToolCallMetadata(input: {
 	});
 }
 
+function buildRecoverableToolErrorMetadata(input: {
+	part: AiSdkStreamPart;
+	errorMessage: string;
+	request: GatewayStreamRequest;
+	context: GatewayProviderContext;
+	toolName: string;
+}): Record<string, unknown> {
+	return buildToolCallMetadata({
+		metadata: mergeToolCallMetadata(extractGoogleThoughtMetadata(input.part), {
+			inputParseError: `Tool call ${input.toolName} was rejected before execution: ${input.errorMessage}`,
+			aiSdkToolError: input.errorMessage,
+		}),
+		request: input.request,
+		context: input.context,
+	});
+}
+
 function resolveAiSdkSystemPrompt(
 	request: GatewayStreamRequest,
 ): string | undefined {
@@ -576,6 +593,7 @@ async function* emitAiSdkEvents(
 	capturedError?: { current: string | undefined },
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
+	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
 	let streamError: string | undefined;
 	let finishUsage: unknown;
@@ -612,15 +630,17 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "tool-call") {
 					sawToolCalls = true;
+					const toolCallId =
+						(part.toolCallId as string | undefined) ??
+						(part.id as string | undefined) ??
+						`tool_${nanoid()}`;
+					emittedToolCallIds.add(toolCallId);
 					const input = (part.input ?? part.args ?? {}) as unknown;
 					const inputText =
 						typeof input === "string" ? input : JSON.stringify(input);
 					yield {
 						type: "tool-call-delta",
-						toolCallId:
-							(part.toolCallId as string | undefined) ??
-							(part.id as string | undefined) ??
-							`tool_${nanoid()}`,
+						toolCallId,
 						toolName:
 							(part.toolName as string | undefined) ??
 							(part.name as string | undefined) ??
@@ -636,6 +656,46 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "tool-error") {
+					sawToolCalls = true;
+					const toolCallId =
+						(part.toolCallId as string | undefined) ??
+						(part.id as string | undefined) ??
+						`tool_${nanoid()}`;
+					const alreadyEmitted = emittedToolCallIds.has(toolCallId);
+					emittedToolCallIds.add(toolCallId);
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					const input = (part.input ?? part.args ?? {}) as unknown;
+					const inputText =
+						typeof input === "string" ? input : JSON.stringify(input);
+					const errorMessage =
+						part.error === undefined
+							? "Tool input was rejected by the model adapter"
+							: extractErrorMessage(part.error);
+					yield {
+						type: "tool-call-delta",
+						toolCallId,
+						toolName,
+						input: alreadyEmitted
+							? undefined
+							: typeof input === "string"
+								? undefined
+								: input,
+						inputText: alreadyEmitted ? undefined : inputText,
+						metadata: buildRecoverableToolErrorMetadata({
+							part,
+							errorMessage,
+							request,
+							context,
+							toolName,
+						}),
+					};
+					continue;
+				}
+
 				if (part.type === "finish") {
 					finishUsage = part.usage ?? part.totalUsage;
 					finishProviderMetadata = part.providerMetadata;
@@ -643,7 +703,7 @@ async function* emitAiSdkEvents(
 						part.finishReason ?? part.rawFinishReason ?? part.reason;
 				}
 
-				if (part.type === "error" || part.type === "tool-error") {
+				if (part.type === "error") {
 					streamError =
 						capturedError?.current ?? extractErrorMessage(part.error);
 					break;
@@ -823,7 +883,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 
 				// Suppress dangling promise rejections (finishReason, totalUsage, steps, etc.)
 				// BEFORE iterating. The AI SDK rejects these DelayedPromises inside the stream's
-				// flush callback, which runs during iteration — so we must attach .catch() handlers
+				// flush callback, which runs during iteration, so we must attach .catch() handlers
 				// upfront or Bun/Node will surface them as unhandled rejections.
 				suppressDanglingStreamPromises(stream);
 

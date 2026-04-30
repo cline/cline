@@ -444,9 +444,6 @@ export class AgentRuntime {
 					finishReason,
 				});
 
-				if (finishReason === "error") {
-					throw new Error(this.state.lastError ?? "Model stream failed");
-				}
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
@@ -455,6 +452,9 @@ export class AgentRuntime {
 					(part: AgentMessagePart): part is AgentToolCallPart =>
 						part.type === "tool-call",
 				);
+				if (finishReason === "error" && toolCalls.length === 0) {
+					throw new Error(this.state.lastError ?? "Model stream failed");
+				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
 
 				if (toolCalls.length === 0) {
@@ -677,7 +677,10 @@ export class AgentRuntime {
 						assembly.inputValue = event.input;
 					}
 					if (event.metadata !== undefined) {
-						assembly.metadata = event.metadata;
+						assembly.metadata = mergeToolMetadata(
+							assembly.metadata,
+							event.metadata,
+						);
 					}
 					if (event.inputText) {
 						assembly.inputText = mergeToolInputText(
@@ -1117,10 +1120,10 @@ function buildEventMetadata(event: AgentRuntimeEvent): Record<string, unknown> {
 	};
 }
 
-function mergeToolMetadata(
-	current: unknown,
-	patch: Record<string, unknown>,
-): Record<string, unknown> {
+function mergeToolMetadata(current: unknown, patch: unknown): unknown {
+	if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+		return patch;
+	}
 	if (!current || typeof current !== "object" || Array.isArray(current)) {
 		return patch;
 	}

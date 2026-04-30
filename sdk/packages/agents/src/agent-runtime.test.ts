@@ -583,6 +583,121 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("recovered");
 	});
 
+	it("recovers when a model stream reports an invalid tool input error after a tool call", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "bad_json",
+					toolName: "echo",
+					inputText: '{"text": find /tmp | head -20}',
+				},
+				{
+					type: "finish",
+					reason: "error",
+					error: "Invalid input for tool echo",
+				},
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					toolName: "echo",
+					isError: true,
+					output: {
+						error: expect.stringContaining(
+							"Tool call echo emitted invalid JSON arguments",
+						),
+					},
+				});
+				return [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(
+			result.messages.filter((message) => message.role === "tool"),
+		).toHaveLength(1);
+	});
+
+	it("merges metadata from repeated tool-call deltas", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_with_metadata",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+					metadata: {
+						thoughtSignature: "sig_123",
+					},
+				},
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_with_metadata",
+					toolName: "echo",
+					metadata: {
+						inputParseError: "adapter rejected tool input",
+					},
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const assistantMessage = request.messages.find(
+					(message) => message.role === "assistant",
+				);
+				const toolCall = assistantMessage?.content.find(
+					(part) => part.type === "tool-call",
+				);
+				expect(toolCall).toMatchObject({
+					type: "tool-call",
+					metadata: {
+						thoughtSignature: "sig_123",
+						inputParseError: "adapter rejected tool input",
+					},
+				});
+				const toolResult = request.messages.at(-1)?.content[0];
+				expect(toolResult).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: {
+						error: "adapter rejected tool input",
+					},
+				});
+				return [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(executeTool).not.toHaveBeenCalled();
+	});
+
 	it("accepts corrected full argument snapshots for the same streamed tool call", async () => {
 		const model = new ScriptedModel([
 			() => [
