@@ -3,12 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
 import { pushMessageToWebview } from "./webview-grpc-bridge"
 
-const saveClineMessages = vi.fn().mockResolvedValue(undefined)
-
-vi.mock("@core/storage/disk", () => ({
-	saveClineMessages,
-}))
-
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
 }))
@@ -43,7 +37,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it("clears the active session and saves finalized task messages", async () => {
+	it("clears the active session and task proxy without writing classic UI message persistence", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("task-1", [{ ts: 1, type: "say", say: "text", text: "hi", partial: true }])
 		const { coordinator, options, state } = makeCoordinator({ activeSession, task })
@@ -54,8 +48,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
 		expect(activeSession.sessionManager.stop).toHaveBeenCalledWith("session-123")
 		expect(activeSession.sessionManager.dispose).toHaveBeenCalledWith("clearTask")
-		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
-		expect(saveClineMessages).toHaveBeenCalledWith("task-1", [{ ts: 1, type: "say", say: "text", text: "final" }])
+		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(state.task).toBeUndefined()

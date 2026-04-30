@@ -52,7 +52,7 @@ import { SdkSessionFactory } from "./sdk-session-factory"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
-import { SdkTaskHistory, type TaskWithId } from "./sdk-task-history"
+import { SdkTaskHistory, sessionHistoryRecordToHistoryItem, type TaskWithId } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import type { TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -848,14 +848,19 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			// NOTE: Prior to the foreground-terminal removal on main (PR #10196,
-			// commit 1862f1595), we had to override state.vscodeTerminalExecutionMode
-			// = "backgroundExec" so CommandOutputRow would render the background-exec
-			// UI (cancel button, log file links, correct status text). After that PR
-			// the webview unconditionally treats every command as background-exec
-			// (ChatRow hardcodes isBackgroundExec={true}), and the field was removed
-			// from ExtensionState, so the override is no longer necessary.
-			return state
+			const sdkTaskHistory = (await this.listSdkTaskHistory())
+				.map(sessionHistoryRecordToHistoryItem)
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts)
+			const processedTaskHistory = sdkTaskHistory.slice(0, 100)
+
+			return {
+				...state,
+				currentTaskItem: this.task?.taskId
+					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
+					: undefined,
+				taskHistory: processedTaskHistory,
+			}
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
