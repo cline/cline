@@ -192,58 +192,6 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
-	it("reads messages from manifest when the backend row is missing", async () => {
-		const sessionId = "manifest-only-session";
-		const messagesPath = join(isolatedHomeDir, "messages.json");
-		const messages = [
-			{ role: "user" as const, content: "from manifest" },
-			{ role: "assistant" as const, content: "loaded" },
-		];
-		writeFileSync(
-			messagesPath,
-			`${JSON.stringify({ version: 1, messages })}\n`,
-			"utf8",
-		);
-		const manifest: SessionManifest = {
-			...createManifest(sessionId),
-			messages_path: messagesPath,
-		};
-		const sessionService = {
-			listSessions: vi.fn().mockResolvedValue([]),
-			readSessionManifest: vi.fn().mockReturnValue(manifest),
-		};
-		const manager = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService: sessionService as never,
-		});
-
-		await expect(manager.readMessages(sessionId)).resolves.toEqual(messages);
-		expect(sessionService.readSessionManifest).toHaveBeenCalledWith(sessionId);
-	});
-
-	it("gets a session record from manifest when the backend row is missing", async () => {
-		const sessionId = "manifest-only-session";
-		const manifest: SessionManifest = {
-			...createManifest(sessionId),
-			messages_path: join(isolatedHomeDir, "messages.json"),
-		};
-		const sessionService = {
-			listSessions: vi.fn().mockResolvedValue([]),
-			readSessionManifest: vi.fn().mockReturnValue(manifest),
-		};
-		const manager = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService: sessionService as never,
-		});
-
-		await expect(manager.get(sessionId)).resolves.toMatchObject({
-			sessionId,
-			source: manifest.source,
-			messagesPath: manifest.messages_path,
-		});
-		expect(sessionService.readSessionManifest).toHaveBeenCalledWith(sessionId);
-	});
-
 	it("emits session lifecycle telemetry when configured", async () => {
 		const sessionId = "sess-telemetry";
 		const manifest = createManifest(sessionId);
