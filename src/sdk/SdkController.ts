@@ -17,7 +17,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
-import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
+import { GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -86,6 +86,22 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	}
 	const timestamp = Date.parse(value)
 	return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function sdkHistoryRecordToTaskResponse(item: SessionHistoryRecord): TaskResponse {
+	const metadata = item.metadata
+	return TaskResponse.create({
+		id: item.sessionId,
+		task: metadataString(metadata, "title") ?? item.prompt ?? "",
+		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
+		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
+		size: metadataNumber(metadata, "size") ?? 0,
+		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
+		tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
+		tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
+		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
+		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +180,6 @@ export class Controller {
 		this.messageTranslatorState = new MessageTranslatorState()
 		this.messages = new SdkMessageCoordinator({ getTask: () => this.task })
 		this.sessionHistory = new SdkSessionHistoryLoader()
-		this.taskHistory = new SdkTaskHistory(this.stateManager)
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
@@ -229,6 +244,10 @@ export class Controller {
 				}
 				this.postStateToWebview().catch(() => {})
 			},
+		})
+		this.taskHistory = new SdkTaskHistory({
+			mcpHub: this.mcpHub,
+			sessions: this.sessions,
 		})
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
@@ -587,8 +606,14 @@ export class Controller {
 	 * 2. Create the new task proxy with loaded messages BEFORE any state push
 	 * 3. Only then push state to the webview
 	 */
-	async showTaskWithId(taskId: string): Promise<void> {
-		await this.taskControl.showTaskWithId(taskId)
+	async showTaskWithId(taskId: string): Promise<TaskResponse> {
+		const historyItem = (await this.listSdkTaskHistory()).find((item) => item.sessionId === taskId)
+		if (!historyItem) {
+			throw new Error(`Task not found in history: ${taskId}`)
+		}
+
+		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
+		return sdkHistoryRecordToTaskResponse(historyItem)
 	}
 
 	// ---- Mode switching (Step 8) ----
@@ -681,19 +706,7 @@ export class Controller {
 	// ---- Task history (Step 4) ----
 
 	private async listSdkTaskHistory(): Promise<SessionHistoryRecord[]> {
-		const activeSessionManager = this.sessions.getActiveSession()?.sessionManager
-		if (activeSessionManager instanceof VscodeSessionHost) {
-			return activeSessionManager.listHistory({ limit: 10_000, includeManifestFallback: true })
-		}
-
-		const historyHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-		try {
-			return await historyHost.listHistory({ limit: 10_000, includeManifestFallback: true })
-		} finally {
-			await historyHost.dispose("listTaskHistory").catch((error) => {
-				Logger.warn("[SdkController] Failed to dispose history host:", error)
-			})
-		}
+		return this.taskHistory.listHistory()
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {

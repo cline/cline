@@ -103,12 +103,14 @@ export class SdkTaskControlCoordinator {
 		this.options.resetMessageTranslator()
 	}
 
-	async showTaskWithId(taskId: string): Promise<void> {
+	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
 		try {
-			const historyItem = this.options.taskHistory.findHistoryItem(taskId)
-			if (!historyItem) {
-				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-				return
+			if (!options.skipHistoryLookup) {
+				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
+				if (!historyItem) {
+					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
+					return
+				}
 			}
 
 			this.silentlyTearDownActiveSession()
@@ -127,8 +129,7 @@ export class SdkTaskControlCoordinator {
 			)
 			this.options.setTask(task)
 
-			const { getSavedClineMessages } = await import("@core/storage/disk")
-			const rawMessages = await getSavedClineMessages(taskId)
+			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 
 			if (messages.length > 0) {
