@@ -6,6 +6,19 @@ import type {
 } from "@clinebot/shared";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 
+const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
+const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
+const ANTHROPIC_REASONING_EFFORT_BUDGET_RATIOS: Record<string, number> = {
+	low: 0.2,
+	medium: 0.5,
+	high: 0.8,
+};
+
+export type AnthropicReasoningRequestPolicy =
+	| { kind: "none" }
+	| { kind: "anthropic-manual" }
+	| { kind: "anthropic-adaptive" };
+
 /**
  * Anthropic-compatible routing precedence:
  * 1) `context.model.metadata.family` (contains "claude")
@@ -139,6 +152,100 @@ export function shouldUseAnthropicPromptCache(
 	);
 }
 
+export function shouldEmitAnthropicReasoning(
+	context: GatewayProviderContext,
+): boolean {
+	const capabilities = context.model.capabilities;
+	return !capabilities || capabilities.includes("reasoning");
+}
+
+function resolveClaudeLine(
+	modelId: string | undefined,
+	family: string | undefined,
+) {
+	const normalizedFamily = family?.toLowerCase() ?? "";
+	if (normalizedFamily.includes("claude-opus")) {
+		return "opus" as const;
+	}
+	if (normalizedFamily.includes("claude-sonnet")) {
+		return "sonnet" as const;
+	}
+	if (normalizedFamily.includes("claude-haiku")) {
+		return "haiku" as const;
+	}
+
+	const normalizedModelId = modelId?.toLowerCase() ?? "";
+	if (normalizedModelId.includes("opus")) {
+		return "opus" as const;
+	}
+	if (normalizedModelId.includes("sonnet")) {
+		return "sonnet" as const;
+	}
+	if (normalizedModelId.includes("haiku")) {
+		return "haiku" as const;
+	}
+	return undefined;
+}
+
+function resolveClaudeVersion(modelId: string | undefined) {
+	const normalized = modelId?.toLowerCase() ?? "";
+	const versionFirstMatch =
+		/claude-(\d+)[.-](\d{1,2})-(?:opus|sonnet|haiku)/i.exec(normalized);
+	const lineFirstMatch = /claude-(?:opus|sonnet|haiku)-(.+)/i.exec(normalized);
+	const tokens = lineFirstMatch?.[1]?.match(/\d+/g) ?? [];
+	const majorToken = versionFirstMatch?.[1] ?? tokens[0];
+	const minorToken =
+		versionFirstMatch?.[2] ?? (tokens[1]?.length <= 2 ? tokens[1] : undefined);
+	if (!majorToken || !minorToken) {
+		return undefined;
+	}
+
+	const major = Number.parseInt(majorToken, 10);
+	const minor = Number.parseInt(minorToken, 10);
+	if (!Number.isFinite(major) || !Number.isFinite(minor)) {
+		return undefined;
+	}
+	return { major, minor };
+}
+
+function supportsAnthropicAdaptiveThinkingPolicy(options: {
+	modelId?: string;
+	family?: string;
+}): boolean {
+	const line = resolveClaudeLine(options.modelId, options.family);
+	const version = resolveClaudeVersion(options.modelId);
+	if (!line || !version) {
+		return false;
+	}
+
+	// See https://platform.claude.com/docs/en/build-with-claude/extended-thinking
+	if (version.major !== 4) {
+		return version.major > 4
+	}
+
+	return (line === "opus" || line === "sonnet") && version.minor >= 6;
+}
+
+export function resolveAnthropicReasoningRequestPolicy(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): AnthropicReasoningRequestPolicy {
+	const family = resolveModelFamily(context);
+	if (
+		!isAnthropicCompatibleModel({ modelId: request.modelId, family }) ||
+		!shouldEmitAnthropicReasoning(context)
+	) {
+		return { kind: "none" };
+	}
+
+	return supportsAnthropicAdaptiveThinkingPolicy({
+		modelId: request.modelId,
+		family,
+	})
+		? { kind: "anthropic-adaptive" }
+		: { kind: "anthropic-manual" };
+}
+
 export function resolvePromptCacheStrategy(
 	provider: GatewayProviderManifest,
 ): GatewayPromptCacheStrategy | undefined {
@@ -150,13 +257,35 @@ export function buildAnthropicProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ) {
+	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
 	const wantsAnthropicThinking =
 		request.reasoning?.enabled === true ||
-		request.reasoning?.effort !== undefined;
+		request.reasoning?.effort !== undefined ||
+		(typeof request.reasoning?.budgetTokens === "number" &&
+			request.reasoning.budgetTokens > 0);
+
+	const thinking: Record<string, unknown> | undefined = wantsAnthropicThinking
+		? policy.kind === "anthropic-adaptive"
+			? { type: "adaptive" }
+			: policy.kind === "anthropic-manual"
+				? {
+						type: "enabled",
+						budgetTokens: resolveAnthropicCompatibleReasoningBudget({
+							modelId: request.modelId,
+							family: resolveModelFamily(context),
+							effort: request.reasoning?.effort,
+							maxTokens: request.maxTokens,
+							explicitBudgetTokens: request.reasoning?.budgetTokens,
+						}),
+					}
+				: undefined
+		: undefined;
 
 	return {
-		...(wantsAnthropicThinking ? { thinking: { type: "adaptive" } } : {}),
-		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
+		...(policy.kind === "anthropic-adaptive" && request.reasoning?.effort
+			? { effort: request.reasoning.effort }
+			: {}),
+		...(thinking ? { thinking } : {}),
 		...(shouldUseAnthropicPromptCache(request, context)
 			? createEphemeralCacheControl()
 			: {}),
@@ -182,37 +311,42 @@ export function resolveAnthropicCompatibleReasoningBudget(options: {
 		!isAnthropicCompatibleModel({
 			modelId: options.modelId,
 			family: options.family,
-		}) ||
-		!options.effort ||
-		typeof options.maxTokens !== "number" ||
-		options.maxTokens <= 1024
+		})
 	) {
 		return undefined;
 	}
-
-	const ratios: Record<string, number> = {
-		low: 0.2,
-		medium: 0.5,
-		high: 0.8,
-	};
-	const ratio = ratios[options.effort];
-	if (!ratio) {
-		return undefined;
+	if (!options.effort) {
+		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
+	}
+	if (typeof options.maxTokens !== "number") {
+		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
+	}
+	if (options.maxTokens <= ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS) {
+		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
 	}
 
-	const maxBudget = Math.min(options.maxTokens - 1, 128000);
-	return Math.max(1024, Math.floor(maxBudget * ratio));
+	const ratio = ANTHROPIC_REASONING_EFFORT_BUDGET_RATIOS[options.effort];
+	if (!ratio) {
+		return ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS;
+	}
+
+	const maxBudget = Math.min(
+		options.maxTokens - 1,
+		ANTHROPIC_MAX_THINKING_BUDGET_TOKENS,
+	);
+	return Math.max(
+		ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS,
+		Math.floor(maxBudget * ratio),
+	);
 }
 
 export function buildAnthropicCompatibleReasoningOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ) {
+	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
 	if (
-		!isAnthropicCompatibleModel({
-			modelId: request.modelId,
-			family: resolveModelFamily(context),
-		}) ||
+		policy.kind === "none" ||
 		(!request.reasoning?.enabled &&
 			!request.reasoning?.effort &&
 			typeof request.reasoning?.budgetTokens !== "number")
@@ -232,12 +366,17 @@ export function buildAnthropicCompatibleReasoningOptions(
 	if (request.reasoning?.enabled === true) {
 		reasoning.enabled = true;
 	}
-	if (typeof budgetTokens === "number" && budgetTokens >= 0) {
-		reasoning.max_tokens = budgetTokens;
-	} else if (request.reasoning?.effort) {
+	if (policy.kind === "anthropic-adaptive" && request.reasoning?.effort) {
 		reasoning.effort = request.reasoning.effort;
-	} else if (request.reasoning?.budgetTokens === 0) {
-		reasoning.max_tokens = 0;
+	}
+	if (typeof request.reasoning?.budgetTokens === "number") {
+		reasoning.max_tokens = request.reasoning.budgetTokens;
+	} else if (
+		policy.kind === "anthropic-manual" &&
+		typeof budgetTokens === "number" &&
+		budgetTokens >= 0
+	) {
+		reasoning.max_tokens = budgetTokens;
 	}
 
 	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
@@ -255,19 +394,27 @@ export function buildGatewayReasoningOptions(
 		return undefined;
 	}
 
-	const budgetTokens = isAnthropicCompatibleModel({
-		modelId: request.modelId,
-		family: resolveModelFamily(context),
-	})
-		? resolveAnthropicCompatibleReasoningBudget({
-				modelId: request.modelId,
-				family: resolveModelFamily(context),
-				effort: request.reasoning?.effort,
-				maxTokens: request.maxTokens,
-				explicitBudgetTokens: request.reasoning?.budgetTokens,
-			})
-		: request.reasoning?.budgetTokens;
+	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
+	if (
+		policy.kind === "none" &&
+		isAnthropicCompatibleModel({
+			modelId: request.modelId,
+			family: resolveModelFamily(context),
+		})
+	) {
+		return undefined;
+	}
 
+	const budgetTokens =
+		policy.kind === "anthropic-manual"
+			? resolveAnthropicCompatibleReasoningBudget({
+					modelId: request.modelId,
+					family: resolveModelFamily(context),
+					effort: request.reasoning?.effort,
+					maxTokens: request.maxTokens,
+					explicitBudgetTokens: request.reasoning?.budgetTokens,
+				})
+			: request.reasoning?.budgetTokens;
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
@@ -276,7 +423,9 @@ export function buildGatewayReasoningOptions(
 				: request.reasoning?.effort
 					? { enabled: true }
 					: {}),
-		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
+		...(request.reasoning?.effort && policy.kind !== "anthropic-manual"
+			? { effort: request.reasoning.effort }
+			: {}),
 	};
 
 	if (typeof budgetTokens === "number" && budgetTokens >= 0) {

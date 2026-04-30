@@ -1440,6 +1440,15 @@ describe("sdk-gateway", () => {
 				{
 					providerId: "anthropic",
 					apiKey: "anthropic-key",
+					models: [
+						{
+							id: "claude-sonnet-4-5",
+							name: "Claude Sonnet 4.5",
+							metadata: {
+								family: "claude-sonnet",
+							},
+						},
+					],
 				},
 			],
 		});
@@ -1459,8 +1468,7 @@ describe("sdk-gateway", () => {
 			expect.objectContaining({
 				providerOptions: expect.objectContaining({
 					anthropic: expect.objectContaining({
-						thinking: { type: "adaptive" },
-						effort: "high",
+						thinking: expect.objectContaining({ type: "enabled" }),
 					}),
 				}),
 			}),
@@ -1571,13 +1579,10 @@ describe("sdk-gateway", () => {
 							enabled: true,
 							max_tokens: expect.any(Number),
 						}),
-						reasoningEffort: "high",
-						thinking: { type: "adaptive" },
 					}),
 					anthropic: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
-						thinking: { type: "adaptive" },
-						effort: "high",
+						thinking: expect.objectContaining({ type: "enabled" }),
 					}),
 				}),
 			}),

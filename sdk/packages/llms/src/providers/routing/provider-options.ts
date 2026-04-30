@@ -7,6 +7,7 @@ import {
 	buildAnthropicProviderOptions,
 	buildGatewayReasoningOptions,
 	isAnthropicCompatibleModel,
+	resolveAnthropicReasoningRequestPolicy,
 	resolveModelFamily,
 	shouldUseAnthropicPromptCache,
 } from "./anthropic-compatible";
@@ -91,9 +92,17 @@ function buildCompatibleThinkingOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): Record<string, unknown> {
+	const isAnthropicCompatible = isAnthropicCompatibleModel({
+		modelId: request.modelId,
+		family: resolveModelFamily(context),
+	});
+	const anthropicPolicy = isAnthropicCompatible
+		? resolveAnthropicReasoningRequestPolicy(request, context)
+		: undefined;
 	return {
 		...(!shouldSuppressGenericCompatibleThinking(request, context) &&
-		request.reasoning?.enabled === true
+		request.reasoning?.enabled === true &&
+		(!anthropicPolicy || anthropicPolicy.kind === "anthropic-adaptive")
 			? { thinking: { type: "adaptive" } }
 			: {}),
 	};
@@ -102,13 +111,19 @@ function buildCompatibleThinkingOptions(
 function buildCompatibleEffortOptions(options: {
 	reasoning: GatewayStreamRequest["reasoning"];
 	isAnthropicCompatibleModelId: boolean;
+	anthropicReasoningPolicyKind?: ReturnType<
+		typeof resolveAnthropicReasoningRequestPolicy
+	>["kind"];
 }): Record<string, unknown> {
+	const effort = options.reasoning?.effort;
+	const shouldEmitEffort =
+		Boolean(effort) &&
+		(!options.isAnthropicCompatibleModelId ||
+			options.anthropicReasoningPolicyKind === "anthropic-adaptive");
 	return {
-		...(options.reasoning?.effort ? { effort: options.reasoning.effort } : {}),
-		...(options.reasoning?.effort
-			? { reasoningEffort: options.reasoning.effort }
-			: {}),
-		...(options.reasoning?.effort && !options.isAnthropicCompatibleModelId
+		...(shouldEmitEffort ? { effort } : {}),
+		...(shouldEmitEffort ? { reasoningEffort: effort } : {}),
+		...(shouldEmitEffort && !options.isAnthropicCompatibleModelId
 			? { reasoningSummary: "auto" }
 			: {}),
 	};
@@ -143,12 +158,16 @@ function buildCompatibleProviderOptions(options: {
 	isAnthropicCompatibleModelId: boolean;
 }): Record<string, unknown> {
 	const { request, context, isAnthropicCompatibleModelId } = options;
+	const anthropicReasoningPolicy = isAnthropicCompatibleModelId
+		? resolveAnthropicReasoningRequestPolicy(request, context)
+		: undefined;
 
 	return {
 		...buildCompatibleThinkingOptions(request, context),
 		...buildCompatibleEffortOptions({
 			reasoning: request.reasoning,
 			isAnthropicCompatibleModelId,
+			anthropicReasoningPolicyKind: anthropicReasoningPolicy?.kind,
 		}),
 		...buildAnthropicCompatibleProviderOptions(request, context),
 		...buildPromptCacheProviderOptions(request, context),

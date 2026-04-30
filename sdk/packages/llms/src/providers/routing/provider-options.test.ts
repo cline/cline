@@ -13,6 +13,7 @@ function makeContext(options?: {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	capabilities?: GatewayProviderContext["model"]["capabilities"];
 }): GatewayProviderContext {
 	const providerId = options?.providerId ?? "test-provider";
 	const modelId = options?.modelId ?? "model-id";
@@ -29,6 +30,7 @@ function makeContext(options?: {
 			id: modelId,
 			name: modelId,
 			providerId,
+			capabilities: options?.capabilities,
 			metadata: options?.family ? { family: options.family } : undefined,
 		},
 		config: { providerId },
@@ -134,7 +136,7 @@ describe("composeAiSdkProviderOptions precedence", () => {
 		expect(Object.keys(result).filter((k) => k === "openai")).toHaveLength(1);
 	});
 
-	it("skips the `[providerId]` bucket for direct anthropic but keeps the anthropic bucket", () => {
+	it("uses thinking.type=enabled for Sonnet 4.5 which does not support adaptive thinking", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "anthropic",
@@ -144,7 +146,32 @@ describe("composeAiSdkProviderOptions precedence", () => {
 			makeContext({
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-5",
-				family: "claude",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+		expect(result.anthropic.effort).toBeUndefined();
+	});
+
+	it.each([
+		"claude-opus-4-6",
+		"claude-opus-4-7",
+	])("uses thinking.type=adaptive for %s", (modelId) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId,
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId,
+				family: "claude-opus",
 			}),
 		);
 
@@ -154,11 +181,254 @@ describe("composeAiSdkProviderOptions precedence", () => {
 				effort: "high",
 			}),
 		);
-		// The provider-id bucket is the same key as the alias ("anthropic"); both
-		// branches are skipped, so the only "anthropic" bucket is the base one.
-		expect(Object.keys(result).filter((k) => k === "anthropic")).toHaveLength(
-			1,
+	});
+
+	it("uses manual thinking for Opus before 4.6", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-opus-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-opus-4-5",
+				family: "claude-opus",
+			}),
 		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+		expect(result.anthropic).not.toHaveProperty("effort");
+	});
+
+	it("uses thinking.type=adaptive for Sonnet 4.6", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "adaptive" },
+				effort: "high",
+			}),
+		);
+	});
+
+	it("defaults future Claude major versions to adaptive thinking", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-5-0",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-5-0",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "adaptive" },
+				effort: "high",
+			}),
+		);
+	});
+
+	it("does not mistake Claude date suffixes for adaptive version numbers", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-opus-4-20250514",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-opus-4-20250514",
+				family: "claude-opus",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+		expect(result.anthropic).not.toHaveProperty("effort");
+	});
+
+	it("uses thinking.type=enabled for Haiku 4.5", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-haiku-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-haiku-4-5",
+				family: "claude-haiku",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+		expect(result.anthropic.effort).toBeUndefined();
+	});
+
+	it("defaults manual thinking budget when only reasoning.enabled is set", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+	});
+
+	it("defaults manual thinking budget when maxTokens is too small", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				maxTokens: 512,
+				reasoning: { enabled: true, effort: "low" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+	});
+
+	it("defaults manual thinking budget for unknown effort values", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "minimal" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+	});
+
+	it.each([
+		["claude-sonnet-4-0", "claude-sonnet"],
+		["claude-3-7-sonnet-20250219", "claude-sonnet"],
+	])("uses manual thinking for lower reasoning model %s", (modelId, family) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId,
+				reasoning: { enabled: true, effort: "medium" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId,
+				family,
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.anthropic).toEqual(
+			expect.objectContaining({
+				thinking: { type: "enabled", budgetTokens: 1024 },
+			}),
+		);
+		expect(result.anthropic).not.toHaveProperty("effort");
+	});
+
+	it.each([
+		["claude-3-5-sonnet-20241022", "claude-sonnet"],
+		["claude-3-haiku-20240307", "claude-haiku"],
+	])("does not emit thinking for lower non-reasoning model %s", (modelId, family) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId,
+				reasoning: { enabled: true, effort: "low" },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId,
+				family,
+				capabilities: ["text"],
+			}),
+		);
+
+		expect(result.anthropic).not.toHaveProperty("thinking");
+		expect(result.anthropic).not.toHaveProperty("effort");
+		expect(result.openaiCompatible).not.toHaveProperty("thinking");
+		expect(result.openaiCompatible).not.toHaveProperty("effort");
+		expect(result.openaiCompatible).not.toHaveProperty("reasoning");
+	});
+
+	it("routes Cline Sonnet 4.5 reasoning without adaptive thinking or effort", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "low" },
+			}),
+			makeContext({
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4-5",
+				family: "claude-sonnet",
+			}),
+		);
+
+		expect(result.cline).toEqual(
+			expect.objectContaining({
+				reasoning: { enabled: true, max_tokens: 1024 },
+			}),
+		);
+		expect(result.cline).not.toHaveProperty("thinking");
+		expect(result.cline.reasoning).not.toHaveProperty("effort");
 	});
 });
 
