@@ -165,6 +165,7 @@ function createHandlerForProvider(
 				lmStudioBaseUrl: options.lmStudioBaseUrl,
 				lmStudioModelId: mode === "plan" ? options.planModeLmStudioModelId : options.actModeLmStudioModelId,
 				lmStudioMaxTokens: options.lmStudioMaxTokens,
+				lmStudioApiKey: options.lmStudioApiKey,
 			})
 		case "gemini":
 			return new GeminiHandler({

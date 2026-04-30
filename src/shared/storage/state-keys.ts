@@ -318,6 +318,7 @@ const SECRETS_KEYS = [
 	"doubaoApiKey",
 	"mistralApiKey",
 	"liteLlmApiKey",
+	"lmStudioApiKey",
 	"authNonce",
 	"asksageApiKey",
 	"xaiApiKey",
