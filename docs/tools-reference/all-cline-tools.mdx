@@ -1,125 +1,74 @@
 ---
-title: "All Cline Tools"
-sidebarTitle: "All Cline Tools"
-description: "Complete reference for Cline's built-in tools and capabilities."
+title: "Tools"
+sidebarTitle: "Tools"
+description: "Reference for Cline's built-in tool system, aligned with SDK tool architecture."
 ---
 
-Cline has access to a set of tools for various tasks. This reference covers all available tools and how to use them.
+Cline tools are executable functions the model can call while working. The model decides which tool to call, Cline runs it, then returns results back to the model.
 
-## What Can Cline Do?
+## Built-In Tools (ClineCore)
 
-- Edit and create files in your project
-- Run terminal commands
-- Search and analyze your code
-- Help debug and fix issues
-- Automate repetitive tasks
-- Integrate with external tools via MCP
-
-## File Operations
+When running through `ClineCore`, these built-ins are available:
 
 | Tool | Description |
 |------|-------------|
-| `write_to_file` | Create or overwrite files |
-| `read_file` | Read file contents |
-| `replace_in_file` | Make targeted edits to files |
-| `search_files` | Search files using regex |
-| `list_files` | List directory contents |
-| `list_code_definition_names` | List code definitions in files |
+| `bash` | Execute shell commands |
+| `editor` | View and edit files |
+| `read_files` | Batch read multiple files |
+| `apply_patch` | Apply unified diffs to files |
+| `search` | Ripgrep-powered codebase search |
+| `fetch_web` | HTTP requests with HTML-to-markdown conversion |
+| `ask_question` | Ask the user for input |
+| `submit_and_exit` | Mark the task as complete |
 
-### Examples
+<Note>
+`Agent` from `@clinebot/agents` does not include built-ins by default. You provide tools explicitly.
+</Note>
 
-Create a new file:
-```xml
-<write_to_file>
-<path>src/components/Header.tsx</path>
-<content>
-import React from "react"
+## Tool Categories
 
-interface HeaderProps {
-  title: string
-}
+- **Codebase operations**: `editor`, `read_files`, `apply_patch`, `search`
+- **Execution**: `bash`
+- **External retrieval**: `fetch_web`
+- **Human-in-the-loop controls**: `ask_question`, `submit_and_exit`
 
-export default function Header({ title }: HeaderProps) {
-  return (
-    <header style={{ padding: "1rem", borderBottom: "1px solid #eee" }}>
-      <h1>{title}</h1>
-    </header>
-  )
-}
-</content>
-</write_to_file>
-```
+## Approval and Policy Controls
 
-Search for a pattern:
-```xml
-<search_files>
-<path>src</path>
-<regex>function\s+\w+\(</regex>
-<file_pattern>*.ts</file_pattern>
-</search_files>
-```
+Cline can run tools with approval or auto-approval, depending on settings/policies. Typical patterns:
 
-## Terminal Operations
+- Require approval for risky tools (for example `bash`, write/edit operations)
+- Auto-approve low-risk tools (for example read/search operations)
+- Disable specific tools entirely when needed
 
-| Tool | Description |
-|------|-------------|
-| `execute_command` | Run CLI commands |
-
-Run a command:
-```xml
-<execute_command>
-<command>npm install axios</command>
-<requires_approval>false</requires_approval>
-</execute_command>
-```
-
-## Browser Operations
-
-| Tool | Description |
-|------|-------------|
-| `browser_action` | Interact with websites through Puppeteer |
+For policy examples, see [SDK Tools](/sdk/tools) and [Permission Handling](/sdk/guides/permission-handling).
 
 ## MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `use_mcp_tool` | Use tools from MCP servers |
-| `access_mcp_resource` | Access MCP server resources |
+Cline can also call tools discovered from MCP servers configured in `.cline/mcp.json`.
 
-MCP tools extend Cline's capabilities through external integrations. See [MCP documentation](/mcp/mcp-overview) for details.
+MCP tools are loaded alongside built-ins, so Cline can use both local tools and external integrations in one task.
 
-## Interaction Tools
+See [MCP Overview](/mcp/mcp-overview) and [SDK Tools → MCP Tools](/sdk/tools#mcp-tools).
 
-| Tool | Description |
-|------|-------------|
-| `ask_followup_question` | Ask user for clarification |
-| `attempt_completion` | Present final results |
+## Custom Tools
 
-## New Task Tool
+Beyond built-ins and MCP, you can create custom tools and add them through plugins.
 
-The `new_task` tool enables context management and task continuity. It packages current progress and context into a fresh task with a clean context window.
+- Define tool behavior and input schema in plugin code
+- Register tools during plugin setup
+- Expose those tools to agents alongside built-ins
 
-### When to Use
+See:
+- [SDK Plugins](/sdk/plugins)
+- [Writing Plugins (examples)](/sdk/guides/writing-plugins)
+- [SDK Tools: Creating Custom Tools](/sdk/tools#creating-custom-tools)
 
-- Context window filling up but work isn't done
-- Completing a logical subtask before starting the next
-- After research phase, ready to implement
+## Legacy Tool Names vs Current Runtime Tools
 
-### How It Works
+Some older docs/examples reference XML-style names like `read_file`, `replace_in_file`, or `execute_command`. Current SDK/ClineCore runtime uses the built-in tool names listed above (`read_files`, `apply_patch`, `bash`, etc.).
 
-1. Cline proposes creating a new task with summarized context
-2. You can refine the proposed context
-3. Once approved, current task ends and new one begins with the context preloaded
+## Related
 
-### Using the /newtask Command
-
-Type `/newtask` in chat to manually trigger this process. Cline will:
-- Analyze the conversation
-- Propose distilled context to carry forward
-- Let you refine before creating the new task
-
-This works like a developer handoff, packaging what matters (plan, work done, files, next steps) while leaving behind noise.
-
-## Source Code
-
-For the most up-to-date implementation details, see the [Cline repository](https://github.com/cline/cline/blob/main/src/core/prompts/system-prompt/tools).
+- [SDK Tools](/sdk/tools)
+- [Tools API Reference](/sdk/reference/tools-api)
+- [MCP Overview](/mcp/mcp-overview)
