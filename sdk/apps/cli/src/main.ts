@@ -575,16 +575,16 @@ export async function runCli(): Promise<void> {
 		};
 	}
 
-	if (args.invalidReasoningEffort) {
+	if (args.invalidThinkingLevel) {
 		writeErr(
-			`invalid reasoning effort "${args.invalidReasoningEffort}" (expected "none", "low", "medium", "high", or "xhigh")`,
+			`invalid thinking level "${args.invalidThinkingLevel}" (expected "none", "low", "medium", "high", or "xhigh")`,
 		);
 		process.exitCode = 1;
 		return;
 	}
 	if (args.invalidAutoApprove) {
 		writeErr(
-			`invalid autoapprove value "${args.invalidAutoApprove}" (expected "true" or "false")`,
+			`invalid auto-approve value "${args.invalidAutoApprove}" (expected "true" or "false")`,
 		);
 		process.exitCode = 1;
 		return;
@@ -720,8 +720,7 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
-		const effectiveReasoningEffort =
-			args.reasoningEffort ?? (args.thinking ? "medium" : "none");
+		const effectiveReasoningEffort = args.reasoningEffort ?? "none";
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",

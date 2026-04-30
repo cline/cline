@@ -123,10 +123,11 @@ describe("cli e2e", () => {
 		expect(result.status).toBe(0);
 		expect(asText(result.stderr)).toBe("");
 		expect(asText(result.stdout)).toContain("Usage:");
-		expect(asText(result.stdout)).toContain("--autoapprove [value]");
+		expect(asText(result.stdout)).toContain("--auto-approve [value]");
 		expect(asText(result.stdout)).toContain("--data-dir");
-		expect(asText(result.stdout)).toContain("--thinking");
-		expect(asText(result.stdout)).toContain("--reasoning-effort");
+		expect(asText(result.stdout)).toContain("--thinking [level]");
+		expect(asText(result.stdout)).not.toContain("--reasoning-effort");
+		expect(asText(result.stdout)).not.toContain("--act");
 		expect(asText(result.stdout)).toContain("Show current configuration");
 	});
 

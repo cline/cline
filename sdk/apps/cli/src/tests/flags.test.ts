@@ -17,15 +17,13 @@ test.describe("root flag descriptions", () => {
 
 	test("all root flags have correct descriptions", async ({ terminal }) => {
 		await expectVisible(terminal, [
-			"Run in act mode",
 			"Run in plan mode",
 			"timeout in seconds",
 			"Model to use",
 			"verbose output",
 			"Working directory",
 			"Configuration directory",
-			"extended thinking",
-			"Reasoning effort",
+			"Set thinking level",
 			"consecutive mistakes",
 			"Output messages as JSON",
 			"ACP",
@@ -34,8 +32,8 @@ test.describe("root flag descriptions", () => {
 	});
 
 	test("all short flag aliases are shown", async ({ terminal }) => {
-		// `-y` is intentionally hidden from help (still accepted at parse time).
-		await expectVisible(terminal, ["-a", "-p", "-t", "-m", "-v", "-c"]);
+		// `-a` and `-y` are intentionally hidden from help (still accepted at parse time).
+		await expectVisible(terminal, ["-p", "-t", "-m", "-v", "-c"]);
 	});
 });
 

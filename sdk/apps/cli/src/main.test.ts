@@ -412,8 +412,8 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
 	});
 
-	it("applies --autoapprove as a runtime policy without changing the config default", async () => {
-		process.argv = ["bun", "src/index.ts", "--autoapprove", "false"];
+	it("applies --auto-approve as a runtime policy without changing the config default", async () => {
+		process.argv = ["bun", "src/index.ts", "--auto-approve", "false"];
 
 		const { runCli } = await import("./main");
 
@@ -616,18 +616,12 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("enables thinking when reasoning effort is provided", async () => {
+	it("enables thinking when explicit thinking level is provided", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = [
-			"bun",
-			"src/index.ts",
-			"--reasoning-effort",
-			"high",
-			"hello",
-		];
+		process.argv = ["bun", "src/index.ts", "--thinking", "high", "hello"];
 
 		const { runCli } = await import("./main");
 
@@ -643,12 +637,33 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("leaves thinking disabled when --thinking is not provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				thinking: false,
+				reasoningEffort: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("maps --thinking to medium effort", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--thinking", "hello"];
+		process.argv = ["bun", "src/index.ts", "--thinking", "--", "hello"];
 
 		const { runCli } = await import("./main");
 

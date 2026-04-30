@@ -76,7 +76,7 @@ export interface ParsedArgs {
 	invalidTimeoutSeconds?: string;
 	thinking: boolean;
 	reasoningEffort?: CliReasoningEffort;
-	invalidReasoningEffort?: string;
+	invalidThinkingLevel?: string;
 	invalidAutoApprove?: string;
 	sandbox: boolean;
 	dataDir?: string;

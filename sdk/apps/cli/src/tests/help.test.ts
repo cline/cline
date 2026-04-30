@@ -28,7 +28,6 @@ test.describe("clite --help", () => {
 
 	test("shows all root-level option flags", async ({ terminal }) => {
 		await expectVisible(terminal, [
-			"--act",
 			"--plan",
 			"--timeout",
 			"--model",
@@ -36,7 +35,6 @@ test.describe("clite --help", () => {
 			"--cwd",
 			"--config",
 			"--thinking",
-			"--reasoning-effort",
 			"--retries",
 			"--json",
 			"--acp",

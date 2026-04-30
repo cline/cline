@@ -57,7 +57,7 @@ describe("parseArgs", () => {
 	it("parses prompt, runtime flags, and global approval settings", () => {
 		const parsed = parseArgs([
 			"--verbose",
-			"--autoapprove",
+			"--auto-approve",
 			"false",
 			"--cwd",
 			"/tmp/work",
@@ -70,7 +70,6 @@ describe("parseArgs", () => {
 			"--key",
 			"abc123",
 			"--thinking",
-			"--reasoning-effort",
 			"high",
 			"--plan",
 			"Audit",
@@ -111,9 +110,9 @@ describe("parseArgs", () => {
 		expect(parsed.dataDir).toBeUndefined();
 	});
 
-	it("parses --autoapprove false as global approval-off", () => {
+	it("parses --auto-approve false as global approval-off", () => {
 		const parsed = parseArgs([
-			"--autoapprove",
+			"--auto-approve",
 			"false",
 			"tell me about this repo",
 		]);
@@ -122,19 +121,25 @@ describe("parseArgs", () => {
 		expect(parsed.prompt).toBe("tell me about this repo");
 	});
 
-	it("treats bare --autoapprove as true", () => {
+	it("treats bare --auto-approve as true", () => {
 		expect(
-			normalizeAutoApproveArgs(["--autoapprove", "Audit the repo"]),
-		).toEqual(["--autoapprove", "true", "Audit the repo"]);
-		const parsed = parseArgs(["--autoapprove", "Audit the repo"]);
+			normalizeAutoApproveArgs(["--auto-approve", "Audit the repo"]),
+		).toEqual(["--auto-approve", "true", "Audit the repo"]);
+		const parsed = parseArgs(["--auto-approve", "Audit the repo"]);
 		expect(parsed.defaultToolAutoApprove).toBe(true);
 		expect(parsed.autoApproveOverride).toBe(true);
 		expect(parsed.prompt).toBe("Audit the repo");
 	});
 
-	it("records invalid --autoapprove values", () => {
-		const parsed = parseArgs(["--autoapprove=maybe"]);
+	it("records invalid --auto-approve values", () => {
+		const parsed = parseArgs(["--auto-approve=maybe"]);
 		expect(parsed.invalidAutoApprove).toBe("maybe");
+	});
+
+	it("accepts legacy --autoapprove as --auto-approve", () => {
+		const parsed = parseArgs(["--autoapprove", "false"]);
+		expect(parsed.defaultToolAutoApprove).toBe(false);
+		expect(parsed.autoApproveOverride).toBe(false);
 	});
 
 	it("supports json output flags and validates explicit output modes", () => {
@@ -151,10 +156,55 @@ describe("parseArgs", () => {
 		expect(parsedAct.mode).toBe("act");
 	});
 
-	it("parses and validates reasoning effort", () => {
-		const parsedInvalid = parseArgs(["--reasoning-effort", "ultra"]);
+	it("parses bare --thinking as medium before a flag", () => {
+		const parsed = parseArgs(["--thinking", "--plan", "Audit the repo"]);
+		expect(parsed.thinking).toBe(true);
+		expect(parsed.reasoningEffort).toBe("medium");
+		expect(parsed.mode).toBe("plan");
+		expect(parsed.prompt).toBe("Audit the repo");
+	});
+
+	it("parses --thinking with explicit level", () => {
+		const parsed = parseArgs(["--thinking", "high"]);
+		expect(parsed.thinking).toBe(true);
+		expect(parsed.reasoningEffort).toBe("high");
+	});
+
+	it("parses --thinking none as disabled", () => {
+		const parsed = parseArgs(["--thinking", "none"]);
+		expect(parsed.thinking).toBe(false);
+		expect(parsed.reasoningEffort).toBeUndefined();
+	});
+
+	it("parses and validates thinking level with equals notation", () => {
+		const parsedInvalid = parseArgs(["--thinking=ultra"]);
 		expect(parsedInvalid.reasoningEffort).toBeUndefined();
-		expect(parsedInvalid.invalidReasoningEffort).toBe("ultra");
+		expect(parsedInvalid.invalidThinkingLevel).toBe("ultra");
+	});
+
+	it("parses and validates thinking level with space notation", () => {
+		const parsedInvalid = parseArgs(["--thinking", "ultra", "Audit"]);
+		expect(parsedInvalid.reasoningEffort).toBeUndefined();
+		expect(parsedInvalid.invalidThinkingLevel).toBe("ultra");
+		expect(parsedInvalid.prompt).toBe("Audit");
+	});
+
+	it("accepts legacy --reasoning-effort as --thinking", () => {
+		const parsed = parseArgs(["--reasoning-effort", "high"]);
+		expect(parsed.thinking).toBe(true);
+		expect(parsed.reasoningEffort).toBe("high");
+	});
+
+	it("validates legacy --reasoning-effort invalid levels", () => {
+		const parsedSpace = parseArgs(["--reasoning-effort", "ultra", "Audit"]);
+		expect(parsedSpace.reasoningEffort).toBeUndefined();
+		expect(parsedSpace.invalidThinkingLevel).toBe("ultra");
+		expect(parsedSpace.prompt).toBe("Audit");
+
+		const parsedEquals = parseArgs(["--reasoning-effort=ultra", "Audit"]);
+		expect(parsedEquals.reasoningEffort).toBeUndefined();
+		expect(parsedEquals.invalidThinkingLevel).toBe("ultra");
+		expect(parsedEquals.prompt).toBe("Audit");
 	});
 
 	it("parses --retries when valid", () => {

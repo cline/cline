@@ -92,9 +92,9 @@ clite -i -s "You are a pirate" "Tell me about the sea"
 clite -i "Let's work on this together. First, analyze the current state and suggest next steps."
 
 # Require approval before each tool call
-clite --autoapprove false "Inspect and modify this repository"
+clite --auto-approve false "Inspect and modify this repository"
 # Explicitly enable auto-approval for all tools
-clite --autoapprove true "Refactor src/index.ts for readability"
+clite --auto-approve true "Refactor src/index.ts for readability"
 
 # Pipe input
 cat file.txt | clite "Summarize this"
@@ -109,7 +109,7 @@ clite -v "Explain quantum computing"
 # Override consecutive internal mistake (retry) limit for this run (default: 3)
 clite --retries 5 "Fix failing tests"
 # Common with auto-approve/yolo-style runs
-clite --autoapprove true --retries 5 "Refactor this package"
+clite --auto-approve true --retries 5 "Refactor this package"
 
 # Explicit yolo also enables submit_and_exit and disables spawn/team tools by default
 clite --yolo --retries 5 "Refactor this package"
@@ -274,12 +274,11 @@ Runtime note:
 | `--config <path>` | Configuration directory (used for CLI home resolution) |
 | `--hooks-dir <path>` | Additional hooks directory hint for runtime hook injection |
 | `--acp` | ACP (Agent Client Protocol) mode |
-| `--thinking` | Enable model reasoning when supported |
-| `--reasoning-effort <none\|low\|medium\|high\|xhigh>` | Set explicit model reasoning effort (default: `none`, or `medium` when `--thinking` is set) |
+| `--thinking [none\|low\|medium\|high\|xhigh]` | Set model thinking level when supported. Defaults to `medium` when the flag is provided without a level; thinking is off when the flag is omitted. |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
 | `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline` (enables sandbox mode automatically) |
-| `--autoapprove [true\|false]` | Set tool auto-approval for all tools |
+| `--auto-approve [true\|false]` | Set tool auto-approval for all tools |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
 | `-z, --zen` | Dispatch the task to the background hub and exit the CLI immediately (see "Zen mode" below) |
 | `--team-name <name>` | Override the runtime team state name |
@@ -351,14 +350,14 @@ Behavior:
 
 ## Tool Approval
 
-Tool calls are auto-approved by default. Use `--autoapprove false` to require review before tool execution.
+Tool calls are auto-approved by default. Use `--auto-approve false` to require review before tool execution.
 
 ```bash
 # Require approval for all tools
-clite --autoapprove false "Inspect and modify this repository"
+clite --auto-approve false "Inspect and modify this repository"
 
 # Explicitly keep approvals disabled for this run
-clite --autoapprove true "Audit the current workspace"
+clite --auto-approve true "Audit the current workspace"
 ```
 
 When approval is required, the CLI prompts in TTY mode:

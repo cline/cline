@@ -18,7 +18,11 @@ function normalizeAutoApproveValue(
  */
 export function addRootOptions(cmd: Command): Command {
 	return cmd
-		.option("-a, --act", "Run in act mode")
+		.addOption(
+			// Act mode is the default. Keep the legacy flags accepted for users who
+			// still pass them, but do not advertise them in help output.
+			new Option("-a, --act", "Run in act mode").hideHelp(),
+		)
 		.option("-p, --plan", "Run in plan mode")
 		.addOption(
 			// `-y, --yolo` is still accepted (and behaves the same as before) but
@@ -29,7 +33,7 @@ export function addRootOptions(cmd: Command): Command {
 			).hideHelp(),
 		)
 		.option(
-			"--autoapprove [value]",
+			"--auto-approve [value]",
 			"Set tool auto-approval for all tools (`true` or `false`)",
 			normalizeAutoApproveValue,
 		)
@@ -45,10 +49,9 @@ export function addRootOptions(cmd: Command): Command {
 			"--data-dir <dir>",
 			"Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)",
 		)
-		.option("--thinking", "Enable extended thinking (default: medium effort)")
 		.option(
-			"--reasoning-effort <level>",
-			"Reasoning effort: none|low|medium|high|xhigh",
+			"--thinking [level]",
+			"Set thinking level: none|low|medium|high|xhigh (default: medium when flag is provided without a level)",
 		)
 		.option(
 			"--retries <count>",
@@ -105,15 +108,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		mode: opts.plan ? "plan" : opts.yolo ? "yolo" : opts.zen ? "zen" : "act",
 		sandbox: !!opts.dataDir,
 		acpMode: !!opts.acp,
-		thinking: !!opts.thinking,
+		thinking: false,
 		reasoningEffort: undefined,
 		defaultToolAutoApprove: true,
 		id: opts.id,
 	};
 
 	// Approval: last-wins semantics
-	if (opts.autoapprove !== undefined) {
-		const raw = String(opts.autoapprove).trim().toLowerCase();
+	if (opts.autoApprove !== undefined) {
+		const raw = String(opts.autoApprove).trim().toLowerCase();
 		if (raw === "true") {
 			result.defaultToolAutoApprove = true;
 			result.autoApproveOverride = true;
@@ -140,8 +143,8 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		}
 	}
 
-	if (opts.reasoningEffort !== undefined) {
-		const effort = opts.reasoningEffort.trim().toLowerCase();
+	if (opts.thinking !== undefined) {
+		const effort = String(opts.thinking).trim().toLowerCase();
 		if (
 			effort === "none" ||
 			effort === "low" ||
@@ -149,9 +152,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 			effort === "high" ||
 			effort === "xhigh"
 		) {
-			result.reasoningEffort = effort;
+			if (effort === "none") {
+				result.thinking = false;
+				result.reasoningEffort = undefined;
+			} else {
+				result.thinking = true;
+				result.reasoningEffort = effort;
+			}
 		} else if (effort) {
-			result.invalidReasoningEffort = effort;
+			result.invalidThinkingLevel = effort;
 		}
 	}
 
