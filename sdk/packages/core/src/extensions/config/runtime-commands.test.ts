@@ -6,6 +6,7 @@ import {
 	listAvailableRuntimeCommandsFromWatcher,
 	resolveRuntimeSlashCommandFromWatcher,
 } from "./runtime-commands";
+import { toggleSkillFrontmatter } from "./skill-frontmatter-toggle";
 import { createUserInstructionConfigWatcher } from "./user-instruction-config-loader";
 
 describe("runtime command registry", () => {
@@ -110,6 +111,37 @@ Do not run this workflow.`,
 			expect(
 				resolveRuntimeSlashCommandFromWatcher("please run /ship", watcher),
 			).toBe("please run /ship");
+		} finally {
+			watcher.stop();
+		}
+	});
+
+	it("reflects skill frontmatter toggles after watcher refresh", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillDir = join(tempRoot, "skills", "review");
+		await mkdir(skillDir, { recursive: true });
+		const skillPath = join(skillDir, "SKILL.md");
+		await writeFile(skillPath, "Use the review skill.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [join(tempRoot, "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		try {
+			await watcher.start();
+			expect(resolveRuntimeSlashCommandFromWatcher("/review", watcher)).toBe(
+				"Use the review skill.",
+			);
+
+			await toggleSkillFrontmatter({ filePath: skillPath, enabled: false });
+			await watcher.refreshType("skill");
+
+			expect(resolveRuntimeSlashCommandFromWatcher("/review", watcher)).toBe(
+				"/review",
+			);
 		} finally {
 			watcher.stop();
 		}

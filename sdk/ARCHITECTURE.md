@@ -90,6 +90,7 @@ Owns stateful orchestration:
 - session lifecycle
 - storage and persistence
 - config watching/loading and watcher projections
+- settings listing and mutation orchestration
 - default host tool assembly
 - plugin discovery/loading
 - default context compaction policy
@@ -106,6 +107,7 @@ Design rules:
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
+- settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
 
 ### `@clinebot/enterprise`
 
@@ -233,6 +235,18 @@ Design implication:
 - `RuntimeHost` inputs stay transport-safe, while `ClineCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
 - `RuntimeSessionConfig` is transport-neutral across local, shared hub, and remote hub modes; host-local bootstrap concerns stay under `localRuntime`
 - client-local runtime behaviors that must survive hub mode, such as `defaultToolExecutors`, are attached at session start and proxied through hub capability requests instead of changing host selection
+
+### 2b. Settings Mutation Boundary
+
+Core owns settings snapshots and mutations through `packages/core/src/settings`.
+The hub exposes the same path through `settings.list` and `settings.toggle`.
+
+Design implication:
+
+- hosts should not mutate skill, tool, MCP, provider, or other settings files directly
+- domain-specific persistence helpers, such as skill markdown frontmatter writes, stay internal to the owning settings provider/service
+- successful hub-backed mutations return an updated settings snapshot and publish `settings.changed` with the changed settings types
+- CLI settings surfaces may keep local snapshot rendering for startup responsiveness, but mutation flow must refresh the relevant watcher before reloading UI data
 
 ## Logging
 

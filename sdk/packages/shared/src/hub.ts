@@ -333,6 +333,10 @@ export type HubCommandName =
 	| "schedule.stats"
 	| "schedule.active"
 	| "schedule.upcoming"
+	| "settings.list"
+	| "settings.get"
+	| "settings.patch"
+	| "settings.toggle"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"
@@ -402,6 +406,7 @@ export type HubEventName =
 	| "schedule.triggered"
 	| "schedule.execution_completed"
 	| "schedule.execution_failed"
+	| "settings.changed"
 	| "ui.notify"
 	| "ui.show_window"
 	| "hub.client.updated";

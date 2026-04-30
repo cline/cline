@@ -33,6 +33,12 @@ import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../session/models/session-manifest";
+import type {
+	CoreSettingsListInput,
+	CoreSettingsMutationResult,
+	CoreSettingsSnapshot,
+	CoreSettingsToggleInput,
+} from "../settings";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
@@ -48,6 +54,17 @@ function toJsonRecord(
 		string,
 		JsonValue | undefined
 	>;
+}
+
+function serializeSettingsInput(
+	input: CoreSettingsListInput | CoreSettingsToggleInput | undefined,
+): Record<string, unknown> | undefined {
+	if (!input) {
+		return undefined;
+	}
+	const { userInstructionWatcher: _userInstructionWatcher, ...serializable } =
+		input;
+	return JSON.parse(JSON.stringify(serializable)) as Record<string, unknown>;
 }
 
 function parseToolContext(value: unknown): ToolContext {
@@ -641,6 +658,38 @@ export class HubRuntimeHost implements RuntimeHost {
 		const sessions =
 			(reply.payload?.sessions as HubSessionRecord[] | undefined) ?? [];
 		return sessions.map(toSessionRecord);
+	}
+
+	async listSettings(
+		input?: CoreSettingsListInput,
+	): Promise<CoreSettingsSnapshot> {
+		const reply = await this.client.command(
+			"settings.list",
+			serializeSettingsInput(input),
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "settings.list"));
+		}
+		return reply.payload?.snapshot as CoreSettingsSnapshot;
+	}
+
+	async toggleSetting(
+		input: CoreSettingsToggleInput,
+	): Promise<CoreSettingsMutationResult> {
+		const reply = await this.client.command(
+			"settings.toggle",
+			serializeSettingsInput(input),
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "settings.toggle"));
+		}
+		return {
+			snapshot: reply.payload?.snapshot as CoreSettingsSnapshot,
+			changedTypes: Array.isArray(reply.payload?.changedTypes)
+				? (reply.payload
+						.changedTypes as CoreSettingsMutationResult["changedTypes"])
+				: [],
+		};
 	}
 
 	async delete(sessionId: string): Promise<boolean> {

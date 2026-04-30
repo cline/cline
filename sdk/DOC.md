@@ -122,6 +122,7 @@ Important exported areas:
 - runtime builder
 - config watchers/loaders
 - config-side watcher projection helpers
+- settings snapshots and mutations (`ClineCore.settings`, `CoreSettingsService`)
 - default tools and tool routing
 - provider settings management
 - telemetry factories
@@ -150,6 +151,20 @@ Core’s internal extension layer is split by concern:
 - `extensions/config`: watchers, parsers, config loaders, and slash-command projection helpers
 - `extensions/plugin`: plugin loading and sandbox runtime
 - `extensions/context`: context pipeline behavior such as compaction
+
+### Settings mutations
+
+`@clinebot/core` exposes settings listing and mutation through `ClineCore.settings` and `CoreSettingsService`.
+
+Hub-backed runtimes expose the same mutation path through `settings.list` and `settings.toggle`; successful mutations return an updated settings snapshot and publish `settings.changed` with the changed settings types.
+
+Behavior:
+
+- Disabling a skill writes or updates skill frontmatter with `disabled: true`.
+- Enabling a skill removes disabling fields, including `disabled` and legacy `enabled: false` when present.
+- Markdown body content is preserved; unrelated frontmatter fields are preserved semantically.
+- Skill enabled state stays in the SDK skill markdown frontmatter. It is not a session-scoped, workspace-scoped, or external toggle store.
+- Host UIs should call the settings facade/service rather than directly writing skill files.
 
 ### Session Behavior
 

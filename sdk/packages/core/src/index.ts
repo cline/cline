@@ -179,6 +179,7 @@ export {
 	type ClineCoreAutomationOptions,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreOptions,
+	type ClineCoreSettingsApi,
 	type ClineCoreStartInput,
 	type HubOptions,
 	type RemoteOptions,
@@ -522,6 +523,20 @@ export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
 } from "./session/stores/team-persistence-store";
+export type {
+	CoreSettingsItem,
+	CoreSettingsItemKind,
+	CoreSettingsItemSource,
+	CoreSettingsListInput,
+	CoreSettingsMutationResult,
+	CoreSettingsSnapshot,
+	CoreSettingsToggleInput,
+	CoreSettingsType,
+} from "./settings";
+export {
+	CoreSettingsService,
+	createCoreSettingsService,
+} from "./settings";
 export { HubRuntimeHost } from "./transports/hub";
 export { LocalRuntimeHost } from "./transports/local";
 export { RemoteRuntimeHost } from "./transports/remote";

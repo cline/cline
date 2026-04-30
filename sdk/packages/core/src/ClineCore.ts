@@ -45,6 +45,14 @@ import type {
 import { splitCoreSessionConfig } from "./runtime/host/runtime-host";
 import { normalizeProviderId } from "./services/llms/provider-settings";
 import { CORE_TELEMETRY_EVENTS } from "./services/telemetry/core-events";
+import {
+	type ClineCoreSettingsApi,
+	type CoreSettingsListInput,
+	type CoreSettingsMutationResult,
+	type CoreSettingsSnapshot,
+	type CoreSettingsToggleInput,
+	createCoreSettingsService,
+} from "./settings";
 import { SessionSource } from "./types/common";
 import type { CoreSessionConfig } from "./types/config";
 import type { CoreSessionEvent, SessionPendingPrompt } from "./types/events";
@@ -135,7 +143,9 @@ export interface ClineCoreAutomationApi {
 	start(): Promise<void>;
 	stop(): Promise<void>;
 	reconcileNow(): Promise<void>;
-	ingestEvent(event: any): ClineAutomationEventIngressResult;
+	ingestEvent(
+		event: AutomationEventEnvelope,
+	): ClineAutomationEventIngressResult;
 	listEvents(
 		options?: ClineAutomationListEventsOptions,
 	): ClineAutomationEventLog[];
@@ -145,6 +155,7 @@ export interface ClineCoreAutomationApi {
 }
 
 export type { RuntimeHostMode };
+export type { ClineCoreSettingsApi };
 
 export type ClineCoreListHistoryOptions = SessionHistoryListOptions;
 
@@ -203,11 +214,11 @@ export interface ClineCoreOptions {
 	distinctId?: string;
 	/**
 	 * Controls how the runtime host is selected:
-	 * - `"auto"` (default) - prefers a compatible local hub when one is available and falls
+	 * - `"auto"` (default) — prefers a compatible local hub when one is available and falls
 	 *   back to local in-process execution when not.
-	 * - `"hub"` - requires a compatible websocket hub runtime; throws if one is not reachable.
-	 * - `"remote"` - requires an explicit remote websocket hub endpoint.
-	 * - `"local"` - always uses local in-process execution and local SQLite/file storage.
+	 * - `"hub"` — requires a compatible websocket hub runtime; throws if one is not reachable.
+	 * - `"remote"` — requires an explicit remote websocket hub endpoint.
+	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
 	 */
 	backendMode?: RuntimeHostMode;
 	/**
@@ -221,7 +232,7 @@ export interface ClineCoreOptions {
 	remote?: RemoteOptions;
 	/**
 	 * Override one or more default tool executors (e.g. file I/O, shell, browser).
-	 * Partial - only the keys you supply are replaced; the rest use built-in implementations.
+	 * Partial — only the keys you supply are replaced; the rest use built-in implementations.
 	 */
 	defaultToolExecutors?: Partial<ToolExecutors>;
 	/**
@@ -401,6 +412,34 @@ class ClineCoreAutomationController implements ClineCoreAutomationApi {
 	}
 }
 
+type RuntimeHostWithSettings = RuntimeHost & {
+	listSettings?: (
+		input?: CoreSettingsListInput,
+	) => Promise<CoreSettingsSnapshot>;
+	toggleSetting?: (
+		input: CoreSettingsToggleInput,
+	) => Promise<CoreSettingsMutationResult>;
+};
+
+function createClineCoreSettingsApi(host: RuntimeHost): ClineCoreSettingsApi {
+	return {
+		async list(input) {
+			const settingsHost = host as RuntimeHostWithSettings;
+			if (settingsHost.listSettings) {
+				return await settingsHost.listSettings(input);
+			}
+			return await createCoreSettingsService().list(input);
+		},
+		async toggle(input) {
+			const settingsHost = host as RuntimeHostWithSettings;
+			if (settingsHost.toggleSetting) {
+				return await settingsHost.toggleSetting(input);
+			}
+			return await createCoreSettingsService().toggle(input);
+		},
+	};
+}
+
 /**
  * The primary entry point for the Cline Core SDK.
  *
@@ -416,6 +455,7 @@ export class ClineCore implements RuntimeHost {
 	readonly clientName: string | undefined;
 	readonly runtimeAddress: string | undefined;
 	readonly automation: ClineCoreAutomationApi;
+	readonly settings: ClineCoreSettingsApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly defaultToolExecutors: Partial<ToolExecutors> | undefined;
@@ -450,6 +490,7 @@ export class ClineCore implements RuntimeHost {
 		this.logger = logger;
 		this.telemetry = telemetry;
 		this.distinctId = distinctId;
+		this.settings = createClineCoreSettingsApi(host);
 		this.automationService = automationOptions
 			? new CronService({
 					workspaceRoot: automationOptions.workspaceRoot ?? process.cwd(),

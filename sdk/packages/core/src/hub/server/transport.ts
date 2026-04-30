@@ -12,6 +12,12 @@ import { HubScheduleService } from "../../cron/service/schedule-service";
 import type { RuntimeHost } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
+import {
+	type CoreSettingsListInput,
+	CoreSettingsService,
+	type CoreSettingsToggleInput,
+	type CoreSettingsType,
+} from "../../settings";
 import { LocalRuntimeHost } from "../../transports/local";
 import type { CoreSessionEvent } from "../../types/events";
 import {
@@ -66,6 +72,84 @@ import {
 import type { NativeHubTransport } from "./native-transport";
 import type { HubWebSocketServerOptions } from "./types";
 
+const SETTINGS_TYPES = new Set<CoreSettingsType>([
+	"skills",
+	"workflows",
+	"rules",
+	"tools",
+]);
+
+function isPayloadObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requireOptionalString(
+	payload: Record<string, unknown>,
+	key: "cwd" | "workspaceRoot" | "id" | "path" | "name",
+): string | undefined {
+	const value = payload[key];
+	if (value === undefined) {
+		return undefined;
+	}
+	if (typeof value !== "string") {
+		throw new Error(`settings payload '${key}' must be a string.`);
+	}
+	return value;
+}
+
+function requireOptionalBoolean(
+	payload: Record<string, unknown>,
+	key: "enabled",
+): boolean | undefined {
+	const value = payload[key];
+	if (value === undefined) {
+		return undefined;
+	}
+	if (typeof value !== "boolean") {
+		throw new Error(`settings payload '${key}' must be a boolean.`);
+	}
+	return value;
+}
+
+function parseSettingsListInput(payload: unknown): CoreSettingsListInput {
+	if (payload === undefined) {
+		return {};
+	}
+	if (!isPayloadObject(payload)) {
+		throw new Error("settings.list payload must be an object.");
+	}
+	return {
+		cwd: requireOptionalString(payload, "cwd"),
+		workspaceRoot: requireOptionalString(payload, "workspaceRoot"),
+		availabilityContext: isPayloadObject(payload.availabilityContext)
+			? (payload.availabilityContext as CoreSettingsListInput["availabilityContext"])
+			: undefined,
+	};
+}
+
+function parseSettingsToggleInput(payload: unknown): CoreSettingsToggleInput {
+	if (!isPayloadObject(payload)) {
+		throw new Error("settings.toggle payload must be an object.");
+	}
+	const { type } = payload;
+	if (
+		typeof type !== "string" ||
+		!SETTINGS_TYPES.has(type as CoreSettingsType)
+	) {
+		throw new Error(
+			"settings.toggle payload 'type' must be one of: skills, workflows, rules, tools.",
+		);
+	}
+	return {
+		...parseSettingsListInput(payload),
+		type: type as CoreSettingsType,
+		id: requireOptionalString(payload, "id"),
+		path: requireOptionalString(payload, "path"),
+		name: requireOptionalString(payload, "name"),
+		enabled: requireOptionalBoolean(payload, "enabled"),
+	};
+}
+
 /** @internal Exported for unit testing fetch/runtime wiring. */
 export class HubServerTransport implements NativeHubTransport {
 	private readonly clients = new Map<string, HubClientRecord>();
@@ -85,6 +169,7 @@ export class HubServerTransport implements NativeHubTransport {
 	>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
+	private readonly settings: CoreSettingsService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost;
 	private readonly hubId = createSessionId("hub_");
@@ -141,6 +226,7 @@ export class HubServerTransport implements NativeHubTransport {
 			},
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
+		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
 			this.cronService = new CronService({
 				runtimeHandlers: options.runtimeHandlers,
@@ -267,6 +353,21 @@ export class HubServerTransport implements NativeHubTransport {
 			case "ui.show_window":
 				this.publish(buildHubEvent("ui.show_window", envelope.payload ?? {}));
 				return okReply(envelope);
+			case "settings.list":
+				return await this.handleSettingsList(envelope);
+			case "settings.toggle":
+				return await this.handleSettingsToggle(envelope);
+			case "settings.get":
+			case "settings.patch":
+				return {
+					version: envelope.version,
+					requestId: envelope.requestId,
+					ok: false,
+					error: {
+						code: "not_implemented",
+						message: `${envelope.command} is not implemented yet.`,
+					},
+				};
 			default: {
 				const reply = await this.scheduleCommands.handleCommand(envelope);
 				if (reply.ok) {
@@ -277,6 +378,67 @@ export class HubServerTransport implements NativeHubTransport {
 				}
 				return reply;
 			}
+		}
+	}
+
+	private async handleSettingsList(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		try {
+			const snapshot = await this.settings.list(
+				parseSettingsListInput(envelope.payload),
+			);
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: true,
+				payload: { snapshot },
+			};
+		} catch (error) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "settings_list_failed",
+					message: error instanceof Error ? error.message : String(error),
+				},
+			};
+		}
+	}
+
+	private async handleSettingsToggle(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		try {
+			const result = await this.settings.toggle(
+				parseSettingsToggleInput(envelope.payload),
+			);
+			this.publish(
+				buildHubEvent("settings.changed", {
+					types: result.changedTypes,
+					snapshot: result.snapshot,
+				}),
+			);
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: true,
+				payload: {
+					snapshot: result.snapshot,
+					changedTypes: result.changedTypes,
+				},
+			};
+		} catch (error) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "settings_toggle_failed",
+					message: error instanceof Error ? error.message : String(error),
+				},
+			};
 		}
 	}
 

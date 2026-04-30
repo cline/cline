@@ -4,6 +4,7 @@ import type {
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
 import type { RuntimeHost } from "../../runtime/host/runtime-host";
+import type { CoreSettingsService } from "../../settings";
 import type { HubOwnerContext } from "../discovery";
 
 export interface HubWebSocketServerOptions {
@@ -12,6 +13,7 @@ export interface HubWebSocketServerOptions {
 	pathname?: string;
 	owner?: HubOwnerContext;
 	sessionHost?: RuntimeHost;
+	settingsService?: CoreSettingsService;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
 	/**

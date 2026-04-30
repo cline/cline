@@ -10,19 +10,20 @@ import type {
 import type { Config } from "../../utils/types";
 import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
-
-export type ConfigAction =
-	| { kind: "open-provider" }
-	| { kind: "open-model" }
-	| { kind: "toggle-item"; item: InteractiveConfigItem }
-	| {
-			kind: "ext-detail";
-			name: string;
-			path: string;
-			source: string;
-			enabled?: boolean;
-	  }
-	| { kind: "open-mcp" };
+import {
+	type ConfigAction,
+	getAdjacentConfigTab,
+	getConfigFooterText,
+	getConfigItemDisplayName,
+	getConfigTabs,
+	isInlineConfigAction,
+	isToggleableConfigItem,
+	resolveActiveConfigItems,
+	resolveConfigItemSelectAction,
+	resolveConfigItemToggleAction,
+	resolveInitialConfigTab,
+	toTabLabel,
+} from "./config-view-helpers";
 
 type ConfigRow =
 	| { kind: "spacer" }
@@ -42,95 +43,6 @@ type ConfigRow =
 	  }
 	| { kind: "mcp-manager" };
 
-const CONFIG_TABS: InteractiveConfigTab[] = [
-	"general",
-	"mcp",
-	"skills",
-	"rules",
-	"tools",
-	"plugins",
-	"agents",
-	"hooks",
-];
-
-function toTabLabel(tab: InteractiveConfigTab): string {
-	switch (tab) {
-		case "general":
-			return "General";
-		case "tools":
-			return "Tools";
-		case "plugins":
-			return "Plugins";
-		case "agents":
-			return "Agents";
-		case "hooks":
-			return "Hooks";
-		case "skills":
-			return "Skills";
-		case "rules":
-			return "Rules";
-		case "mcp":
-			return "MCP";
-		case "workflows":
-			return "Workflows";
-	}
-}
-
-function sourceRank(source: InteractiveConfigItem["source"]): number {
-	switch (source) {
-		case "builtin":
-			return 0;
-		case "workspace":
-			return 1;
-		case "workspace-plugin":
-			return 2;
-		case "global":
-			return 3;
-		case "global-plugin":
-			return 4;
-	}
-}
-
-function sortBySourceThenName(
-	items: InteractiveConfigItem[],
-): InteractiveConfigItem[] {
-	return [...items].sort((a, b) => {
-		if (a.source !== b.source) {
-			return sourceRank(a.source) - sourceRank(b.source);
-		}
-		return a.name.localeCompare(b.name);
-	});
-}
-
-function resolveActiveConfigItems(
-	configData: InteractiveConfigData,
-	configTab: InteractiveConfigTab,
-): InteractiveConfigItem[] {
-	switch (configTab) {
-		case "general":
-			return [];
-		case "tools":
-			return sortBySourceThenName(configData.tools);
-		case "plugins":
-			return sortBySourceThenName(configData.plugins);
-		case "agents":
-			return sortBySourceThenName(configData.agents);
-		case "hooks":
-			return sortBySourceThenName(configData.hooks);
-		case "skills":
-			return sortBySourceThenName([
-				...configData.workflows,
-				...configData.skills,
-			]);
-		case "rules":
-			return sortBySourceThenName(configData.rules);
-		case "mcp":
-			return sortBySourceThenName(configData.mcp);
-		case "workflows":
-			return sortBySourceThenName(configData.workflows);
-	}
-}
-
 function getSourceColor(source: string): string {
 	return source === "workspace" || source === "workspace-plugin"
 		? palette.success
@@ -146,6 +58,16 @@ function isNavigable(row: ConfigRow): boolean {
 		row.kind === "toggle" ||
 		row.kind === "ext" ||
 		row.kind === "mcp-manager"
+	);
+}
+
+function isToggleableRow(
+	row: ConfigRow,
+): row is Extract<ConfigRow, { kind: "ext" }> {
+	return (
+		row.kind === "ext" &&
+		typeof row.enabled === "boolean" &&
+		isToggleableConfigItem(row.item)
 	);
 }
 
@@ -167,12 +89,17 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	configData: InteractiveConfigData;
 	providerDisplayName: string;
 	currentMode: string;
+	initialTab?: InteractiveConfigTab;
+	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
+	onToggleConfigItem?: (
+		item: InteractiveConfigItem,
+	) => Promise<InteractiveConfigData | undefined>;
 	onToggleMode: () => void;
 	onToggleAutoApprove: () => void;
 }
 
 export function ConfigPanelContent(props: ConfigPanelProps) {
-	const { resolve, dismiss, dialogId, config, configData } = props;
+	const { resolve, dismiss, dialogId, config } = props;
 	const { height } = useTerminalDimensions();
 
 	const [mode, setMode] = useState(props.currentMode);
@@ -180,7 +107,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);
 	const [verbose, setVerbose] = useState(config.verbose);
-	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>("general");
+	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>(() =>
+		resolveInitialConfigTab(props.initialTab),
+	);
+	const [configData, setConfigData] = useState(props.configData);
+	const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
+	const [toggleError, setToggleError] = useState<string | undefined>();
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
@@ -239,6 +171,23 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	const selectedRowIdx = navIndices[navPos] ?? 0;
 
+	const handleInlineToggle = async (item: InteractiveConfigItem) => {
+		if (!props.onToggleConfigItem || togglingItemId) return;
+		setTogglingItemId(item.id);
+		setToggleError(undefined);
+		try {
+			const nextData = await props.onToggleConfigItem(item);
+			if (nextData) {
+				setConfigData(nextData);
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setToggleError(`Failed to update ${item.name}: ${message}`);
+		} finally {
+			setTogglingItemId(null);
+		}
+	};
+
 	const handleSelect = () => {
 		const row = rows[selectedRowIdx];
 		if (!row) return;
@@ -266,26 +215,27 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				}
 				break;
 			case "ext":
-				if (
-					typeof row.enabled === "boolean" &&
-					(row.source === "builtin" ||
-						row.source === "workspace-plugin" ||
-						row.source === "global-plugin")
-				) {
-					resolve({ kind: "toggle-item", item: row.item });
-					break;
+				{
+					const action = resolveConfigItemSelectAction(row.item);
+					if (isInlineConfigAction(action)) {
+						void handleInlineToggle(row.item);
+					} else {
+						resolve(action);
+					}
 				}
-				resolve({
-					kind: "ext-detail",
-					name: row.name,
-					path: row.path,
-					source: row.source,
-					enabled: row.enabled,
-				});
 				break;
 			case "mcp-manager":
 				resolve({ kind: "open-mcp" });
 				break;
+		}
+	};
+
+	const handleToggleSelected = () => {
+		const row = rows[selectedRowIdx];
+		if (!row || !isToggleableRow(row)) return;
+		const action = resolveConfigItemToggleAction(row.item);
+		if (isInlineConfigAction(action)) {
+			void handleInlineToggle(row.item);
 		}
 	};
 
@@ -295,12 +245,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			return;
 		}
 		if (key.name === "left" || key.name === "right") {
+			const direction = key.name === "left" ? "left" : "right";
 			setActiveTab((tab) => {
-				const currentIndex = CONFIG_TABS.indexOf(tab);
-				const delta = key.name === "left" ? -1 : 1;
-				const nextIndex =
-					(currentIndex + delta + CONFIG_TABS.length) % CONFIG_TABS.length;
-				return CONFIG_TABS[nextIndex] ?? "general";
+				const nextTab = getAdjacentConfigTab(tab, direction);
+				props.onActiveTabChange?.(nextTab);
+				return nextTab;
 			});
 			setNavPos(0);
 			return;
@@ -311,6 +260,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 		if (key.name === "down") {
 			setNavPos((p) => (p < navIndices.length - 1 ? p + 1 : 0));
+			return;
+		}
+		if (key.name === "space") {
+			handleToggleSelected();
 			return;
 		}
 		if (key.name === "return" || key.name === "tab") {
@@ -330,7 +283,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			</text>
 
 			<box flexDirection="row" flexWrap="wrap" paddingBottom={1}>
-				{CONFIG_TABS.map((tab) => {
+				{getConfigTabs().map((tab) => {
 					const isActive = tab === activeTab;
 					return (
 						<box
@@ -423,7 +376,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 							</box>
 						);
 					}
-					case "ext":
+					case "ext": {
 						return (
 							<box
 								key={absIdx}
@@ -437,11 +390,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 											? "● "
 											: "○ "
 										: ""}
-									{row.name}
+									{getConfigItemDisplayName(row.name)}
 								</text>
 								<text fg={getSourceColor(row.source)}>{row.source}</text>
 							</box>
 						);
+					}
 					case "mcp-manager":
 						return (
 							<text key={absIdx} fg={isSel ? "cyan" : "gray"}>
@@ -461,10 +415,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			)}
 
 			<text> </text>
+			{toggleError && <text fg="red">{toggleError}</text>}
 			<text fg="gray">
-				<em>
-					{"←/→ switch tabs, ↑/↓ navigate, Tab/Enter to select, Esc to close"}
-				</em>
+				<em>{getConfigFooterText()}</em>
 			</text>
 		</box>
 	);

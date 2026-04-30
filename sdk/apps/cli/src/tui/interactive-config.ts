@@ -25,11 +25,22 @@ export type InteractiveConfigTab =
 	| "rules"
 	| "mcp";
 
+export type InteractiveConfigItemKind =
+	| "workflow"
+	| "rule"
+	| "skill"
+	| "hook"
+	| "agent"
+	| "plugin"
+	| "mcp"
+	| "tool";
+
 export interface InteractiveConfigItem {
 	id: string;
 	name: string;
 	path: string;
 	enabled?: boolean;
+	kind: InteractiveConfigItemKind;
 	toolNames?: string[];
 	source:
 		| "global"
@@ -49,6 +60,17 @@ export interface InteractiveConfigData {
 	plugins: InteractiveConfigItem[];
 	mcp: InteractiveConfigItem[];
 	tools: InteractiveConfigItem[];
+}
+
+export function isToggleableInteractiveConfigItem(
+	item: Pick<InteractiveConfigItem, "kind" | "source">,
+): boolean {
+	return (
+		item.kind === "skill" ||
+		item.source === "builtin" ||
+		item.source === "workspace-plugin" ||
+		item.source === "global-plugin"
+	);
 }
 
 function detectSource(
@@ -124,6 +146,7 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 					name,
 					path: filePath,
 					enabled: true,
+					kind: "agent",
 					source: detectSource(filePath, workspaceRoot),
 					description: parsedDescription,
 				});
@@ -161,6 +184,7 @@ export async function loadInteractiveConfigData(input: {
 				name: workflow.name,
 				path: record.filePath,
 				enabled: workflow.disabled !== true,
+				kind: "workflow",
 				source: detectSource(record.filePath, input.workspaceRoot),
 				description: workflow.instructions,
 			});
@@ -172,6 +196,7 @@ export async function loadInteractiveConfigData(input: {
 				name: rule.name,
 				path: record.filePath,
 				enabled: rule.disabled !== true,
+				kind: "rule",
 				source: detectSource(record.filePath, input.workspaceRoot),
 				description: rule.instructions,
 			});
@@ -187,6 +212,7 @@ export async function loadInteractiveConfigData(input: {
 				name: skill.name,
 				path: record.filePath,
 				enabled: skill.disabled !== true,
+				kind: "skill",
 				source: detectSource(record.filePath, input.workspaceRoot),
 				description: skill.description,
 			});
@@ -199,6 +225,7 @@ export async function loadInteractiveConfigData(input: {
 			name: hook.fileName,
 			path: hook.path,
 			enabled: true,
+			kind: "hook",
 			source: detectSource(hook.path, input.workspaceRoot),
 			description: hook.hookEventName,
 		});
@@ -216,6 +243,7 @@ export async function loadInteractiveConfigData(input: {
 				name: basename(filePath, extname(filePath)),
 				path: filePath,
 				enabled: true,
+				kind: "plugin",
 				source: detectSource(filePath, input.workspaceRoot),
 			});
 		}
@@ -232,6 +260,7 @@ export async function loadInteractiveConfigData(input: {
 					name: registration.name,
 					path: mcpSettingsPath,
 					enabled: registration.disabled !== true,
+					kind: "mcp",
 					source: detectSource(mcpSettingsPath, input.workspaceRoot),
 					description: registration.transport.type,
 				});
@@ -251,6 +280,7 @@ export async function loadInteractiveConfigData(input: {
 					? tool.id
 					: tool.headlessToolNames.join(", "),
 			enabled: tool.defaultEnabled,
+			kind: "tool" as const,
 			toolNames: [tool.id, ...tool.headlessToolNames],
 			source: "builtin" as const,
 			description: tool.description,
@@ -267,6 +297,7 @@ export async function loadInteractiveConfigData(input: {
 			name: pluginTool.name,
 			path: pluginTool.path,
 			enabled: pluginTool.enabled,
+			kind: "tool" as const,
 			toolNames: [pluginTool.name],
 			source: pluginTool.source,
 			description: pluginTool.description,

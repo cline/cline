@@ -36,6 +36,7 @@ export {
 	listAvailableRuntimeCommandsFromWatcher,
 	resolveRuntimeSlashCommandFromWatcher,
 } from "./runtime-commands";
+// Skill frontmatter mutation is intentionally not exported from this barrel.
 export type {
 	UnifiedConfigDefinition,
 	UnifiedConfigFileCandidate,

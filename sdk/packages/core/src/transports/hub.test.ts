@@ -788,6 +788,47 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("throws when the hub rejects settings list", async () => {
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: {
+				code: "settings_list_failed",
+				message: "Invalid settings list payload",
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(host.listSettings({ cwd: "/tmp/project" })).rejects.toThrow(
+			"Invalid settings list payload",
+		);
+		expect(commandMock).toHaveBeenCalledWith("settings.list", {
+			cwd: "/tmp/project",
+		});
+	});
+
+	it("throws when the hub rejects settings toggle", async () => {
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: {
+				code: "settings_toggle_failed",
+				message: "Unknown settings type",
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.toggleSetting({ type: "skills", id: "skill-one" }),
+		).rejects.toThrow("Unknown settings type");
+		expect(commandMock).toHaveBeenCalledWith("settings.toggle", {
+			type: "skills",
+			id: "skill-one",
+		});
+	});
+
 	it("detaches active sessions when disposed", async () => {
 		commandMock.mockResolvedValueOnce({
 			payload: {

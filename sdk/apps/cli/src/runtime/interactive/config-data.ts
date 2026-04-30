@@ -1,5 +1,5 @@
 import {
-	setDisabledTools,
+	createCoreSettingsService,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import {
@@ -33,17 +33,47 @@ export function createInteractiveConfigDataLoader(input: {
 	const onToggleConfigItem = async (
 		item: InteractiveConfigItem,
 	): Promise<InteractiveConfigData | undefined> => {
+		const settings = createCoreSettingsService();
+		if (item.kind === "skill" && typeof item.enabled === "boolean") {
+			await settings.toggle({
+				type: "skills",
+				id: item.id,
+				path: item.path,
+				name: item.name,
+				enabled: !item.enabled,
+				cwd: input.config.cwd,
+				workspaceRoot: workspaceRoot(),
+				userInstructionWatcher: input.userInstructionWatcher,
+				availabilityContext: availabilityContext(),
+			});
+			return await loadConfigData();
+		}
+
 		if (
-			item.source !== "builtin" &&
-			item.source !== "workspace-plugin" &&
-			item.source !== "global-plugin"
+			item.kind !== "tool" ||
+			(item.source !== "builtin" &&
+				item.source !== "workspace-plugin" &&
+				item.source !== "global-plugin")
 		) {
 			return undefined;
 		}
 		const toolNames = [
 			...new Set([...(item.toolNames ?? []), item.name].filter(Boolean)),
 		];
-		setDisabledTools(toolNames, item.enabled !== false);
+		await Promise.all(
+			toolNames.map((name) =>
+				settings.toggle({
+					type: "tools",
+					name,
+					enabled:
+						typeof item.enabled === "boolean" ? !item.enabled : undefined,
+					cwd: input.config.cwd,
+					workspaceRoot: workspaceRoot(),
+					userInstructionWatcher: input.userInstructionWatcher,
+					availabilityContext: availabilityContext(),
+				}),
+			),
+		);
 		return await loadConfigData();
 	};
 

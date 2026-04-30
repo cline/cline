@@ -118,6 +118,14 @@ export function setDisabledTools(
 	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
 }
 
+export function setToolDisabledGlobally(
+	toolName: string,
+	disabled: boolean,
+): boolean {
+	setDisabledTools([toolName], disabled);
+	return disabled;
+}
+
 export function isPluginDisabledGlobally(pluginPath: string): boolean {
 	return resolveDisabledPluginPaths().has(pluginPath);
 }

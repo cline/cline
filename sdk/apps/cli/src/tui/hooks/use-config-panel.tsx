@@ -1,14 +1,16 @@
 import { Llms } from "@clinebot/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	InteractiveConfigTab,
 } from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 import { ExtDetailContent } from "../components/dialogs/config-dialogs";
-import { type ConfigAction, ConfigPanelContent } from "../views/config-view";
+import { ConfigPanelContent } from "../views/config-view";
+import type { ConfigAction } from "../views/config-view-helpers";
 import type { OpenModelSelectorOptions } from "./use-model-selector";
 
 export function useConfigPanel(opts: {
@@ -26,6 +28,7 @@ export function useConfigPanel(opts: {
 	openMcpManager: (options?: { refocus?: boolean }) => Promise<boolean>;
 	refocusTextarea: () => void;
 }) {
+	const activeTabRef = useRef<InteractiveConfigTab>("general");
 	const emptyConfigData = useMemo(
 		() => ({
 			workflows: [] as InteractiveConfigItem[],
@@ -59,6 +62,11 @@ export function useConfigPanel(opts: {
 						configData={data}
 						providerDisplayName={providerDisplayName}
 						currentMode={opts.sessionUiMode}
+						initialTab={activeTabRef.current}
+						onActiveTabChange={(tab) => {
+							activeTabRef.current = tab;
+						}}
+						onToggleConfigItem={opts.onToggleConfigItem}
 						onToggleMode={opts.toggleMode}
 						onToggleAutoApprove={opts.toggleAutoApprove}
 					/>
@@ -79,13 +87,12 @@ export function useConfigPanel(opts: {
 			} else if (action.kind === "ext-detail") {
 				await opts.dialog.choice<void>({
 					style: { maxHeight: opts.termHeight - 2 },
+					closeOnEscape: false,
 					content: (ctx: ChoiceContext<void>) => (
 						<ExtDetailContent
 							{...ctx}
-							name={action.name}
-							path={action.path}
-							source={action.source}
-							enabled={action.enabled}
+							item={action.item}
+							onToggleConfigItem={opts.onToggleConfigItem}
 						/>
 					),
 				});
