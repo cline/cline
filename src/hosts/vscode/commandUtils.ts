@@ -114,7 +114,7 @@ export async function showWebview(preserveEditorFocus: boolean = true): Promise<
 			"Open Cline",
 		).then((selection) => {
 			if (selection === "Open Cline") {
-				vscode.commands.executeCommand(`${ExtensionRegistryInfo.extension.id}.OpenCline`)
+				vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 			}
 		})
 		return undefined
