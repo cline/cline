@@ -1,14 +1,9 @@
-import * as fs from "node:fs/promises"
-import * as path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@clinebot/core"
 import type { Message as SdkMessage } from "@clinebot/llms"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import { GlobalFileNames } from "@/core/storage/disk"
-import { HostProvider } from "@/hosts/host-provider"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
-import { fileExistsAtPath } from "@/utils/fs"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -194,33 +189,6 @@ export class SdkTaskHistory {
 		const history = await this.listHistory()
 		const item = history.find((candidate) => candidate.sessionId === taskId)
 		return item ? sessionHistoryRecordToHistoryItem(item) : undefined
-	}
-
-	async getTaskWithId(id: string): Promise<TaskWithId> {
-		const historyItem = await this.findHistoryItem(id)
-		if (historyItem) {
-			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
-			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
-			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
-			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
-			const taskMetadataFilePath = path.join(taskDirPath, GlobalFileNames.taskMetadata)
-			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-			if (fileExists) {
-				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
-				return {
-					historyItem,
-					taskDirPath,
-					apiConversationHistoryFilePath,
-					uiMessagesFilePath,
-					contextHistoryFilePath,
-					taskMetadataFilePath,
-					apiConversationHistory,
-				}
-			}
-		}
-
-		await this.deleteTaskFromState(id)
-		throw new Error("Task not found")
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {

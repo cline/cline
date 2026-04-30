@@ -4,7 +4,6 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
-import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
@@ -74,8 +73,6 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	syncWorker().init({ ...blobStoreSettings, userDistinctId: getDistinctId() })
 	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
 	ClineTempManager.startPeriodicCleanup()
-	// Clean up orphaned file context warnings (startup cleanup)
-	FileContextTracker.cleanupOrphanedWarnings(stateManager)
 
 	telemetryService.captureExtensionActivated()
 
@@ -106,7 +103,7 @@ async function showVersionUpdateAnnouncement(stateManager: StateManager) {
 				})
 			}
 			// Always update the main version tracker for the next launch.
-			await stateManager.setGlobalState("clineVersion", currentVersion)
+			stateManager.setGlobalState("clineVersion", currentVersion)
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)

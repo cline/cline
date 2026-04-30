@@ -148,7 +148,7 @@ export class SdkTaskControlCoordinator {
 
 			if (messages.length > 0) {
 				const cleanedMessages = this.appendFreshResumeMessage(messages)
-				this.options.messages.appendMessages(cleanedMessages, { save: false })
+				this.options.messages.appendMessages(cleanedMessages)
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
 
 				const { pushMessageToWebview } = await import("./webview-grpc-bridge")

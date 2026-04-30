@@ -45,57 +45,23 @@ export class SdkMessageCoordinator {
 		}
 	}
 
-	appendMessages(messages: ClineMessage[], options: { save?: boolean } = {}): void {
+	appendMessages(messages: ClineMessage[]): void {
 		const task = this.options.getTask()
 		if (!task?.messageStateHandler) {
 			return
 		}
 
 		task.messageStateHandler.addMessages(messages)
-
-		if (options.save ?? true) {
-			this.debouncedSaveClineMessages()
-		}
 	}
 
-	appendAndEmit(messages: ClineMessage[], event: CoreSessionEvent, options: { save?: boolean } = {}): void {
-		this.appendMessages(messages, options)
+	appendAndEmit(messages: ClineMessage[], event: CoreSessionEvent): void {
+		this.appendMessages(messages)
 		this.emitSessionEvents(messages, event)
 	}
 
 	emitHookMessage(message: ClineMessage): void {
 		this.appendMessages([message])
 		pushMessageToWebview(message).catch(() => {})
-	}
-
-	debouncedSaveClineMessages(): void {
-		if (this.saveClineMessagesTimer) {
-			clearTimeout(this.saveClineMessagesTimer)
-		}
-		this.saveClineMessagesTimer = setTimeout(() => {
-			this.saveClineMessagesTimer = undefined
-			this.saveClineMessagesNow().catch((err) => {
-				Logger.error("[SdkController] Failed to save ClineMessages:", err)
-			})
-		}, 500)
-	}
-
-	async saveClineMessagesNow(): Promise<void> {
-		const task = this.options.getTask()
-		const taskId = task?.taskId
-		if (!taskId || !task?.messageStateHandler) {
-			return
-		}
-		const messages = task.messageStateHandler.getClineMessages()
-		if (messages.length === 0) {
-			return
-		}
-		try {
-			const { saveClineMessages } = await import("@core/storage/disk")
-			await saveClineMessages(taskId, messages)
-		} catch (error) {
-			Logger.error("[SdkController] saveClineMessagesNow error:", error)
-		}
 	}
 
 	/**
