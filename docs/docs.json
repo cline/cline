@@ -131,7 +131,8 @@
 										]
 									}
 								]
-							}
+							},
+							"getting-started/config"
 						]
 					},
 					{
@@ -153,7 +154,6 @@
 					{
 						"group": "Customization",
 						"pages": [
-							"customization/overview",
 							"customization/cline-rules",
 							"customization/skills",
 							"customization/plugins",
@@ -166,13 +166,10 @@
 						"group": "Features",
 						"pages": [
 							"features/auto-approve",
-							"features/auto-compact",
 							"features/multiroot-workspace",
 							"features/subagents",
-							"features/background-edit",
 							"features/jupyter-notebooks",
-							"features/web-tools",
-							"features/worktrees"
+							"features/web-tools"
 						]
 					},
 					{
@@ -222,7 +219,6 @@
 						"group": "Reference",
 						"pages": [
 							"cli/cli-reference",
-							"cli/configuration",
 							"cli/acp-editor-integrations"
 						]
 					},
@@ -516,6 +512,10 @@
 			"destination": "/core-workflows/task-management"
 		},
 		{
+			"source": "/customization/overview",
+			"destination": "/getting-started/config"
+		},
+		{
 			"source": "/customization/focus-chain",
 			"destination": "/core-workflows/using-commands#deep-planning"
 		},
@@ -781,7 +781,11 @@
 		},
 		{
 			"source": "/cline-cli/configuration",
-			"destination": "/cli/configuration"
+			"destination": "/getting-started/config"
+		},
+		{
+			"source": "/cli/configuration",
+			"destination": "/getting-started/config"
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
