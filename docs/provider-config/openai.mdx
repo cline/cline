@@ -1,11 +1,18 @@
 ---
-title: "OpenAI"
-description: "Learn how to configure and use official OpenAI provider with Cline."
+title: "OpenAI (Codex)"
+description: "Configure OpenAI with API key or OpenAI Codex OAuth in Cline."
 ---
 
 Cline supports accessing models directly through the official OpenAI API.
 
+## Choose an OpenAI Path
+
+- **[OpenAI API (key-based)](#get-api-credentials):** Use your OpenAI API key.
+- **[OpenAI Codex (OAuth)](#openai-codex-oauth):** Sign in with OpenAI account (no key management).
+
 **Website:** [https://openai.com/](https://openai.com/)
+
+## OpenAI API (key-based)
 
 ### Get API Credentials
 
@@ -15,6 +22,8 @@ Cline supports accessing models directly through the official OpenAI API.
 4.  **Copy the Key:** **Crucial:** Copy the generated API key immediately. For security reasons, OpenAI will not show it to you again. Store this key in a safe and secure location.
 
 ### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
 
 1.  **Open Cline Settings:** Click the settings gear icon (⚙️) in the Cline panel.
 2.  **Select Provider:** Choose "OpenAI" from the "API Provider" dropdown menu.
@@ -26,3 +35,14 @@ Cline supports accessing models directly through the official OpenAI API.
 
 -   **Pricing:** Be sure to review the [OpenAI Pricing page](https://openai.com/pricing) for detailed information on the costs associated with different models.
 -   **Azure OpenAI Service:** If you are looking to use the Azure OpenAI service, please note that specific documentation for Azure OpenAI with Cline may be found separately, or you might need to configure it as an OpenAI-compatible endpoint if such functionality is supported by Cline for custom configurations.
+
+## OpenAI Codex (OAuth)
+
+1. Open Cline settings.
+2. Select **OpenAI Codex** from **API Provider**.
+3. Click **Sign in with OpenAI** and complete browser OAuth.
+4. Return to Cline and choose a model.
+
+Notes:
+- No API key entry required.
+- Available models depend on your OpenAI plan.

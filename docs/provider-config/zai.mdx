@@ -1,13 +1,13 @@
 ---
 title: "Z AI (Zhipu AI)"
-description: "Learn how to configure and use Z AI's GLM provider with Cline. Experience advanced hybrid reasoning, agentic capabilities, and open-source excellence with regional optimization."
+description: "Learn how to configure and use Z AI's GLM models with Cline. Experience advanced hybrid reasoning, agentic capabilities, and open-source excellence with regional optimization."
 ---
 
 Z AI (formerly Zhipu AI) offers the GLM model series, featuring hybrid reasoning capabilities and agentic AI design. These models excel in unified reasoning, coding, and intelligent agent applications while maintaining open-source accessibility under MIT license.
 
 **Website:** [https://z.ai/model-api](https://z.ai/model-api) (International) | [https://open.bigmodel.cn/](https://open.bigmodel.cn/) (China)
 
-### Get API Credentials
+### Getting an API Key
 
 #### International Users
 1.  **Sign Up/Sign In:** Go to [https://z.ai/model-api](https://z.ai/model-api). Create an account or sign in.
@@ -21,7 +21,11 @@ Z AI (formerly Zhipu AI) offers the GLM model series, featuring hybrid reasoning
 3.  **Create a Key:** Generate a new API key for your application.
 4.  **Copy the Key:** Copy the API key immediately and store it securely.
 
+**Note:** Pricing differs between International and China regions. China region pricing is approximately 50% lower.
+
 ### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
 
 1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
 2.  **Select Provider:** Choose "Z AI" from the "API Provider" dropdown.
@@ -29,10 +33,33 @@ Z AI (formerly Zhipu AI) offers the GLM model series, featuring hybrid reasoning
     -   "International" for global access
     -   "China" for mainland China access
 4.  **Enter API Key:** Paste your Z AI API key into the "Z AI API Key" field.
-5.  **Select Provider Model:** Choose your desired model from the "Model" dropdown.
+5.  **Select Model:** Choose your desired model from the "Model" dropdown.
 
-### Tips and Notes
+### GLM Coding Plans
 
--   **Region Selection:** Choose the appropriate region for optimal performance and compliance with local regulations.
--   **Open Source Benefits:** MIT license enables both commercial use and secondary development.
--   **API Compatibility:** OpenAI-compatible API provides streaming responses and usage reporting.
+Z AI offers subscription plans specifically designed for coding applications. These plans provide cost-effective access to GLM series models through a prompt-based structure rather than traditional API usage billing.
+
+#### Setting up GLM Coding Plans
+
+To use the GLM Coding Plans with Cline:
+
+1. **Subscribe:** Go to [https://z.ai/subscribe](https://z.ai/subscribe) and choose your plan.
+
+2. **Create API Key:** After subscribing, log into your zAI dashboard and create an API key for your coding plan.
+
+3. **Configure in Cline:** Open Cline settings, select "Z AI" as your provider, and paste your API key into the "Z AI API Key" field.
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/docs/assets/zAI-provider.png" alt="Cline settings with zAI provider selected and API key field highlighted" />
+</Frame>
+
+The setup connects your subscription directly to Cline, giving you access to GLM-4.5's tool-calling capabilities optimized for coding workflows.
+
+### Regional Optimization
+
+#### API Endpoints
+- **International:** Uses `https://api.z.ai/api/paas/v4`
+- **China:** Uses `https://open.bigmodel.cn/api/paas/v4`
+
+#### Model Availability
+The region setting determines both API endpoint and available models, with automatic filtering to ensure compatibility with your selected region.

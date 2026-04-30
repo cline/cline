@@ -1,11 +1,18 @@
 ---
-title: "Anthropic"
-description: "Learn how to configure and use Anthropic Claude provider with Cline. Covers API key setup, provider selection, and advanced features."
+title: "Anthropic / Claude Code"
+description: "Configure Anthropic API keys or Claude Code subscription with Cline."
 ---
 
 **Website:** [https://www.anthropic.com/](https://www.anthropic.com/)
 
-### Get API Credentials
+## Choose an Anthropic Path
+
+- **[Anthropic API (key-based)](#getting-an-api-key):** Use an Anthropic API key.
+- **[Claude Code (subscription-based)](#claude-code-subscription):** Use your Claude Max/Pro subscription through the Claude CLI.
+
+## Anthropic API (key-based)
+
+### Getting an API Key
 
 1.  **Sign Up/Sign In:** Go to the [Anthropic Console](https://console.anthropic.com/). Create an account or sign in.
 2.  **Navigate to API Keys:** Go to the [API keys](https://console.anthropic.com/settings/keys) section.
@@ -14,13 +21,49 @@ description: "Learn how to configure and use Anthropic Claude provider with Clin
 
 ### Configuration in Cline
 
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
+
 1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
 2.  **Select Provider:** Choose "Anthropic" from the "API Provider" dropdown.
 3.  **Enter API Key:** Paste your Anthropic API key into the "Anthropic API Key" field.
-4.  **Select Provider Model:** Choose your desired Claude model from the "Model" dropdown.
+4.  **Select Model:** Choose your desired Claude model from the "Model" dropdown.
 5.  **(Optional) Custom Base URL:** If you need to use a custom base URL for the Anthropic API, check "Use custom base URL" and enter the URL. Most users won't need to adjust this setting.
+
+## Claude Code (Subscription)
+
+Use this path if you already have Claude Max/Pro and want to use subscription-based access in Cline.
+
+1. Install and authenticate Claude CLI via Anthropic docs: [Claude Code setup](https://docs.anthropic.com/en/docs/claude-code/setup).
+2. In Cline settings, select **Claude Code** as provider.
+3. Set the Claude CLI path (usually `claude` if available in PATH).
+
+Find Claude path:
+- macOS / Linux / WSL / Git Bash: `which claude`
+- Windows Command Prompt: `where claude`
+
+Notes:
+- Uses your Claude subscription limits instead of API token billing.
+- Responses may not stream token-by-token.
+- Image uploads and prompt caching are limited in this mode.
+
+### Extended Thinking
+
+Anthropic models offer an "Extended Thinking" feature, designed to give them enhanced reasoning capabilities for complex tasks. This feature allows the model to output its step-by-step thought process before delivering a final answer, providing transparency and enabling more thorough analysis for challenging prompts.
+
+When extended thinking is in Cline, the model generates `thinking` content blocks that detail its internal reasoning. These insights are then incorporated into its final response.
+Cline users can leverage this by checking the `Enable Extended Thinking` box below the model selection menu after selecting a Claude Model from any provider.
+
+**Key Aspects of Extended Thinking:**
+
+-   **Summarized Thinking (Claude 3.7+):** For Claude 3.7+ models, the API returns a summary of the full thinking process to balance insight with efficiency and prevent misuse. You are billed for the full thinking tokens, not just the summary.
+-   **Streaming:** Extended thinking responses, including the `thinking` blocks, can be streamed.
+-   **Tool Use & Prompt Caching:** Extended thinking interacts with tool use (requiring thinking blocks to be passed back) and prompt caching (with specific behaviors around cache invalidation and context).
+
+For comprehensive details on how extended thinking works, including API examples, interaction with tool use, prompt caching, and pricing, please refer to the [official Anthropic documentation on Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking).
 
 ### Tips and Notes
 
+-   **Prompt Caching:** Claude 3 models support [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching), which can significantly reduce costs and latency for repeated prompts.
 -   **Context Window:** Claude models have large context windows (200,000 tokens), allowing you to include a significant amount of code and context in your prompts.
 -   **Pricing:** Refer to the [Anthropic Pricing](https://www.anthropic.com/pricing) page for the latest pricing information.
+-   **Rate Limits:** Anthropic has strict rate limits based on [usage tiers](https://docs.anthropic.com/en/api/rate-limits#requirements-to-advance-tier). If you're repeatedly hitting rate limits, consider contacting Anthropic sales or accessing Claude through a different provider like [OpenRouter](/provider-config/openrouter) or [Requesty](/provider-config/other-30-plus-providers#requesty).
