@@ -705,8 +705,8 @@ export class Controller {
 
 	// ---- Task history (Step 4) ----
 
-	private async listSdkTaskHistory(): Promise<SessionHistoryRecord[]> {
-		return this.taskHistory.listHistory()
+	private async listSdkTaskHistory(options?: Parameters<SdkTaskHistory["listHistory"]>[0]): Promise<SessionHistoryRecord[]> {
+		return this.taskHistory.listHistory(options)
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
@@ -829,10 +829,16 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
+		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()
 		await sendStateUpdate(state)
+
+		const elapsed = Date.now() - startedAt
+		if (elapsed > 250) {
+			Logger.warn(`[SdkController] postStateToWebview took ${elapsed}ms`)
+		}
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -848,10 +854,15 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			const sdkTaskHistory = (await this.listSdkTaskHistory())
+			const historyStartedAt = Date.now()
+			const sdkTaskHistory = (await this.listSdkTaskHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
+			const historyElapsed = Date.now() - historyStartedAt
+			if (historyElapsed > 250) {
+				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
+			}
 			const processedTaskHistory = sdkTaskHistory.slice(0, 100)
 
 			return {

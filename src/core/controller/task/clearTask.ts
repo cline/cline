@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -8,8 +9,17 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function clearTask(controller: Controller, _request: EmptyRequest): Promise<Empty> {
-	// clearTask is called h/Users/maxpaulus/c/cline/src/sdk/sdk-task-control-coordinator.teere when the user closes the task
+	const startedAt = Date.now()
 	await controller.clearTask()
+	const afterClearTask = Date.now()
 	await controller.postStateToWebview()
+	const totalElapsed = Date.now() - startedAt
+
+	if (totalElapsed > 250) {
+		Logger.warn(
+			`[TaskService.clearTask] took ${totalElapsed}ms (controller.clearTask=${afterClearTask - startedAt}ms, postStateToWebview=${Date.now() - afterClearTask}ms)`,
+		)
+	}
+
 	return Empty.create()
 }

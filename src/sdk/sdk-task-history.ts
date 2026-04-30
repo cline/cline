@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import type { SessionHistoryRecord } from "@clinebot/core"
+import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@clinebot/core"
 import type { Message as SdkMessage } from "@clinebot/llms"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -154,8 +154,8 @@ export class SdkTaskHistory {
 		}
 	}
 
-	async listHistory(): Promise<SessionHistoryRecord[]> {
-		return this.withHistoryHost((host) => host.listHistory({ limit: 10_000, includeManifestFallback: true }))
+	async listHistory(options: ClineCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
+		return this.withHistoryHost((host) => host.listHistory({ limit: 10_000, includeManifestFallback: true, ...options }))
 	}
 
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
