@@ -389,30 +389,13 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return outputLines.join("\n").trim()
 	}
 
-	setDefaultTerminalProfile(profileId: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
-		// Only handle terminal change if profile actually changed
-		if (this.defaultTerminalProfile === profileId) {
-			return { closedCount: 0, busyTerminals: [] }
-		}
-
-		const _oldProfileId = this.defaultTerminalProfile
+	setDefaultTerminalProfile(profileId: string): void {
+		// Just update the profile setting. We don't close existing terminals —
+		// they stay open and are reusable if the user switches back. New
+		// terminals created by getOrCreateTerminal() will use the new profile,
+		// and existing terminals with a different effective shell are simply
+		// skipped during reuse matching.
 		this.defaultTerminalProfile = profileId
-
-		// Get the shell path for the new profile
-		const newShellPath = profileId !== "default" ? getShellForProfile(profileId) : undefined
-
-		// Handle terminal management for the profile change
-		const result = this.handleTerminalProfileChange(newShellPath)
-
-		// Update lastActive for any remaining terminals
-		const allTerminals = TerminalRegistry.getAllTerminals()
-		allTerminals.forEach((terminal) => {
-			if (terminal.shellPath !== newShellPath) {
-				TerminalRegistry.updateTerminal(terminal.id, { lastActive: Date.now() })
-			}
-		})
-
-		return result
 	}
 
 	/**
@@ -457,37 +440,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		}
 
 		return closedCount
-	}
-
-	/**
-	 * Handles terminal management when the terminal profile changes.
-	 * Compares effective shell paths so that e.g. switching from "zsh"
-	 * to "default" on macOS (where default = /bin/zsh) won't needlessly
-	 * close compatible terminals.
-	 * @param newShellPath New shell path to use (undefined = default)
-	 * @returns Object with information about closed terminals and remaining busy terminals
-	 */
-	handleTerminalProfileChange(newShellPath: string | undefined): {
-		closedCount: number
-		busyTerminals: TerminalInfo[]
-	} {
-		const effectiveNew = VscodeTerminalManager.effectiveShellPath(newShellPath)
-
-		// Close non-busy terminals whose effective shell differs from the new one
-		const closedCount = this.closeTerminals(
-			(terminal) => !terminal.busy && VscodeTerminalManager.effectiveShellPath(terminal.shellPath) !== effectiveNew,
-			false,
-		)
-
-		// Get remaining busy terminals whose effective shell differs
-		const busyTerminals = this.filterTerminals(
-			(terminal) => terminal.busy && VscodeTerminalManager.effectiveShellPath(terminal.shellPath) !== effectiveNew,
-		)
-
-		return {
-			closedCount,
-			busyTerminals,
-		}
 	}
 
 	/**
