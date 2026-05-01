@@ -34,11 +34,12 @@ This guide creates a minimal `Agent`, adds one custom tool, and shows when to sw
       apiKey: process.env.ANTHROPIC_API_KEY,
       systemPrompt: "You are a helpful coding assistant. Be concise.",
       tools: [],
-      onEvent: (event) => {
-        if (event.type === "content_end" && event.contentType === "text") {
-          process.stdout.write(event.text ?? "")
-        }
-      },
+    })
+
+    agent.subscribe((event) => {
+      if (event.type === "assistant-text-delta") {
+        process.stdout.write(event.text)
+      }
     })
 
     const result = await agent.run("What is the fibonacci sequence? Show me a TypeScript implementation.")
@@ -58,9 +59,10 @@ This guide creates a minimal `Agent`, adds one custom tool, and shows when to sw
 ## Add a Custom Tool
 
 ```typescript
-import { Agent, createTool } from "@clinebot/agents"
+import { Agent } from "@clinebot/agents"
+import type { AgentTool } from "@clinebot/shared"
 
-const weatherTool = createTool({
+const weatherTool: AgentTool<{ city: string }, { temperature: number; condition: string; city: string }> = {
   name: "get_weather",
   description: "Get the current weather for a city.",
   inputSchema: {
@@ -71,9 +73,11 @@ const weatherTool = createTool({
     required: ["city"],
   },
   execute: async (input) => {
-    return { temperature: 72, condition: "sunny", city: input.city }
+    return {
+      output: { temperature: 72, condition: "sunny", city: input.city },
+    }
   },
-})
+}
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -81,14 +85,15 @@ const agent = new Agent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a weather assistant. Use the get_weather tool to answer questions.",
   tools: [weatherTool],
-  onEvent: (event) => {
-    if (event.type === "content_end" && event.contentType === "text") {
-      process.stdout.write(event.text ?? "")
-    }
-    if (event.type === "content_start" && event.contentType === "tool") {
-      console.log(`\n[calling tool: ${event.toolName}]`)
-    }
-  },
+})
+
+agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text)
+  }
+  if (event.type === "tool-started") {
+    console.log(`\n[calling tool: ${event.toolCall.toolName}]`)
+  }
 })
 
 await agent.run("What's the weather in San Francisco?")

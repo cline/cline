@@ -9,9 +9,12 @@ Custom tools extend what your agent can do. A tool is a function with a name, a 
 ## Basic Tool
 
 ```typescript
-import { createTool } from "@clinebot/agents"
+import type { AgentTool } from "@clinebot/shared"
 
-const getCurrentTime = createTool({
+const getCurrentTime: AgentTool<
+  { timezone?: string },
+  { iso: string; timezone: string; formatted: string }
+> = {
   name: "get_current_time",
   description: "Get the current date and time in ISO format.",
   inputSchema: {
@@ -26,29 +29,27 @@ const getCurrentTime = createTool({
   execute: async (input) => {
     const date = new Date()
     return {
-      iso: date.toISOString(),
-      timezone: input.timezone ?? "UTC",
-      formatted: date.toLocaleString("en-US", { timeZone: input.timezone ?? "UTC" }),
+      output: {
+        iso: date.toISOString(),
+        timezone: input.timezone ?? "UTC",
+        formatted: date.toLocaleString("en-US", { timeZone: input.timezone ?? "UTC" }),
+      },
     }
   },
-})
+}
 ```
 
 ## Anatomy of a Tool
 
 ```typescript
-interface Tool<TInput, TOutput> {
+interface AgentTool<TInput, TOutput> {
   name: string           // Unique identifier (snake_case recommended)
   description: string    // LLM reads this to decide when to use the tool
   inputSchema: JSONSchema // Defines what arguments the tool accepts
   execute: (
     input: TInput,
-    context: ToolContext,
-    onChange?: Function
-  ) => Promise<TOutput>
-  timeoutMs?: number     // Maximum execution time
-  retryable?: boolean    // Whether failed calls can be retried
-  maxRetries?: number    // Maximum retry attempts
+    context: AgentToolContext
+  ) => Promise<AgentToolResult<TOutput>> | AgentToolResult<TOutput>
 }
 ```
 
@@ -121,7 +122,7 @@ Use `enum` for fields with a fixed set of values. This dramatically improves acc
 The `execute` function receives a `ToolContext` with execution metadata:
 
 ```typescript
-const myTool = createTool({
+const myTool: AgentTool<Record<string, never>, { status: string; processed?: number }> = {
   name: "long_process",
   description: "Process data in batches.",
   inputSchema: { type: "object", properties: {} },
@@ -131,15 +132,15 @@ const myTool = createTool({
 
     // Respect cancellation
     for (const batch of batches) {
-      if (context.abortSignal?.aborted) {
-        return { status: "cancelled", processed: count }
+      if (context.signal?.aborted) {
+        return { output: { status: "cancelled", processed: count } }
       }
       await processBatch(batch)
     }
 
-    return { status: "complete" }
+    return { output: { status: "complete" } }
   },
-})
+}
 ```
 
 ## Error Handling
@@ -147,7 +148,7 @@ const myTool = createTool({
 Return errors as structured data rather than throwing:
 
 ```typescript
-const apiTool = createTool({
+const apiTool: AgentTool<{ endpoint: string }, { data?: unknown; error?: string; retryable?: boolean }> = {
   name: "call_api",
   description: "Make an authenticated API call.",
   inputSchema: {
@@ -165,20 +166,26 @@ const apiTool = createTool({
 
       if (!response.ok) {
         return {
-          error: `API returned ${response.status}: ${response.statusText}`,
-          retryable: response.status >= 500,
+          output: {
+            error: `API returned ${response.status}: ${response.statusText}`,
+            retryable: response.status >= 500,
+          },
+          isError: true,
         }
       }
 
-      return await response.json()
+      return { output: await response.json() }
     } catch (err) {
       return {
-        error: `Network error: ${err.message}`,
-        retryable: true,
+        output: {
+          error: `Network error: ${err.message}`,
+          retryable: true,
+        },
+        isError: true,
       }
     }
   },
-})
+}
 ```
 
 When a tool returns an error, the agent sees it and can adjust its approach. When a tool throws, it counts as a "mistake" and increments the consecutive mistake counter.
@@ -186,17 +193,15 @@ When a tool returns an error, the agent sees it and can adjust its approach. Whe
 ## Timeouts and Retries
 
 ```typescript
-const slowTool = createTool({
+const slowTool = {
   name: "compile_project",
   description: "Compile the project. May take up to 2 minutes for large codebases.",
   inputSchema: { type: "object", properties: {} },
-  timeoutMs: 120_000,     // 2 minute timeout
-  retryable: true,        // Allow retries on failure
-  maxRetries: 2,          // Try up to 3 times total
   execute: async (input) => {
     // compilation logic
+    return { output: { success: true } }
   },
-})
+} satisfies AgentTool<Record<string, never>, { success: boolean }>
 ```
 
 ## Tool Composition
@@ -204,7 +209,10 @@ const slowTool = createTool({
 Build complex tools by composing simpler ones:
 
 ```typescript
-const analyzeRepo = createTool({
+const analyzeRepo: AgentTool<
+  { path: string },
+  { languages: unknown; testCoverage: unknown; issues: unknown }
+> = {
   name: "analyze_repository",
   description: "Analyze a repository: count files by language, measure test coverage, check for common issues.",
   inputSchema: {
@@ -221,9 +229,9 @@ const analyzeRepo = createTool({
       checkCommonIssues(input.path),
     ])
 
-    return { languages, testCoverage: tests, issues }
+    return { output: { languages, testCoverage: tests, issues } }
   },
-})
+}
 ```
 
 ## Testing Tools
@@ -237,11 +245,18 @@ describe("get_current_time", () => {
   it("returns ISO timestamp", async () => {
     const result = await getCurrentTime.execute(
       { timezone: "UTC" },
-      { agentId: "test", conversationId: "test", iteration: 1 }
+      {
+        agentId: "test",
+        runId: "run_test",
+        iteration: 1,
+        toolCallId: "tool_test",
+        snapshot: {} as never,
+        emitUpdate: () => {},
+      }
     )
 
-    expect(result.iso).toMatch(/^\d{4}-\d{2}-\d{2}T/)
-    expect(result.timezone).toBe("UTC")
+    expect(result.output.iso).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(result.output.timezone).toBe("UTC")
   })
 })
 ```

@@ -42,11 +42,12 @@ const agent = new Agent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a helpful coding assistant.",
   tools: [],
-  onEvent: (event) => {
-    if (event.type === "content_end" && event.contentType === "text") {
-      process.stdout.write(event.text ?? "")
-    }
-  },
+})
+
+agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text)
+  }
 })
 
 const result = await agent.run("Create a hello world Express server")

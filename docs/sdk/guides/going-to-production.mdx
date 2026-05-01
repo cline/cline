@@ -29,18 +29,21 @@ if (result.status === "failed") {
 Tools should return errors as data rather than throwing. This lets the agent see the error and adjust:
 
 ```typescript
-const apiTool = createTool({
+const apiTool: AgentTool<{ payload: unknown }, { success: boolean; data?: unknown; error?: string }> = {
   name: "call_service",
   // ...
   execute: async (input) => {
     try {
       const result = await service.call(input)
-      return { success: true, data: result }
+      return { output: { success: true, data: result } }
     } catch (err) {
-      return { success: false, error: err.message }
+      return {
+        output: { success: false, error: err.message },
+        isError: true,
+      }
     }
   },
-})
+}
 ```
 
 ### Mistake Limits
@@ -107,23 +110,23 @@ const logger = pino({ level: "info" })
 
 const agent = new Agent({
   // ...config
-  onEvent: (event) => {
-    if (event.type === "done") {
-      logger.info({
-        event: "agent_complete",
-        finishReason: event.reason,
-        iterations: event.iterations,
-        tokens: event.usage,
-      })
-    }
-    if (event.type === "error") {
-      logger.error({
-        event: "agent_error",
-        message: event.error.message,
-        recoverable: event.recoverable,
-      })
-    }
-  },
+})
+
+agent.subscribe((event) => {
+  if (event.type === "run-finished") {
+    logger.info({
+      event: "agent_complete",
+      status: event.result.status,
+      iterations: event.result.iterations,
+      tokens: event.result.usage,
+    })
+  }
+  if (event.type === "run-failed") {
+    logger.error({
+      event: "agent_error",
+      message: event.error.message,
+    })
+  }
 })
 ```
 
@@ -146,18 +149,19 @@ let sessionCost = 0
 
 const agent = new Agent({
   // ...config
-  onEvent: (event) => {
-    if (event.type === "usage") {
-      const turnCost =
-        (event.inputTokens * 3) / 1_000_000 +    // $3/M for Sonnet input
-        (event.outputTokens * 15) / 1_000_000     // $15/M for Sonnet output
-      sessionCost += turnCost
+})
 
-      if (sessionCost > 1.00) {
-        agent.abort("Cost limit exceeded ($1.00)")
-      }
+agent.subscribe((event) => {
+  if (event.type === "usage-updated") {
+    const turnCost =
+      (event.usage.inputTokens * 3) / 1_000_000 +
+      (event.usage.outputTokens * 15) / 1_000_000
+    sessionCost = turnCost
+
+    if (sessionCost > 1.0) {
+      agent.abort("Cost limit exceeded ($1.00)")
     }
-  },
+  }
 })
 ```
 
@@ -186,7 +190,7 @@ const workAgent = new Agent({
 Never let an agent run arbitrary shell commands on a production server without constraints:
 
 ```typescript
-const sandboxedBash = createTool({
+const sandboxedBash: AgentTool<{ command: string }, { error?: string; result?: unknown }> = {
   name: "run_commands",
   description: "Execute a shell command in a sandboxed environment.",
   inputSchema: {
@@ -199,13 +203,13 @@ const sandboxedBash = createTool({
   execute: async (input) => {
     const blocked = ["rm -rf", "sudo", "curl | sh", "wget | sh", "> /dev/"]
     if (blocked.some((b) => input.command.includes(b))) {
-      return { error: "Command blocked by security policy" }
+      return { output: { error: "Command blocked by security policy" }, isError: true }
     }
 
     // Execute in a container, chroot, or restricted shell
-    return await executeInSandbox(input.command)
+    return { output: { result: await executeInSandbox(input.command) } }
   },
-})
+}
 ```
 
 ### Validate Tool Inputs
