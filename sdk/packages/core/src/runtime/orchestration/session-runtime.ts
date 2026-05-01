@@ -7,7 +7,7 @@ import type {
 	RuntimeConfigExtensionKind,
 	Tool,
 } from "@clinebot/shared";
-import type { UserInstructionConfigWatcher } from "../../extensions/config";
+import type { UserInstructionConfigService } from "../../extensions/config";
 import type { ToolExecutors } from "../../extensions/tools";
 import type {
 	AgentTeamsRuntime,
@@ -37,7 +37,8 @@ export interface BuiltRuntime {
 	teamRuntime?: AgentTeamsRuntime;
 	teamRestoredFromPersistence?: boolean;
 	delegatedAgentConfigProvider?: DelegatedAgentConfigProvider;
-	completionGuard?: () => string | undefined;
+	extensions?: AgentConfig["extensions"];
+	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
 	shutdown: (reason: string) => Promise<void> | void;
 }
@@ -49,9 +50,9 @@ export interface RuntimeBuilderInput {
 	onTeamEvent?: (event: TeamEvent) => void;
 	createSpawnTool?: () => Tool;
 	onTeamRestored?: () => void;
-	userInstructionWatcher?: UserInstructionConfigWatcher;
+	userInstructionService?: UserInstructionConfigService;
 	configExtensions?: RuntimeConfigExtensionKind[];
-	defaultToolExecutors?: Partial<ToolExecutors>;
+	toolExecutors?: Partial<ToolExecutors>;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 }

@@ -615,6 +615,9 @@ export function createSubmitAndExitTool(
 			"You should only submit once all necessary steps are completed. " +
 			"Provide a summary of the investigation and confirm the issue is resolved.",
 		inputSchema: zodToJsonSchema(SubmitInputSchema),
+		lifecycle: {
+			completesRun: true,
+		},
 		timeoutMs,
 		retryable: false,
 		maxRetries: 0,
@@ -686,7 +689,7 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 		...config
 	} = options;
 
-	const tools: Tool<any>[] = [];
+	const tools: Tool<never, unknown>[] = [];
 
 	// Add read_files tool if enabled and executor provided
 	if (enableReadFiles && executors.readFile) {
@@ -726,13 +729,13 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 		tools.push(createSkillsTool(executors.skills, config));
 	}
 
-	// Add ask_question tool if enabled and executor provided
-	if (enableAskQuestion && executors.askQuestion) {
-		tools.push(createAskQuestionTool(executors.askQuestion));
-	} else if (enableSubmitAndExit && executors.submit) {
-		// Add submit_and_exit tool if enabled and executor provided
+	// Add submit_and_exit tool if enabled and executor provided
+	// Else check if ask_question tool is enabled
+	if (enableSubmitAndExit && executors.submit) {
 		tools.push(createSubmitAndExitTool(executors.submit, config));
+	} else if (enableAskQuestion && executors.askQuestion) {
+		tools.push(createAskQuestionTool(executors.askQuestion));
 	}
 
-	return tools;
+	return tools as unknown as Tool[];
 }

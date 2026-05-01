@@ -113,21 +113,14 @@ vi.mock("./runtime/run-interactive", () => {
 	};
 });
 vi.mock("./utils/session", () => sessionMocks);
-vi.mock("@clinebot/core", async () => {
-	const actual =
-		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
+vi.mock("@clinebot/core", () => {
 	return {
-		...actual,
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createTeamName: vi.fn(() => "team-test"),
-		createUserInstructionConfigWatcher: vi.fn(() =>
-			actual.createUserInstructionConfigWatcher({
-				skills: { directories: [] },
-				rules: { directories: [] },
-				workflows: { directories: [] },
-			}),
-		),
-		loadRulesForSystemPromptFromWatcher: vi.fn(() => []),
+		createUserInstructionConfigService: vi.fn(() => ({
+			start: vi.fn(async () => {}),
+			stop: vi.fn(),
+		})),
 		ProviderSettingsManager: class {
 			getLastUsedProviderSettings() {
 				return providerSettingsMocks.getLastUsedProviderSettings();

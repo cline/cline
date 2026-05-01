@@ -1,6 +1,6 @@
 import type { HubEventEnvelope, ToolContext } from "@clinebot/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SessionSource } from "../types/common";
+import { SessionSource } from "../../types/common";
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
@@ -8,7 +8,7 @@ const closeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
 const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
 
-vi.mock("../hub/client", () => ({
+vi.mock("../client", () => ({
 	NodeHubClient: class {
 		command = commandMock;
 		subscribe = subscribeMock;
@@ -57,10 +57,10 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		const started = await host.start({
+		const started = await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
@@ -126,10 +126,10 @@ describe("HubRuntimeHost", () => {
 		};
 		commandMock.mockResolvedValue({ ok: true, payload: { result } });
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		const sent = await host.send({
+		const sent = await host.runTurn({
 			sessionId: "sess-1",
 			prompt: "Hey",
 			delivery: "queue",
@@ -152,7 +152,107 @@ describe("HubRuntimeHost", () => {
 		expect(sent).toEqual(result);
 	});
 
-	it("bridges hub approval requests through the configured approval callback", async () => {
+	it("projects canonical hub snapshots from replies and lifecycle events", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		const snapshot = {
+			version: 1,
+			sessionId: "sess-snapshot",
+			source: SessionSource.CLI,
+			status: "running",
+			createdAt: "2026-01-01T00:00:00.000Z",
+			updatedAt: "2026-01-01T00:00:00.000Z",
+			endedAt: null,
+			exitCode: null,
+			interactive: true,
+			workspace: { cwd: "/tmp/project", root: "/tmp/project" },
+			model: {
+				providerId: "cline",
+				modelId: "anthropic/claude-haiku-4.5",
+			},
+			capabilities: {
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: true,
+			},
+			lineage: {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				isSubagent: false,
+			},
+			prompt: "Hey",
+			messages: [{ role: "user", content: "Hey" }],
+			usage: {
+				inputTokens: 1,
+				outputTokens: 2,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0.01,
+			},
+		};
+		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: unknown[] = [];
+		host.subscribe((event) => events.push(event));
+
+		const started = await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+			interactive: true,
+		});
+
+		expect(started.sessionId).toBe("sess-snapshot");
+		expect(started.manifest).toMatchObject({
+			session_id: "sess-snapshot",
+			provider: "cline",
+			model: "anthropic/claude-haiku-4.5",
+			interactive: true,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "session.updated",
+			sessionId: "sess-snapshot",
+			payload: {
+				snapshot: { ...snapshot, status: "completed", exitCode: 0 },
+			},
+		});
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "session_snapshot",
+					payload: expect.objectContaining({
+						sessionId: "sess-snapshot",
+						snapshot: expect.objectContaining({
+							version: 1,
+							sessionId: "sess-snapshot",
+							status: "completed",
+							workspace: { cwd: "/tmp/project", root: "/tmp/project" },
+						}),
+					}),
+				}),
+			]),
+		);
+
+		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
+		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({
+			sessionId: "sess-snapshot",
+			provider: "cline",
+			model: "anthropic/claude-haiku-4.5",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+		});
+	});
+
+	it("bridges hub approval requests through runtime capabilities", async () => {
 		let onEvent:
 			| ((event: {
 					version: 1;
@@ -188,10 +288,10 @@ describe("HubRuntimeHost", () => {
 			};
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({
 			url: "ws://127.0.0.1:25463/hub",
-			requestToolApproval,
+			capabilities: { requestToolApproval },
 		});
 		host.subscribe((event) => {
 			if (
@@ -203,7 +303,7 @@ describe("HubRuntimeHost", () => {
 			}
 		});
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
@@ -255,7 +355,7 @@ describe("HubRuntimeHost", () => {
 		expect(eventOrder).toEqual(["tool-started", "approval-requested"]);
 	});
 
-	it("keeps local tool executors available after a run completes", async () => {
+	it("uses one app runtime capability object for hub tool executors and approvals", async () => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
 			onEvent = listener;
@@ -274,24 +374,32 @@ describe("HubRuntimeHost", () => {
 					},
 				},
 			})
+			.mockResolvedValueOnce({ ok: true, payload: {} })
 			.mockResolvedValueOnce({ ok: true, payload: {} });
 		const askQuestion = vi.fn(
 			async (_question: string, _options: string[], _context: ToolContext) =>
 				"Use the SDK",
 		);
+		const requestToolApproval = vi.fn(async () => ({
+			approved: true,
+			reason: "approved by app handler",
+		}));
+		const appCapabilities = {
+			toolExecutors: { askQuestion },
+			requestToolApproval,
+		};
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
-			prompt: "Hey",
-			localRuntime: {
-				defaultToolExecutors: {
-					askQuestion,
-				},
-			},
+			capabilities: appCapabilities,
+		});
+		expect(commandMock.mock.calls[0]?.[0]).toBe("session.create");
+		expect(commandMock.mock.calls[0]?.[1]).toMatchObject({
+			runtimeOptions: { toolExecutors: ["askQuestion"] },
 		});
 
 		onEvent?.({
@@ -312,7 +420,7 @@ describe("HubRuntimeHost", () => {
 					args: ["Which approach?", ["Use the SDK", "Write custom code"]],
 					context: {
 						agentId: "agent-1",
-						conversationId: "sess-1",
+						conversationId: "conversation-1",
 						iteration: 1,
 					},
 				},
@@ -325,7 +433,7 @@ describe("HubRuntimeHost", () => {
 			["Use the SDK", "Write custom code"],
 			expect.objectContaining({
 				agentId: "agent-1",
-				conversationId: "sess-1",
+				conversationId: "conversation-1",
 				iteration: 1,
 			}),
 		);
@@ -336,6 +444,126 @@ describe("HubRuntimeHost", () => {
 				ok: true,
 				payload: { result: "Use the SDK" },
 			},
+			"sess-1",
+		);
+
+		onEvent?.({
+			version: "v1",
+			event: "approval.requested",
+			sessionId: "sess-1",
+			payload: {
+				approvalId: "approval-1",
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				iteration: 2,
+				toolCallId: "call-approval-1",
+				toolName: "run_commands",
+				inputJson: '{"commands":["echo hi"]}',
+				policy: { autoApprove: false },
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(requestToolApproval).toHaveBeenCalledWith({
+			sessionId: "sess-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 2,
+			toolCallId: "call-approval-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"approval.respond",
+			{
+				approvalId: "approval-1",
+				approved: true,
+				reason: "approved by app handler",
+			},
+			"sess-1",
+		);
+	});
+
+	it("passes cancellation into long-running hub capability handlers", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValueOnce({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		let receivedSignal: AbortSignal | undefined;
+		let resolveExecutor: ((value: string) => void) | undefined;
+		const askQuestion = vi.fn(
+			async (_question: string, _options: string[], context: ToolContext) => {
+				receivedSignal = context.abortSignal;
+				return await new Promise<string>((resolve) => {
+					resolveExecutor = resolve;
+				});
+			},
+		);
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			capabilities: { toolExecutors: { askQuestion } },
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "capability.requested",
+			sessionId: "sess-1",
+			payload: {
+				requestId: "capreq-1",
+				targetClientId: "client-1",
+				capabilityName: "tool_executor.askQuestion",
+				payload: {
+					args: ["Which approach?", ["Use the SDK"]],
+					context: {
+						agentId: "agent-1",
+						conversationId: "conversation-1",
+						iteration: 1,
+					},
+				},
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(receivedSignal).toBeDefined();
+		expect(receivedSignal?.aborted).toBe(false);
+		onEvent?.({
+			version: "v1",
+			event: "capability.resolved",
+			sessionId: "sess-1",
+			payload: {
+				requestId: "capreq-1",
+				capabilityName: "tool_executor.askQuestion",
+				targetClientId: "client-1",
+				ok: false,
+				cancelled: true,
+				error: "user cancelled",
+			},
+		});
+
+		expect(receivedSignal?.aborted).toBe(true);
+		resolveExecutor?.("Use the SDK");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(commandMock).not.toHaveBeenLastCalledWith(
+			"capability.respond",
+			expect.anything(),
 			"sess-1",
 		);
 	});
@@ -356,17 +584,17 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});
 
 		commandMock.mockResolvedValue({ ok: true, payload: {} });
-		await host.stop("sess-1");
+		await host.stopSession("sess-1");
 
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(commandMock).toHaveBeenLastCalledWith(
@@ -407,11 +635,11 @@ describe("HubRuntimeHost", () => {
 		});
 		const events: unknown[] = [];
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 		host.subscribe((event) => events.push(event));
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
@@ -507,11 +735,11 @@ describe("HubRuntimeHost", () => {
 		});
 		const events: unknown[] = [];
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 		host.subscribe((event) => events.push(event));
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
@@ -580,11 +808,11 @@ describe("HubRuntimeHost", () => {
 		});
 		const events: unknown[] = [];
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 		host.subscribe((event) => events.push(event));
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
@@ -646,11 +874,11 @@ describe("HubRuntimeHost", () => {
 		});
 		const events: unknown[] = [];
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 		host.subscribe((event) => events.push(event));
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",
@@ -694,10 +922,10 @@ describe("HubRuntimeHost", () => {
 	it("forwards image attachments when sending a run", async () => {
 		commandMock.mockResolvedValue({ ok: true, payload: { result: undefined } });
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await host.send({
+		await host.runTurn({
 			sessionId: "sess-1",
 			prompt: "Describe this image",
 			userImages: ["data:image/png;base64,aGVsbG8="],
@@ -723,10 +951,10 @@ describe("HubRuntimeHost", () => {
 
 		const filePath = "/tmp/project/note.md";
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await host.send({
+		await host.runTurn({
 			sessionId: "sess-1",
 			prompt: "Use this file",
 			userFiles: [filePath],
@@ -760,10 +988,12 @@ describe("HubRuntimeHost", () => {
 		];
 		commandMock.mockResolvedValue({ ok: true, payload: { messages } });
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await expect(host.readMessages(" sess-1 ")).resolves.toEqual(messages);
+		await expect(host.readSessionMessages(" sess-1 ")).resolves.toEqual(
+			messages,
+		);
 		expect(commandMock).toHaveBeenCalledWith(
 			"session.messages",
 			{ sessionId: "sess-1" },
@@ -780,10 +1010,10 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await expect(host.readMessages("sess-missing")).rejects.toThrow(
+		await expect(host.readSessionMessages("sess-missing")).rejects.toThrow(
 			"Unknown session: sess-missing",
 		);
 	});
@@ -797,7 +1027,7 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await expect(host.listSettings({ cwd: "/tmp/project" })).rejects.toThrow(
@@ -817,7 +1047,7 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await expect(
@@ -843,10 +1073,10 @@ describe("HubRuntimeHost", () => {
 			},
 		});
 
-		const { HubRuntimeHost } = await import("./hub");
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
-		await host.start({
+		await host.startSession({
 			config: createConfig(),
 			source: SessionSource.CLI,
 			prompt: "Hey",

@@ -1,4 +1,4 @@
-import type { UserInstructionConfigWatcher } from "../extensions/config";
+import type { UserInstructionConfigService } from "../extensions/config";
 import type { BuiltinToolAvailabilityContext } from "../extensions/tools";
 
 export type CoreSettingsType = "skills" | "workflows" | "rules" | "tools";
@@ -33,7 +33,7 @@ export interface CoreSettingsSnapshot {
 export interface CoreSettingsListInput {
 	cwd?: string;
 	workspaceRoot?: string;
-	userInstructionWatcher?: UserInstructionConfigWatcher;
+	userInstructionService?: UserInstructionConfigService;
 	availabilityContext?: BuiltinToolAvailabilityContext;
 }
 

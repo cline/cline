@@ -10,6 +10,7 @@ import {
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@clinebot/core";
+import { formatUptime } from "@clinebot/shared";
 import { Command } from "commander";
 import open from "open";
 import { isProcessRunning } from "../connectors/common";
@@ -59,6 +60,8 @@ type DoctorStatus = {
 	hubUrl?: string;
 	hubHealthy: boolean;
 	hubPid?: number;
+	hubStartedAt?: string;
+	hubUptime?: string;
 	listeningPids: number[];
 	hubStartupLocks: StartupArtifact[];
 	staleCliPids: number[];
@@ -416,6 +419,19 @@ function listActiveConnectors(): ActiveConnectorRecord[] {
 	});
 }
 
+function formatHubUptimeFromStartedAt(
+	startedAt: string | undefined,
+): string | undefined {
+	if (!startedAt) {
+		return undefined;
+	}
+	const timestamp = Date.parse(startedAt);
+	if (Number.isNaN(timestamp)) {
+		return undefined;
+	}
+	return formatUptime(Date.now() - timestamp);
+}
+
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 	const owner = resolveSharedHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
@@ -423,11 +439,14 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		? await probeHubServer(discovery.url)
 		: undefined;
 	const current = health ?? discovery;
+	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
 	return {
 		cwd,
 		hubUrl: current?.url,
 		hubHealthy: !!health?.url,
 		hubPid: current?.pid,
+		hubStartedAt: health?.startedAt,
+		hubUptime,
 		listeningPids: listListeningPids(current?.port),
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
@@ -508,6 +527,7 @@ export async function runDoctorCommand(
 		writeln(
 			`hub healthy ${c.dim}${before.hubHealthy ? "yes" : "no"}${before.hubPid ? ` (pid=${before.hubPid})` : ""}${c.reset}`,
 		);
+		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
 		writeln(
 			formatPidList(

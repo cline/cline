@@ -94,6 +94,12 @@ describe("runZen", () => {
 		resolveDispatch?.();
 		await run;
 
+		expect(startRuntimeSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				mode: "yolo",
+				toolExecutors: ["submit"],
+			}),
+		);
 		expect(sendRuntimeSession).toHaveBeenCalledOnce();
 		expect(close).toHaveBeenCalledOnce();
 		expect(writeErr).not.toHaveBeenCalled();

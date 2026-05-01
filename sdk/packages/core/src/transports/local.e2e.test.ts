@@ -318,7 +318,7 @@ describe("LocalRuntimeHost e2e", () => {
 				}) as never,
 		});
 
-		const started = await manager.start({
+		const started = await manager.startSession({
 			interactive: true,
 			...splitCoreSessionConfig({
 				providerId: "anthropic",
@@ -337,11 +337,11 @@ describe("LocalRuntimeHost e2e", () => {
 		expect(existsSync(started.manifestPath)).toBe(false);
 		expect(existsSync(started.messagesPath)).toBe(false);
 
-		const first = await manager.send({
+		const first = await manager.runTurn({
 			sessionId: started.sessionId,
 			prompt: "first prompt",
 		});
-		const second = await manager.send({
+		const second = await manager.runTurn({
 			sessionId: started.sessionId,
 			prompt: "second prompt",
 		});
@@ -353,17 +353,19 @@ describe("LocalRuntimeHost e2e", () => {
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(continueFn).toHaveBeenCalledTimes(1);
 
-		const persistedMessages = await manager.readMessages(started.sessionId);
+		const persistedMessages = await manager.readSessionMessages(
+			started.sessionId,
+		);
 		expect(persistedMessages.length).toBeGreaterThan(0);
 		expect(JSON.stringify(persistedMessages)).toContain("second prompt");
 
-		const listed = await manager.list(20);
+		const listed = await manager.listSessions(20);
 		expect(
 			listed.some((session) => session.sessionId === started.sessionId),
 		).toBe(true);
 
-		await manager.stop(started.sessionId);
-		const stopped = await manager.get(started.sessionId);
+		await manager.stopSession(started.sessionId);
+		const stopped = await manager.getSession(started.sessionId);
 		expect(stopped?.status).toBe("completed");
 		expect(stopped?.exitCode).toBe(0);
 		expect(agentShutdown).toHaveBeenCalledTimes(1);
@@ -373,9 +375,9 @@ describe("LocalRuntimeHost e2e", () => {
 		) as SessionManifest;
 		expect(parsedManifest.status).toBe("completed");
 
-		const deleted = await manager.delete(started.sessionId);
+		const deleted = await manager.deleteSession(started.sessionId);
 		expect(deleted).toBe(true);
-		expect(await manager.get(started.sessionId)).toBeUndefined();
+		expect(await manager.getSession(started.sessionId)).toBeUndefined();
 		expect(existsSync(started.manifestPath)).toBe(false);
 		expect(existsSync(started.messagesPath)).toBe(false);
 	});
@@ -485,7 +487,7 @@ describe("LocalRuntimeHost e2e", () => {
 				}) as never,
 		});
 
-		const started = await manager.start({
+		const started = await manager.startSession({
 			interactive: false,
 			...splitCoreSessionConfig({
 				providerId: "anthropic",
@@ -500,7 +502,7 @@ describe("LocalRuntimeHost e2e", () => {
 			}),
 		});
 
-		await manager.send({
+		await manager.runTurn({
 			sessionId: started.sessionId,
 			prompt: "Inspect the README",
 		});

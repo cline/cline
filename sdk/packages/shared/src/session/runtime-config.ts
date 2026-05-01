@@ -1,11 +1,16 @@
 import type { ToolPolicy } from "../llms/tools";
 
 export type AgentMode = "act" | "plan" | "yolo" | "zen";
-export type RuntimeConfigExtensionKind = "rules" | "skills" | "plugins";
+export type RuntimeConfigExtensionKind =
+	| "rules"
+	| "skills"
+	| "workflows"
+	| "plugins";
 
 export const RUNTIME_CONFIG_EXTENSION_KINDS = [
 	"rules",
 	"skills",
+	"workflows",
 	"plugins",
 ] as const satisfies readonly RuntimeConfigExtensionKind[];
 

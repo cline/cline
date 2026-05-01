@@ -9,22 +9,17 @@ import {
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { createContextCompactionPrepareTurn } from "../extensions/context/compaction";
 import type { ToolExecutors } from "../extensions/tools";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
-import { retainCheckpointRefs } from "../hooks/checkpoint-hooks";
+import type { RuntimeCapabilities } from "../runtime/capabilities";
+import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
 import { manifestToSessionRecord } from "../runtime/host/history";
 import type {
-	PendingPromptMutationResult,
-	PendingPromptsAction,
-	PendingPromptsDeleteInput,
-	PendingPromptsListInput,
-	PendingPromptsUpdateInput,
+	PendingPromptsServiceApi,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -42,6 +37,7 @@ import {
 } from "../runtime/orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../runtime/orchestration/session-runtime";
 import { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
+import { PendingPromptsController } from "../runtime/turn-queue/pending-prompt-service";
 import { buildTelemetryAgentIdentity } from "../services/agent-events";
 import { resolveWorkspacePath } from "../services/config";
 import { prepareLocalRuntimeBootstrap } from "../services/local-runtime-bootstrap";
@@ -70,17 +66,13 @@ import {
 } from "../services/usage";
 import { enrichPromptWithMentions } from "../services/workspace";
 import {
-	applyCheckpointToWorktree,
-	createCheckpointRestorePlan,
-	createRestoredCheckpointMetadata,
-	trimMessagesBeforeCheckpoint,
-} from "../session/checkpoint-restore";
-import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../session/models/session-manifest";
 import type { SessionRow } from "../session/models/session-row";
 import type { RootSessionArtifacts } from "../session/services/session-service";
+import { createCoreSessionSnapshot } from "../session/session-snapshot";
+import { SessionVersioningService } from "../session/session-versioning-service";
 import {
 	buildTeamRunContinuationPrompt,
 	formatModePrompt,
@@ -91,11 +83,10 @@ import {
 } from "../session/team";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
-import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
+import type { CoreSessionEvent } from "../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../types/session";
 import type { SessionRecord } from "../types/sessions";
 import { AgentEventBridge } from "./local/agent-event-bridge";
-import { PendingPromptsController } from "./local/pending-prompts";
 import {
 	type SessionBackend,
 	toActiveSessionRecord,
@@ -124,14 +115,11 @@ export interface LocalRuntimeHostOptions {
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
 	createAgent?: (config: AgentConfig) => SessionRuntime;
-	defaultToolExecutors?: Partial<ToolExecutors>;
+	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	providerSettingsManager?: ProviderSettingsManager;
 	oauthTokenManager?: RuntimeOAuthTokenManager;
 	telemetry?: ITelemetryService;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
 	/**
 	 * Default custom `fetch` implementation threaded into every
 	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
@@ -142,24 +130,24 @@ export interface LocalRuntimeHostOptions {
 
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
+	public readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
-	private readonly defaultToolExecutors?: Partial<ToolExecutors>;
+	private readonly toolExecutors?: Partial<ToolExecutors>;
+	private readonly defaultCapabilities?: RuntimeCapabilities;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
 	private readonly defaultFetch?: typeof fetch;
-	private readonly defaultRequestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly subAgentStarts: SubAgentStartTracker = new Map();
 	private readonly pendingPromptsController: PendingPromptsController;
 	private readonly eventBridge: AgentEventBridge;
+	private readonly sessionVersioning = new SessionVersioningService();
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -169,7 +157,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
 			options.createAgent ?? ((config) => new SessionRuntime(config));
-		this.defaultToolExecutors = options.defaultToolExecutors;
+		this.defaultCapabilities = normalizeRuntimeCapabilities(
+			options.capabilities,
+		);
+		this.toolExecutors = this.defaultCapabilities?.toolExecutors;
 		this.defaultToolPolicies = options.toolPolicies;
 		this.providerSettingsManager =
 			options.providerSettingsManager ?? new ProviderSettingsManager();
@@ -182,13 +173,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultTelemetry = options.telemetry;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
-		this.defaultRequestToolApproval = options.requestToolApproval;
 
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
 			emit: (event) => this.emit(event),
-			send: (input) => this.send(input),
+			send: (input) => this.runTurn(input),
 		});
+		this.pendingPrompts = {
+			list: async (input) =>
+				this.pendingPromptsController.list(input.sessionId),
+			update: async (input) => this.pendingPromptsController.update(input),
+			delete: async (input) => this.pendingPromptsController.delete(input),
+		};
 		this.eventBridge = new AgentEventBridge({
 			getSession: (sid) => this.sessions.get(sid),
 			usageBySession: this.usageBySession,
@@ -210,7 +206,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	// ── Public API ──────────────────────────────────────────────────────
 
-	async start(input: StartSessionInput): Promise<StartSessionResult> {
+	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
@@ -278,9 +274,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 
+		const capabilities = normalizeRuntimeCapabilities(
+			this.defaultCapabilities,
+			input.capabilities,
+		);
 		const sessionToolExecutors =
-			input.localRuntime?.defaultToolExecutors ?? this.defaultToolExecutors;
-		const inputLocalConfig = input.localRuntime?.configOverrides as
+			capabilities?.toolExecutors ?? this.toolExecutors;
+		const inputLocalConfig = input.localRuntime as
 			| Partial<CoreSessionConfig>
 			| undefined;
 		const pluginEventFallbackLogger =
@@ -294,9 +294,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
-			defaultToolExecutors: sessionToolExecutors,
+			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
-			defaultRequestToolApproval: this.defaultRequestToolApproval,
 			defaultFetch: this.defaultFetch,
 			onPluginEvent: (event) => {
 				if (event.name === "plugin_log") {
@@ -332,7 +331,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionToolExecutors,
 				),
 			readSessionMetadata: async () =>
-				(await this.get(sessionId))?.metadata as
+				(await this.getSession(sessionId))?.metadata as
 					| Record<string, unknown>
 					| undefined,
 			writeSessionMetadata: async (metadata) => {
@@ -349,6 +348,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
+		const extensions = runtime.extensions ?? bootstrap.extensions;
 
 		const agentConfig = {
 			sessionId,
@@ -368,7 +368,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			prepareTurn: createContextCompactionPrepareTurn(configWithProvider),
 			tools,
 			hooks: bootstrap.hooks,
-			extensions: bootstrap.extensions,
+			extensions,
 			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
@@ -376,7 +376,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			requestToolApproval: bootstrap.requestToolApproval,
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
-			completionGuard: runtime.completionGuard,
+			completionPolicy: runtime.completionPolicy,
 			consumePendingUserMessage: () =>
 				this.pendingPromptsController.consumeSteer(sessionId),
 			logger: runtime.logger ?? configWithProvider.logger,
@@ -469,7 +469,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let result: AgentResult | undefined;
 		try {
 			if (startInput.prompt?.trim()) {
-				result = await this.runTurn(active, {
+				result = await this.executeTurn(active, {
 					prompt: startInput.prompt,
 					userImages: startInput.userImages,
 					userFiles: startInput.userFiles,
@@ -494,78 +494,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 	}
 
-	async restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
-		const sourceSessionId = input.sessionId.trim();
-		if (!sourceSessionId) {
-			throw new Error("sessionId is required");
-		}
-		const restoreMessages = input.restore?.messages !== false;
-		const restoreWorkspace = input.restore?.workspace !== false;
-		if (!restoreMessages && !restoreWorkspace) {
-			throw new Error("restore.messages or restore.workspace must be true");
-		}
-		if (restoreMessages && !input.start) {
-			throw new Error("start is required when restore.messages is true");
-		}
-		const sourceSession = await this.get(sourceSessionId);
-		if (!sourceSession) {
-			throw new Error(`Session ${sourceSessionId} not found`);
-		}
-		const sourceMessages = restoreMessages
-			? await this.readMessages(sourceSessionId)
-			: undefined;
-		if (restoreMessages && sourceMessages?.length === 0) {
-			throw new Error(`No messages found for session ${sourceSessionId}`);
-		}
-		const plan = createCheckpointRestorePlan({
-			session: sourceSession,
-			messages: sourceMessages,
-			checkpointRunCount: input.checkpointRunCount,
-			cwd: input.cwd,
-			restoreMessages,
+	async restoreSession(
+		input: RestoreSessionInput,
+	): Promise<RestoreSessionResult> {
+		return this.sessionVersioning.restoreCheckpoint({
+			...input,
+			getSession: (sessionId) => this.getSession(sessionId),
+			readMessages: (sessionId) => this.readSessionMessages(sessionId),
+			buildStartInput: (context, startInput) => {
+				const sessionMetadata = context.restoredCheckpointMetadata
+					? {
+							...(startInput.sessionMetadata ?? {}),
+							checkpoint: context.restoredCheckpointMetadata,
+						}
+					: startInput.sessionMetadata;
+				return {
+					...startInput,
+					...(sessionMetadata ? { sessionMetadata } : {}),
+					initialMessages: context.initialMessages,
+				};
+			},
+			startSession: (startInput) => this.startSession(startInput),
+			getStartedSessionId: (startResult) => startResult.sessionId,
+			readRestoredSession: (sessionId) => this.getSession(sessionId),
 		});
-		if (restoreWorkspace) {
-			await applyCheckpointToWorktree(plan.cwd, plan.checkpoint);
-		}
-		if (!restoreMessages) {
-			return { checkpoint: plan.checkpoint };
-		}
-		const restoredCheckpointMetadata = createRestoredCheckpointMetadata(
-			sourceSession,
-			input.checkpointRunCount,
-		);
-		const startInput = input.start!;
-		const sessionMetadata = restoredCheckpointMetadata
-			? {
-					...(startInput.sessionMetadata ?? {}),
-					checkpoint: restoredCheckpointMetadata,
-				}
-			: startInput.sessionMetadata;
-		const initialMessages = input.restore?.omitCheckpointMessageFromSession
-			? trimMessagesBeforeCheckpoint(
-					sourceMessages ?? [],
-					input.checkpointRunCount,
-				)
-			: (plan.messages ?? []);
-		const startResult = await this.start({
-			...startInput,
-			...(sessionMetadata ? { sessionMetadata } : {}),
-			initialMessages,
-		});
-		await retainCheckpointRefs(
-			plan.cwd,
-			startResult.sessionId,
-			restoredCheckpointMetadata?.history ?? [],
-		);
-		return {
-			sessionId: startResult.sessionId,
-			startResult,
-			messages: plan.messages,
-			checkpoint: plan.checkpoint,
-		};
 	}
 
-	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
+	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
@@ -591,7 +546,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return undefined;
 		}
 		try {
-			const result = await this.runTurn(session, {
+			const result = await this.executeTurn(session, {
 				prompt: input.prompt,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
@@ -608,39 +563,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			await this.failSession(session);
 			throw error;
-		}
-	}
-
-	async pendingPrompts(
-		action: "list",
-		input: PendingPromptsListInput,
-	): Promise<SessionPendingPrompt[]>;
-	async pendingPrompts(
-		action: "update",
-		input: PendingPromptsUpdateInput,
-	): Promise<PendingPromptMutationResult>;
-	async pendingPrompts(
-		action: "delete",
-		input: PendingPromptsDeleteInput,
-	): Promise<PendingPromptMutationResult>;
-	async pendingPrompts(
-		action: PendingPromptsAction,
-		input:
-			| PendingPromptsListInput
-			| PendingPromptsUpdateInput
-			| PendingPromptsDeleteInput,
-	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
-		switch (action) {
-			case "list":
-				return this.pendingPromptsController.list(input.sessionId);
-			case "update":
-				return this.pendingPromptsController.update(
-					input as PendingPromptsUpdateInput,
-				);
-			case "delete":
-				return this.pendingPromptsController.delete(
-					input as PendingPromptsDeleteInput,
-				);
 		}
 	}
 
@@ -662,7 +584,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.agent.abort(reason);
 	}
 
-	async stop(sessionId: string): Promise<void> {
+	async stopSession(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
 		session.config.telemetry?.capture({
@@ -702,7 +624,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.usageBySession.clear();
 	}
 
-	async get(sessionId: string): Promise<SessionRecord | undefined> {
+	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
 		const active = this.sessions.get(sessionId);
 		if (active) {
 			return toActiveSessionRecord(active);
@@ -715,7 +637,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
-	async list(limit = 200): Promise<SessionRecord[]> {
+	async listSessions(limit = 200): Promise<SessionRecord[]> {
 		const rows = await this.listRows(limit);
 		const persisted = rows.map(toSessionRecord);
 		const seen = new Set(persisted.map((row) => row.sessionId));
@@ -728,9 +650,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return persisted.slice(0, limit);
 	}
 
-	async delete(sessionId: string): Promise<boolean> {
+	async deleteSession(sessionId: string): Promise<boolean> {
 		if (this.sessions.has(sessionId)) {
-			await this.stop(sessionId);
+			await this.stopSession(sessionId);
 		}
 		const result = await this.invoke<{ deleted: boolean }>(
 			"deleteSession",
@@ -742,7 +664,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return result.deleted;
 	}
 
-	async update(
+	async updateSession(
 		sessionId: string,
 		updates: {
 			prompt?: string | null;
@@ -762,7 +684,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return { updated: result?.updated === true };
 	}
 
-	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
+	async readSessionMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.Message[]> {
 		const target = sessionId.trim();
 		if (!target) return [];
 		const row = await this.getRow(target);
@@ -773,7 +697,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return readPersistedMessagesFile(manifest?.messages_path);
 	}
 
-	async handleHookEvent(payload: HookEventPayload): Promise<void> {
+	async dispatchHookEvent(payload: HookEventPayload): Promise<void> {
 		await replaySubagentHookEvent(payload, {
 			queueSpawnRequest: (event: HookEventPayload) =>
 				this.invokeOptional("queueSpawnRequest", event),
@@ -822,7 +746,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	// ── Turn execution ──────────────────────────────────────────────────
 
-	private async runTurn(
+	private async executeTurn(
 		session: ActiveSession,
 		input: {
 			prompt: string;
@@ -1308,9 +1232,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private emitStatus(sessionId: string, status: string): void {
+		void this.emitSessionSnapshot(sessionId);
 		this.emit({
 			type: "status",
 			payload: { sessionId, status },
+		});
+	}
+
+	private async emitSessionSnapshot(sessionId: string): Promise<void> {
+		const session = await this.getSession(sessionId);
+		if (!session) return;
+		this.emit({
+			type: "session_snapshot",
+			payload: {
+				sessionId,
+				snapshot: createCoreSessionSnapshot({
+					session,
+					messages: await this.readSessionMessages(sessionId),
+					usage: this.usageBySession.get(sessionId),
+				}),
+			},
 		});
 	}
 

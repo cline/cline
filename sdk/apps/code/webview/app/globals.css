@@ -114,13 +114,13 @@
 		@apply border-l-2 border-border pl-3;
 	}
 	.markdown code {
-		@apply rounded bg-muted px-1 py-0.5;
+		@apply space-y-1 rounded bg-muted px-1 py-0.5;
 	}
 	.markdown h1 {
 		@apply text-lg font-bold;
 	}
 	.markdown h2,
-	h3 {
+	.markdown h3 {
 		@apply text-lg font-semibold;
 	}
 	.markdown ul {
@@ -133,11 +133,9 @@
 		@apply ml-5;
 	}
 	.markdown pre {
-		@apply overflow-x-auto rounded bg-muted p-3;
+		@apply space-y-1 overflow-x-auto rounded bg-muted p-3;
 	}
-	.markdown div,
-	pre,
-	code {
+	.markdown div {
 		@apply space-y-1;
 	}
 }

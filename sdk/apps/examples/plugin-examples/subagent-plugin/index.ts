@@ -99,6 +99,8 @@ const DEFAULT_MODEL_ID = envOr(
 	"CLINE_SUBAGENT_MODEL_ID",
 	"anthropic/claude-sonnet-4.6",
 );
+type SubagentBackendMode = "auto" | "hub" | "local";
+
 const DEFAULT_BACKEND_MODE = envOr("CLINE_SUBAGENTS_BACKEND_MODE", "auto");
 const DEFAULT_AGENT_PRESET = envOr("CLINE_SUBAGENT_DEFAULT_PRESET", "phantom");
 
@@ -151,7 +153,7 @@ let sessionManagerPromise: Promise<SessionManager> | undefined;
 
 /**
  * Cast a fully-typed tool to the `Tool<unknown, unknown>` expected by
- * `AgentExtensionApi.registerTool`. This is safe at runtime because the
+ * the plugin API's `registerTool` method. This is safe at runtime because the
  * registry only invokes `execute` with validated input that matches the
  * tool's `inputSchema`.
  */
@@ -306,13 +308,24 @@ function emitSteer(sessionId: string | undefined, prompt: string): void {
 
 async function getSessionManager(): Promise<SessionManager> {
 	sessionManagerPromise ??= ClineCore.create({
-		backendMode: DEFAULT_BACKEND_MODE === "local" ? "local" : "auto",
+		backendMode: resolveSubagentBackendMode(DEFAULT_BACKEND_MODE),
 	}).catch((err) => {
 		// Clear the cached promise so subsequent calls can retry.
 		sessionManagerPromise = undefined;
 		throw err;
 	});
 	return sessionManagerPromise;
+}
+
+function resolveSubagentBackendMode(value: string): SubagentBackendMode {
+	switch (value) {
+		case "auto":
+		case "hub":
+		case "local":
+			return value;
+		default:
+			return "auto";
+	}
 }
 
 function extractLastAssistantText(
@@ -348,7 +361,7 @@ function steerPrompt(subagent: RunningSubagent): string {
 		.join("\n\n");
 }
 
-async function runTurn(
+async function runSubagentTurn(
 	subagent: RunningSubagent,
 	message: string,
 	steer: boolean,
@@ -549,7 +562,11 @@ const plugin: AgentPlugin = {
 							status: "running",
 						};
 						subagents.set(sessionId, subagent);
-						void runTurn(subagent, input.task, input.notifyParent !== false);
+						void runSubagentTurn(
+							subagent,
+							input.task,
+							input.notifyParent !== false,
+						);
 
 						return {
 							status: "started",
@@ -629,7 +646,11 @@ const plugin: AgentPlugin = {
 						subagent.error = undefined;
 						subagents.set(subagent.sessionId, subagent);
 
-						void runTurn(subagent, input.prompt, input.notifyParent !== false);
+						void runSubagentTurn(
+							subagent,
+							input.prompt,
+							input.notifyParent !== false,
+						);
 						return {
 							status: "started",
 							sessionId: subagent.sessionId,

@@ -1,6 +1,6 @@
 import type { ITelemetryService } from "@clinebot/shared";
 import { resolveDocumentsExtensionPath } from "@clinebot/shared/storage";
-import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
+import { listHookConfigFiles } from "../hooks/hook-file-config";
 import type { CoreSessionConfig } from "../types/config";
 import {
 	captureHookDiscovery,

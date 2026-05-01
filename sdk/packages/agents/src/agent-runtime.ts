@@ -238,6 +238,24 @@ function textFromMessage(message: AgentMessage | undefined): string {
 		.join("");
 }
 
+function textFromToolMessage(message: AgentMessage | undefined): string {
+	const result = message?.content.find(
+		(part): part is Extract<AgentMessagePart, { type: "tool-result" }> =>
+			part.type === "tool-result",
+	);
+	if (!result || result.isError) {
+		return "";
+	}
+	if (typeof result.output === "string") {
+		return result.output;
+	}
+	try {
+		return JSON.stringify(result.output);
+	} catch {
+		return String(result.output);
+	}
+}
+
 function normalizeInput(input: AgentRunInput): AgentMessage[] {
 	if (typeof input === "string") {
 		return [createMessage("user", [{ type: "text", text: input }])];
@@ -387,6 +405,44 @@ export class AgentRuntime {
 		if (hooks.onEvent) this.hooks.onEvent.push(hooks.onEvent);
 	}
 
+	private getRequiredCompletionToolNames(): string[] {
+		if (this.config.completionPolicy?.requireCompletionTool !== true) {
+			return [];
+		}
+		return [...this.tools.values()]
+			.filter((tool) => tool.lifecycle?.completesRun === true)
+			.map((tool) => tool.name)
+			.sort();
+	}
+
+	private getCompletionToolReminderMessage(): string | undefined {
+		const terminalToolNames = this.getRequiredCompletionToolNames();
+		if (terminalToolNames.length === 0) {
+			return undefined;
+		}
+		return `[SYSTEM] This run is not complete until you call one of these terminal completion tools: ${terminalToolNames.join(
+			", ",
+		)}. Continue working if requirements are not met. If the task is complete, call the appropriate terminal completion tool now.`;
+	}
+
+	private getCompletionReminderMessages(): string[] {
+		return [
+			this.getCompletionToolReminderMessage(),
+			this.config.completionPolicy?.completionGuard?.(),
+		].filter((message): message is string => Boolean(message));
+	}
+
+	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
+		const reminderMessage = createMessage("user", [{ type: "text", text }]);
+		this.state.messages.push(reminderMessage);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message: reminderMessage,
+		});
+		return reminderMessage;
+	}
+
 	private async execute(input?: AgentRunInput): Promise<AgentRunResult> {
 		await this.ensureInitialized();
 		if (this.state.status === "running") {
@@ -411,6 +467,11 @@ export class AgentRuntime {
 					snapshot: this.snapshot(),
 					message,
 				});
+			}
+
+			const completionToolReminder = this.getCompletionToolReminderMessage();
+			if (completionToolReminder) {
+				await this.addUserReminderMessage(completionToolReminder);
 			}
 
 			let finalAssistantMessage: AgentMessage | undefined;
@@ -464,6 +525,14 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						toolCallCount: 0,
 					});
+					const completionReminderMessages =
+						this.getCompletionReminderMessages();
+					if (completionReminderMessages.length > 0) {
+						for (const reminderMessage of completionReminderMessages) {
+							await this.addUserReminderMessage(reminderMessage);
+						}
+						continue;
+					}
 					const result = this.finishRun("completed", finalAssistantMessage);
 					await this.callAfterRunHooks(result);
 					await this.emit({
@@ -490,6 +559,24 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 					toolCallCount: toolCalls.length,
 				});
+				const terminalToolMessage = this.findCompletingToolMessage(
+					toolCalls,
+					toolMessages,
+				);
+				if (terminalToolMessage) {
+					const result = this.finishRun(
+						"completed",
+						finalAssistantMessage,
+						textFromToolMessage(terminalToolMessage) || undefined,
+					);
+					await this.callAfterRunHooks(result);
+					await this.emit({
+						type: "run-finished",
+						snapshot: this.snapshot(),
+						result,
+					});
+					return result;
+				}
 			}
 
 			throw new Error(
@@ -803,6 +890,28 @@ export class AgentRuntime {
 		return results;
 	}
 
+	private findCompletingToolMessage(
+		toolCalls: AgentToolCallPart[],
+		toolMessages: AgentMessage[],
+	): AgentMessage | undefined {
+		for (let index = 0; index < toolCalls.length; index += 1) {
+			const toolCall = toolCalls[index];
+			if (this.tools.get(toolCall.toolName)?.lifecycle?.completesRun !== true) {
+				continue;
+			}
+			const toolMessage = toolMessages[index];
+			const result = toolMessage?.content.find(
+				(part): part is Extract<AgentMessagePart, { type: "tool-result" }> =>
+					part.type === "tool-result" &&
+					part.toolCallId === toolCall.toolCallId,
+			);
+			if (result && !result.isError) {
+				return toolMessage;
+			}
+		}
+		return undefined;
+	}
+
 	private async prepareToolExecution(
 		toolCall: AgentToolCallPart,
 	): Promise<PreparedToolExecution> {
@@ -1012,6 +1121,7 @@ export class AgentRuntime {
 	private finishRun(
 		status: AgentRunResult["status"],
 		assistantMessage?: AgentMessage,
+		outputText?: string,
 	): AgentRunResult {
 		this.state.status = status;
 		return {
@@ -1020,9 +1130,9 @@ export class AgentRuntime {
 			runId: this.state.runId ?? createUID("run"),
 			status,
 			iterations: this.state.iteration,
-			outputText: textFromMessage(
-				assistantMessage ?? this.findLastAssistantMessage(),
-			),
+			outputText:
+				outputText ??
+				textFromMessage(assistantMessage ?? this.findLastAssistantMessage()),
 			messages: cloneMessages(this.state.messages),
 			usage: cloneUsage(this.state.usage),
 		};

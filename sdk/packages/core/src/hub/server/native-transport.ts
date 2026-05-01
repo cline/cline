@@ -3,7 +3,7 @@ import type {
 	HubEventEnvelope,
 	HubReplyEnvelope,
 } from "@clinebot/shared";
-import type { HubCommandTransport } from "../transport";
+import type { HubCommandTransport } from "./command-transport";
 
 export interface NativeHubTransport {
 	handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;

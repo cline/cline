@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { basename, isAbsolute, relative } from "node:path";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	type RuleConfig,
 	type SkillConfig,
-	type UserInstructionConfigWatcher,
+	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "../extensions/config";
 import { toggleSkillFrontmatter } from "../extensions/config/skill-frontmatter-toggle";
@@ -59,46 +59,49 @@ function resolveWorkspaceRoot(input: CoreSettingsListInput): string {
 	return input.workspaceRoot?.trim() || input.cwd?.trim() || "";
 }
 
-async function withInstructionWatcher<T>(
+async function withUserInstructionService<T>(
 	input: CoreSettingsListInput,
-	run: (watcher?: UserInstructionConfigWatcher) => Promise<T>,
+	run: (service?: UserInstructionConfigService) => Promise<T>,
 ): Promise<T> {
-	if (input.userInstructionWatcher) {
-		return await run(input.userInstructionWatcher);
+	if (input.userInstructionService) {
+		return await run(input.userInstructionService);
 	}
 	const workspaceRoot = resolveWorkspaceRoot(input);
 	if (!workspaceRoot) {
 		return await run(undefined);
 	}
-	const watcher = createUserInstructionConfigWatcher({
+	const service = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
 		rules: { workspacePath: workspaceRoot },
 		workflows: { workspacePath: workspaceRoot },
 	});
 	try {
-		await watcher.start();
-		return await run(watcher);
+		await service.start();
+		return await run(service);
 	} finally {
-		watcher.stop();
+		service.stop();
 	}
 }
 
 function findSkillRecord(
-	watcher: UserInstructionConfigWatcher | undefined,
+	service: UserInstructionConfigService | undefined,
 	input: CoreSettingsToggleInput,
 ) {
-	if (!watcher) {
+	if (!service) {
 		return undefined;
 	}
-	const records = watcher.getSnapshot("skill");
-	if (input.id && records.has(input.id)) {
-		return records.get(input.id);
+	const records = service.listRecords<SkillConfig>("skill");
+	if (input.id) {
+		const match = records.find((record) => record.id === input.id);
+		if (match) {
+			return match;
+		}
 	}
-	for (const [id, record] of records.entries()) {
+	for (const record of records) {
 		if (
 			record.filePath === input.path ||
 			record.item.name === input.name ||
-			id === input.name
+			record.id === input.name
 		) {
 			return record;
 		}
@@ -108,18 +111,18 @@ function findSkillRecord(
 
 export class CoreSettingsService {
 	async list(input: CoreSettingsListInput = {}): Promise<CoreSettingsSnapshot> {
-		return await withInstructionWatcher(input, async (watcher) => {
+		return await withUserInstructionService(input, async (service) => {
 			const workspaceRoot = resolveWorkspaceRoot(input);
 			const workflows: CoreSettingsItem[] = [];
 			const rules: CoreSettingsItem[] = [];
 			const skills: CoreSettingsItem[] = [];
 			const tools: CoreSettingsItem[] = [];
 
-			if (watcher) {
-				for (const [id, record] of watcher.getSnapshot("workflow").entries()) {
-					const workflow = record.item as WorkflowConfig;
+			if (service) {
+				for (const record of service.listRecords<WorkflowConfig>("workflow")) {
+					const workflow = record.item;
 					workflows.push({
-						id,
+						id: record.id,
 						name: workflow.name,
 						path: record.filePath,
 						enabled: workflow.disabled !== true,
@@ -129,10 +132,10 @@ export class CoreSettingsService {
 						toggleable: false,
 					});
 				}
-				for (const [id, record] of watcher.getSnapshot("rule").entries()) {
-					const rule = record.item as RuleConfig;
+				for (const record of service.listRecords<RuleConfig>("rule")) {
+					const rule = record.item;
 					rules.push({
-						id,
+						id: record.id,
 						name: rule.name,
 						path: record.filePath,
 						enabled: rule.disabled !== true,
@@ -142,10 +145,10 @@ export class CoreSettingsService {
 						toggleable: false,
 					});
 				}
-				for (const [id, record] of watcher.getSnapshot("skill").entries()) {
-					const skill = record.item as SkillConfig;
+				for (const record of service.listRecords<SkillConfig>("skill")) {
+					const skill = record.item;
 					skills.push({
-						id,
+						id: record.id,
 						name: skill.name,
 						path: record.filePath,
 						enabled: skill.disabled !== true,
@@ -158,22 +161,27 @@ export class CoreSettingsService {
 			}
 
 			if (workspaceRoot) {
-				for (const pluginTool of await listPluginTools({
-					workspacePath: workspaceRoot,
-					cwd: input.cwd,
-					providerId: input.availabilityContext?.providerId,
-					modelId: input.availabilityContext?.modelId,
-				})) {
-					tools.push({
-						id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
-						name: pluginTool.name,
-						path: pluginTool.path,
-						enabled: pluginTool.enabled,
-						kind: "tool",
-						source: pluginTool.source,
-						description: pluginTool.description,
-						toggleable: true,
-					});
+				try {
+					for (const pluginTool of await listPluginTools({
+						workspacePath: workspaceRoot,
+						cwd: input.cwd,
+						providerId: input.availabilityContext?.providerId,
+						modelId: input.availabilityContext?.modelId,
+					})) {
+						tools.push({
+							id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
+							name: pluginTool.name,
+							path: pluginTool.path,
+							enabled: pluginTool.enabled,
+							kind: "tool",
+							source: pluginTool.source,
+							description: pluginTool.description,
+							toggleable: true,
+						});
+					}
+				} catch {
+					// Settings listing is best-effort; unreadable plugin roots should
+					// not hide rules, skills, workflows, or built-in tools.
 				}
 			}
 
@@ -190,11 +198,11 @@ export class CoreSettingsService {
 		input: CoreSettingsToggleInput,
 	): Promise<CoreSettingsMutationResult> {
 		if (input.type === "skills") {
-			return await withInstructionWatcher(input, async (watcher) => {
+			return await withUserInstructionService(input, async (service) => {
 				const record =
 					input.path?.trim() && input.enabled !== undefined
 						? undefined
-						: findSkillRecord(watcher, input);
+						: findSkillRecord(service, input);
 				const filePath = input.path?.trim() || record?.filePath;
 				if (!filePath) {
 					throw new Error(
@@ -214,11 +222,11 @@ export class CoreSettingsService {
 					);
 				}
 				await toggleSkillFrontmatter({ filePath, enabled });
-				await watcher?.refreshType("skill");
+				await service?.refreshType("skill");
 				return {
 					snapshot: await this.list({
 						...input,
-						userInstructionWatcher: watcher,
+						userInstructionService: service,
 					}),
 					changedTypes: ["skills"],
 				};

@@ -11,8 +11,6 @@ export type {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
-	listEnabledRulesFromWatcher,
-	loadRulesForSystemPromptFromWatcher,
 	mergeRulesForSystemPrompt,
 } from "./safety/rules";
 export {

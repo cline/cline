@@ -69,6 +69,9 @@ export function clineEnv(
 	// so if the parent vitest process's VITEST=true leaks into the child, VCR
 	// recording/playback is silently skipped.
 	const { CI: _ci, VITEST: _vitest, ...cleanEnv } = process.env;
+	if (!isAuthenticated) {
+		delete cleanEnv.CLINE_API_KEY;
+	}
 
 	// Only enable VCR when a cassette path is provided (via extra or parent env),
 	// otherwise tests without cassettes would trigger a spurious

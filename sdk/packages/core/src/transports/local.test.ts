@@ -257,7 +257,7 @@ describe("LocalRuntimeHost", () => {
 			telemetry,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ telemetry, sessionId }),
 				prompt: "hello",
@@ -291,6 +291,78 @@ describe("LocalRuntimeHost", () => {
 				restoredFromPersistence: false,
 				distinct_id: distinctId,
 			}),
+		);
+	});
+
+	it("passes app runtime capabilities into the local execution path", async () => {
+		const sessionId = "sess-local-capabilities";
+		const manifest = createManifest(sessionId);
+		const askQuestion = vi.fn(async () => "Use shared handler");
+		const requestToolApproval = vi.fn(async () => ({ approved: true }));
+		const appCapabilities = {
+			toolExecutors: { askQuestion },
+			requestToolApproval,
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: (config) => {
+				expect(config.requestToolApproval).toBe(requestToolApproval);
+				return agent as never;
+			},
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				capabilities: appCapabilities,
+			}),
+		);
+
+		expect(runtimeBuilder.build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toolExecutors: expect.objectContaining({ askQuestion }),
+			}),
+		);
+		expect(
+			vi.mocked(runtimeBuilder.build).mock.calls[0]?.[0].toolExecutors
+				?.askQuestion,
+		).toBe(askQuestion);
+		expect(agent.run).toHaveBeenCalledWith(
+			expect.stringContaining("hello"),
+			undefined,
+			undefined,
 		);
 	});
 
@@ -371,7 +443,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -449,7 +521,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		const started = await manager.start(
+		const started = await manager.startSession(
 			normalizeStartInput({
 				source: "kanban",
 				config: createConfig({ sessionId }),
@@ -515,7 +587,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
@@ -537,7 +609,7 @@ describe("LocalRuntimeHost", () => {
 			"completed",
 			0,
 		);
-		await expect(manager.get(sessionId)).resolves.toMatchObject({
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
 			status: "completed",
 		});
@@ -568,12 +640,14 @@ describe("LocalRuntimeHost", () => {
 			sessionService: sessionService as never,
 		});
 
-		await expect(manager.get(sessionId)).resolves.toMatchObject({
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
 			source: manifest.source,
 			messagesPath,
 		});
-		await expect(manager.readMessages(sessionId)).resolves.toEqual(messages);
+		await expect(manager.readSessionMessages(sessionId)).resolves.toEqual(
+			messages,
+		);
 		expect(sessionService.readSessionManifest).toHaveBeenCalledWith(sessionId);
 	});
 
@@ -622,7 +696,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -635,7 +709,7 @@ describe("LocalRuntimeHost", () => {
 			"completed",
 			0,
 		);
-		await expect(manager.get(sessionId)).resolves.toMatchObject({
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
 			status: "completed",
 		});
@@ -684,7 +758,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
@@ -777,7 +851,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId, teamName: undefined }),
 			}),
@@ -857,7 +931,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		const started = await manager.start(
+		const started = await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -931,7 +1005,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		const started = await manager.start(
+		const started = await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId, logger }),
 				prompt: "hello",
@@ -1070,7 +1144,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -1196,7 +1270,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -1293,7 +1367,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: {
 					...createConfig({ sessionId, cwd: repoCwd }),
@@ -1308,7 +1382,7 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		await expect(manager.get(sessionId)).resolves.toEqual(
+		await expect(manager.getSession(sessionId)).resolves.toEqual(
 			expect.objectContaining({
 				metadata: expect.objectContaining({
 					checkpoint: expect.objectContaining({
@@ -1423,7 +1497,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -1529,7 +1603,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -1602,7 +1676,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -1675,7 +1749,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -1801,7 +1875,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -1812,8 +1886,8 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
-		await manager.send({ sessionId, prompt: "hello" });
-		await manager.send({ sessionId, prompt: "again" });
+		await manager.runTurn({ sessionId, prompt: "hello" });
+		await manager.runTurn({ sessionId, prompt: "again" });
 
 		const persisted = persistSessionMessages.mock.calls[1]?.[1];
 		expect(persisted?.[1]).toMatchObject({
@@ -1893,7 +1967,7 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		await expect(
-			manager.start(
+			manager.startSession(
 				normalizeStartInput({
 					config: createConfig({ sessionId }),
 					prompt: "hello",
@@ -1964,7 +2038,7 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		await expect(
-			manager.start(
+			manager.startSession(
 				normalizeStartInput({
 					config: createConfig({ sessionId }),
 					prompt: "hello",
@@ -2035,14 +2109,14 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
 			}),
 		);
-		const first = await manager.send({ sessionId, prompt: "first" });
-		const second = await manager.send({ sessionId, prompt: "second" });
+		const first = await manager.runTurn({ sessionId, prompt: "first" });
+		const second = await manager.runTurn({ sessionId, prompt: "second" });
 
 		expect(first?.text).toBe("first");
 		expect(second?.text).toBe("second");
@@ -2116,14 +2190,14 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
 			}),
 		);
 
-		await manager.send({ sessionId, prompt: "first" });
+		await manager.runTurn({ sessionId, prompt: "first" });
 		expect(await manager.getAccumulatedUsage(sessionId)).toEqual({
 			inputTokens: 10,
 			outputTokens: 3,
@@ -2132,7 +2206,7 @@ describe("LocalRuntimeHost", () => {
 			totalCost: 0.11,
 		});
 
-		await manager.send({ sessionId, prompt: "second" });
+		await manager.runTurn({ sessionId, prompt: "second" });
 		expect(await manager.getAccumulatedUsage(sessionId)).toEqual({
 			inputTokens: 18,
 			outputTokens: 7,
@@ -2223,7 +2297,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
@@ -2243,7 +2317,7 @@ describe("LocalRuntimeHost", () => {
 			totalCost: 0.25,
 		});
 
-		await manager.send({ sessionId, prompt: "second prompt" });
+		await manager.runTurn({ sessionId, prompt: "second prompt" });
 
 		expect(createRootSessionWithArtifacts).not.toHaveBeenCalled();
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
@@ -2321,7 +2395,7 @@ describe("LocalRuntimeHost", () => {
 			events.push(event);
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
@@ -2329,10 +2403,14 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		await expect(
-			manager.send({ sessionId, prompt: "queued first", delivery: "queue" }),
+			manager.runTurn({ sessionId, prompt: "queued first", delivery: "queue" }),
 		).resolves.toBeUndefined();
 		await expect(
-			manager.send({ sessionId, prompt: "queued second", delivery: "steer" }),
+			manager.runTurn({
+				sessionId,
+				prompt: "queued second",
+				delivery: "steer",
+			}),
 		).resolves.toBeUndefined();
 
 		expect(run).not.toHaveBeenCalled();
@@ -2364,7 +2442,7 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		canStartRun = true;
-		await manager.send({ sessionId, prompt: "run now" });
+		await manager.runTurn({ sessionId, prompt: "run now" });
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(
 			events.some((event) => {
@@ -2378,6 +2456,96 @@ describe("LocalRuntimeHost", () => {
 				);
 			}),
 		).toBe(true);
+	});
+
+	it("emits canonical session snapshots for local lifecycle updates", async () => {
+		const sessionId = "sess-local-snapshot";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-snapshot.json",
+				messagesPath: "/tmp/messages-snapshot.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:01.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			readSessionManifest: vi.fn().mockResolvedValue(manifest),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run: vi.fn().mockResolvedValue(
+						createResult({
+							messages: [
+								{ role: "user", content: "hello" },
+								{ role: "assistant", content: "ok" },
+							],
+							usage: {
+								inputTokens: 3,
+								outputTokens: 4,
+								cacheReadTokens: 1,
+								cacheWriteTokens: 2,
+								totalCost: 0.12,
+							},
+						}),
+					),
+					continue: vi.fn(),
+					canStartRun: vi.fn(() => true),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+		const events: Array<unknown> = [];
+		manager.subscribe((event) => events.push(event));
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+			}),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const snapshotEvent = events
+			.filter(
+				(event) =>
+					typeof event === "object" &&
+					event !== null &&
+					"type" in event &&
+					event.type === "session_snapshot",
+			)
+			.at(-1) as { payload: { snapshot: unknown } } | undefined;
+		expect(snapshotEvent?.payload.snapshot).toMatchObject({
+			version: 1,
+			sessionId,
+			source: SessionSource.CLI,
+			workspace: { cwd: "/tmp/project", root: "/tmp/project" },
+			model: { providerId: "mock-provider", modelId: "mock-model" },
+			capabilities: {
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: true,
+			},
+			lineage: { isSubagent: false },
+		});
 	});
 
 	it("auto-queues sends to a running interactive session", async () => {
@@ -2430,7 +2598,7 @@ describe("LocalRuntimeHost", () => {
 			events.push(event);
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
@@ -2438,7 +2606,7 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		await expect(
-			manager.send({ sessionId, prompt: "queued implicitly" }),
+			manager.runTurn({ sessionId, prompt: "queued implicitly" }),
 		).resolves.toBeUndefined();
 
 		expect(run).not.toHaveBeenCalled();
@@ -2465,7 +2633,7 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		canStartRun = true;
-		await manager.send({ sessionId, prompt: "run now" });
+		await manager.runTurn({ sessionId, prompt: "run now" });
 
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(
@@ -2529,30 +2697,30 @@ describe("LocalRuntimeHost", () => {
 			events.push(event);
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
 			}),
 		);
-		await manager.send({
+		await manager.runTurn({
 			sessionId,
 			prompt: "queued first",
 			delivery: "queue",
 		});
-		await manager.send({
+		await manager.runTurn({
 			sessionId,
 			prompt: "queued second",
 			delivery: "queue",
 		});
 
-		const queued = await manager.pendingPrompts("list", { sessionId });
+		const queued = await manager.pendingPrompts.list({ sessionId });
 		expect(queued.map((item) => item.prompt)).toEqual([
 			"queued first",
 			"queued second",
 		]);
 
-		const edited = await manager.pendingPrompts("update", {
+		const edited = await manager.pendingPrompts.update({
 			sessionId,
 			promptId: queued[0]?.id,
 			prompt: "edited first",
@@ -2563,7 +2731,7 @@ describe("LocalRuntimeHost", () => {
 			"queued second",
 		]);
 
-		const steered = await manager.pendingPrompts("update", {
+		const steered = await manager.pendingPrompts.update({
 			sessionId,
 			promptId: edited.prompts[1]?.id,
 			delivery: "steer",
@@ -2575,7 +2743,7 @@ describe("LocalRuntimeHost", () => {
 			{ prompt: "edited first", delivery: "queue" },
 		]);
 
-		const removed = await manager.pendingPrompts("delete", {
+		const removed = await manager.pendingPrompts.delete({
 			sessionId,
 			promptId: steered.prompts[0]?.id,
 		});
@@ -2674,7 +2842,7 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		await expect(
-			manager.start(
+			manager.startSession(
 				normalizeStartInput({
 					config: createConfig({ sessionId }),
 					prompt: "hello",
@@ -2737,7 +2905,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		const started = await manager.start(
+		const started = await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "hello",
@@ -2790,13 +2958,13 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		const started = await manager.start(
+		const started = await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId: "sess-no-prompt" }),
 				interactive: true,
 			}),
 		);
-		await manager.stop(started.sessionId);
+		await manager.stopSession(started.sessionId);
 
 		expect(
 			sessionService.createRootSessionWithArtifacts,
@@ -2864,7 +3032,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -2874,7 +3042,7 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		await manager.send({ sessionId, prompt: "hello" });
+		await manager.runTurn({ sessionId, prompt: "hello" });
 
 		expect(updateConnectionDefaults).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
@@ -2943,7 +3111,7 @@ describe("LocalRuntimeHost", () => {
 			} as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -2953,7 +3121,7 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		await manager.send({ sessionId, prompt: "hello" });
+		await manager.runTurn({ sessionId, prompt: "hello" });
 
 		expect(createAgent).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -3013,7 +3181,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: createAgent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -3024,7 +3192,7 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		await manager.send({ sessionId, prompt: "test" });
+		await manager.runTurn({ sessionId, prompt: "test" });
 
 		expect(createAgent).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -3078,7 +3246,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: createAgent as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -3091,7 +3259,7 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		await manager.send({ sessionId, prompt: "test" });
+		await manager.runTurn({ sessionId, prompt: "test" });
 
 		expect(createAgent).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -3152,7 +3320,7 @@ describe("LocalRuntimeHost", () => {
 					}) as never,
 			});
 
-			await manager.start(
+			await manager.startSession(
 				normalizeStartInput({
 					config: createConfig({
 						sessionId,
@@ -3162,7 +3330,7 @@ describe("LocalRuntimeHost", () => {
 					interactive: true,
 				}),
 			);
-			await manager.send({
+			await manager.runTurn({
 				sessionId,
 				prompt: '<user_input mode="act">explain @src/app.ts</user_input>',
 				userFiles: ["note.md"],
@@ -3267,7 +3435,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
@@ -3277,7 +3445,7 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		const result = await manager.send({ sessionId, prompt: "hello" });
+		const result = await manager.runTurn({ sessionId, prompt: "hello" });
 
 		expect(result?.text).toBe("retried");
 		expect(run).toHaveBeenCalledTimes(2);
@@ -3422,13 +3590,13 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: false,
 			}),
 		);
-		const result = await manager.send({
+		const result = await manager.runTurn({
 			sessionId,
 			prompt: "run teammate work",
 		});
@@ -3531,7 +3699,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "run teammate work",
@@ -3643,7 +3811,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.start(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				prompt: "run teammate work",

@@ -59,6 +59,30 @@ export function resolvePendingApproval(
 	return { sessionId: pending.sessionId };
 }
 
+export function cancelPendingApprovals(
+	ctx: HubTransportContext,
+	filter: (approval: { approvalId: string; sessionId: string }) => boolean,
+	reason: string,
+): number {
+	let cancelled = 0;
+	for (const [approvalId, pending] of [...ctx.pendingApprovals.entries()]) {
+		if (!filter({ approvalId, sessionId: pending.sessionId })) {
+			continue;
+		}
+		ctx.pendingApprovals.delete(approvalId);
+		pending.resolve({ approved: false, reason });
+		ctx.publish(
+			ctx.buildEvent(
+				"approval.resolved",
+				{ approvalId, approved: false, cancelled: true, reason },
+				pending.sessionId,
+			),
+		);
+		cancelled += 1;
+	}
+	return cancelled;
+}
+
 export async function handleApprovalRespond(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,

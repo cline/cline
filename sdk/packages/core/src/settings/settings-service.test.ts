@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { UserInstructionConfigWatcher } from "../extensions/config";
+import type { UserInstructionConfigService } from "../extensions/config";
 import { CoreSettingsService } from "./settings-service";
 
 describe("CoreSettingsService", () => {
@@ -34,35 +34,32 @@ Use this skill.`,
 
 		const calls: string[] = [];
 		let refreshed = false;
-		const watcher = {
+		const userInstructionService = {
 			async refreshType(type: string) {
 				calls.push(`refreshType:${type}`);
 				refreshed = true;
 			},
-			getSnapshot(type: string) {
-				calls.push(`getSnapshot:${type}`);
+			listRecords(type: string) {
+				calls.push(`listRecords:${type}`);
 				if (type !== "skill") {
-					return new Map();
+					return [];
 				}
-				return new Map([
-					[
-						"skill-one",
-						{
-							id: "skill-one",
-							type: "skill",
-							filePath: skillPath,
-							item: {
-								name: "skill-one",
-								disabled: refreshed,
-								description: "Skill one",
-								instructions: "Use this skill.",
-								frontmatter: {},
-							},
+				return [
+					{
+						id: "skill-one",
+						type: "skill",
+						filePath: skillPath,
+						item: {
+							name: "skill-one",
+							disabled: refreshed,
+							description: "Skill one",
+							instructions: "Use this skill.",
+							frontmatter: {},
 						},
-					],
-				]);
+					},
+				];
 			},
-		} as unknown as UserInstructionConfigWatcher;
+		} as unknown as UserInstructionConfigService;
 
 		const result = await new CoreSettingsService().toggle({
 			type: "skills",
@@ -72,7 +69,7 @@ Use this skill.`,
 			enabled: false,
 			workspaceRoot: tempRoot,
 			cwd: tempRoot,
-			userInstructionWatcher: watcher,
+			userInstructionService,
 		});
 		const written = await readFile(skillPath, "utf8");
 
@@ -80,7 +77,7 @@ Use this skill.`,
 		expect(result.changedTypes).toEqual(["skills"]);
 		expect(result.snapshot.skills[0]?.enabled).toBe(false);
 		expect(calls).toContain("refreshType:skill");
-		expect(calls.lastIndexOf("getSnapshot:skill")).toBeGreaterThan(
+		expect(calls.lastIndexOf("listRecords:skill")).toBeGreaterThan(
 			calls.indexOf("refreshType:skill"),
 		);
 	});

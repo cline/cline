@@ -6,7 +6,7 @@ import {
 	type TeamEvent,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
-	type UserInstructionConfigWatcher,
+	type UserInstructionConfigService,
 } from "@clinebot/core";
 import type { Message } from "@clinebot/shared";
 import { createCliCore } from "../../session/session";
@@ -47,7 +47,7 @@ type AskQuestionRef = {
 
 export function createInteractiveSessionRuntime(input: {
 	config: Config;
-	userInstructionWatcher?: UserInstructionConfigWatcher;
+	userInstructionService?: UserInstructionConfigService;
 	resumeSessionId?: string;
 	chatCommandState: ChatCommandState;
 	requestToolApproval: (
@@ -75,8 +75,6 @@ export function createInteractiveSessionRuntime(input: {
 
 	const applyStartedSession = (started: StartedSession): void => {
 		setActiveCliSession({
-			manifestPath: started.manifestPath,
-			messagesPath: started.messagesPath,
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
@@ -97,20 +95,22 @@ export function createInteractiveSessionRuntime(input: {
 			backendMode: "auto",
 			forceLocalBackend:
 				input.config.mode === "yolo" || input.config.sandbox === true,
-			defaultToolExecutors: {
-				askQuestion: (question, options) => {
-					if (input.askQuestionRef.current) {
-						return input.askQuestionRef.current(question, options);
-					}
-					return Promise.resolve(options[0] ?? "");
+			capabilities: {
+				toolExecutors: {
+					askQuestion: (question, options) => {
+						if (input.askQuestionRef.current) {
+							return input.askQuestionRef.current(question, options);
+						}
+						return Promise.resolve(options[0] ?? "");
+					},
+					submit: submitAndExitInTerminal,
 				},
-				submit: submitAndExitInTerminal,
+				requestToolApproval: input.requestToolApproval,
 			},
 			logger: input.config.logger,
 			cwd: input.config.cwd,
 			workspaceRoot: input.config.workspaceRoot,
 			toolPolicies: input.config.toolPolicies,
-			requestToolApproval: input.requestToolApproval,
 		});
 		if (shutdownRequested) {
 			await manager.dispose("cli_interactive_startup_cancelled");
@@ -123,7 +123,7 @@ export function createInteractiveSessionRuntime(input: {
 			cwd: input.config.cwd,
 			workspaceRoot: input.config.workspaceRoot,
 			dispatchHookEvent: async (payload) => {
-				await manager.handleHookEvent(payload);
+				await manager.ingestHookEvent(payload);
 			},
 		});
 		unsubscribeAgent = subscribeToAgentEvents(manager, input.onAgentEvent);
@@ -160,7 +160,7 @@ export function createInteractiveSessionRuntime(input: {
 			initialMessages: initial,
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
-				userInstructionWatcher: input.userInstructionWatcher,
+				userInstructionService: input.userInstructionService,
 				onTeamRestored: () => {},
 			},
 		});
@@ -182,7 +182,7 @@ export function createInteractiveSessionRuntime(input: {
 			interactive: true,
 			initialMessages: initial,
 			localRuntime: {
-				userInstructionWatcher: input.userInstructionWatcher,
+				userInstructionService: input.userInstructionService,
 				onTeamRestored: () => {},
 			},
 		});
@@ -270,7 +270,6 @@ export function createInteractiveSessionRuntime(input: {
 			config: input.config,
 			mode,
 			switchToActModeTool: input.switchToActModeTool,
-			userInstructionWatcher: input.userInstructionWatcher,
 		});
 		await restartWithCurrentMessages();
 	};
@@ -411,7 +410,7 @@ export function createInteractiveSessionRuntime(input: {
 				toolPolicies: input.config.toolPolicies,
 				interactive: true,
 				localRuntime: {
-					userInstructionWatcher: input.userInstructionWatcher,
+					userInstructionService: input.userInstructionService,
 					onTeamRestored: () => {},
 				},
 			},

@@ -28,6 +28,7 @@ function collectRegisteredTools(
 		registerTool: (tool) => tools.push(tool),
 		registerCommand: () => {},
 		registerMessageBuilder: () => {},
+		registerRule: () => {},
 		registerProvider: () => {},
 		registerAutomationEventType: () => {},
 	};

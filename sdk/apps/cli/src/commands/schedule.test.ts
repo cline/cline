@@ -61,14 +61,17 @@ describe("runScheduleCommand list output", () => {
 
 		const output: string[] = [];
 		const errors: string[] = [];
-		const code = await runScheduleCommand(["list"], {
-			writeln: (text?: string) => {
-				output.push(text ?? "");
+		const code = await runScheduleCommand(
+			["list", "--address", "127.0.0.1:25463"],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
 			},
-			writeErr: (text: string) => {
-				errors.push(text);
-			},
-		});
+		);
 
 		expect(code).toBe(0);
 		expect(errors).toEqual([]);
@@ -99,14 +102,17 @@ describe("runScheduleCommand list output", () => {
 
 		const output: string[] = [];
 		const errors: string[] = [];
-		const code = await runScheduleCommand(["list", "--json"], {
-			writeln: (text?: string) => {
-				output.push(text ?? "");
+		const code = await runScheduleCommand(
+			["list", "--json", "--address", "127.0.0.1:25463"],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
 			},
-			writeErr: (text: string) => {
-				errors.push(text);
-			},
-		});
+		);
 
 		expect(code).toBe(0);
 		expect(errors).toEqual([]);
@@ -151,14 +157,17 @@ describe("runScheduleCommand import", () => {
 
 		const output: string[] = [];
 		const errors: string[] = [];
-		const code = await runScheduleCommand(["import", sourcePath], {
-			writeln: (text?: string) => {
-				output.push(text ?? "");
+		const code = await runScheduleCommand(
+			["import", sourcePath, "--address", "127.0.0.1:25463"],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
 			},
-			writeErr: (text: string) => {
-				errors.push(text);
-			},
-		});
+		);
 
 		expect(code).toBe(0);
 		expect(errors).toEqual([]);
@@ -210,7 +219,14 @@ describe("runScheduleCommand export", () => {
 		const errors: string[] = [];
 		try {
 			const code = await runScheduleCommand(
-				["export", "sched_abc", "--to", targetPath],
+				[
+					"export",
+					"sched_abc",
+					"--to",
+					targetPath,
+					"--address",
+					"127.0.0.1:25463",
+				],
 				{
 					writeln: (text?: string) => {
 						output.push(text ?? "");
@@ -266,7 +282,14 @@ describe("runScheduleCommand export", () => {
 		const errors: string[] = [];
 		try {
 			const code = await runScheduleCommand(
-				["export", "sched_yaml", "--to", targetPath],
+				[
+					"export",
+					"sched_yaml",
+					"--to",
+					targetPath,
+					"--address",
+					"127.0.0.1:25463",
+				],
 				{
 					writeln: (text?: string) => {
 						output.push(text ?? "");

@@ -38,6 +38,7 @@ import {
 	type AgentEvent,
 	type AgentExtension,
 	type AgentExtensionRegistry,
+	type AgentExtensionRule,
 	type AgentFinishReason,
 	type AgentResult,
 	type AgentRunResult,
@@ -85,6 +86,30 @@ function formatToolResultError(output: unknown): string {
 	} catch {
 		return String(output);
 	}
+}
+
+async function resolveRuleContent(
+	rule: AgentExtensionRule,
+): Promise<string | undefined> {
+	const content =
+		typeof rule.content === "function" ? await rule.content() : rule.content;
+	const trimmed = content.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function mergeSystemPromptRules(
+	systemPrompt: string,
+	rules: ReadonlyArray<string>,
+): string {
+	const base = systemPrompt.trim();
+	const additional = rules
+		.map((rule) => rule.trim())
+		.filter(Boolean)
+		.join("\n\n");
+	if (base && additional) {
+		return `${base}\n\n${additional}`;
+	}
+	return base || additional;
 }
 
 // =============================================================================
@@ -573,6 +598,17 @@ export class SessionRuntime {
 	// Private implementation
 	// -------------------------------------------------------------------
 
+	private async composeSystemPrompt(): Promise<string> {
+		const rules: string[] = [];
+		for (const rule of this.contributionRegistry.getRegisteredRules()) {
+			const content = await resolveRuleContent(rule);
+			if (content) {
+				rules.push(content);
+			}
+		}
+		return mergeSystemPromptRules(this.config.systemPrompt, rules);
+	}
+
 	private executeRun(input: {
 		userMessage?: string;
 		userImages?: string[];
@@ -699,6 +735,7 @@ export class SessionRuntime {
 		}
 
 		// Build the AgentRuntime for this turn.
+		const systemPrompt = await this.composeSystemPrompt();
 		const handler = createHandlerFromConfig(this.config, this.logger);
 		const agentModel = apiHandlerToAgentModel(handler, {
 			prepareMessages: (messages) => this.prepareMessagesForApi(messages),
@@ -753,6 +790,7 @@ export class SessionRuntime {
 			tools: adaptedTools,
 			hookBridge: this.hookBridge,
 			initialMessages,
+			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
 		this.activeRuntime = runtime;

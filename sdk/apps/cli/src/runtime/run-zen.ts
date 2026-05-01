@@ -1,4 +1,4 @@
-import type { UserInstructionConfigWatcher } from "@clinebot/core";
+import type { UserInstructionConfigService } from "@clinebot/core";
 import { HubSessionClient } from "@clinebot/core";
 import type { ChatStartSessionRequest } from "@clinebot/shared";
 import { ensureCliHubServer } from "../utils/hub-runtime";
@@ -27,7 +27,7 @@ const ZEN_DISPATCH_ACK_TIMEOUT_MS = 5_000;
 export async function runZen(
 	prompt: string,
 	config: Config,
-	userInstructionWatcher?: UserInstructionConfigWatcher,
+	userInstructionService?: UserInstructionConfigService,
 ): Promise<void> {
 	if (config.sandbox) {
 		writeErr(
@@ -77,7 +77,7 @@ export async function runZen(
 			prompt: userInput,
 			userImages,
 			userFiles,
-		} = await buildUserInputMessage(prompt, userInstructionWatcher);
+		} = await buildUserInputMessage(prompt, userInstructionService);
 
 		const startRequest: ChatStartSessionRequest = {
 			workspaceRoot,
@@ -94,6 +94,7 @@ export async function runZen(
 			enableSpawn: false,
 			enableTeams: false,
 			autoApproveTools: true,
+			toolExecutors: ["submit"],
 			source: "cline-cli-zen",
 			interactive: false,
 			logger: config.loggerConfig,

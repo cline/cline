@@ -932,11 +932,13 @@ export function RoutineSchedulesContent() {
 											<SelectValue placeholder="Hour" />
 										</SelectTrigger>
 										<SelectContent>
-											{Array.from({ length: 24 }, (_, idx) => (
-												<SelectItem key={`hour-${idx}`} value={`${idx}`}>
-													{idx.toString().padStart(2, "0")}
-												</SelectItem>
-											))}
+											{Array.from({ length: 24 }, (_, idx) => idx).map(
+												(hour) => (
+													<SelectItem key={`hour-${hour}`} value={`${hour}`}>
+														{hour.toString().padStart(2, "0")}
+													</SelectItem>
+												),
+											)}
 										</SelectContent>
 									</Select>
 								</div>
@@ -955,16 +957,18 @@ export function RoutineSchedulesContent() {
 											<SelectValue placeholder="Minute" />
 										</SelectTrigger>
 										<SelectContent>
-											{Array.from({ length: 60 }, (_, minute) => {
-												return (
-													<SelectItem
-														key={`minute-${minute}`}
-														value={`${minute}`}
-													>
-														{minute.toString().padStart(2, "0")}
-													</SelectItem>
-												);
-											})}
+											{Array.from({ length: 60 }, (_, minute) => minute).map(
+												(minute) => {
+													return (
+														<SelectItem
+															key={`minute-${minute}`}
+															value={`${minute}`}
+														>
+															{minute.toString().padStart(2, "0")}
+														</SelectItem>
+													);
+												},
+											)}
 										</SelectContent>
 									</Select>
 								</div>

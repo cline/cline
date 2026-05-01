@@ -4,7 +4,7 @@ import {
 	type ProviderSettings,
 	prewarmFileIndex,
 	SessionSource,
-	type UserInstructionConfigWatcher,
+	type UserInstructionConfigService,
 } from "@clinebot/core";
 import type { ConsecutiveMistakeLimitContext } from "@clinebot/shared";
 import { createSessionId } from "@clinebot/shared";
@@ -124,7 +124,7 @@ function printRunStats(
 export async function runAgent(
 	prompt: string,
 	config: Config,
-	userInstructionWatcher?: UserInstructionConfigWatcher,
+	userInstructionService?: UserInstructionConfigService,
 	options?: {
 		clineApiBaseUrl?: string;
 		clineProviderSettings?: ProviderSettings;
@@ -148,25 +148,29 @@ export async function runAgent(
 	const startTime = performance.now();
 	void prewarmFileIndex(config.cwd);
 
+	const isYoloMode = config.mode === "yolo";
+	const toolExecutors = {
+		askQuestion: askQuestionInTerminal,
+		submit: submitAndExitInTerminal,
+	};
 	const sessionManager = await createCliCore({
-		defaultToolExecutors: {
-			askQuestion: askQuestionInTerminal,
-			submit: submitAndExitInTerminal,
+		capabilities: {
+			toolExecutors,
+			requestToolApproval,
 		},
-		forceLocalBackend: config.mode === "yolo" || config.sandbox === true,
+		forceLocalBackend: isYoloMode || config.sandbox === true,
 		logger: config.logger,
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 		toolPolicies: config.toolPolicies,
-		requestToolApproval,
 	});
 	const runtimeHooks = createRuntimeHooks({
 		verbose: config.verbose,
-		yolo: config.mode === "yolo",
+		yolo: isYoloMode,
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 		dispatchHookEvent: async (payload) => {
-			await sessionManager.handleHookEvent(payload);
+			await sessionManager.ingestHookEvent(payload);
 		},
 	});
 
@@ -255,7 +259,7 @@ export async function runAgent(
 			prompt: userInput,
 			userImages,
 			userFiles,
-		} = await buildUserInputMessage(prompt, userInstructionWatcher);
+		} = await buildUserInputMessage(prompt, userInstructionService);
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
 			config: {
@@ -278,15 +282,13 @@ export async function runAgent(
 			userFiles: userFiles.length > 0 ? userFiles : undefined,
 			interactive: false,
 			localRuntime: {
-				userInstructionWatcher,
+				userInstructionService,
 				onTeamRestored: () => emitTeamRestored(config),
 			},
 		});
 
 		activeSessionId = started.sessionId;
 		setActiveCliSession({
-			manifestPath: started.manifestPath,
-			messagesPath: started.messagesPath,
 			manifest: started.manifest,
 		});
 
@@ -366,9 +368,8 @@ export async function runAgent(
 		if (result.finishReason !== "completed") {
 			const errorText = result.text.trim();
 			if (
-				config.outputMode !== "json" &&
 				errorText &&
-				!displayedErrorMessages.has(errorText)
+				(config.outputMode === "json" || !displayedErrorMessages.has(errorText))
 			) {
 				writeErr(errorText);
 			}

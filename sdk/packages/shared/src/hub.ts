@@ -107,6 +107,11 @@ export interface SessionRecord {
 	createdByClientId: string;
 	assignedSpokeId?: string;
 	status: HubRuntimeStatus;
+	/**
+	 * Clients currently observing or attached to this session. Participants do not
+	 * own client-local capabilities; capability routing is owned by the client that
+	 * created/restored the runtime session and advertised those capabilities.
+	 */
 	participants: SessionParticipant[];
 	activeRunId?: string;
 	runtimeOptions?: HubSessionRuntimeOptions;
@@ -421,6 +426,24 @@ export interface HubEventEnvelope {
 	sourceHubId?: string;
 	timestamp?: number;
 	payload?: Record<string, unknown>;
+}
+
+export interface HubCapabilityRequestedPayload {
+	requestId: string;
+	targetClientId: string;
+	capabilityName: string;
+	payload?: Record<string, unknown>;
+}
+
+export interface HubCapabilityResolvedPayload {
+	requestId: string;
+	targetClientId: string;
+	respondedByClientId?: string;
+	capabilityName: string;
+	ok: boolean;
+	cancelled?: boolean;
+	payload?: Record<string, unknown>;
+	error?: string;
 }
 
 export type HubToolExecutorName =

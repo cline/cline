@@ -45,6 +45,19 @@ export type ToolApprovalRequestItem = {
 	conversationId?: string;
 };
 
+export type AskQuestionRequestItem = {
+	requestId: string;
+	createdAt: string;
+	question: string;
+	options: string[];
+	context?: {
+		agentId?: string;
+		conversationId?: string;
+		iteration?: number;
+		metadata?: Record<string, unknown>;
+	};
+};
+
 export type ChatApiResult = {
 	text: string;
 	inputTokens?: number;

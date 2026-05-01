@@ -1,13 +1,11 @@
 import {
-	createConfiguredTelemetryService,
-	TelemetryLoggerSink,
-} from "@clinebot/core";
-import {
 	type BasicLogger,
 	createClineTelemetryServiceConfig,
+	createConfiguredTelemetryService,
 	type ITelemetryService,
 	registerDisposable,
-} from "@clinebot/shared";
+	TelemetryLoggerSink,
+} from "@clinebot/core";
 import { getCliBuildInfo } from "./common";
 
 type MutableTelemetryService = ITelemetryService & {

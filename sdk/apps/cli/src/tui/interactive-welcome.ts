@@ -1,8 +1,7 @@
 import {
 	getFileIndex,
-	listAvailableRuntimeCommandsFromWatcher,
 	type ProviderSettings,
-	type UserInstructionConfigWatcher,
+	type UserInstructionConfigService,
 } from "@clinebot/core";
 import type { Config } from "../utils/types";
 import { formatClineCredits, loadClineAccountSnapshot } from "./cline-account";
@@ -39,7 +38,7 @@ function rankPath(path: string, query: string): number {
 }
 
 export function listInteractiveSlashCommands(
-	watcher?: UserInstructionConfigWatcher,
+	userInstructionService?: UserInstructionConfigService,
 ): InteractiveSlashCommand[] {
 	const builtins = [
 		{
@@ -68,12 +67,12 @@ export function listInteractiveSlashCommands(
 			description: "Start the task with agent team",
 		},
 	];
-	if (!watcher) {
+	if (!userInstructionService) {
 		return builtins;
 	}
 	return [
 		...builtins,
-		...listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => ({
+		...userInstructionService.listRuntimeCommands().map((command) => ({
 			name: command.name,
 			instructions: command.instructions,
 			description: command.description,

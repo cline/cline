@@ -1,6 +1,6 @@
 import type { ChatStartSessionRequest } from "@clinebot/core";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	HubSessionClient,
 } from "@clinebot/core";
 import type {
@@ -567,12 +567,12 @@ class LinearConnector extends ConnectorBase<
 				userName: options.userName,
 			},
 		});
-		const userInstructionWatcher = createUserInstructionConfigWatcher({
+		const userInstructionService = createUserInstructionConfigService({
 			skills: { workspacePath: startRequest.cwd },
 			rules: { workspacePath: startRequest.cwd },
 			workflows: { workspacePath: startRequest.cwd },
 		});
-		await userInstructionWatcher.start().catch(() => undefined);
+		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
@@ -649,7 +649,7 @@ class LinearConnector extends ConnectorBase<
 						systemRules: LINEAR_SYSTEM_RULES,
 						errorLabel: "Linear",
 						firstContactMessage: LINEAR_FIRST_CONTACT_MESSAGE,
-						userInstructionWatcher,
+						userInstructionService,
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
@@ -856,7 +856,7 @@ class LinearConnector extends ConnectorBase<
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();
-		userInstructionWatcher.stop();
+		userInstructionService.stop();
 		await bot.shutdown().catch(() => undefined);
 		client.close();
 		this.removeStateFile(statePath);

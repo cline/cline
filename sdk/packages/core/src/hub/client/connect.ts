@@ -3,15 +3,12 @@ import type {
 	HubReplyEnvelope,
 	HubTransportFrame,
 } from "@clinebot/shared";
-import {
-	createHubServerUrl,
-	readHubDiscovery,
-	resolveHubOwnerContext,
-} from "../discovery";
+import { createHubServerUrl, readHubDiscovery } from "../discovery";
 import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
+import { resolveSharedHubOwnerContext } from "../discovery/workspace";
 
 export interface HubConnection {
 	send(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;
@@ -77,7 +74,7 @@ async function resolveHubUrlAuthToken(url: URL): Promise<string | undefined> {
 	if (queryToken) {
 		return queryToken;
 	}
-	const owner = resolveHubOwnerContext();
+	const owner = resolveSharedHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (discovery?.url && sameHubEndpoint(url.toString(), discovery.url)) {
 		return discovery.authToken;
@@ -90,7 +87,7 @@ export async function resolveHubUrl(
 ): Promise<string> {
 	const endpoint = resolveHubEndpointOptions(overrides);
 	if (!hasExplicitEndpoint(overrides)) {
-		const owner = resolveHubOwnerContext();
+		const owner = resolveSharedHubOwnerContext();
 		const discovery = await readHubDiscovery(owner.discoveryPath);
 		if (discovery?.url) {
 			return discovery.url;

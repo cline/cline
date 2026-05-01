@@ -161,6 +161,12 @@ export interface AgentToolDefinition {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	lifecycle?: {
+		/**
+		 * Whether a successful call to this tool completes the current run.
+		 */
+		completesRun?: boolean;
+	};
 }
 
 export interface AgentToolResult<TOutput = unknown> {
@@ -402,6 +408,10 @@ export interface AgentRuntimeConfig {
 	telemetry?: AgentTelemetry;
 	initialMessages?: readonly AgentMessage[];
 	maxIterations?: number;
+	completionPolicy?: {
+		requireCompletionTool?: boolean;
+		completionGuard?: () => string | undefined;
+	};
 	toolExecution?: "sequential" | "parallel";
 	toolPolicies?: Record<string, ToolPolicy>;
 	requestToolApproval?: (

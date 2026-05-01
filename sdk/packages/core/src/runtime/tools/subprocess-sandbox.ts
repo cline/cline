@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { basename } from "node:path";
 import {
 	augmentNodeCommandForDebug,
 	withResolvedClineBuildEnv,
@@ -30,6 +31,8 @@ export interface SubprocessSandboxOptions {
 	bootstrapScript?: string;
 	/** Path to a JavaScript file to execute via `node <file>`. Mutually exclusive with {@link bootstrapScript}. */
 	bootstrapFile?: string;
+	/** Runtime executable for internal JavaScript helpers. Defaults to node/bun instead of packaged CLI binaries. */
+	runtimeExecutable?: string;
 	name?: string;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 }
@@ -49,6 +52,77 @@ function asError(value: unknown): Error {
 		return value;
 	}
 	return new Error(String(value));
+}
+
+export const CLINE_JS_RUNTIME_PATH_ENV = "CLINE_JS_RUNTIME_PATH";
+
+function isRuntimeExecutable(value: string | undefined): boolean {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return false;
+	}
+	const name = basename(trimmed).toLowerCase();
+	return (
+		name === "node" ||
+		name === "node.exe" ||
+		name === "bun" ||
+		name === "bun.exe"
+	);
+}
+
+export function resolveSubprocessRuntimeExecutable(
+	options: {
+		env?: NodeJS.ProcessEnv;
+		execPath?: string;
+		runtimeExecutable?: string;
+	} = {},
+): string {
+	const env = options.env ?? process.env;
+	const explicit =
+		options.runtimeExecutable?.trim() || env[CLINE_JS_RUNTIME_PATH_ENV]?.trim();
+	if (explicit) {
+		return explicit;
+	}
+
+	const execPath = options.execPath?.trim() || process.execPath;
+	if (isRuntimeExecutable(execPath)) {
+		return execPath;
+	}
+
+	for (const candidate of [
+		env.BUN_EXEC_PATH,
+		env.npm_node_execpath,
+		env.NODE,
+	]) {
+		const trimmed = candidate?.trim();
+		if (trimmed && isRuntimeExecutable(trimmed)) {
+			return trimmed;
+		}
+	}
+
+	return "node";
+}
+
+export function buildSubprocessSandboxCommand(
+	args: string[],
+	options: {
+		env?: NodeJS.ProcessEnv;
+		execArgv?: string[];
+		name?: string;
+		execPath?: string;
+		runtimeExecutable?: string;
+	} = {},
+): string[] {
+	const runtimeExecutable = resolveSubprocessRuntimeExecutable({
+		env: options.env,
+		execPath: options.execPath,
+		runtimeExecutable: options.runtimeExecutable,
+	});
+	return augmentNodeCommandForDebug([runtimeExecutable, ...args], {
+		env: options.env,
+		execArgv: options.execArgv,
+		debugRole: options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",
+	});
 }
 
 export class SubprocessSandbox {
@@ -86,14 +160,18 @@ export class SubprocessSandbox {
 			? [this.options.bootstrapFile]
 			: ["-e", this.options.bootstrapScript ?? ""];
 
-		const command = augmentNodeCommandForDebug([process.execPath, ...args], {
-			debugRole:
-				this.options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",
+		const command = buildSubprocessSandboxCommand(args, {
+			name: this.options.name,
+			runtimeExecutable: this.options.runtimeExecutable,
 		});
-		const child = spawn(command[0] ?? process.execPath, command.slice(1), {
-			stdio: ["ignore", "ignore", "pipe", "ipc"],
-			env: withResolvedClineBuildEnv(process.env),
-		});
+		const child = spawn(
+			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
+			command.slice(1),
+			{
+				stdio: ["ignore", "ignore", "pipe", "ipc"],
+				env: withResolvedClineBuildEnv(process.env),
+			},
+		);
 		this.process = child;
 		let stderrBuffer = "";
 		const appendStderr = (chunk: string) => {

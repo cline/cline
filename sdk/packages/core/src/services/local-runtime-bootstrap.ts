@@ -16,16 +16,16 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
-import type { ToolExecutors } from "../extensions/tools";
 import type { TeamEvent } from "../extensions/tools/team";
 import { createCheckpointHooks } from "../hooks/checkpoint-hooks";
 import {
 	createHookAuditHooks,
-	createHookConfigFileHooks,
+	createHookConfigFileExtension,
 	mergeAgentHooks,
 } from "../hooks/hook-file-hooks";
+import type { RuntimeCapabilities } from "../runtime/capabilities";
+import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
 import type {
-	LocalRuntimeConfigOverrides,
 	LocalRuntimeStartOptions,
 	StartSessionInput,
 } from "../runtime/host/runtime-host";
@@ -227,11 +227,8 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	sessionId: string;
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
-	defaultToolExecutors?: Partial<ToolExecutors>;
+	defaultCapabilities?: RuntimeCapabilities;
 	defaultToolPolicies?: AgentConfig["toolPolicies"];
-	defaultRequestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
 	/**
 	 * Host-level default `fetch` threaded into `ProviderConfig.fetch` so the
 	 * AI gateway providers can use a custom HTTP implementation.
@@ -258,7 +255,7 @@ export interface LocalRuntimeBootstrap {
 	toolPolicies: AgentConfig["toolPolicies"];
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	pluginSandboxShutdown?: () => Promise<void>;
 	runtimeBuilderInput: RuntimeBuilderInput;
 }
@@ -271,9 +268,8 @@ export async function prepareLocalRuntimeBootstrap(
 		sessionId,
 		providerSettingsManager,
 		defaultTelemetry,
-		defaultToolExecutors,
+		defaultCapabilities,
 		defaultToolPolicies,
-		defaultRequestToolApproval,
 		defaultFetch,
 		onPluginEvent,
 		onTeamEvent,
@@ -283,10 +279,17 @@ export async function prepareLocalRuntimeBootstrap(
 		writeSessionMetadata,
 	} = options;
 	const workspacePath = resolveWorkspacePath(input.config);
-	const configOverrides = localRuntime?.configOverrides as
-		| Partial<LocalRuntimeConfigOverrides>
-		| undefined;
-	const localConfig = configOverrides as Partial<CoreSessionConfig> | undefined;
+	const {
+		modelCatalogDefaults,
+		userInstructionService,
+		configExtensions,
+		onTeamRestored,
+		...localConfigFields
+	} = localRuntime ?? {};
+	const localConfig =
+		Object.keys(localConfigFields).length > 0
+			? (localConfigFields as Partial<CoreSessionConfig>)
+			: undefined;
 
 	// Generate workspace + git metadata once, early, so it can be forwarded to
 	// hooks and extensions. The serialized string goes into CoreSessionConfig
@@ -304,37 +307,33 @@ export async function prepareLocalRuntimeBootstrap(
 			...(configuredExtensionContext?.session ?? {}),
 			sessionId,
 		},
-		logger: configuredExtensionContext?.logger ?? configOverrides?.logger,
+		logger: configuredExtensionContext?.logger ?? localConfig?.logger,
 		telemetry:
 			configuredExtensionContext?.telemetry ??
-			configOverrides?.telemetry ??
+			localConfig?.telemetry ??
 			defaultTelemetry,
 	};
 
-	const fileHooks = createHookConfigFileHooks({
+	const fileHookExtension = createHookConfigFileExtension({
 		cwd: input.config.cwd,
 		workspacePath,
 		rootSessionId: sessionId,
-		logger: configOverrides?.logger,
+		logger: localConfig?.logger,
 		workspaceInfo,
 	});
-	const auditHooks = hasRuntimeHooks(configOverrides?.hooks)
+	const auditHooks = hasRuntimeHooks(localConfig?.hooks)
 		? undefined
 		: createHookAuditHooks({
 				rootSessionId: sessionId,
 				workspacePath,
 				workspaceInfo,
 			});
-	const baseHooks = mergeAgentHooks([
-		configOverrides?.hooks,
-		fileHooks,
-		auditHooks,
-	]);
+	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
 
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
-	if (hasConfigExtension(localRuntime?.configExtensions, "plugins")) {
+	if (hasConfigExtension(configExtensions, "plugins")) {
 		try {
 			loadedPlugins = await resolveAndLoadAgentPlugins({
 				pluginPaths: localConfig?.pluginPaths,
@@ -354,23 +353,27 @@ export async function prepareLocalRuntimeBootstrap(
 			logPluginDiagnostics(
 				loadedPlugins.failures,
 				loadedPlugins.warnings,
-				configOverrides?.logger,
+				localConfig?.logger,
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			configOverrides?.logger?.log?.(
+			localConfig?.logger?.log?.(
 				`plugin loading failed; continuing without plugins (${message})`,
 			);
 		}
 	}
 
+	const builtInExtensions = fileHookExtension ? [fileHookExtension] : undefined;
 	const extensions = mergeAgentExtensions(
-		configOverrides?.extensions,
-		filterExtensionToolRegistrations(loadedPlugins?.extensions),
+		builtInExtensions,
+		mergeAgentExtensions(
+			localConfig?.extensions,
+			filterExtensionToolRegistrations(loadedPlugins?.extensions),
+		),
 	);
 	const baseConfig: CoreSessionConfig = {
 		...input.config,
-		...(configOverrides ?? {}),
+		...(localConfig ?? {}),
 		sessionId,
 		hooks: baseHooks,
 		extensions,
@@ -381,7 +384,7 @@ export async function prepareLocalRuntimeBootstrap(
 		baseConfig,
 		sessionId,
 		providerSettingsManager,
-		localRuntime?.modelCatalogDefaults,
+		modelCatalogDefaults,
 		defaultFetch,
 	);
 	const hooks = mergeAgentHooks([
@@ -406,10 +409,12 @@ export async function prepareLocalRuntimeBootstrap(
 	};
 	const toolPolicies =
 		input.toolPolicies ?? baseConfig.toolPolicies ?? defaultToolPolicies;
-	const requestToolApproval =
-		input.requestToolApproval ?? defaultRequestToolApproval;
-	const effectiveToolExecutors =
-		localRuntime?.defaultToolExecutors ?? defaultToolExecutors;
+	const capabilities = normalizeRuntimeCapabilities(
+		defaultCapabilities,
+		input.capabilities,
+	);
+	const requestToolApproval = capabilities?.requestToolApproval;
+	const effectiveToolExecutors = capabilities?.toolExecutors;
 
 	return {
 		effectiveInput: input,
@@ -428,10 +433,10 @@ export async function prepareLocalRuntimeBootstrap(
 			extensions,
 			onTeamEvent,
 			createSpawnTool,
-			onTeamRestored: localRuntime?.onTeamRestored,
-			userInstructionWatcher: localRuntime?.userInstructionWatcher,
-			configExtensions: localRuntime?.configExtensions,
-			defaultToolExecutors: effectiveToolExecutors,
+			onTeamRestored: onTeamRestored,
+			userInstructionService: userInstructionService,
+			configExtensions: configExtensions,
+			toolExecutors: effectiveToolExecutors,
 			logger: config.logger,
 			telemetry: config.telemetry,
 		},

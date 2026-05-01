@@ -2,8 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SessionRow } from "../../session/models/session-row";
 import type { SessionRecord } from "../../types/sessions";
-import { hydrateSessionHistory, listSessionHistory } from "./history";
+import {
+	hydrateSessionHistory,
+	listSessionHistory,
+	listSessionHistoryFromBackend,
+} from "./history";
 
 const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
 
@@ -26,6 +31,40 @@ function createRow(
 		enableSpawn: false,
 		enableTeams: false,
 		isSubagent: false,
+		updatedAt: "2026-04-21T02:17:46.169Z",
+		...overrides,
+	};
+}
+
+function createBackendRow(
+	overrides: Partial<SessionRow> & Pick<SessionRow, "sessionId">,
+): SessionRow {
+	return {
+		source: "cli",
+		pid: 1,
+		startedAt: "2026-04-21T02:17:46.169Z",
+		endedAt: null,
+		exitCode: 0,
+		status: "completed",
+		statusLock: 0,
+		interactive: false,
+		provider: "cline",
+		model: "anthropic/claude-sonnet-4.6",
+		cwd: "/tmp/workspace",
+		workspaceRoot: "/tmp/workspace",
+		teamName: null,
+		enableTools: true,
+		enableSpawn: false,
+		enableTeams: false,
+		parentSessionId: null,
+		parentAgentId: null,
+		agentId: null,
+		conversationId: null,
+		isSubagent: false,
+		prompt: null,
+		metadata: null,
+		hookPath: "",
+		messagesPath: null,
 		updatedAt: "2026-04-21T02:17:46.169Z",
 		...overrides,
 	};
@@ -76,8 +115,8 @@ describe("session history", () => {
 	});
 
 	it("preserves rows that already have history display metadata", async () => {
-		const readMessages = vi.fn();
-		const rows = await hydrateSessionHistory({ readMessages }, [
+		const readSessionMessages = vi.fn();
+		const rows = await hydrateSessionHistory({ readSessionMessages }, [
 			createRow({
 				sessionId: "sess_1",
 				provider: "cline",
@@ -101,11 +140,11 @@ describe("session history", () => {
 				}),
 			}),
 		]);
-		expect(readMessages).not.toHaveBeenCalled();
+		expect(readSessionMessages).not.toHaveBeenCalled();
 	});
 
 	it("hydrates missing provider, model, and cost from stored messages", async () => {
-		const readMessages = vi.fn().mockResolvedValue([
+		const readSessionMessages = vi.fn().mockResolvedValue([
 			{
 				role: "user",
 				content: [{ type: "text", text: "hello" }],
@@ -123,7 +162,7 @@ describe("session history", () => {
 			},
 		]);
 
-		const [row] = await hydrateSessionHistory({ readMessages }, [
+		const [row] = await hydrateSessionHistory({ readSessionMessages }, [
 			createRow({
 				sessionId: "sess_2",
 				prompt: "hello",
@@ -131,7 +170,7 @@ describe("session history", () => {
 			}),
 		]);
 
-		expect(readMessages).toHaveBeenCalledWith("sess_2");
+		expect(readSessionMessages).toHaveBeenCalledWith("sess_2");
 		expect(row).toMatchObject({
 			sessionId: "sess_2",
 			provider: "cline",
@@ -144,9 +183,9 @@ describe("session history", () => {
 	});
 
 	it("falls back to nested metadata provider/model ids before reading messages", async () => {
-		const readMessages = vi.fn().mockResolvedValue([]);
+		const readSessionMessages = vi.fn().mockResolvedValue([]);
 
-		const [row] = await hydrateSessionHistory({ readMessages }, [
+		const [row] = await hydrateSessionHistory({ readSessionMessages }, [
 			createRow({
 				sessionId: "sess_3",
 				metadata: {
@@ -159,11 +198,11 @@ describe("session history", () => {
 
 		expect(row.provider).toBe("cline");
 		expect(row.model).toBe("anthropic/claude-haiku-4.5");
-		expect(readMessages).toHaveBeenCalledWith("sess_3");
+		expect(readSessionMessages).toHaveBeenCalledWith("sess_3");
 	});
 
 	it("preserves host ordering when no manifest fallback rows are merged", async () => {
-		const readMessages = vi.fn().mockResolvedValue([]);
+		const readSessionMessages = vi.fn().mockResolvedValue([]);
 		const first = createRow({
 			sessionId: "sess_first",
 			startedAt: "2026-04-19T00:00:00.000Z",
@@ -175,8 +214,8 @@ describe("session history", () => {
 
 		const rows = await listSessionHistory(
 			{
-				list: vi.fn().mockResolvedValue([first, second]),
-				readMessages,
+				listSessions: vi.fn().mockResolvedValue([first, second]),
+				readSessionMessages,
 			},
 			{ limit: 2 },
 		);
@@ -193,16 +232,19 @@ describe("session history", () => {
 				sessionId: "sess_4",
 			}),
 		]);
-		const readMessages = vi.fn();
+		const readSessionMessages = vi.fn();
 
-		const rows = await listSessionHistory({ list, readMessages }, { limit: 0 });
+		const rows = await listSessionHistory(
+			{ listSessions: list, readSessionMessages },
+			{ limit: 0 },
+		);
 
 		expect(list).toHaveBeenCalledWith(0);
 		expect(rows).toEqual([]);
-		expect(readMessages).not.toHaveBeenCalled();
+		expect(readSessionMessages).not.toHaveBeenCalled();
 	});
 
-	it("can list lightweight history without hydrating messages", async () => {
+	it("can list lightweight valid history without hydrating display metadata", async () => {
 		const list = vi.fn().mockResolvedValue([
 			createRow({
 				sessionId: "sess_lightweight",
@@ -211,15 +253,17 @@ describe("session history", () => {
 				metadata: { title: "stored title" },
 			}),
 		]);
-		const readMessages = vi.fn();
+		const readSessionMessages = vi
+			.fn()
+			.mockResolvedValue([{ role: "user" as const, content: "hi" }]);
 
 		const rows = await listSessionHistory(
-			{ list, readMessages },
+			{ listSessions: list, readSessionMessages },
 			{ limit: 10, hydrate: false },
 		);
 
 		expect(list).toHaveBeenCalledWith(10);
-		expect(readMessages).not.toHaveBeenCalled();
+		expect(readSessionMessages).not.toHaveBeenCalled();
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_lightweight",
@@ -230,9 +274,87 @@ describe("session history", () => {
 		]);
 	});
 
+	it("keeps backend history listing lightweight without validating message artifacts", async () => {
+		const listSessions = vi.fn().mockResolvedValue([
+			createBackendRow({
+				sessionId: "sess_full",
+				messagesPath: "/tmp/full.messages.json",
+			}),
+			createBackendRow({
+				sessionId: "sess_empty",
+				messagesPath: "/tmp/empty.messages.json",
+			}),
+			createBackendRow({
+				sessionId: "sess_unreadable",
+				messagesPath: "/tmp/missing.messages.json",
+			}),
+		]);
+
+		const rows = await listSessionHistoryFromBackend(
+			{ listSessions },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"sess_full",
+			"sess_empty",
+			"sess_unreadable",
+		]);
+	});
+
+	it("lists directly from a session backend without a runtime host", async () => {
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
+		const messagesPath = join(tempSessionDataDir, "messages.json");
+		await writeFile(
+			messagesPath,
+			JSON.stringify([{ role: "user", content: "hi" }]),
+			"utf8",
+		);
+		const listSessions = vi.fn().mockResolvedValue([
+			createBackendRow({
+				sessionId: "sess_backend_direct",
+				prompt: "backend prompt",
+				metadata: { title: "backend title" },
+				messagesPath,
+			}),
+		]);
+
+		const rows = await listSessionHistoryFromBackend(
+			{ listSessions },
+			{ limit: 5, hydrate: false },
+		);
+
+		expect(listSessions).toHaveBeenCalledWith(5);
+		expect(rows).toEqual([
+			expect.objectContaining({
+				sessionId: "sess_backend_direct",
+				prompt: "backend prompt",
+				metadata: expect.objectContaining({ title: "backend title" }),
+			}),
+		]);
+	});
+
 	it("merges manifest fallback rows when the backend list is short", async () => {
 		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
 		process.env.CLINE_SESSION_DATA_DIR = tempSessionDataDir;
+		const manifestMessagesPath = join(
+			tempSessionDataDir,
+			"manifest.messages.json",
+		);
+		const olderManifestMessagesPath = join(
+			tempSessionDataDir,
+			"older-manifest.messages.json",
+		);
+		await writeFile(
+			manifestMessagesPath,
+			JSON.stringify([{ role: "user", content: "manifest prompt" }]),
+			"utf8",
+		);
+		await writeFile(
+			olderManifestMessagesPath,
+			JSON.stringify([{ role: "user", content: "older manifest prompt" }]),
+			"utf8",
+		);
 		await writeManifest("sess_1800000000000", {
 			session_id: "sess_1800000000000",
 			started_at: "2026-04-20T00:00:00.000Z",
@@ -242,6 +364,7 @@ describe("session history", () => {
 			cwd: "/tmp/workspace",
 			workspace_root: "/tmp/workspace",
 			prompt: "manifest prompt",
+			messages_path: manifestMessagesPath,
 			metadata: {
 				title: "manifest title",
 				totalCost: 0.03,
@@ -256,12 +379,15 @@ describe("session history", () => {
 			cwd: "/tmp/workspace",
 			workspace_root: "/tmp/workspace",
 			prompt: "older manifest prompt",
+			messages_path: olderManifestMessagesPath,
 		});
 
-		const readMessages = vi.fn().mockResolvedValue([]);
+		const readSessionMessages = vi
+			.fn()
+			.mockResolvedValue([{ role: "user" as const, content: "hi" }]);
 		const rows = await listSessionHistory(
 			{
-				list: vi.fn().mockResolvedValue([
+				listSessions: vi.fn().mockResolvedValue([
 					createRow({
 						sessionId: "sess_backend",
 						startedAt: "2026-04-21T00:00:00.000Z",
@@ -273,7 +399,7 @@ describe("session history", () => {
 						},
 					}),
 				]),
-				readMessages,
+				readSessionMessages,
 			},
 			{
 				limit: 3,
@@ -295,6 +421,6 @@ describe("session history", () => {
 				totalCost: 0.03,
 			},
 		});
-		expect(readMessages).toHaveBeenCalledWith("sess_1700000000000");
+		expect(readSessionMessages).toHaveBeenCalledWith("sess_1700000000000");
 	});
 });

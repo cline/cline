@@ -1,11 +1,5 @@
 import type * as LlmsProviders from "@clinebot/llms";
-import type {
-	AgentResult,
-	RuntimeConfigExtensionKind,
-	ToolApprovalRequest,
-	ToolApprovalResult,
-} from "@clinebot/shared";
-import type { ToolExecutors } from "../../extensions/tools";
+import type { AgentResult, RuntimeConfigExtensionKind } from "@clinebot/shared";
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
@@ -17,6 +11,7 @@ import type {
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
+import type { RuntimeCapabilities } from "../capabilities";
 
 type LocalOnlyCoreSessionConfigKeys =
 	| "hooks"
@@ -39,7 +34,7 @@ export type RuntimeSessionConfig = Omit<
 	compaction?: Omit<NonNullable<CoreSessionConfig["compaction"]>, "compact">;
 };
 
-export type LocalRuntimeConfigOverrides = Pick<
+export type LocalRuntimeBootstrapConfig = Pick<
 	CoreSessionConfig,
 	LocalOnlyCoreSessionConfigKeys
 > & {
@@ -53,12 +48,20 @@ export type LocalRuntimeConfigOverrides = Pick<
 };
 
 export interface LocalRuntimeStartOptions {
-	configOverrides?: Partial<LocalRuntimeConfigOverrides>;
+	hooks?: LocalRuntimeBootstrapConfig["hooks"];
+	logger?: LocalRuntimeBootstrapConfig["logger"];
+	telemetry?: LocalRuntimeBootstrapConfig["telemetry"];
+	extensionContext?: LocalRuntimeBootstrapConfig["extensionContext"];
+	extraTools?: LocalRuntimeBootstrapConfig["extraTools"];
+	extensions?: LocalRuntimeBootstrapConfig["extensions"];
+	onTeamEvent?: LocalRuntimeBootstrapConfig["onTeamEvent"];
+	onConsecutiveMistakeLimitReached?: LocalRuntimeBootstrapConfig["onConsecutiveMistakeLimitReached"];
+	checkpoint?: LocalRuntimeBootstrapConfig["checkpoint"];
+	compaction?: LocalRuntimeBootstrapConfig["compaction"];
 	modelCatalogDefaults?: Partial<NonNullable<ProviderSettings["modelCatalog"]>>;
-	userInstructionWatcher?: import("../../extensions/config").UserInstructionConfigWatcher;
+	userInstructionService?: import("../../extensions/config").UserInstructionConfigService;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	onTeamRestored?: () => void;
-	defaultToolExecutors?: Partial<ToolExecutors>;
 }
 
 export interface StartSessionInput {
@@ -76,10 +79,8 @@ export interface StartSessionInput {
 	 * same execution contract while still allowing host-specific preparation.
 	 */
 	localRuntime?: LocalRuntimeStartOptions;
+	capabilities?: RuntimeCapabilities;
 	toolPolicies?: import("@clinebot/shared").AgentConfig["toolPolicies"];
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
 }
 
 export function splitCoreSessionConfig(config: CoreSessionConfig): {
@@ -100,7 +101,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 		...transportConfig
 	} = config;
 
-	const localConfigOverrides: Partial<LocalRuntimeConfigOverrides> = {};
+	const localConfigOverrides: Partial<LocalRuntimeBootstrapConfig> = {};
 	if (hooks) localConfigOverrides.hooks = hooks;
 	if (logger) localConfigOverrides.logger = logger;
 	if (telemetry) localConfigOverrides.telemetry = telemetry;
@@ -122,10 +123,7 @@ export function splitCoreSessionConfig(config: CoreSessionConfig): {
 
 	const localRuntime =
 		Object.keys(localConfigOverrides).length > 0
-			? {
-					configOverrides:
-						localConfigOverrides as Partial<LocalRuntimeConfigOverrides>,
-				}
+			? (localConfigOverrides as LocalRuntimeStartOptions)
 			: undefined;
 
 	return {
@@ -182,8 +180,6 @@ export interface PendingPromptMutationResult {
 	removed?: boolean;
 }
 
-export type PendingPromptsAction = "list" | "update" | "delete";
-
 export interface PendingPromptsListInput {
 	sessionId: string;
 }
@@ -198,6 +194,30 @@ export interface PendingPromptsUpdateInput {
 export interface PendingPromptsDeleteInput {
 	sessionId: string;
 	promptId: string;
+}
+
+export interface PendingPromptsServiceApi {
+	list(input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>;
+	update(
+		input: PendingPromptsUpdateInput,
+	): Promise<PendingPromptMutationResult>;
+	delete(
+		input: PendingPromptsDeleteInput,
+	): Promise<PendingPromptMutationResult>;
+}
+
+export interface PendingPromptsRuntimeService {
+	readonly pendingPrompts: PendingPromptsServiceApi;
+}
+
+export interface SessionUsageRuntimeService {
+	getAccumulatedUsage(
+		sessionId: string,
+	): Promise<SessionAccumulatedUsage | undefined>;
+}
+
+export interface SessionModelRuntimeService {
+	updateSessionModel(sessionId: string, modelId: string): Promise<void>;
 }
 
 export interface RuntimeHostSubscribeOptions {
@@ -226,35 +246,20 @@ export interface RestoreSessionResult {
 /**
  * RuntimeHost is the transport/runtime boundary for core session execution.
  * Callers must normalize broad local config into `RuntimeSessionConfig`
- * plus optional `localRuntime` overrides before invoking a host.
+ * plus optional named `localRuntime` bootstrap fields before invoking a host.
  */
 export interface RuntimeHost {
 	readonly runtimeAddress?: string;
-	start(input: StartSessionInput): Promise<StartSessionResult>;
-	send(input: SendSessionInput): Promise<AgentResult | undefined>;
-	restore(input: RestoreSessionInput): Promise<RestoreSessionResult>;
-	pendingPrompts(
-		action: "list",
-		input: PendingPromptsListInput,
-	): Promise<SessionPendingPrompt[]>;
-	pendingPrompts(
-		action: "update",
-		input: PendingPromptsUpdateInput,
-	): Promise<PendingPromptMutationResult>;
-	pendingPrompts(
-		action: "delete",
-		input: PendingPromptsDeleteInput,
-	): Promise<PendingPromptMutationResult>;
-	getAccumulatedUsage(
-		sessionId: string,
-	): Promise<SessionAccumulatedUsage | undefined>;
+	startSession(input: StartSessionInput): Promise<StartSessionResult>;
+	runTurn(input: SendSessionInput): Promise<AgentResult | undefined>;
+	restoreSession(input: RestoreSessionInput): Promise<RestoreSessionResult>;
 	abort(sessionId: string, reason?: unknown): Promise<void>;
-	stop(sessionId: string): Promise<void>;
+	stopSession(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
-	get(sessionId: string): Promise<SessionRecord | undefined>;
-	list(limit?: number): Promise<SessionRecord[]>;
-	delete(sessionId: string): Promise<boolean>;
-	update(
+	getSession(sessionId: string): Promise<SessionRecord | undefined>;
+	listSessions(limit?: number): Promise<SessionRecord[]>;
+	deleteSession(sessionId: string): Promise<boolean>;
+	updateSession(
 		sessionId: string,
 		updates: {
 			prompt?: string | null;
@@ -262,13 +267,12 @@ export interface RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }>;
-	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
-	handleHookEvent(payload: HookEventPayload): Promise<void>;
+	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,
 		options?: RuntimeHostSubscribeOptions,
 	): () => void;
-	updateSessionModel?(sessionId: string, modelId: string): Promise<void>;
 }
 
 export type RuntimeHostMode = "auto" | "local" | "hub" | "remote";

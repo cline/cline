@@ -1,7 +1,7 @@
 import type {
 	RuleConfig,
 	UserInstructionConfigWatcher,
-} from "../../extensions/config";
+} from "../../extensions/config/user-instruction-config-loader";
 
 export function isRuleEnabled(rule: RuleConfig): boolean {
 	return rule.disabled !== true;

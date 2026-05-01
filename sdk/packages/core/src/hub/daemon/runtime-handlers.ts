@@ -78,7 +78,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 	return {
 		async startSession(request) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
-			const started = await sessionHost.start({
+			const started = await sessionHost.startSession({
 				source: request.source?.trim() || SessionSource.CLI,
 				interactive: false,
 				config: {
@@ -116,7 +116,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 			};
 		},
 		async sendSession(sessionId, request) {
-			const result = await sessionHost.send({
+			const result = await sessionHost.runTurn({
 				sessionId,
 				prompt: request.prompt,
 				userImages: request.attachments?.userImages,
@@ -134,7 +134,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 			return { applied: true };
 		},
 		async stopSession(sessionId) {
-			await sessionHost.stop(sessionId);
+			await sessionHost.stopSession(sessionId);
 			return { applied: true };
 		},
 	};

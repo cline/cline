@@ -2,23 +2,6 @@
 
 Learn how to build with the Cline SDK through practical, runnable examples.
 
-## 📁 SDK Walk-through
-
-### [`cline-sdk/`](./cline-sdk)
-
-**14 step-by-step examples** covering everything from basic agent sessions to advanced multi-agent systems:
-
-- **Beginner** (01-04): Minimal sessions, model selection, system prompts, tool policies
-- **Intermediate** (05-09): Custom tools, hooks, extensions, context files, session management
-- **Advanced** (10-14): Spawn agents, teams, custom executors, full control, agentic loops
-
-👉 [View all cline-sdk examples →](./cline-sdk/README.md)
-
-```bash
-cd apps/examples/cline-sdk
-bun run 01-minimal.ts  # Get started in 30 seconds
-```
-
 ## 📁 Plugin Examples
 
 ### [`cline-plugin/`](./plugin-examples/cline-plugin)
@@ -32,21 +15,21 @@ bun run 01-minimal.ts  # Get started in 30 seconds
 ```bash
 mkdir -p .cline/plugins
 cp apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts .cline/plugins/weather-metrics.ts
-clite -i "What's the weather like in Tokyo and Paris?"
+cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
 ### [`typescript-lsp-plugin/`](./plugin-examples/typescript-lsp-plugin)
 
 TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by the TypeScript Language Service API. Resolves through imports, re-exports, and type aliases -- much more precise than text search.
 
-- Register a tool via `createTool()` and `AgentExtension`
+- Register a tool via `createTool()` and `AgentPlugin`
 - Use the TypeScript Language Service to resolve symbol definitions
 - Cache the language service for efficient repeated lookups
 - Zero extra dependencies -- resolves `typescript` from the target project
 
 ```bash
 cp apps/examples/plugin-examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
-clite -i "Find where createTool is defined"
+cline -i "Find where createTool is defined"
 ```
 
 ### [`subagent-plugin/`](./plugin-examples/subagent-plugin)
@@ -60,7 +43,7 @@ clite -i "Find where createTool is defined"
 ```bash
 mkdir -p ~/.cline/plugins
 cp apps/examples/plugin-examples/subagent-plugin/index.ts ~/.cline/plugins/portable-subagents.ts
-clite -i "Use subagents to inspect this repository and report back."
+cline -i "Use subagents to inspect this repository and report back."
 ```
 
 Once loaded, the agent can call tools like `start_subagent`, `message_subagent`, `get_subagent`, `list_agent_presets`, `list_skills`, and the handoff tools.
@@ -91,7 +74,7 @@ bun run src/index.ts
 - Use them as templates for one-off, scheduled, or event-driven automation
 - Pair `events/local-plugin-event.event.md` with `cline-plugin/automation-events.ts`
   to test plugin-emitted normalized events locally
-- Enable automation through `ClineCore.create({ automation: true })`
+- Enable automation through `ClineCore.create({ automation: true, backendMode: "local" })`
 
 ```bash
 mkdir -p ~/.cline/cron
@@ -109,12 +92,11 @@ All examples run with Bun:
 bun install
 bun run build:sdk
 
-# Run any example
-cd apps/examples/cline-sdk
-bun run 01-minimal.ts
+# Run a direct plugin demo with a local in-process runtime
+ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts
 ```
 
-> **Note:** Examples work without the CLI installed. They use local in-process sessions with automatic SQLite fallback.
+> **Note:** Direct SDK demos choose their backend explicitly when that matters. The subagent plugin defaults to `backendMode: "auto"` so it can use the shared hub when available and fall back locally.
 
 To use the SDK in your own Node app (outside this monorepo), start with the simplest path:
 
@@ -122,7 +104,7 @@ To use the SDK in your own Node app (outside this monorepo), start with the simp
 npm add @clinebot/core
 ```
 
-Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally want lower-level control. For RPC client helpers, prefer importing from `@clinebot/core` when you want the app-facing SDK surface.
+Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally want lower-level control. For hub and session client helpers, prefer importing from `@clinebot/core` when you want the app-facing SDK surface.
 
 Current SDK layering:
 
@@ -132,19 +114,9 @@ Current SDK layering:
 
 ## 📚 Learning Path
 
-**New to Cline?**
-1. Start with [`cline-sdk/01-minimal.ts`](./cline-sdk/01-minimal.ts)
-2. Explore tool policies in [`cline-sdk/04-tools.ts`](./cline-sdk/04-tools.ts)
-3. Add custom functionality in [`cline-sdk/05-custom-tools.ts`](./cline-sdk/05-custom-tools.ts)
-
 **Building integrations?**
 - Check out the [`slack-bot/`](./slack-bot) for production patterns
 - See [`cline-plugin/`](./plugin-examples/cline-plugin), [`typescript-lsp-plugin/`](./plugin-examples/typescript-lsp-plugin), and [`subagent-plugin/`](./plugin-examples/subagent-plugin) for reusable extensions
-
-**Going to production?**
-- Session management: [`cline-sdk/09-sessions.ts`](./cline-sdk/09-sessions.ts)
-- Full control: [`cline-sdk/13-full-control.ts`](./cline-sdk/13-full-control.ts)
-- Agentic loop: [`cline-sdk/14-agentic-loop.ts`](./cline-sdk/14-agentic-loop.ts)
 
 ## 📖 Documentation
 
@@ -156,4 +128,4 @@ Current SDK layering:
 
 - **Bun** - Install from [bun.sh](https://bun.sh)
 - **API Key** - Set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or provider-specific key
-- **Node.js 18+** - For package compatibility
+- **Node.js 22+** - For package compatibility

@@ -175,6 +175,7 @@ describe("createAgentRuntimeConfig", () => {
 			reasoningEffort: "high",
 			maxIterations: 7,
 			maxParallelToolCalls: 4,
+			completionPolicy: { requireCompletionTool: true },
 			toolPolicies: { "*": { autoApprove: false } },
 			requestToolApproval: async () => ({ approved: true }),
 		});
@@ -213,6 +214,9 @@ describe("createAgentRuntimeConfig", () => {
 		expect(runtimeConfig.tools).toBe(tools);
 		expect(runtimeConfig.maxIterations).toBe(7);
 		expect(runtimeConfig.toolExecution).toBe("parallel");
+		expect(runtimeConfig.completionPolicy).toEqual({
+			requireCompletionTool: true,
+		});
 		expect(runtimeConfig.toolPolicies).toEqual({
 			"*": { autoApprove: false },
 		});

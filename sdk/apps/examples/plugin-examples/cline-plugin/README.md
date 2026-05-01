@@ -58,7 +58,7 @@ ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/cline-plugin/weat
 A plugin is a plain object with three parts:
 
 ```ts
-const myPlugin: Plugin = {
+const myPlugin: AgentPlugin = {
   // 1. Identity
   name: "my-plugin",
 
@@ -84,7 +84,7 @@ Then pass it to the agent:
 ```ts
 import plugin from "./weather-plugin.example";
 
-const host = await ClineCore.create({});
+const host = await ClineCore.create({ backendMode: "local" });
 await host.start({
   config: {
     providerId: "anthropic",
@@ -120,7 +120,7 @@ Plugins can contribute normalized automation event types and, when running in a
 `ClineCore` host with automation enabled, emit events through setup context:
 
 ```ts
-const plugin: Plugin = {
+const plugin: AgentPlugin = {
   name: "local-events",
   manifest: { capabilities: ["automationEvents"] },
   setup(api, ctx) {

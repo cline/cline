@@ -613,34 +613,31 @@ export async function runCli(): Promise<void> {
 	}
 
 	// Keep command-style subcommands on a narrow path. Runtime-only imports pull
-	// in provider resolution, config watchers, and session startup wiring that
+	// in provider resolution, config services, and session startup wiring that
 	// should only load when the CLI is actually starting an agent session.
 	const providerSettingsManager = await createProviderSettingsManager();
 	const {
 		coreServer,
-		coreServer: {
-			createUserInstructionConfigWatcher,
-			loadRulesForSystemPromptFromWatcher,
-		},
+		coreServer: { createUserInstructionConfigService },
 		resolveSystemPrompt,
 		runAgent,
 	} = await loadCliRuntimeModules();
 
-	const userInstructionWatcher = createUserInstructionConfigWatcher({
+	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
 		rules: { workspacePath: workspaceRoot },
 		workflows: { workspacePath: workspaceRoot },
 	});
-	await userInstructionWatcher.start().catch(() => {});
-	let watcherDisposed = false;
-	const stopUserInstructionWatcher = () => {
-		if (watcherDisposed) {
+	await userInstructionService.start().catch(() => {});
+	let userInstructionServiceDisposed = false;
+	const stopUserInstructionService = () => {
+		if (userInstructionServiceDisposed) {
 			return;
 		}
-		watcherDisposed = true;
-		userInstructionWatcher.stop();
+		userInstructionServiceDisposed = true;
+		userInstructionService.stop();
 	};
-	registerDisposable(stopUserInstructionWatcher);
+	registerDisposable(stopUserInstructionService);
 	try {
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings();
@@ -727,7 +724,6 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				rules: loadRulesForSystemPromptFromWatcher(userInstructionWatcher),
 				mode: args.mode ?? "act",
 			}),
 			execution: {
@@ -819,10 +815,10 @@ export async function runCli(): Promise<void> {
 						: prompt;
 				if (isZenMode) {
 					const { runZen } = await import("./runtime/run-zen");
-					await runZen(pipedEffectivePrompt, config, userInstructionWatcher);
+					await runZen(pipedEffectivePrompt, config, userInstructionService);
 					return;
 				}
-				await runAgent(pipedEffectivePrompt, config, userInstructionWatcher);
+				await runAgent(pipedEffectivePrompt, config, userInstructionService);
 				return;
 			}
 		}
@@ -848,7 +844,7 @@ export async function runCli(): Promise<void> {
 			}
 			const initialClineProviderSettings =
 				provider === "cline" ? selectedProviderSettings : undefined;
-			await runInteractive(config, userInstructionWatcher, resumeSessionId, {
+			await runInteractive(config, userInstructionService, resumeSessionId, {
 				initialPrompt: args.prompt,
 				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
 				clineProviderSettings: initialClineProviderSettings,
@@ -874,14 +870,14 @@ export async function runCli(): Promise<void> {
 		// when installed).
 		if (isZenMode) {
 			const { runZen } = await import("./runtime/run-zen");
-			await runZen(effectivePrompt, config, userInstructionWatcher);
+			await runZen(effectivePrompt, config, userInstructionService);
 			return;
 		}
 
-		await runAgent(effectivePrompt, config, userInstructionWatcher);
+		await runAgent(effectivePrompt, config, userInstructionService);
 		// Exit once agent is done in non-interactive mode
 		return;
 	} finally {
-		stopUserInstructionWatcher();
+		stopUserInstructionService();
 	}
 }

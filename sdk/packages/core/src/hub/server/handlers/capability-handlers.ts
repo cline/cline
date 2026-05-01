@@ -13,6 +13,7 @@ export async function requestCapability(
 	return await new Promise((resolve, reject) => {
 		ctx.pendingCapabilityRequests.set(requestId, {
 			sessionId,
+			targetClientId,
 			capabilityName,
 			resolve: (result) => {
 				if (!result.ok) {
@@ -40,6 +41,44 @@ export async function requestCapability(
 			),
 		);
 	});
+}
+
+export function cancelPendingCapabilityRequests(
+	ctx: HubTransportContext,
+	filter: (request: {
+		requestId: string;
+		sessionId: string;
+		targetClientId: string;
+		capabilityName: string;
+	}) => boolean,
+	reason: string,
+): number {
+	let cancelled = 0;
+	for (const [requestId, pending] of [
+		...ctx.pendingCapabilityRequests.entries(),
+	]) {
+		if (!filter({ requestId, ...pending })) {
+			continue;
+		}
+		ctx.pendingCapabilityRequests.delete(requestId);
+		pending.resolve({ ok: false, error: reason });
+		ctx.publish(
+			ctx.buildEvent(
+				"capability.resolved",
+				{
+					requestId,
+					capabilityName: pending.capabilityName,
+					targetClientId: pending.targetClientId,
+					ok: false,
+					cancelled: true,
+					error: reason,
+				},
+				pending.sessionId,
+			),
+		);
+		cancelled += 1;
+	}
+	return cancelled;
 }
 
 export async function handleCapabilityRequest(
@@ -104,6 +143,24 @@ export function handleCapabilityRespond(
 			`Unknown capability request: ${requestId}`,
 		);
 	}
+	const responderClientId = envelope.clientId?.trim() || "";
+	if (responderClientId !== pending.targetClientId) {
+		return errorReply(
+			envelope,
+			"capability_wrong_client",
+			`Capability request ${requestId} is owned by ${pending.targetClientId}`,
+		);
+	}
+	if (
+		envelope.sessionId?.trim() &&
+		envelope.sessionId.trim() !== pending.sessionId
+	) {
+		return errorReply(
+			envelope,
+			"capability_wrong_session",
+			`Capability request ${requestId} belongs to session ${pending.sessionId}`,
+		);
+	}
 	ctx.pendingCapabilityRequests.delete(requestId);
 	const payload =
 		envelope.payload?.payload &&
@@ -123,7 +180,8 @@ export function handleCapabilityRespond(
 			{
 				requestId,
 				capabilityName: pending.capabilityName,
-				targetClientId: envelope.clientId?.trim(),
+				targetClientId: pending.targetClientId,
+				respondedByClientId: responderClientId,
 				ok,
 				payload,
 				error,

@@ -38,22 +38,22 @@ Instead of spawning a separate runtime bridge process, we use `LocalRuntimeHost`
 ```typescript
 import { LocalRuntimeHost } from "@clinebot/core";
 
-const sessionManager = new LocalRuntimeHost({
-  sessionService,   // CoreSessionService
-  fileService,      // FileSessionService  
-  telemetry,        // ITelemetryService (optional)
+const sessionManager = await ClineCore.create({
+  backendMode: "hub",
+  capabilities: {
+    requestToolApproval: async (request) => {
+      // Push approval request to frontend via WebSocket event
+      broadcastEvent("tool_approval_state", { sessionId: request.sessionId, items: [request] });
+      // Wait for frontend response
+      return await waitForApprovalResponse(request.sessionId, request.toolCallId);
+    },
+  },
 });
 
 // Start session
 const { sessionId } = await sessionManager.start({
   config: coreSessionConfig,
   prompt: "...",
-  requestToolApproval: async (request) => {
-    // Push approval request to frontend via WebSocket event
-    broadcastEvent("tool_approval_state", { sessionId, items: [request] });
-    // Wait for frontend response
-    return await waitForApprovalResponse(sessionId, request.requestId);
-  },
 });
 
 // Send follow-up

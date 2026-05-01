@@ -108,6 +108,11 @@ Important exported areas:
 Behavior notes:
 
 - hub infrastructure, discovery, and client adapters live in a single module tree under `packages/core/src/hub/`.
+- hub code is organized by role: `protocol/` for protocol contracts, `client/`
+  for websocket clients, `server/` for server-side transport/handlers and
+  server-owned adapters, `daemon/` for detached process lifecycle,
+  `discovery/` for endpoint resolution, `transport/` for `RuntimeHost`
+  adapters, and sparse `shared/` helpers for pure cross-role utilities.
 - `HubSessionClient` and `HubUIClient` wrap `NodeHubClient` to provide session-lifecycle and UI-notification surfaces respectively.
 - `ensureCompatibleLocalHubUrl` is the canonical entry point for "start the shared hub if it isn't already running"; it honors build-ID-aware discovery and uses `ensureDetachedHubServer` internally.
 
@@ -145,6 +150,55 @@ Core composes the runtime from:
 - default context compaction policy
 - user instruction watcher
 - telemetry
+
+### Runtime Capabilities
+
+`ClineCore.create(...)` and `ClineCore.start(...)` accept
+`capabilities?: RuntimeCapabilities` for client-owned runtime behavior that must
+work the same way in local and hub-backed sessions.
+
+```ts
+const core = await ClineCore.create({
+	backendMode: "hub", // also works with "local", "auto", and "remote"
+	capabilities: {
+		toolExecutors: {
+			askQuestion: async (question, options, context) => {
+				return appUi.askQuestion({ question, options, context });
+			},
+		},
+		requestToolApproval: async (request) => {
+			return appUi.requestToolApproval(request);
+		},
+	},
+});
+```
+
+Core adapts the same handlers to the selected transport:
+
+- local mode invokes `capabilities.toolExecutors` and
+  `capabilities.requestToolApproval` directly through the local runtime
+  bootstrap;
+- hub and remote modes advertise tool executor capability names, handle hub
+  `capability.requested` / `approval.requested` events inside core, invoke the
+  same app handlers, and respond to the hub protocol;
+- in hub/remote mode, the client that creates or restores a runtime session owns
+  the advertised client-local tool executor capabilities for that session.
+  `session.attach` adds observers/participants only; attached clients do not
+  take over capability execution. The hub routes capability requests by
+  `sessionId` and explicit `targetClientId`, and only the target client may
+  answer a pending capability request.
+- long-running capability prompts receive a `ToolContext.abortSignal`. If the hub
+  aborts a run, detaches/disconnects the owning client, or shuts down while a
+  request is pending, it publishes a cancelled `capability.resolved` event so the
+  owning client can abort the in-process handler. `ToolContext.conversationId` is
+  preserved exactly from the runtime tool context across this proxy hop.
+- apps using `ClineCore` should not implement separate local callbacks and hub
+  event listeners for the same UI behavior.
+- App-facing legacy `defaultToolExecutors` and top-level `requestToolApproval`
+  options have been removed. Use `capabilities.toolExecutors` and
+  `capabilities.requestToolApproval` on `ClineCore.create(...)` or per
+	`ClineCore.start(...)` call instead. Lower-level runtime-builder wiring also
+	uses `toolExecutors` so capabilities stay the only feature channel.
 
 Core’s internal extension layer is split by concern:
 
@@ -185,8 +239,40 @@ Runtime boundary notes:
 - `ClineCore.list(...)` delegates to the hydrated history path for backward-compatible recent-session listing.
 - `RuntimeHost` is the lower-level transport-safe execution contract used beneath `ClineCore`
 - `LocalRuntimeHost` owns local in-process execution and local session persistence behavior
-- `RpcRuntimeHost` owns RPC request translation, remote event adaptation, and remote lifecycle proxying
+- `HubRuntimeHost` owns shared local hub request translation and event adaptation
+- `RemoteRuntimeHost` is a thin hub-transport specialization for explicit remote endpoints
+- the internal host contract uses runtime-primitive method names such as `startSession`, `runTurn`, `restoreSession`, `getSession`, `listSessions`, `stopSession`, `deleteSession`, `readSessionMessages`, and `dispatchHookEvent`; app integrations continue to use the `ClineCore` product API (`start`, `send`, `restore`, `get`, `list`, `stop`, `delete`, `readMessages`, `ingestHookEvent`)
+- pending prompt list/update/delete are exposed through
+  `ClineCore.pendingPrompts.list(input)`,
+  `ClineCore.pendingPrompts.update(input)`, and
+  `ClineCore.pendingPrompts.delete(input)`. Accumulated usage lookup and
+  active-session model switching are also exposed by `ClineCore` as
+  service-style capabilities when the selected transport implements them. These
+  service APIs are intentionally outside the minimal `RuntimeHost` primitive
+  contract.
 - host selection happens in `createRuntimeHost(...)`
+
+### Session Snapshots and Checkpoints
+
+Core defines a canonical `CoreSessionSnapshot` projection in
+`packages/core/src/session/session-snapshot.ts`. The projection combines the
+current `SessionRecord` with optional messages, accumulated usage, checkpoint
+metadata, workspace/model details, lineage, and app metadata. Use this shape for
+new cross-transport session state work instead of introducing another local-only
+or hub-only session record variant.
+
+Checkpoint restore/fork behavior is coordinated through
+`SessionVersioningService` in
+`packages/core/src/session/session-versioning-service.ts`:
+
+- it validates the requested source session and checkpoint run count;
+- it plans the message slice and workspace checkpoint to restore;
+- it delegates session materialization to the active transport adapter;
+- it retains checkpoint refs for the restored session; and
+- it returns source/restored canonical snapshots where available.
+
+Local and hub adapters should call this shared service for restore semantics and
+only adapt the surrounding command/event protocol.
 
 ### Context Compaction
 
@@ -251,7 +337,7 @@ Behavior:
 - attachments are preserved
 - interactive sessions automatically treat a new send as `delivery: "queue"` while a run is already in progress unless the caller explicitly requests another delivery mode
 - core emits queue-related events and should be treated as the source of truth
-- pending prompts can be listed, edited, steered, or removed through `pendingPrompts("list" | "update" | "delete", input)` before they are drained into a turn
+- pending prompts can be listed, edited, steered, or removed through `pendingPrompts.list(input)`, `pendingPrompts.update(input)`, and `pendingPrompts.delete(input)` before they are drained into a turn
 
 ### Telemetry
 

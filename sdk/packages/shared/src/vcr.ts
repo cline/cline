@@ -545,7 +545,12 @@ function createDelayedSseStream(
 			if (index > 0 && delayMs > 0) {
 				await new Promise((resolve) => setTimeout(resolve, delayMs));
 			}
-			controller.enqueue(encoder.encode(chunks[index]!));
+			const chunk = chunks[index];
+			if (chunk === undefined) {
+				controller.close();
+				return;
+			}
+			controller.enqueue(encoder.encode(chunk));
 			index += 1;
 		},
 	});
@@ -601,7 +606,10 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 
 			if (matchIndex >= 0) {
 				consumed[matchIndex] = true;
-				const rec = recordings[matchIndex]!;
+				const rec = recordings[matchIndex];
+				if (!rec) {
+					return originalFetch(input, init);
+				}
 
 				// Build response body
 				const body =

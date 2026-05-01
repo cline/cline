@@ -1,7 +1,7 @@
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
 import type { ChatStartSessionRequest } from "@clinebot/core";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	HubSessionClient,
 } from "@clinebot/core";
 import type {
@@ -660,12 +660,12 @@ class SlackConnector extends ConnectorBase<
 				userName: options.userName,
 			},
 		});
-		const userInstructionWatcher = createUserInstructionConfigWatcher({
+		const userInstructionService = createUserInstructionConfigService({
 			skills: { workspacePath: startRequest.cwd },
 			rules: { workspacePath: startRequest.cwd },
 			workflows: { workspacePath: startRequest.cwd },
 		});
-		await userInstructionWatcher.start().catch(() => undefined);
+		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
@@ -749,7 +749,7 @@ class SlackConnector extends ConnectorBase<
 								systemRules: SLACK_SYSTEM_RULES,
 								errorLabel: "Slack",
 								firstContactMessage: SLACK_FIRST_CONTACT_MESSAGE,
-								userInstructionWatcher,
+								userInstructionService,
 								chatCommandHost,
 								activeTurns,
 								turnKey: queueKey,
@@ -1059,7 +1059,7 @@ class SlackConnector extends ConnectorBase<
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();
-		userInstructionWatcher.stop();
+		userInstructionService.stop();
 		client.close();
 		this.removeStateFile(statePath);
 		return 0;

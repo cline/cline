@@ -1,5 +1,5 @@
-import { normalizeHubWebSocketUrl } from "../hub/client";
-import { HubRuntimeHost, type HubRuntimeHostOptions } from "./hub";
+import { normalizeHubWebSocketUrl } from "../client";
+import { HubRuntimeHost, type HubRuntimeHostOptions } from "./hub-runtime-host";
 
 export interface RemoteRuntimeHostOptions
 	extends Omit<HubRuntimeHostOptions, "url"> {
@@ -16,7 +16,7 @@ export class RemoteRuntimeHost extends HubRuntimeHost {
 				authToken: options.authToken,
 				clientType: options.clientType ?? "core-remote-runtime",
 				displayName: options.displayName ?? "core remote runtime",
-				requestToolApproval: options.requestToolApproval,
+				capabilities: options.capabilities,
 			},
 			{
 				workspaceRoot: options.workspaceRoot,

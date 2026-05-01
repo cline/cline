@@ -35,6 +35,7 @@ export type {
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
+	AgentExtensionRule,
 	AgentExtensionSessionContext,
 	ContributionRegistryExtension,
 	ContributionRegistryOptions,
@@ -166,7 +167,7 @@ export {
 	truncateSplit,
 	truncateStr,
 } from "./parse/string";
-export { formatHumanReadableDate } from "./parse/time";
+export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
 export { buildClineSystemPrompt } from "./prompt/cline";

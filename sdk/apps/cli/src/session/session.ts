@@ -1,15 +1,16 @@
-import { readFile } from "node:fs/promises";
 import type {
 	AgentConfig,
 	BasicLogger,
-	HookEventPayload,
+	RuntimeCapabilities,
 	RuntimeHostMode,
 	SessionHistoryRecord,
 	SessionRecord,
-	ToolApprovalRequest,
-	ToolApprovalResult,
 } from "@clinebot/core";
-import { ClineCore } from "@clinebot/core";
+import {
+	ClineCore,
+	listSessionHistoryFromBackend,
+	resolveSessionBackend,
+} from "@clinebot/core";
 import { resolveWorkspaceRoot } from "../utils/helpers";
 import { getCliTelemetryService } from "../utils/telemetry";
 import type { ConversationHistory } from "./export";
@@ -21,16 +22,13 @@ function toSessionRecordLike(
 }
 
 export async function createCliCore(options?: {
-	defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
+	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	logger?: BasicLogger;
 	backendMode?: RuntimeHostMode;
 	forceLocalBackend?: boolean;
 	cwd?: string;
 	workspaceRoot?: string;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
 }): Promise<ClineCore> {
 	const explicitBackendMode = options?.forceLocalBackend
 		? "local"
@@ -50,11 +48,10 @@ export async function createCliCore(options?: {
 					},
 				}
 			: {}),
-		defaultToolExecutors: options?.defaultToolExecutors,
+		capabilities: options?.capabilities,
 		telemetry: getCliTelemetryService(options?.logger),
 		logger: options?.logger,
 		toolPolicies: options?.toolPolicies,
-		requestToolApproval: options?.requestToolApproval,
 	});
 	options?.logger?.log("CLI core runtime routing selected", {
 		backendMode: explicitBackendMode ?? "env-managed",
@@ -90,31 +87,14 @@ export async function listSessions(
 	limit = 50,
 	options?: { workspaceRoot?: string; hydrate?: boolean },
 ): Promise<SessionHistoryRecord[]> {
-	return await withCliCore(
-		async (core) => {
-			const rows = await core.listHistory({
-				limit,
-				includeManifestFallback: true,
-				hydrate: options?.hydrate ?? false,
-			});
-			const nonEmpty = await Promise.all(
-				rows.map(async (row) => {
-					const messages = await core
-						.readMessages(row.sessionId)
-						.catch(() => []);
-					return messages.length > 0 ? row : undefined;
-				}),
-			);
-			return nonEmpty.filter((row): row is SessionHistoryRecord =>
-				Boolean(row),
-			);
-		},
-		{
-			forceLocalBackend: true,
-			cwd: options?.workspaceRoot,
-			workspaceRoot: options?.workspaceRoot,
-		},
-	);
+	const backend = await resolveSessionBackend({
+		telemetry: getCliTelemetryService(),
+	});
+	return await listSessionHistoryFromBackend(backend, {
+		limit,
+		includeManifestFallback: true,
+		hydrate: options?.hydrate ?? false,
+	});
 }
 
 export async function deleteSession(
@@ -166,11 +146,11 @@ export async function getLatestSessionRow(): Promise<unknown | undefined> {
 }
 
 export async function handleSessionHookEvent(
-	payload: HookEventPayload,
+	payload: Parameters<ClineCore["ingestHookEvent"]>[0],
 ): Promise<void> {
 	await withCliCore(
 		async (core) => {
-			await core.handleHookEvent(payload);
+			await core.ingestHookEvent(payload);
 		},
 		{ forceLocalBackend: true },
 	);
@@ -179,11 +159,30 @@ export async function handleSessionHookEvent(
 export async function readSessionMessagesArtifact(
 	sessionId: string,
 ): Promise<ConversationHistory | undefined> {
-	const row = await getSessionRow(sessionId);
-	const path = row?.messagesPath?.trim();
-	if (!path) {
+	const target = sessionId.trim();
+	if (!target) {
 		return undefined;
 	}
-	const raw = await readFile(path, "utf8");
-	return JSON.parse(raw) as ConversationHistory;
+	return await withCliCore(
+		async (core) => {
+			const [row, messages] = await Promise.all([
+				core.get(target),
+				core.readMessages(target),
+			]);
+			if (!row || messages.length === 0) {
+				return undefined;
+			}
+			return {
+				version: 1,
+				updated_at: row.updatedAt,
+				messages: messages as ConversationHistory["messages"],
+				sessionId: row.sessionId,
+				systemPrompt:
+					typeof row.metadata?.systemPrompt === "string"
+						? row.metadata.systemPrompt
+						: undefined,
+			};
+		},
+		{ forceLocalBackend: true },
+	);
 }

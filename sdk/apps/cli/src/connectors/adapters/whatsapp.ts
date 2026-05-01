@@ -1,7 +1,7 @@
 import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
 import type { ChatStartSessionRequest } from "@clinebot/core";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	HubSessionClient,
 } from "@clinebot/core";
 import type {
@@ -531,12 +531,12 @@ class WhatsAppConnector extends ConnectorBase<
 					: {}),
 			},
 		});
-		const userInstructionWatcher = createUserInstructionConfigWatcher({
+		const userInstructionService = createUserInstructionConfigService({
 			skills: { workspacePath: startRequest.cwd },
 			rules: { workspacePath: startRequest.cwd },
 			workflows: { workspacePath: startRequest.cwd },
 		});
-		await userInstructionWatcher.start().catch(() => undefined);
+		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
@@ -618,7 +618,7 @@ class WhatsAppConnector extends ConnectorBase<
 						systemRules: WHATSAPP_SYSTEM_RULES,
 						errorLabel: "WhatsApp",
 						firstContactMessage: WHATSAPP_FIRST_CONTACT_MESSAGE,
-						userInstructionWatcher,
+						userInstructionService,
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
@@ -842,7 +842,7 @@ class WhatsAppConnector extends ConnectorBase<
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();
-		userInstructionWatcher.stop();
+		userInstructionService.stop();
 		client.close();
 		this.removeStateFile(statePath);
 		return 0;

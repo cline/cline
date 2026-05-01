@@ -1,6 +1,7 @@
 import {
 	createCoreSettingsService,
-	type UserInstructionConfigWatcher,
+	setDisabledPlugin,
+	type UserInstructionConfigService,
 } from "@clinebot/core";
 import {
 	type InteractiveConfigData,
@@ -11,7 +12,7 @@ import type { Config } from "../../utils/types";
 
 export function createInteractiveConfigDataLoader(input: {
 	config: Config;
-	userInstructionWatcher?: UserInstructionConfigWatcher;
+	userInstructionService?: UserInstructionConfigService;
 }) {
 	const workspaceRoot = () =>
 		input.config.workspaceRoot?.trim() || input.config.cwd;
@@ -24,7 +25,7 @@ export function createInteractiveConfigDataLoader(input: {
 	});
 	const loadConfigData = async (): Promise<InteractiveConfigData> =>
 		await loadInteractiveConfigData({
-			watcher: input.userInstructionWatcher,
+			userInstructionService: input.userInstructionService,
 			cwd: input.config.cwd,
 			workspaceRoot: workspaceRoot(),
 			availabilityContext: availabilityContext(),
@@ -43,9 +44,14 @@ export function createInteractiveConfigDataLoader(input: {
 				enabled: !item.enabled,
 				cwd: input.config.cwd,
 				workspaceRoot: workspaceRoot(),
-				userInstructionWatcher: input.userInstructionWatcher,
+				userInstructionService: input.userInstructionService,
 				availabilityContext: availabilityContext(),
 			});
+			return await loadConfigData();
+		}
+
+		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
+			setDisabledPlugin(item.path, item.enabled);
 			return await loadConfigData();
 		}
 
@@ -69,7 +75,7 @@ export function createInteractiveConfigDataLoader(input: {
 						typeof item.enabled === "boolean" ? !item.enabled : undefined,
 					cwd: input.config.cwd,
 					workspaceRoot: workspaceRoot(),
-					userInstructionWatcher: input.userInstructionWatcher,
+					userInstructionService: input.userInstructionService,
 					availabilityContext: availabilityContext(),
 				}),
 			),

@@ -1,3 +1,5 @@
+import type { CoreSessionSnapshot } from "../session/session-snapshot";
+
 export interface SessionChunkEvent {
 	sessionId: string;
 	stream: "stdout" | "stderr" | "agent";
@@ -56,6 +58,11 @@ export interface SessionPendingPromptSubmittedEvent {
 	attachmentCount: number;
 }
 
+export interface SessionSnapshotEvent {
+	sessionId: string;
+	snapshot: CoreSessionSnapshot;
+}
+
 export type CoreSessionEvent =
 	| { type: "chunk"; payload: SessionChunkEvent }
 	| {
@@ -75,6 +82,7 @@ export type CoreSessionEvent =
 			type: "pending_prompt_submitted";
 			payload: SessionPendingPromptSubmittedEvent;
 	  }
+	| { type: "session_snapshot"; payload: SessionSnapshotEvent }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
 	| { type: "status"; payload: { sessionId: string; status: string } };

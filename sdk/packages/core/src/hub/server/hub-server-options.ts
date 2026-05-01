@@ -3,7 +3,10 @@ import type {
 	HubScheduleRuntimeHandlers,
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
-import type { RuntimeHost } from "../../runtime/host/runtime-host";
+import type {
+	PendingPromptsRuntimeService,
+	RuntimeHost,
+} from "../../runtime/host/runtime-host";
 import type { CoreSettingsService } from "../../settings";
 import type { HubOwnerContext } from "../discovery";
 
@@ -12,7 +15,7 @@ export interface HubWebSocketServerOptions {
 	port?: number;
 	pathname?: string;
 	owner?: HubOwnerContext;
-	sessionHost?: RuntimeHost;
+	sessionHost?: RuntimeHost & Partial<PendingPromptsRuntimeService>;
 	settingsService?: CoreSettingsService;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;

@@ -408,8 +408,8 @@ export function createSearchExecutor(
 					const line = lines[lineIdx];
 					regex.lastIndex = 0; // Reset regex state
 
-					let match: RegExpExecArray | null;
-					while ((match = regex.exec(line)) !== null) {
+					let match = regex.exec(line);
+					while (match !== null) {
 						if (matches.length >= maxResults) break;
 
 						// Get context lines
@@ -437,6 +437,7 @@ export function createSearchExecutor(
 						if (match.index === regex.lastIndex) {
 							regex.lastIndex++;
 						}
+						match = regex.exec(line);
 					}
 				}
 			} catch {}

@@ -1,7 +1,12 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Tool } from "@clinebot/shared";
+import {
+	type AgentExtension,
+	createContributionRegistry,
+	type Message,
+	type Tool,
+} from "@clinebot/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
@@ -30,6 +35,16 @@ function makeBaseConfig(
 		enableAgentTeams: false,
 		...overrides,
 	};
+}
+
+async function collectExtensionTools(
+	extensions?: AgentExtension[],
+): Promise<Tool[]> {
+	const registry = createContributionRegistry<AgentExtension, Tool, Message[]>({
+		extensions: extensions ?? [],
+	});
+	await registry.initialize();
+	return registry.getRegisteredTools();
 }
 
 describe("DefaultRuntimeBuilder", () => {
@@ -91,7 +106,7 @@ describe("DefaultRuntimeBuilder", () => {
 			config: makeBaseConfig({
 				mode: "yolo",
 			}),
-			defaultToolExecutors: {
+			toolExecutors: {
 				submit: async () => "submitted",
 			},
 		});
@@ -99,6 +114,9 @@ describe("DefaultRuntimeBuilder", () => {
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names).not.toContain("ask_question");
 		expect(names).toContain("submit_and_exit");
+		expect(runtime.completionPolicy).toEqual({
+			requireCompletionTool: true,
+		});
 	});
 
 	it("does not infer yolo preset from auto-approval alone", async () => {
@@ -109,7 +127,7 @@ describe("DefaultRuntimeBuilder", () => {
 					"*": { autoApprove: true },
 				},
 			}),
-			defaultToolExecutors: {
+			toolExecutors: {
 				submit: async () => "submitted",
 				askQuestion: async () => "question",
 			},
@@ -132,6 +150,7 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("spawn_agent");
+		expect(runtime.completionPolicy).toBeUndefined();
 	});
 
 	it("uses apply_patch instead of editor for codex/gpt model IDs in act mode", async () => {
@@ -258,8 +277,7 @@ describe("DefaultRuntimeBuilder", () => {
 			serverPath,
 			`let buffer = "";
 function write(payload) {
-  const body = JSON.stringify(payload);
-  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+  process.stdout.write(JSON.stringify(payload) + "\\n");
 }
 function handle(message) {
   if (message.method === "initialize") {
@@ -277,18 +295,12 @@ function handle(message) {
 process.stdin.on("data", (chunk) => {
   buffer += chunk.toString("utf8");
   while (true) {
-    const separator = buffer.indexOf("\\r\\n\\r\\n");
+    const separator = buffer.indexOf("\\n");
     if (separator < 0) break;
-    const header = buffer.slice(0, separator);
-    const match = header.match(/Content-Length:\\s*(\\d+)/i);
-    if (!match) throw new Error("missing content length");
-    const length = Number(match[1]);
-    const start = separator + 4;
-    const end = start + length;
-    if (buffer.length < end) break;
-    const body = buffer.slice(start, end);
-    buffer = buffer.slice(end);
-    const message = JSON.parse(body);
+    const line = buffer.slice(0, separator).trim();
+    buffer = buffer.slice(separator + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
     if (message.method === "notifications/initialized") continue;
     handle(message);
   }
@@ -490,8 +502,10 @@ Use conventional commits.`,
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({ cwd }),
 		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
 
-		expect(runtime.tools.map((tool) => tool.name)).toContain("skills");
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
+		expect(extensionTools.map((tool) => tool.name)).toContain("skills");
 		await runtime.shutdown("test");
 	});
 
@@ -528,6 +542,11 @@ Use conventional commits.`,
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
+		expect(
+			(await collectExtensionTools(runtime.extensions)).map(
+				(tool) => tool.name,
+			),
+		).not.toContain("skills");
 		await runtime.shutdown("test");
 	});
 
@@ -559,7 +578,8 @@ Disabled skill.`,
 			config: makeBaseConfig({ cwd }),
 		});
 
-		const skillsTool = runtime.tools.find((tool) => tool.name === "skills");
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
 		expect(skillsTool).toBeDefined();
 		if (!skillsTool) {
 			throw new Error("Expected skills tool.");
@@ -608,7 +628,8 @@ Review skill.`,
 			}),
 		});
 
-		const skillsTool = runtime.tools.find((tool) => tool.name === "skills");
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
 		expect(skillsTool).toBeDefined();
 		if (!skillsTool) {
 			throw new Error("Expected skills tool.");

@@ -428,7 +428,7 @@ export function RulesView() {
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				let response: UserInstructionListsResponse;
+				let response: UserInstructionListsResponse | undefined;
 				try {
 					response = await desktopClient.invoke<UserInstructionListsResponse>(
 						"set_tool_disabled",
@@ -447,6 +447,11 @@ export function RulesView() {
 							{ name },
 						);
 					}
+				}
+				if (!response) {
+					throw new Error(
+						"tool toggle did not return an updated extension list",
+					);
 				}
 				applyResponse(response);
 			} catch (error) {

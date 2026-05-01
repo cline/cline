@@ -23,7 +23,7 @@ import { expectExitCode, expectVisible } from "../helpers/terminal.js";
 // Golden path: prints only LLM output (no chrome), then exits 0.
 // Unauthenticated: prints "Not authenticated" and exits 1.
 // ---------------------------------------------------------------------------
-test.describe("clite -y (headless yolo mode) - unauthenticated", () => {
+test.describe("clite -y (headless auth failure mode) - unauthenticated", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-y", "tell me a joke"] },
 		...TERMINAL_WIDE,
@@ -37,16 +37,16 @@ test.describe("clite -y (headless yolo mode) - unauthenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// echo "max paulus" | clite -y "print only the second word I gave you"
+// echo "max paulus" | clite "print only the second word I gave you"
 // Piped stdin test - uses TUI harness with stdin pre-written
 // ---------------------------------------------------------------------------
-test.describe("piped stdin | clite -y - unauthenticated", () => {
+test.describe("piped stdin | clite - unauthenticated", () => {
 	test.use({
 		program: {
 			file: "sh",
 			args: [
 				"-c",
-				`echo "max paulus" | ${CLINE_BIN} -y "print only the second word I gave you"`,
+				`echo "max paulus" | ${CLINE_BIN} "print only the second word I gave you"`,
 			],
 		},
 		...TERMINAL_WIDE,
@@ -97,9 +97,9 @@ test.describe("clite -y --json - unauthenticated", () => {
 	});
 });
 
-test.describe("clite -y (headless yolo mode) - authenticated @live", () => {
+test.describe("clite (headless prompt mode) - authenticated @live", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["-y", "tell me a joke"] },
+		program: { file: CLINE_BIN, args: ["tell me a joke"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
 			CLINE_VCR_CASSETTE: "./fixtures/headless-yolo-basic.json",
@@ -114,16 +114,16 @@ test.describe("clite -y (headless yolo mode) - authenticated @live", () => {
 });
 
 // ---------------------------------------------------------------------------
-// echo "max paulus" | clite -y "..." - authenticated
+// echo "max paulus" | clite "..." - authenticated
 // Piped stdin test with valid credentials
 // ---------------------------------------------------------------------------
-test.describe("piped stdin | clite -y - authenticated", () => {
+test.describe("piped stdin | clite - authenticated", () => {
 	test.use({
 		program: {
 			file: "sh",
 			args: [
 				"-c",
-				`echo "butterfly horse country" | ${CLINE_BIN} -y "print only the second word I gave you"`,
+				`echo "butterfly horse country" | ${CLINE_BIN} "print only the second word I gave you"`,
 			],
 		},
 		...TERMINAL_WIDE,
@@ -140,14 +140,14 @@ test.describe("piped stdin | clite -y - authenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// clite -y --verbose "tell me a joke" 2>&1 - authenticated
+// clite --verbose "tell me a joke" 2>&1 - authenticated
 // Golden path: prints model info, prompt, api request, reasoning, task_completion
 // ---------------------------------------------------------------------------
-test.describe("clite -y --verbose - authenticated @live", () => {
+test.describe("clite --verbose - authenticated @live", () => {
 	test.use({
 		program: {
 			file: "sh",
-			args: ["-c", `${CLINE_BIN} -y --verbose "tell me a joke" 2>&1`],
+			args: ["-c", `${CLINE_BIN} --verbose "tell me a joke" 2>&1`],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
@@ -229,11 +229,11 @@ test.describe("clite --json -t (timeout) - JSON mode", () => {
 // clite -y -m <model-id> "what model are you"
 // Model flag in headless mode - should use specified model but not persist
 // ---------------------------------------------------------------------------
-test.describe("clite -y -m (model flag in headless) @live", () => {
+test.describe("clite -m (model flag in headless) @live", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
-			args: ["-y", "-m", "anthropic/claude-sonnet-4", "what model are you"],
+			args: ["-m", "anthropic/claude-sonnet-4", "what model are you"],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {

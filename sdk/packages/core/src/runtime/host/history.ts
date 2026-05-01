@@ -3,13 +3,17 @@ import { join } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms";
 import { formatDisplayUserInput, normalizeUserInput } from "@clinebot/shared";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
+import { toSessionRecord } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionManifestSchema } from "../../session/models/session-manifest";
+import type { SessionRow } from "../../session/models/session-row";
+import { readPersistedMessagesFile } from "../../transports/runtime-host-support";
 import type {
 	SessionHistoryMetadata,
 	SessionHistoryRecord,
 	SessionRecord,
 } from "../../types/sessions";
+import type { SessionBackend } from "./host";
 import type { RuntimeHost } from "./runtime-host";
 
 export interface SessionHistoryListOptions {
@@ -114,6 +118,9 @@ async function listManifestHistoryRows(
 	limit: number,
 ): Promise<SessionRecord[]> {
 	const requestedLimit = normalizeHistoryLimit(limit);
+	if (requestedLimit === 0) {
+		return [];
+	}
 	const sessionsDir = resolveSessionDataDir();
 	const entries = await readdir(sessionsDir, { withFileTypes: true }).catch(
 		() => [],
@@ -128,8 +135,7 @@ async function listManifestHistoryRows(
 			(left, right) =>
 				right.recency - left.recency ||
 				right.entry.name.localeCompare(left.entry.name),
-		)
-		.slice(0, requestedLimit);
+		);
 	const rows = await Promise.all(
 		candidateEntries.map(async ({ entry }) => {
 			const sessionId = entry.name.trim();
@@ -159,6 +165,18 @@ async function listManifestHistoryRows(
 		.filter((row): row is SessionRecord => Boolean(row))
 		.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
 		.slice(0, requestedLimit);
+}
+
+async function listHostSessionRows(
+	host: Pick<RuntimeHost, "listSessions" | "readSessionMessages">,
+	limit: number,
+): Promise<SessionRecord[]> {
+	const requestedLimit = normalizeHistoryLimit(limit);
+	if (requestedLimit === 0) {
+		await host.listSessions(0);
+		return [];
+	}
+	return (await host.listSessions(requestedLimit)).slice(0, requestedLimit);
 }
 
 function extractTextFromContent(
@@ -316,7 +334,7 @@ function normalizeHistoryRow(
 }
 
 export async function hydrateSessionHistory(
-	host: Pick<RuntimeHost, "readMessages">,
+	host: Pick<RuntimeHost, "readSessionMessages">,
 	rows: SessionRecord[],
 ): Promise<SessionHistoryRecord[]> {
 	return await Promise.all(
@@ -330,7 +348,7 @@ export async function hydrateSessionHistory(
 			if (hasTitle && hasProvider && hasModel && hasCost) {
 				return initial;
 			}
-			const messages = await host.readMessages(row.sessionId);
+			const messages = await host.readSessionMessages(row.sessionId);
 			if (messages.length === 0) {
 				return initial;
 			}
@@ -347,11 +365,11 @@ export async function hydrateSessionHistory(
 }
 
 export async function listSessionHistory(
-	host: Pick<RuntimeHost, "list" | "readMessages">,
+	host: Pick<RuntimeHost, "listSessions" | "readSessionMessages">,
 	options: SessionHistoryListOptions = {},
 ): Promise<SessionHistoryRecord[]> {
 	const limit = normalizeHistoryLimit(options.limit);
-	const backendRows = (await host.list(limit)).slice(0, limit);
+	const backendRows = await listHostSessionRows(host, limit);
 	const manifestRows =
 		options.includeManifestFallback === true && backendRows.length < limit
 			? await listManifestHistoryRows(Math.min(Math.max(limit * 2, 100), 500))
@@ -373,4 +391,55 @@ export async function listSessionHistory(
 		return rows.map((row) => normalizeHistoryRow(row));
 	}
 	return await hydrateSessionHistory(host, rows);
+}
+
+async function readManifestMessagesPath(
+	sessionId: string,
+): Promise<string | undefined> {
+	const target = sessionId.trim();
+	if (!target) {
+		return undefined;
+	}
+	const manifestPath = join(resolveSessionDataDir(), target, `${target}.json`);
+	const raw = await readFile(manifestPath, "utf8").catch(() => undefined);
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed = SessionManifestSchema.safeParse(JSON.parse(raw) as unknown);
+		return parsed.success ? parsed.data.messages_path : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Lists history directly from the persistence backend without constructing a
+ * runtime host. This keeps read-only history commands from initializing runtime
+ * services such as plugins, MCP, or hub transport.
+ */
+export async function listSessionHistoryFromBackend(
+	backend: Pick<SessionBackend, "listSessions">,
+	options: SessionHistoryListOptions = {},
+): Promise<SessionHistoryRecord[]> {
+	const rowsById = new Map<string, SessionRow>();
+	const host = {
+		listSessions: async (limit?: number): Promise<SessionRecord[]> => {
+			const rows = await backend.listSessions(limit);
+			rowsById.clear();
+			for (const row of rows) {
+				rowsById.set(row.sessionId, row);
+			}
+			return rows.map(toSessionRecord);
+		},
+		readSessionMessages: async (
+			sessionId: string,
+		): Promise<LlmsProviders.Message[]> => {
+			const messagesPath =
+				rowsById.get(sessionId)?.messagesPath ??
+				(await readManifestMessagesPath(sessionId));
+			return await readPersistedMessagesFile(messagesPath);
+		},
+	};
+	return await listSessionHistory(host, options);
 }

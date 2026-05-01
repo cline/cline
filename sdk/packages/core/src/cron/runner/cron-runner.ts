@@ -7,12 +7,8 @@ import type {
 import { buildClineSystemPrompt } from "@clinebot/shared";
 import { nowIso } from "@clinebot/shared/db";
 import type { ResolveCronSpecsDirOptions } from "@clinebot/shared/storage";
-import { createUserInstructionConfigWatcher } from "../../extensions/config";
 import { DefaultToolNames } from "../../extensions/tools/constants";
-import {
-	loadRulesForSystemPromptFromWatcher,
-	mergeRulesForSystemPrompt,
-} from "../../runtime/safety/rules";
+import { mergeRulesForSystemPrompt } from "../../runtime/safety/rules";
 import { buildWorkspaceMetadata } from "../../services/workspace/workspace-manifest";
 import { writeCronRunReport } from "../reports/cron-report-writer";
 import type { HubScheduleRuntimeHandlers } from "../service/schedule-service";
@@ -421,34 +417,14 @@ export class CronRunner {
 		return () => clearInterval(interval);
 	}
 
-	private async loadRulesForSpec(
-		spec: CronSpecRecord,
-	): Promise<string | undefined> {
-		if (!cronExtensionEnabled(spec, "rules")) return undefined;
-		const workspaceRoot = spec.workspaceRoot?.trim();
-		if (!workspaceRoot) return undefined;
-		const watcher = createUserInstructionConfigWatcher({
-			skills: { directories: [] },
-			rules: { workspacePath: workspaceRoot },
-			workflows: { workspacePath: workspaceRoot },
-		});
-		try {
-			await watcher.start();
-			return loadRulesForSystemPromptFromWatcher(watcher);
-		} finally {
-			watcher.stop();
-		}
-	}
-
 	private async buildSystemPrompt(
 		spec: CronSpecRecord,
 		workspaceRoot: string,
 		mode: "act" | "plan" | "yolo",
 		provider: string,
 	): Promise<string> {
-		const rules = await this.loadRulesForSpec(spec);
 		const notes = buildNotesSystemPromptSection(spec.notesDirectory);
-		const additional = mergeRulesForSystemPrompt(rules, notes);
+		const additional = mergeRulesForSystemPrompt(undefined, notes);
 		const metadata = await buildWorkspaceMetadata(workspaceRoot);
 		const base = buildClineSystemPrompt({
 			ide: "Cline Cron",

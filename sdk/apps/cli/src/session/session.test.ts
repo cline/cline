@@ -10,6 +10,8 @@ import {
 
 const createCore = vi.fn();
 const getCliTelemetryService = vi.fn(() => undefined);
+const resolveSessionBackend = vi.fn();
+const listSessionHistoryFromBackend = vi.fn();
 
 vi.mock("@clinebot/core", async () => {
 	const actual =
@@ -19,6 +21,8 @@ vi.mock("@clinebot/core", async () => {
 		ClineCore: {
 			create: createCore,
 		},
+		resolveSessionBackend,
+		listSessionHistoryFromBackend,
 	};
 });
 
@@ -40,6 +44,9 @@ describe("createCliCore", () => {
 
 	beforeEach(() => {
 		createCore.mockReset();
+		resolveSessionBackend.mockReset();
+		resolveSessionBackend.mockResolvedValue({ kind: "backend" });
+		listSessionHistoryFromBackend.mockReset();
 		createCore.mockResolvedValue({
 			runtimeAddress: "127.0.0.1:25463",
 			start: vi.fn(),
@@ -54,7 +61,7 @@ describe("createCliCore", () => {
 			update: vi.fn(),
 			readMessages: vi.fn(),
 			readTranscript: vi.fn(),
-			handleHookEvent: vi.fn(),
+			ingestHookEvent: vi.fn(),
 			subscribe: vi.fn(),
 			updateSessionModel: vi.fn(),
 		});
@@ -145,15 +152,19 @@ describe("createCliCore", () => {
 		);
 	});
 
-	it("keeps hub client metadata when custom tool executors are provided", async () => {
+	it("keeps hub client metadata when runtime capabilities are provided", async () => {
+		const submit = vi.fn();
 		await sessionModule.createCliCore({
-			defaultToolExecutors: {
-				submit: vi.fn(),
+			capabilities: {
+				toolExecutors: { submit },
 			},
 		});
 
 		expect(createCore).toHaveBeenCalledWith(
 			expect.objectContaining({
+				capabilities: expect.objectContaining({
+					toolExecutors: { submit },
+				}),
 				hub: expect.objectContaining({
 					clientType: "cli",
 					displayName: "Cline CLI",
@@ -206,7 +217,7 @@ describe("createCliCore", () => {
 	});
 
 	it("lists sessions through core history with manifest fallback enabled", async () => {
-		const listHistory = vi.fn(async () => [
+		listSessionHistoryFromBackend.mockResolvedValueOnce([
 			{
 				sessionId: "sess_1",
 				workspaceRoot: "/tmp/workspace",
@@ -216,25 +227,23 @@ describe("createCliCore", () => {
 				workspaceRoot: "/tmp/other-workspace",
 			},
 		]);
-		const readMessages = vi.fn(async () => [{ role: "user", content: "hi" }]);
-		const dispose = vi.fn();
-		createCore.mockResolvedValueOnce({
-			runtimeAddress: undefined,
-			listHistory,
-			readMessages,
-			dispose,
-		});
 
 		const rows = await sessionModule.listSessions(25, {
 			workspaceRoot: "/tmp/workspace",
 		});
 
-		expect(listHistory).toHaveBeenCalledWith({
-			limit: 25,
-			includeManifestFallback: true,
-			hydrate: false,
+		expect(resolveSessionBackend).toHaveBeenCalledWith({
+			telemetry: undefined,
 		});
-		expect(dispose).toHaveBeenCalledWith("cli_session_helper_dispose");
+		expect(listSessionHistoryFromBackend).toHaveBeenCalledWith(
+			{ kind: "backend" },
+			{
+				limit: 25,
+				includeManifestFallback: true,
+				hydrate: false,
+			},
+		);
+		expect(createCore).not.toHaveBeenCalled();
 		expect(rows).toEqual([
 			{
 				sessionId: "sess_1",
@@ -248,33 +257,22 @@ describe("createCliCore", () => {
 	});
 
 	it("filters out empty and unreadable sessions", async () => {
-		const listHistory = vi.fn(async () => [
+		listSessionHistoryFromBackend.mockResolvedValueOnce([
 			{ sessionId: "sess_full", workspaceRoot: "/tmp/workspace" },
-			{ sessionId: "sess_empty", workspaceRoot: "/tmp/workspace" },
-			{ sessionId: "sess_broken", workspaceRoot: "/tmp/workspace" },
 		]);
-		const readMessages = vi.fn(async (sessionId: string) => {
-			if (sessionId === "sess_full") {
-				return [{ role: "user", content: "hi" }];
-			}
-			if (sessionId === "sess_broken") {
-				throw new Error("messages file unreadable");
-			}
-			return [];
-		});
-		const dispose = vi.fn();
-		createCore.mockResolvedValueOnce({
-			runtimeAddress: undefined,
-			listHistory,
-			readMessages,
-			dispose,
-		});
 
 		const rows = await sessionModule.listSessions(25, {
 			workspaceRoot: "/tmp/workspace",
 		});
 
-		expect(readMessages).toHaveBeenCalledTimes(3);
+		expect(listSessionHistoryFromBackend).toHaveBeenCalledWith(
+			{ kind: "backend" },
+			{
+				limit: 25,
+				includeManifestFallback: true,
+				hydrate: false,
+			},
+		);
 		expect(rows).toEqual([
 			{ sessionId: "sess_full", workspaceRoot: "/tmp/workspace" },
 		]);

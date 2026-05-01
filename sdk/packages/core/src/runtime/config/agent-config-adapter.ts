@@ -261,6 +261,7 @@ export function toolToAgentTool<TInput, TOutput>(
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.inputSchema,
+		lifecycle: tool.lifecycle,
 		async execute(
 			input: TInput,
 			context: AgentToolContext,

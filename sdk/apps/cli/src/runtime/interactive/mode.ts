@@ -1,7 +1,3 @@
-import {
-	loadRulesForSystemPromptFromWatcher,
-	type UserInstructionConfigWatcher,
-} from "@clinebot/core";
 import { createTool } from "@clinebot/shared";
 import type { Config } from "../../utils/types";
 import { resolveSystemPrompt } from "../prompt";
@@ -39,18 +35,13 @@ export async function applyInteractiveModeConfig(input: {
 	config: Config;
 	mode: InteractiveUiMode;
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
-	userInstructionWatcher?: UserInstructionConfigWatcher;
 }): Promise<void> {
 	input.config.mode = input.mode;
 	input.config.extraTools =
 		input.mode === "plan" ? [input.switchToActModeTool] : [];
-	const rules = input.userInstructionWatcher
-		? loadRulesForSystemPromptFromWatcher(input.userInstructionWatcher)
-		: "";
 	input.config.systemPrompt = await resolveSystemPrompt({
 		cwd: input.config.cwd,
 		providerId: input.config.providerId,
-		rules,
 		mode: input.mode,
 	});
 }

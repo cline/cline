@@ -4,11 +4,14 @@ import type {
 	HubReplyEnvelope,
 } from "@clinebot/shared";
 import { parseHookEventPayload } from "../../../hooks";
+import { cancelPendingApprovals } from "./approval-handlers";
+import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	errorReply,
 	extractSessionId,
 	type HubTransportContext,
 	okReply,
+	readCoreSessionSnapshot,
 } from "./context";
 
 function terminalRunEventForReason(
@@ -17,6 +20,14 @@ function terminalRunEventForReason(
 	if (reason === "aborted") return "run.aborted";
 	if (reason === "error" || reason === "failed") return "run.failed";
 	return "run.completed";
+}
+
+function errorMessageForResult(result: AgentResult): string | undefined {
+	if (result.finishReason !== "error") {
+		return undefined;
+	}
+	const text = result.text.trim();
+	return text || undefined;
 }
 
 export async function handleSessionInput(
@@ -54,7 +65,7 @@ export async function handleSessionInput(
 	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
 	let result: AgentResult | undefined;
 	try {
-		result = await ctx.sessionHost.send({
+		result = await ctx.sessionHost.runTurn({
 			sessionId,
 			prompt,
 			delivery:
@@ -86,10 +97,17 @@ export async function handleSessionInput(
 		throw error;
 	}
 	if (result) {
+		const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
+		const error = errorMessageForResult(result);
 		ctx.publish(
 			ctx.buildEvent(
 				terminalRunEventForReason(result.finishReason),
-				{ reason: result.finishReason, result },
+				{
+					reason: result.finishReason,
+					...(error ? { error } : {}),
+					result,
+					...(snapshot ? { snapshot } : {}),
+				},
 				sessionId,
 			),
 		);
@@ -102,7 +120,13 @@ export async function handleSessionInput(
 	} else {
 		ctx.suppressNextTerminalEventBySession.delete(sessionId);
 	}
-	return okReply(envelope, result ? { result } : undefined);
+	const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
+	return okReply(
+		envelope,
+		result || snapshot
+			? { ...(result ? { result } : {}), ...(snapshot ? { snapshot } : {}) }
+			: undefined,
+	);
 }
 
 export async function handleRunAbort(
@@ -110,16 +134,22 @@ export async function handleRunAbort(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	await ctx.sessionHost.abort(sessionId, envelope.payload?.reason);
-	ctx.publish(
-		ctx.buildEvent(
-			"run.aborted",
-			typeof envelope.payload?.reason === "string"
-				? { reason: envelope.payload.reason }
-				: undefined,
-			sessionId,
-		),
+	const reason =
+		typeof envelope.payload?.reason === "string"
+			? envelope.payload.reason
+			: "Run was aborted before pending approval or capability request was resolved.";
+	cancelPendingApprovals(
+		ctx,
+		(approval) => approval.sessionId === sessionId,
+		reason,
 	);
+	await ctx.sessionHost.abort(sessionId, envelope.payload?.reason);
+	cancelPendingCapabilityRequests(
+		ctx,
+		(request) => request.sessionId === sessionId,
+		reason,
+	);
+	ctx.publish(ctx.buildEvent("run.aborted", { reason }, sessionId));
 	return okReply(envelope, { applied: true });
 }
 
@@ -135,6 +165,6 @@ export async function handleSessionHook(
 			"session.hook requires a valid hook event payload",
 		);
 	}
-	await ctx.sessionHost.handleHookEvent(parsed);
+	await ctx.sessionHost.dispatchHookEvent(parsed);
 	return okReply(envelope, { applied: true });
 }

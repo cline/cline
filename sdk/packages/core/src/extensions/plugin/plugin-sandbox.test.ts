@@ -21,6 +21,7 @@ function createApiCapture() {
 		registerMessageBuilder: (
 			builder: AgentExtensionMessageBuilder<Message[]>,
 		) => messageBuilders.push(builder),
+		registerRule: () => {},
 		registerProvider: () => {},
 		registerAutomationEventType: (eventType: unknown) =>
 			automationEventTypes.push(eventType),
@@ -302,7 +303,9 @@ describe("plugin-sandbox", () => {
 			pluginPaths: [
 				join(dir, "plugin.mjs"),
 				join(dir, "plugin-events.mjs"),
+				join(dir, "plugin-run-end.mjs"),
 				join(dir, "plugin-automation-events.mjs"),
+				join(dir, "plugin-message-builder.mjs"),
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
 				join(dir, "plugin-sdk.ts"),
@@ -451,68 +454,48 @@ describe("plugin-sandbox", () => {
 	});
 
 	it("runs run_end hooks in sandbox process", async () => {
-		const events: Array<{ name: string; payload?: unknown }> = [];
-		const sandboxed = await loadSandboxedPlugins({
-			pluginPaths: [join(dir, "plugin-run-end.mjs")],
-			onEvent: (event) => {
-				events.push(event);
+		const extension = sharedExtensions.get("sandbox-run-end");
+		expect(typeof extension?.onRunEnd).toBe("function");
+		await extension?.onRunEnd?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			result: {
+				text: "done",
+				usage: { inputTokens: 1, outputTokens: 2 },
+				messages: [],
+				toolCalls: [],
+				iterations: 2,
+				finishReason: "completed",
+				model: { id: "test-model", provider: "test-provider" },
+				startedAt: new Date("2026-04-25T00:00:00.000Z"),
+				endedAt: new Date("2026-04-25T00:00:01.000Z"),
+				durationMs: 1000,
 			},
 		});
-
-		try {
-			const extension = sandboxed.extensions?.[0];
-			expect(typeof extension?.onRunEnd).toBe("function");
-			await extension?.onRunEnd?.({
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				parentAgentId: null,
-				result: {
-					text: "done",
-					usage: { inputTokens: 1, outputTokens: 2 },
-					messages: [],
-					toolCalls: [],
-					iterations: 2,
-					finishReason: "completed",
-					model: { id: "test-model", provider: "test-provider" },
-					startedAt: new Date("2026-04-25T00:00:00.000Z"),
-					endedAt: new Date("2026-04-25T00:00:01.000Z"),
-					durationMs: 1000,
-				},
-			});
-			expect(events).toEqual([
-				{
-					name: "run_end_hook",
-					payload: { finishReason: "completed", iterations: 2 },
-				},
-			]);
-		} finally {
-			await sandboxed.shutdown();
-		}
+		expect(forwardedEvents).toEqual([
+			{
+				name: "run_end_hook",
+				payload: { finishReason: "completed", iterations: 2 },
+			},
+		]);
 	});
 
 	it("runs message builders in the sandbox process", async () => {
-		const sandboxed = await loadSandboxedPlugins({
-			pluginPaths: [join(dir, "plugin-message-builder.mjs")],
-		});
-
-		try {
-			const extension = sandboxed.extensions?.[0];
-			const { messageBuilders, api } = createApiCapture();
-			await extension?.setup?.(api, {});
-			expect(messageBuilders).toHaveLength(1);
-			const result = await messageBuilders[0]?.build([
-				{ role: "user", content: [{ type: "text", text: "original" }] },
-			]);
-			expect(result).toEqual([
-				{ role: "user", content: [{ type: "text", text: "original" }] },
-				{
-					role: "user",
-					content: [{ type: "text", text: "from sandbox builder" }],
-				},
-			]);
-		} finally {
-			await sandboxed.shutdown();
-		}
+		const extension = sharedExtensions.get("sandbox-message-builder");
+		const { messageBuilders, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		expect(messageBuilders).toHaveLength(1);
+		const result = await messageBuilders[0]?.build([
+			{ role: "user", content: [{ type: "text", text: "original" }] },
+		]);
+		expect(result).toEqual([
+			{ role: "user", content: [{ type: "text", text: "original" }] },
+			{
+				role: "user",
+				content: [{ type: "text", text: "from sandbox builder" }],
+			},
+		]);
 	});
 
 	it("loads TypeScript plugins in the sandbox process", async () => {
@@ -605,7 +588,7 @@ describe("plugin-sandbox", () => {
 		expect(result).toEqual({ echoed: "ok" });
 	});
 
-	it("filters sandbox plugins by manifest providerIds and modelIds", async () => {
+	it("loads sandbox plugins matching manifest providerIds and modelIds", async () => {
 		const matched = await loadSandboxedPlugins({
 			pluginPaths: [join(dir, "plugin-targeted.mjs")],
 			providerId: "openai",
@@ -620,7 +603,9 @@ describe("plugin-sandbox", () => {
 		} finally {
 			await matched.shutdown();
 		}
+	}, 15_000);
 
+	it("filters sandbox plugins with non-matching manifest providerIds and modelIds", async () => {
 		const filtered = await loadSandboxedPlugins({
 			pluginPaths: [join(dir, "plugin-targeted.mjs")],
 			providerId: "anthropic",

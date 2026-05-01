@@ -9,7 +9,10 @@ import { createSessionId } from "@clinebot/shared";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
-import type { RuntimeHost } from "../../runtime/host/runtime-host";
+import type {
+	PendingPromptsRuntimeService,
+	RuntimeHost,
+} from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
@@ -26,6 +29,7 @@ import {
 	resolvePendingApproval,
 } from "./handlers/approval-handlers";
 import {
+	cancelPendingCapabilityRequests,
 	handleCapabilityRequest,
 	handleCapabilityRespond,
 	requestCapability as requestCapabilityHandler,
@@ -63,14 +67,11 @@ import {
 	handleSessionUpdate,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
-import {
-	eventNameForScheduleCommand,
-	formatHubUptime,
-	type HubSessionState,
-	logHubBoundaryError,
-} from "./helpers";
+import { eventNameForScheduleCommand } from "./hub-schedule-events";
+import { logHubBoundaryError } from "./hub-server-logging";
+import type { HubWebSocketServerOptions } from "./hub-server-options";
+import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
-import type { HubWebSocketServerOptions } from "./types";
 
 const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
@@ -171,9 +172,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly settings: CoreSettingsService;
 	private readonly cronService?: CronService;
-	private readonly sessionHost: RuntimeHost;
+	private readonly sessionHost: RuntimeHost &
+		Partial<PendingPromptsRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
-	private readonly startedAtMs = Date.now();
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
@@ -266,13 +267,11 @@ export class HubServerTransport implements NativeHubTransport {
 				reason: "Hub shutting down before approval was resolved.",
 			});
 		}
-		for (const pending of this.pendingCapabilityRequests.values()) {
-			pending.resolve({
-				ok: false,
-				error: "Hub shutting down before capability request was resolved.",
-			});
-		}
-		this.pendingCapabilityRequests.clear();
+		cancelPendingCapabilityRequests(
+			this.ctx,
+			() => true,
+			"Hub shutting down before capability request was resolved.",
+		);
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {
@@ -285,10 +284,6 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
-		const uptimeMs = Date.now() - this.startedAtMs;
-		console.error(
-			`[hub] command=${envelope.command} uptime=${formatHubUptime(uptimeMs)} client=${envelope.clientId ?? "unknown"} session=${envelope.sessionId ?? "-"}`,
-		);
 		switch (envelope.command) {
 			case "client.register":
 				return handleClientRegister(this.ctx, envelope);
@@ -297,6 +292,7 @@ export class HubServerTransport implements NativeHubTransport {
 			case "client.unregister":
 				return handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
+					this.detachClientFromSessions(clientId);
 				});
 			case "client.list":
 				return handleClientList(this.ctx, envelope);
@@ -461,6 +457,20 @@ export class HubServerTransport implements NativeHubTransport {
 				this.listeners.delete(clientId);
 			}
 		};
+	}
+
+	private detachClientFromSessions(clientId: string): void {
+		for (const [sessionId, state] of this.sessionState.entries()) {
+			state.participants.delete(clientId);
+			if (state.participants.size === 0) {
+				this.sessionState.delete(sessionId);
+			}
+		}
+		cancelPendingCapabilityRequests(
+			this.ctx,
+			(request) => request.targetClientId === clientId,
+			`Capability owner client ${clientId} disconnected before request was resolved.`,
+		);
 	}
 
 	private publish(event: HubEventEnvelope): void {

@@ -4,8 +4,7 @@ import { basename, resolve } from "node:path";
 import {
 	buildWorkspaceMetadata,
 	mergeRulesForSystemPrompt,
-	resolveRuntimeSlashCommandFromWatcher,
-	type UserInstructionConfigWatcher,
+	type UserInstructionConfigService,
 } from "@clinebot/core";
 import { type AgentMode, buildClineSystemPrompt } from "@clinebot/shared";
 import { isImagePath, loadImageAsDataUrl } from "../utils/image-attachments";
@@ -97,19 +96,16 @@ function resolveMentionPath(filePath: string): string {
 
 export async function buildUserInputMessage(
 	rawPrompt: string,
-	userInstructionWatcher?: UserInstructionConfigWatcher,
+	userInstructionService?: UserInstructionConfigService,
 ): Promise<{
 	prompt: string;
 	userImages: string[];
 	userFiles: string[];
 }> {
-	// First, resolve slash commands if watcher is available
+	// First, resolve slash commands if the core config service is available.
 	let prompt = rawPrompt;
-	if (userInstructionWatcher) {
-		prompt = await resolveRuntimeSlashCommandFromWatcher(
-			rawPrompt,
-			userInstructionWatcher,
-		);
+	if (userInstructionService) {
+		prompt = userInstructionService.resolveRuntimeSlashCommand(rawPrompt);
 	}
 
 	if (!hasFileMentions(prompt)) {

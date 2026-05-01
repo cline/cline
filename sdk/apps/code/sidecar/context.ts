@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
@@ -5,11 +6,23 @@ import {
 	ClineCore,
 	type CoreSessionEvent,
 	NodeHubClient,
+	type RuntimeCapabilities,
 	setHomeDirIfUnset,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolContext,
 } from "@clinebot/core";
 import type { AgentEvent } from "@clinebot/shared";
 import { sessionLogPath } from "./paths";
-import type { LiveSession, PromptInQueue, SidecarContext } from "./types";
+import type {
+	LiveSession,
+	PendingAskQuestion,
+	PendingToolApproval,
+	PromptInQueue,
+	SidecarContext,
+} from "./types";
+
+const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -370,6 +383,7 @@ export function createSidecarContext(workspaceRoot: string): SidecarContext {
 		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
+		pendingQuestions: new Map(),
 		sessionManager: null,
 		hubClient: null,
 		workspaceRoot,
@@ -394,7 +408,15 @@ export async function disposeSidecarContext(
 		}
 	}
 	ctx.wsClients.clear();
+	for (const pending of ctx.pendingApprovals.values()) {
+		pending.resolve({ approved: false, reason });
+	}
 	ctx.pendingApprovals.clear();
+	for (const pending of ctx.pendingQuestions.values()) {
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+	}
+	ctx.pendingQuestions.clear();
 
 	const hubClient = ctx.hubClient;
 	ctx.hubClient = null;
@@ -417,53 +439,117 @@ export async function disposeSidecarContext(
 	}
 }
 
-export function handleHubApprovalEvent(
+function serializeQuestionContext(
+	context: ToolContext,
+): PendingAskQuestion["item"]["context"] {
+	return {
+		agentId: context.agentId,
+		conversationId: context.conversationId,
+		iteration: context.iteration,
+		...(context.metadata ? { metadata: context.metadata } : {}),
+	};
+}
+
+export function requestSidecarAskQuestion(
 	ctx: SidecarContext,
-	event: {
-		event: string;
-		sessionId?: string;
-		payload?: Record<string, unknown>;
-	},
-): void {
-	if (event.event !== "approval.requested") {
-		return;
+	question: string,
+	options: string[],
+	context: ToolContext,
+): Promise<string> {
+	const choices = options
+		.map((option) => option.trim())
+		.filter((option) => option.length > 0)
+		.slice(0, 5);
+	if (choices.length === 0) {
+		return Promise.resolve("");
 	}
-	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
-	const approvalId =
-		typeof event.payload?.approvalId === "string"
-			? event.payload.approvalId.trim()
-			: "";
-	if (!sessionId || !approvalId) {
-		return;
-	}
-	const requestId = approvalId;
-	ctx.pendingApprovals.set(requestId, {
-		approvalId,
-		item: {
-			requestId,
-			sessionId,
-			createdAt: new Date().toISOString(),
-			toolCallId:
-				typeof event.payload?.toolCallId === "string"
-					? event.payload.toolCallId
-					: "",
-			toolName:
-				typeof event.payload?.toolName === "string"
-					? event.payload.toolName
-					: "tool",
-			input:
-				typeof event.payload?.inputJson === "string"
-					? event.payload.inputJson
-					: undefined,
-			conversationId: sessionId,
-		},
+
+	return new Promise<string>((resolve, reject) => {
+		const requestId = randomUUID();
+		const timeoutId = setTimeout(() => {
+			ctx.pendingQuestions.delete(requestId);
+			reject(
+				new Error(
+					`Ask question request timed out after ${ASK_QUESTION_TIMEOUT_MS}ms`,
+				),
+			);
+			sendEvent(ctx, "ask_question_cancelled", {
+				requestId,
+				reason: "timeout",
+			});
+		}, ASK_QUESTION_TIMEOUT_MS);
+		const pending: PendingAskQuestion = {
+			item: {
+				requestId,
+				createdAt: new Date().toISOString(),
+				question,
+				options: choices,
+				context: serializeQuestionContext(context),
+			},
+			resolve,
+			reject,
+			timeoutId,
+		};
+		ctx.pendingQuestions.set(requestId, pending);
+		sendEvent(ctx, "ask_question_requested", pending.item);
 	});
-	const sessionApprovals = Array.from(ctx.pendingApprovals.values())
-		.filter((approval) => approval.item.sessionId === sessionId)
-		.map((approval) => approval.item);
-	sendEvent(ctx, "tool_approval_state", {
-		sessionId,
-		items: sessionApprovals,
+}
+
+export function resolveSidecarAskQuestion(
+	ctx: SidecarContext,
+	requestId: string,
+	answer: string,
+): boolean {
+	const pending = ctx.pendingQuestions.get(requestId);
+	if (!pending) {
+		return false;
+	}
+	ctx.pendingQuestions.delete(requestId);
+	if (pending.timeoutId) clearTimeout(pending.timeoutId);
+	pending.resolve(answer);
+	return true;
+}
+
+export function createSidecarRuntimeCapabilities(
+	ctx: SidecarContext,
+): RuntimeCapabilities {
+	return {
+		toolExecutors: {
+			askQuestion: (question, options, context) =>
+				requestSidecarAskQuestion(ctx, question, options, context),
+		},
+		requestToolApproval: (request) => requestSidecarToolApproval(ctx, request),
+	};
+}
+
+function requestSidecarToolApproval(
+	ctx: SidecarContext,
+	request: ToolApprovalRequest,
+): Promise<ToolApprovalResult> {
+	return new Promise<ToolApprovalResult>((resolve) => {
+		const requestId = randomUUID();
+		const pending: PendingToolApproval = {
+			item: {
+				requestId,
+				sessionId: request.sessionId,
+				createdAt: new Date().toISOString(),
+				toolCallId: request.toolCallId,
+				toolName: request.toolName,
+				input: request.input,
+				iteration: request.iteration,
+				agentId: request.agentId,
+				conversationId: request.conversationId,
+			},
+			resolve,
+		};
+		ctx.pendingApprovals.set(requestId, pending);
+		const sessionApprovals = Array.from(ctx.pendingApprovals.values())
+			.filter((approval) => approval.item.sessionId === request.sessionId)
+			.map((approval) => approval.item);
+		sendEvent(ctx, "tool_approval_state", {
+			sessionId: request.sessionId,
+			items: sessionApprovals,
+		});
 	});
 }
 
@@ -598,6 +684,7 @@ export async function initializeSessionManager(
 	setHomeDirIfUnset(homedir());
 	const sessionManager = await ClineCore.create({
 		backendMode: "hub",
+		capabilities: createSidecarRuntimeCapabilities(ctx),
 		hub: {
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
@@ -623,7 +710,6 @@ export async function initializeSessionManager(
 		});
 		await hubClient.connect();
 		hubClient.subscribe((event) => {
-			handleHubApprovalEvent(ctx, event);
 			handleHubLiveEvent(ctx, event);
 		});
 	}

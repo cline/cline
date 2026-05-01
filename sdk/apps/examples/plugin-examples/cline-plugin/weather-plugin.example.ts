@@ -182,7 +182,7 @@ const plugin: AgentPlugin = {
 };
 
 async function runDemo(): Promise<void> {
-	const sessionManager = await ClineCore.create({});
+	const sessionManager = await ClineCore.create({ backendMode: "local" });
 
 	try {
 		const result = await sessionManager.start({

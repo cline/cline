@@ -377,13 +377,26 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						);
 					}
 					case "ext": {
+						const stateLabel =
+							typeof row.enabled === "boolean"
+								? row.enabled
+									? "Enabled"
+									: "Disabled"
+								: undefined;
+						const rightLabel = stateLabel
+							? `${stateLabel} · ${row.source}`
+							: row.source;
 						return (
 							<box
 								key={absIdx}
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : "gray"}>
+								<text
+									fg={
+										isSel ? "cyan" : row.enabled === false ? "gray" : undefined
+									}
+								>
 									{pfx}
 									{typeof row.enabled === "boolean"
 										? row.enabled
@@ -392,7 +405,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 										: ""}
 									{getConfigItemDisplayName(row.name)}
 								</text>
-								<text fg={getSourceColor(row.source)}>{row.source}</text>
+								<text
+									fg={
+										row.enabled === false ? "gray" : getSourceColor(row.source)
+									}
+								>
+									{rightLabel}
+								</text>
 							</box>
 						);
 					}

@@ -38,6 +38,38 @@ function clampSidebarWidth(value: number): number {
 	return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, value));
 }
 
+function setCookieValue(name: string, value: string | number | boolean): void {
+	const cookie = `${encodeURIComponent(name)}=${encodeURIComponent(
+		String(value),
+	)}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+	const cookieStore = (
+		globalThis as {
+			cookieStore?: {
+				set(options: {
+					name: string;
+					value: string;
+					path: string;
+					expires: number;
+				}): Promise<void>;
+			};
+		}
+	).cookieStore;
+	if (cookieStore) {
+		void cookieStore.set({
+			name,
+			value: String(value),
+			path: "/",
+			expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
+		});
+		return;
+	}
+	const cookieSetter = Object.getOwnPropertyDescriptor(
+		Document.prototype,
+		"cookie",
+	)?.set;
+	cookieSetter?.call(document, cookie);
+}
+
 function getCookieValue(name: string): string | null {
 	if (typeof document === "undefined") {
 		return null;
@@ -116,8 +148,7 @@ function SidebarProvider({
 				_setOpen(openState);
 			}
 
-			// This sets the cookie to keep the sidebar state.
-			document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+			setCookieValue(SIDEBAR_COOKIE_NAME, openState);
 		},
 		[setOpenProp, open],
 	);
@@ -130,7 +161,7 @@ function SidebarProvider({
 	const setDesktopWidth = React.useCallback((width: number) => {
 		const next = clampSidebarWidth(width);
 		setDesktopWidthState(next);
-		document.cookie = `${SIDEBAR_WIDTH_COOKIE_NAME}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+		setCookieValue(SIDEBAR_WIDTH_COOKIE_NAME, next);
 	}, []);
 
 	// Adds a keyboard shortcut to toggle the sidebar.

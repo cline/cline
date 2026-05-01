@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import * as os from "node:os";
 import { basename, join } from "node:path";
 import {
@@ -6,12 +5,15 @@ import {
 	buildWorkspaceMetadata,
 	ClineCore,
 	createConfiguredTelemetryService,
+	createLocalHubScheduleRuntimeHandlers,
+	ensureHubWebSocketServer,
 	type ITelemetryService,
 	Llms,
 	NodeHubClient,
 	type ProviderModel,
 	ProviderSettingsManager,
 	probeHubServer,
+	type RuntimeCapabilities,
 	readHubDiscovery,
 	resolveSharedHubOwnerContext,
 	type ToolPolicy,
@@ -23,6 +25,7 @@ import {
 } from "@clinebot/shared";
 import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
+import { createVsCodeRuntimeCapabilities } from "./runtime-capabilities";
 import type {
 	WebviewChatMessage,
 	WebviewInboundMessage,
@@ -31,6 +34,7 @@ import type {
 } from "./webview-protocol";
 
 const SESSION_REFRESH_INTERVAL_MS = 4_000;
+const SESSION_HISTORY_LIMIT = 50;
 const HUB_DAEMON_TIMEOUT_MS = 8_000;
 const HUB_POLL_INTERVAL_MS = 200;
 const REFRESH_SESSION_EVENTS = new Set([
@@ -141,6 +145,11 @@ type HubEventEnvelope = {
 	event: string;
 	sessionId?: string;
 	payload?: Record<string, unknown>;
+};
+
+type HubResolution = {
+	url: string;
+	authToken?: string;
 };
 
 type LlmModelInfo = {
@@ -394,6 +403,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 	private sessionId: string | undefined;
 	private startConfig: StartConfig | undefined;
 	private hubUrl: string | undefined;
+	private hubAuthToken: string | undefined;
 	private sending = false;
 
 	constructor(
@@ -507,17 +517,21 @@ class CoreChatWebviewController implements vscode.Disposable {
 				this.hubClient.close();
 				this.hubClient = undefined;
 				this.hubUrl = undefined;
+				this.hubAuthToken = undefined;
 			}
 		}
 
-		this.hubUrl = await this.discoverOrSpawnHub();
-		if (!this.hubUrl) {
+		const hub = await this.discoverOrStartHub();
+		if (!hub) {
 			throw new Error("No compatible hub runtime is available.");
 		}
+		this.hubUrl = hub.url;
+		this.hubAuthToken = hub.authToken;
 
 		const defaults = this.resolveWorkspaceDefaults();
 		this.hubClient = new NodeHubClient({
 			url: this.hubUrl,
+			authToken: this.hubAuthToken,
 			clientType: "vscode",
 			displayName: "VS Code",
 			workspaceRoot: defaults.workspaceRoot,
@@ -529,23 +543,29 @@ class CoreChatWebviewController implements vscode.Disposable {
 		});
 	}
 
-	private async discoverOrSpawnHub(): Promise<string | undefined> {
+	private async discoverOrStartHub(): Promise<HubResolution | undefined> {
 		const owner = resolveSharedHubOwnerContext();
 
 		if (this.hubUrl) {
 			const healthy = await probeHubServer(this.hubUrl);
-			if (healthy?.url) return healthy.url;
+			if (healthy?.url) {
+				return { url: healthy.url, authToken: this.hubAuthToken };
+			}
 		}
 
-		const url = await this.probeDiscoveredHub(owner.discoveryPath);
-		if (url) return url;
+		const discovered = await this.probeDiscoveredHub(owner.discoveryPath);
+		if (discovered) return discovered;
 
-		this.spawnHubDaemon();
+		await ensureHubWebSocketServer({
+			owner,
+			allowPortFallback: true,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
 
 		const deadline = Date.now() + HUB_DAEMON_TIMEOUT_MS;
 		while (Date.now() < deadline) {
-			const url = await this.probeDiscoveredHub(owner.discoveryPath);
-			if (url) return url;
+			const next = await this.probeDiscoveredHub(owner.discoveryPath);
+			if (next) return next;
 			await new Promise((resolve) => setTimeout(resolve, HUB_POLL_INTERVAL_MS));
 		}
 		return undefined;
@@ -553,35 +573,13 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async probeDiscoveredHub(
 		discoveryPath: string,
-	): Promise<string | undefined> {
+	): Promise<HubResolution | undefined> {
 		const discovery = await readHubDiscovery(discoveryPath);
 		if (!discovery?.url) return undefined;
 		const healthy = await probeHubServer(discovery.url);
-		return healthy?.url;
-	}
-
-	private spawnHubDaemon(): void {
-		const defaults = this.resolveWorkspaceDefaults();
-		const daemonScriptPath = join(
-			this.extensionUri.fsPath,
-			"dist",
-			"hub-daemon.js",
-		);
-		const payload = Buffer.from(
-			JSON.stringify({
-				workspaceRoot: defaults.workspaceRoot,
-				cwd: defaults.cwd,
-				systemPrompt: "",
-			}),
-			"utf8",
-		).toString("base64");
-		const child = spawn(process.execPath, [daemonScriptPath, payload], {
-			cwd: this.extensionUri.fsPath,
-			detached: true,
-			stdio: "ignore",
-			env: process.env,
-		});
-		child.unref();
+		return healthy?.url
+			? { url: healthy.url, authToken: discovery.authToken }
+			: undefined;
 	}
 
 	private async initializeWebview(): Promise<void> {
@@ -739,7 +737,12 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async refreshSessions(): Promise<void> {
 		const host = await this.getSessionHost();
-		const sessions = (await host.list(200, { hydrate: false }))
+		const sessions = (
+			await host.list(SESSION_HISTORY_LIMIT, {
+				hydrate: false,
+				includeManifestFallback: true,
+			})
+		)
 			.sort(
 				(a, b) =>
 					(parseSessionTimestamp(b.updatedAt) ?? 0) -
@@ -1156,8 +1159,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 			const defaults = this.resolveWorkspaceDefaults();
 			this.host = await ClineCore.create({
 				backendMode: "hub",
+				capabilities: this.createRuntimeCapabilities(),
 				hub: {
 					endpoint: this.hubUrl,
+					authToken: this.hubAuthToken,
 					clientType: "vscode",
 					displayName: "VS Code",
 					workspaceRoot: defaults.workspaceRoot,
@@ -1168,6 +1173,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 			this.stopHostSubscription = this.host.subscribe(() => {});
 		}
 		return this.host;
+	}
+
+	private createRuntimeCapabilities(): RuntimeCapabilities {
+		return createVsCodeRuntimeCapabilities({ ui: vscode.window });
 	}
 
 	private async restore(checkpointRunCount: number): Promise<void> {

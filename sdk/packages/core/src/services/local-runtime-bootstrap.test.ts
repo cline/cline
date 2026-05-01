@@ -38,11 +38,15 @@ function createSpawnTool() {
 
 describe("prepareLocalRuntimeBootstrap", () => {
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	let resetModulesAfterEach = false;
 
 	afterEach(() => {
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
-		vi.resetModules();
 		vi.doUnmock("../extensions/plugin/plugin-config-loader");
+		if (resetModulesAfterEach) {
+			vi.resetModules();
+			resetModulesAfterEach = false;
+		}
 	});
 
 	it("applies hub model catalog defaults during local runtime bootstrap", async () => {
@@ -61,9 +65,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			sessionId: "sess-1",
 			providerSettingsManager: createProviderSettingsManager() as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -100,9 +102,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				},
 			}) as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -117,6 +117,8 @@ describe("prepareLocalRuntimeBootstrap", () => {
 	});
 
 	it("filters globally disabled plugin tools before extension setup", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
 		const tempRoot = mkdtempSync(join(tmpdir(), "local-bootstrap-global-"));
 		const settingsPath = join(tempRoot, "global-settings.json");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
@@ -153,9 +155,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			sessionId: "sess-1",
 			providerSettingsManager: createProviderSettingsManager() as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -164,12 +164,16 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		const registeredTools: string[] = [];
-		bootstrap.extensions?.[0]?.setup?.(
+		const plugin = bootstrap.extensions?.find(
+			(extension) => extension.name === "plugin-a",
+		);
+		plugin?.setup?.(
 			{
 				registerTool: (tool: { name: string }) =>
 					registeredTools.push(tool.name),
 				registerCommand: () => {},
 				registerMessageBuilder: () => {},
+				registerRule: () => {},
 				registerProvider: () => {},
 				registerAutomationEventType: () => {},
 			},
@@ -180,6 +184,8 @@ describe("prepareLocalRuntimeBootstrap", () => {
 	});
 
 	it("loads only provider/model-compatible plugins during bootstrap", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
 		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
 			resolveAndLoadAgentPlugins: vi.fn(
 				async ({
@@ -235,9 +241,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			sessionId: "sess-1",
 			providerSettingsManager: createProviderSettingsManager() as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -246,12 +250,16 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		const registeredTools: string[] = [];
-		bootstrap.extensions?.[0]?.setup?.(
+		const plugin = bootstrap.extensions?.find(
+			(extension) => extension.name === "plugin-compatible",
+		);
+		plugin?.setup?.(
 			{
 				registerTool: (tool: { name: string }) =>
 					registeredTools.push(tool.name),
 				registerCommand: () => {},
 				registerMessageBuilder: () => {},
+				registerRule: () => {},
 				registerProvider: () => {},
 				registerAutomationEventType: () => {},
 			},
@@ -272,9 +280,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			sessionId: "sess-fetch",
 			providerSettingsManager: createProviderSettingsManager() as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			defaultFetch: customFetch,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
@@ -301,9 +307,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			sessionId: "sess-fetch-override",
 			providerSettingsManager: createProviderSettingsManager() as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			defaultFetch,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
@@ -325,9 +329,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			sessionId: "sess-no-fetch",
 			providerSettingsManager: createProviderSettingsManager() as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -363,9 +365,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				},
 			}) as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -422,9 +422,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				},
 			}) as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,
@@ -476,9 +474,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				},
 			}) as never,
 			defaultTelemetry: undefined,
-			defaultToolExecutors: undefined,
 			defaultToolPolicies: undefined,
-			defaultRequestToolApproval: undefined,
 			onPluginEvent: () => {},
 			onTeamEvent: () => {},
 			createSpawnTool,

@@ -4,7 +4,7 @@ import {
 } from "@chat-adapter/discord";
 import type { ChatStartSessionRequest } from "@clinebot/core";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	HubSessionClient,
 } from "@clinebot/core";
 import type {
@@ -523,12 +523,12 @@ class DiscordConnector extends ConnectorBase<
 				userName: options.userName,
 			},
 		});
-		const userInstructionWatcher = createUserInstructionConfigWatcher({
+		const userInstructionService = createUserInstructionConfigService({
 			skills: { workspacePath: startRequest.cwd },
 			rules: { workspacePath: startRequest.cwd },
 			workflows: { workspacePath: startRequest.cwd },
 		});
-		await userInstructionWatcher.start().catch(() => undefined);
+		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
@@ -607,7 +607,7 @@ class DiscordConnector extends ConnectorBase<
 						systemRules: DISCORD_SYSTEM_RULES,
 						errorLabel: "Discord",
 						firstContactMessage: DISCORD_FIRST_CONTACT_MESSAGE,
-						userInstructionWatcher,
+						userInstructionService,
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
@@ -795,7 +795,7 @@ class DiscordConnector extends ConnectorBase<
 		);
 		if (!gatewayStartResponse.ok) {
 			stopTaskUpdateStream();
-			userInstructionWatcher.stop();
+			userInstructionService.stop();
 			client.close();
 			this.removeStateFile(statePath);
 			io.writeErr(
@@ -887,7 +887,7 @@ class DiscordConnector extends ConnectorBase<
 		stopEventStream();
 		await gatewayTask?.catch(() => undefined);
 		await server.close();
-		userInstructionWatcher.stop();
+		userInstructionService.stop();
 		client.close();
 		this.removeStateFile(statePath);
 		return 0;

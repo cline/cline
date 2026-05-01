@@ -60,6 +60,16 @@ async function sendRawHttpRequest(
 	});
 }
 
+function requireServer(
+	server: HubWebSocketServer | undefined,
+): HubWebSocketServer {
+	expect(server).toBeDefined();
+	if (!server) {
+		throw new Error("Expected hub server to be defined");
+	}
+	return server;
+}
+
 describe("hub server startup", () => {
 	const servers = new Set<HubWebSocketServer>();
 
@@ -93,8 +103,8 @@ describe("hub server startup", () => {
 		});
 		expect(result.url).toBe(`ws://127.0.0.1:${port}/hub`);
 		expect(result.action).toBe("started");
-		expect(result.server).toBeDefined();
-		servers.add(result.server!);
+		const server = requireServer(result.server);
+		servers.add(server);
 
 		await expect(readHubDiscovery(owner.discoveryPath)).resolves.toMatchObject({
 			port,
@@ -163,9 +173,9 @@ describe("hub server startup", () => {
 			});
 
 			expect(result.action).toBe("started");
-			expect(result.server).toBeDefined();
-			expect(result.server?.port).not.toBe(port);
-			servers.add(result.server!);
+			const server = requireServer(result.server);
+			expect(server.port).not.toBe(port);
+			servers.add(server);
 		} finally {
 			await new Promise<void>((resolve, reject) => {
 				blocker.close((error) => {
@@ -189,8 +199,8 @@ describe("hub server startup", () => {
 			pathname: "/hub",
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
-		expect(result.server).toBeDefined();
-		servers.add(result.server!);
+		const server = requireServer(result.server);
+		servers.add(server);
 
 		const shutdownUrl = new URL(toHubHealthUrl(result.url));
 		shutdownUrl.pathname = "/shutdown";
@@ -208,7 +218,7 @@ describe("hub server startup", () => {
 
 		for (let index = 0; index < 50; index += 1) {
 			if ((await readHubDiscovery(owner.discoveryPath)) === undefined) {
-				servers.delete(result.server!);
+				servers.delete(server);
 				return;
 			}
 			await new Promise((resolve) => setTimeout(resolve, 20));
@@ -228,8 +238,7 @@ describe("hub server startup", () => {
 			pathname: "/hub",
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
-		expect(result.server).toBeDefined();
-		servers.add(result.server!);
+		servers.add(requireServer(result.server));
 
 		const shutdownUrl = new URL(toHubHealthUrl(result.url));
 		shutdownUrl.pathname = "/shutdown";
@@ -259,8 +268,7 @@ describe("hub server startup", () => {
 			pathname: "/hub",
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
-		expect(result.server).toBeDefined();
-		servers.add(result.server!);
+		servers.add(requireServer(result.server));
 
 		const hubUrl = new URL(result.url);
 
@@ -299,8 +307,7 @@ describe("hub server startup", () => {
 				pathname: "/hub",
 				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			});
-			expect(result.server).toBeDefined();
-			servers.add(result.server!);
+			servers.add(requireServer(result.server));
 
 			const hubUrl = new URL(result.url);
 			const discovery = await readHubDiscovery(owner.discoveryPath);

@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-	HookConfigFileName,
-	toHookConfigFileName,
-} from "./hooks-config-loader";
+import { HookConfigFileName, toHookConfigFileName } from "./hook-file-config";
 
-describe("hooks config loader", () => {
+describe("hook file config", () => {
 	afterEach(() => {
 		delete process.env.CLINE_DATA_DIR;
 	});

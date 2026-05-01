@@ -963,13 +963,20 @@ export interface AgentConfig {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Optional guard that runs when the model returns no tool calls.
+	 * First-class runtime completion policy. Tool-based completion is resolved
+	 * from the final agent tool list, so built-in and plugin tools can opt in
+	 * with `lifecycle.completesRun`.
+	 *
+	 * `completionGuard` runs when the model returns no tool calls.
 	 * If it returns a non-empty string, that string is injected as a
 	 * system-level nudge and the loop continues instead of completing.
 	 * Use this to prevent premature exit when the agent has unfinished
 	 * obligations (e.g. in-progress team tasks).
 	 */
-	completionGuard?: () => string | undefined;
+	completionPolicy?: {
+		requireCompletionTool?: boolean;
+		completionGuard?: () => string | undefined;
+	};
 
 	// -------------------------------------------------------------------------
 	// Pending User Messages

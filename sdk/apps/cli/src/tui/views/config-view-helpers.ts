@@ -135,7 +135,9 @@ export function resolveConfigItemSelectAction(
 ): ConfigAction {
 	if (
 		typeof item.enabled === "boolean" &&
-		(item.source === "workspace-plugin" || item.source === "global-plugin")
+		(item.kind === "plugin" ||
+			item.source === "workspace-plugin" ||
+			item.source === "global-plugin")
 	) {
 		return { kind: "toggle-item", item };
 	}

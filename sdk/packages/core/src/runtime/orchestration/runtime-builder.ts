@@ -1,5 +1,3 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import type {
 	BasicLogger,
 	RuntimeConfigExtensionKind,
@@ -7,13 +5,8 @@ import type {
 	Tool,
 } from "@clinebot/shared";
 import { hasRuntimeConfigExtension } from "@clinebot/shared";
-import { resolveSkillsConfigSearchPaths } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
-import {
-	createUserInstructionConfigWatcher,
-	type SkillConfig,
-	type UserInstructionConfigWatcher,
-} from "../../extensions/config";
+import { createUserInstructionConfigService } from "../../extensions/config";
 import {
 	createDefaultMcpServerClientFactory,
 	createMcpTools,
@@ -27,7 +20,7 @@ import {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
-	type SkillsExecutor,
+	type SkillsExecutorWithMetadata,
 	type ToolExecutors,
 	ToolPresets,
 	type ToolRoutingRule,
@@ -49,17 +42,6 @@ import type {
 	RuntimeBuilderInput,
 	BuiltRuntime as RuntimeEnvironment,
 } from "./session-runtime";
-
-type SkillsExecutorMetadataItem = {
-	id: string;
-	name: string;
-	description?: string;
-	disabled: boolean;
-};
-
-type SkillsExecutorWithMetadata = SkillsExecutor & {
-	configuredSkills?: SkillsExecutorMetadataItem[];
-};
 
 function hasConfigExtension(
 	extensions: ReadonlyArray<RuntimeConfigExtensionKind> | undefined,
@@ -139,111 +121,28 @@ function createBuiltinToolsList(
 	);
 }
 
-const SKILL_FILE_NAME = "SKILL.md";
-
-function listAvailableSkillNames(
-	watcher: UserInstructionConfigWatcher,
-	allowedSkillNames?: ReadonlyArray<string>,
-): string[] {
-	return getConfiguredSkills(watcher, allowedSkillNames)
-		.filter((skill) => !skill.disabled)
-		.map((skill) => skill.name.trim())
-		.filter((name) => name.length > 0)
-		.sort((a, b) => a.localeCompare(b));
+function isSkillsToolEnabledForSession(input: {
+	cwd: string;
+	providerId: string;
+	mode: CoreAgentMode;
+	modelId: string;
+	toolRoutingRules?: ToolRoutingRule[];
+	toolPolicies?: CoreSessionConfig["toolPolicies"];
+	toolExecutors?: Partial<ToolExecutors>;
+}): boolean {
+	return createBuiltinToolsList(
+		input.cwd,
+		input.providerId,
+		input.mode,
+		input.modelId,
+		input.toolRoutingRules,
+		input.toolPolicies,
+		SKILLS_PROBE_EXECUTOR,
+		input.toolExecutors,
+	).some((tool) => tool.name === "skills");
 }
 
-function normalizeSkillToken(token: string): string {
-	return token.trim().replace(/^\/+/, "").toLowerCase();
-}
-
-function toAllowedSkillSet(
-	allowedSkillNames?: ReadonlyArray<string>,
-): Set<string> | undefined {
-	if (!allowedSkillNames || allowedSkillNames.length === 0) {
-		return undefined;
-	}
-	const normalized = allowedSkillNames
-		.map(normalizeSkillToken)
-		.filter((token) => token.length > 0);
-	return normalized.length > 0 ? new Set(normalized) : undefined;
-}
-
-function isSkillAllowed(
-	skillId: string,
-	skillName: string,
-	allowedSkills?: Set<string>,
-): boolean {
-	if (!allowedSkills) {
-		return true;
-	}
-	const normalizedId = normalizeSkillToken(skillId);
-	const normalizedName = normalizeSkillToken(skillName);
-	const bareId = normalizedId.includes(":")
-		? (normalizedId.split(":").at(-1) ?? normalizedId)
-		: normalizedId;
-	const bareName = normalizedName.includes(":")
-		? (normalizedName.split(":").at(-1) ?? normalizedName)
-		: normalizedName;
-	return (
-		allowedSkills.has(normalizedId) ||
-		allowedSkills.has(normalizedName) ||
-		allowedSkills.has(bareId) ||
-		allowedSkills.has(bareName)
-	);
-}
-
-type ConfiguredSkill = SkillsExecutorMetadataItem & {
-	skill: SkillConfig;
-};
-
-function getConfiguredSkills(
-	watcher: UserInstructionConfigWatcher,
-	allowedSkillNames?: ReadonlyArray<string>,
-): ConfiguredSkill[] {
-	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
-	const snapshot = watcher.getSnapshot("skill");
-	return [...snapshot.entries()]
-		.map(([id, record]) => {
-			const skill = record.item as SkillConfig;
-			return {
-				id,
-				name: skill.name.trim(),
-				description: skill.description?.trim(),
-				disabled: skill.disabled === true,
-				skill,
-			};
-		})
-		.filter((skill) => isSkillAllowed(skill.id, skill.name, allowedSkills));
-}
-
-function hasSkillsFiles(workspacePath: string): boolean {
-	for (const directoryPath of resolveSkillsConfigSearchPaths(workspacePath)) {
-		if (!existsSync(directoryPath)) {
-			continue;
-		}
-
-		const directSkillPath = join(directoryPath, SKILL_FILE_NAME);
-		if (existsSync(directSkillPath)) {
-			return true;
-		}
-
-		try {
-			const entries = readdirSync(directoryPath, { withFileTypes: true });
-			for (const entry of entries) {
-				if (!entry.isDirectory()) {
-					continue;
-				}
-				if (existsSync(join(directoryPath, entry.name, SKILL_FILE_NAME))) {
-					return true;
-				}
-			}
-		} catch {
-			// Ignore inaccessible directories while probing for local skills.
-		}
-	}
-
-	return false;
-}
+const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 
 async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	tools: Tool[];
@@ -301,123 +200,6 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 			await manager.dispose();
 		},
 	};
-}
-
-function resolveSkillRecord(
-	watcher: UserInstructionConfigWatcher,
-	requestedSkill: string,
-	allowedSkillNames?: ReadonlyArray<string>,
-): { id: string; skill: SkillConfig } | { error: string } {
-	const normalized = requestedSkill.trim().replace(/^\/+/, "").toLowerCase();
-	if (!normalized) {
-		return { error: "Missing skill name." };
-	}
-
-	const configuredSkills = getConfiguredSkills(watcher, allowedSkillNames);
-	const exact = configuredSkills.find((entry) => entry.id === normalized);
-	if (exact) {
-		const { skill } = exact;
-		if (skill.disabled === true) {
-			return {
-				error: `Skill "${skill.name}" is configured but disabled.`,
-			};
-		}
-		return {
-			id: exact.id,
-			skill,
-		};
-	}
-
-	const bareName = normalized.includes(":")
-		? (normalized.split(":").at(-1) ?? normalized)
-		: normalized;
-
-	const suffixMatches = configuredSkills.filter(({ id }) => {
-		if (id === bareName) {
-			return true;
-		}
-		return id.endsWith(`:${bareName}`);
-	});
-
-	const enabledSuffixMatches = suffixMatches.filter(
-		({ skill }) => skill.disabled !== true,
-	);
-
-	if (enabledSuffixMatches.length === 1) {
-		const { id, skill } = enabledSuffixMatches[0];
-		return { id, skill };
-	}
-
-	if (enabledSuffixMatches.length > 1) {
-		return {
-			error: `Skill "${requestedSkill}" is ambiguous. Use one of: ${enabledSuffixMatches.map(({ id }) => id).join(", ")}`,
-		};
-	}
-
-	if (suffixMatches.length === 1) {
-		const { skill } = suffixMatches[0];
-		return {
-			error: `Skill "${skill.name}" is configured but disabled.`,
-		};
-	}
-
-	if (suffixMatches.length > 1) {
-		return {
-			error: `Skill "${requestedSkill}" is ambiguous, and all matches are disabled: ${suffixMatches.map(({ id }) => id).join(", ")}`,
-		};
-	}
-
-	const available = listAvailableSkillNames(watcher, allowedSkillNames);
-	return {
-		error:
-			available.length > 0
-				? `Skill "${requestedSkill}" not found. Available skills: ${available.join(", ")}`
-				: "No skills are currently available.",
-	};
-}
-
-function createSkillsExecutor(
-	watcher: UserInstructionConfigWatcher,
-	watcherReady: Promise<void>,
-	allowedSkillNames?: ReadonlyArray<string>,
-): SkillsExecutorWithMetadata {
-	const runningSkills = new Set<string>();
-	const executor: SkillsExecutorWithMetadata = async (skillName, args) => {
-		await watcherReady;
-		const resolved = resolveSkillRecord(watcher, skillName, allowedSkillNames);
-		if ("error" in resolved) {
-			return resolved.error;
-		}
-
-		const { id, skill } = resolved;
-		if (runningSkills.has(id)) {
-			return `Skill "${skill.name}" is already running.`;
-		}
-
-		runningSkills.add(id);
-		try {
-			const trimmedArgs = args?.trim();
-			const argsTag = trimmedArgs
-				? `\n<command-args>${trimmedArgs}</command-args>`
-				: "";
-			const description = skill.description?.trim()
-				? `Description: ${skill.description.trim()}\n\n`
-				: "";
-
-			return `<command-name>${skill.name}</command-name>${argsTag}\n<command-instructions>\n${description}${skill.instructions}\n</command-instructions>`;
-		} finally {
-			runningSkills.delete(id);
-		}
-	};
-	Object.defineProperty(executor, "configuredSkills", {
-		get: () =>
-			getConfiguredSkills(watcher, allowedSkillNames).map(
-				({ skill: _skill, ...metadata }) => metadata,
-			),
-		enumerable: true,
-		configurable: false,
-	});
-	return executor;
 }
 
 function shutdownTeamRuntime(
@@ -519,9 +301,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry,
 			createSpawnTool,
 			onTeamRestored,
-			userInstructionWatcher: sharedUserInstructionWatcher,
+			userInstructionService: sharedUserInstructionService,
 			configExtensions,
-			defaultToolExecutors,
+			toolExecutors,
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
@@ -529,43 +311,59 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const tools: Tool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
+		const rulesEnabled = hasConfigExtension(configExtensions, "rules");
 		const skillsEnabled = hasConfigExtension(configExtensions, "skills");
-		const hasLocalSkills = skillsEnabled && hasSkillsFiles(config.cwd);
+		const workflowsEnabled = hasConfigExtension(configExtensions, "workflows");
+		const userInstructionsEnabled =
+			rulesEnabled || skillsEnabled || workflowsEnabled;
 		let teamToolsRegistered = false;
-		const watcherProvided = Boolean(sharedUserInstructionWatcher);
-		let userInstructionWatcher = sharedUserInstructionWatcher;
-		let watcherReady = Promise.resolve();
-		let skillsExecutor: SkillsExecutorWithMetadata | undefined;
+		const userInstructionServiceProvided = Boolean(
+			sharedUserInstructionService,
+		);
+		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
 
-		if (
-			!userInstructionWatcher &&
-			normalized.enableTools &&
-			skillsEnabled &&
-			hasLocalSkills
-		) {
-			userInstructionWatcher = createUserInstructionConfigWatcher({
+		if (!userInstructionService && userInstructionsEnabled) {
+			userInstructionService = createUserInstructionConfigService({
 				skills: { workspacePath: config.cwd },
 				rules: { workspacePath: config.cwd },
 				workflows: { workspacePath: config.cwd },
 			});
-			watcherReady = userInstructionWatcher.start().catch(() => {});
 		}
 
-		if (
+		if (userInstructionService) {
+			await userInstructionService.start().catch(() => {});
+		}
+
+		const registerSkillsTool =
 			normalized.enableTools &&
 			skillsEnabled &&
-			userInstructionWatcher &&
-			(watcherProvided ||
-				hasLocalSkills ||
-				getConfiguredSkills(userInstructionWatcher, config.skills).length > 0)
-		) {
-			skillsExecutor = createSkillsExecutor(
-				userInstructionWatcher,
-				watcherReady,
-				config.skills,
-			);
-		}
+			Boolean(userInstructionService) &&
+			(userInstructionServiceProvided ||
+				userInstructionService?.hasConfiguredSkills(config.skills) === true) &&
+			isSkillsToolEnabledForSession({
+				cwd: config.cwd,
+				providerId: config.providerId,
+				mode: normalized.mode,
+				modelId: config.modelId,
+				toolRoutingRules: config.toolRoutingRules,
+				toolPolicies: config.toolPolicies,
+				toolExecutors,
+			});
+
+		const userInstructionPlugin =
+			userInstructionService && userInstructionsEnabled
+				? userInstructionService.createExtension({
+						includeRules: rulesEnabled,
+						includeSkills: skillsEnabled,
+						includeWorkflows: workflowsEnabled,
+						registerSkillsTool,
+						allowedSkillNames: config.skills,
+					})
+				: undefined;
+		const runtimeExtensions = userInstructionPlugin
+			? [...(extensions ?? config.extensions ?? []), userInstructionPlugin]
+			: (extensions ?? config.extensions);
 
 		if (normalized.enableTools) {
 			tools.push(
@@ -576,8 +374,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.modelId,
 					config.toolRoutingRules,
 					config.toolPolicies,
-					skillsExecutor,
-					defaultToolExecutors,
+					undefined,
+					toolExecutors,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -617,7 +415,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			thinking: config.thinking,
 			maxIterations: config.maxIterations,
 			hooks,
-			extensions: extensions ?? config.extensions,
+			extensions: runtimeExtensions,
 			logger: logger ?? config.logger,
 			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
@@ -708,8 +506,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.modelId,
 									config.toolRoutingRules,
 									config.toolPolicies,
-									skillsExecutor,
-									defaultToolExecutors,
+									undefined,
+									toolExecutors,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
@@ -743,8 +541,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
-		const completionGuard = normalized.enableAgentTeams
-			? () => {
+		const finalTools = filterAvailableTools(tools, config.toolPolicies);
+		const teamCompletionGuard = normalized.enableAgentTeams
+			? (): string | undefined => {
 					const rt = this.teamRuntimeEntries.get(registryKey)?.runtime;
 					if (!rt) return undefined;
 					const tasks = rt.listTasks();
@@ -775,9 +574,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					return undefined;
 				}
 			: undefined;
+		const completionPolicy =
+			normalized.mode === "yolo" && normalized.enableTools
+				? {
+						requireCompletionTool: true,
+						...(teamCompletionGuard
+							? { completionGuard: teamCompletionGuard }
+							: {}),
+					}
+				: teamCompletionGuard
+					? { completionGuard: teamCompletionGuard }
+					: undefined;
 
 		return {
-			tools: filterAvailableTools(tools, config.toolPolicies),
+			tools: finalTools,
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
@@ -785,7 +595,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			delegatedAgentConfigProvider:
 				this.teamRuntimeEntries.get(registryKey)
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
-			completionGuard,
+			extensions: runtimeExtensions,
+			completionPolicy,
 			registerLeadAgent: (agent) => {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {
@@ -800,8 +611,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
-				if (!watcherProvided) {
-					userInstructionWatcher?.stop();
+				if (!userInstructionServiceProvided) {
+					userInstructionService?.stop();
 				}
 			},
 		};

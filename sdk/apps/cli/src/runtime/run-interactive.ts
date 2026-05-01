@@ -2,7 +2,7 @@ import {
 	type ProviderSettings,
 	ProviderSettingsManager,
 	prewarmFileIndex,
-	type UserInstructionConfigWatcher,
+	type UserInstructionConfigService,
 } from "@clinebot/core";
 import type { Message } from "@clinebot/shared";
 import { logCliError } from "../logging/errors";
@@ -41,7 +41,7 @@ import { getUIEventEmitter } from "./session-events";
 
 export async function runInteractive(
 	config: Config,
-	userInstructionWatcher?: UserInstructionConfigWatcher,
+	userInstructionService?: UserInstructionConfigService,
 	resumeSessionId?: string,
 	options?: {
 		clineApiBaseUrl?: string;
@@ -55,12 +55,12 @@ export async function runInteractive(
 	const initialRepoStatus = await readRepoStatus(config.cwd);
 	void prewarmFileIndex(config.cwd);
 	const workflowSlashCommands = listInteractiveSlashCommands(
-		userInstructionWatcher,
+		userInstructionService,
 	);
 	let interactiveChatCommandHost = chatCommandHost;
 	const configDataLoader = createInteractiveConfigDataLoader({
 		config,
-		userInstructionWatcher,
+		userInstructionService,
 	});
 	const loadAdditionalSlashCommands = async (): Promise<
 		InteractiveSlashCommand[]
@@ -116,7 +116,7 @@ export async function runInteractive(
 
 	const sessionRuntime = createInteractiveSessionRuntime({
 		config,
-		userInstructionWatcher,
+		userInstructionService,
 		resumeSessionId,
 		chatCommandState,
 		requestToolApproval,
@@ -301,7 +301,7 @@ export async function runInteractive(
 					prompt: userInput,
 					userImages,
 					userFiles,
-				} = await buildUserInputMessage(input, userInstructionWatcher);
+				} = await buildUserInputMessage(input, userInstructionService);
 				const mergedUserImages = [
 					...(attachments?.userImages ?? []),
 					...userImages,

@@ -8,15 +8,22 @@ const bootstrapAgentTeamsMock = vi.fn(() => ({
 }));
 
 let runtimeInstance: MockAgentTeamsRuntime | undefined;
-class MockAgentTeamsRuntime {
-	private readonly onTeamEvent?: (event: any) => void;
+type MockTeamEvent = Record<string, unknown>;
+type BootstrapCall = {
+	teammateConfigProvider: {
+		getRuntimeConfig(): unknown;
+	};
+};
 
-	constructor(options: { onTeamEvent?: (event: any) => void }) {
+class MockAgentTeamsRuntime {
+	private readonly onTeamEvent?: (event: MockTeamEvent) => void;
+
+	constructor(options: { onTeamEvent?: (event: MockTeamEvent) => void }) {
 		this.onTeamEvent = options.onTeamEvent;
 		runtimeInstance = this;
 	}
 
-	emit(event: any): void {
+	emit(event: MockTeamEvent): void {
 		this.onTeamEvent?.(event);
 	}
 
@@ -140,9 +147,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			}),
 		);
 		const bootstrapCall = (
-			bootstrapAgentTeamsMock.mock.calls as unknown as Array<
-				[Record<string, any>]
-			>
+			bootstrapAgentTeamsMock.mock.calls as unknown as Array<[BootstrapCall]>
 		)[0]?.[0];
 		expect(bootstrapCall).toBeDefined();
 		expect(bootstrapCall?.teammateConfigProvider.getRuntimeConfig()).toEqual(
@@ -270,9 +275,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			}),
 		);
 		const clineBootstrapCall = (
-			bootstrapAgentTeamsMock.mock.calls as unknown as Array<
-				[Record<string, any>]
-			>
+			bootstrapAgentTeamsMock.mock.calls as unknown as Array<[BootstrapCall]>
 		)[0]?.[0];
 		expect(clineBootstrapCall).toBeDefined();
 		expect(

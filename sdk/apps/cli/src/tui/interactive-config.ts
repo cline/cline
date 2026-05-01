@@ -6,11 +6,15 @@ import {
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	listPluginTools,
+	type RuleConfig,
+	readGlobalSettings,
 	resolveAgentConfigSearchPaths,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
-	type UserInstructionConfigWatcher,
+	type SkillConfig,
+	type UserInstructionConfigService,
+	type WorkflowConfig,
 } from "@clinebot/core";
 import { getToolCatalog } from "../runtime/tools";
 
@@ -67,6 +71,7 @@ export function isToggleableInteractiveConfigItem(
 ): boolean {
 	return (
 		item.kind === "skill" ||
+		item.kind === "plugin" ||
 		item.source === "builtin" ||
 		item.source === "workspace-plugin" ||
 		item.source === "global-plugin"
@@ -160,7 +165,7 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 }
 
 export async function loadInteractiveConfigData(input: {
-	watcher?: UserInstructionConfigWatcher;
+	userInstructionService?: UserInstructionConfigService;
 	cwd: string;
 	workspaceRoot: string;
 	availabilityContext?: BuiltinToolAvailabilityContext;
@@ -174,13 +179,13 @@ export async function loadInteractiveConfigData(input: {
 	const mcp: InteractiveConfigItem[] = [];
 	const tools: InteractiveConfigItem[] = [];
 
-	if (input.watcher) {
-		for (const [id, record] of input.watcher
-			.getSnapshot("workflow")
-			.entries()) {
+	if (input.userInstructionService) {
+		for (const record of input.userInstructionService.listRecords<WorkflowConfig>(
+			"workflow",
+		)) {
 			const workflow = record.item;
 			workflows.push({
-				id,
+				id: record.id,
 				name: workflow.name,
 				path: record.filePath,
 				enabled: workflow.disabled !== true,
@@ -189,10 +194,12 @@ export async function loadInteractiveConfigData(input: {
 				description: workflow.instructions,
 			});
 		}
-		for (const [id, record] of input.watcher.getSnapshot("rule").entries()) {
+		for (const record of input.userInstructionService.listRecords<RuleConfig>(
+			"rule",
+		)) {
 			const rule = record.item;
 			rules.push({
-				id,
+				id: record.id,
 				name: rule.name,
 				path: record.filePath,
 				enabled: rule.disabled !== true,
@@ -201,14 +208,12 @@ export async function loadInteractiveConfigData(input: {
 				description: rule.instructions,
 			});
 		}
-		for (const [id, record] of input.watcher.getSnapshot("skill").entries()) {
-			const skill = record.item as {
-				name: string;
-				disabled?: boolean;
-				description?: string;
-			};
+		for (const record of input.userInstructionService.listRecords<SkillConfig>(
+			"skill",
+		)) {
+			const skill = record.item;
 			skills.push({
-				id,
+				id: record.id,
 				name: skill.name,
 				path: record.filePath,
 				enabled: skill.disabled !== true,
@@ -233,19 +238,24 @@ export async function loadInteractiveConfigData(input: {
 
 	agents.push(...loadAgentConfigItems(input.workspaceRoot));
 
+	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
 	const pluginDirectories = resolvePluginConfigSearchPaths(
 		input.workspaceRoot,
 	).filter((directory) => existsSync(directory));
 	for (const directory of pluginDirectories) {
-		for (const filePath of discoverPluginModulePaths(directory)) {
-			plugins.push({
-				id: filePath,
-				name: basename(filePath, extname(filePath)),
-				path: filePath,
-				enabled: true,
-				kind: "plugin",
-				source: detectSource(filePath, input.workspaceRoot),
-			});
+		try {
+			for (const filePath of discoverPluginModulePaths(directory)) {
+				plugins.push({
+					id: filePath,
+					name: basename(filePath, extname(filePath)),
+					path: filePath,
+					enabled: !disabledPlugins.has(filePath),
+					kind: "plugin",
+					source: detectSource(filePath, input.workspaceRoot),
+				});
+			}
+		} catch {
+			// Best effort: skip unreadable plugin roots.
 		}
 	}
 
@@ -286,22 +296,26 @@ export async function loadInteractiveConfigData(input: {
 			description: tool.description,
 		})),
 	);
-	for (const pluginTool of await listPluginTools({
-		workspacePath: input.workspaceRoot,
-		cwd: input.cwd,
-		providerId: input.availabilityContext?.providerId,
-		modelId: input.availabilityContext?.modelId,
-	})) {
-		tools.push({
-			id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
-			name: pluginTool.name,
-			path: pluginTool.path,
-			enabled: pluginTool.enabled,
-			kind: "tool" as const,
-			toolNames: [pluginTool.name],
-			source: pluginTool.source,
-			description: pluginTool.description,
-		});
+	try {
+		for (const pluginTool of await listPluginTools({
+			workspacePath: input.workspaceRoot,
+			cwd: input.cwd,
+			providerId: input.availabilityContext?.providerId,
+			modelId: input.availabilityContext?.modelId,
+		})) {
+			tools.push({
+				id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
+				name: pluginTool.name,
+				path: pluginTool.path,
+				enabled: pluginTool.enabled,
+				kind: "tool" as const,
+				toolNames: [pluginTool.name],
+				source: pluginTool.source,
+				description: pluginTool.description,
+			});
+		}
+	} catch {
+		// Best effort: built-in tools and instruction config should still render.
 	}
 
 	return {

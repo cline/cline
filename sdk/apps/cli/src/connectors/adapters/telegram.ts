@@ -1,7 +1,7 @@
 import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { ChatStartSessionRequest } from "@clinebot/core";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	HubSessionClient,
 } from "@clinebot/core";
 import type {
@@ -540,12 +540,12 @@ class TelegramConnector extends ConnectorBase<
 				botUserName: options.botUsername,
 			},
 		});
-		const userInstructionWatcher = createUserInstructionConfigWatcher({
+		const userInstructionService = createUserInstructionConfigService({
 			skills: { workspacePath: startRequest.cwd },
 			rules: { workspacePath: startRequest.cwd },
 			workflows: { workspacePath: startRequest.cwd },
 		});
-		await userInstructionWatcher.start().catch(() => undefined);
+		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
@@ -649,7 +649,7 @@ class TelegramConnector extends ConnectorBase<
 						systemRules: TELEGRAM_SYSTEM_RULES,
 						errorLabel: "Telegram",
 						firstContactMessage: TELEGRAM_FIRST_CONTACT_MESSAGE,
-						userInstructionWatcher,
+						userInstructionService,
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
@@ -929,7 +929,7 @@ class TelegramConnector extends ConnectorBase<
 
 		stopTaskUpdateStream();
 		stopEventStream();
-		userInstructionWatcher.stop();
+		userInstructionService.stop();
 		await dispatchConnectorHook(
 			options.hookCommand,
 			{

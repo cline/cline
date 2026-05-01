@@ -1,4 +1,9 @@
-import type { ClineCore, NodeHubClient } from "@clinebot/core";
+import type {
+	ClineCore,
+	NodeHubClient,
+	ToolApprovalResult,
+	ToolContext,
+} from "@clinebot/core";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -63,22 +68,49 @@ export type ToolApprovalRequestItem = {
 };
 
 export type PendingToolApproval = {
-	approvalId: string;
 	item: ToolApprovalRequestItem;
+	resolve: (result: ToolApprovalResult) => void;
+};
+
+export type AskQuestionRequestItem = {
+	requestId: string;
+	createdAt: string;
+	question: string;
+	options: string[];
+	context?: Pick<
+		ToolContext,
+		"agentId" | "conversationId" | "iteration" | "metadata"
+	>;
+};
+
+export type PendingAskQuestion = {
+	item: AskQuestionRequestItem;
+	resolve: (answer: string) => void;
+	reject: (error: Error) => void;
+	timeoutId?: ReturnType<typeof setTimeout>;
+};
+
+export type SidecarWebSocketClient = {
+	send: (message: string) => void;
+	close?: () => void;
 };
 
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	streamIndices: Map<string, number>;
-	wsClients: Set<any>;
+	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
+	pendingQuestions: Map<string, PendingAskQuestion>;
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
 	workspaceRoot: string;
 	unsubscribeSessionEvents: (() => void) | null;
 };
+export type BunRuntimeApi = {
+	serve: (options: unknown) => { port: number; stop?: () => void };
+};
 
-export const BunRuntime = (globalThis as { Bun?: any }).Bun;
+export const BunRuntime = (globalThis as { Bun?: BunRuntimeApi }).Bun;
 
 export const SIDECAR_PORT = Number(process.env.CLINE_SIDECAR_PORT) || 3126;
 export const SIDECAR_MODE = "sidecar";

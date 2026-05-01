@@ -1,16 +1,16 @@
-import type { ClineCoreOptions } from "../../ClineCore";
+import type { ClineCoreOptions } from "../../cline-core/types";
 import {
 	ensureCompatibleLocalHubUrl,
 	resolveCompatibleLocalHubUrl,
 } from "../../hub/client";
 import { prewarmDetachedHubServer } from "../../hub/daemon";
+import { HubRuntimeHost } from "../../hub/transport/hub-runtime-host";
+import { RemoteRuntimeHost } from "../../hub/transport/remote-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { CoreSessionService } from "../../session/services/session-service";
-import { HubRuntimeHost } from "../../transports/hub";
 import { LocalRuntimeHost } from "../../transports/local";
-import { RemoteRuntimeHost } from "../../transports/remote";
 import type { RuntimeHost, RuntimeHostMode } from "./runtime-host";
 
 function resolveConfiguredBackendMode(
@@ -90,10 +90,9 @@ function createLocalRuntimeHost(
 	return new LocalRuntimeHost({
 		sessionService:
 			backend ?? options.sessionService ?? createLocalBackend(options),
-		defaultToolExecutors: options.defaultToolExecutors,
+		capabilities: options.capabilities,
 		telemetry: options.telemetry,
 		toolPolicies: options.toolPolicies,
-		requestToolApproval: options.requestToolApproval,
 		distinctId,
 		fetch: options.fetch,
 	});
@@ -144,7 +143,7 @@ export async function createRuntimeHost(
 			displayName: options.remote?.displayName,
 			workspaceRoot: options.remote?.workspaceRoot,
 			cwd: options.remote?.cwd,
-			requestToolApproval: options.requestToolApproval,
+			capabilities: options.capabilities,
 		});
 	}
 	if (configuredMode === "hub") {
@@ -169,7 +168,7 @@ export async function createRuntimeHost(
 				authToken: options.hub?.authToken,
 				clientType: options.hub?.clientType,
 				displayName: options.hub?.displayName,
-				requestToolApproval: options.requestToolApproval,
+				capabilities: options.capabilities,
 			},
 			{
 				workspaceRoot: options.hub?.workspaceRoot,
@@ -194,7 +193,7 @@ export async function createRuntimeHost(
 					authToken: options.hub?.authToken,
 					clientType: options.hub?.clientType,
 					displayName: options.hub?.displayName,
-					requestToolApproval: options.requestToolApproval,
+					capabilities: options.capabilities,
 				},
 				{
 					workspaceRoot: options.hub?.workspaceRoot,

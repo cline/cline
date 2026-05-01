@@ -98,6 +98,150 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("continues when completionGuard rejects a no-tool response", async () => {
+		const submitTool: AgentTool<{ summary: string }, string> = {
+			name: "submit",
+			description: "Submit final answer",
+			inputSchema: { type: "object" },
+			lifecycle: { completesRun: true },
+			async execute(input) {
+				return { output: `submitted: ${input.summary}` };
+			},
+		};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "I am done" },
+				{ type: "finish", reason: "stop" },
+			],
+			(request) => {
+				const reminder = request.messages.at(-1);
+				expect(reminder?.role).toBe("user");
+				expect(
+					reminder?.content.some(
+						(part) => part.type === "text" && part.text.includes("submit"),
+					),
+				).toBe(true);
+				return [
+					{
+						type: "tool-call-delta",
+						toolCallId: "call_submit",
+						toolName: "submit",
+						inputText: '{"summary":"done"}',
+					},
+					{ type: "finish", reason: "tool-calls" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [submitTool],
+			completionPolicy: {
+				completionGuard: () =>
+					"[SYSTEM] This run is not complete until you call submit.",
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.iterations).toBe(2);
+		expect(result.outputText).toBe("submitted: done");
+		expect(model.requests).toHaveLength(2);
+	});
+
+	it("announces and enforces required completion tools from tool lifecycle metadata", async () => {
+		const submitTool: AgentTool<{ summary: string }, string> = {
+			name: "custom_finish",
+			description: "Submit final answer",
+			inputSchema: { type: "object" },
+			lifecycle: { completesRun: true },
+			async execute(input) {
+				return { output: `submitted: ${input.summary}` };
+			},
+		};
+		const model = new ScriptedModel([
+			(request) => {
+				const reminder = request.messages.at(-1);
+				expect(reminder?.role).toBe("user");
+				expect(
+					reminder?.content.some(
+						(part) =>
+							part.type === "text" && part.text.includes("custom_finish"),
+					),
+				).toBe(true);
+				return [
+					{ type: "text-delta", text: "I am done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+			(request) => {
+				const reminder = request.messages.at(-1);
+				expect(reminder?.role).toBe("user");
+				expect(
+					reminder?.content.some(
+						(part) =>
+							part.type === "text" && part.text.includes("custom_finish"),
+					),
+				).toBe(true);
+				return [
+					{
+						type: "tool-call-delta",
+						toolCallId: "call_submit",
+						toolName: "custom_finish",
+						inputText: '{"summary":"done"}',
+					},
+					{ type: "finish", reason: "tool-calls" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [submitTool],
+			completionPolicy: { requireCompletionTool: true },
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.iterations).toBe(2);
+		expect(result.outputText).toBe("submitted: done");
+		expect(model.requests).toHaveLength(2);
+	});
+
+	it("finishes immediately after a successful terminal tool call", async () => {
+		const submitTool: AgentTool<{ summary: string }, string> = {
+			name: "submit",
+			description: "Submit final answer",
+			inputSchema: { type: "object" },
+			lifecycle: { completesRun: true },
+			async execute(input) {
+				return { output: input.summary };
+			},
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_submit",
+					toolName: "submit",
+					inputText: '{"summary":"finished"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [submitTool],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.iterations).toBe(1);
+		expect(result.outputText).toBe("finished");
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("preserves structured multimodal tool results for the next model request", async () => {
 		const structuredOutput = [
 			{ type: "text", text: "Successfully read image" },

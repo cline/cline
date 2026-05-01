@@ -25,4 +25,19 @@ describe("extractErrorMessage", () => {
 			"Plain failure",
 		);
 	});
+
+	it("prefers nested stream error details over generic wrapper messages", () => {
+		expect(
+			extractErrorMessage({
+				message: "Stream error occurred",
+				errors: [
+					{
+						responseBody: JSON.stringify({
+							error: { message: "Missing upstream API key" },
+						}),
+					},
+				],
+			}),
+		).toBe("Missing upstream API key");
+	});
 });

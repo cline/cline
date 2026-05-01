@@ -176,6 +176,160 @@ describe("runAgent", () => {
 		);
 	});
 
+	it("registers CLI capability factory through the CLI core facade", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "completed",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+		const { createCliCore } = await import("../session/session");
+		const {
+			askQuestionInTerminal,
+			requestToolApproval,
+			submitAndExitInTerminal,
+		} = await import("../utils/approval");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "act",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "text",
+				providerId: "openrouter",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(createCliCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				capabilities: {
+					toolExecutors: {
+						askQuestion: askQuestionInTerminal,
+						submit: submitAndExitInTerminal,
+					},
+					requestToolApproval,
+				},
+			}),
+		);
+	});
+
+	it("provides submit_and_exit for one-shot yolo runs", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "completed",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+		const { createCliCore } = await import("../session/session");
+		const {
+			askQuestionInTerminal,
+			requestToolApproval,
+			submitAndExitInTerminal,
+		} = await import("../utils/approval");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "yolo",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "text",
+				providerId: "openrouter",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(createCliCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				capabilities: {
+					toolExecutors: {
+						askQuestion: askQuestionInTerminal,
+						submit: submitAndExitInTerminal,
+					},
+					requestToolApproval,
+				},
+			}),
+		);
+	});
+
 	it("clears a stale failing exit code after a successful run", async () => {
 		const startedAt = new Date("2026-03-22T00:00:00.000Z");
 		const endedAt = new Date("2026-03-22T00:00:01.000Z");
@@ -344,6 +498,71 @@ describe("runAgent", () => {
 			error: expect.any(Error),
 		});
 		expect(outputMocks.writeErr).toHaveBeenCalledWith("Missing API key");
+	});
+
+	it("emits JSON error lines for non-completed results", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: 'Missing API key for provider "cline".',
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: 0,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "error",
+				model: {
+					id: "anthropic/claude-sonnet-4.6",
+					provider: "cline",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "yolo",
+				modelId: "anthropic/claude-sonnet-4.6",
+				outputMode: "json",
+				providerId: "cline",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+		expect(outputMocks.writeErr).toHaveBeenCalledWith(
+			'Missing API key for provider "cline".',
+		);
 	});
 
 	it("surfaces post-run bookkeeping failures after a completed result", async () => {

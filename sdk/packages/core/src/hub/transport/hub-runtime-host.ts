@@ -7,19 +7,16 @@ import type {
 	SessionRecord as HubSessionRecord,
 	JsonValue,
 	ToolApprovalRequest,
-	ToolApprovalResult,
 	ToolContext,
 } from "@clinebot/shared";
 import { isHubToolExecutorName } from "@clinebot/shared";
-import type { ToolExecutors } from "../extensions/tools";
-import type { HookEventPayload } from "../hooks";
-import { NodeHubClient } from "../hub/client";
+import type { ToolExecutors } from "../../extensions/tools";
+import type { HookEventPayload } from "../../hooks";
+import type { RuntimeCapabilities } from "../../runtime/capabilities";
+import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
 	PendingPromptMutationResult,
-	PendingPromptsAction,
-	PendingPromptsDeleteInput,
-	PendingPromptsListInput,
-	PendingPromptsUpdateInput,
+	PendingPromptsServiceApi,
 	RestoreSessionInput,
 	RestoreSessionResult,
 	RuntimeHost,
@@ -28,21 +25,29 @@ import type {
 	SessionAccumulatedUsage,
 	StartSessionInput,
 	StartSessionResult,
-} from "../runtime/host/runtime-host";
+} from "../../runtime/host/runtime-host";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
-} from "../session/models/session-manifest";
+} from "../../session/models/session-manifest";
+import {
+	type CoreSessionSnapshot,
+	coreSessionSnapshotToRecord,
+} from "../../session/session-snapshot";
 import type {
 	CoreSettingsListInput,
 	CoreSettingsMutationResult,
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
-} from "../settings";
-import { SessionSource, type SessionStatus } from "../types/common";
-import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
-import type { SessionRecord } from "../types/sessions";
-import { RuntimeHostEventBus } from "./runtime-host-support";
+} from "../../settings";
+import { RuntimeHostEventBus } from "../../transports/runtime-host-support";
+import { SessionSource, type SessionStatus } from "../../types/common";
+import type {
+	CoreSessionEvent,
+	SessionPendingPrompt,
+} from "../../types/events";
+import type { SessionRecord } from "../../types/sessions";
+import { NodeHubClient } from "../client";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -62,7 +67,7 @@ function serializeSettingsInput(
 	if (!input) {
 		return undefined;
 	}
-	const { userInstructionWatcher: _userInstructionWatcher, ...serializable } =
+	const { userInstructionService: _userInstructionService, ...serializable } =
 		input;
 	return JSON.parse(JSON.stringify(serializable)) as Record<string, unknown>;
 }
@@ -84,6 +89,22 @@ function parseToolContext(value: unknown): ToolContext {
 				? (payload.metadata as Record<string, unknown>)
 				: undefined,
 	};
+}
+
+function abortReasonMessage(value: unknown): string {
+	if (typeof value === "string" && value.trim()) {
+		return value.trim();
+	}
+	if (value instanceof Error) {
+		return value.message;
+	}
+	if (value && typeof value === "object" && "message" in value) {
+		const message = (value as { message?: unknown }).message;
+		if (typeof message === "string" && message.trim()) {
+			return message.trim();
+		}
+	}
+	return "Capability request was cancelled.";
 }
 
 function parseApprovalInput(value: unknown): unknown {
@@ -179,9 +200,7 @@ export interface HubRuntimeHostOptions {
 	authToken?: string;
 	clientType?: string;
 	displayName?: string;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult> | ToolApprovalResult;
+	capabilities?: RuntimeCapabilities;
 }
 
 function mapStatus(
@@ -267,6 +286,29 @@ function toSessionRecord(session: HubSessionRecord): SessionRecord {
 	};
 }
 
+function parseCoreSessionSnapshot(
+	value: unknown,
+): CoreSessionSnapshot | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+	const snapshot = value as Partial<CoreSessionSnapshot>;
+	return snapshot.version === 1 && typeof snapshot.sessionId === "string"
+		? (JSON.parse(JSON.stringify(snapshot)) as CoreSessionSnapshot)
+		: undefined;
+}
+
+function sessionRecordFromPayload(
+	payload: Record<string, unknown> | undefined,
+): SessionRecord | undefined {
+	const snapshot = parseCoreSessionSnapshot(payload?.snapshot);
+	if (snapshot) {
+		return coreSessionSnapshotToRecord(snapshot);
+	}
+	const session = payload?.session as HubSessionRecord | undefined;
+	return session ? toSessionRecord(session) : undefined;
+}
+
 function buildManifest(
 	sessionId: string,
 	input: StartSessionInput,
@@ -300,26 +342,58 @@ function buildManifest(
 	});
 }
 
+function buildManifestFromSnapshot(
+	snapshot: CoreSessionSnapshot,
+	input: StartSessionInput,
+): SessionManifest {
+	return SessionManifestSchema.parse({
+		version: 1,
+		session_id: snapshot.sessionId,
+		source: snapshot.source,
+		pid: process.pid,
+		started_at: snapshot.createdAt,
+		status: snapshot.status,
+		interactive: snapshot.interactive,
+		provider: snapshot.model.providerId,
+		model: snapshot.model.modelId,
+		cwd: snapshot.workspace.cwd,
+		workspace_root: snapshot.workspace.root,
+		team_name: snapshot.team?.name,
+		enable_tools: snapshot.capabilities.enableTools,
+		enable_spawn: snapshot.capabilities.enableSpawn,
+		enable_teams: snapshot.capabilities.enableTeams,
+		prompt: (snapshot.prompt ?? input.prompt?.trim()) || undefined,
+		metadata: snapshot.metadata,
+		messages_path: snapshot.artifacts?.messagesPath,
+	});
+}
+
 export class HubRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress: string;
+	public readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly client: NodeHubClient;
 	private readonly events = new RuntimeHostEventBus();
-	private readonly sessionToolExecutors = new Map<
-		string,
-		Partial<ToolExecutors>
-	>();
+	private readonly sessionCapabilities = new Map<string, RuntimeCapabilities>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
 	private readonly pendingApprovalToolCallIds = new Set<string>();
-	private readonly requestToolApproval:
-		| HubRuntimeHostOptions["requestToolApproval"]
-		| undefined;
+	private readonly activeCapabilityAbortControllers = new Map<
+		string,
+		AbortController
+	>();
+	private readonly defaultCapabilities: RuntimeCapabilities;
 
 	constructor(
 		options: HubRuntimeHostOptions,
 		clientContext?: { workspaceRoot?: string; cwd?: string },
 	) {
-		this.requestToolApproval = options.requestToolApproval;
+		this.defaultCapabilities =
+			normalizeRuntimeCapabilities(options.capabilities) ?? {};
 		this.runtimeAddress = options.url;
+		this.pendingPrompts = {
+			list: (input) => this.requestPendingPromptsList(input),
+			update: (input) => this.requestPendingPromptUpdate(input),
+			delete: (input) => this.requestPendingPromptDelete(input),
+		};
 		this.client = new NodeHubClient({
 			url: options.url,
 			authToken: options.authToken,
@@ -334,9 +408,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		await this.client.connect();
 	}
 
-	async start(input: StartSessionInput): Promise<StartSessionResult> {
+	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		const capabilities = this.resolveCapabilities(input);
 		const advertisedToolExecutors = Object.keys(
-			input.localRuntime?.defaultToolExecutors ?? {},
+			capabilities.toolExecutors ?? {},
 		).filter(isHubToolExecutorName);
 		const reply = await this.client.command("session.create", {
 			workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
@@ -362,29 +437,29 @@ export class HubRuntimeHost implements RuntimeHost {
 			),
 			initialMessages: input.initialMessages,
 		});
+		const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
 		const session = reply.payload?.session as HubSessionRecord | undefined;
-		const sessionId = session?.sessionId?.trim();
+		const sessionId = (snapshot?.sessionId ?? session?.sessionId)?.trim();
 		if (!sessionId) {
 			throw new Error("Hub runtime did not return a session id.");
 		}
-		if (input.localRuntime?.defaultToolExecutors) {
-			this.sessionToolExecutors.set(
-				sessionId,
-				input.localRuntime.defaultToolExecutors,
-			);
-		}
+		this.sessionCapabilities.set(sessionId, capabilities);
 		this.ensureSessionSubscription(sessionId);
 
 		return {
 			sessionId,
-			manifest: buildManifest(sessionId, input, session),
+			manifest: snapshot
+				? buildManifestFromSnapshot(snapshot, input)
+				: buildManifest(sessionId, input, session),
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
 		};
 	}
 
-	async restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
+	async restoreSession(
+		input: RestoreSessionInput,
+	): Promise<RestoreSessionResult> {
 		const sessionId = input.sessionId.trim();
 		if (!sessionId) {
 			throw new Error("sessionId is required");
@@ -394,10 +469,13 @@ export class HubRuntimeHost implements RuntimeHost {
 			throw new Error("start is required when restore.messages is true");
 		}
 		const startConfig = input.start;
+		const capabilities = startConfig
+			? this.resolveCapabilities(startConfig)
+			: undefined;
 		const advertisedToolExecutors = startConfig
-			? Object.keys(
-					startConfig.localRuntime?.defaultToolExecutors ?? {},
-				).filter(isHubToolExecutorName)
+			? Object.keys(capabilities?.toolExecutors ?? {}).filter(
+					isHubToolExecutorName,
+				)
 			: [];
 		const reply = await this.client.command(
 			"session.restore",
@@ -444,16 +522,14 @@ export class HubRuntimeHost implements RuntimeHost {
 					: "session.restore failed";
 			throw new Error(errorMsg);
 		}
+		const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
 		const session = reply.payload?.session as HubSessionRecord | undefined;
-		const newSessionId = session?.sessionId?.trim();
+		const newSessionId = (snapshot?.sessionId ?? session?.sessionId)?.trim();
 		if (restoreMessages && !newSessionId) {
 			throw new Error("Hub checkpoint restore returned no session id");
 		}
-		if (newSessionId && startConfig?.localRuntime?.defaultToolExecutors) {
-			this.sessionToolExecutors.set(
-				newSessionId,
-				startConfig.localRuntime.defaultToolExecutors,
-			);
+		if (newSessionId && capabilities) {
+			this.sessionCapabilities.set(newSessionId, capabilities);
 		}
 		if (newSessionId) {
 			this.ensureSessionSubscription(newSessionId);
@@ -472,11 +548,16 @@ export class HubRuntimeHost implements RuntimeHost {
 			startResult: newSessionId
 				? {
 						sessionId: newSessionId,
-						manifest: buildManifest(
-							newSessionId,
-							startConfig ?? ({} as StartSessionInput),
-							session,
-						),
+						manifest: snapshot
+							? buildManifestFromSnapshot(
+									snapshot,
+									startConfig ?? ({} as StartSessionInput),
+								)
+							: buildManifest(
+									newSessionId,
+									startConfig ?? ({} as StartSessionInput),
+									session,
+								),
 						manifestPath: "",
 						messagesPath: "",
 						result: undefined,
@@ -487,7 +568,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		};
 	}
 
-	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
+	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		this.ensureSessionSubscription(input.sessionId);
 		const reply = await this.client.command(
 			"run.start",
@@ -516,41 +597,8 @@ export class HubRuntimeHost implements RuntimeHost {
 		return reply.payload?.result as AgentResult | undefined;
 	}
 
-	async pendingPrompts(
-		action: "list",
-		input: PendingPromptsListInput,
-	): Promise<SessionPendingPrompt[]>;
-	async pendingPrompts(
-		action: "update",
-		input: PendingPromptsUpdateInput,
-	): Promise<PendingPromptMutationResult>;
-	async pendingPrompts(
-		action: "delete",
-		input: PendingPromptsDeleteInput,
-	): Promise<PendingPromptMutationResult>;
-	async pendingPrompts(
-		action: PendingPromptsAction,
-		input:
-			| PendingPromptsListInput
-			| PendingPromptsUpdateInput
-			| PendingPromptsDeleteInput,
-	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
-		switch (action) {
-			case "list":
-				return await this.listPendingPromptEntries(input);
-			case "update":
-				return await this.editPendingPromptEntry(
-					input as PendingPromptsUpdateInput,
-				);
-			case "delete":
-				return await this.deletePendingPromptEntry(
-					input as PendingPromptsDeleteInput,
-				);
-		}
-	}
-
-	private async listPendingPromptEntries(
-		input: PendingPromptsListInput,
+	private async requestPendingPromptsList(
+		input: Parameters<PendingPromptsServiceApi["list"]>[0],
 	): Promise<SessionPendingPrompt[]> {
 		this.ensureSessionSubscription(input.sessionId);
 		const reply = await this.client.command(
@@ -563,8 +611,8 @@ export class HubRuntimeHost implements RuntimeHost {
 			: [];
 	}
 
-	private async editPendingPromptEntry(
-		input: PendingPromptsUpdateInput,
+	private async requestPendingPromptUpdate(
+		input: Parameters<PendingPromptsServiceApi["update"]>[0],
 	): Promise<PendingPromptMutationResult> {
 		this.ensureSessionSubscription(input.sessionId);
 		const reply = await this.client.command(
@@ -582,8 +630,8 @@ export class HubRuntimeHost implements RuntimeHost {
 		};
 	}
 
-	private async deletePendingPromptEntry(
-		input: PendingPromptsDeleteInput,
+	private async requestPendingPromptDelete(
+		input: Parameters<PendingPromptsServiceApi["delete"]>[0],
 	): Promise<PendingPromptMutationResult> {
 		this.ensureSessionSubscription(input.sessionId);
 		const reply = await this.client.command(
@@ -606,9 +654,13 @@ export class HubRuntimeHost implements RuntimeHost {
 	): Promise<SessionAccumulatedUsage | undefined> {
 		const reply = await this.client.command(
 			"session.get",
-			undefined,
+			{ includeSnapshot: true },
 			sessionId,
 		);
+		const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
+		if (snapshot?.usage) {
+			return { ...snapshot.usage };
+		}
 		const session = reply.payload?.session as
 			| (HubSessionRecord & { usage?: SessionAccumulatedUsage })
 			| undefined;
@@ -623,8 +675,8 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 	}
 
-	async stop(sessionId: string): Promise<void> {
-		this.sessionToolExecutors.delete(sessionId);
+	async stopSession(sessionId: string): Promise<void> {
+		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
 		await this.client.command("session.detach", { sessionId }, sessionId);
 	}
@@ -639,22 +691,34 @@ export class HubRuntimeHost implements RuntimeHost {
 			}
 		}
 		this.sessionSubscriptions.clear();
-		this.sessionToolExecutors.clear();
+		this.sessionCapabilities.clear();
+		for (const controller of this.activeCapabilityAbortControllers.values()) {
+			controller.abort("Hub runtime host disposed.");
+		}
+		this.activeCapabilityAbortControllers.clear();
 		await this.client.dispose();
 	}
 
-	async get(sessionId: string): Promise<SessionRecord | undefined> {
+	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
 		const reply = await this.client.command(
 			"session.get",
 			undefined,
 			sessionId,
 		);
-		const session = reply.payload?.session as HubSessionRecord | undefined;
-		return session ? toSessionRecord(session) : undefined;
+		return sessionRecordFromPayload(reply.payload);
 	}
 
-	async list(limit = 100): Promise<SessionRecord[]> {
+	async listSessions(limit = 100): Promise<SessionRecord[]> {
 		const reply = await this.client.command("session.list", { limit });
+		const snapshots = Array.isArray(reply.payload?.snapshots)
+			? reply.payload.snapshots.flatMap((value) => {
+					const snapshot = parseCoreSessionSnapshot(value);
+					return snapshot ? [coreSessionSnapshotToRecord(snapshot)] : [];
+				})
+			: [];
+		if (snapshots.length > 0) {
+			return snapshots;
+		}
 		const sessions =
 			(reply.payload?.sessions as HubSessionRecord[] | undefined) ?? [];
 		return sessions.map(toSessionRecord);
@@ -692,14 +756,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		};
 	}
 
-	async delete(sessionId: string): Promise<boolean> {
-		this.sessionToolExecutors.delete(sessionId);
+	async deleteSession(sessionId: string): Promise<boolean> {
+		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
 		const reply = await this.client.command("session.delete", { sessionId });
 		return reply.payload?.deleted === true;
 	}
 
-	async update(
+	async updateSession(
 		sessionId: string,
 		updates: {
 			prompt?: string | null;
@@ -723,7 +787,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		return { updated: reply.ok };
 	}
 
-	async readMessages(
+	async readSessionMessages(
 		sessionId: string,
 	): Promise<import("@clinebot/llms").Message[]> {
 		const target = sessionId.trim();
@@ -744,7 +808,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			: [];
 	}
 
-	async handleHookEvent(_payload: HookEventPayload): Promise<void> {
+	async dispatchHookEvent(_payload: HookEventPayload): Promise<void> {
 		await this.client.command("session.hook", { payload: _payload });
 	}
 
@@ -781,6 +845,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.delete(target);
 	}
 
+	private resolveCapabilities(input: StartSessionInput): RuntimeCapabilities {
+		return (
+			normalizeRuntimeCapabilities(
+				this.defaultCapabilities,
+				input.capabilities,
+			) ?? {}
+		);
+	}
+
 	private emitToolCallContentStart(input: {
 		sessionId: string;
 		toolCallId?: string;
@@ -806,6 +879,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		const sessionId = event.sessionId?.trim();
 		if (event.event === "capability.requested") {
 			void this.handleCapabilityRequest(event);
+			return;
+		}
+		if (event.event === "capability.resolved") {
+			this.handleCapabilityResolved(event);
 			return;
 		}
 		if (event.event === "approval.requested") {
@@ -992,7 +1069,14 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "session.updated":
 			case "session.attached":
 			case "session.detached": {
+				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
+				if (snapshot) {
+					this.events.emit({
+						type: "session_snapshot",
+						payload: { sessionId, snapshot },
+					});
+				}
 				this.events.emit({
 					type: "status",
 					payload: {
@@ -1101,7 +1185,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			return;
 		}
 		const executorName = capabilityName.slice("tool_executor.".length);
-		const executors = this.sessionToolExecutors.get(sessionId);
+		const executors = this.sessionCapabilities.get(sessionId)?.toolExecutors;
 		const executor = executors?.[executorName as keyof ToolExecutors] as
 			| ((...args: unknown[]) => Promise<unknown>)
 			| undefined;
@@ -1124,9 +1208,17 @@ export class HubRuntimeHost implements RuntimeHost {
 				? (event.payload.payload as Record<string, unknown>)
 				: {};
 		const args = Array.isArray(payload.args) ? [...payload.args] : [];
-		const context = parseToolContext(payload.context);
+		const abortController = new AbortController();
+		this.activeCapabilityAbortControllers.set(requestId, abortController);
+		const context = {
+			...parseToolContext(payload.context),
+			abortSignal: abortController.signal,
+		};
 		try {
 			const result = await executor(...args, context);
+			if (abortController.signal.aborted) {
+				return;
+			}
 			await this.client.command(
 				"capability.respond",
 				{
@@ -1137,6 +1229,9 @@ export class HubRuntimeHost implements RuntimeHost {
 				sessionId,
 			);
 		} catch (error) {
+			if (abortController.signal.aborted) {
+				return;
+			}
 			await this.client.command(
 				"capability.respond",
 				{
@@ -1146,14 +1241,40 @@ export class HubRuntimeHost implements RuntimeHost {
 				},
 				sessionId,
 			);
+		} finally {
+			this.activeCapabilityAbortControllers.delete(requestId);
 		}
+	}
+
+	private handleCapabilityResolved(event: HubEventEnvelope): void {
+		if (event.payload?.cancelled !== true) {
+			return;
+		}
+		const requestId =
+			typeof event.payload.requestId === "string"
+				? event.payload.requestId.trim()
+				: "";
+		if (!requestId) {
+			return;
+		}
+		const controller = this.activeCapabilityAbortControllers.get(requestId);
+		if (!controller) {
+			return;
+		}
+		controller.abort(abortReasonMessage(event.payload.error));
 	}
 
 	private async handleApprovalRequested(
 		event: HubEventEnvelope,
 	): Promise<void> {
 		const sessionId = event.sessionId?.trim();
-		if (!sessionId || !this.requestToolApproval) {
+		if (!sessionId) {
+			return;
+		}
+		const requestToolApproval =
+			this.sessionCapabilities.get(sessionId)?.requestToolApproval ??
+			this.defaultCapabilities.requestToolApproval;
+		if (!requestToolApproval) {
 			return;
 		}
 		const approvalId =
@@ -1184,7 +1305,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			toolInput: input,
 		});
 		const result = await Promise.resolve(
-			this.requestToolApproval({
+			requestToolApproval({
 				sessionId,
 				agentId:
 					typeof event.payload?.agentId === "string"

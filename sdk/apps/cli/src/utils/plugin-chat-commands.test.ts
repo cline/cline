@@ -29,7 +29,7 @@ describe("plugin chat commands", () => {
 				"    api.registerCommand({",
 				"      name: 'echo',",
 				"      description: 'Echo input',",
-				"      handler: async (input) => `echo:${input}`",
+				"      handler: async (input) => 'echo:' + input",
 				"    });",
 				"  },",
 				"};",

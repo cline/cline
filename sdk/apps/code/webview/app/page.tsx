@@ -250,6 +250,7 @@ function ChatThreadPane({
 		fileDiffs,
 		promptsInQueue,
 		pendingToolApprovals,
+		pendingAskQuestions,
 		setConfig,
 		sendPrompt,
 		steerPromptInQueue,
@@ -257,6 +258,7 @@ function ChatThreadPane({
 		removePromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
+		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
 		reset,
@@ -626,6 +628,12 @@ function ChatThreadPane({
 		},
 		[rejectToolApproval],
 	);
+	const handleAnswerAskQuestion = useCallback(
+		(requestId: string, answer: string) => {
+			void answerAskQuestion(requestId, answer);
+		},
+		[answerAskQuestion],
+	);
 
 	const handleForkSession = useCallback(async () => {
 		const result = await forkSession();
@@ -882,6 +890,7 @@ function ChatThreadPane({
 						/>
 					) : (
 						<ChatMessages
+							onAnswerAskQuestion={handleAnswerAskQuestion}
 							onApproveToolApproval={handleApproveToolApproval}
 							onRejectToolApproval={handleRejectToolApproval}
 							onStartChat={(prompt) => {
@@ -896,6 +905,7 @@ function ChatThreadPane({
 							}
 							onForkSession={handleForkSession}
 							pendingToolApprovals={pendingToolApprovals}
+							pendingAskQuestions={pendingAskQuestions}
 							provider={config.provider}
 							sessionId={displayedSessionId}
 							streamingMessageId={activeAssistantMessageId}

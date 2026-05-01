@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import {
 	appendFileSync,
 	existsSync,
@@ -479,7 +480,13 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 		if (!current) {
 			continue;
 		}
-		for (const entry of readdirSync(current, { withFileTypes: true })) {
+		let entries: Dirent[];
+		try {
+			entries = readdirSync(current, { withFileTypes: true });
+		} catch {
+			continue;
+		}
+		for (const entry of entries) {
 			const candidate = join(current, entry.name);
 			if (entry.isDirectory()) {
 				const packageJsonPath = join(candidate, PLUGIN_PACKAGE_JSON_FILE_NAME);

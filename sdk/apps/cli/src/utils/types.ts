@@ -32,8 +32,6 @@ export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 }
 
 export interface ActiveCliSession {
-	manifestPath: string;
-	messagesPath: string;
 	manifest: SessionManifest;
 }
 

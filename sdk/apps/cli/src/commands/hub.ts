@@ -6,6 +6,7 @@ import {
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@clinebot/core";
+import { formatUptime } from "@clinebot/shared";
 import { Command } from "commander";
 
 interface HubCommandIo {
@@ -30,6 +31,19 @@ async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 	}
 	await clearHubDiscovery(owner.discoveryPath);
 	return !!pid;
+}
+
+function formatHubUptimeFromStartedAt(
+	startedAt: string | undefined,
+): string | undefined {
+	if (!startedAt) {
+		return undefined;
+	}
+	const timestamp = Date.parse(startedAt);
+	if (Number.isNaN(timestamp)) {
+		return undefined;
+	}
+	return formatUptime(Date.now() - timestamp);
 }
 
 export function createHubCommand(
@@ -103,11 +117,14 @@ export function createHubCommand(
 			const health = discovery?.url
 				? await probeHubServer(discovery.url)
 				: undefined;
+			const uptime = formatHubUptimeFromStartedAt(health?.startedAt);
 			io.writeln(
 				JSON.stringify({
 					running: !!health?.url,
 					url: health?.url,
 					pid: health?.pid,
+					startedAt: health?.startedAt,
+					uptime,
 				}),
 			);
 		}),

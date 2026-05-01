@@ -15,6 +15,7 @@ export function extractErrorMessage(error: unknown): string {
 		}
 		const payload = value as {
 			error?: { message?: string } | string;
+			errors?: unknown;
 			detail?: string;
 			message?: string;
 			responseBody?: unknown;
@@ -33,6 +34,14 @@ export function extractErrorMessage(error: unknown): string {
 		}
 		if (typeof payload.detail === "string" && payload.detail.trim()) {
 			return payload.detail;
+		}
+		if (Array.isArray(payload.errors)) {
+			for (const error of payload.errors) {
+				const nested = extractStructuredMessage(error);
+				if (nested) {
+					return nested;
+				}
+			}
 		}
 		if ("responseBody" in payload && payload.responseBody !== value) {
 			const nested = extractStructuredMessage(payload.responseBody);

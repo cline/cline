@@ -7,7 +7,6 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
@@ -19,13 +18,15 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	createLocalHubScheduleRuntimeHandlers,
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
 	ensureHubServer,
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	HubScheduleCommandService,
+	HubScheduleService,
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
@@ -35,11 +36,8 @@ import {
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	resolvePluginConfigSearchPaths,
-	resolveRulesConfigSearchPaths,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
-	resolveSkillsConfigSearchPaths,
-	resolveWorkflowsConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
@@ -48,7 +46,7 @@ import {
 	setDisabledTools,
 	toggleDisabledTool,
 } from "@clinebot/core";
-import { broadcastEvent } from "./context";
+import { broadcastEvent, resolveSidecarAskQuestion } from "./context";
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
@@ -349,21 +347,30 @@ async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
-	await ensureHubServer({
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-	});
+	let useLocalScheduleService = false;
+	try {
+		if (!useLocalScheduleService) {
+			await ensureHubServer({
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+		}
+	} catch {
+		useLocalScheduleService = true;
+	}
 	const clientCommand = async (
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await sendHubCommand(
-			{},
-			{
-				clientId: "code-sidecar-routines",
-				command: hubCommand as never,
-				payload,
-			},
-		);
+		const reply = useLocalScheduleService
+			? await localRoutineScheduleCommand(hubCommand, payload)
+			: await sendHubCommand(
+					{},
+					{
+						clientId: "code-sidecar-routines",
+						command: hubCommand as never,
+						payload,
+					},
+				);
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -444,8 +451,35 @@ async function handleRoutineScheduleCommand(
 	}
 }
 
+let localRoutineScheduleService: HubScheduleService | undefined;
+let localRoutineScheduleCommands: HubScheduleCommandService | undefined;
+
+function getLocalRoutineScheduleCommands(): HubScheduleCommandService {
+	if (!localRoutineScheduleService || !localRoutineScheduleCommands) {
+		localRoutineScheduleService = new HubScheduleService({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		localRoutineScheduleCommands = new HubScheduleCommandService(
+			localRoutineScheduleService,
+		);
+	}
+	return localRoutineScheduleCommands;
+}
+
+async function localRoutineScheduleCommand(
+	command: string,
+	payload?: Record<string, unknown>,
+) {
+	return await getLocalRoutineScheduleCommands().handleCommand({
+		version: "v1",
+		clientId: "code-sidecar-routines-local",
+		command: command as never,
+		payload,
+	});
+}
+
 // ---------------------------------------------------------------------------
-// User instruction config listing (in-process via @clinebot/core watchers)
+// User instruction config listing through the core config service.
 // ---------------------------------------------------------------------------
 
 function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
@@ -457,51 +491,32 @@ async function listUserInstructionConfigs(
 ): Promise<JsonRecord> {
 	const warnings: string[] = [];
 
-	const loadWatcherSnapshot = async (
+	const loadUserInstructionSnapshot = async (
 		type: "rule" | "skill" | "workflow",
-		directories: string[],
 	): Promise<unknown[]> => {
 		const items: unknown[] = [];
-		const existing = directories.filter((d) => existsSync(d));
-		for (const directory of existing) {
-			const opts =
-				type === "rule"
-					? {
-							skills: { directories: [] },
-							rules: { directories: [directory] },
-							workflows: { directories: [] },
-						}
-					: type === "skill"
-						? {
-								skills: { directories: [directory] },
-								rules: { directories: [] },
-								workflows: { directories: [] },
-							}
-						: {
-								skills: { directories: [] },
-								rules: { directories: [] },
-								workflows: { directories: [directory] },
-							};
-			const watcher = createUserInstructionConfigWatcher(opts);
-			try {
-				await watcher.start();
-				const snapshot = watcher.getSnapshot(type);
-				for (const [id, record] of snapshot.entries()) {
-					const item = record.item as unknown as JsonRecord;
-					if (item.disabled === true) continue;
-					items.push({
-						id,
-						name: item.name ?? id,
-						instructions: item.instructions,
-						path: record.filePath,
-					});
-				}
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				warnings.push(`${type}: ${message}`);
-			} finally {
-				watcher.stop();
+		const service = createUserInstructionConfigService({
+			skills: { workspacePath: workspaceRoot },
+			rules: { workspacePath: workspaceRoot },
+			workflows: { workspacePath: workspaceRoot },
+		});
+		try {
+			await service.start();
+			for (const record of service.listRecords(type)) {
+				const item = record.item as unknown as JsonRecord;
+				if (item.disabled === true) continue;
+				items.push({
+					id: record.id,
+					name: item.name ?? record.id,
+					instructions: item.instructions,
+					path: record.filePath,
+				});
 			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			warnings.push(`${type}: ${message}`);
+		} finally {
+			service.stop();
 		}
 		return items;
 	};
@@ -586,15 +601,9 @@ async function listUserInstructionConfigs(
 	};
 
 	const [rules, workflows, skills, pluginTools] = await Promise.all([
-		loadWatcherSnapshot("rule", resolveRulesConfigSearchPaths(workspaceRoot)),
-		loadWatcherSnapshot(
-			"workflow",
-			resolveWorkflowsConfigSearchPaths(workspaceRoot),
-		),
-		loadWatcherSnapshot("skill", [
-			...resolveSkillsConfigSearchPaths(workspaceRoot),
-			join(homedir(), "Documents", "Cline", "Skills"),
-		]),
+		loadUserInstructionSnapshot("rule"),
+		loadUserInstructionSnapshot("workflow"),
+		loadUserInstructionSnapshot("skill"),
 		listPluginTools({
 			workspacePath: workspaceRoot,
 			cwd: workspaceRoot,
@@ -708,7 +717,7 @@ export async function handleCommand(
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
 		return await readSessionMessages(
-			ctx as any,
+			ctx,
 			String(args?.sessionId ?? ""),
 			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
 		);
@@ -742,14 +751,12 @@ export async function handleCommand(
 			throw new Error("sessionId and requestId are required");
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
-		if (pending && ctx.hubClient) {
-			await ctx.hubClient.command("approval.respond", {
-				approvalId: pending.approvalId,
+		if (pending) {
+			pending.resolve({
 				approved: Boolean(args?.approved),
-				payload:
-					typeof args?.reason === "string" && args.reason.trim().length > 0
-						? { reason: args.reason }
-						: undefined,
+				...(typeof args?.reason === "string" && args.reason.trim().length > 0
+					? { reason: args.reason.trim() }
+					: {}),
 			});
 		}
 		ctx.pendingApprovals.delete(requestId);
@@ -760,6 +767,19 @@ export async function handleCommand(
 			sessionId,
 			items: remaining,
 		});
+		return true;
+	}
+	if (command === "respond_ask_question") {
+		const requestId = String(args?.requestId ?? "").trim();
+		if (!requestId) {
+			throw new Error("requestId is required");
+		}
+		const answer = String(args?.answer ?? "").trim();
+		const resolved = resolveSidecarAskQuestion(ctx, requestId, answer);
+		if (!resolved) {
+			throw new Error(`unknown ask question request: ${requestId}`);
+		}
+		broadcastEvent(ctx, "ask_question_answered", { requestId });
 		return true;
 	}
 
@@ -896,7 +916,7 @@ export async function handleCommand(
 
 	// ── Workspace file search ─────────────────────────────────────────
 	if (command === "search_workspace_files") {
-		return await searchWorkspaceFiles(ctx as any, args);
+		return await searchWorkspaceFiles(ctx, args);
 	}
 
 	// ── Cline account ──────────────────────────────────────────────────

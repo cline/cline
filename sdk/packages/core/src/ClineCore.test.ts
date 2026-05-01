@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentResult } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClineCoreStartInput } from "./ClineCore";
+import type { ClineCoreStartInput } from "./cline-core/types";
 import type {
 	StartSessionInput,
 	StartSessionResult,
@@ -80,22 +80,22 @@ describe("ClineCore", () => {
 		> = [];
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(async (input: StartSessionInput) => {
+			startSession: vi.fn(async (input: StartSessionInput) => {
 				expect(input.config.systemPrompt).toBe("Bootstrapped prompt");
-				expect(input.localRuntime?.configOverrides?.extensions).toEqual([
+				expect(input.localRuntime?.extensions).toEqual([
 					expect.objectContaining({ name: "enterprise" }),
 				]);
 				return createStartResult("session-1");
 			}),
-			send: vi.fn(),
+			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(async () => undefined),
-			list: vi.fn(),
-			delete: vi.fn(),
-			readMessages: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
 			subscribe: vi.fn((listener) => {
 				listeners.push(listener);
 				return () => {};
@@ -132,7 +132,7 @@ describe("ClineCore", () => {
 		await core.start(createStartInput());
 
 		expect(applyToStartSessionInput).toHaveBeenCalledTimes(1);
-		expect(host.start).toHaveBeenCalledTimes(1);
+		expect(host.startSession).toHaveBeenCalledTimes(1);
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(listeners).toHaveLength(1);
 	});
@@ -143,16 +143,16 @@ describe("ClineCore", () => {
 			| undefined;
 		const host = {
 			runtimeAddress: "127.0.0.1:5317",
-			start: vi.fn(async () => createStartResult("session-2")),
-			send: vi.fn(),
+			startSession: vi.fn(async () => createStartResult("session-2")),
+			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(async () => ({ sessionId: "session-2" })),
-			list: vi.fn(),
-			delete: vi.fn(),
-			readMessages: vi.fn(),
+			getSession: vi.fn(async () => ({ sessionId: "session-2" })),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
 			subscribe: vi.fn((nextListener) => {
 				listener = nextListener;
 				return () => {};
@@ -182,16 +182,16 @@ describe("ClineCore", () => {
 	it("emits session.started telemetry when a new session is started", async () => {
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(async () => createStartResult("session-telemetry")),
-			send: vi.fn(),
+			startSession: vi.fn(async () => createStartResult("session-telemetry")),
+			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(async () => undefined),
-			list: vi.fn(),
-			delete: vi.fn(),
-			readMessages: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
 			updateSessionModel: vi.fn(),
 		};
@@ -235,19 +235,70 @@ describe("ClineCore", () => {
 		);
 	});
 
+	it("merges instance and per-start runtime capabilities", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-capabilities"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const askQuestion = vi.fn(async () => "yes");
+		const submit = vi.fn(async () => "submitted");
+		const requestToolApproval = vi.fn(async () => ({ approved: true }));
+
+		const core = await ClineCore.create({
+			capabilities: {
+				toolExecutors: { askQuestion },
+				requestToolApproval,
+			},
+		});
+
+		await core.start({
+			...createStartInput(),
+			capabilities: {
+				toolExecutors: { submit },
+			},
+		});
+
+		const startInput = vi.mocked(host.startSession).mock.calls.at(-1)?.[0] as
+			| StartSessionInput
+			| undefined;
+		expect(startInput).toBeDefined();
+		if (!startInput) throw new Error("Expected host.startSession to be called");
+		expect(startInput.capabilities?.toolExecutors).toMatchObject({
+			askQuestion,
+			submit,
+		});
+		expect(startInput.capabilities?.requestToolApproval).toBe(
+			requestToolApproval,
+		);
+	});
+
 	it("prefers the per-session telemetry service over the ClineCore one", async () => {
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(async () => createStartResult("session-override")),
-			send: vi.fn(),
+			startSession: vi.fn(async () => createStartResult("session-override")),
+			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(async () => undefined),
-			list: vi.fn(),
-			delete: vi.fn(),
-			readMessages: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
 			updateSessionModel: vi.fn(),
 		};
@@ -283,14 +334,14 @@ describe("ClineCore", () => {
 	it("hydrates list rows through the core API", async () => {
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(),
-			send: vi.fn(),
+			startSession: vi.fn(),
+			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(async () => undefined),
-			list: vi.fn(async () => [
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(async () => [
 				{
 					sessionId: "session-3",
 					source: "cli",
@@ -310,9 +361,9 @@ describe("ClineCore", () => {
 					updatedAt: "2026-04-21T02:17:46.169Z",
 				},
 			]),
-			delete: vi.fn(),
-			update: vi.fn(),
-			readMessages: vi.fn(async () => [
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			readSessionMessages: vi.fn(async () => [
 				{
 					role: "user",
 					content: [{ type: "text", text: "hello" }],
@@ -329,7 +380,7 @@ describe("ClineCore", () => {
 					},
 				},
 			]),
-			handleHookEvent: vi.fn(),
+			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
 			updateSessionModel: vi.fn(),
 		};
@@ -338,8 +389,8 @@ describe("ClineCore", () => {
 		const core = await ClineCore.create();
 		const [row] = await core.list(10);
 
-		expect(host.list).toHaveBeenCalledWith(10);
-		expect(host.readMessages).toHaveBeenCalledWith("session-3");
+		expect(host.listSessions).toHaveBeenCalledWith(10);
+		expect(host.readSessionMessages).toHaveBeenCalledWith("session-3");
 		expect(row).toMatchObject({
 			sessionId: "session-3",
 			provider: "cline",
@@ -354,14 +405,14 @@ describe("ClineCore", () => {
 	it("can list sessions without hydrating message history", async () => {
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(),
-			send: vi.fn(),
+			startSession: vi.fn(),
+			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(),
-			list: vi.fn(async () => [
+			getSession: vi.fn(),
+			listSessions: vi.fn(async () => [
 				{
 					sessionId: "session-lightweight",
 					source: "core",
@@ -381,10 +432,10 @@ describe("ClineCore", () => {
 					updatedAt: "2026-04-21T02:17:46.169Z",
 				},
 			]),
-			delete: vi.fn(),
-			update: vi.fn(),
-			readMessages: vi.fn(),
-			handleHookEvent: vi.fn(),
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
 			updateSessionModel: vi.fn(),
 		};
@@ -395,8 +446,8 @@ describe("ClineCore", () => {
 
 		// Hydration options are consumed by ClineCore/listSessionHistory; the host
 		// list contract only receives the numeric limit.
-		expect(host.list.mock.calls).toEqual([[10]]);
-		expect(host.readMessages).not.toHaveBeenCalled();
+		expect(host.listSessions.mock.calls).toEqual([[10]]);
+		expect(host.readSessionMessages).not.toHaveBeenCalled();
 		expect(row).toMatchObject({
 			sessionId: "session-lightweight",
 			provider: "cline",
@@ -428,18 +479,18 @@ Summarize the local event.
 
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(async () => createStartResult("automation-session")),
-			send: vi.fn(async () => createAgentResult("automation complete")),
+			startSession: vi.fn(async () => createStartResult("automation-session")),
+			runTurn: vi.fn(async () => createAgentResult("automation complete")),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(async () => undefined),
-			list: vi.fn(),
-			delete: vi.fn(),
-			update: vi.fn(),
-			readMessages: vi.fn(),
-			handleHookEvent: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
 			updateSessionModel: vi.fn(),
 		};
@@ -472,8 +523,8 @@ Summarize the local event.
 			await core.automation.stop();
 			await core.dispose();
 
-			expect(host.start).toHaveBeenCalledTimes(1);
-			expect(host.send).toHaveBeenCalledWith(
+			expect(host.startSession).toHaveBeenCalledTimes(1);
+			expect(host.runTurn).toHaveBeenCalledWith(
 				expect.objectContaining({
 					sessionId: "automation-session",
 					prompt: expect.stringContaining("Trigger event:"),
@@ -502,19 +553,19 @@ Summarize the local event.
 		};
 		const host = {
 			runtimeAddress: undefined,
-			start: vi.fn(async () => createStartResult("restored-session")),
-			send: vi.fn(),
-			restore: vi.fn(async () => restoreResult),
+			startSession: vi.fn(async () => createStartResult("restored-session")),
+			runTurn: vi.fn(),
+			restoreSession: vi.fn(async () => restoreResult),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
-			stop: vi.fn(),
+			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			get: vi.fn(),
-			list: vi.fn(),
-			delete: vi.fn(),
-			update: vi.fn(),
-			readMessages: vi.fn(),
-			handleHookEvent: vi.fn(),
+			getSession: vi.fn(),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
 			updateSessionModel: vi.fn(),
 		};
@@ -532,7 +583,7 @@ Summarize the local event.
 			start: createStartInput(),
 		});
 
-		expect(host.restore).toHaveBeenCalledWith(
+		expect(host.restoreSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				sessionId: "source-session",
 				checkpointRunCount: 2,

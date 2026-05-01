@@ -6,7 +6,13 @@ import {
 	SIDECAR_MODE,
 	SIDECAR_PORT,
 	type SidecarContext,
+	type SidecarWebSocketClient,
 } from "./types";
+
+type SidecarServer = {
+	port: number;
+	upgrade(req: Request): boolean;
+};
 
 // ---------------------------------------------------------------------------
 // JSON response helper
@@ -34,7 +40,7 @@ export function startServer(
 		throw new Error("sidecar must be run with Bun");
 	}
 
-	let server: any;
+	let server: SidecarServer | undefined;
 	let lastError: unknown;
 
 	// Try the preferred port first, then fall back to OS-assigned port (0).
@@ -46,7 +52,7 @@ export function startServer(
 				port: candidate,
 				fetch: createFetchHandler(ctx, onShutdown),
 				websocket: createWebSocketHandler(ctx),
-			});
+			}) as SidecarServer;
 			break;
 		} catch (error) {
 			lastError = error;
@@ -64,7 +70,7 @@ function createFetchHandler(
 	_ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
 ) {
-	return async (req: Request, server: any) => {
+	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
 
 		if (url.pathname === "/health") {
@@ -105,14 +111,14 @@ function createFetchHandler(
 
 function createWebSocketHandler(ctx: SidecarContext) {
 	return {
-		open(ws: any) {
+		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
 			sendEvent(ctx, "host_ready", {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
 		},
-		async message(ws: any, raw: string) {
+		async message(ws: SidecarWebSocketClient, raw: string) {
 			let request: DesktopTransportRequest;
 			try {
 				request = JSON.parse(String(raw)) as DesktopTransportRequest;
@@ -135,7 +141,7 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				ws.send(jsonResponse(request.id, false, undefined, message));
 			}
 		},
-		close(ws: any) {
+		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
 		},
 	};

@@ -387,13 +387,17 @@ export class HubScheduleService {
 		};
 		return this.store
 			.listSpecs(options)
-			.filter((spec) => spec.source === "hub-schedule" && !!spec.nextRunAt)
+			.flatMap((spec) =>
+				spec.source === "hub-schedule" && spec.nextRunAt
+					? [{ spec, nextRunAt: spec.nextRunAt }]
+					: [],
+			)
 			.sort((a, b) => String(a.nextRunAt).localeCompare(String(b.nextRunAt)))
 			.slice(0, limit)
-			.map((spec) => ({
+			.map(({ spec, nextRunAt }) => ({
 				scheduleId: spec.externalId,
 				name: spec.title,
-				nextRunAt: spec.nextRunAt!,
+				nextRunAt,
 			}));
 	}
 }

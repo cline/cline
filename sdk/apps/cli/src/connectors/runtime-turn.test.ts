@@ -66,4 +66,51 @@ describe("createConnectorRuntimeTurnStream", () => {
 			timeoutMs: null,
 		});
 	});
+
+	it("surfaces normalized runtime failed errors", async () => {
+		let handlers: StreamHandlers | undefined;
+
+		const client = {
+			streamEvents: (_request: unknown, callbacks: StreamHandlers) => {
+				handlers = callbacks;
+				return () => {};
+			},
+			sendRuntimeSession: async () => {
+				handlers?.onEvent({
+					eventType: "runtime.chat.failed",
+					payload: {
+						reason: "error",
+						error: "Invalid API key",
+					},
+				});
+				return {
+					result: {
+						text: "Invalid API key",
+						finishReason: "error",
+						iterations: 1,
+					},
+				};
+			},
+		};
+
+		const failures: string[] = [];
+		await expect(async () => {
+			for await (const _chunk of createConnectorRuntimeTurnStream({
+				client: client as never,
+				sessionId: "session-1",
+				request: { config: {} as never, prompt: "hi" },
+				clientId: "client-1",
+				logger: { core: {} } as unknown as CliLoggerAdapter,
+				transport: "telegram",
+				conversationId: "thread-1",
+				onFailed: async (error) => {
+					failures.push(error.message);
+				},
+			})) {
+				// consume stream
+			}
+		}).rejects.toThrow("Invalid API key");
+
+		expect(failures).toEqual(["Invalid API key"]);
+	});
 });

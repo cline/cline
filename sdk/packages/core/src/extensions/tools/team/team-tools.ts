@@ -86,6 +86,13 @@ function truncateText(value: string, maxLength: number): string {
 	return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
+function requireInputField<T>(value: T | undefined, field: string): T {
+	if (value === undefined) {
+		throw new Error(`Missing required field: ${field}`);
+	}
+	return value;
+}
+
 function summarizeRunResult(
 	run: TeamRunRecord,
 ): TeamRunResultSummary | undefined {
@@ -403,8 +410,11 @@ export function createAgentTeamsTools(
 							)
 							.map(([field]) => field);
 						const task = options.runtime.createTask({
-							title: validatedInput.title!,
-							description: validatedInput.description!,
+							title: requireInputField(validatedInput.title, "title"),
+							description: requireInputField(
+								validatedInput.description,
+								"description",
+							),
 							dependsOn: validatedInput.dependsOn,
 							assignee: validatedInput.assignee,
 							createdBy: options.requesterId,
@@ -431,7 +441,7 @@ export function createAgentTeamsTools(
 						});
 					case "claim": {
 						const task = options.runtime.claimTask(
-							validatedInput.taskId!,
+							requireInputField(validatedInput.taskId, "taskId"),
 							options.requesterId,
 						);
 						return validateWithZod(TeamTaskToolResultSchema, {
@@ -444,9 +454,9 @@ export function createAgentTeamsTools(
 					}
 					case "complete": {
 						const task = options.runtime.completeTask(
-							validatedInput.taskId!,
+							requireInputField(validatedInput.taskId, "taskId"),
 							options.requesterId,
-							validatedInput.summary!,
+							requireInputField(validatedInput.summary, "summary"),
 						);
 						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "complete",
@@ -456,9 +466,9 @@ export function createAgentTeamsTools(
 					}
 					case "block": {
 						const task = options.runtime.blockTask(
-							validatedInput.taskId!,
+							requireInputField(validatedInput.taskId, "taskId"),
 							options.requesterId,
-							validatedInput.reason!,
+							requireInputField(validatedInput.reason, "reason"),
 						);
 						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "block",

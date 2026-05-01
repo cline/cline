@@ -36,6 +36,14 @@ describe("CronMaterializer", () => {
 		}).record;
 	}
 
+	function requireValue<T>(value: T | undefined): T {
+		expect(value).toBeDefined();
+		if (value === undefined) {
+			throw new Error("Expected value to be defined");
+		}
+		return value;
+	}
+
 	it("queues exactly one run per one-off spec revision", () => {
 		seedOneOff();
 		const m = new CronMaterializer({ store });
@@ -62,7 +70,7 @@ describe("CronMaterializer", () => {
 				enabled: true,
 			},
 		});
-		const updated = store.getSpec(spec.specId)!;
+		const updated = requireValue(store.getSpec(spec.specId));
 		expect(updated.revision).toBe(2);
 		expect(m.materializeAll().oneOffQueued).toBe(1);
 		const runs = store.listRuns({ specId: spec.specId });
@@ -73,7 +81,7 @@ describe("CronMaterializer", () => {
 		const spec = seedOneOff();
 		const m = new CronMaterializer({ store });
 		expect(m.materializeAll().oneOffQueued).toBe(1);
-		const run = store.listRuns({ specId: spec.specId })[0]!;
+		const run = requireValue(store.listRuns({ specId: spec.specId })[0]);
 		store.completeRun(run.runId, { status: "failed", error: "boom" });
 
 		expect(m.materializeAll().oneOffQueued).toBe(0);
@@ -106,9 +114,9 @@ describe("CronMaterializer", () => {
 		const m = new CronMaterializer({ store });
 		expect(m.materializeAll().scheduleQueued).toBe(1);
 		expect(m.materializeAll().scheduleQueued).toBe(0);
-		const after = store.getSpec(upserted.record.specId)!;
-		expect(after.nextRunAt).toBeDefined();
-		expect(new Date(after.nextRunAt!).getTime()).toBeGreaterThan(Date.now());
+		const after = requireValue(store.getSpec(upserted.record.specId));
+		const nextRunAt = requireValue(after.nextRunAt);
+		expect(new Date(nextRunAt).getTime()).toBeGreaterThan(Date.now());
 	});
 
 	it("does not duplicate a due schedule run when called twice with a stale spec snapshot", () => {
@@ -131,7 +139,7 @@ describe("CronMaterializer", () => {
 			},
 		});
 		store.updateSpecNextRunAt(upserted.record.specId, dueAt);
-		const staleSpec = store.getSpec(upserted.record.specId)!;
+		const staleSpec = requireValue(store.getSpec(upserted.record.specId));
 		const m = new CronMaterializer({ store, now: () => nowMs });
 
 		expect(m.materializeSchedule(staleSpec)).toBe(true);

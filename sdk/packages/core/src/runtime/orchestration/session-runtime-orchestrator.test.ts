@@ -226,6 +226,7 @@ describe("SessionRuntime construction", () => {
 		expect(registry).toEqual({
 			tools: [],
 			commands: [],
+			rules: [],
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
@@ -281,6 +282,33 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
 		expect(registry.automationEventTypes).toEqual([]);
+	});
+
+	it("composes extension-registered rules into the runtime system prompt", async () => {
+		const extension: AgentExtension = {
+			name: "rules-ext",
+			manifest: { capabilities: ["rules"] },
+			setup: (api) => {
+				api.registerRule({
+					id: "rules-ext:primary",
+					content: "Always preserve architectural boundaries.",
+				});
+			},
+		};
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				extensions: [extension],
+			}),
+			deps,
+		);
+
+		await session.run("go");
+
+		expect(configs[0]?.systemPrompt).toBe(
+			"Base prompt.\n\nAlways preserve architectural boundaries.",
+		);
 	});
 
 	it("passes session, caller, and logger context into extension setup()", async () => {

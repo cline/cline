@@ -29,7 +29,7 @@ The same pattern applies for enterprise use cases: you can build plugins that wr
 
 ```bash
 cp apps/examples/plugin-examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
-clite -i "Find where createTool is defined"
+cline -i "Find where createTool is defined"
 ```
 
 The plugin resolves `typescript` from the target project's own `node_modules` at runtime, so it uses the same TS version the project compiles with. No extra dependencies needed.
@@ -45,7 +45,7 @@ ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/typescript-lsp-pl
 The plugin registers a single tool via `createTool()` in its `setup()` method:
 
 ```ts
-const plugin: AgentExtension = {
+const plugin: AgentPlugin = {
   name: "typescript-lsp",
   manifest: {
     capabilities: ["tools"],
@@ -89,7 +89,7 @@ Under the hood:
 Then pass it to the SDK:
 
 ```ts
-const host = await ClineCore.create({});
+const host = await ClineCore.create({ backendMode: "local" });
 await host.start({
   config: {
     providerId: "anthropic",

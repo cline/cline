@@ -9,7 +9,7 @@ Think of it as `spawn()` for AI agents: fire off a recon agent to map a codebase
 ```ts
 import { ClineCore } from "@clinebot/core";
 
-const cline = await ClineCore.create({});
+const cline = await ClineCore.create({ backendMode: "auto" });
 
 await cline.start({
   config: {
@@ -92,13 +92,13 @@ Parent agent receives task
 
 Drop a Markdown file with YAML frontmatter into any of these directories:
 
-- **Global**: `~/.cline/agents/`
+- **Global**: `~/.cline/data/settings/agents/`
 - **Project**: `.cline/agents/` (relative to your working directory)
 
-That global path still works. In the current implementation, agent presets are loaded from:
+In the current implementation, agent presets are loaded from:
 
 - bundled presets in `agents/` alongside the plugin
-- `~/.cline/agents/`
+- `~/.cline/data/settings/agents/`
 - `<cwd>/.cline/agents/`
 
 ```markdown
@@ -187,7 +187,7 @@ All optional. Environment variables override defaults:
 | `CLINE_SUBAGENT_PROVIDER_ID` | `cline` | Default provider for new subagent sessions |
 | `CLINE_SUBAGENT_MODEL_ID` | `anthropic/claude-sonnet-4.6` | Default model for new subagent sessions |
 | `CLINE_SUBAGENT_DEFAULT_PRESET` | `phantom` | Default bundled preset used by `start_subagent` when `preset` is omitted |
-| `CLINE_SUBAGENTS_BACKEND_MODE` | `auto` | Session backend: `auto`, `local`, or `rpc` |
+| `CLINE_SUBAGENTS_BACKEND_MODE` | `auto` | Session backend for internal subagent sessions: `auto`, `hub`, or `local` |
 | `CLINE_SUBAGENT_CWD` | `process.cwd()` | Base working directory for subagent sessions |
 | `CLINE_DATA_DIR` | `~/.cline/data` | Root data directory (affects all path resolution) |
 
@@ -200,4 +200,4 @@ Under the hood, each subagent is a full Cline SDK session created via `ClineCore
 3. When the subagent finishes (or fails), the result is stored in memory and optionally pushed back to the parent session as a "steer" message.
 4. The parent agent can poll with `get_subagent` or just wait for the notification.
 
-The runtime host connection is resilient: if the initial connection fails, subsequent calls retry instead of permanently failing. Malformed agent/skill definition files are skipped gracefully without crashing the plugin.
+The internal `ClineCore` instance defaults to `auto`, so it can use a compatible shared hub when available and fall back to local in-process sessions. If session manager creation fails, later tool calls retry instead of permanently failing. Malformed agent/skill definition files are skipped gracefully without crashing the plugin.

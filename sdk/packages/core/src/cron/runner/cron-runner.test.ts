@@ -45,6 +45,14 @@ function fakeHandlers(): {
 	return { handlers, calls };
 }
 
+function requireValue<T>(value: T | undefined): T {
+	expect(value).toBeDefined();
+	if (value === undefined) {
+		throw new Error("Expected value to be defined");
+	}
+	return value;
+}
+
 describe("CronRunner", () => {
 	let dir: string;
 	let workspaceRoot: string;
@@ -98,10 +106,12 @@ describe("CronRunner", () => {
 		expect(calls.send).toBe(1);
 		expect(calls.stop).toBe(1);
 
-		const run = store.listRuns({ specId: upserted.record.specId })[0]!;
+		const run = requireValue(
+			store.listRuns({ specId: upserted.record.specId })[0],
+		);
 		expect(run.status).toBe("done");
-		expect(run.reportPath).toBeDefined();
-		expect(existsSync(run.reportPath!)).toBe(true);
+		const reportPath = requireValue(run.reportPath);
+		expect(existsSync(reportPath)).toBe(true);
 	});
 
 	it("marks runs failed when the runtime throws", async () => {
@@ -144,7 +154,9 @@ describe("CronRunner", () => {
 		await runner.tick();
 		await runner.dispose();
 
-		const run = store.listRuns({ specId: upserted.record.specId })[0]!;
+		const run = requireValue(
+			store.listRuns({ specId: upserted.record.specId })[0],
+		);
 		expect(run.status).toBe("failed");
 		expect(run.error).toMatch(/no runtime/);
 	});
@@ -197,10 +209,12 @@ describe("CronRunner", () => {
 		expect(calls.send).toBe(1);
 		expect(calls.prompts[0]).toContain("Trigger event:");
 		expect(calls.prompts[0]).toContain("github.pull_request.opened");
-		const run = store.listRuns({ specId: upserted.record.specId })[0]!;
+		const run = requireValue(
+			store.listRuns({ specId: upserted.record.specId })[0],
+		);
 		expect(run.status).toBe("done");
-		expect(run.reportPath).toBeDefined();
-		const report = readFileSync(run.reportPath!, "utf8");
+		const reportPath = requireValue(run.reportPath);
+		const report = readFileSync(reportPath, "utf8");
 		expect(report).toContain("triggerEventType: github.pull_request.opened");
 		expect(report).toContain("## Trigger Event");
 	});
@@ -298,21 +312,22 @@ describe("CronRunner", () => {
 			nowIso: new Date().toISOString(),
 			leaseMs: 30_000,
 		});
-		expect(claim?.run.runId).toBe(run.runId);
+		const claimedRun = requireValue(claim);
+		expect(claimedRun.run.runId).toBe(run.runId);
 		(runner as unknown as { started: boolean }).started = true;
 		(
 			runner as unknown as {
 				activeRuns: Map<string, { claimToken: string; sessionId?: string }>;
 			}
 		).activeRuns.set(run.runId, {
-			claimToken: claim?.claimToken,
+			claimToken: claimedRun.claimToken,
 			sessionId: "sess_stop",
 		});
 		await runner.stop();
 		await runner.dispose();
 
 		expect(aborted).toBe(1);
-		const requeued = store.getRun(run.runId)!;
+		const requeued = requireValue(store.getRun(run.runId));
 		expect(requeued.status).toBe("queued");
 		expect(requeued.claimToken).toBeUndefined();
 		expect(requeued.completedAt).toBeUndefined();

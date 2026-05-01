@@ -105,6 +105,7 @@ export function createAgentRuntimeConfig(
 		logger: input.logger ?? agentConfig.logger,
 		telemetry: input.telemetry ?? mapTelemetry(agentConfig.telemetry),
 		initialMessages: input.initialMessages,
+		completionPolicy: agentConfig.completionPolicy,
 		maxIterations: agentConfig.maxIterations,
 		toolExecution,
 		toolPolicies: agentConfig.toolPolicies,

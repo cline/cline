@@ -3,8 +3,12 @@ import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
 } from "../../../types/events";
-import { buildCompletionNotification } from "../helpers";
-import { type HubTransportContext, readHubSessionRecord } from "./context";
+import { buildCompletionNotification } from "../hub-notifications";
+import {
+	type HubTransportContext,
+	readCoreSessionSnapshot,
+	readHubSessionRecord,
+} from "./context";
 
 /**
  * Translates internal `CoreSessionEvent`s emitted by the session host into the
@@ -87,13 +91,28 @@ export async function projectSessionEvent(
 			);
 			return;
 		}
+		case "session_snapshot":
+			ctx.publish(
+				ctx.buildEvent(
+					"session.updated",
+					{
+						sessionId: event.payload.sessionId,
+						snapshot: event.payload.snapshot,
+					},
+					event.payload.sessionId,
+				),
+			);
+			return;
 		case "status": {
-			const session = await readHubSessionRecord(ctx, event.payload.sessionId);
+			const [session, snapshot] = await Promise.all([
+				readHubSessionRecord(ctx, event.payload.sessionId),
+				readCoreSessionSnapshot(ctx, event.payload.sessionId),
+			]);
 			if (session) {
 				ctx.publish(
 					ctx.buildEvent(
 						"session.updated",
-						{ session },
+						{ session, ...(snapshot ? { snapshot } : {}) },
 						event.payload.sessionId,
 					),
 				);
@@ -261,8 +280,11 @@ async function projectSessionEnded(
 	if (suppressDuplicateTerminalEvent) {
 		ctx.suppressNextTerminalEventBySession.delete(event.payload.sessionId);
 	}
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, event.payload.sessionId),
+		readCoreSessionSnapshot(ctx, event.payload.sessionId),
+	]);
 	if (event.payload.reason === "completed") {
-		const session = await readHubSessionRecord(ctx, event.payload.sessionId);
 		const notification = await buildCompletionNotification(session);
 		ctx.publish(
 			ctx.buildEvent("ui.notify", notification, event.payload.sessionId),
@@ -278,7 +300,7 @@ async function projectSessionEnded(
 				: event.payload.reason === "error" || event.payload.reason === "failed"
 					? "run.failed"
 					: "run.completed",
-			{ reason: event.payload.reason },
+			{ reason: event.payload.reason, ...(snapshot ? { snapshot } : {}) },
 			event.payload.sessionId,
 		),
 	);

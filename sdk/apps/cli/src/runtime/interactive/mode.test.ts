@@ -60,7 +60,6 @@ describe("applyInteractiveModeConfig", () => {
 		expect(resolveSystemPrompt).toHaveBeenCalledWith({
 			cwd: config.cwd,
 			providerId: config.providerId,
-			rules: "",
 			mode: "plan",
 		});
 	});

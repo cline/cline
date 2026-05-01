@@ -203,7 +203,7 @@ Multi-workspace:
 
 - Incoming messages are handled by `chat` webhook routing.
 - The bot subscribes to threads when first mentioned, then continues on follow-ups.
-- Each Slack thread gets one in-memory `Agent` instance from `@clinebot/agents`.
+- Each Slack thread gets one in-memory `Agent` instance from the `@clinebot/core` app-facing export.
 - Agent provider/model/auth are read from `CLINE_SLACK_BOT_PROVIDER_CONFIG`.
 - The agent uses plain LLM calls (`tools: []`) by default.
 - `/clear` clears thread memory by dropping that thread's agent runtime.

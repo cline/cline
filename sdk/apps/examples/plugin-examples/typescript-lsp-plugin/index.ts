@@ -10,7 +10,7 @@
  *
  * CLI usage:
  *   cp apps/examples/plugin-examples/typescript-lsp-plugin/index.ts ~/.cline/plugins/typescript-lsp.ts
- *   clite -i "Find where createTool is defined"
+ *   cline -i "Find where createTool is defined"
  *
  * Direct demo usage:
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/typescript-lsp-plugin/index.ts
@@ -19,7 +19,7 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { type AgentExtension, ClineCore, createTool } from "@clinebot/core";
+import { type AgentPlugin, ClineCore, createTool } from "@clinebot/core";
 
 // ---------------------------------------------------------------------------
 // TypeScript Language Service setup
@@ -153,7 +153,7 @@ type DefinitionLocation = {
 	containerName?: string;
 };
 
-const plugin: AgentExtension = {
+const plugin: AgentPlugin = {
 	name: "typescript-lsp",
 	manifest: {
 		capabilities: ["tools"],
@@ -299,7 +299,7 @@ const plugin: AgentExtension = {
 // ---------------------------------------------------------------------------
 
 async function runDemo(): Promise<void> {
-	const sessionManager = await ClineCore.create({});
+	const sessionManager = await ClineCore.create({ backendMode: "local" });
 
 	try {
 		const result = await sessionManager.start({

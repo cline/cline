@@ -44,6 +44,7 @@ export function createTool<TInput, TOutput>(config: {
 	description: string;
 	inputSchema: Record<string, unknown>;
 	execute: (input: TInput, context: ToolContext) => Promise<TOutput>;
+	lifecycle?: Tool<TInput, TOutput>["lifecycle"];
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
@@ -53,6 +54,7 @@ export function createTool<TSchema extends z.ZodTypeAny, TOutput>(config: {
 	description: string;
 	inputSchema: TSchema;
 	execute: (input: z.infer<TSchema>, context: ToolContext) => Promise<TOutput>;
+	lifecycle?: Tool<z.infer<TSchema>, TOutput>["lifecycle"];
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
@@ -62,6 +64,7 @@ export function createTool<TInput, TOutput>(config: {
 	description: string;
 	inputSchema: Record<string, unknown> | z.ZodTypeAny;
 	execute: (input: TInput, context: ToolContext) => Promise<TOutput>;
+	lifecycle?: Tool<TInput, TOutput>["lifecycle"];
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
@@ -76,6 +79,7 @@ export function createTool<TInput, TOutput>(config: {
 		name: config.name,
 		description: config.description,
 		inputSchema,
+		lifecycle: config.lifecycle,
 		execute: config.execute,
 		timeoutMs: config.timeoutMs ?? 30000,
 		retryable: config.retryable ?? true,

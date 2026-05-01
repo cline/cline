@@ -44,6 +44,10 @@ describe("config view helpers", () => {
 		).toBe(true);
 	});
 
+	it("treats plugin rows as toggleable", () => {
+		expect(isToggleableConfigItem(createItem({ kind: "plugin" }))).toBe(true);
+	});
+
 	it("resolves Enter/Tab on a skill row to details", () => {
 		const skill = createItem({
 			kind: "skill",
@@ -80,12 +84,16 @@ describe("config view helpers", () => {
 
 	it("handles toggle actions inline so the settings dialog stays open", () => {
 		const skill = createItem({ kind: "skill", name: "review" });
+		const plugin = createItem({ kind: "plugin", name: "workspace-plugin" });
 
 		expect(isInlineConfigAction(resolveConfigItemToggleAction(skill))).toBe(
 			true,
 		);
 		expect(isInlineConfigAction(resolveConfigItemSelectAction(skill))).toBe(
 			false,
+		);
+		expect(isInlineConfigAction(resolveConfigItemSelectAction(plugin))).toBe(
+			true,
 		);
 	});
 

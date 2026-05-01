@@ -1,4 +1,5 @@
 import z from "zod";
+import type { HubToolExecutorName } from "../hub";
 import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
@@ -17,6 +18,7 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
+	toolExecutors?: HubToolExecutorName[];
 	configExtensions?: RuntimeConfigExtensionKind[];
 }
 

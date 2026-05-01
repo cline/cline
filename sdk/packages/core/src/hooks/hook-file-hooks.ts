@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentHooks } from "@clinebot/shared";
+import type { AgentExtension, AgentHooks } from "@clinebot/shared";
 import {
 	augmentNodeCommandForDebug,
 	type BasicLogger,
@@ -10,8 +10,9 @@ import {
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
 import { ensureHookLogDir } from "@clinebot/shared/storage";
-import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
-import type { HookEventName, HookEventPayload } from "../hooks";
+import { createAgentHooksExtension } from "./hook-extension";
+import { listHookConfigFiles } from "./hook-file-config";
+import type { HookEventName, HookEventPayload } from "./subprocess";
 
 type HookContextBase = {
 	agentId: string;
@@ -857,30 +858,57 @@ export function createHookConfigFileHooks(
 		});
 	};
 
-	return {
-		onRunStart: async (ctx: AgentHookRunStartContext) => {
+	const hooks: AgentHooks = {};
+	if (
+		(commandMap.agent_start?.length ?? 0) > 0 ||
+		(commandMap.prompt_submit?.length ?? 0) > 0
+	) {
+		hooks.onRunStart = async (ctx: AgentHookRunStartContext) => {
 			await runStartPayload(ctx);
 			return undefined;
-		},
-		onToolCallStart: async (ctx: AgentHookToolCallStartContext) =>
-			runToolCallStart(ctx),
-		onToolCallEnd: async (ctx: AgentHookToolCallEndContext) => {
+		};
+	}
+	if ((commandMap.tool_call?.length ?? 0) > 0) {
+		hooks.onToolCallStart = async (ctx: AgentHookToolCallStartContext) =>
+			runToolCallStart(ctx);
+	}
+	if ((commandMap.tool_result?.length ?? 0) > 0) {
+		hooks.onToolCallEnd = async (ctx: AgentHookToolCallEndContext) => {
 			await runToolCallEnd(ctx);
 			return undefined;
-		},
-		onTurnEnd: async (ctx: AgentHookTurnEndContext) => {
+		};
+	}
+	if ((commandMap.agent_end?.length ?? 0) > 0) {
+		hooks.onTurnEnd = async (ctx: AgentHookTurnEndContext) => {
 			await runTurnEnd(ctx);
 			return undefined;
-		},
-		onStopError: async (ctx: AgentHookStopErrorContext) => {
+		};
+	}
+	if ((commandMap.agent_error?.length ?? 0) > 0) {
+		hooks.onStopError = async (ctx: AgentHookStopErrorContext) => {
 			await runStopError(ctx);
 			return undefined;
-		},
-		onSessionShutdown: async (ctx: AgentHookSessionShutdownContext) => {
+		};
+	}
+	if (
+		(commandMap.agent_abort?.length ?? 0) > 0 ||
+		(commandMap.session_shutdown?.length ?? 0) > 0
+	) {
+		hooks.onSessionShutdown = async (ctx: AgentHookSessionShutdownContext) => {
 			await runSessionShutdown(ctx);
 			return undefined;
-		},
-	};
+		};
+	}
+	return hooks;
+}
+
+export function createHookConfigFileExtension(
+	options: HookRuntimeOptions,
+): AgentExtension | undefined {
+	return createAgentHooksExtension(
+		"core.hook_config_files",
+		createHookConfigFileHooks(options),
+	);
 }
 
 function mergeHookFunction<K extends keyof AgentHooks>(

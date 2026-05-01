@@ -94,7 +94,7 @@ function sanitizeDisplayMessage(
 	};
 }
 
-export function sanitizeDisplayMessages(
+function sanitizeDisplayMessages(
 	messages: LlmsProviders.Message[],
 ): LlmsProviders.Message[] {
 	return messages.map(sanitizeDisplayMessage);

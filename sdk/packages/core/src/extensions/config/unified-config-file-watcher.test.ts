@@ -3,16 +3,28 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	type AgentYamlConfig,
-	parseAgentConfigFromYaml,
-} from "./agent-config-loader";
-import {
 	UnifiedConfigFileWatcher,
 	type UnifiedConfigWatcherEvent,
 } from "./unified-config-file-watcher";
 
 const WAIT_TIMEOUT_MS = 8_000;
 const WAIT_INTERVAL_MS = 25;
+
+interface TestProfileConfig {
+	name: string;
+	body: string;
+}
+
+function parseTestProfileConfig(content: string): TestProfileConfig {
+	const match = content.match(/^name:\s*(.+)\n\n([\s\S]*)$/);
+	if (!match) {
+		throw new Error("Invalid test profile config.");
+	}
+	return {
+		name: match[1].trim(),
+		body: match[2].trim(),
+	};
+}
 
 async function waitForEvent<TType extends string, TItem>(
 	events: Array<UnifiedConfigWatcherEvent<TType, TItem>>,
@@ -40,38 +52,33 @@ describe("UnifiedConfigFileWatcher", () => {
 		tempRoots.length = 0;
 	});
 
-	it("emits upsert and remove events with config type for agent configs", async () => {
+	it("emits upsert and remove events with config type", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-unified-config-watcher-"),
 		);
 		tempRoots.push(tempRoot);
-		const agentsDir = join(tempRoot, "agents");
-		await mkdir(agentsDir, { recursive: true });
-		const agentFilePath = join(agentsDir, "reviewer.yaml");
+		const profilesDir = join(tempRoot, "profiles");
+		await mkdir(profilesDir, { recursive: true });
+		const profileFilePath = join(profilesDir, "reviewer.profile");
 		await writeFile(
-			agentFilePath,
-			`---
-name: Reviewer
-description: Reviews patches
-tools: read_files
----
-Review code carefully.`,
+			profileFilePath,
+			"name: Reviewer\n\nReview code carefully.",
 		);
 
 		const watcher = new UnifiedConfigFileWatcher([
 			{
-				type: "agent" as const,
-				directories: [agentsDir],
-				includeFile: (fileName) => /\.(yaml|yml)$/i.test(fileName),
-				parseFile: (context) => parseAgentConfigFromYaml(context.content),
+				type: "profile" as const,
+				directories: [profilesDir],
+				includeFile: (fileName) => fileName.endsWith(".profile"),
+				parseFile: (context) => parseTestProfileConfig(context.content),
 				resolveId: (config) => config.name.toLowerCase(),
 			},
 		]);
 
 		const events: Array<
 			UnifiedConfigWatcherEvent<
-				"agent",
-				ReturnType<typeof parseAgentConfigFromYaml>
+				"profile",
+				ReturnType<typeof parseTestProfileConfig>
 			>
 		> = [];
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
@@ -85,25 +92,21 @@ Review code carefully.`,
 
 			events.length = 0;
 			await writeFile(
-				agentFilePath,
-				`---
-name: Reviewer
-description: Reviews patches
----
-Review code with strictness.`,
+				profileFilePath,
+				"name: Reviewer\n\nReview code with strictness.",
 			);
-			await watcher.refreshType("agent");
+			await watcher.refreshType("profile");
 			await waitForEvent(
 				events,
-				(event) => event.kind === "upsert" && event.record.type === "agent",
+				(event) => event.kind === "upsert" && event.record.type === "profile",
 			);
 
 			events.length = 0;
-			await unlink(agentFilePath);
-			await watcher.refreshType("agent");
+			await unlink(profileFilePath);
+			await watcher.refreshType("profile");
 			await waitForEvent(
 				events,
-				(event) => event.kind === "remove" && event.type === "agent",
+				(event) => event.kind === "remove" && event.type === "profile",
 			);
 		} finally {
 			unsubscribe();
@@ -116,18 +119,14 @@ Review code with strictness.`,
 			join(tmpdir(), "core-unified-config-watcher-"),
 		);
 		tempRoots.push(tempRoot);
-		const agentsDir = join(tempRoot, "agents");
+		const profilesDir = join(tempRoot, "profiles");
 		const skillsDir = join(tempRoot, "skills");
-		await mkdir(agentsDir, { recursive: true });
+		await mkdir(profilesDir, { recursive: true });
 		await mkdir(skillsDir, { recursive: true });
 
 		await writeFile(
-			join(agentsDir, "researcher.yaml"),
-			`---
-name: Researcher
-description: Finds context
----
-Investigate related code paths.`,
+			join(profilesDir, "researcher.profile"),
+			"name: Researcher\n\nInvestigate related code paths.",
 		);
 		await writeFile(
 			join(skillsDir, "SKILL.md"),
@@ -139,19 +138,19 @@ Escalation playbook`,
 		);
 
 		const watcher = new UnifiedConfigFileWatcher<
-			"agent" | "skill",
-			AgentYamlConfig | { path: string }
+			"profile" | "skill",
+			TestProfileConfig | { path: string }
 		>([
 			{
-				type: "agent" as const,
-				directories: [agentsDir],
-				includeFile: (fileName) => /\.(yaml|yml)$/i.test(fileName),
+				type: "profile" as const,
+				directories: [profilesDir],
+				includeFile: (fileName) => fileName.endsWith(".profile"),
 				parseFile: (context) =>
-					parseAgentConfigFromYaml(context.content) as
-						| AgentYamlConfig
+					parseTestProfileConfig(context.content) as
+						| TestProfileConfig
 						| { path: string },
 				resolveId: (config) =>
-					"name" in config ? config.name.toLowerCase() : "invalid-agent-config",
+					"name" in config ? config.name.toLowerCase() : "invalid-profile",
 			},
 			{
 				type: "skill" as const,
@@ -164,8 +163,8 @@ Escalation playbook`,
 
 		const events: Array<
 			UnifiedConfigWatcherEvent<
-				"agent" | "skill",
-				AgentYamlConfig | { path: string }
+				"profile" | "skill",
+				TestProfileConfig | { path: string }
 			>
 		> = [];
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
@@ -176,11 +175,11 @@ Escalation playbook`,
 				events,
 				(event) =>
 					event.kind === "upsert" &&
-					(event.record.type === "agent" || event.record.type === "skill"),
+					(event.record.type === "profile" || event.record.type === "skill"),
 			);
 			expect(
 				events.some(
-					(event) => event.kind === "upsert" && event.record.type === "agent",
+					(event) => event.kind === "upsert" && event.record.type === "profile",
 				),
 			).toBe(true);
 			expect(

@@ -2,7 +2,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool } from "@clinebot/shared";
-import { describe, expect, it } from "vitest";
+import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createBuiltinTools } from "../../extensions/tools";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
 
@@ -69,6 +70,27 @@ function makeSpawnTool(): Tool {
 }
 
 describe("runtime tool parity", () => {
+	const envSnapshot = {
+		HOME: process.env.HOME,
+		CLINE_DIR: process.env.CLINE_DIR,
+	};
+	let isolatedHomeDir = "";
+
+	beforeEach(() => {
+		isolatedHomeDir = mkdtempSync(join(tmpdir(), "runtime-parity-home-"));
+		process.env.HOME = isolatedHomeDir;
+		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		setHomeDir(isolatedHomeDir);
+		setClineDir(process.env.CLINE_DIR);
+	});
+
+	afterEach(() => {
+		process.env.HOME = envSnapshot.HOME;
+		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		setHomeDir(envSnapshot.HOME ?? "~");
+		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
+	});
+
 	it("matches legacy tool list when tools+spawn are enabled", async () => {
 		const config: LegacyConfig = {
 			providerId: "anthropic",

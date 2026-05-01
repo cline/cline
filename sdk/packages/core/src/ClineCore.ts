@@ -1,444 +1,74 @@
+import type { BasicLogger, ITelemetryService } from "@clinebot/shared";
+import {
+	ClineCoreAutomationController,
+	createClineCoreAutomationExtensionContext,
+	createClineCoreAutomationRuntimeHandlers,
+	normalizeAutomationCronScope,
+	normalizeAutomationOptions,
+} from "./cline-core/automation";
+import {
+	createClineCorePendingPromptsApi,
+	createClineCoreSettingsApi,
+	type RuntimeHostServiceExtensions,
+} from "./cline-core/runtime-services";
+import {
+	normalizeClineCoreStartInput,
+	toClineCoreStartInput,
+} from "./cline-core/start-input";
+import { emitSessionStartedTelemetry } from "./cline-core/telemetry";
 import type {
-	AgentConfig,
-	AgentExtensionAutomationContext,
-	AgentResult,
-	AutomationEventEnvelope,
-	BasicLogger,
-	ChatRunTurnRequest,
-	ChatStartSessionRequest,
-	ChatTurnResult,
-	ExtensionContext,
-	ITelemetryService,
-	ToolApprovalRequest,
-	ToolApprovalResult,
-} from "@clinebot/shared";
-import type {
-	CronEventIngressResult,
-	CronEventSuppression,
-} from "./cron/events/cron-event-ingress";
+	ClineCoreAutomationApi,
+	ClineCoreAutomationOptions,
+	ClineCoreListHistoryOptions,
+	ClineCoreOptions,
+	ClineCoreSettingsApi,
+	ClineCoreStartInput,
+	RestoreInput,
+	RestoreResult,
+	StartSessionBootstrap,
+} from "./cline-core/types";
+
 import { CronService } from "./cron/service/cron-service";
-import type { HubScheduleRuntimeHandlers } from "./cron/service/schedule-service";
-import type {
-	CronEventLogRecord,
-	CronRunRecord,
-	CronSpecRecord,
-} from "./cron/store/sqlite-cron-store";
-import type { ToolExecutors } from "./extensions/tools";
-import type { CheckpointEntry } from "./hooks/checkpoint-hooks";
-import type { SessionHistoryListOptions } from "./runtime/host/history";
+import type { RuntimeCapabilities } from "./runtime/capabilities";
+import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
-import type { SessionBackend } from "./runtime/host/host";
 import { createRuntimeHost } from "./runtime/host/host";
 import type {
-	LocalRuntimeStartOptions,
-	PendingPromptMutationResult,
-	PendingPromptsAction,
-	PendingPromptsDeleteInput,
-	PendingPromptsListInput,
-	PendingPromptsUpdateInput,
+	PendingPromptsServiceApi,
 	RuntimeHost,
-	RuntimeHostMode,
 	RuntimeHostSubscribeOptions,
+	SessionModelRuntimeService,
+	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-import { splitCoreSessionConfig } from "./runtime/host/runtime-host";
-import { normalizeProviderId } from "./services/llms/provider-settings";
-import { CORE_TELEMETRY_EVENTS } from "./services/telemetry/core-events";
-import {
-	type ClineCoreSettingsApi,
-	type CoreSettingsListInput,
-	type CoreSettingsMutationResult,
-	type CoreSettingsSnapshot,
-	type CoreSettingsToggleInput,
-	createCoreSettingsService,
-} from "./settings";
-import { SessionSource } from "./types/common";
-import type { CoreSessionConfig } from "./types/config";
-import type { CoreSessionEvent, SessionPendingPrompt } from "./types/events";
-import type { SessionMessagesArtifactUploader } from "./types/session";
+import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
-export interface HubOptions {
-	endpoint?: string;
-	authToken?: string;
-	strategy?: "prefer-hub" | "require-hub";
-	clientType?: string;
-	displayName?: string;
-	workspaceRoot?: string;
-	cwd?: string;
-}
-
-export interface RemoteOptions {
-	endpoint: string;
-	authToken?: string;
-	clientType?: string;
-	displayName?: string;
-	workspaceRoot?: string;
-	cwd?: string;
-}
-
-export interface ClineCoreAutomationOptions {
-	/** @deprecated Use `cronSpecsDir`. */
-	cronDir?: string;
-	cronSpecsDir?: string;
-	/** @deprecated Reports are written under the resolved cron specs directory. */
-	reportsDir?: string;
-	cronScope?: "global" | "user" | "workspace";
-	workspaceRoot?: string;
-	dbPath?: string;
-	pollIntervalMs?: number;
-	claimLeaseSeconds?: number;
-	globalMaxConcurrency?: number;
-	watcherDebounceMs?: number;
-	autoStart?: boolean;
-}
-
-export type ClineAutomationSpec = CronSpecRecord;
-export type ClineAutomationRun = CronRunRecord;
-export type ClineAutomationEventLog = CronEventLogRecord;
-export type ClineAutomationEventSuppression = CronEventSuppression;
-export type ClineAutomationRunStatus =
-	| "queued"
-	| "running"
-	| "done"
-	| "failed"
-	| "cancelled";
-
-export interface ClineAutomationListSpecsOptions {
-	triggerKind?: "one_off" | "schedule" | "event";
-	enabled?: boolean;
-	parseStatus?: "valid" | "invalid";
-	includeRemoved?: boolean;
-	limit?: number;
-}
-
-export interface ClineAutomationListRunsOptions {
-	specId?: string;
-	status?: ClineAutomationRunStatus | ClineAutomationRunStatus[];
-	limit?: number;
-}
-
-export interface ClineAutomationListEventsOptions {
-	eventType?: string;
-	source?: string;
-	processingStatus?:
-		| "received"
-		| "unmatched"
-		| "queued"
-		| "suppressed"
-		| "failed";
-	limit?: number;
-}
-
-export interface ClineAutomationEventIngressResult {
-	event: ClineAutomationEventLog;
-	duplicate: boolean;
-	matchedSpecIds: string[];
-	queuedRuns: ClineAutomationRun[];
-	suppressions: ClineAutomationEventSuppression[];
-}
-
-export interface ClineCoreAutomationApi {
-	start(): Promise<void>;
-	stop(): Promise<void>;
-	reconcileNow(): Promise<void>;
-	ingestEvent(
-		event: AutomationEventEnvelope,
-	): ClineAutomationEventIngressResult;
-	listEvents(
-		options?: ClineAutomationListEventsOptions,
-	): ClineAutomationEventLog[];
-	getEvent(eventId: string): ClineAutomationEventLog | undefined;
-	listSpecs(options?: ClineAutomationListSpecsOptions): ClineAutomationSpec[];
-	listRuns(options?: ClineAutomationListRunsOptions): ClineAutomationRun[];
-}
-
-export type { RuntimeHostMode };
-export type { ClineCoreSettingsApi };
-
-export type ClineCoreListHistoryOptions = SessionHistoryListOptions;
-
-export interface ClineCoreStartInput
-	extends Omit<StartSessionInput, "config" | "localRuntime"> {
-	config: CoreSessionConfig;
-	localRuntime?: LocalRuntimeStartOptions;
-}
-
-export interface RestoreOptions {
-	/**
-	 * Restore the message history by starting a new session fork trimmed to
-	 * `checkpointRunCount`. Defaults to true.
-	 */
-	messages?: boolean;
-	/**
-	 * Restore the workspace files from the checkpoint's git snapshot.
-	 * Defaults to true.
-	 */
-	workspace?: boolean;
-	/**
-	 * Start the forked session with messages before the checkpoint user message
-	 * while still returning messages through that user message. This is for
-	 * clients that put the checkpoint message back into a compose box so it can
-	 * be edited and submitted again without duplicating it in session history.
-	 */
-	omitCheckpointMessageFromSession?: boolean;
-}
-
-export interface RestoreInput {
-	sessionId: string;
-	checkpointRunCount: number;
-	start?: ClineCoreStartInput;
-	cwd?: string;
-	restore?: RestoreOptions;
-}
-
-export interface RestoreResult {
-	sessionId?: string;
-	startResult?: StartSessionResult;
-	messages?: import("@clinebot/llms").Message[];
-	checkpoint: CheckpointEntry;
-}
-
-export interface ClineCoreOptions {
-	/**
-	 * A human-readable name for this SDK client (e.g. `"my-app"`, `"acme-bot"`).
-	 * Used to identify the consumer in telemetry and logs.
-	 */
-	clientName?: string;
-	/**
-	 * A stable identifier for this machine or user, used for telemetry attribution.
-	 * Defaults to the system machine ID, falling back to a generated `cl-<nanoid>` persisted
-	 * at `~/.cline/data/machine-id`.
-	 */
-	distinctId?: string;
-	/**
-	 * Controls how the runtime host is selected:
-	 * - `"auto"` (default) — prefers a compatible local hub when one is available and falls
-	 *   back to local in-process execution when not.
-	 * - `"hub"` — requires a compatible websocket hub runtime; throws if one is not reachable.
-	 * - `"remote"` — requires an explicit remote websocket hub endpoint.
-	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
-	 */
-	backendMode?: RuntimeHostMode;
-	/**
-	 * Hub runtime connection options. Used when `backendMode` is `"hub"` or when `"auto"`
-	 * should prefer a shared local hub if available.
-	 */
-	hub?: HubOptions;
-	/**
-	 * Remote hub connection options. Only relevant when `backendMode` is `"remote"`.
-	 */
-	remote?: RemoteOptions;
-	/**
-	 * Override one or more default tool executors (e.g. file I/O, shell, browser).
-	 * Partial — only the keys you supply are replaced; the rest use built-in implementations.
-	 */
-	defaultToolExecutors?: Partial<ToolExecutors>;
-	/**
-	 * Telemetry service instance to use for capturing events and usage.
-	 * If omitted, telemetry is a no-op.
-	 */
-	telemetry?: ITelemetryService;
-	/**
-	 * Optional structured logger for core-side operational diagnostics such as
-	 * runtime-host selection and fallback decisions.
-	 */
-	logger?: BasicLogger;
-	/**
-	 * Per-tool approval policies that control whether a tool runs automatically,
-	 * requires user confirmation, or is blocked entirely.
-	 */
-	toolPolicies?: AgentConfig["toolPolicies"];
-	/**
-	 * Called before any tool is executed that requires explicit user approval.
-	 * Return `{ approved: true }` to allow or `{ approved: false }` to deny.
-	 * If omitted, all approval-required tools are auto-denied.
-	 */
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
-	/**
-	 * Optional hook invoked after `messages.json` is persisted to disk.
-	 * Consumers can use this to mirror session transcripts into remote storage.
-	 */
-	messagesArtifactUploader?: SessionMessagesArtifactUploader;
-	/**
-	 * Enables file-based and event-driven automation through this ClineCore
-	 * instance. When configured, callers use `cline.automation.*` instead of
-	 * constructing cron services directly.
-	 */
-	automation?: boolean | ClineCoreAutomationOptions;
-	/**
-	 * Custom `fetch` implementation forwarded to the AI gateway providers used
-	 * by local sessions. When supplied, it is threaded into each
-	 * `ProviderConfig.fetch` built during session bootstrap, which in turn
-	 * populates `GatewayProviderSettings.fetch` (and the top-level
-	 * `GatewayConfig.fetch` fallback) so hosts can inject custom HTTP behavior
-	 * such as proxies, retries, tracing, or test doubles.
-	 *
-	 * Per-session or per-provider overrides still win: an explicit
-	 * `config.fetch` on `CoreSessionConfig` or a stored provider-level `fetch`
-	 * takes precedence over this default.
-	 *
-	 * Applies only to sessions executed in this process (local and fallback-
-	 * to-local auto mode). For hub and remote runtimes the HTTP call happens
-	 * inside the process that owns the gateway, so configure `fetch` there:
-	 *   - `startHubServer({ fetch })` / `ensureHubServer({ fetch })` from
-	 *     `@clinebot/hub`
-	 *   - `createLocalHubScheduleRuntimeHandlers({ fetch })` from
-	 *     `@clinebot/core/hub` for the scheduler
-	 */
-	fetch?: typeof fetch;
-	/**
-	 * An already-constructed session backend to use instead of resolving one automatically.
-	 * Intended for testing or embedding a custom persistence layer.
-	 * @internal
-	 */
-	sessionService?: SessionBackend;
-	/**
-	 * Optional hook invoked before each session starts.
-	 * Use this to prepare workspace-scoped runtime state and then return an
-	 * adapter that mutates the shared session input before core starts the run.
-	 */
-	prepare?: (
-		input: ClineCoreStartInput,
-	) =>
-		| Promise<StartSessionBootstrap | undefined>
-		| StartSessionBootstrap
-		| undefined;
-}
-
-export interface StartSessionBootstrap {
-	applyToStartSessionInput(
-		input: ClineCoreStartInput,
-	): Promise<ClineCoreStartInput> | ClineCoreStartInput;
-	dispose?(): Promise<void> | void;
-}
-
-function normalizeAutomationOptions(
-	options: ClineCoreOptions["automation"],
-): ClineCoreAutomationOptions | undefined {
-	if (options === true) return {};
-	if (!options) return undefined;
-	return options;
-}
-
-function normalizeAutomationCronScope(
-	scope: ClineCoreAutomationOptions["cronScope"],
-): "global" | "workspace" | undefined {
-	if (scope === "user") return "global";
-	return scope;
-}
-
-function toChatTurnResult(result: AgentResult): ChatTurnResult {
-	return {
-		text: result.text,
-		usage: {
-			inputTokens: result.usage.inputTokens,
-			outputTokens: result.usage.outputTokens,
-			cacheReadTokens: result.usage.cacheReadTokens,
-			cacheWriteTokens: result.usage.cacheWriteTokens,
-			totalCost: result.usage.totalCost,
-		},
-		inputTokens: result.usage.inputTokens,
-		outputTokens: result.usage.outputTokens,
-		iterations: result.iterations,
-		finishReason: result.finishReason,
-		toolCalls: result.toolCalls.map((call) => ({
-			name: call.name,
-			input: call.input,
-			output: call.output,
-			error: call.error,
-			durationMs: call.durationMs,
-		})),
-	};
-}
-
-function resolveMode(
-	request: ChatStartSessionRequest | ChatRunTurnRequest["config"],
-): "act" | "plan" | "yolo" {
-	return request.mode === "plan"
-		? "plan"
-		: request.mode === "yolo"
-			? "yolo"
-			: "act";
-}
-
-class ClineCoreAutomationController implements ClineCoreAutomationApi {
-	constructor(private readonly getService: () => CronService) {}
-
-	async start(): Promise<void> {
-		await this.getService().start();
-	}
-
-	async stop(): Promise<void> {
-		await this.getService().stop();
-	}
-
-	async reconcileNow(): Promise<void> {
-		await this.getService().reconcileNow();
-	}
-
-	ingestEvent(
-		event: AutomationEventEnvelope,
-	): ClineAutomationEventIngressResult {
-		const result: CronEventIngressResult = this.getService().ingestEvent(event);
-		return {
-			event: result.event,
-			duplicate: result.duplicate,
-			matchedSpecIds: result.matchedSpecs.map((spec) => spec.specId),
-			queuedRuns: result.queuedRuns,
-			suppressions: result.suppressions,
-		};
-	}
-
-	listEvents(
-		options?: ClineAutomationListEventsOptions,
-	): ClineAutomationEventLog[] {
-		return this.getService().listEventLogs(options);
-	}
-
-	getEvent(eventId: string): ClineAutomationEventLog | undefined {
-		return this.getService().getEventLog(eventId);
-	}
-
-	listSpecs(options?: ClineAutomationListSpecsOptions): ClineAutomationSpec[] {
-		return this.getService().listSpecs(options);
-	}
-
-	listRuns(options?: ClineAutomationListRunsOptions): ClineAutomationRun[] {
-		return this.getService().listRuns(options);
-	}
-}
-
-type RuntimeHostWithSettings = RuntimeHost & {
-	listSettings?: (
-		input?: CoreSettingsListInput,
-	) => Promise<CoreSettingsSnapshot>;
-	toggleSetting?: (
-		input: CoreSettingsToggleInput,
-	) => Promise<CoreSettingsMutationResult>;
-};
-
-function createClineCoreSettingsApi(host: RuntimeHost): ClineCoreSettingsApi {
-	return {
-		async list(input) {
-			const settingsHost = host as RuntimeHostWithSettings;
-			if (settingsHost.listSettings) {
-				return await settingsHost.listSettings(input);
-			}
-			return await createCoreSettingsService().list(input);
-		},
-		async toggle(input) {
-			const settingsHost = host as RuntimeHostWithSettings;
-			if (settingsHost.toggleSetting) {
-				return await settingsHost.toggleSetting(input);
-			}
-			return await createCoreSettingsService().toggle(input);
-		},
-	};
-}
+export type {
+	ClineAutomationEventIngressResult,
+	ClineAutomationEventLog,
+	ClineAutomationEventSuppression,
+	ClineAutomationListEventsOptions,
+	ClineAutomationListRunsOptions,
+	ClineAutomationListSpecsOptions,
+	ClineAutomationRun,
+	ClineAutomationRunStatus,
+	ClineAutomationSpec,
+	ClineCoreAutomationApi,
+	ClineCoreAutomationOptions,
+	ClineCoreListHistoryOptions,
+	ClineCoreOptions,
+	ClineCoreSettingsApi,
+	ClineCoreStartInput,
+	HubOptions,
+	RemoteOptions,
+	RestoreInput,
+	RestoreOptions,
+	RestoreResult,
+	RuntimeHostMode,
+	StartSessionBootstrap,
+} from "./cline-core/types";
 
 /**
  * The primary entry point for the Cline Core SDK.
@@ -451,14 +81,15 @@ function createClineCoreSettingsApi(host: RuntimeHost): ClineCoreSettingsApi {
  * const session = await cline.start({ ... });
  * ```
  */
-export class ClineCore implements RuntimeHost {
+export class ClineCore {
 	readonly clientName: string | undefined;
 	readonly runtimeAddress: string | undefined;
 	readonly automation: ClineCoreAutomationApi;
 	readonly settings: ClineCoreSettingsApi;
+	readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
-	private readonly defaultToolExecutors: Partial<ToolExecutors> | undefined;
+	private readonly capabilities: RuntimeCapabilities | undefined;
 	private readonly logger: BasicLogger | undefined;
 	private readonly telemetry: ITelemetryService | undefined;
 	private readonly distinctId: string | undefined;
@@ -474,7 +105,7 @@ export class ClineCore implements RuntimeHost {
 		clientName: string | undefined,
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
-		defaultToolExecutors: Partial<ToolExecutors> | undefined,
+		capabilities: RuntimeCapabilities | undefined,
 		logger: BasicLogger | undefined,
 		telemetry: ITelemetryService | undefined,
 		distinctId: string | undefined,
@@ -486,11 +117,20 @@ export class ClineCore implements RuntimeHost {
 		this.runtimeAddress = runtimeAddress;
 		this.host = host;
 		this.prepare = prepare;
-		this.defaultToolExecutors = defaultToolExecutors;
+		this.capabilities = capabilities;
 		this.logger = logger;
 		this.telemetry = telemetry;
 		this.distinctId = distinctId;
 		this.settings = createClineCoreSettingsApi(host);
+		this.pendingPrompts = createClineCorePendingPromptsApi(host);
+		this.automation = new ClineCoreAutomationController(() => {
+			if (!this.automationService) {
+				throw new Error(
+					"ClineCore automation is not enabled. Pass `automation: true` or automation options to ClineCore.create().",
+				);
+			}
+			return this.automationService;
+		});
 		this.automationService = automationOptions
 			? new CronService({
 					workspaceRoot: automationOptions.workspaceRoot ?? process.cwd(),
@@ -500,7 +140,18 @@ export class ClineCore implements RuntimeHost {
 						scope: normalizeAutomationCronScope(automationOptions.cronScope),
 						workspaceRoot: automationOptions.workspaceRoot,
 					},
-					runtimeHandlers: this.createAutomationRuntimeHandlers(host),
+					runtimeHandlers: createClineCoreAutomationRuntimeHandlers({
+						host,
+						getExtensionContext: () =>
+							createClineCoreAutomationExtensionContext({
+								automationService: this.automationService,
+								automation: this.automation,
+								clientName: this.clientName,
+								distinctId: this.distinctId,
+								logger: this.logger,
+								telemetry: this.telemetry,
+							}),
+					}),
 					dbPath: automationOptions.dbPath,
 					logger: automationOptions.logger,
 					pollIntervalMs: automationOptions.pollIntervalMs,
@@ -509,14 +160,6 @@ export class ClineCore implements RuntimeHost {
 					watcherDebounceMs: automationOptions.watcherDebounceMs,
 				})
 			: undefined;
-		this.automation = new ClineCoreAutomationController(() => {
-			if (!this.automationService) {
-				throw new Error(
-					"ClineCore automation is not enabled. Pass `automation: true` or automation options to ClineCore.create().",
-				);
-			}
-			return this.automationService;
-		});
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -544,14 +187,15 @@ export class ClineCore implements RuntimeHost {
 	 * ```
 	 */
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
-		const host = await createRuntimeHost(options);
+		const capabilities = normalizeRuntimeCapabilities(options.capabilities);
+		const host = await createRuntimeHost({ ...options, capabilities });
 		const automationOptions = normalizeAutomationOptions(options.automation);
 		const core = new ClineCore(
 			host,
 			options.clientName,
 			host.runtimeAddress,
 			options.prepare,
-			options.defaultToolExecutors,
+			capabilities,
 			options.logger,
 			options.telemetry,
 			options.distinctId,
@@ -565,117 +209,6 @@ export class ClineCore implements RuntimeHost {
 		return core;
 	}
 
-	private createAutomationRuntimeHandlers(
-		host: RuntimeHost,
-	): HubScheduleRuntimeHandlers {
-		const core = this;
-		return {
-			async startSession(request) {
-				const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
-				const started = await host.start({
-					source: request.source?.trim() || SessionSource.CLI,
-					interactive: false,
-					config: {
-						providerId: normalizeProviderId(request.provider),
-						modelId: request.model,
-						apiKey: request.apiKey?.trim() || undefined,
-						cwd,
-						workspaceRoot: request.workspaceRoot,
-						systemPrompt: request.systemPrompt ?? "",
-						mode: resolveMode(request),
-						maxIterations: request.maxIterations,
-						enableTools: request.enableTools !== false,
-						enableSpawnAgent: request.enableSpawn !== false,
-						enableAgentTeams: request.enableTeams !== false,
-						disableMcpSettingsTools: request.disableMcpSettingsTools,
-						missionLogIntervalSteps: request.missionStepInterval,
-						missionLogIntervalMs: request.missionTimeIntervalMs,
-					},
-					toolPolicies: request.toolPolicies ?? {
-						"*": {
-							autoApprove: request.autoApproveTools !== false,
-						},
-					},
-					localRuntime: {
-						configOverrides: {
-							extensionContext: core.withAutomationExtensionContext(),
-						},
-						configExtensions: request.configExtensions,
-					},
-				});
-				return {
-					sessionId: started.sessionId,
-					startResult: {
-						sessionId: started.sessionId,
-						manifestPath: started.manifestPath,
-						messagesPath: started.messagesPath,
-					},
-				};
-			},
-			async sendSession(sessionId, request) {
-				const result = await host.send({
-					sessionId,
-					prompt: request.prompt,
-					userImages: request.attachments?.userImages,
-					userFiles: request.attachments?.userFiles?.map(
-						(file) => file.content,
-					),
-					delivery: request.delivery,
-				});
-				if (!result) {
-					throw new Error("ClineCore automation runtime returned no result");
-				}
-				return { result: toChatTurnResult(result) };
-			},
-			async abortSession(sessionId) {
-				await host.abort(sessionId, new Error("ClineCore automation abort"));
-				return { applied: true };
-			},
-			async stopSession(sessionId) {
-				await host.stop(sessionId);
-				return { applied: true };
-			},
-		};
-	}
-
-	private createAutomationPluginContext():
-		| AgentExtensionAutomationContext
-		| undefined {
-		if (!this.automationService) {
-			return undefined;
-		}
-		return {
-			ingestEvent: (event: AutomationEventEnvelope) => {
-				this.automation.ingestEvent(event);
-			},
-		};
-	}
-
-	private withAutomationExtensionContext(
-		context?: ExtensionContext,
-	): ExtensionContext | undefined {
-		const automation = this.createAutomationPluginContext();
-		const client =
-			context?.client ??
-			(this.clientName ? { name: this.clientName } : undefined);
-		const user =
-			context?.user ??
-			(this.distinctId ? { distinctId: this.distinctId } : undefined);
-		const logger = context?.logger ?? this.logger;
-		const telemetry = context?.telemetry ?? this.telemetry;
-		if (!automation && !client && !user && !logger && !telemetry) {
-			return context;
-		}
-		return {
-			...(context ?? {}),
-			...(client ? { client } : {}),
-			...(user ? { user } : {}),
-			...(logger ? { logger } : {}),
-			...(telemetry ? { telemetry } : {}),
-			...(automation ? { automation } : {}),
-		};
-	}
-
 	private async disposeSessionBootstrap(sessionId: string): Promise<void> {
 		const bootstrap = this.activeSessionBootstraps.get(sessionId);
 		if (!bootstrap) {
@@ -683,64 +216,6 @@ export class ClineCore implements RuntimeHost {
 		}
 		this.activeSessionBootstraps.delete(sessionId);
 		await Promise.resolve(bootstrap.dispose?.());
-	}
-
-	private toClineCoreStartInput(
-		input: StartSessionInput | ClineCoreStartInput,
-	): ClineCoreStartInput {
-		const config = input.config as CoreSessionConfig;
-		return "providerId" in config
-			? {
-					...input,
-					config: {
-						...config,
-						...(input.localRuntime?.configOverrides ?? {}),
-					},
-					localRuntime: input.localRuntime
-						? {
-								...input.localRuntime,
-								configOverrides: input.localRuntime.configOverrides,
-							}
-						: undefined,
-				}
-			: (input as ClineCoreStartInput);
-	}
-
-	private normalizeStartInput(input: ClineCoreStartInput): StartSessionInput {
-		const split = splitCoreSessionConfig(input.config);
-		let localRuntime: LocalRuntimeStartOptions | undefined =
-			split.localRuntime || input.localRuntime || this.defaultToolExecutors
-				? {
-						...(split.localRuntime ?? {}),
-						...(input.localRuntime ?? {}),
-						configOverrides: {
-							...(split.localRuntime?.configOverrides ?? {}),
-							...(input.localRuntime?.configOverrides ?? {}),
-						},
-						defaultToolExecutors: {
-							...(this.defaultToolExecutors ?? {}),
-							...(split.localRuntime?.defaultToolExecutors ?? {}),
-							...(input.localRuntime?.defaultToolExecutors ?? {}),
-						},
-					}
-				: undefined;
-		const automationExtensionContext = this.withAutomationExtensionContext(
-			localRuntime?.configOverrides?.extensionContext,
-		);
-		if (automationExtensionContext) {
-			localRuntime = {
-				...(localRuntime ?? {}),
-				configOverrides: {
-					...(localRuntime?.configOverrides ?? {}),
-					extensionContext: automationExtensionContext,
-				},
-			};
-		}
-		return {
-			...input,
-			...split,
-			...(localRuntime ? { localRuntime } : {}),
-		};
 	}
 
 	/**
@@ -777,58 +252,47 @@ export class ClineCore implements RuntimeHost {
 	async start(
 		input: StartSessionInput | ClineCoreStartInput,
 	): Promise<StartSessionResult> {
-		const clineCoreInput = this.toClineCoreStartInput(input);
+		const clineCoreInput = toClineCoreStartInput(input);
 		const bootstrap = await this.prepare?.(clineCoreInput);
 		try {
 			const preparedInput = bootstrap
 				? await bootstrap.applyToStartSessionInput(clineCoreInput)
 				: clineCoreInput;
-			const result = await this.host.start(
-				this.normalizeStartInput(preparedInput),
+			const result = await this.host.startSession(
+				normalizeClineCoreStartInput(preparedInput, {
+					defaultCapabilities: this.capabilities,
+					withExtensionContext: (context) =>
+						createClineCoreAutomationExtensionContext({
+							automationService: this.automationService,
+							automation: this.automation,
+							context,
+							clientName: this.clientName,
+							distinctId: this.distinctId,
+							logger: this.logger,
+							telemetry: this.telemetry,
+						}),
+				}),
 			);
 			if (bootstrap) {
-				const activeSession = await this.host.get(result.sessionId);
+				const activeSession = await this.host.getSession(result.sessionId);
 				if (activeSession) {
 					this.activeSessionBootstraps.set(result.sessionId, bootstrap);
 				} else {
 					await Promise.resolve(bootstrap.dispose?.());
 				}
 			}
-			this.emitSessionStartedTelemetry(preparedInput, result.sessionId);
+			emitSessionStartedTelemetry({
+				input: preparedInput,
+				sessionId: result.sessionId,
+				telemetry: this.telemetry,
+				clientName: this.clientName,
+				runtimeAddress: this.runtimeAddress,
+			});
 			return result;
 		} catch (error) {
 			await Promise.resolve(bootstrap?.dispose?.());
 			throw error;
 		}
-	}
-
-	private emitSessionStartedTelemetry(
-		input: ClineCoreStartInput,
-		sessionId: string,
-	): void {
-		// Per-session telemetry override (passed via `CoreSessionConfig.telemetry`)
-		// takes precedence over the instance-wide telemetry service configured
-		// on `ClineCore.create`. Either way we fire a single `session.started`
-		// event here so the signal is emitted for every backend (local, hub,
-		// remote), not just the in-process local transport.
-		const telemetry = input.config.telemetry ?? this.telemetry;
-		if (!telemetry) {
-			return;
-		}
-		telemetry.capture({
-			event: CORE_TELEMETRY_EVENTS.SESSION.STARTED,
-			properties: {
-				sessionId,
-				source: input.source ?? SessionSource.CORE,
-				providerId: input.config.providerId,
-				modelId: input.config.modelId,
-				enableTools: input.config.enableTools,
-				enableSpawnAgent: input.config.enableSpawnAgent,
-				enableAgentTeams: input.config.enableAgentTeams,
-				clientName: this.clientName,
-				runtimeAddress: this.runtimeAddress,
-			},
-		});
 	}
 	/**
 	 * Sends a message or command to an active session.
@@ -844,44 +308,7 @@ export class ClineCore implements RuntimeHost {
 	 * });
 	 * ```
 	 */
-	send: RuntimeHost["send"] = (...args) => this.host.send(...args);
-	pendingPrompts(
-		action: "list",
-		input: PendingPromptsListInput,
-	): Promise<SessionPendingPrompt[]>;
-	pendingPrompts(
-		action: "update",
-		input: PendingPromptsUpdateInput,
-	): Promise<PendingPromptMutationResult>;
-	pendingPrompts(
-		action: "delete",
-		input: PendingPromptsDeleteInput,
-	): Promise<PendingPromptMutationResult>;
-	pendingPrompts(
-		action: PendingPromptsAction,
-		input:
-			| PendingPromptsListInput
-			| PendingPromptsUpdateInput
-			| PendingPromptsDeleteInput,
-	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
-		switch (action) {
-			case "list":
-				return this.host.pendingPrompts(
-					"list",
-					input as PendingPromptsListInput,
-				);
-			case "update":
-				return this.host.pendingPrompts(
-					"update",
-					input as PendingPromptsUpdateInput,
-				);
-			case "delete":
-				return this.host.pendingPrompts(
-					"delete",
-					input as PendingPromptsDeleteInput,
-				);
-		}
-	}
+	send: RuntimeHost["runTurn"] = (...args) => this.host.runTurn(...args);
 	/**
 	 * Retrieves accumulated token and cost usage for a session.
 	 *
@@ -894,8 +321,12 @@ export class ClineCore implements RuntimeHost {
 	 * console.log(`Total cost: $${usage.totalCost}`);
 	 * ```
 	 */
-	getAccumulatedUsage: RuntimeHost["getAccumulatedUsage"] = (...args) =>
-		this.host.getAccumulatedUsage(...args);
+	getAccumulatedUsage: SessionUsageRuntimeService["getAccumulatedUsage"] = (
+		...args
+	) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return service.getAccumulatedUsage?.(...args) ?? Promise.resolve(undefined);
+	};
 	/**
 	 * Aborts an in-flight tool execution without stopping the session.
 	 *
@@ -922,8 +353,8 @@ export class ClineCore implements RuntimeHost {
 	 * await cline.stop(sessionId);
 	 * ```
 	 */
-	stop: RuntimeHost["stop"] = async (sessionId) => {
-		await this.host.stop(sessionId);
+	stop: RuntimeHost["stopSession"] = async (sessionId) => {
+		await this.host.stopSession(sessionId);
 		await this.disposeSessionBootstrap(sessionId);
 	};
 	/**
@@ -963,7 +394,7 @@ export class ClineCore implements RuntimeHost {
 	 * console.log("Session status:", session?.status);
 	 * ```
 	 */
-	get: RuntimeHost["get"] = (...args) => this.host.get(...args);
+	get: RuntimeHost["getSession"] = (...args) => this.host.getSession(...args);
 	/**
 	 * Lists recent sessions through the shared history-listing path.
 	 */
@@ -1010,8 +441,8 @@ export class ClineCore implements RuntimeHost {
 	 * }
 	 * ```
 	 */
-	delete: RuntimeHost["delete"] = async (sessionId) => {
-		const deleted = await this.host.delete(sessionId);
+	delete: RuntimeHost["deleteSession"] = async (sessionId) => {
+		const deleted = await this.host.deleteSession(sessionId);
 		if (deleted) {
 			await this.disposeSessionBootstrap(sessionId);
 		}
@@ -1030,7 +461,8 @@ export class ClineCore implements RuntimeHost {
 	 * });
 	 * ```
 	 */
-	update: RuntimeHost["update"] = (...args) => this.host.update(...args);
+	update: RuntimeHost["updateSession"] = (...args) =>
+		this.host.updateSession(...args);
 	/**
 	 * Reads message history for a session.
 	 *
@@ -1045,14 +477,26 @@ export class ClineCore implements RuntimeHost {
 	 * });
 	 * ```
 	 */
-	readMessages: RuntimeHost["readMessages"] = (...args) =>
-		this.host.readMessages(...args);
+	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
+		this.host.readSessionMessages(...args);
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
-			? this.normalizeStartInput(input.start)
+			? normalizeClineCoreStartInput(input.start, {
+					defaultCapabilities: this.capabilities,
+					withExtensionContext: (context) =>
+						createClineCoreAutomationExtensionContext({
+							automationService: this.automationService,
+							automation: this.automation,
+							context,
+							clientName: this.clientName,
+							distinctId: this.distinctId,
+							logger: this.logger,
+							telemetry: this.telemetry,
+						}),
+				})
 			: undefined;
-		return this.host.restore({
+		return this.host.restoreSession({
 			sessionId: input.sessionId,
 			checkpointRunCount: input.checkpointRunCount,
 			cwd: input.cwd,
@@ -1070,8 +514,8 @@ export class ClineCore implements RuntimeHost {
 	 *
 	 * @internal
 	 */
-	handleHookEvent: RuntimeHost["handleHookEvent"] = (...args) =>
-		this.host.handleHookEvent(...args);
+	ingestHookEvent: RuntimeHost["dispatchHookEvent"] = (...args) =>
+		this.host.dispatchHookEvent(...args);
 	/**
 	 * Subscribes to session events.
 	 *
@@ -1112,6 +556,10 @@ export class ClineCore implements RuntimeHost {
 	 * await cline.updateSessionModel(sessionId, "claude-opus-4-1");
 	 * ```
 	 */
-	updateSessionModel: RuntimeHost["updateSessionModel"] = (...args) =>
-		this.host.updateSessionModel?.(...args) ?? Promise.resolve();
+	updateSessionModel: SessionModelRuntimeService["updateSessionModel"] = (
+		...args
+	) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return service.updateSessionModel?.(...args) ?? Promise.resolve();
+	};
 }

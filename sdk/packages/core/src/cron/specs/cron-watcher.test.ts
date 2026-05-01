@@ -37,6 +37,14 @@ describe("CronWatcher", () => {
 		rmSync(root, { recursive: true, force: true });
 	});
 
+	function requireValue<T>(value: T | undefined): T {
+		expect(value).toBeDefined();
+		if (value === undefined) {
+			throw new Error("Expected value to be defined");
+		}
+		return value;
+	}
+
 	it("materializes after a watched file reconcile", async () => {
 		const specPath = join(cronDir, "cleanup.md");
 		writeFileSync(
@@ -57,7 +65,7 @@ describe("CronWatcher", () => {
 		).reconcileNow("cleanup.md");
 
 		expect(materialized).toBe(1);
-		const spec = store.listSpecs()[0]!;
+		const spec = requireValue(store.listSpecs()[0]);
 		const runs = store.listRuns({ specId: spec.specId });
 		expect(runs).toHaveLength(1);
 		expect(runs[0]?.status).toBe("queued");

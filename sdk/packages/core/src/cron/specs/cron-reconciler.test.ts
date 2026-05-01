@@ -35,6 +35,14 @@ describe("CronReconciler", () => {
 		writeFileSync(full, content, "utf8");
 	}
 
+	function requireValue<T>(value: T | undefined): T {
+		expect(value).toBeDefined();
+		if (value === undefined) {
+			throw new Error("Expected value to be defined");
+		}
+		return value;
+	}
+
 	it("imports valid one-off and schedule specs on startup", async () => {
 		writeSpec(
 			"cleanup.md",
@@ -98,7 +106,7 @@ describe("CronReconciler", () => {
 	it("cancels queued runs when spec is removed", async () => {
 		writeSpec("cleanup.md", `---\nid: cleanup\nworkspaceRoot: /ws\n---\nBody`);
 		await reconciler.reconcileAll();
-		const spec = store.listSpecs()[0]!;
+		const spec = requireValue(store.listSpecs()[0]);
 		store.enqueueRun({
 			specId: spec.specId,
 			specRevision: spec.revision,
@@ -108,7 +116,7 @@ describe("CronReconciler", () => {
 		rmSync(join(cronDir, "cleanup.md"));
 		await reconciler.reconcileAll();
 
-		const run = store.listRuns({ specId: spec.specId })[0]!;
+		const run = requireValue(store.listRuns({ specId: spec.specId })[0]);
 		expect(run.status).toBe("cancelled");
 	});
 
@@ -118,13 +126,13 @@ describe("CronReconciler", () => {
 			`---\nid: nightly\nworkspaceRoot: /ws\nschedule: "* * * * *"\n---\nNightly`,
 		);
 		await reconciler.reconcileAll();
-		const spec = store.listSpecs({ triggerKind: "schedule" })[0]!;
+		const spec = requireValue(store.listSpecs({ triggerKind: "schedule" })[0]);
 		const overdue = new Date(Date.now() - 60_000).toISOString();
 		store.updateSpecNextRunAt(spec.specId, overdue);
 
 		reconciler.refreshScheduleNextRunAt();
 
-		const refreshed = store.getSpec(spec.specId)!;
+		const refreshed = requireValue(store.getSpec(spec.specId));
 		expect(refreshed.nextRunAt).toBe(overdue);
 	});
 });

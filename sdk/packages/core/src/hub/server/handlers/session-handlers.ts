@@ -4,21 +4,19 @@ import type {
 	JsonValue,
 	ToolApprovalRequest,
 } from "@clinebot/shared";
-import { createSessionId } from "@clinebot/shared";
-import { retainCheckpointRefs } from "../../../hooks/checkpoint-hooks";
-import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
 import {
-	applyCheckpointToWorktree,
-	createCheckpointRestorePlan,
-	createRestoredCheckpointMetadata,
-	trimMessagesBeforeCheckpoint,
-} from "../../../session/checkpoint-restore";
-import {
-	createCapabilityBackedToolExecutors,
+	createSessionId,
 	isHubToolExecutorName,
 	parseRuntimeConfigExtensions,
-	toHubSessionRecord,
-} from "../helpers";
+} from "@clinebot/shared";
+import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
+import {
+	SessionVersioningError,
+	SessionVersioningService,
+} from "../../../session/session-versioning-service";
+import { createHubCapabilityToolExecutors } from "../hub-capability-tool-executors";
+import { toHubSessionRecord } from "../hub-session-records";
+import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	asPlainRecord,
 	ensureSessionState,
@@ -26,8 +24,25 @@ import {
 	extractSessionId,
 	type HubTransportContext,
 	okReply,
+	readCoreSessionSnapshot,
 	readHubSessionRecord,
 } from "./context";
+
+const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+function setCapabilityOwner(
+	metadata: Record<string, unknown>,
+	clientId: string,
+): void {
+	metadata[CAPABILITY_OWNER_METADATA_KEY] = clientId;
+}
+
+function getCapabilityOwnerClientId(
+	metadata: Record<string, unknown> | undefined,
+): string | undefined {
+	const owner = metadata?.[CAPABILITY_OWNER_METADATA_KEY];
+	return typeof owner === "string" && owner.trim() ? owner.trim() : undefined;
+}
 
 export async function handleSessionCreate(
 	ctx: HubTransportContext,
@@ -90,6 +105,9 @@ export async function handleSessionCreate(
 	const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
 		? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
 		: [];
+	if (advertisedToolExecutors.length > 0) {
+		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
+	}
 	const requestedSessionId =
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
@@ -98,7 +116,7 @@ export async function handleSessionCreate(
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
-	const started = await ctx.sessionHost.start({
+	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
 		sessionMetadata:
@@ -114,14 +132,16 @@ export async function handleSessionCreate(
 				loadPrivateOnAuth: true,
 			},
 			configExtensions,
-			defaultToolExecutors: createCapabilityBackedToolExecutors(
+		},
+		capabilities: {
+			toolExecutors: createHubCapabilityToolExecutors(
 				sessionId,
 				clientId,
 				advertisedToolExecutors,
 				ctx.requestCapability,
 			),
+			requestToolApproval,
 		},
-		requestToolApproval,
 		config: {
 			...(sessionConfig ?? {}),
 			sessionId,
@@ -195,13 +215,20 @@ export async function handleSessionCreate(
 	ensureSessionState(ctx, started.sessionId, clientId, "creator", {
 		interactive: metadata.interactive !== false,
 	});
-	const session = await readHubSessionRecord(ctx, started.sessionId);
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, started.sessionId),
+		readCoreSessionSnapshot(ctx, started.sessionId),
+	]);
 	if (session) {
 		ctx.publish(
-			ctx.buildEvent("session.created", { session }, started.sessionId),
+			ctx.buildEvent(
+				"session.created",
+				{ session, ...(snapshot ? { snapshot } : {}) },
+				started.sessionId,
+			),
 		);
 	}
-	return okReply(envelope, { session });
+	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
 }
 
 export async function handleSessionRestore(
@@ -232,43 +259,11 @@ export async function handleSessionRestore(
 			? (payload.restore as Record<string, unknown>)
 			: {};
 	const restoreMessages = restoreOptions.messages !== false;
-	const restoreWorkspace = restoreOptions.workspace !== false;
-	const omitCheckpointMessage =
-		restoreOptions.omitCheckpointMessageFromSession === true;
-	if (!restoreMessages && !restoreWorkspace) {
-		return errorReply(
-			envelope,
-			"invalid_restore",
-			"restore.messages or restore.workspace must be true",
-		);
-	}
-	if (
-		typeof checkpointRunCount !== "number" ||
-		!Number.isInteger(checkpointRunCount) ||
-		checkpointRunCount < 1
-	) {
+	if (typeof checkpointRunCount !== "number") {
 		return errorReply(
 			envelope,
 			"invalid_restore",
 			"checkpointRunCount must be a positive integer",
-		);
-	}
-	const sourceSession = await ctx.sessionHost.get(sourceSessionId);
-	if (!sourceSession) {
-		return errorReply(
-			envelope,
-			"session_not_found",
-			`Unknown session: ${sourceSessionId}`,
-		);
-	}
-	const sourceMessages = restoreMessages
-		? await ctx.sessionHost.readMessages(sourceSessionId)
-		: undefined;
-	if (restoreMessages && sourceMessages?.length === 0) {
-		return errorReply(
-			envelope,
-			"session_messages_not_found",
-			`No messages found for session ${sourceSessionId}`,
 		);
 	}
 
@@ -290,37 +285,10 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
-		const restoreCwd =
-			(typeof sessionConfig?.cwd === "string" && sessionConfig.cwd.trim()) ||
-			(typeof sessionConfig?.workspaceRoot === "string" &&
-				sessionConfig.workspaceRoot.trim()) ||
-			sourceSession.cwd ||
-			sourceSession.workspaceRoot;
-		const plan = createCheckpointRestorePlan({
-			session: sourceSession,
-			messages: sourceMessages,
-			checkpointRunCount,
-			cwd: restoreCwd,
-			restoreMessages,
-		});
-		if (restoreWorkspace) {
-			await applyCheckpointToWorktree(plan.cwd, plan.checkpoint);
-		}
-		if (!restoreMessages) {
-			return okReply(envelope, { checkpoint: plan.checkpoint });
-		}
-
-		const restoredCheckpointMetadata = createRestoredCheckpointMetadata(
-			sourceSession,
-			checkpointRunCount,
-		);
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
 				? JSON.parse(JSON.stringify(payload.metadata))
 				: {};
-		if (restoredCheckpointMetadata) {
-			metadata.checkpoint = restoredCheckpointMetadata;
-		}
 		if (typeof sessionConfig?.mode === "string") {
 			metadata.mode = sessionConfig.mode;
 		} else if (typeof runtimeOptions.mode === "string") {
@@ -341,16 +309,13 @@ export async function handleSessionRestore(
 			payload.modelSelection && typeof payload.modelSelection === "object"
 				? (payload.modelSelection as Record<string, unknown>)
 				: {};
-		const workspaceRoot =
-			typeof payload.workspaceRoot === "string" && payload.workspaceRoot.trim()
-				? payload.workspaceRoot.trim()
-				: typeof payload.cwd === "string" && payload.cwd.trim()
-					? payload.cwd.trim()
-					: sourceSession.workspaceRoot || sourceSession.cwd;
 		const clientId = envelope.clientId?.trim() || "hub-client";
 		const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
 			? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
 			: [];
+		if (advertisedToolExecutors.length > 0) {
+			setCapabilityOwner(metadata as Record<string, unknown>, clientId);
+		}
 		const requestedSessionId =
 			typeof sessionConfig?.sessionId === "string"
 				? sessionConfig.sessionId.trim()
@@ -359,121 +324,181 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
-		const started = await ctx.sessionHost.start({
-			source: typeof metadata.source === "string" ? metadata.source : undefined,
-			interactive: metadata.interactive !== false,
-			sessionMetadata: {
-				...metadata,
-				restoredFromSessionId: sourceSessionId,
-				restoredCheckpointRunCount: checkpointRunCount,
+		const service = new SessionVersioningService();
+		const result = await service.restoreCheckpoint({
+			sessionId: sourceSessionId,
+			checkpointRunCount,
+			restore: {
+				messages: restoreOptions.messages as boolean | undefined,
+				workspace: restoreOptions.workspace as boolean | undefined,
+				omitCheckpointMessageFromSession:
+					restoreOptions.omitCheckpointMessageFromSession === true,
 			},
-			initialMessages:
-				omitCheckpointMessage && sourceMessages
-					? trimMessagesBeforeCheckpoint(sourceMessages, checkpointRunCount)
-					: (plan.messages ?? []),
-			localRuntime: {
-				modelCatalogDefaults: {
-					loadLatestOnInit: true,
-					loadPrivateOnAuth: true,
-				},
-				configExtensions,
-				defaultToolExecutors:
-					advertisedToolExecutors.length > 0
-						? createCapabilityBackedToolExecutors(
-								sessionId,
-								clientId,
-								advertisedToolExecutors,
-								ctx.requestCapability,
-							)
-						: undefined,
+			start: sessionConfig,
+			cwd:
+				(typeof sessionConfig?.cwd === "string" && sessionConfig.cwd.trim()) ||
+				(typeof sessionConfig?.workspaceRoot === "string" &&
+					sessionConfig.workspaceRoot.trim()) ||
+				undefined,
+			getSession: (sessionId) => ctx.sessionHost.getSession(sessionId),
+			readMessages: (sessionId) =>
+				ctx.sessionHost.readSessionMessages(sessionId),
+			buildStartInput: (context) => {
+				if (context.restoredCheckpointMetadata) {
+					metadata.checkpoint = context.restoredCheckpointMetadata;
+				}
+				const workspaceRoot =
+					typeof payload.workspaceRoot === "string" &&
+					payload.workspaceRoot.trim()
+						? payload.workspaceRoot.trim()
+						: typeof payload.cwd === "string" && payload.cwd.trim()
+							? payload.cwd.trim()
+							: context.sourceSession.workspaceRoot ||
+								context.sourceSession.cwd;
+				return {
+					source:
+						typeof metadata.source === "string" ? metadata.source : undefined,
+					interactive: metadata.interactive !== false,
+					sessionMetadata: {
+						...metadata,
+						restoredFromSessionId: sourceSessionId,
+						restoredCheckpointRunCount: checkpointRunCount,
+					},
+					initialMessages: context.initialMessages,
+					localRuntime: {
+						modelCatalogDefaults: {
+							loadLatestOnInit: true,
+							loadPrivateOnAuth: true,
+						},
+						configExtensions,
+					},
+					capabilities: {
+						toolExecutors:
+							advertisedToolExecutors.length > 0
+								? createHubCapabilityToolExecutors(
+										sessionId,
+										clientId,
+										advertisedToolExecutors,
+										ctx.requestCapability,
+									)
+								: undefined,
+						requestToolApproval,
+					},
+					config: {
+						...(sessionConfig ?? {}),
+						sessionId,
+						providerId:
+							sessionConfig?.providerId ??
+							(typeof modelSelection.provider === "string"
+								? modelSelection.provider
+								: context.sourceSession.provider),
+						modelId:
+							sessionConfig?.modelId ??
+							(typeof modelSelection.model === "string"
+								? modelSelection.model
+								: context.sourceSession.model),
+						apiKey:
+							sessionConfig?.apiKey ??
+							(typeof modelSelection.apiKey === "string"
+								? modelSelection.apiKey
+								: ""),
+						cwd: sessionConfig?.cwd ?? context.plan.cwd,
+						workspaceRoot: sessionConfig?.workspaceRoot ?? workspaceRoot,
+						systemPrompt:
+							sessionConfig?.systemPrompt ??
+							(typeof runtimeOptions.systemPrompt === "string"
+								? runtimeOptions.systemPrompt
+								: ""),
+						mode:
+							sessionConfig?.mode ??
+							(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+								? runtimeOptions.mode
+								: "act"),
+						maxIterations:
+							sessionConfig?.maxIterations ??
+							(typeof runtimeOptions.maxIterations === "number"
+								? runtimeOptions.maxIterations
+								: undefined),
+						enableTools:
+							sessionConfig?.enableTools ??
+							runtimeOptions.enableTools !== false,
+						enableSpawnAgent:
+							sessionConfig?.enableSpawnAgent ??
+							runtimeOptions.enableSpawn !== false,
+						enableAgentTeams:
+							sessionConfig?.enableAgentTeams ??
+							runtimeOptions.enableTeams !== false,
+						checkpoint:
+							sessionConfig?.checkpoint ??
+							(runtimeOptions.checkpointEnabled === true
+								? { enabled: true }
+								: undefined),
+						teamName:
+							sessionConfig?.teamName ??
+							(typeof metadata.teamName === "string"
+								? metadata.teamName
+								: undefined),
+					},
+					toolPolicies:
+						payload.toolPolicies &&
+						typeof payload.toolPolicies === "object" &&
+						!Array.isArray(payload.toolPolicies)
+							? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
+									string,
+									{ autoApprove?: boolean; enabled?: boolean }
+								>)
+							: runtimeOptions.autoApproveTools === true
+								? { "*": { autoApprove: true } }
+								: undefined,
+				};
 			},
-			requestToolApproval,
-			config: {
-				...(sessionConfig ?? {}),
-				sessionId,
-				providerId:
-					sessionConfig?.providerId ??
-					(typeof modelSelection.provider === "string"
-						? modelSelection.provider
-						: sourceSession.provider),
-				modelId:
-					sessionConfig?.modelId ??
-					(typeof modelSelection.model === "string"
-						? modelSelection.model
-						: sourceSession.model),
-				apiKey:
-					sessionConfig?.apiKey ??
-					(typeof modelSelection.apiKey === "string"
-						? modelSelection.apiKey
-						: ""),
-				cwd: sessionConfig?.cwd ?? plan.cwd,
-				workspaceRoot: sessionConfig?.workspaceRoot ?? workspaceRoot,
-				systemPrompt:
-					sessionConfig?.systemPrompt ??
-					(typeof runtimeOptions.systemPrompt === "string"
-						? runtimeOptions.systemPrompt
-						: ""),
-				mode:
-					sessionConfig?.mode ??
-					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-						? runtimeOptions.mode
-						: "act"),
-				maxIterations:
-					sessionConfig?.maxIterations ??
-					(typeof runtimeOptions.maxIterations === "number"
-						? runtimeOptions.maxIterations
-						: undefined),
-				enableTools:
-					sessionConfig?.enableTools ?? runtimeOptions.enableTools !== false,
-				enableSpawnAgent:
-					sessionConfig?.enableSpawnAgent ??
-					runtimeOptions.enableSpawn !== false,
-				enableAgentTeams:
-					sessionConfig?.enableAgentTeams ??
-					runtimeOptions.enableTeams !== false,
-				checkpoint:
-					sessionConfig?.checkpoint ??
-					(runtimeOptions.checkpointEnabled === true
-						? { enabled: true }
-						: undefined),
-				teamName:
-					sessionConfig?.teamName ??
-					(typeof metadata.teamName === "string"
-						? metadata.teamName
-						: undefined),
-			},
-			toolPolicies:
-				payload.toolPolicies &&
-				typeof payload.toolPolicies === "object" &&
-				!Array.isArray(payload.toolPolicies)
-					? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
-							string,
-							{ autoApprove?: boolean; enabled?: boolean }
-						>)
-					: runtimeOptions.autoApproveTools === true
-						? { "*": { autoApprove: true } }
-						: undefined,
+			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
+			getStartedSessionId: (started) => started.sessionId,
+			readRestoredSession: (sessionId) => ctx.sessionHost.getSession(sessionId),
 		});
-		await retainCheckpointRefs(
-			plan.cwd,
-			started.sessionId,
-			restoredCheckpointMetadata?.history ?? [],
-		);
+		if (!restoreMessages) {
+			return okReply(envelope, { checkpoint: result.checkpoint });
+		}
+		const started = result.startResult;
+		if (!started) {
+			return errorReply(
+				envelope,
+				"restore_failed",
+				"Checkpoint restore did not start a session",
+			);
+		}
 		ensureSessionState(ctx, started.sessionId, clientId, "creator", {
 			interactive: metadata.interactive !== false,
 		});
-		const session = await readHubSessionRecord(ctx, started.sessionId);
+		const [session, snapshot] = await Promise.all([
+			readHubSessionRecord(ctx, started.sessionId),
+			readCoreSessionSnapshot(ctx, started.sessionId),
+		]);
 		if (session) {
 			ctx.publish(
-				ctx.buildEvent("session.created", { session }, started.sessionId),
+				ctx.buildEvent(
+					"session.created",
+					{ session, ...(snapshot ? { snapshot } : {}) },
+					started.sessionId,
+				),
 			);
 		}
 		return okReply(envelope, {
 			session,
-			messages: plan.messages ?? [],
-			checkpoint: plan.checkpoint,
+			...(snapshot ? { snapshot } : {}),
+			messages: result.messages ?? [],
+			checkpoint: result.checkpoint,
 		});
 	} catch (error) {
+		if (error instanceof SessionVersioningError) {
+			return errorReply(
+				envelope,
+				error.code,
+				error.code === "session_not_found"
+					? `Unknown session: ${sourceSessionId}`
+					: error.message,
+			);
+		}
 		return errorReply(
 			envelope,
 			"restore_failed",
@@ -526,18 +551,39 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
+	const [existingSession] = await Promise.all([
+		readHubSessionRecord(ctx, sessionId),
+	]);
+	const ownerClientId =
+		getCapabilityOwnerClientId(
+			existingSession?.metadata as Record<string, unknown> | undefined,
+		) ?? clientId;
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
+		if (state.createdByClientId === clientId) {
+			state.createdByClientId = ownerClientId;
+		}
 		if (state.participants.size === 0) {
 			ctx.sessionState.delete(sessionId);
 		}
 	}
-	const session = await readHubSessionRecord(ctx, sessionId);
+	cancelPendingCapabilityRequests(
+		ctx,
+		(request) =>
+			request.sessionId === sessionId && request.targetClientId === clientId,
+		`Capability owner client ${clientId} detached before request was resolved.`,
+	);
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, sessionId),
+		readCoreSessionSnapshot(ctx, sessionId),
+	]);
 	ctx.publish(
 		ctx.buildEvent(
 			"session.detached",
-			session ? { session, clientId } : { clientId },
+			session
+				? { session, ...(snapshot ? { snapshot } : {}), clientId }
+				: { clientId },
 			sessionId,
 		),
 	);
@@ -549,9 +595,15 @@ export async function handleSessionGet(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const session = await readHubSessionRecord(ctx, sessionId);
+	const includeSnapshot = envelope.payload?.includeSnapshot === true;
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, sessionId),
+		includeSnapshot
+			? readCoreSessionSnapshot(ctx, sessionId)
+			: Promise.resolve(undefined),
+	]);
 	return session
-		? okReply(envelope, { session })
+		? okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) })
 		: errorReply(
 				envelope,
 				"session_not_found",
@@ -579,7 +631,7 @@ export async function handleSessionMessages(
 			`Unknown session: ${sessionId}`,
 		);
 	}
-	const messages = await ctx.sessionHost.readMessages(sessionId);
+	const messages = await ctx.sessionHost.readSessionMessages(sessionId);
 	return okReply(envelope, { sessionId, messages });
 }
 
@@ -589,10 +641,13 @@ export async function handleSessionList(
 ): Promise<HubReplyEnvelope> {
 	const limit =
 		typeof envelope.payload?.limit === "number" ? envelope.payload.limit : 200;
-	const sessions = (await ctx.sessionHost.list(limit)).map((session) =>
+	const records = await ctx.sessionHost.listSessions(limit);
+	const sessions = records.map((session) =>
 		toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
 	);
-	return okReply(envelope, { sessions });
+	return okReply(envelope, {
+		sessions,
+	});
 }
 
 export async function handleSessionUpdate(
@@ -601,16 +656,29 @@ export async function handleSessionUpdate(
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	const metadata = asPlainRecord(envelope.payload?.metadata);
-	const updated = await ctx.sessionHost.update(sessionId, { metadata });
-	const session = await readHubSessionRecord(ctx, sessionId);
+	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, sessionId),
+		readCoreSessionSnapshot(ctx, sessionId),
+	]);
 	if (session) {
-		ctx.publish(ctx.buildEvent("session.updated", { session }, sessionId));
+		ctx.publish(
+			ctx.buildEvent(
+				"session.updated",
+				{ session, ...(snapshot ? { snapshot } : {}) },
+				sessionId,
+			),
+		);
 	}
 	return {
 		version: envelope.version,
 		requestId: envelope.requestId,
 		ok: updated.updated,
-		payload: { updated: updated.updated, session },
+		payload: {
+			updated: updated.updated,
+			session,
+			...(snapshot ? { snapshot } : {}),
+		},
 	};
 }
 
@@ -619,7 +687,7 @@ export async function handleSessionDelete(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const deleted = await ctx.sessionHost.delete(sessionId);
+	const deleted = await ctx.sessionHost.deleteSession(sessionId);
 	ctx.sessionState.delete(sessionId);
 	return okReply(envelope, { deleted });
 }
@@ -629,7 +697,15 @@ export async function handleSessionPendingPrompts(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const prompts = await ctx.sessionHost.pendingPrompts("list", { sessionId });
+	const service = ctx.sessionHost.pendingPrompts;
+	if (!service) {
+		return errorReply(
+			envelope,
+			"pending_prompts_unavailable",
+			"Pending prompt service is not available.",
+		);
+	}
+	const prompts = await service.list({ sessionId });
 	return okReply(envelope, { sessionId, prompts });
 }
 
@@ -651,7 +727,15 @@ export async function handleSessionUpdatePendingPrompt(
 		envelope.payload?.delivery === "steer"
 			? envelope.payload.delivery
 			: undefined;
-	const result = await ctx.sessionHost.pendingPrompts("update", {
+	const service = ctx.sessionHost.pendingPrompts;
+	if (!service) {
+		return errorReply(
+			envelope,
+			"pending_prompts_unavailable",
+			"Pending prompt service is not available.",
+		);
+	}
+	const result = await service.update({
 		sessionId,
 		promptId,
 		prompt,
@@ -672,7 +756,15 @@ export async function handleSessionRemovePendingPrompt(
 		typeof envelope.payload?.promptId === "string"
 			? envelope.payload.promptId.trim()
 			: "";
-	const result = await ctx.sessionHost.pendingPrompts("delete", {
+	const service = ctx.sessionHost.pendingPrompts;
+	if (!service) {
+		return errorReply(
+			envelope,
+			"pending_prompts_unavailable",
+			"Pending prompt service is not available.",
+		);
+	}
+	const result = await service.delete({
 		sessionId,
 		promptId,
 	});

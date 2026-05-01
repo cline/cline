@@ -111,7 +111,9 @@ describe("runtime host resolution", () => {
 
 	it("prefers a compatible local hub when backendMode is auto", async () => {
 		const { createRuntimeHost } = await import("./host");
-		const { HubRuntimeHost } = await import("../../transports/hub");
+		const { HubRuntimeHost } = await import(
+			"../../hub/transport/hub-runtime-host"
+		);
 		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
 		);
@@ -192,7 +194,9 @@ describe("runtime host resolution", () => {
 
 	it("uses a hub runtime host when backendMode is hub", async () => {
 		const { createRuntimeHost } = await import("./host");
-		const { HubRuntimeHost } = await import("../../transports/hub");
+		const { HubRuntimeHost } = await import(
+			"../../hub/transport/hub-runtime-host"
+		);
 		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
 		);
@@ -240,7 +244,9 @@ describe("runtime host resolution", () => {
 
 	it("uses a remote runtime host when backendMode is remote", async () => {
 		const { createRuntimeHost } = await import("./host");
-		const { RemoteRuntimeHost } = await import("../../transports/remote");
+		const { RemoteRuntimeHost } = await import(
+			"../../hub/transport/remote-runtime-host"
+		);
 
 		const host = await createRuntimeHost({
 			backendMode: "remote",
@@ -257,17 +263,20 @@ describe("runtime host resolution", () => {
 		});
 	});
 
-	it("allows default tool executors in remote runtime mode", async () => {
+	it("allows runtime capabilities in remote runtime mode", async () => {
 		const { createRuntimeHost } = await import("./host");
-		const { RemoteRuntimeHost } = await import("../../transports/remote");
+		const { RemoteRuntimeHost } = await import(
+			"../../hub/transport/remote-runtime-host"
+		);
+		const askQuestion = vi.fn(async () => "yes");
 
 		const host = await createRuntimeHost({
 			backendMode: "remote",
 			remote: {
 				endpoint: "https://remote.example.com/hub",
 			},
-			defaultToolExecutors: {
-				askQuestion: vi.fn(async () => "yes"),
+			capabilities: {
+				toolExecutors: { askQuestion },
 			},
 		});
 

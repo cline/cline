@@ -5,7 +5,7 @@ import type {
 	HubTransportFrame,
 } from "@clinebot/shared";
 import { safeJsonParse } from "@clinebot/shared";
-import type { HubCommandTransport } from "../transport";
+import type { HubCommandTransport } from "./command-transport";
 
 export interface BrowserHubSocketLike {
 	send(data: string): void;

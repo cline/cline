@@ -1,7 +1,7 @@
 import { createGoogleChatAdapter } from "@chat-adapter/gchat";
 import type { ChatStartSessionRequest } from "@clinebot/core";
 import {
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	HubSessionClient,
 } from "@clinebot/core";
 import type {
@@ -529,12 +529,12 @@ class GoogleChatConnector extends ConnectorBase<
 				userName: options.userName,
 			},
 		});
-		const userInstructionWatcher = createUserInstructionConfigWatcher({
+		const userInstructionService = createUserInstructionConfigService({
 			skills: { workspacePath: startRequest.cwd },
 			rules: { workspacePath: startRequest.cwd },
 			workflows: { workspacePath: startRequest.cwd },
 		});
-		await userInstructionWatcher.start().catch(() => undefined);
+		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
@@ -609,7 +609,7 @@ class GoogleChatConnector extends ConnectorBase<
 						systemRules: GCHAT_SYSTEM_RULES,
 						errorLabel: "Google Chat",
 						firstContactMessage: GCHAT_FIRST_CONTACT_MESSAGE,
-						userInstructionWatcher,
+						userInstructionService,
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
@@ -816,7 +816,7 @@ class GoogleChatConnector extends ConnectorBase<
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();
-		userInstructionWatcher.stop();
+		userInstructionService.stop();
 		client.close();
 		this.removeStateFile(statePath);
 		return 0;

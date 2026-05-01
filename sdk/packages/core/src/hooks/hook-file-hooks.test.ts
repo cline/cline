@@ -9,6 +9,7 @@ import {
 } from "@clinebot/shared/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+	createHookConfigFileExtension,
 	createHookConfigFileHooks,
 	getWindowsPythonFallbackCommand,
 	mergeAgentHooks,
@@ -116,6 +117,43 @@ describe("createHookConfigFileHooks", () => {
 				},
 			});
 			expect(control).toMatchObject({ cancel: true, context: "legacy-ok" });
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("adapts file hooks into an AgentExtension", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PreToolUse",
+			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"extension-ok"}\'\nexit 0\n',
+		);
+		try {
+			const extension = createHookConfigFileExtension({
+				cwd: workspace,
+				workspacePath: workspace,
+			});
+			expect(extension?.name).toBe("core.hook_config_files");
+			expect(extension?.manifest).toMatchObject({
+				capabilities: ["hooks"],
+			});
+			expect(extension?.manifest.hookStages).toContain("tool_call_before");
+			const control = await extension?.onToolCall?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				iteration: 1,
+				call: {
+					id: "call_1",
+					name: "read_file",
+					input: { path: "README.md" },
+				},
+			});
+			expect(control).toMatchObject({ cancel: true, context: "extension-ok" });
 		} finally {
 			await rm(workspace, {
 				recursive: true,

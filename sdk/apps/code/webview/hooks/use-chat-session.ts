@@ -13,6 +13,7 @@ import {
 } from "@/hooks/chat-session/helpers";
 import type {
 	AgentChunkEvent,
+	AskQuestionRequestItem,
 	ChatApiResult,
 	ChatSessionHookEvent,
 	ChatTransportState,
@@ -222,6 +223,9 @@ export function useChatSession() {
 	>(null);
 	const [pendingToolApprovals, setPendingToolApprovals] = useState<
 		ToolApprovalRequestItem[]
+	>([]);
+	const [pendingAskQuestions, setPendingAskQuestions] = useState<
+		AskQuestionRequestItem[]
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
@@ -481,6 +485,7 @@ export function useChatSession() {
 			setFileDiffs([]);
 			setDiffSummary(EMPTY_DIFF_SUMMARY);
 			setPendingToolApprovals([]);
+			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			return;
 		}
@@ -513,6 +518,48 @@ export function useChatSession() {
 			setPendingToolApprovals(Array.isArray(record.items) ? record.items : []);
 		});
 	}, [sessionId]);
+
+	useEffect(() => {
+		return desktopClient.subscribe("ask_question_requested", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const item = payload as AskQuestionRequestItem;
+			if (!item.requestId || !item.question || !Array.isArray(item.options)) {
+				return;
+			}
+			setPendingAskQuestions((prev) => {
+				if (prev.some((existing) => existing.requestId === item.requestId)) {
+					return prev;
+				}
+				return [...prev, item];
+			});
+		});
+	}, []);
+
+	useEffect(() => {
+		return desktopClient.subscribe("ask_question_answered", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const requestId = String(
+				(payload as { requestId?: unknown }).requestId ?? "",
+			).trim();
+			if (!requestId) return;
+			setPendingAskQuestions((prev) =>
+				prev.filter((item) => item.requestId !== requestId),
+			);
+		});
+	}, []);
+
+	useEffect(() => {
+		return desktopClient.subscribe("ask_question_cancelled", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const requestId = String(
+				(payload as { requestId?: unknown }).requestId ?? "",
+			).trim();
+			if (!requestId) return;
+			setPendingAskQuestions((prev) =>
+				prev.filter((item) => item.requestId !== requestId),
+			);
+		});
+	}, []);
 
 	useEffect(() => {
 		return desktopClient.subscribe("prompts_in_queue_state", (payload) => {
@@ -1216,6 +1263,19 @@ export function useChatSession() {
 		[respondToolApproval],
 	);
 
+	const answerAskQuestion = useCallback(
+		async (requestId: string, answer: string) => {
+			await desktopClient.invoke("respond_ask_question", {
+				requestId,
+				answer,
+			});
+			setPendingAskQuestions((prev) =>
+				prev.filter((item) => item.requestId !== requestId),
+			);
+		},
+		[],
+	);
+
 	const restoreCheckpoint = useCallback(
 		async (checkpointRunCount: number) => {
 			const activeSessionId = activeSessionIdRef.current;
@@ -1232,6 +1292,7 @@ export function useChatSession() {
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
 			setPendingToolApprovals([]);
+			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			clearLiveToolRefs();
 
@@ -1323,6 +1384,7 @@ export function useChatSession() {
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
+		setPendingAskQuestions([]);
 		setPromptsInQueue([]);
 		clearLiveToolRefs();
 		if (activeSessionId) {
@@ -1365,6 +1427,7 @@ export function useChatSession() {
 			setActiveAssistantMessageId(null);
 			setHydratedHistorySessionId(session.sessionId);
 			setPendingToolApprovals([]);
+			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			clearLiveToolRefs();
 
@@ -1616,6 +1679,7 @@ export function useChatSession() {
 		fileDiffs,
 		promptsInQueue,
 		pendingToolApprovals,
+		pendingAskQuestions,
 		setConfig,
 		start,
 		hydrateSession,
@@ -1625,6 +1689,7 @@ export function useChatSession() {
 		removePromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
+		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
 		abort,

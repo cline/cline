@@ -156,6 +156,7 @@ export function createConnectorRuntimeTurnStream(input: {
 			let notify: (() => void) | undefined;
 			let streamedText = "";
 			let closed = false;
+			let failed = false;
 
 			const push = (item: QueueItem) => {
 				queue.push(item);
@@ -235,6 +236,17 @@ export function createConnectorRuntimeTurnStream(input: {
 							return;
 						}
 						if (event.eventType !== "runtime.chat.text_delta") {
+							if (event.eventType === "runtime.chat.failed") {
+								failed = true;
+								const message =
+									typeof event.payload.error === "string" &&
+									event.payload.error.trim()
+										? event.payload.error.trim()
+										: "Runtime turn failed";
+								const error = new Error(message);
+								void input.onFailed?.(error);
+								push({ type: "error", error });
+							}
 							return;
 						}
 						const resolved = resolveTextDelta(event.payload, streamedText);
@@ -265,6 +277,9 @@ export function createConnectorRuntimeTurnStream(input: {
 					if (!response.result) {
 						throw new Error("connector runtime turn unexpectedly queued");
 					}
+					if (failed) {
+						return;
+					}
 					const finalText = response.result.text ?? "";
 					await input.onCompleted?.({
 						text: finalText,
@@ -279,6 +294,9 @@ export function createConnectorRuntimeTurnStream(input: {
 					}
 				})
 				.catch(async (error) => {
+					if (failed) {
+						return;
+					}
 					const resolved =
 						error instanceof Error ? error : new Error(String(error));
 					await input.onFailed?.(resolved);

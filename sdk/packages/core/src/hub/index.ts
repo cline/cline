@@ -1,3 +1,5 @@
+export { HubScheduleCommandService } from "../cron/service/schedule-command-service";
+export { HubScheduleService } from "../cron/service/schedule-service";
 export * from "./client";
 export * from "./client/connect";
 export * from "./client/session-client";
@@ -10,5 +12,5 @@ export * from "./discovery/defaults";
 export * from "./discovery/workspace";
 export * from "./server";
 export * from "./server/browser-websocket";
+export * from "./server/command-transport";
 export * from "./server/native-transport";
-export * from "./transport";

@@ -57,7 +57,8 @@ await cline.dispose();
 
 Use it when a host needs to prepare workspace-scoped runtime state before each
 session starts, then apply watcher/extensions/telemetry inputs through
-`localRuntime.configOverrides` without widening the shared host contract.
+explicit `localRuntime` bootstrap fields without widening the shared host
+contract.
 
 ## Main APIs
 
@@ -68,7 +69,16 @@ Use `@clinebot/core` for host-facing runtime assembly:
 - `ClineCore.create(...)`
 - `createRuntimeHost(...)`
 - `LocalRuntimeHost`
+- `HubRuntimeHost` and `RemoteRuntimeHost`
 - `DefaultRuntimeBuilder`
+
+`ClineCore` is the app-facing session API. The lower-level `RuntimeHost`
+boundary uses runtime-primitive names such as `startSession` and `runTurn` so
+transport adapters stay distinct from product methods like `start` and `send`.
+Service-style operations such as pending prompt edits, accumulated usage lookup,
+and active-session model switching are exposed through `ClineCore` when the
+selected transport supports them rather than being part of the minimal host
+primitive vocabulary.
 
 ### Default Tools
 

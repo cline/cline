@@ -21,8 +21,7 @@
 		]
 	},
 	"dependencies": {
-		"@clinebot/core": "latest",
-		"@clinebot/shared": "latest",
+		"@clinebot/core": "workspace:*",
 		"yaml": "^2.8.1",
 		"zod": "^4.1.5"
 	}

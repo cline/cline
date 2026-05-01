@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { UserInstructionConfigWatcher } from "@clinebot/core";
+import type { UserInstructionConfigService } from "@clinebot/core";
 import { afterEach, describe, expect, it } from "vitest";
 import type { InteractiveConfigItem } from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
@@ -57,38 +57,35 @@ Use this skill.`,
 
 		const calls: string[] = [];
 		let refreshed = false;
-		const watcher = {
+		const userInstructionService = {
 			async refreshType(type: string) {
 				calls.push(`refreshType:${type}`);
 				refreshed = true;
 			},
-			getSnapshot(type: string) {
-				calls.push(`getSnapshot:${type}`);
+			listRecords(type: string) {
+				calls.push(`listRecords:${type}`);
 				if (type !== "skill") {
-					return new Map();
+					return [];
 				}
-				return new Map([
-					[
-						"skill-one",
-						{
-							id: "skill-one",
-							type: "skill",
-							filePath: skillPath,
-							item: {
-								name: "skill-one",
-								disabled: refreshed,
-								description: "Skill one",
-								instructions: "Use this skill.",
-								frontmatter: {},
-							},
+				return [
+					{
+						id: "skill-one",
+						type: "skill",
+						filePath: skillPath,
+						item: {
+							name: "skill-one",
+							disabled: refreshed,
+							description: "Skill one",
+							instructions: "Use this skill.",
+							frontmatter: {},
 						},
-					],
-				]);
+					},
+				];
 			},
-		} as unknown as UserInstructionConfigWatcher;
+		} as unknown as UserInstructionConfigService;
 		const loader = createInteractiveConfigDataLoader({
 			config: createConfig(tempRoot),
-			userInstructionWatcher: watcher,
+			userInstructionService,
 		});
 		const item: InteractiveConfigItem = {
 			id: "skill-one",
@@ -105,7 +102,7 @@ Use this skill.`,
 		expect(written).toContain("disabled: true");
 		expect(data?.skills[0]?.enabled).toBe(false);
 		expect(calls).toContain("refreshType:skill");
-		expect(calls.indexOf("getSnapshot:skill")).toBeGreaterThan(
+		expect(calls.indexOf("listRecords:skill")).toBeGreaterThan(
 			calls.indexOf("refreshType:skill"),
 		);
 	});
@@ -138,6 +135,40 @@ Use this skill.`,
 
 		expect(settings.disabledTools).toEqual(["plugin-tool"]);
 		expect(data).toBeDefined();
+	});
+
+	it("loads and toggles plugin enabled state from global settings", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "workspace-plugin.js");
+		await writeFile(pluginPath, "export default {};\n");
+		await writeFile(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ disabledPlugins: [pluginPath] }, null, 2),
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData();
+		const plugin = data.plugins.find((item) => item.path === pluginPath);
+		expect(plugin?.enabled).toBe(false);
+
+		const nextData = await loader.onToggleConfigItem(plugin!);
+		const settings = JSON.parse(
+			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+		) as { disabledPlugins?: string[] };
+
+		expect(settings.disabledPlugins).toBeUndefined();
+		expect(
+			nextData?.plugins.find((item) => item.path === pluginPath)?.enabled,
+		).toBe(true);
 	});
 
 	it("does not toggle workflow items", async () => {

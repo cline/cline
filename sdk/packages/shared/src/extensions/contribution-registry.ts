@@ -12,6 +12,12 @@ export interface AgentExtensionCommand {
 	handler?: (input: string) => Promise<string> | string;
 }
 
+export interface AgentExtensionRule {
+	id: string;
+	content: string | (() => string | Promise<string>);
+	source?: string;
+}
+
 export interface AgentExtensionMessageBuilder<TMessage = unknown> {
 	name: string;
 	build: (message: TMessage) => TMessage | Promise<TMessage>;
@@ -61,6 +67,8 @@ export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
 	registerTool: (tool: TTool) => void;
 	/** Register a slash command available in connected chat surfaces. Requires the `commands` capability. */
 	registerCommand: (command: AgentExtensionCommand) => void;
+	/** Register prompt rules included in the runtime system prompt. Requires the `rules` capability. */
+	registerRule: (rule: AgentExtensionRule) => void;
 	/** Register a named message builder for transforming messages before they are sent. Requires the `messageBuilders` capability. */
 	registerMessageBuilder: (
 		builder: AgentExtensionMessageBuilder<TMessage>,
@@ -125,6 +133,7 @@ const ExtensionCapabilityOptions = [
 	"hooks",
 	"tools",
 	"commands",
+	"rules",
 	"messageBuilders",
 	"providers",
 	"automationEvents",
@@ -146,6 +155,7 @@ export interface PluginManifest {
 export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
 	tools: TTool[];
 	commands: AgentExtensionCommand[];
+	rules: AgentExtensionRule[];
 	messageBuilder: AgentExtensionMessageBuilder<TMessage>[];
 	providers: AgentExtensionProvider[];
 	automationEventTypes: AgentExtensionAutomationEventType[];
@@ -511,6 +521,7 @@ export class ContributionRegistry<
 	private readonly registry: AgentExtensionRegistry<TTool, TMessage> = {
 		tools: [],
 		commands: [],
+		rules: [],
 		messageBuilder: [],
 		providers: [],
 		automationEventTypes: [],
@@ -566,6 +577,14 @@ export class ContributionRegistry<
 			const api: AgentExtensionApi<TTool, TMessage> = {
 				registerTool: (tool) => this.registry.tools.push(tool),
 				registerCommand: (command) => this.registry.commands.push(command),
+				registerRule: (rule) => {
+					if (!entry.manifest.capabilities.has("rules")) {
+						throw new Error(
+							`Invalid setup for extension "${extensionName}": registerRule requires the "rules" capability`,
+						);
+					}
+					this.registry.rules.push(rule);
+				},
 				registerMessageBuilder: (builder) =>
 					this.registry.messageBuilder.push(builder),
 				registerProvider: (provider) => this.registry.providers.push(provider),
@@ -618,6 +637,7 @@ export class ContributionRegistry<
 		return {
 			tools: [...this.registry.tools],
 			commands: [...this.registry.commands],
+			rules: [...this.registry.rules],
 			messageBuilder: [...this.registry.messageBuilder],
 			providers: [...this.registry.providers],
 			automationEventTypes: [...this.registry.automationEventTypes],
@@ -626,6 +646,10 @@ export class ContributionRegistry<
 
 	getRegisteredTools(): TTool[] {
 		return [...this.registry.tools];
+	}
+
+	getRegisteredRules(): AgentExtensionRule[] {
+		return [...this.registry.rules];
 	}
 
 	getRegisteredAutomationEventTypes(): AgentExtensionAutomationEventType[] {

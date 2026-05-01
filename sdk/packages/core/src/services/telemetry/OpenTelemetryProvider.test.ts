@@ -112,7 +112,7 @@ describe("createOpenTelemetryTelemetryService", () => {
 			enabled: false,
 		});
 		const spy = vi.fn();
-		(telemetry as any).adapters.push({
+		(Reflect.get(telemetry, "adapters") as unknown[]).push({
 			name: "test",
 			emit: spy,
 			emitRequired: spy,
@@ -148,7 +148,7 @@ describe("createOpenTelemetryTelemetryService", () => {
 			logsExporter: "console",
 		});
 		const spy = vi.fn();
-		(telemetry as any).adapters.push({
+		(Reflect.get(telemetry, "adapters") as unknown[]).push({
 			name: "test",
 			emit: spy,
 			emitRequired: spy,
@@ -176,11 +176,11 @@ describe("createOpenTelemetryTelemetryService", () => {
 			enabled: true,
 		});
 		// Replace the loggerProvider with a mock so we can inspect emit calls
-		(provider as any).loggerProvider = {
+		Reflect.set(provider, "loggerProvider", {
 			getLogger: () => ({ emit: otelEmit }),
 			forceFlush: async () => {},
 			shutdown: async () => {},
-		};
+		});
 
 		const metadata = {
 			extension_version: "1.0.0",
@@ -227,11 +227,11 @@ describe("createOpenTelemetryTelemetryService", () => {
 		const provider = new OpenTelemetryProvider({
 			enabled: true,
 		});
-		(provider as any).loggerProvider = {
+		Reflect.set(provider, "loggerProvider", {
 			getLogger: () => ({ emit: otelEmit }),
 			forceFlush: async () => {},
 			shutdown: async () => {},
-		};
+		});
 
 		const metadata = {
 			extension_version: "1.0.0",

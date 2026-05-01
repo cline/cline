@@ -4,14 +4,14 @@ export type {
 	WorkspaceInfo,
 	WorkspaceManifest,
 } from "@clinebot/shared";
-export {
-	ClineCore,
-	type ClineCoreListHistoryOptions,
-	type ClineCoreOptions,
-	type ClineCoreStartInput,
-	type HubOptions,
-	type RemoteOptions,
-} from "./ClineCore";
+export { ClineCore } from "./ClineCore";
+export type {
+	ClineCoreListHistoryOptions,
+	ClineCoreOptions,
+	ClineCoreStartInput,
+	HubOptions,
+	RemoteOptions,
+} from "./cline-core/types";
 export type {
 	LoadAgentPluginFromPathOptions,
 	ResolveAgentPluginPathsOptions,
@@ -25,18 +25,12 @@ export {
 	resolvePluginConfigSearchPaths,
 } from "./extensions";
 export type {
-	AgentConfigWatcher,
-	AgentConfigWatcherEvent,
-	AgentYamlConfig,
-	BuildAgentConfigOverridesOptions,
-	CreateAgentConfigWatcherOptions,
 	CreateInstructionWatcherOptions,
 	CreateRulesConfigDefinitionOptions,
 	CreateSkillsConfigDefinitionOptions,
-	CreateUserInstructionConfigWatcherOptions,
+	CreateUserInstructionConfigServiceOptions,
 	CreateWorkflowsConfigDefinitionOptions,
 	ParseMarkdownFrontmatterResult,
-	ParseYamlFrontmatterResult,
 	RuleConfig,
 	SkillConfig,
 	UnifiedConfigDefinition,
@@ -46,30 +40,24 @@ export type {
 	UnifiedConfigWatcherEvent,
 	UnifiedConfigWatcherOptions,
 	UserInstructionConfig,
+	UserInstructionConfigRecord,
+	UserInstructionConfigService,
 	UserInstructionConfigType,
-	UserInstructionConfigWatcher,
-	UserInstructionConfigWatcherEvent,
 	WorkflowConfig,
 } from "./extensions/config";
 export {
-	createAgentConfigDefinition,
-	createAgentConfigWatcher,
 	createRulesConfigDefinition,
 	createSkillsConfigDefinition,
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	createWorkflowsConfigDefinition,
-	parseAgentConfigFromYaml,
-	parsePartialAgentConfigFromYaml,
 	parseRuleConfigFromMarkdown,
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveAgentTools,
 	resolveRulesConfigSearchPaths,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	SKILLS_CONFIG_DIRECTORY_NAME,
-	toPartialAgentConfig,
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./extensions/config";
@@ -85,12 +73,14 @@ export {
 	resolveCoreSelectedToolIds,
 	TEAM_TOOL_NAMES,
 } from "./extensions/tools";
+export type { RuntimeCapabilities } from "./runtime/capabilities";
 export type { SessionBackend } from "./runtime/host/host";
 export type {
 	PendingPromptMutationResult,
-	PendingPromptsAction,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
+	PendingPromptsRuntimeService,
+	PendingPromptsServiceApi,
 	PendingPromptsUpdateInput,
 	RuntimeHost,
 	RuntimeHost as SessionHost,
@@ -138,6 +128,15 @@ export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
 } from "./session/services/session-service";
+export type {
+	CoreSessionCheckpointSnapshot,
+	CoreSessionSnapshot,
+} from "./session/session-snapshot";
+export type {
+	SessionCheckpointRestoreContext,
+	SessionCheckpointRestoreResult,
+	SessionVersioningErrorCode,
+} from "./session/session-versioning-service";
 export type {
 	ChatMessage,
 	ChatSessionConfig,

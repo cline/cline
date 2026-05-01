@@ -35,7 +35,6 @@ export type {
 	EnterpriseStatusResponse,
 	EnterpriseSyncRequest,
 	EnterpriseSyncResponse,
-	emptyWorkspaceManifest,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
@@ -79,12 +78,16 @@ export type {
 export {
 	buildClineSystemPrompt as getClineDefaultSystemPrompt,
 	ContributionRegistry,
+	createClineTelemetryServiceConfig,
+	createClineTelemetryServiceMetadata,
 	createContributionRegistry,
 	createTool,
+	emptyWorkspaceManifest,
 	formatDisplayUserInput,
 	noopBasicLogger,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	registerDisposable,
 } from "@clinebot/shared";
 export * from "@clinebot/shared/storage";
 export {
@@ -164,29 +167,29 @@ export type {
 	OcaOAuthProviderOptions,
 	OcaTokenResolution,
 } from "./auth/types";
-export {
-	type ClineAutomationEventIngressResult,
-	type ClineAutomationEventLog,
-	type ClineAutomationEventSuppression,
-	type ClineAutomationListEventsOptions,
-	type ClineAutomationListRunsOptions,
-	type ClineAutomationListSpecsOptions,
-	type ClineAutomationRun,
-	type ClineAutomationRunStatus,
-	type ClineAutomationSpec,
-	ClineCore,
-	type ClineCoreAutomationApi,
-	type ClineCoreAutomationOptions,
-	type ClineCoreListHistoryOptions,
-	type ClineCoreOptions,
-	type ClineCoreSettingsApi,
-	type ClineCoreStartInput,
-	type HubOptions,
-	type RemoteOptions,
-	type RestoreInput,
-	type RestoreOptions,
-	type RestoreResult,
-} from "./ClineCore";
+export { ClineCore } from "./ClineCore";
+export type {
+	ClineAutomationEventIngressResult,
+	ClineAutomationEventLog,
+	ClineAutomationEventSuppression,
+	ClineAutomationListEventsOptions,
+	ClineAutomationListRunsOptions,
+	ClineAutomationListSpecsOptions,
+	ClineAutomationRun,
+	ClineAutomationRunStatus,
+	ClineAutomationSpec,
+	ClineCoreAutomationApi,
+	ClineCoreAutomationOptions,
+	ClineCoreListHistoryOptions,
+	ClineCoreOptions,
+	ClineCoreSettingsApi,
+	ClineCoreStartInput,
+	HubOptions,
+	RemoteOptions,
+	RestoreInput,
+	RestoreOptions,
+	RestoreResult,
+} from "./cline-core/types";
 export type {
 	LoadAgentPluginFromPathOptions,
 	PluginInitializationFailure,
@@ -204,20 +207,13 @@ export {
 	resolvePluginConfigSearchPaths,
 } from "./extensions";
 export type {
-	AgentConfigWatcher,
-	AgentConfigWatcherEvent,
-	AgentYamlConfig,
 	AvailableRuntimeCommand,
-	BuildAgentConfigOverridesOptions,
-	CreateAgentConfigWatcherOptions,
 	CreateInstructionWatcherOptions,
 	CreateRulesConfigDefinitionOptions,
 	CreateSkillsConfigDefinitionOptions,
-	CreateUserInstructionConfigWatcherOptions,
+	CreateUserInstructionConfigServiceOptions,
 	CreateWorkflowsConfigDefinitionOptions,
-	HookConfigFileEntry,
 	ParseMarkdownFrontmatterResult,
-	ParseYamlFrontmatterResult,
 	RuleConfig,
 	SkillConfig,
 	UnifiedConfigDefinition,
@@ -227,38 +223,24 @@ export type {
 	UnifiedConfigWatcherEvent,
 	UnifiedConfigWatcherOptions,
 	UserInstructionConfig,
+	UserInstructionConfigRecord,
+	UserInstructionConfigService,
 	UserInstructionConfigType,
-	UserInstructionConfigWatcher,
-	UserInstructionConfigWatcherEvent,
 	WorkflowConfig,
 } from "./extensions/config";
 export {
-	createAgentConfigDefinition,
-	createAgentConfigWatcher,
 	createRulesConfigDefinition,
 	createSkillsConfigDefinition,
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	createWorkflowsConfigDefinition,
-	HOOK_CONFIG_FILE_EVENT_MAP,
-	HOOKS_CONFIG_DIRECTORY_NAME,
-	HookConfigFileName,
-	listAvailableRuntimeCommandsFromWatcher,
-	listHookConfigFiles,
-	parseAgentConfigFromYaml,
-	parsePartialAgentConfigFromYaml,
 	parseRuleConfigFromMarkdown,
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveAgentTools,
-	resolveHooksConfigSearchPaths,
 	resolveRulesConfigSearchPaths,
-	resolveRuntimeSlashCommandFromWatcher,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	SKILLS_CONFIG_DIRECTORY_NAME,
-	toHookConfigFileName,
-	toPartialAgentConfig,
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./extensions/config";
@@ -327,26 +309,43 @@ export {
 	toTeamProgressLifecycleEvent,
 } from "./extensions/tools/team";
 export {
+	createAgentHooksExtension,
+	createHookAuditHooks,
+	createHookConfigFileExtension,
+	createHookConfigFileHooks,
 	createSubprocessHooks,
+	HOOK_CONFIG_FILE_EVENT_MAP,
+	HOOKS_CONFIG_DIRECTORY_NAME,
+	type HookConfigFileEntry,
+	HookConfigFileName,
 	type HookEventName,
 	HookEventNameSchema,
 	type HookEventPayload,
 	HookEventPayloadSchema,
+	listHookConfigFiles,
+	mergeAgentHooks,
 	parseHookEventPayload,
 	type RunHookOptions,
 	type RunHookResult,
 	type RunSubprocessEventOptions,
 	type RunSubprocessEventResult,
+	resolveHooksConfigSearchPaths,
 	runHook,
 	runSubprocessEvent,
 	type SubprocessHookControl,
 	type SubprocessHooksOptions,
+	toHookConfigFileName,
 } from "./hooks";
 export type {
 	CheckpointEntry,
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
 export * from "./hub";
+export { HubRuntimeHost } from "./hub/transport/hub-runtime-host";
+export { RemoteRuntimeHost } from "./hub/transport/remote-runtime-host";
+export type { RuntimeCapabilities } from "./runtime/capabilities";
+export { normalizeRuntimeCapabilities } from "./runtime/capabilities";
+export { listSessionHistoryFromBackend } from "./runtime/host/history";
 export type { SessionBackend } from "./runtime/host/host";
 export {
 	createRuntimeHost,
@@ -355,9 +354,10 @@ export {
 } from "./runtime/host/host";
 export type {
 	PendingPromptMutationResult,
-	PendingPromptsAction,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
+	PendingPromptsRuntimeService,
+	PendingPromptsServiceApi,
 	PendingPromptsUpdateInput,
 	RestoreSessionInput,
 	RestoreSessionResult,
@@ -384,8 +384,6 @@ export type {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
-	listEnabledRulesFromWatcher,
-	loadRulesForSystemPromptFromWatcher,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
@@ -520,6 +518,20 @@ export type {
 	RootSessionArtifacts,
 } from "./session/services/session-service";
 export { CoreSessionService } from "./session/services/session-service";
+export type {
+	CoreSessionCheckpointSnapshot,
+	CoreSessionSnapshot,
+} from "./session/session-snapshot";
+export { createCoreSessionSnapshot } from "./session/session-snapshot";
+export type {
+	SessionCheckpointRestoreContext,
+	SessionCheckpointRestoreResult,
+	SessionVersioningErrorCode,
+} from "./session/session-versioning-service";
+export {
+	SessionVersioningError,
+	SessionVersioningService,
+} from "./session/session-versioning-service";
 export {
 	FileTeamPersistenceStore,
 	type FileTeamPersistenceStoreOptions,
@@ -538,9 +550,7 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
-export { HubRuntimeHost } from "./transports/hub";
 export { LocalRuntimeHost } from "./transports/local";
-export { RemoteRuntimeHost } from "./transports/remote";
 export type {
 	ChatMessage,
 	ChatSessionConfig,

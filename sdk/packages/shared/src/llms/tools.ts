@@ -40,6 +40,13 @@ export interface ToolPolicy {
 	autoApprove?: boolean;
 }
 
+export interface ToolLifecycle {
+	/**
+	 * Whether a successful call to this tool completes the current agent run.
+	 */
+	completesRun?: boolean;
+}
+
 export const ToolContextSchema = z.object({
 	agentId: z.string(),
 	conversationId: z.string(),
@@ -65,6 +72,8 @@ export interface Tool<TInput = unknown, TOutput = unknown> {
 	description: string;
 	/** JSON Schema defining the tool's input parameters */
 	inputSchema: Record<string, unknown>;
+	/** Runtime lifecycle semantics for this tool. */
+	lifecycle?: ToolLifecycle;
 	/** The function that executes the tool */
 	execute: (
 		input: TInput,

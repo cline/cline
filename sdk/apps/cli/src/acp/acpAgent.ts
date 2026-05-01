@@ -221,8 +221,13 @@ export class AcpAgent implements Agent {
 				once: true,
 			});
 
-			const result = await session.sessionManager?.send({
-				sessionId: session.activeSessionId!,
+			const activeSessionId = session.activeSessionId;
+			const sessionManager = session.sessionManager;
+			if (!activeSessionId || !sessionManager) {
+				throw new Error("Session manager was not initialized");
+			}
+			const result = await sessionManager.send({
+				sessionId: activeSessionId,
 				prompt: promptText,
 			});
 
@@ -324,8 +329,12 @@ export class AcpAgent implements Agent {
 				// If current model doesn't exist in new provider, reset to first available
 				const providerModels = await Llms.getModelsForProvider(value);
 				const modelIds = Object.keys(providerModels);
-				if (!modelIds.includes(session.currentModelId) && modelIds.length > 0) {
-					session.currentModelId = modelIds[0]!;
+				const fallbackModelId = modelIds[0];
+				if (
+					!modelIds.includes(session.currentModelId) &&
+					fallbackModelId !== undefined
+				) {
+					session.currentModelId = fallbackModelId;
 				}
 				break;
 			}
@@ -471,8 +480,10 @@ export class AcpAgent implements Agent {
 
 		const sessionManager = await createCliCore({
 			toolPolicies: config.toolPolicies,
-			requestToolApproval: (request) =>
-				requestAcpToolApproval(this.conn, acpSessionId, request),
+			capabilities: {
+				requestToolApproval: (request) =>
+					requestAcpToolApproval(this.conn, acpSessionId, request),
+			},
 		});
 
 		session.unsubscribe = subscribeToAgentEvents(

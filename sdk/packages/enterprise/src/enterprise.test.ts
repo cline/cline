@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createUserInstructionConfigWatcher } from "@clinebot/core";
+import { createUserInstructionConfigService } from "@clinebot/core";
 import type { AgentExtensionApi } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -302,25 +302,25 @@ describe("sdk-enterprise", () => {
 		});
 
 		try {
-			const watcher = createUserInstructionConfigWatcher({
+			const userInstructionService = createUserInstructionConfigService({
 				skills: { workspacePath },
 				rules: { workspacePath },
 				workflows: { workspacePath },
 			});
-			await watcher.start();
-			const rules = watcher.getSnapshot("rule");
-			const workflows = watcher.getSnapshot("workflow");
+			await userInstructionService.start();
+			const rules = userInstructionService.listRecords("rule");
+			const workflows = userInstructionService.listRecords("workflow");
 			expect(
-				[...rules.values()].some((rule) =>
+				rules.some((rule) =>
 					rule.item.instructions.includes("enterprise guardrails"),
 				),
 			).toBe(true);
 			expect(
-				[...workflows.values()].some((workflow) =>
+				workflows.some((workflow) =>
 					workflow.item.instructions.includes("triage workflow"),
 				),
 			).toBe(true);
-			watcher.stop();
+			userInstructionService.stop();
 
 			const startInput = integration.applyToStartSessionInput({
 				config: {
@@ -340,7 +340,7 @@ describe("sdk-enterprise", () => {
 			});
 
 			expect(startInput.config.extensions).toHaveLength(1);
-			expect(startInput.localRuntime?.userInstructionWatcher).toBeUndefined();
+			expect(startInput.localRuntime?.userInstructionService).toBeUndefined();
 			expect(startInput.config.telemetry).toBeDefined();
 			expect(startInput.config.sessionId).toBeDefined();
 			expect(startInput.sessionMetadata).toMatchObject({

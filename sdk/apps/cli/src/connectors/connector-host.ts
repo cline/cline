@@ -4,7 +4,7 @@ import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
 	HubSessionClient,
-	UserInstructionConfigWatcher,
+	UserInstructionConfigService,
 } from "@clinebot/core";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
@@ -146,7 +146,7 @@ export async function handleConnectorUserTurn<
 	) => Record<string, unknown>;
 	firstContactMessage?: string | ((currentState: TState) => string | undefined);
 	chatCommandHost?: ChatCommandHost;
-	userInstructionWatcher?: UserInstructionConfigWatcher;
+	userInstructionService?: UserInstructionConfigService;
 	activeTurns?: Map<string, ActiveConnectorTurn>;
 	turnKey?: string;
 	forceDisableTools?: boolean;
@@ -672,7 +672,7 @@ export async function handleConnectorUserTurn<
 	if (activeTurn?.sessionId?.trim()) {
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
 			resolvedInput,
-			input.userInstructionWatcher,
+			input.userInstructionService,
 		);
 		await input.client.sendRuntimeSession(
 			activeTurn.sessionId,
@@ -712,7 +712,7 @@ export async function handleConnectorUserTurn<
 	});
 	const { prompt, userImages, userFiles } = await buildUserInputMessage(
 		resolvedInput,
-		input.userInstructionWatcher,
+		input.userInstructionService,
 	);
 	const request: ChatRunTurnRequest = {
 		config: startRequest,

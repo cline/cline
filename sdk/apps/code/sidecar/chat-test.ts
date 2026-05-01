@@ -54,9 +54,9 @@ function startSidecar(): Promise<string> {
 function sendWsCommand<T>(
 	command: string,
 	args?: Record<string, unknown>,
-): Promise<{ result: T; events: any[] }> {
+): Promise<{ result: T; events: Array<Record<string, unknown>> }> {
 	return new Promise((resolve, reject) => {
-		const events: any[] = [];
+		const events: Array<Record<string, unknown>> = [];
 		const socket = new WebSocket(wsEndpoint);
 		const timer = setTimeout(() => {
 			socket.close();
@@ -72,7 +72,7 @@ function sendWsCommand<T>(
 		socket.onmessage = (event) => {
 			const parsed = JSON.parse(String(event.data));
 			if (parsed.type === "event") {
-				events.push(parsed.event);
+				events.push(parsed.event as Record<string, unknown>);
 				return;
 			}
 			if (parsed.type === "response" && parsed.id === "test") {
@@ -126,7 +126,7 @@ async function main() {
 
 	// Step 2: Send a prompt
 	console.log("\n=== Step 2: Send prompt ===");
-	const { result: sendResult, events } = await sendWsCommand<any>(
+	const { result: sendResult, events } = await sendWsCommand<unknown>(
 		"chat_session_command",
 		{
 			request: {
@@ -139,8 +139,12 @@ async function main() {
 	console.log("Send result:", JSON.stringify(sendResult, null, 2));
 	console.log(`Events received during send: ${events.length}`);
 	for (const evt of events.slice(0, 20)) {
+		const payload =
+			evt.payload && typeof evt.payload === "object"
+				? (evt.payload as Record<string, unknown>)
+				: {};
 		console.log(
-			`  event: ${evt.name} payload.stream=${evt.payload?.stream ?? "N/A"} chunk=${String(evt.payload?.chunk ?? "").slice(0, 80)}`,
+			`  event: ${evt.name} payload.stream=${payload.stream ?? "N/A"} chunk=${String(payload.chunk ?? "").slice(0, 80)}`,
 		);
 	}
 

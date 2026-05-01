@@ -1,8 +1,25 @@
 import type { HubUINotifyPayload } from "@clinebot/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import { SessionSource } from "../../types/common";
 import { HubUIClient } from "../client/ui-client";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { startHubServer } from "../daemon/start-shared-server";
+
+function waitForEvent<T>(
+	subscribe: (resolve: (payload: T) => void) => () => void,
+): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			unsubscribe();
+			reject(new Error("Timed out waiting for hub UI event"));
+		}, 1_000);
+		const unsubscribe = subscribe((payload) => {
+			clearTimeout(timeout);
+			unsubscribe();
+			resolve(payload);
+		});
+	});
+}
 
 describe("hub UI events", () => {
 	const servers: Array<{ close(): Promise<void> }> = [];
@@ -38,16 +55,9 @@ describe("hub UI events", () => {
 		await sender.connect();
 		await receiver.connect();
 
-		// Subscribe the receiver to UI events
-		const received: HubUINotifyPayload[] = [];
-		const unsubscribe = receiver.subscribeUI({
-			onNotify(payload) {
-				received.push(payload);
-			},
-		});
-
-		// Give subscription time to be established
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		const received = waitForEvent<HubUINotifyPayload>((resolve) =>
+			receiver.subscribeUI({ onNotify: resolve }),
+		);
 
 		// Send a notification via the sender
 		await sender.sendNotify({
@@ -56,17 +66,13 @@ describe("hub UI events", () => {
 			severity: "info",
 		});
 
-		// Wait for the event to be delivered
-		await new Promise((resolve) => setTimeout(resolve, 200));
-
-		unsubscribe();
+		const payload = await received;
 		sender.close();
 		receiver.close();
 
-		expect(received.length).toBeGreaterThan(0);
-		expect(received[0].title).toBe("Test Notification");
-		expect(received[0].body).toBe("Hello from hub UI events test");
-		expect(received[0].severity).toBe("info");
+		expect(payload.title).toBe("Test Notification");
+		expect(payload.body).toBe("Hello from hub UI events test");
+		expect(payload.severity).toBe("info");
 	}, 10_000);
 
 	it("broadcasts ui.show_window event to subscribed clients", async () => {
@@ -90,24 +96,15 @@ describe("hub UI events", () => {
 		await sender.connect();
 		await receiver.connect();
 
-		let showWindowReceived = false;
-		const unsubscribe = receiver.subscribeUI({
-			onShowWindow() {
-				showWindowReceived = true;
-			},
-		});
-
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		const received = waitForEvent<unknown>((resolve) =>
+			receiver.subscribeUI({ onShowWindow: resolve }),
+		);
 
 		await sender.sendShowWindow({ focus: true });
 
-		await new Promise((resolve) => setTimeout(resolve, 200));
-
-		unsubscribe();
+		await expect(received).resolves.toEqual({ focus: true });
 		sender.close();
 		receiver.close();
-
-		expect(showWindowReceived).toBe(true);
 	}, 10_000);
 
 	it("receives hub.client.registered events when clients connect", async () => {
@@ -126,16 +123,9 @@ describe("hub UI events", () => {
 		});
 		await monitor.connect();
 
-		const registeredClientIds: string[] = [];
-		const unsubscribe = monitor.subscribeUI({
-			onClientRegistered(payload) {
-				if (typeof payload.clientId === "string") {
-					registeredClientIds.push(payload.clientId);
-				}
-			},
-		});
-
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		const registered = waitForEvent<Record<string, unknown>>((resolve) =>
+			monitor.subscribeUI({ onClientRegistered: resolve }),
+		);
 
 		// Second client connects — should trigger registration event
 		const newClient = new HubUIClient({
@@ -146,19 +136,67 @@ describe("hub UI events", () => {
 		});
 		await newClient.connect();
 
-		await new Promise((resolve) => setTimeout(resolve, 200));
-
-		unsubscribe();
+		const payload = await registered;
 		monitor.close();
 		newClient.close();
 
-		expect(registeredClientIds.length).toBeGreaterThan(0);
+		expect(typeof payload.clientId).toBe("string");
 	}, 10_000);
 
 	it("lists connected clients and sessions for initial UI hydration", async () => {
+		const sessionRecord = {
+			sessionId: "session-ui-hydration",
+			source: SessionSource.CORE,
+			startedAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			status: "running" as const,
+			interactive: true,
+			provider: "cline",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+		};
 		const server = await startHubServer({
 			port: 0,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			sessionHost: {
+				subscribe: () => () => {},
+				startSession: async () => {
+					throw new Error("not used in this test");
+				},
+				runTurn: async () => undefined,
+				restoreSession: async () => {
+					throw new Error("not used in this test");
+				},
+				pendingPrompts: {
+					list: async () => [],
+					update: async () => ({
+						sessionId: sessionRecord.sessionId,
+						prompts: [],
+						updated: false,
+					}),
+					delete: async () => ({
+						sessionId: sessionRecord.sessionId,
+						prompts: [],
+						removed: false,
+					}),
+				},
+				getAccumulatedUsage: async () => undefined,
+				abort: async () => {},
+				stopSession: async () => {},
+				dispose: async () => {},
+				getSession: async (sessionId: string) =>
+					sessionId === sessionRecord.sessionId ? sessionRecord : undefined,
+				listSessions: async () => [sessionRecord],
+				deleteSession: async () => false,
+				updateSession: async () => ({ updated: false }),
+				readSessionMessages: async () => [],
+				dispatchHookEvent: async () => {},
+			} as never,
 		});
 		servers.push(server);
 
@@ -177,31 +215,6 @@ describe("hub UI events", () => {
 
 		await ui.connect();
 		await worker.connect();
-
-		await (
-			worker as unknown as {
-				client: {
-					command: (
-						command: string,
-						payload?: Record<string, unknown>,
-					) => Promise<{ payload?: Record<string, unknown> }>;
-				};
-			}
-		).client.command("session.create", {
-			workspaceRoot: "/tmp/project",
-			cwd: "/tmp/project",
-			sessionConfig: {
-				providerId: "cline",
-				modelId: "test-model",
-				cwd: "/tmp/project",
-				workspaceRoot: "/tmp/project",
-				systemPrompt: "",
-				mode: "act",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
-		});
 
 		const clients = await ui.listClients();
 		const sessions = await ui.listSessions();

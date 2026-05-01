@@ -239,7 +239,7 @@ export type HookEventPayload =
 	| AgentErrorHookPayload
 	| SessionShutdownHookPayload;
 
-export const HookEventPayloadSchema: z.ZodType<any> = z
+export const HookEventPayloadSchema: z.ZodType<unknown> = z
 	.object({
 		clineVersion: z.string(),
 		hookName: HookEventNameSchema,

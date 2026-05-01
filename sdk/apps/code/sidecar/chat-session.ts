@@ -3,13 +3,12 @@ import { basename, join } from "node:path";
 import {
 	buildWorkspaceMetadata,
 	type ClineCore,
-	createUserInstructionConfigWatcher,
-	loadRulesForSystemPromptFromWatcher,
-	mergeRulesForSystemPrompt,
+	type CoreSessionConfig,
 	type SessionPendingPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
 } from "@clinebot/core";
+import type { Message } from "@clinebot/llms";
 import { buildClineSystemPrompt } from "@clinebot/shared";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
@@ -151,20 +150,6 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 			? "plan"
 			: "act";
 	const metadata = await buildWorkspaceMetadata(cwd);
-	let watcherRules: string | undefined;
-	const watcher = createUserInstructionConfigWatcher({
-		skills: { workspacePath: cwd },
-		rules: { workspacePath: cwd },
-		workflows: { workspacePath: cwd },
-	});
-	try {
-		await watcher.start();
-		watcherRules = loadRulesForSystemPromptFromWatcher(watcher);
-	} catch {
-		watcherRules = undefined;
-	} finally {
-		watcher.stop();
-	}
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
 			? config.rules
@@ -174,7 +159,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		workspaceRoot: cwd,
 		workspaceName: basename(cwd),
 		metadata,
-		rules: mergeRulesForSystemPrompt(watcherRules, inlineRules),
+		rules: inlineRules,
 		mode,
 		providerId: providerId || undefined,
 		overridePrompt:
@@ -274,10 +259,12 @@ async function handleStart(
 		`[sidecar:handleStart] calling manager.start provider=${coreConfig.providerId} model=${coreConfig.modelId}`,
 	);
 	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as any),
+		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages ? { initialMessages: initialMessages as any[] } : {}),
+		...(initialMessages
+			? { initialMessages: initialMessages as Message[] }
+			: {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
@@ -398,7 +385,7 @@ async function handleSend(
 			delivery: "queue",
 			userImages: request.attachments?.userImages,
 		});
-		const prompts = await manager.pendingPrompts("list", { sessionId });
+		const prompts = await manager.pendingPrompts.list({ sessionId });
 		return {
 			sessionId,
 			ok: true,
@@ -575,11 +562,11 @@ async function handleFork(
 				...forkConfig,
 				systemPrompt,
 				initialMessages: sourceMessages,
-			}) as any,
+			}) as unknown as CoreSessionConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		initialMessages: sourceMessages as any[],
+		initialMessages: sourceMessages as Message[],
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	});
@@ -661,7 +648,7 @@ async function handleRestoreCheckpoint(
 				buildCoreSessionConfig({
 					...request.config,
 					systemPrompt: await resolveSystemPrompt(request.config),
-				}) as any,
+				}) as unknown as CoreSessionConfig,
 			),
 			source: SessionSource.DESKTOP,
 			interactive: true,
@@ -703,7 +690,7 @@ async function handlePendingPrompts(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const prompts = await getSessionManager(ctx).pendingPrompts("list", {
+	const prompts = await getSessionManager(ctx).pendingPrompts.list({
 		sessionId,
 	});
 	return {
@@ -721,7 +708,7 @@ async function handleSteerPrompt(
 	if (!sessionId || !promptId)
 		throw new Error("sessionId and promptId are required");
 	const manager = getSessionManager(ctx);
-	const result = await manager.pendingPrompts("update", {
+	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
 		delivery: "steer",
@@ -747,7 +734,7 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
-	const result = await manager.pendingPrompts("update", {
+	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
 		prompt,
@@ -770,7 +757,7 @@ async function handleRemovePendingPrompt(
 		throw new Error("sessionId and promptId are required");
 	}
 	const manager = getSessionManager(ctx);
-	const result = await manager.pendingPrompts("delete", {
+	const result = await manager.pendingPrompts.delete({
 		sessionId,
 		promptId,
 	});

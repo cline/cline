@@ -90,8 +90,8 @@ export function ExtDetailContent(
 						return (
 							<box key={row.label} flexDirection="column" marginTop={1}>
 								<text fg="gray">{row.label}</text>
-								{row.value.map((line, index) => (
-									<text key={`${row.label}-${index}`}>{line || " "}</text>
+								{row.value.map((line) => (
+									<text key={`${row.label}-${line}`}>{line || " "}</text>
 								))}
 							</box>
 						);

@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
-	createUserInstructionConfigWatcher,
+	createUserInstructionConfigService,
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
@@ -12,9 +12,6 @@ import {
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
-	resolveRulesConfigSearchPaths,
-	resolveSkillsConfigSearchPaths,
-	resolveWorkflowsConfigSearchPaths,
 	type SkillConfig,
 	type WorkflowConfig,
 } from "@clinebot/core";
@@ -42,35 +39,29 @@ async function runWorkflowsConfigCommand(
 		string,
 		{ id: string; name: string; instructions: string; path: string }
 	>();
-	const directories = resolveWorkflowsConfigSearchPaths(cwd).filter(
-		(directory) => existsSync(directory),
-	);
-	for (const directory of directories) {
-		const watcher = createUserInstructionConfigWatcher({
-			skills: { directories: [] },
-			rules: { directories: [] },
-			workflows: { directories: [directory] },
-		});
-		try {
-			await watcher.start();
-			const snapshot = watcher.getSnapshot("workflow");
-			for (const [id, record] of snapshot.entries()) {
-				const workflow = record.item as WorkflowConfig;
-				if (workflow.disabled === true || workflowsById.has(id)) {
-					continue;
-				}
-				workflowsById.set(id, {
-					id,
-					name: workflow.name,
-					instructions: workflow.instructions,
-					path: record.filePath,
-				});
+	const service = createUserInstructionConfigService({
+		skills: { workspacePath: cwd },
+		rules: { workspacePath: cwd },
+		workflows: { workspacePath: cwd },
+	});
+	try {
+		await service.start();
+		for (const record of service.listRecords<WorkflowConfig>("workflow")) {
+			const workflow = record.item;
+			if (workflow.disabled === true || workflowsById.has(record.id)) {
+				continue;
 			}
-		} catch {
-			// Best-effort listing across config roots.
-		} finally {
-			watcher.stop();
+			workflowsById.set(record.id, {
+				id: record.id,
+				name: workflow.name,
+				instructions: workflow.instructions,
+				path: record.filePath,
+			});
 		}
+	} catch {
+		// Best-effort listing across config roots.
+	} finally {
+		service.stop();
 	}
 	const workflows = [...workflowsById.values()].sort((a, b) =>
 		a.name.localeCompare(b.name),
@@ -99,34 +90,28 @@ async function runRulesConfigCommand(
 		string,
 		{ name: string; instructions: string; path: string }
 	>();
-	const directories = resolveRulesConfigSearchPaths(cwd).filter((directory) =>
-		existsSync(directory),
-	);
-	for (const directory of directories) {
-		const watcher = createUserInstructionConfigWatcher({
-			skills: { directories: [] },
-			rules: { directories: [directory] },
-			workflows: { directories: [] },
-		});
-		try {
-			await watcher.start();
-			const snapshot = watcher.getSnapshot("rule");
-			for (const record of snapshot.values()) {
-				const rule = record.item as RuleConfig;
-				if (rule.disabled === true || rulesByName.has(rule.name)) {
-					continue;
-				}
-				rulesByName.set(rule.name, {
-					name: rule.name,
-					instructions: rule.instructions,
-					path: record.filePath,
-				});
+	const service = createUserInstructionConfigService({
+		skills: { workspacePath: cwd },
+		rules: { workspacePath: cwd },
+		workflows: { workspacePath: cwd },
+	});
+	try {
+		await service.start();
+		for (const record of service.listRecords<RuleConfig>("rule")) {
+			const rule = record.item;
+			if (rule.disabled === true || rulesByName.has(rule.name)) {
+				continue;
 			}
-		} catch {
-			// Best-effort listing across config roots.
-		} finally {
-			watcher.stop();
+			rulesByName.set(rule.name, {
+				name: rule.name,
+				instructions: rule.instructions,
+				path: record.filePath,
+			});
 		}
+	} catch {
+		// Best-effort listing across config roots.
+	} finally {
+		service.stop();
 	}
 	const rules = [...rulesByName.values()].sort((a, b) =>
 		a.name.localeCompare(b.name),
@@ -151,43 +136,33 @@ async function runSkillsConfigCommand(
 	outputMode: CliOutputMode,
 	io: ConfigIo,
 ): Promise<number> {
-	const skillDirectories = [
-		...resolveSkillsConfigSearchPaths(cwd),
-		join(homedir(), "Documents", "Cline", "Skills"),
-	];
 	const skillsByName = new Map<
 		string,
 		SkillConfig & {
 			path: string;
 		}
 	>();
-	const directories = [...new Set(skillDirectories)].filter((directory) =>
-		existsSync(directory),
-	);
-	for (const directory of directories) {
-		const watcher = createUserInstructionConfigWatcher({
-			skills: { directories: [directory] },
-			rules: { directories: [] },
-			workflows: { directories: [] },
-		});
-		try {
-			await watcher.start();
-			const snapshot = watcher.getSnapshot("skill");
-			for (const record of snapshot.values()) {
-				const skill = record.item as SkillConfig;
-				if (skill.disabled === true || skillsByName.has(skill.name)) {
-					continue;
-				}
-				skillsByName.set(skill.name, {
-					...skill,
-					path: record.filePath,
-				});
+	const service = createUserInstructionConfigService({
+		skills: { workspacePath: cwd },
+		rules: { workspacePath: cwd },
+		workflows: { workspacePath: cwd },
+	});
+	try {
+		await service.start();
+		for (const record of service.listRecords<SkillConfig>("skill")) {
+			const skill = record.item;
+			if (skill.disabled === true || skillsByName.has(skill.name)) {
+				continue;
 			}
-		} catch {
-			// Best-effort listing across config roots.
-		} finally {
-			watcher.stop();
+			skillsByName.set(skill.name, {
+				...skill,
+				path: record.filePath,
+			});
 		}
+	} catch {
+		// Best-effort listing across config roots.
+	} finally {
+		service.stop();
 	}
 	const skills = [...skillsByName.values()].sort((a, b) =>
 		a.name.localeCompare(b.name),
@@ -445,15 +420,15 @@ async function runToolsConfigCommand(
 async function loadInteractiveConfigDataForCommand(
 	cwd: string,
 ): Promise<Awaited<ReturnType<typeof loadInteractiveConfigData>>> {
-	const watcher = createUserInstructionConfigWatcher({
+	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: cwd },
 		rules: { workspacePath: cwd },
 		workflows: { workspacePath: cwd },
 	});
 	try {
-		await watcher.start();
+		await userInstructionService.start();
 		return await loadInteractiveConfigData({
-			watcher,
+			userInstructionService,
 			cwd,
 			workspaceRoot: cwd,
 			availabilityContext: {
@@ -461,7 +436,7 @@ async function loadInteractiveConfigDataForCommand(
 			},
 		});
 	} finally {
-		watcher.stop();
+		userInstructionService.stop();
 	}
 }
 

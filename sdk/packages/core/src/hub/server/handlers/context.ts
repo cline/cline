@@ -8,8 +8,19 @@ import type {
 	SessionParticipant,
 } from "@clinebot/shared";
 import { createSessionId } from "@clinebot/shared";
-import type { RuntimeHost } from "../../../runtime/host/runtime-host";
-import { type HubSessionState, toHubSessionRecord } from "../helpers";
+import type {
+	PendingPromptsRuntimeService,
+	RuntimeHost,
+	SessionUsageRuntimeService,
+} from "../../../runtime/host/runtime-host";
+import {
+	type CoreSessionSnapshot,
+	createCoreSessionSnapshot,
+} from "../../../session/session-snapshot";
+import {
+	type HubSessionState,
+	toHubSessionRecord,
+} from "../hub-session-records";
 
 export type PendingApproval = {
 	sessionId: string;
@@ -18,6 +29,7 @@ export type PendingApproval = {
 
 export type PendingCapabilityRequest = {
 	sessionId: string;
+	targetClientId: string;
 	capabilityName: string;
 	resolve: (result: {
 		ok: boolean;
@@ -36,7 +48,8 @@ export interface HubTransportContext {
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
-	readonly sessionHost: RuntimeHost;
+	readonly sessionHost: RuntimeHost &
+		Partial<PendingPromptsRuntimeService & SessionUsageRuntimeService>;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],
@@ -119,11 +132,28 @@ export async function readHubSessionRecord(
 	ctx: HubTransportContext,
 	sessionId: string,
 ): Promise<HubSessionRecord | undefined> {
-	const session = await ctx.sessionHost.get(sessionId);
+	const session = await ctx.sessionHost.getSession(sessionId);
 	if (!session) {
 		return undefined;
 	}
 	return toHubSessionRecord(session, ctx.sessionState.get(sessionId));
+}
+
+export async function readCoreSessionSnapshot(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<CoreSessionSnapshot | undefined> {
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (!session) {
+		return undefined;
+	}
+	const [messages, usage] = await Promise.all([
+		typeof ctx.sessionHost.readSessionMessages === "function"
+			? ctx.sessionHost.readSessionMessages(sessionId)
+			: [],
+		ctx.sessionHost.getAccumulatedUsage?.(sessionId),
+	]);
+	return createCoreSessionSnapshot({ session, messages, usage });
 }
 
 export function ensureSessionState(

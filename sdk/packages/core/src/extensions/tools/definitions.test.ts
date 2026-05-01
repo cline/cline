@@ -294,6 +294,7 @@ describe("default submit_and_exit tool", () => {
 		});
 		const submitTool = tools.find((tool) => tool.name === "submit_and_exit");
 		expect(submitTool).toBeDefined();
+		expect(submitTool?.lifecycle).toEqual({ completesRun: true });
 		if (!submitTool) {
 			throw new Error("Expected submit_and_exit tool to be defined.");
 		}
