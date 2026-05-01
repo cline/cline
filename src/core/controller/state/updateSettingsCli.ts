@@ -210,21 +210,13 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				// Update the terminal profile in the state
 				controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
 
-				let closedCount = 0
-				let busyTerminalsCount = 0
-
-				// Update the terminal manager of the current task if it exists
-				if (controller.task) {
-					// Terminal manager must exist when task is active
-					if (!controller.task.terminalManager) {
-						throw new Error("Cannot update terminal profile: Terminal manager missing from active task")
-					}
-
-					// Call the updated setDefaultTerminalProfile method that returns closed terminal info
-					// Use `as any` to handle type incompatibility between VSCode's TerminalInfo and standalone TerminalInfo
-					const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId) as any
-					closedCount = result.closedCount
-					busyTerminalsCount = result.busyTerminals?.length ?? 0
+				// Apply to the live terminal manager if it exists.
+				// setDefaultTerminalProfile() closes idle terminals with a different
+				// profile and returns info about what was closed.
+				if (controller.terminalManager) {
+					const result = controller.terminalManager.setDefaultTerminalProfile(profileId) as any
+					const closedCount = result?.closedCount ?? 0
+					const busyTerminalsCount = result?.busyTerminals?.length ?? 0
 
 					// Show information message if terminals were closed
 					if (closedCount > 0) {
