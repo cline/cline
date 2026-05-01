@@ -58,16 +58,31 @@ export function useLocalCommandActions(input: {
 			),
 		});
 		if (sessionId) {
-			session.clearEntries();
-			const messages = await onResumeSession(sessionId);
-			for (const entry of hydrateSessionMessages(messages)) {
-				session.appendEntry(entry);
+			try {
+				const messages = await onResumeSession(sessionId);
+				const entries = hydrateSessionMessages(messages);
+				if (entries.length === 0) {
+					session.appendEntry({
+						kind: "error",
+						text: `Session ${sessionId} has no messages to resume.`,
+					});
+				} else {
+					session.clearEntries();
+					for (const entry of entries) {
+						session.appendEntry(entry);
+					}
+					const usage = summarizeUsageFromMessages(messages);
+					session.setLastTotalTokens(usage.inputTokens + usage.outputTokens);
+					session.setLastTotalCost(usage.totalCost);
+					session.setHasSubmitted(true);
+					setAppView("chat");
+				}
+			} catch (error) {
+				session.appendEntry({
+					kind: "error",
+					text: `Failed to resume session: ${error instanceof Error ? error.message : String(error)}`,
+				});
 			}
-			const usage = summarizeUsageFromMessages(messages);
-			session.setLastTotalTokens(usage.inputTokens + usage.outputTokens);
-			session.setLastTotalCost(usage.totalCost);
-			session.setHasSubmitted(true);
-			setAppView("chat");
 		}
 		refocusTextarea();
 	}, [

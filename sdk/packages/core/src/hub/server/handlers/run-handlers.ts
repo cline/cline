@@ -73,6 +73,16 @@ export async function handleSessionInput(
 		) {
 			ctx.suppressNextTerminalEventBySession.delete(sessionId);
 		}
+		ctx.publish(
+			ctx.buildEvent(
+				"run.failed",
+				{
+					reason: "error",
+					error: error instanceof Error ? error.message : String(error),
+				},
+				sessionId,
+			),
+		);
 		throw error;
 	}
 	if (result) {

@@ -305,11 +305,18 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const resumeSession = async (sessionId: string): Promise<Message[]> => {
-		await stopCurrentSession();
 		const manager = await ensureSessionManager();
+		const sessionRecord = await manager.get(sessionId);
+		if (!sessionRecord) {
+			throw new Error(`Session ${sessionId} was not found.`);
+		}
 		const messages = await loadInteractiveResumeMessages(manager, sessionId);
+		if (!messages || messages.length === 0) {
+			throw new Error(`Session ${sessionId} has no messages to resume.`);
+		}
+		await stopCurrentSession();
 		await startResumedSession(sessionId, messages);
-		return messages ?? [];
+		return messages;
 	};
 
 	const compactCurrentSession = async (): Promise<{

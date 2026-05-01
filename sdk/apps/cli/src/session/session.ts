@@ -91,12 +91,24 @@ export async function listSessions(
 	options?: { workspaceRoot?: string; hydrate?: boolean },
 ): Promise<SessionHistoryRecord[]> {
 	return await withCliCore(
-		async (core) =>
-			await core.listHistory({
+		async (core) => {
+			const rows = await core.listHistory({
 				limit,
 				includeManifestFallback: true,
 				hydrate: options?.hydrate ?? false,
-			}),
+			});
+			const nonEmpty = await Promise.all(
+				rows.map(async (row) => {
+					const messages = await core
+						.readMessages(row.sessionId)
+						.catch(() => []);
+					return messages.length > 0 ? row : undefined;
+				}),
+			);
+			return nonEmpty.filter((row): row is SessionHistoryRecord =>
+				Boolean(row),
+			);
+		},
 		{
 			forceLocalBackend: true,
 			cwd: options?.workspaceRoot,

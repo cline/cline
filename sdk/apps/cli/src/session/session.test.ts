@@ -216,10 +216,12 @@ describe("createCliCore", () => {
 				workspaceRoot: "/tmp/other-workspace",
 			},
 		]);
+		const readMessages = vi.fn(async () => [{ role: "user", content: "hi" }]);
 		const dispose = vi.fn();
 		createCore.mockResolvedValueOnce({
 			runtimeAddress: undefined,
 			listHistory,
+			readMessages,
 			dispose,
 		});
 
@@ -242,6 +244,39 @@ describe("createCliCore", () => {
 				sessionId: "sess_2",
 				workspaceRoot: "/tmp/other-workspace",
 			},
+		]);
+	});
+
+	it("filters out empty and unreadable sessions", async () => {
+		const listHistory = vi.fn(async () => [
+			{ sessionId: "sess_full", workspaceRoot: "/tmp/workspace" },
+			{ sessionId: "sess_empty", workspaceRoot: "/tmp/workspace" },
+			{ sessionId: "sess_broken", workspaceRoot: "/tmp/workspace" },
+		]);
+		const readMessages = vi.fn(async (sessionId: string) => {
+			if (sessionId === "sess_full") {
+				return [{ role: "user", content: "hi" }];
+			}
+			if (sessionId === "sess_broken") {
+				throw new Error("messages file unreadable");
+			}
+			return [];
+		});
+		const dispose = vi.fn();
+		createCore.mockResolvedValueOnce({
+			runtimeAddress: undefined,
+			listHistory,
+			readMessages,
+			dispose,
+		});
+
+		const rows = await sessionModule.listSessions(25, {
+			workspaceRoot: "/tmp/workspace",
+		});
+
+		expect(readMessages).toHaveBeenCalledTimes(3);
+		expect(rows).toEqual([
+			{ sessionId: "sess_full", workspaceRoot: "/tmp/workspace" },
 		]);
 	});
 });
