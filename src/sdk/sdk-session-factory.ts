@@ -23,22 +23,22 @@ export class SdkSessionFactory {
 
 	async createAndStartSession(startInput: Parameters<VscodeSessionHost["start"]>[0]): Promise<{
 		startResult: Awaited<ReturnType<VscodeSessionHost["start"]>>
-		sessionManager: SessionHost
+		sdkHost: SessionHost
 		unsubscribe: () => void
 	}> {
 		const autoApprovalSettings = this.options.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
-		const sessionManager = await VscodeSessionHost.create({
+		const sdkHost = await VscodeSessionHost.create({
 			mcpHub: this.options.mcpHub,
 			requestToolApproval: this.options.requestToolApproval,
 			askQuestion: this.options.askQuestion,
 			toolPolicies,
 			getTerminalManager: this.options.getTerminalManager,
 		})
-		const unsubscribe = sessionManager.subscribe(this.options.onSessionEvent)
-		const startResult = await sessionManager.start(startInput)
+		const unsubscribe = sdkHost.subscribe(this.options.onSessionEvent)
+		const startResult = await sdkHost.start(startInput)
 
-		return { startResult, sessionManager, unsubscribe }
+		return { startResult, sdkHost, unsubscribe }
 	}
 }

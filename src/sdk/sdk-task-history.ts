@@ -191,9 +191,9 @@ export class SdkTaskHistory {
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
 
 	private getActiveHistoryHost(): VscodeSessionHost | undefined {
-		const sessionManager = this.options.sessions.getActiveSession()?.sessionManager
-		if (sessionManager && "listHistory" in sessionManager) {
-			return sessionManager as VscodeSessionHost
+		const sdkHost = this.options.sessions.getActiveSession()?.sdkHost
+		if (sdkHost && "listHistory" in sdkHost) {
+			return sdkHost as VscodeSessionHost
 		}
 		return undefined
 	}

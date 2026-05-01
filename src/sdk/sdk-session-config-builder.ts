@@ -35,13 +35,13 @@ export class SdkSessionConfigBuilder {
 		]
 
 		if (input.mode === "plan") {
-			config.extraTools = [...(config.extraTools ?? []), this.createSwitchToActModeTool()]
+			config.extraTools = [...(config.extraTools ?? [])]
 		}
 
 		return config
 	}
 
-	private createSwitchToActModeTool(): Tool {
+	private _createSwitchToActModeTool(): Tool {
 		return createTool({
 			name: "switch_to_act_mode",
 			description:

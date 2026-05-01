@@ -283,7 +283,7 @@ function makeHistory(records: SessionHistoryRecord[]) {
 		delete: deleteSession,
 	} as unknown as VscodeSessionHost
 	const sessions = {
-		getActiveSession: () => ({ sessionManager: host }),
+		getActiveSession: () => ({ sdkHost: host }),
 	} as unknown as SdkSessionLifecycle
 	const history = new SdkTaskHistory({
 		mcpHub: {} as McpHub,

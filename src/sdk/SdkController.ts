@@ -277,8 +277,8 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: async (sessionManager, sessionId) =>
-				(await this.sessionHistory.loadInitialMessages(sessionManager, sessionId)) ?? [],
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
@@ -290,8 +290,8 @@ export class Controller {
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: async (sessionManager, sessionId) =>
-				(await this.sessionHistory.loadInitialMessages(sessionManager, sessionId)) ?? [],
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -563,7 +563,7 @@ export class Controller {
 	// ---- Task lifecycle (Step 4) ----
 
 	async initTask(
-		task?: string,
+		prompt?: string,
 		images?: string[],
 		files?: string[],
 		historyItem?: HistoryItem,
@@ -574,7 +574,7 @@ export class Controller {
 		// blocking the UI. fetchRemoteConfig() catches all errors internally
 		// and calls postStateToWebview() when done.
 		fetchRemoteConfig(this)
-		return this.taskStart.initTask(task, images, files, historyItem, taskSettings)
+		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
@@ -828,16 +828,10 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
-		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()
 		await sendStateUpdate(state)
-
-		const elapsed = Date.now() - startedAt
-		if (elapsed > 250) {
-			Logger.warn(`[SdkController] postStateToWebview took ${elapsed}ms`)
-		}
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {

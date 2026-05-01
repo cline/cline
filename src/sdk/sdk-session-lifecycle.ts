@@ -33,18 +33,18 @@ export class SdkSessionLifecycle {
 
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
-	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
-		const { startResult, sessionManager, unsubscribe } = await this.options.factory.createAndStartSession(startInput)
+	): Promise<{ startResult: StartSessionResult; sdkHost: SessionHost }> {
+		const { startResult, sdkHost, unsubscribe } = await this.options.factory.createAndStartSession(startInput)
 
 		this.activeSession = {
 			sessionId: startResult.sessionId,
-			sessionManager,
+			sdkHost,
 			unsubscribe,
 			startResult,
 			isRunning: true,
 		}
 
-		return { startResult, sessionManager }
+		return { startResult, sdkHost }
 	}
 
 	async replaceActiveSession(options: {
@@ -55,7 +55,7 @@ export class SdkSessionLifecycle {
 		| {
 				oldSessionId: string
 				startResult: StartSessionResult
-				sessionManager: SessionHost
+				sdkHost: SessionHost
 		  }
 		| undefined
 	> {
@@ -64,30 +64,30 @@ export class SdkSessionLifecycle {
 			return undefined
 		}
 
-		const { sessionManager: oldManager, unsubscribe, sessionId: oldSessionId } = oldSession
+		const { sdkHost: oldManager, unsubscribe, sessionId: oldSessionId } = oldSession
 
 		unsubscribe()
 		oldManager.stop(oldSessionId).catch(() => {})
 		oldManager.dispose(options.disposeReason).catch(() => {})
 
-		const { startResult, sessionManager } = await this.startNewSession({
+		const { startResult, sdkHost } = await this.startNewSession({
 			...options.startInput,
 			...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
 		})
 		this.setRunning(false)
 
-		return { oldSessionId, startResult, sessionManager }
+		return { oldSessionId, startResult, sdkHost }
 	}
 
 	fireAndForgetSend(
-		sessionManager: SessionHost,
+		sdkHost: SessionHost,
 		sessionId: string,
 		prompt: string,
 		images?: string[],
 		files?: string[],
 		delivery?: "queue" | "steer",
 	): void {
-		sessionManager
+		sdkHost
 			.send({
 				sessionId,
 				prompt,
