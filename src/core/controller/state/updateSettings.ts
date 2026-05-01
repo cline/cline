@@ -109,16 +109,19 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
 			controller.stateManager.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
+			controller.terminalManager?.setShellIntegrationTimeout(Number(request.shellIntegrationTimeout))
 		}
 
 		// Update terminal reuse setting
 		if (request.terminalReuseEnabled !== undefined) {
 			controller.stateManager.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
+			controller.terminalManager?.setTerminalReuseEnabled(!!request.terminalReuseEnabled)
 		}
 
 		// Update terminal output line limit
 		if (request.terminalOutputLineLimit !== undefined) {
 			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+			controller.terminalManager?.setTerminalOutputLineLimit(Number(request.terminalOutputLineLimit))
 		}
 
 		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
@@ -239,16 +242,13 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			// Update the terminal profile in the state
 			controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
 
-			let closedCount = 0
-			let busyTerminalsCount = 0
-
-			// Update the terminal manager of the current task if it exists
-			if (controller.task) {
-				// Call the updated setDefaultTerminalProfile method that returns closed terminal info
-				// Use `as any` to handle type incompatibility between VSCode's TerminalInfo and standalone TerminalInfo
-				const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId) as any
-				closedCount = result.closedCount
-				busyTerminalsCount = result.busyTerminals?.length ?? 0
+			// Apply to the live terminal manager if it exists.
+			// setDefaultTerminalProfile() closes idle terminals with a different
+			// profile and returns info about what was closed.
+			if (controller.terminalManager) {
+				const result = controller.terminalManager.setDefaultTerminalProfile(profileId) as any
+				const closedCount = result?.closedCount ?? 0
+				const busyTerminalsCount = result?.busyTerminals?.length ?? 0
 
 				// Show information message if terminals were closed
 				if (closedCount > 0) {
