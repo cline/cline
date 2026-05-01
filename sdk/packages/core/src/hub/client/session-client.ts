@@ -304,6 +304,7 @@ export class HubSessionClient {
 	async sendRuntimeSession(
 		sessionId: string,
 		request: ChatRunTurnRequest,
+		options?: { timeoutMs?: number | null },
 	): Promise<{ result?: ChatTurnResult }> {
 		await this.ensureMetadataApplied();
 		const reply = await this.client.command(
@@ -314,6 +315,7 @@ export class HubSessionClient {
 				delivery: request.delivery,
 			},
 			sessionId,
+			options,
 		);
 		return {
 			result: reply.payload?.result as ChatTurnResult | undefined,

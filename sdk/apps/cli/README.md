@@ -138,14 +138,14 @@ clite auth <cline|openai-codex|oca>
 clite connect telegram -m my_bot -k 123456:ABCDEF...
 # Foreground mode for local debugging / logs in the active terminal
 clite connect telegram -i -m my_bot -k 123456:ABCDEF...
-# Reuse the last-used provider/model, but keep tools off by default for safety
+# Reuse the last-used provider/model; tools are enabled by default for Telegram
 # Override provider/model if needed
 clite connect telegram -m my_bot -k 123456:ABCDEF... --provider cline --model openai/gpt-5.3-codex
-# Enable tools explicitly only if you trust the Telegram surface
-clite connect telegram -m my_bot -k 123456:ABCDEF... --enable-tools
+# Disable tools if you do not trust the Telegram surface
+clite connect telegram -m my_bot -k 123456:ABCDEF... --no-tools
 # Dispatch connector lifecycle/message events to an external hook command
 clite connect telegram -m my_bot -k 123456:ABCDEF... --hook-command '/Users/me/bin/on-connector-event'
-# In Telegram chats, use /tools, /yolo, /cwd <path>, /clear, /whereami, /exit
+# In Telegram chats, use /help, /start, /tools, /yolo, /cwd <path>, /clear, /whereami, /abort, /exit
 
 # Bridge a Google Chat app into RPC-backed chat sessions (webhook mode)
 clite connect gchat --base-url https://your-domain.com
@@ -321,7 +321,7 @@ Schedule shortcuts:
 Behavior notes:
 
 - `clite auth` without a provider opens the interactive auth setup TUI.
-- Connector slash commands are shared across connector chat surfaces: `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/exit`.
+- Connector slash commands are shared across connector chat surfaces: `/help`, `/start`, `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/abort`, `/exit`.
 - Interactive CLI can use the shared slash-command parser when `CLINE_ENABLE_CHAT_COMMANDS=1`.
 - `/team <task>` is handled directly by the CLI in both interactive and non-interactive runs, even when chat commands are otherwise disabled.
 

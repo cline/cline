@@ -7,6 +7,7 @@ export type ChatCommandState = {
 	autoApproveTools: boolean;
 	cwd: string;
 	workspaceRoot: string;
+	toolsLocked?: boolean;
 };
 
 export type ForkSessionResult = {
@@ -16,6 +17,7 @@ export type ForkSessionResult = {
 
 export type ChatCommandContext = {
 	enabled: boolean;
+	botUserName?: string;
 	host?: ChatCommandHost;
 	getState: () => Promise<ChatCommandState> | ChatCommandState;
 	setState: (next: ChatCommandState) => Promise<void> | void;
@@ -91,10 +93,14 @@ export class ChatCommandHost {
 		}
 
 		const [commandRaw, ...args] = trimmed.split(/\s+/);
+		const command = normalizeCommandName(
+			commandRaw.toLowerCase(),
+			context.botUserName,
+		);
 		const parsed: ParsedChatCommand = {
 			input,
 			trimmed,
-			command: commandRaw.toLowerCase(),
+			command,
 			args,
 			state: await context.getState(),
 		};
@@ -110,6 +116,22 @@ export class ChatCommandHost {
 		await matched.run(parsed, context);
 		return true;
 	}
+}
+
+export function normalizeCommandName(
+	command: string,
+	botUserName?: string,
+): string {
+	const botMention = command.match(/^(\/[^@\s]+)@[a-z0-9_]+$/i);
+	if (!botMention) {
+		return command;
+	}
+	const expectedBotName = botUserName?.replace(/^@+/, "").trim().toLowerCase();
+	if (!expectedBotName) {
+		return command;
+	}
+	const suffix = command.slice(botMention[1].length + 1).toLowerCase();
+	return suffix === expectedBotName ? botMention[1] : command;
 }
 
 function tokenizeArgs(input: string): string[] {
@@ -212,12 +234,42 @@ function usage(text: string): string {
 	return `Usage: ${text}`;
 }
 
+function formatHelp(state: ChatCommandState): string {
+	return [
+		"Cline connector commands:",
+		"/help or /start - show this help",
+		"/new or /clear - start a fresh session",
+		"/whereami - show thread, cwd, tools, and yolo state",
+		"/tools [on|off|toggle] - allow repo/file/shell tools",
+		"/yolo [on|off|toggle] - auto-approve tool use",
+		"/cwd <path> - change working directory",
+		"/schedule create/list/trigger/delete - manage scheduled workflows",
+		"/abort - stop the current task",
+		"/exit - stop this connector",
+		"",
+		`Current state: tools=${state.enableTools ? "on" : "off"}, yolo=${state.autoApproveTools ? "on" : "off"}`,
+		state.toolsLocked
+			? "Tool controls are locked because this connector was started with --no-tools."
+			: undefined,
+		"Send normal text to ask a question or assign a task.",
+		"When tools are on, I can inspect files, edit code, run commands/tests, and help prepare PRs.",
+	]
+		.filter((line): line is string => line !== undefined)
+		.join("\n");
+}
+
 export function createChatCommandHost(): ChatCommandHost {
 	return new ChatCommandHost();
 }
 
 function createDefaultChatCommandHost(): ChatCommandHost {
 	return createChatCommandHost()
+		.register("command", {
+			names: ["/help", "/start"],
+			run: async ({ state }, context) => {
+				await context.reply(formatHelp(state));
+			},
+		})
 		.register("command", {
 			names: ["/clear", "/new"],
 			isAvailable: (context) => typeof context.reset === "function",

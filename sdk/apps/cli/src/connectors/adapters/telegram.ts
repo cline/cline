@@ -58,6 +58,7 @@ import {
 	getConnectorSystemPrompt,
 	getConnectorSystemRules,
 } from "./prompts";
+import { postTelegramFormattedReply } from "./telegram-format";
 
 const TELEGRAM_SYSTEM_RULES = getConnectorSystemRules("Telegram");
 
@@ -266,7 +267,7 @@ async function deliverScheduledResult(input: {
 		body = `Schedule "${schedule?.name ?? input.scheduleId}" ${input.status}.${input.errorMessage ? `\n\n${input.errorMessage}` : ""}`;
 	}
 	try {
-		await thread.post(body);
+		await thread.post({ raw: body.trim() ? body : " " });
 		input.logger.core.log("Scheduled Telegram delivery sent", {
 			transport: "telegram",
 			threadId: deliveryThreadId,
@@ -373,7 +374,7 @@ class TelegramConnector extends ConnectorBase<
 			system?: string;
 			mode?: string;
 			interactive?: boolean;
-			noTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 		}>();
@@ -397,7 +398,7 @@ class TelegramConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: opts.noTools !== true,
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -637,7 +638,7 @@ class TelegramConnector extends ConnectorBase<
 						baseStartRequest: startRequest,
 						explicitSystemPrompt:
 							options.systemPrompt?.trim() ||
-							getConnectorSystemPrompt("WhatsApp"),
+							getConnectorSystemPrompt("Telegram"),
 						clientId,
 						logger: loggerAdapter,
 						transport: "telegram",
@@ -652,6 +653,18 @@ class TelegramConnector extends ConnectorBase<
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
+						forceDisableTools: !options.enableTools,
+						postFinalReply: async ({
+							thread: currentThread,
+							text: replyText,
+						}) => {
+							await postTelegramFormattedReply({
+								thread: currentThread,
+								text: replyText,
+								botToken: options.botToken,
+								logger: loggerAdapter,
+							});
+						},
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							botUserName: options.botUsername,
 							telegramThreadId: currentThread.id,
@@ -743,7 +756,7 @@ class TelegramConnector extends ConnectorBase<
 						threadId: thread.id,
 						error,
 					});
-					await thread.post(`Telegram bridge error: ${message}`);
+					await thread.post({ raw: `Telegram bridge error: ${message}` });
 				}
 			};
 			if (activeTurns.has(queueKey)) {
@@ -772,6 +785,7 @@ class TelegramConnector extends ConnectorBase<
 					clientId,
 					pendingApprovals,
 					deniedReason: "Denied by Telegram user",
+					transport: "telegram",
 				})
 			) {
 				return;
@@ -795,6 +809,7 @@ class TelegramConnector extends ConnectorBase<
 					clientId,
 					pendingApprovals,
 					deniedReason: "Denied by Telegram user",
+					transport: "telegram",
 				})
 			) {
 				return;
@@ -811,6 +826,9 @@ class TelegramConnector extends ConnectorBase<
 				logger: loggerAdapter,
 				bindingsPath,
 				transport: "telegram",
+				postToThread: async ({ thread, body }) => {
+					await thread.post({ raw: body.trim() ? body : " " });
+				},
 			});
 
 		const stopEventStream = client.streamEvents(

@@ -2,6 +2,111 @@ import { describe, expect, it, vi } from "vitest";
 import { createChatCommandHost, maybeHandleChatCommand } from "./chat-commands";
 
 describe("chat commands", () => {
+	it("shows connector help for /help and /start", async () => {
+		for (const { command, botUserName } of [
+			{ command: "/help" },
+			{ command: "/start" },
+			{ command: "/help@clinebot", botUserName: "clinebot" },
+			{ command: "/start@cline_bot", botUserName: "@cline_bot" },
+		]) {
+			const reply = vi.fn(async () => undefined);
+
+			const handled = await maybeHandleChatCommand(command, {
+				enabled: true,
+				botUserName,
+				getState: async () => ({
+					enableTools: true,
+					autoApproveTools: false,
+					cwd: "/tmp",
+					workspaceRoot: "/tmp",
+				}),
+				setState: async () => undefined,
+				reply,
+			});
+
+			expect(handled).toBe(true);
+			expect(reply).toHaveBeenCalledWith(
+				expect.stringContaining("Cline connector commands:"),
+			);
+			expect(reply).toHaveBeenCalledWith(
+				expect.stringContaining("Current state: tools=on, yolo=off"),
+			);
+			expect(reply).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"/schedule create/list/trigger/delete - manage scheduled workflows",
+				),
+			);
+			expect(reply).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"When tools are on, I can inspect files, edit code, run commands/tests, and help prepare PRs.",
+				),
+			);
+		}
+	});
+
+	it("does not handle bot-suffixed commands addressed to another bot", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/help@otherbot", {
+			enabled: true,
+			botUserName: "clinebot",
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(false);
+		expect(reply).not.toHaveBeenCalled();
+	});
+
+	it("leaves bot-suffixed commands unmatched without a known bot username", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/help@clinebot", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(false);
+		expect(reply).not.toHaveBeenCalled();
+	});
+
+	it("explains when tool controls are locked by startup", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/help", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+				toolsLocked: true,
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(true);
+		expect(reply).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Tool controls are locked because this connector was started with --no-tools.",
+			),
+		);
+	});
+
 	it("treats /new as a reset alias", async () => {
 		const reset = vi.fn(async () => undefined);
 		const reply = vi.fn(async () => undefined);

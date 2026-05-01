@@ -1,5 +1,42 @@
+import type { ConnectTelegramOptions } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import { __test__ } from "./telegram";
+import { __test__, telegramConnector } from "./telegram";
+
+const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
+	(
+		telegramConnector as unknown as {
+			parseArgs(rawArgs: string[]): ConnectTelegramOptions;
+		}
+	).parseArgs(rawArgs);
+
+describe("telegramConnector", () => {
+	it("honors --no-tools", () => {
+		const options = parseTelegramArgs([
+			"--bot-username",
+			"test_bot",
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+			"--no-tools",
+		]);
+
+		expect(options.enableTools).toBe(false);
+	});
+
+	it("enables tools by default", () => {
+		const options = parseTelegramArgs([
+			"--bot-username",
+			"test_bot",
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+		]);
+
+		expect(options.enableTools).toBe(true);
+	});
+});
 
 describe("telegram binding lookup", () => {
 	it("falls back to channel identity when a restarted connector gets a new thread id", () => {

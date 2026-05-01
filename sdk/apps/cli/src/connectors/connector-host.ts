@@ -13,6 +13,7 @@ import {
 	type ChatCommandHost,
 	type ChatCommandState,
 	maybeHandleChatCommand,
+	normalizeCommandName,
 } from "../utils/chat-commands";
 import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
 import {
@@ -39,6 +40,30 @@ export type ActiveConnectorTurn = {
 	sessionId: string;
 };
 
+function connectorTextPayload(
+	transport: string,
+	text: string,
+): string | { raw: string } {
+	const body = text.trim() ? text : " ";
+	return transport === "telegram" ? { raw: body } : body;
+}
+
+async function postConnectorText<TState extends ConnectorThreadState>(
+	thread: Thread<TState>,
+	transport: string,
+	text: string,
+): Promise<SentMessage> {
+	return await thread.post(connectorTextPayload(transport, text));
+}
+
+async function editConnectorText(
+	message: SentMessage,
+	transport: string,
+	text: string,
+): Promise<SentMessage> {
+	return await message.edit(connectorTextPayload(transport, text));
+}
+
 function buildAttachments(input: {
 	userImages: string[];
 	userFiles: string[];
@@ -55,6 +80,42 @@ function buildAttachments(input: {
 		return undefined;
 	}
 	return { userImages, userFiles };
+}
+
+async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
+	thread: Thread<TState>,
+	transport: string,
+	stream: AsyncIterable<string>,
+	postFinalReply?: (text: string) => Promise<void>,
+): Promise<void> {
+	if (transport !== "telegram") {
+		await thread.post(stream);
+		return;
+	}
+
+	let text = "";
+	for await (const chunk of stream) {
+		text += chunk;
+	}
+	if (postFinalReply) {
+		await postFinalReply(text);
+		return;
+	}
+	await postConnectorText(thread, transport, text);
+}
+
+function applyForcedToolDisable<TState extends ConnectorThreadState>(
+	state: TState,
+	forceDisableTools: boolean | undefined,
+): TState {
+	if (!forceDisableTools) {
+		return state;
+	}
+	return {
+		...state,
+		enableTools: false,
+		autoApproveTools: false,
+	};
 }
 
 export async function handleConnectorUserTurn<
@@ -88,6 +149,7 @@ export async function handleConnectorUserTurn<
 	userInstructionWatcher?: UserInstructionConfigWatcher;
 	activeTurns?: Map<string, ActiveConnectorTurn>;
 	turnKey?: string;
+	forceDisableTools?: boolean;
 	reusedLogMessage: string;
 	startedLogMessage?: string;
 	messageReceivedLogMessage?: string;
@@ -105,6 +167,10 @@ export async function handleConnectorUserTurn<
 		baseStartRequest: ChatStartSessionRequest,
 		thread: Thread<TState>,
 	) => Promise<string> | string;
+	postFinalReply?: (input: {
+		thread: Thread<TState>;
+		text: string;
+	}) => Promise<void>;
 	onReplyCompleted?: (result: {
 		sessionId: string;
 		threadId: string;
@@ -166,7 +232,7 @@ export async function handleConnectorUserTurn<
 		const denialMessage =
 			authorization.message?.trim() ||
 			"You are not authorized to use this bot.";
-		await input.thread.post(denialMessage);
+		await postConnectorText(input.thread, input.transport, denialMessage);
 		await dispatchConnectorHook(
 			input.hookCommand,
 			{
@@ -215,7 +281,11 @@ export async function handleConnectorUserTurn<
 			: input.firstContactMessage;
 	let initialStateChanged = false;
 	if (!initialState.welcomeSentAt && firstContactMessage?.trim()) {
-		await input.thread.post(firstContactMessage.trim());
+		await postConnectorText(
+			input.thread,
+			input.transport,
+			firstContactMessage.trim(),
+		);
 		initialState.welcomeSentAt = new Date().toISOString();
 		initialStateChanged = true;
 	}
@@ -251,9 +321,25 @@ export async function handleConnectorUserTurn<
 	}
 	await input.onMessageReceived?.(receivedDetails);
 
+	const [commandToken = ""] = resolvedInput.trim().split(/\s+/);
+	const toolLockCommand = normalizeCommandName(
+		commandToken.toLowerCase(),
+		input.botUserName,
+	).match(/^\/(tools|yolo)$/i);
+	if (input.forceDisableTools && toolLockCommand) {
+		const settingName = toolLockCommand[1]?.toLowerCase();
+		await postConnectorText(
+			input.thread,
+			input.transport,
+			`${settingName}=off (disabled by connector startup)`,
+		);
+		return;
+	}
+
 	if (
 		await maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
+			botUserName: input.botUserName,
 			host: input.chatCommandHost,
 			getState: async () => {
 				const current = await loadThreadState(
@@ -261,18 +347,24 @@ export async function handleConnectorUserTurn<
 					input.bindingsPath,
 					input.baseStartRequest,
 				);
+				const effectiveCurrent = applyForcedToolDisable(
+					current,
+					input.forceDisableTools,
+				);
 				return {
 					enableTools:
-						current.enableTools ?? input.baseStartRequest.enableTools,
+						effectiveCurrent.enableTools ?? input.baseStartRequest.enableTools,
 					autoApproveTools:
-						current.autoApproveTools ??
+						effectiveCurrent.autoApproveTools ??
 						input.baseStartRequest.autoApproveTools === true,
 					cwd:
-						current.cwd ||
+						effectiveCurrent.cwd ||
 						input.baseStartRequest.cwd ||
 						input.baseStartRequest.workspaceRoot,
 					workspaceRoot:
-						current.workspaceRoot || input.baseStartRequest.workspaceRoot,
+						effectiveCurrent.workspaceRoot ||
+						input.baseStartRequest.workspaceRoot,
+					toolsLocked: input.forceDisableTools,
 				};
 			},
 			setState: async (next: ChatCommandState) => {
@@ -289,23 +381,29 @@ export async function handleConnectorUserTurn<
 				});
 				const nextState = {
 					...currentState,
-					enableTools: next.enableTools,
-					autoApproveTools: next.autoApproveTools,
+					enableTools: input.forceDisableTools ? false : next.enableTools,
+					autoApproveTools: input.forceDisableTools
+						? false
+						: next.autoApproveTools,
 					cwd: next.cwd,
 					workspaceRoot: next.workspaceRoot,
 					systemPrompt,
 				};
+				const effectiveCurrent = applyForcedToolDisable(
+					currentState,
+					input.forceDisableTools,
+				);
 				const runtimeConfigChanged =
-					(currentState.enableTools ?? input.baseStartRequest.enableTools) !==
-						next.enableTools ||
-					(currentState.autoApproveTools ??
+					(effectiveCurrent.enableTools ??
+						input.baseStartRequest.enableTools) !== nextState.enableTools ||
+					(effectiveCurrent.autoApproveTools ??
 						input.baseStartRequest.autoApproveTools === true) !==
-						next.autoApproveTools ||
-					(currentState.cwd || input.baseStartRequest.cwd) !== next.cwd ||
-					(currentState.workspaceRoot ||
+						nextState.autoApproveTools ||
+					(effectiveCurrent.cwd || input.baseStartRequest.cwd) !== next.cwd ||
+					(effectiveCurrent.workspaceRoot ||
 						input.baseStartRequest.workspaceRoot) !== next.workspaceRoot ||
-					(currentState.systemPrompt || input.baseStartRequest.systemPrompt) !==
-						systemPrompt;
+					(effectiveCurrent.systemPrompt ||
+						input.baseStartRequest.systemPrompt) !== systemPrompt;
 				if (runtimeConfigChanged && currentState.sessionId?.trim()) {
 					await clearSession({
 						thread: input.thread,
@@ -324,7 +422,7 @@ export async function handleConnectorUserTurn<
 				);
 			},
 			reply: async (message) => {
-				await input.thread.post(message);
+				await postConnectorText(input.thread, input.transport, message);
 			},
 			reset: async () => {
 				await clearSession({
@@ -358,11 +456,19 @@ export async function handleConnectorUserTurn<
 			abort: async () => {
 				const activeTurn = input.activeTurns?.get(turnKey);
 				if (!activeTurn?.sessionId?.trim()) {
-					await input.thread.post("No active task to abort.");
+					await postConnectorText(
+						input.thread,
+						input.transport,
+						"No active task to abort.",
+					);
 					return;
 				}
 				await input.client.abortRuntimeSession(activeTurn.sessionId);
-				await input.thread.post("Aborting current task.");
+				await postConnectorText(
+					input.thread,
+					input.transport,
+					"Aborting current task.",
+				);
 			},
 			stop: async () => {
 				await clearSession({
@@ -387,9 +493,13 @@ export async function handleConnectorUserTurn<
 					input.bindingsPath,
 					input.baseStartRequest,
 				);
+				const effectiveCurrent = applyForcedToolDisable(
+					current,
+					input.forceDisableTools,
+				);
 				if (input.onDescribe) {
 					return input.onDescribe(
-						current,
+						effectiveCurrent,
 						input.baseStartRequest,
 						input.thread,
 					);
@@ -399,24 +509,24 @@ export async function handleConnectorUserTurn<
 					`channelId=${input.thread.channelId}`,
 					`deliveryAdapter=${input.transport}`,
 					`deliveryThread=${input.thread.id}`,
-					...(current.participantKey
-						? [`deliveryBindingKey=${current.participantKey}`]
+					...(effectiveCurrent.participantKey
+						? [`deliveryBindingKey=${effectiveCurrent.participantKey}`]
 						: []),
 					`deliveryChannel=${input.thread.channelId}`,
 					...(input.botUserName
 						? [`deliveryUserName=${input.botUserName}`]
 						: []),
-					...(current.participantLabel
-						? [`participant=${current.participantLabel}`]
+					...(effectiveCurrent.participantLabel
+						? [`participant=${effectiveCurrent.participantLabel}`]
 						: []),
-					...(current.participantKey
-						? [`participantKey=${current.participantKey}`]
+					...(effectiveCurrent.participantKey
+						? [`participantKey=${effectiveCurrent.participantKey}`]
 						: []),
 					`isDM=${input.thread.isDM ? "true" : "false"}`,
-					`tools=${current.enableTools ? "on" : "off"}`,
-					`yolo=${current.autoApproveTools ? "on" : "off"}`,
-					`cwd=${current.cwd || input.baseStartRequest.cwd}`,
-					`workspaceRoot=${current.workspaceRoot || input.baseStartRequest.workspaceRoot}`,
+					`tools=${effectiveCurrent.enableTools ? "on" : "off"}`,
+					`yolo=${effectiveCurrent.autoApproveTools ? "on" : "off"}`,
+					`cwd=${effectiveCurrent.cwd || input.baseStartRequest.cwd}`,
+					`workspaceRoot=${effectiveCurrent.workspaceRoot || input.baseStartRequest.workspaceRoot}`,
 				].join("\n");
 			},
 			schedule: {
@@ -426,9 +536,13 @@ export async function handleConnectorUserTurn<
 						input.bindingsPath,
 						input.baseStartRequest,
 					);
+					const effectiveCurrent = applyForcedToolDisable(
+						current,
+						input.forceDisableTools,
+					);
 					const config = buildThreadStartRequest(
 						input.baseStartRequest,
-						current,
+						effectiveCurrent,
 					);
 					const metadata = {
 						delivery: {
@@ -459,6 +573,12 @@ export async function handleConnectorUserTurn<
 						cwd: config.cwd,
 						systemPrompt: config.systemPrompt,
 						metadata,
+						runtimeOptions: {
+							enableTools: config.enableTools,
+							enableSpawn: config.enableSpawn,
+							enableTeams: config.enableTeams,
+							autoApproveTools: config.autoApproveTools,
+						},
 					});
 					if (!created) {
 						return "Failed to create schedule.";
@@ -540,9 +660,13 @@ export async function handleConnectorUserTurn<
 		input.bindingsPath,
 		input.baseStartRequest,
 	);
+	const effectiveCurrentState = applyForcedToolDisable(
+		currentState,
+		input.forceDisableTools,
+	);
 	const startRequest = buildThreadStartRequest(
 		input.baseStartRequest,
-		currentState,
+		effectiveCurrentState,
 	);
 	const activeTurn = input.activeTurns?.get(turnKey);
 	if (activeTurn?.sessionId?.trim()) {
@@ -550,13 +674,21 @@ export async function handleConnectorUserTurn<
 			resolvedInput,
 			input.userInstructionWatcher,
 		);
-		await input.client.sendRuntimeSession(activeTurn.sessionId, {
-			config: startRequest,
-			prompt,
-			attachments: buildAttachments({ userImages, userFiles }),
-			delivery: "steer",
-		});
-		await input.thread.post("Steering current task.");
+		await input.client.sendRuntimeSession(
+			activeTurn.sessionId,
+			{
+				config: startRequest,
+				prompt,
+				attachments: buildAttachments({ userImages, userFiles }),
+				delivery: "steer",
+			},
+			{ timeoutMs: null },
+		);
+		await postConnectorText(
+			input.thread,
+			input.transport,
+			"Steering current task.",
+		);
 		return;
 	}
 	const sessionId = await getOrCreateSessionId({
@@ -591,8 +723,15 @@ export async function handleConnectorUserTurn<
 	input.activeTurns?.set(turnKey, { sessionId });
 	await input.thread.startTyping();
 	let toolStatusMessage: SentMessage | undefined;
+	const postFinalReply = input.postFinalReply
+		? async (text: string) => {
+				await input.postFinalReply?.({ thread: input.thread, text });
+			}
+		: undefined;
 	try {
-		await input.thread.post(
+		await postConnectorRuntimeReply(
+			input.thread,
+			input.transport,
 			createConnectorRuntimeTurnStream({
 				client: input.client,
 				sessionId,
@@ -603,14 +742,26 @@ export async function handleConnectorUserTurn<
 				conversationId: input.thread.id,
 				onToolStatus: async (message) => {
 					if (toolStatusMessage) {
-						toolStatusMessage = await toolStatusMessage.edit(message);
+						toolStatusMessage = await editConnectorText(
+							toolStatusMessage,
+							input.transport,
+							message,
+						);
 						return;
 					}
-					toolStatusMessage = await input.thread.post(message);
+					toolStatusMessage = await postConnectorText(
+						input.thread,
+						input.transport,
+						message,
+					);
 				},
 				onApprovalRequested: async (approval) => {
 					input.pendingApprovals.set(input.thread.id, approval);
-					await input.thread.post(formatConnectorApprovalPrompt(approval));
+					await postConnectorText(
+						input.thread,
+						input.transport,
+						formatConnectorApprovalPrompt(approval),
+					);
 				},
 				onCompleted: async (result) => {
 					await input.onReplyCompleted?.({
@@ -629,6 +780,7 @@ export async function handleConnectorUserTurn<
 					});
 				},
 			}),
+			postFinalReply,
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
@@ -658,6 +810,7 @@ export async function maybeHandleConnectorApprovalReply<
 	clientId: string;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
 	deniedReason: string;
+	transport?: string;
 }): Promise<boolean> {
 	const pending = input.pendingApprovals.get(input.thread.id);
 	if (!pending) {
@@ -668,7 +821,9 @@ export async function maybeHandleConnectorApprovalReply<
 		input.deniedReason,
 	);
 	if (!decision) {
-		await input.thread.post(
+		await postConnectorText(
+			input.thread,
+			input.transport ?? "",
 			`Approval pending for "${pending.toolName}". Reply "Y" to approve or "N" to deny.`,
 		);
 		return true;
@@ -680,7 +835,9 @@ export async function maybeHandleConnectorApprovalReply<
 		reason: decision.reason,
 		responderClientId: input.clientId,
 	});
-	await input.thread.post(
+	await postConnectorText(
+		input.thread,
+		input.transport ?? "",
 		decision.approved
 			? `Approved "${pending.toolName}".`
 			: `Denied "${pending.toolName}".`,

@@ -30,7 +30,7 @@ type TestState = {
 
 function createThread(initialState: TestState = {}) {
 	let state = { ...initialState };
-	const posts: string[] = [];
+	const posts: unknown[] = [];
 	return {
 		thread: {
 			id: "thread-1",
@@ -42,10 +42,10 @@ function createThread(initialState: TestState = {}) {
 			async setState(nextState: TestState) {
 				state = { ...nextState };
 			},
-			async post(message: string) {
+			async post(message: unknown) {
 				posts.push(message);
 				const sentMessage = {
-					edit: async (nextMessage: string) => {
+					edit: async (nextMessage: unknown) => {
 						posts.push(nextMessage);
 						return sentMessage as unknown as SentMessage;
 					},
@@ -66,6 +66,53 @@ function createThread(initialState: TestState = {}) {
 		posts,
 		getState: () => state,
 	};
+}
+
+function baseStartRequest(overrides: Partial<TestState> = {}) {
+	return {
+		enableTools: overrides.enableTools ?? false,
+		autoApproveTools: overrides.autoApproveTools ?? false,
+		cwd: overrides.cwd ?? "/tmp/work",
+		workspaceRoot: overrides.workspaceRoot ?? "/tmp/work",
+		systemPrompt: overrides.systemPrompt ?? "system",
+		provider: "cline",
+		model: "test-model",
+		mode: "act",
+	};
+}
+
+function createRuntimeClient(responseText: string) {
+	const startRuntimeSession = vi.fn(async () => ({ sessionId: "session-1" }));
+	const updateSession = vi.fn(async () => undefined);
+	const sendRuntimeSession = vi.fn(async () => ({
+		result: {
+			text: responseText,
+			finishReason: "stop",
+			iterations: 1,
+		},
+	}));
+	return {
+		client: {
+			startRuntimeSession,
+			updateSession,
+			sendRuntimeSession,
+			streamEvents: vi.fn(() => () => undefined),
+		},
+		startRuntimeSession,
+		updateSession,
+		sendRuntimeSession,
+	};
+}
+
+function messageText(message: unknown): string {
+	if (typeof message === "string") {
+		return message;
+	}
+	if (message && typeof message === "object" && "raw" in message) {
+		const raw = (message as { raw: unknown }).raw;
+		return typeof raw === "string" ? raw : String(raw);
+	}
+	return String(message);
 }
 
 describe("handleConnectorUserTurn", () => {
@@ -93,22 +140,11 @@ describe("handleConnectorUserTurn", () => {
 			participantLabel: "alice",
 		});
 
-		const baseStartRequest = {
-			enableTools: false,
-			autoApproveTools: false,
-			cwd: "/tmp/work",
-			workspaceRoot: "/tmp/work",
-			systemPrompt: "system",
-			provider: "cline",
-			model: "test-model",
-			mode: "act",
-		};
-
 		const commonInput = {
 			thread: thread as never,
 			client: {} as never,
 			pendingApprovals: new Map(),
-			baseStartRequest: baseStartRequest as never,
+			baseStartRequest: baseStartRequest() as never,
 			explicitSystemPrompt: undefined,
 			clientId: "client-1",
 			logger: {
@@ -135,11 +171,15 @@ describe("handleConnectorUserTurn", () => {
 			text: "/whereami",
 		});
 
-		expect(posts[0]).toBe("Connected.\nWelcome.");
+		expect(posts[0]).toEqual({ raw: "Connected.\nWelcome." });
 		expect(
-			posts.filter((message) => message === "Connected.\nWelcome."),
+			posts.filter(
+				(message) => messageText(message) === "Connected.\nWelcome.",
+			),
 		).toHaveLength(1);
-		expect(posts.at(-1)).toContain("participantKey=telegram:user:alice");
+		expect(messageText(posts.at(-1))).toContain(
+			"participantKey=telegram:user:alice",
+		);
 		expect(getState().welcomeSentAt).toBeTruthy();
 	});
 
@@ -166,16 +206,7 @@ describe("handleConnectorUserTurn", () => {
 			text: "hello",
 			client: {} as never,
 			pendingApprovals: new Map(),
-			baseStartRequest: {
-				enableTools: false,
-				autoApproveTools: false,
-				cwd: "/tmp/work",
-				workspaceRoot: "/tmp/work",
-				systemPrompt: "system",
-				provider: "cline",
-				model: "test-model",
-				mode: "act",
-			} as never,
+			baseStartRequest: baseStartRequest() as never,
 			explicitSystemPrompt: undefined,
 			clientId: "client-1",
 			logger: {
@@ -206,5 +237,318 @@ describe("handleConnectorUserTurn", () => {
 			expect.anything(),
 		);
 		expect(getState().welcomeSentAt).toBeUndefined();
+	});
+
+	it("keeps tools disabled when connector startup forced no-tools", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+
+		const commonInput = {
+			thread: thread as never,
+			client: {} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: false,
+				autoApproveTools: false,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			forceDisableTools: true,
+		};
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/whereami",
+		});
+
+		expect(messageText(posts.at(-1))).toContain("tools=off");
+		expect(messageText(posts.at(-1))).toContain("yolo=off");
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/tools on",
+		});
+
+		expect(posts.at(-1)).toEqual({
+			raw: "tools=off (disabled by connector startup)",
+		});
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/tools@ClineAdapterBot on",
+		});
+
+		expect(posts.at(-1)).toEqual({
+			raw: "tools=off (disabled by connector startup)",
+		});
+
+		const runtime = createRuntimeClient("not a local tools command");
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/tools@OtherBot on",
+			client: runtime.client as never,
+			startedLogMessage: "started",
+		});
+
+		expect(posts.at(-1)).toEqual({ raw: "not a local tools command" });
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.objectContaining({
+				prompt: expect.stringContaining("/tools@OtherBot on"),
+				config: expect.objectContaining({
+					enableTools: false,
+					autoApproveTools: false,
+				}),
+			}),
+			{ timeoutMs: null },
+		);
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/yolo@ClineAdapterBot on",
+		});
+
+		expect(posts.at(-1)).toEqual({
+			raw: "yolo=off (disabled by connector startup)",
+		});
+	});
+
+	it("creates schedules with forced-disabled runtime options", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "telegram:user:alice",
+			participantLabel: "alice",
+		});
+		const createSchedule = vi.fn(async () => ({
+			name: "nightly",
+			scheduleId: "schedule-1",
+			cronPattern: "0 * * * *",
+			nextRunAt: "2026-05-01T20:00:00.000Z",
+		}));
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: '/schedule create "nightly" --cron "0 * * * *" --prompt "check repo"',
+			client: { createSchedule } as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: false,
+				autoApproveTools: false,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			forceDisableTools: true,
+		});
+
+		expect(createSchedule).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "nightly",
+				cronPattern: "0 * * * *",
+				prompt: "check repo",
+				runtimeOptions: {
+					enableTools: false,
+					enableSpawn: false,
+					enableTeams: false,
+					autoApproveTools: false,
+				},
+				metadata: expect.objectContaining({
+					delivery: expect.objectContaining({
+						adapter: "telegram",
+						bindingKey: "telegram:user:alice",
+					}),
+				}),
+			}),
+		);
+		expect(messageText(posts.at(-1))).toContain('Scheduled "nightly".');
+	});
+
+	it("posts Telegram runtime replies as raw text and disables tools in runtime config", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const runtime = createRuntimeClient(
+			"Here is dangling markdown: **repo `sdk-wip",
+		);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: false,
+				autoApproveTools: false,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			forceDisableTools: true,
+		});
+
+		expect(runtime.startRuntimeSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				enableTools: false,
+				enableSpawn: false,
+				enableTeams: false,
+				autoApproveTools: false,
+			}),
+		);
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.objectContaining({
+				config: expect.objectContaining({
+					enableTools: false,
+					enableSpawn: false,
+					enableTeams: false,
+					autoApproveTools: false,
+				}),
+			}),
+			{ timeoutMs: null },
+		);
+		expect(posts.at(-1)).toEqual({
+			raw: "Here is dangling markdown: **repo `sdk-wip",
+		});
+	});
+
+	it("lets Telegram adapters override final runtime reply delivery", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const runtime = createRuntimeClient("**Formatted** reply");
+		const postFinalReply = vi.fn(async () => undefined);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			postFinalReply,
+		});
+
+		expect(postFinalReply).toHaveBeenCalledWith({
+			thread,
+			text: "**Formatted** reply",
+		});
+		expect(posts).not.toContainEqual({ raw: "**Formatted** reply" });
+	});
+
+	it("steers active Telegram turns without the hub command timeout", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("unused");
+		const activeTurns = new Map([["thread-1", { sessionId: "session-1" }]]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "add this detail while you are working",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			activeTurns,
+		});
+
+		expect(runtime.startRuntimeSession).not.toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.objectContaining({
+				delivery: "steer",
+			}),
+			{ timeoutMs: null },
+		);
+		expect(posts.at(-1)).toEqual({ raw: "Steering current task." });
 	});
 });
