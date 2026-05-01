@@ -25,7 +25,7 @@ A code review agent that:
 ```bash
 mkdir code-reviewer && cd code-reviewer
 npm init -y
-npm install @clinebot/sdk
+npm install @clinebot/agents @clinebot/shared
 npm install -D typescript tsx
 ```
 
@@ -35,7 +35,7 @@ The agent needs two tools: one to fetch PR data and one to read file contents.
 
 ```typescript
 // tools.ts
-import { createTool } from "@clinebot/sdk"
+import { createTool } from "@clinebot/agents"
 
 export const getPullRequest = createTool({
   name: "get_pull_request",
@@ -123,11 +123,11 @@ Track metrics about the review process:
 
 ```typescript
 // metrics-plugin.ts
-import { type AgentPlugin } from "@clinebot/sdk"
+import { type AgentExtension } from "@clinebot/core"
 
-export const reviewMetrics: AgentPlugin = {
+export const reviewMetrics: AgentExtension = {
   name: "review-metrics",
-  manifest: { capabilities: ["hooks"] },
+  manifest: { capabilities: ["hooks"], hookStages: ["run_start", "tool_call_before", "run_end"] },
 
   onRunStart({ userMessage }) {
     console.log(`[review] Starting review: "${userMessage.slice(0, 80)}..."`)
@@ -150,7 +150,7 @@ export const reviewMetrics: AgentPlugin = {
 
 ```typescript
 // review.ts
-import { Agent } from "@clinebot/sdk"
+import { Agent } from "@clinebot/agents"
 import { getPullRequest, readFileFromRepo } from "./tools"
 import { reviewMetrics } from "./metrics-plugin"
 
@@ -179,10 +179,10 @@ async function reviewPR(owner: string, repo: string, prNumber: number) {
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: SYSTEM_PROMPT,
     tools: [getPullRequest, readFileFromRepo],
-    plugins: [reviewMetrics],
+    extensions: [reviewMetrics],
     onEvent: (event) => {
-      if (event.type === "content_update" && event.contentType === "text") {
-        process.stdout.write(event.text)
+      if (event.type === "content_end" && event.contentType === "text") {
+        process.stdout.write(event.text ?? "")
       }
     },
   })
@@ -191,13 +191,13 @@ async function reviewPR(owner: string, repo: string, prNumber: number) {
     `Review PR #${prNumber} in ${owner}/${repo}`
   )
 
-  await agent.shutdown()
+  // Agent has no explicit shutdown method
   return result
 }
 
 // Run it
 const result = await reviewPR("your-org", "your-repo", 123)
-console.log("\n\nReview complete:", result.finishReason)
+console.log("\n\nReview complete:", result.status)
 ```
 
 ## Step 5: Run It

@@ -9,7 +9,7 @@ Custom tools extend what your agent can do. A tool is a function with a name, a 
 ## Basic Tool
 
 ```typescript
-import { createTool } from "@clinebot/sdk"
+import { createTool } from "@clinebot/agents"
 
 const getCurrentTime = createTool({
   name: "get_current_time",
@@ -257,9 +257,9 @@ describe("get_current_time", () => {
     })
     ```
   </Tab>
-  <Tab title="Via Plugin">
+  <Tab title="Via Extension">
     ```typescript
-    const myPlugin: AgentPlugin = {
+    const myPlugin: AgentExtension = {
       name: "my-tools",
       manifest: { capabilities: ["tools"] },
       setup(api) {
@@ -267,12 +267,6 @@ describe("get_current_time", () => {
         api.registerTool(getCurrentTime)
       },
     }
-    ```
-  </Tab>
-  <Tab title="Add Later">
-    ```typescript
-    const agent = new Agent({ tools: [], /* ... */ })
-    agent.addTools([searchDatabase, getCurrentTime])
     ```
   </Tab>
 </Tabs>

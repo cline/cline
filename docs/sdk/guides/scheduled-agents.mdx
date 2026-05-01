@@ -68,16 +68,16 @@ cline schedule executions <schedule-id>
 ## Creating Schedules Programmatically
 
 ```typescript
-import { ClineCore } from "@clinebot/sdk"
+import { ClineCore } from "@clinebot/core"
 
 const cline = await ClineCore.create({
   clientName: "scheduler",
-  backendMode: "hub",
-  
+  automation: true,
 })
 
-// The hub client provides schedule management
-// Schedules persist in the hub even after this process exits
+await cline.automation.start()
+
+// Use cline.automation to reconcile specs, ingest events, and list runs.
 ```
 
 ## Cron Expression Reference

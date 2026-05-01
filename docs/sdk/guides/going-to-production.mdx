@@ -10,16 +10,16 @@ Moving from development to production means handling the things that don't matte
 
 ### Agent-Level Errors
 
-The agent handles transient errors internally (API timeouts, rate limits) with automatic retries. When it exhausts retries, the run completes with `finishReason: "error"`.
+The direct `AgentRuntime` result reports `status`; the host-facing `AgentResult` used by core reports `finishReason`.
 
 ```typescript
 const result = await agent.run("Do something complex")
 
-if (result.finishReason === "error") {
+if (result.status === "failed") {
   // Log the error and alert
   logger.error("Agent run failed", {
     iterations: result.iterations,
-    lastToolCalls: result.toolCalls.slice(-3),
+    error: result.error,
   })
 }
 ```
@@ -45,11 +45,11 @@ const apiTool = createTool({
 
 ### Mistake Limits
 
-The agent tracks consecutive failures. After too many in a row, it stops with `finishReason: "mistake_limit"`. Successful tool calls reset the counter.
+Core sessions can track consecutive recoverable mistakes and stop with `finishReason: "mistake_limit"`. Direct runtime runs report failure through `status` and `error`.
 
 ### Loop Detection
 
-If the agent makes identical tool calls repeatedly, the SDK detects the loop, warns the model, and eventually force-stops execution. No configuration needed.
+Loop detection is available through core/session execution settings.
 
 ## Observability
 
@@ -74,7 +74,7 @@ Events emitted include:
 ### Custom Metrics via Plugins
 
 ```typescript
-const productionMetrics: AgentPlugin = {
+const productionMetrics: AgentExtension = {
   name: "production-metrics",
   manifest: { capabilities: ["hooks"] },
 
@@ -111,7 +111,7 @@ const agent = new Agent({
     if (event.type === "done") {
       logger.info({
         event: "agent_complete",
-        finishReason: event.finishReason,
+        finishReason: event.reason,
         iterations: event.iterations,
         tokens: event.usage,
       })
@@ -119,7 +119,7 @@ const agent = new Agent({
     if (event.type === "error") {
       logger.error({
         event: "agent_error",
-        message: event.message,
+        message: event.error.message,
         recoverable: event.recoverable,
       })
     }
@@ -187,7 +187,7 @@ Never let an agent run arbitrary shell commands on a production server without c
 
 ```typescript
 const sandboxedBash = createTool({
-  name: "bash",
+  name: "run_commands",
   description: "Execute a shell command in a sandboxed environment.",
   inputSchema: {
     type: "object",
@@ -214,7 +214,7 @@ Don't trust tool inputs any more than you'd trust user input:
 
 ```typescript
 const fileTool = createTool({
-  name: "read_file",
+  name: "read_files",
   // ...
   execute: async (input) => {
     const resolved = path.resolve(input.path)
@@ -265,8 +265,8 @@ async function handleRequest(prompt: string): Promise<string> {
   })
 
   const result = await agent.run(prompt)
-  await agent.shutdown()
-  return result.text
+  // Agent has no explicit shutdown method
+  return result.outputText
 }
 ```
 
@@ -278,7 +278,6 @@ For long-running services with session management:
 const cline = await ClineCore.create({
   clientName: "my-service",
   backendMode: "hub",
-  
 })
 
 // Sessions persist across restarts

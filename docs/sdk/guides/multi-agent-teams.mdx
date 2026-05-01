@@ -11,7 +11,7 @@ Multi-agent teams let you break complex work across multiple agents that coordin
 Teams are a ClineCore feature. Enable them in the session config:
 
 ```typescript
-import { ClineCore } from "@clinebot/sdk"
+import { ClineCore } from "@clinebot/core"
 
 const cline = await ClineCore.create({ clientName: "team-app" })
 
@@ -21,8 +21,10 @@ const session = await cline.start({
     providerId: "anthropic",
     modelId: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt: "You are a coordinator for a multi-agent coding team.",
     cwd: "/path/to/project",
     enableTools: true,
+    enableSpawnAgent: true,
     enableAgentTeams: true,
     teamName: "auth-sprint",
   },
