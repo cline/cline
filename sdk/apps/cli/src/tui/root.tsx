@@ -333,8 +333,8 @@ function App(props: TuiProps) {
 	}, [dialog, props, session, showToast, termHeight]);
 
 	const exitCline = useCallback(() => {
-		props.onExit();
-	}, [props]);
+		session.requestExit();
+	}, [session]);
 
 	useEffect(() => {
 		const { handleSelection, dispose } = createSelectionCopyHandler({
@@ -494,7 +494,7 @@ function App(props: TuiProps) {
 		setInputKey: promptInput.setInputKey,
 		setInputValue: promptInput.setInputValue,
 		onAbort: props.onAbort,
-		onExit: props.onExit,
+		onExit: exitCline,
 		onToggleMode: toggleMode,
 		onClearConversation: clearConversation,
 		onRestoreCheckpoint: openCheckpointRestore,
@@ -567,7 +567,7 @@ function App(props: TuiProps) {
 					handleModelChange().then(() => setAppView("home"));
 				}}
 				onExit={() => {
-					props.onExit();
+					exitCline();
 				}}
 			/>
 		);

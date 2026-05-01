@@ -17,7 +17,7 @@ import {
 } from "../tui/interactive-welcome";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
-import { writeErr } from "../utils/output";
+import { writeErr, writeln } from "../utils/output";
 import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
@@ -28,6 +28,10 @@ import {
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
+import {
+	formatInteractiveExitSummary,
+	type InteractiveExitSummary,
+} from "./interactive/exit-summary";
 import { createMistakeLimitDecisionResolver } from "./interactive/mistakes";
 import { createInteractiveModeSwitchTool } from "./interactive/mode";
 import { assertInteractivePreflight } from "./interactive/preflight";
@@ -136,7 +140,7 @@ export async function runInteractive(
 	let isRunning = false;
 	setActiveRuntimeAbort(sessionRuntime.abortAll);
 
-	let cleanupPromise: Promise<void> | undefined;
+	let cleanupPromise: Promise<InteractiveExitSummary | undefined> | undefined;
 
 	const handleSigint = () => {
 		if (isRunning) {
@@ -158,16 +162,19 @@ export async function runInteractive(
 		}
 		tuiApp?.destroy();
 	};
-	const cleanupRuntime = async () => {
+	const cleanupRuntime = async (): Promise<
+		InteractiveExitSummary | undefined
+	> => {
 		if (cleanupPromise) {
 			return await cleanupPromise;
 		}
 		cleanupPromise = (async () => {
 			process.off("SIGINT", handleSigint);
 			process.off("SIGTERM", handleSigterm);
-			await sessionRuntime.cleanup();
+			const exitSummary = await sessionRuntime.cleanup();
 			setActiveRuntimeAbort(undefined);
 			setActiveRuntimeCleanup(undefined);
+			return exitSummary;
 		})();
 		return await cleanupPromise;
 	};
@@ -448,9 +455,13 @@ export async function runInteractive(
 		}, 0);
 	}
 
+	let exitSummary: InteractiveExitSummary | undefined;
 	try {
 		await tuiApp.waitUntilExit();
 	} finally {
-		await cleanupRuntime();
+		exitSummary = await cleanupRuntime();
+	}
+	if (exitSummary) {
+		writeln(formatInteractiveExitSummary(exitSummary));
 	}
 }

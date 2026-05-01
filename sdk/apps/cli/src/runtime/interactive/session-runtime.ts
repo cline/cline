@@ -28,6 +28,10 @@ import {
 	subscribeToPendingPromptEvents,
 } from "../session-events";
 import { compactInteractiveMessages } from "./compaction";
+import {
+	createInteractiveExitSummary,
+	type InteractiveExitSummary,
+} from "./exit-summary";
 import { buildForkSessionMetadata } from "./fork/metadata";
 import { applyInteractiveModeConfig } from "./mode";
 import { buildInteractiveSessionConfig } from "./session-config";
@@ -221,6 +225,27 @@ export function createInteractiveSessionRuntime(input: {
 		if (sessionManager && activeSessionId) {
 			await sessionManager.stop(activeSessionId);
 		}
+	};
+
+	const getExitSummary = async (): Promise<
+		InteractiveExitSummary | undefined
+	> => {
+		const manager = sessionManager;
+		const sessionId = activeSessionId.trim();
+		if (!manager || !sessionId) {
+			return undefined;
+		}
+		const [row, messages, usage] = await Promise.all([
+			manager.get(sessionId).catch(() => undefined),
+			manager.readMessages(sessionId).catch(() => []),
+			manager.getAccumulatedUsage(sessionId).catch(() => undefined),
+		]);
+		return createInteractiveExitSummary({
+			sessionId,
+			row,
+			messages,
+			usage,
+		});
 	};
 
 	const restartWithMessages = async (
@@ -431,13 +456,14 @@ export function createInteractiveSessionRuntime(input: {
 		return true;
 	};
 
-	let cleanupPromise: Promise<void> | undefined;
-	const cleanup = async (): Promise<void> => {
+	let cleanupPromise: Promise<InteractiveExitSummary | undefined> | undefined;
+	const cleanup = async (): Promise<InteractiveExitSummary | undefined> => {
 		if (cleanupPromise) {
 			return await cleanupPromise;
 		}
 		cleanupPromise = (async () => {
 			shutdownRequested = true;
+			let exitSummary: InteractiveExitSummary | undefined;
 			try {
 				await startupPromise?.catch(() => {});
 			} finally {
@@ -445,6 +471,7 @@ export function createInteractiveSessionRuntime(input: {
 				unsubscribePendingPrompts();
 			}
 			try {
+				exitSummary = await getExitSummary();
 				await stopCurrentSession();
 			} finally {
 				try {
@@ -455,6 +482,7 @@ export function createInteractiveSessionRuntime(input: {
 					await runtimeHooks?.shutdown();
 				}
 			}
+			return exitSummary;
 		})();
 		return await cleanupPromise;
 	};
