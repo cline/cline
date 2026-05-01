@@ -22,7 +22,7 @@ Usage: cline [options] [command] [prompt]
 Cline CLI - AI coding assistant in your terminal
 
 Arguments:
-  prompt                       Task prompt (starts task immediately)
+  prompt                       Task prompt (starts the task immediately in act mode)
 
 Options:
   -V, --version                Output the version number
@@ -35,8 +35,7 @@ Options:
   -c, --cwd <path>             Working directory
   --config <dir>               Configuration directory
   --data-dir <dir>             Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)
-  --thinking                   Enable extended thinking (default: medium effort)
-  --reasoning-effort <level>   Reasoning effort: none|low|medium|high|xhigh
+  --thinking [level]           Enable extended thinking. Optional level: low|medium|high|xhigh (default: medium)
   --retries <count>            Maximum consecutive mistakes (retries) before halting
   --json                       Output messages as JSON instead of styled text
   --hooks-dir <dir>            Path to additional hooks directory for runtime hook injection
@@ -80,8 +79,7 @@ Commands:
 | `-c, --cwd <path>` | Working directory |
 | `--config <dir>` | Configuration directory |
 | `--data-dir <dir>` | Use isolated local state at `<dir>` instead of `~/.cline` (enables sandbox mode) |
-| `--thinking` | Enable extended thinking (default: medium effort) |
-| `--reasoning-effort <level>` | Reasoning effort: `none\|low\|medium\|high\|xhigh` |
+| `--thinking [level]` | Enable extended thinking. Optional level: `low\|medium\|high\|xhigh` (default: `medium`) |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting |
 | `--json` | Output messages as JSON instead of styled text |
 | `--hooks-dir <dir>` | Path to additional hooks directory for runtime hook injection |
@@ -104,7 +102,7 @@ Start a task or enter interactive mode.
 ```bash
 cline
 cline "your prompt here"
-cline --autoapprove true "Run tests and fix failures"
+cline "Run tests and fix failures"
 echo "prompt" | cline
 ```
 

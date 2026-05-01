@@ -1,35 +1,34 @@
 ---
 title: "Web Tools"
 sidebarTitle: "Web Tools"
-description: "Search the web and fetch content from URLs directly within Cline"
+description: "Let Cline search the web and fetch content from URLs."
 ---
 
-Web Tools give Cline the ability to search the internet and fetch content from specific URLs during your tasks. This is useful when you need up-to-date information, documentation lookups, or research that goes beyond your local codebase and the LLM's internal knowledge.
+Web tools let Cline search the internet and pull in content from specific URLs while it works — useful for doc lookups, recent releases, or research that goes beyond your codebase and the model's training data.
+
+Two tools are available:
+
+- `web_search` — search the web and return relevant pages for a query
+- `web_fetch` — fetch and analyze content from a specific URL
+
+Cline calls these on its own when a task benefits from web context.
 
 <Warning>
-	Web Tools require the **Cline provider**. They are not available when using other providers like OpenRouter, Anthropic, AWS Bedrock, etc.
+Web tools require the **Cline provider**. They are not available when using other providers like OpenRouter, Anthropic, AWS Bedrock, etc.
 </Warning>
-
-## How Web Tools Work
-
-Cline has two web tools:
-
-- **web_search**: Searches the web and returns a list of relevant webpages based on your query
-- **web_fetch**: Fetches and analyzes content from a specific URL
-
-When Cline determines that web information would help complete your task, it will use these tools automatically. The tools call Cline's backend API, which handles the search or fetch operation and returns the results.
 
 ## Enabling Web Tools
 
-Web Tools are available when using the Cline provider. To use them:
-
-1. Make sure you're signed in to Cline
-2. Ensure you're using the Cline provider
-3. Enable the Web Tools toggle in the Feature Settings menu
+1. Sign in to Cline and select the Cline provider
+2. Toggle **Web Tools** under Feature Settings
 
 <Note>
-	Web tools can be auto-approved using the "Use the browser" setting in [Auto Approve](/features/auto-approve).
+Web tools can be auto-approved with the "Use the browser" setting in [Auto Approve](/features/auto-approve).
 </Note>
+
+<Tip>
+Building on the SDK? Web search and fetch are available as a plugin example. See [SDK Plugins](/sdk/plugins) and [Writing Plugins](/sdk/guides/writing-plugins).
+</Tip>
 
 ## Use Cases
 
