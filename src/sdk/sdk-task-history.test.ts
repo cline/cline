@@ -85,6 +85,33 @@ describe("SdkTaskHistory", () => {
 		])
 	})
 
+	it("includes persisted SDK message metrics for task header pricing", () => {
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "Build the feature" },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Done" }],
+				metrics: {
+					inputTokens: 120,
+					outputTokens: 30,
+					cacheReadTokens: 20,
+					cacheWriteTokens: 10,
+					cost: 0.0123,
+				},
+			},
+		])
+
+		const metricsMessage = result.find((message) => message.type === "say" && message.say === "api_req_started")
+		expect(metricsMessage).toBeDefined()
+		expect(JSON.parse(metricsMessage?.text ?? "{}")).toMatchObject({
+			tokensIn: 90,
+			tokensOut: 30,
+			cacheReads: 20,
+			cacheWrites: 10,
+			cost: 0.0123,
+		})
+	})
+
 	it("renders persisted SDK tool calls as structured tool rows instead of raw tool result JSON", () => {
 		const rawToolResult = JSON.stringify({
 			query: "edit:/Users/maxpaulus/c/c2/README.md",

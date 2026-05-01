@@ -43,7 +43,7 @@ describe("SdkMessageCoordinator", () => {
 
 		coordinator.onSessionEvent(listener)
 		// biome-ignore lint/suspicious/noExplicitAny: test-only event shape
-		coordinator.appendAndEmit(messages, event as any, { save: false })
+		coordinator.appendAndEmit(messages, event as any)
 
 		expect(task.messageStateHandler.getClineMessages()).toEqual(messages)
 		expect(listener).toHaveBeenCalledWith(messages, event)

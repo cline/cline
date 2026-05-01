@@ -857,7 +857,22 @@ export class Controller {
 			if (historyElapsed > 250) {
 				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
 			}
-			const processedTaskHistory = sdkTaskHistory.slice(0, 100)
+			const classicTaskHistory = state.taskHistory ?? []
+			const mergedTaskHistoryById = new Map<string, HistoryItem>()
+
+			// Keep the SDK records authoritative for migrated/new tasks, but append
+			// classic persisted history so pre-migration tasks still appear in the UI.
+			for (const item of classicTaskHistory) {
+				mergedTaskHistoryById.set(item.id, item)
+			}
+			for (const item of sdkTaskHistory) {
+				mergedTaskHistoryById.set(item.id, item)
+			}
+
+			const processedTaskHistory = Array.from(mergedTaskHistoryById.values())
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts)
+				.slice(0, 100)
 
 			return {
 				...state,
