@@ -219,12 +219,13 @@ export class SdkTaskHistory {
 		const sdkHistory = await this.withHistoryHost((host) =>
 			host.listHistory({ limit: 10_000, includeManifestFallback: true, ...options }),
 		)
-		const sdkIds = new Set(sdkHistory.map((item) => item.sessionId))
+		const visibleSdkHistory = sdkHistory.filter((item) => item.isSubagent !== true)
+		const sdkIds = new Set(visibleSdkHistory.map((item) => item.sessionId))
 		const legacyHistory = readTaskHistory()
 			.filter((item) => item.id && item.task && !sdkIds.has(item.id))
 			.map(historyItemToSessionHistoryRecord)
 
-		return [...sdkHistory, ...legacyHistory]
+		return [...visibleSdkHistory, ...legacyHistory]
 			.sort(
 				(a, b) =>
 					dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -

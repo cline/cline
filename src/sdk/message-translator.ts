@@ -112,6 +112,8 @@ export class MessageTranslatorState {
 	private streamingTextTs: number | undefined
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
+	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
+	private streamingReasoningText = ""
 	/** Current streaming tool message timestamp */
 	private streamingToolTs: number | undefined
 	/** Stored tool input from content_start — used at content_end which doesn't carry input */
@@ -149,10 +151,17 @@ export class MessageTranslatorState {
 		return this.streamingReasoningTs
 	}
 
+	/** Append a reasoning delta and return the accumulated reasoning text */
+	appendStreamingReasoning(reasoningDelta: string): string {
+		this.streamingReasoningText += reasoningDelta
+		return this.streamingReasoningText
+	}
+
 	/** Clear streaming reasoning (content ended) */
 	clearStreamingReasoning(): number {
 		const ts = this.streamingReasoningTs ?? this.nextTs()
 		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
 		return ts
 	}
 
@@ -242,6 +251,11 @@ export class MessageTranslatorState {
 	/** Whether there are any active spawn_agent calls */
 	hasSpawnAgents(): boolean {
 		return this.spawnAgentEntries.size > 0
+	}
+
+	/** Whether any registered spawn_agent call has not finished yet. */
+	hasRunningSpawnAgents(): boolean {
+		return this.getSpawnAgentItems().some((entry) => entry.status === "running" || entry.status === "pending")
 	}
 
 	/** Get all spawn_agent entries as an ordered array */
@@ -760,13 +774,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					break
 				}
 				case "reasoning": {
-					// Same pattern as text — use accumulated reasoning for smooth streaming
+					// SDK reasoning content_start events are deltas. The webview renders
+					// reasoning from `text`, so keep `text` and `reasoning` populated with
+					// the accumulated content for smooth in-place streaming.
 					const ts = state.getStreamingReasoningTs()
-					const reasoning = event.reasoning ?? ""
+					const reasoning = state.appendStreamingReasoning(event.reasoning ?? "")
 					messages.push({
 						ts,
 						type: "say",
 						say: "reasoning",
+						text: reasoning,
 						reasoning,
 						partial: true,
 					})
@@ -926,11 +943,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "reasoning": {
 					const ts = state.clearStreamingReasoning()
+					const reasoning = event.reasoning ?? ""
 					messages.push({
 						ts,
 						type: "say",
 						say: "reasoning",
-						reasoning: event.reasoning ?? "",
+						text: reasoning,
+						reasoning,
 						partial: false,
 					})
 					break
@@ -1291,15 +1310,22 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "agent_event": {
-			// Sub-agent events (parentAgentId is set) should NOT produce
-			// ClineMessages in the main chat. The sub-agent's work is
-			// represented by the parent's spawn_agent tool events
-			// (content_start/update/end) which we translate into the rich
-			// SubagentStatusRow UI. Without this filter, every sub-agent
-			// tool call, text output, iteration, and usage event would
-			// flood the main chat.
+			// Sub-agent events should NOT produce ClineMessages in the main chat.
+			// The sub-agent's work is represented by the parent's spawn_agent tool
+			// events (content_start/update/end), which we translate into the rich
+			// SubagentStatusRow UI. Without this filter, every sub-agent tool call,
+			// text output, iteration, and usage event floods the main chat.
 			const agentEvent = event.payload.event
-			if (agentEvent.parentAgentId) {
+			const isToolLifecycleEvent =
+				agentEvent.type === "content_start" || agentEvent.type === "content_update" || agentEvent.type === "content_end"
+			const isSpawnAgentToolEvent =
+				isToolLifecycleEvent && agentEvent.contentType === "tool" && agentEvent.toolName === "spawn_agent"
+
+			// Newer SDK events carry parentAgentId on sub-agent events. Older/local
+			// RuntimeEventAdapter output does not, so while spawn_agent calls are in
+			// flight we also suppress every non-spawn_agent event. This preserves the
+			// parent spawn_agent status updates while hiding sub-agent internals.
+			if (agentEvent.parentAgentId || (state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent)) {
 				break
 			}
 
@@ -1341,6 +1367,12 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "hook": {
+			// Sub-agent hook events are internal progress and should not pollute the
+			// main chat. Their aggregate progress is shown by SubagentStatusRow.
+			if (event.payload.parentAgentId) {
+				break
+			}
+
 			// Tool hook events — translate to hook_status messages
 			const payload = event.payload
 			const hookName = payload.hookEventName
@@ -1611,6 +1643,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): C
 				continue
 			}
 
+			;``
 			pendingToolUses.delete(block.tool_use_id)
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
 		}

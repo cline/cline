@@ -177,6 +177,7 @@ describe("translateSessionEvent — agent_event content_start", () => {
 		const result = translateSessionEvent(event, state)
 		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].say).toBe("reasoning")
+		expect(result.messages[0].text).toBe("Let me think...")
 		expect(result.messages[0].reasoning).toBe("Let me think...")
 		expect(result.messages[0].partial).toBe(true)
 	})
@@ -1087,6 +1088,64 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		expect(end.messages[0].text).toBe("Hello world!")
 		expect(end.messages[0].partial).toBe(false)
 		expect(end.messages[0].ts).toBe(streamingTs)
+	})
+
+	it("accumulates reasoning deltas into text for webview rendering", () => {
+		const state = new MessageTranslatorState()
+
+		const chunk1 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "reasoning",
+						reasoning: "Thinking ",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const streamingTs = chunk1.messages[0].ts
+		expect(chunk1.messages[0].text).toBe("Thinking ")
+		expect(chunk1.messages[0].reasoning).toBe("Thinking ")
+
+		const chunk2 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "reasoning",
+						reasoning: "through it",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk2.messages[0].ts).toBe(streamingTs)
+		expect(chunk2.messages[0].text).toBe("Thinking through it")
+		expect(chunk2.messages[0].reasoning).toBe("Thinking through it")
+
+		const end = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "reasoning",
+						reasoning: "Thinking through it",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(end.messages[0].ts).toBe(streamingTs)
+		expect(end.messages[0].text).toBe("Thinking through it")
+		expect(end.messages[0].partial).toBe(false)
 	})
 
 	it("falls back to text when accumulated is not provided", () => {
