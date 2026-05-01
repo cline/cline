@@ -453,10 +453,6 @@
 			"destination": "/getting-started/your-first-project"
 		},
 		{
-			"source": "/cli/samples",
-			"destination": "/cli/samples/overview"
-		},
-		{
 			"source": "/features/hooks/real-world-examples",
 			"destination": "/customization/hooks"
 		},
@@ -705,10 +701,6 @@
 			"destination": "/getting-started/installing-cline"
 		},
 		{
-			"source": "/cline-cli/interactive-mode",
-			"destination": "/cli/interactive-mode"
-		},
-		{
 			"source": "/cline-cli/three-core-flows",
 			"destination": "/usage/cli-overview#headless-mode"
 		},
@@ -755,10 +747,6 @@
 		{
 			"source": "/cline-cli/acp-editor-integrations",
 			"destination": "/cli/acp-editor-integrations"
-		},
-		{
-			"source": "/cline-cli/samples/overview",
-			"destination": "/cli/samples/overview"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",

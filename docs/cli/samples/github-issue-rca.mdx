@@ -6,7 +6,7 @@ description: "Automated GitHub issue analysis using Cline CLI to identify root c
 Automated GitHub issue analysis using Cline CLI. This script uses Cline's autonomous AI capabilities to fetch, analyze, and identify root causes of GitHub issues, outputting clean, parseable results that can be easily integrated into your development workflows.
 
 <Note>
-**New to Cline CLI?** This sample assumes you have already completed the [Installation Guide](https://docs.cline.bot/cli/installation) and authenticated with `cline auth`. If you haven't set up Cline CLI yet, please start there first.
+**New to Cline CLI?** This sample assumes you have already completed the [Installation Guide](https://docs.cline.bot/getting-started/installing-cline) and authenticated with `clite auth`. If you haven't set up Cline CLI yet, please start there first.
 </Note>
 
 <Frame>
@@ -17,7 +17,7 @@ Automated GitHub issue analysis using Cline CLI. This script uses Cline's autono
 
 This sample assumes you have already:
 
-- **Cline CLI** installed and authenticated ([Installation Guide](https://docs.cline.bot/cli/installation))
+- **Cline CLI** installed and authenticated ([Installation Guide](https://docs.cline.bot/getting-started/installing-cline))
 - **At least one AI model provider** configured (e.g., OpenRouter, Anthropic, OpenAI)
 - **Basic familiarity** with Cline CLI commands
 
@@ -80,24 +80,18 @@ curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/githu
 # Analyze a GitHub issue using Cline CLI
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Usage: $0 <github-issue-url> [prompt]"
     echo "Example: $0 https://github.com/owner/repo/issues/123"
     echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?'"
-    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?' 127.0.0.1:46529"
     exit 1
 fi
 
 # Gather the args
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
-if [ -n "$3" ]; then
-    ADDRESS="--address $3"
-fi
-
 # Ask Cline for its analysis, showing only the summary
-cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
-    sed -n '/^{/,$p' | \
-    jq -r 'select(.say == "completion_result") | .text' | \
+clite --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
+    jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
     sed 's/\\n/\n/g'
 ```
 
@@ -133,23 +127,6 @@ Ask specific questions about the issue:
 ./analyze-issue.sh https://github.com/owner/repo/issues/456 "What is the security impact?"
 ```
 
-### Using Specific Cline Instance
-
-Target a particular Cline instance by address:
-
-```bash
-./analyze-issue.sh https://github.com/owner/repo/issues/123 \
-    "What is the root cause of this issue?" \
-    127.0.0.1:46529
-```
-
-<Warning>
-This is useful when:
-- Running multiple Cline instances
-- Using a remote Cline server
-- Testing with specific configurations
-</Warning>
-
 <Note>
 The script will automatically handle everything: fetching the issue, analyzing it with Cline, and displaying the results. The analysis typically takes 30-60 seconds depending on the issue complexity.
 </Note>
@@ -164,10 +141,9 @@ The script validates input and provides usage instructions:
 
 ```bash
 if [ -z "$1" ]; then
-    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Usage: $0 <github-issue-url> [prompt]"
     echo "Example: $0 https://github.com/owner/repo/issues/123"
     echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause?'"
-    echo "Example: $0 https://github.com/owner/repo/issues/123 'Analyze security impact' 127.0.0.1:46529"
     exit 1
 fi
 ```
@@ -176,7 +152,6 @@ fi
 - Validates required GitHub issue URL
 - Shows clear usage examples
 - Supports optional custom prompt
-- Supports optional Cline instance address
 
 ### Argument Parsing
 
@@ -186,15 +161,12 @@ The script extracts and sets up the arguments:
 # Gather the args
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
-if [ -n "$3" ]; then
-    ADDRESS="--address $3"
-fi
 ```
 
 **Explanation:**
 - `ISSUE_URL="$1"` - First argument is always the issue URL
 - `PROMPT="${2:-...}"` - Second argument is optional, defaults to root cause analysis
-- `ADDRESS` - Third argument is optional, only set if provided
+- The SDK CLI runs the task directly, so no address flag is required.
 
 ### The Core Analysis Pipeline
 
@@ -202,39 +174,26 @@ This is where the magic happens:
 
 ```bash
 # Ask Cline for its analysis, showing only the summary
-cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
-    sed -n '/^{/,$p' | \
-    jq -r 'select(.say == "completion_result") | .text' | \
+clite --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
+    jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
     sed 's/\\n/\n/g'
 ```
 
 <Accordion title="Pipeline Breakdown: Understanding Each Component">
 
-**1. `cline -y "$PROMPT: $ISSUE_URL"`**
-   - `-y` enables yolo mode (no user interaction)
+**1. `clite --auto-approve true --json "$PROMPT: $ISSUE_URL"`**
+   - `clite` is the Cline CLI binary
+   - Act mode is the default for prompt runs
+   - `--auto-approve true` allows tool use without interactive prompts
+   - `--json` emits newline-delimited JSON for parsing
    - Constructs prompt with issue URL
 
-**2. `--mode act`**
-   - Enables act mode for active investigation
-   - Allows Cline to use tools (read files, run commands, etc.)
-
-**3. `$ADDRESS`**
-   - Optional address flag for specific instance
-   - Expands to `--address <ip:port>` if set
-
-**4. `-F json`**
-   - Outputs in JSON format for parsing
-
-**5. `sed -n '/^{/,$p'`**
-   - Extracts JSON from output
-   - Skips any non-JSON prefix lines
-
-**6. `jq -r 'select(.say == "completion_result") | .text'`**
-   - Filters for completion result messages
-   - Extracts the text field
+**2. `jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text'`**
+   - Filters for the final agent `done` event
+   - Extracts the final text field
    - `-r` outputs raw strings (no JSON quotes)
 
-**7. `sed 's/\\n/\n/g'`**
+**3. `sed 's/\\n/\n/g'`**
    - Converts escaped newlines to actual newlines
    - Makes output readable
 
@@ -376,6 +335,6 @@ This pattern can be adapted for many other automation scenarios, from pull reque
 
 ## Related Resources
 
-- [CLI Installation Guide](https://docs.cline.bot/cli/installation)
+- [CLI Installation Guide](https://docs.cline.bot/getting-started/installing-cline)
 - [CLI Reference Documentation](https://docs.cline.bot/cli/cli-reference)
-- [Headless Mode](https://docs.cline.bot/cli/three-core-flows)
+- [Headless Mode](https://docs.cline.bot/usage/cli-overview#headless-mode)

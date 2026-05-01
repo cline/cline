@@ -69,13 +69,13 @@ jobs:
           cache: "npm"
 
       - name: Install Cline CLI
-        run: npm install -g cline
+        run: npm install -g @clinebot/cli
 
       - name: Configure Cline Authentication
         # Replace 'anthropic' with your provider of choice (openai, openrouter, etc.)
         # and ensure the corresponding secret is set in your repo settings.
         run: |
-          cline auth --provider anthropic \
+          clite auth --provider anthropic \
             --apikey "${{ secrets.ANTHROPIC_API_KEY }}" \
             --modelid claude-opus-4-5-20251101
 
@@ -110,7 +110,7 @@ jobs:
               ]
             }
         run: |
-          cline --yolo 'You are a GitHub PR reviewer for this repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+          clite --auto-approve true 'You are a GitHub PR reviewer for this repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
           PR: #'"${PR_NUMBER}"'
 
@@ -171,15 +171,15 @@ We grant `pull-requests: write` so Cline can post comments and inline reviews. `
 
 ### Authentication
 ```bash
-cline auth --provider anthropic --apikey "..."
+clite auth --provider anthropic --apikey "..."
 ```
 The `auth` command configures Cline in the CI environment without interactive prompts. You can switch providers (e.g., `openai`, `openrouter`) by changing the flags.
 
-### Autonomous Mode (`--yolo`)
+### Autonomous Mode (`--auto-approve true`)
 ```bash
-cline --yolo '...'
+clite --auto-approve true '...'
 ```
-The `--yolo` flag tells Cline to run autonomously, executing commands without waiting for user approval. This is essential for CI/CD workflows.
+The `--auto-approve true` flag tells Cline to run autonomously, executing approved tools without waiting for interactive confirmation. Prompt runs start in Act mode by default, so CI/CD workflows can perform the requested work immediately.
 
 ### Command Permissions
 We explicitly restrict what commands Cline can run using `CLINE_COMMAND_PERMISSIONS`. This ensures Cline can only use `gh` and `git` commands relevant to reviewing, preventing any accidental or malicious system modifications.

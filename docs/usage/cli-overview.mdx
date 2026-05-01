@@ -7,19 +7,19 @@ description: "Use Cline CLI for interactive terminal sessions and automated head
 ## Prerequisites
 
 - Cline CLI installed ([Install Guide](/getting-started/installing-cline))
-- Provider authenticated (`cline auth`) ([Authorization Guide](/getting-started/authorizing-with-cline#cli-setup))
+- Provider authenticated (`clite auth`) ([Authorization Guide](/getting-started/authorizing-with-cline#cli-setup))
 
 ## Quick Start
 
 ```bash
 # Interactive session
-cline
+clite
 
 # Run one task immediately
-cline "refactor this module to use async/await"
+clite "refactor this module to use async/await"
 
 # Structured output for scripts
-cline --json "list TODO comments"
+clite --json "list TODO comments"
 ```
 
 ## Headless mode
@@ -32,16 +32,16 @@ Headless is triggered when using flags like `--json`, when stdin is piped, or wh
 
 | Invocation | Reason |
 |---|---|
-| `cline --json "task"` | JSON output mode |
-| `cat file \| cline "task"` | stdin is piped |
-| `cline "task" > output.txt` | stdout is redirected |
+| `clite --json "task"` | JSON output mode |
+| `cat file \| clite "task"` | stdin is piped |
+| `clite "task" > output.txt` | stdout is redirected |
 
 ```bash
 # CI/script style execution
-git diff | cline "review these changes"
+git diff | clite "review these changes"
 
 # JSON for parsing
-cline --json "summarize this changelog" | jq -r '.text'
+clite --json "summarize this changelog" | jq -r '.text'
 ```
 
 See: [Headless Mode](#headless-mode)
@@ -51,17 +51,17 @@ See: [Headless Mode](#headless-mode)
 For fully unattended runs, use auto-approval:
 
 ```bash
-cline "run tests and fix failures"
+clite --auto-approve true "run tests and fix failures"
 ```
 
 Mode selection also works in headless runs:
 
 ```bash
 # plan-first
-cline -p "design migration plan"
+clite -p "design migration plan"
 
-# act immediately
-cline -a "apply migration"
+# act immediately (default)
+clite "apply migration"
 ```
 
 <Warning>
@@ -71,21 +71,21 @@ Autonomous execution can modify files and run commands without further prompts. 
 ## High-Value Commands
 
 ```bash
-cline --help
-cline <command> --help
+clite --help
+clite <command> --help
 ```
 
 | Command | Purpose |
 |---|---|
-| `cline` | Start interactive mode or run a prompt |
-| `cline auth` | Authenticate and set provider/model |
-| `cline config` | Inspect/update config in TUI |
-| `cline mcp` | Manage MCP servers |
-| `cline doctor` | Diagnose/fix configuration issues |
-| `cline history` | Show and manage task history |
-| `cline schedule` | Manage scheduled tasks |
-| `cline hub` | Manage local hub daemon |
-| `cline kanban` | Launch Kanban app |
+| `clite` | Start interactive mode or run a prompt |
+| `clite auth` | Authenticate and set provider/model |
+| `clite config` | Open the interactive config view |
+| `clite mcp` | Manage MCP servers |
+| `clite doctor` | Diagnose/fix configuration issues |
+| `clite history` | Show and manage task history |
+| `clite schedule` | Manage scheduled tasks |
+| `clite hub` | Manage local hub daemon |
+| `clite kanban` | Launch Kanban app |
 
 ## Most-Used Global Flags
 
@@ -93,16 +93,15 @@ Source of truth: [CLI Reference](/cli/cli-reference)
 
 | Flag | Purpose |
 |---|---|
-| `-a, --act` | Start in Act mode |
 | `-p, --plan` | Start in Plan mode |
-| `--autoapprove [value]` | Global tool auto-approval (`true`/`false`) |
+| `--auto-approve <boolean>` | Global tool auto-approval (`true`/`false`, default `true`) |
 | `-m, --model <model>` | Override model for this run |
 | `-P, --provider <id>` | Override provider for this run |
 | `-c, --cwd <path>` | Set working directory |
 | `--config <dir>` | Use config directory |
 | `--data-dir <dir>` | Use isolated local state |
 | `--json` | Output newline-delimited JSON messages |
-| `--thinking [level]` | Enable extended thinking (optional `low\|medium\|high\|xhigh`, default `medium`) |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh` (default `medium`) |
 | `-t, --timeout <seconds>` | Set task timeout |
 
 ## Automation Patterns
@@ -110,14 +109,14 @@ Source of truth: [CLI Reference](/cli/cli-reference)
 ### Pipe context in
 
 ```bash
-cat README.md | cline "summarize key setup steps"
-git diff | cline "review for potential regressions"
+cat README.md | clite "summarize key setup steps"
+git diff | clite "review for potential regressions"
 ```
 
 ### Chain tasks
 
 ```bash
-git diff | cline "explain these changes" | cline "write a commit message"
+git diff | clite "explain these changes" | clite "write a commit message"
 ```
 
 ### Restrict command execution
@@ -129,16 +128,16 @@ export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf
 ### Include images in tasks
 
 ```bash
-cline -i screenshot.png "fix the layout issue shown in this screenshot"
+clite -i "fix the layout issue shown in @./screenshot.png"
 
 # or reference inline
-cline "fix the UI shown in @./design-mockup.png"
+clite "fix the UI shown in @./design-mockup.png"
 ```
 
 ### Set execution timeout
 
 ```bash
-cline --timeout 600 "run full test suite"
+clite --timeout 600 "run full test suite"
 ```
 
 ## JSON Output Schema
@@ -162,5 +161,3 @@ When using `--json`, each line is a JSON message object.
 ## Next Steps
 
 - [CLI Reference](/cli/cli-reference)
-- [Interactive Mode](/cli/interactive-mode)
-- [CLI Samples](/cli/samples/overview)

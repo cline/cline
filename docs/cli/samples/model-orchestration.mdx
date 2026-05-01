@@ -43,20 +43,20 @@ Use different models for different phases of work. Route simple tasks to cheap m
 ISSUE_CONTENT=$(gh issue view $(gh issue list -L 1 | awk '{print $1}'))
 
 # Phase 1: Quick summary with cheap model
-SUMMARY=$(echo "$ISSUE_CONTENT" | cline -y --config ~/.cline-haiku \
+SUMMARY=$(echo "$ISSUE_CONTENT" | clite --auto-approve true --config ~/.cline-haiku \
   "summarize this issue in 2-3 sentences")
 
 # Phase 2: Detailed plan with expensive model + thinking
-PLAN=$(echo "$SUMMARY" | cline -y --thinking --config ~/.cline-opus \
+PLAN=$(echo "$SUMMARY" | clite --auto-approve true --thinking high --config ~/.cline-opus \
   "create detailed implementation plan with edge cases")
 
 # Phase 3: Execute with mid-tier model
-echo "$PLAN" | cline -y --config ~/.cline-sonnet \
+echo "$PLAN" | clite --auto-approve true --config ~/.cline-sonnet \
   "implement the plan from above"
 ```
 
 <Note>
-Each cline invocation needs to complete before passing output to the next phase. Use shell variables to store intermediate results rather than piping cline commands directly.
+Each `clite` invocation needs to complete before passing output to the next phase. Use shell variables to store intermediate results rather than piping `clite` commands directly.
 </Note>
 
 **Cost impact:**
@@ -75,20 +75,20 @@ Create separate configuration directories for each model:
 mkdir -p ~/.cline-haiku ~/.cline-sonnet ~/.cline-opus
 
 # Configure each with different models
-cline --config ~/.cline-haiku auth anthropic --modelid claude-haiku-4-20250514
-cline --config ~/.cline-sonnet auth anthropic --modelid claude-sonnet-4-20250514  
-cline --config ~/.cline-opus auth anthropic --modelid claude-opus-4-5-20251101
+clite --config ~/.cline-haiku auth anthropic --modelid claude-haiku-4-20250514
+clite --config ~/.cline-sonnet auth anthropic --modelid claude-sonnet-4-20250514  
+clite --config ~/.cline-opus auth anthropic --modelid claude-opus-4-5-20251101
 
 # Or use different providers entirely
-cline --config ~/.cline-gemini auth gemini --modelid gemini-2.0-flash-exp
-cline --config ~/.cline-codex auth openai-codex --modelid gpt-5-latest
+clite --config ~/.cline-gemini auth gemini --modelid gemini-2.0-flash-exp
+clite --config ~/.cline-codex auth openai-codex --modelid gpt-5-latest
 ```
 
 Now you can switch models per-task with `--config`:
 
 ```bash
-cline --config ~/.cline-haiku "quick task"
-cline --config ~/.cline-opus "complex reasoning task"
+clite --config ~/.cline-haiku "quick task"
+clite --config ~/.cline-opus "complex reasoning task"
 ```
 
 ## Pattern 3: Multi-Model Review & Consensus
@@ -102,19 +102,19 @@ Get multiple AI perspectives on the same change, then synthesize their feedback.
 DIFF=$(git show)
 
 # Review 1: Gemini's perspective
-echo "$DIFF" | cline -y --config ~/.cline-gemini \
+echo "$DIFF" | clite --auto-approve true --config ~/.cline-gemini \
     "review this diff and write your analysis to gemini-review.md"
 
 # Review 2: Codex's perspective
-echo "$DIFF" | cline -y --config ~/.cline-codex \
+echo "$DIFF" | clite --auto-approve true --config ~/.cline-codex \
     "review this diff and write your analysis to codex-review.md"
 
 # Review 3: Opus's perspective
-echo "$DIFF" | cline -y --config ~/.cline-opus \
+echo "$DIFF" | clite --auto-approve true --config ~/.cline-opus \
     "review this diff and write your analysis to opus-review.md"
 
 # Synthesize all reviews into a consensus
-cat gemini-review.md codex-review.md opus-review.md | cline -y \
+cat gemini-review.md codex-review.md opus-review.md | clite --auto-approve true \
     "summarize these 3 reviews and identify: 1) issues all models agree on, 2) issues only one model caught, 3) your final recommendation"
 ```
 
@@ -130,15 +130,15 @@ Run reviews in parallel for faster feedback:
 
 ```bash
 # Run all reviews simultaneously
-git show | cline -y --config ~/.cline-gemini "review and save to gemini-review.md" &
-git show | cline -y --config ~/.cline-codex "review and save to codex-review.md" &
-git show | cline -y --config ~/.cline-opus "review and save to opus-review.md" &
+git show | clite --auto-approve true --config ~/.cline-gemini "review and save to gemini-review.md" &
+git show | clite --auto-approve true --config ~/.cline-codex "review and save to codex-review.md" &
+git show | clite --auto-approve true --config ~/.cline-opus "review and save to opus-review.md" &
 
 # Wait for all to complete
 wait
 
 # Synthesize
-cat *-review.md | cline -y "create consensus review"
+cat *-review.md | clite --auto-approve true "create consensus review"
 ```
 
 <Note>
@@ -151,14 +151,14 @@ Use the `--thinking` flag when Cline needs to analyze multiple approaches:
 
 ```bash
 # Without thinking: Fast but may miss nuances
-cline -y "refactor this codebase"
+clite --auto-approve true "refactor this codebase"
 
 # With thinking: Slower but more thorough
-cline -y --thinking \
+clite --auto-approve true --thinking high \
     "refactor this codebase - consider: performance, maintainability, backward compatibility"
 ```
 
-The `--thinking` flag allocates 1024 tokens for internal reasoning before Cline responds. Best for:
+The `--thinking <level>` flag sets reasoning effort. Use `--thinking high` or `--thinking xhigh` when you want the model to spend more effort on complex tradeoffs. Best for:
 - Architectural decisions
 - Security analysis
 - Complex refactoring
@@ -178,12 +178,12 @@ The `--thinking` flag allocates 1024 tokens for internal reasoning before Cline 
 
 ```bash
 # Haiku: Quick summary and issue identification
-gh pr view $PR | cline -y --config ~/.cline-haiku \
+gh pr view $PR | clite --auto-approve true --config ~/.cline-haiku \
     "list all issues to fix, output as JSON"
 
 # Opus with thinking: Deep analysis only if issues found
 if [ -s issues.json ]; then
-    cline -y --thinking --config ~/.cline-opus \
+    clite --auto-approve true --thinking high --config ~/.cline-opus \
         "analyze these issues and recommend fixes"
 fi
 ```
@@ -192,13 +192,13 @@ fi
 
 ```bash
 # Different models have different security perspectives
-git diff main | cline -y --config ~/.cline-gemini "security review" > gemini-sec.md &
-git diff main | cline -y --config ~/.cline-opus "security review" > opus-sec.md &
-git diff main | cline -y --config ~/.cline-codex "security review" > codex-sec.md &
+git diff main | clite --auto-approve true --config ~/.cline-gemini "security review" > gemini-sec.md &
+git diff main | clite --auto-approve true --config ~/.cline-opus "security review" > opus-sec.md &
+git diff main | clite --auto-approve true --config ~/.cline-codex "security review" > codex-sec.md &
 wait
 
 # High-priority: Issues all 3 models found
-cat *-sec.md | cline -y "find security issues all 3 reviews mentioned"
+cat *-sec.md | clite --auto-approve true "find security issues all 3 reviews mentioned"
 ```
 
 ## Related Documentation
