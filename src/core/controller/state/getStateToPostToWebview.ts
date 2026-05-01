@@ -69,7 +69,6 @@ export async function getStateToPostToWebview(controller: {
 	const lastDismissedCliBannerVersion = stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 	const dismissedBanners = stateManager.getGlobalStateKey("dismissedBanners")
 	const doubleCheckCompletionEnabled = stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
-	const lazyTeammateModeEnabled = stateManager.getGlobalSettingsKey("lazyTeammateModeEnabled")
 	const showFeatureTips = stateManager.getGlobalSettingsKey("showFeatureTips")
 
 	const localClineRulesToggles = stateManager.getWorkspaceStateKey("localClineRulesToggles")
@@ -183,7 +182,6 @@ export async function getStateToPostToWebview(controller: {
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		doubleCheckCompletionEnabled,
-		lazyTeammateModeEnabled,
 		showFeatureTips,
 		banners,
 		welcomeBanners,
