@@ -16,7 +16,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
-import { GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import { DeleteAllTaskHistoryCount, GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -35,6 +35,7 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
@@ -803,14 +804,83 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
-		const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
-		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		const historyItem = (await this.taskHistory.listHistory({ hydrate: false })).find((item) => item.sessionId === id)
+		if (!historyItem) {
+			throw new Error(`Task not found in history: ${id}`)
+		}
+
+		// SDK-backed tasks are no longer stored under VS Code's globalStorageFsPath/tasks.
+		// The SDK owns session persistence and exposes the persisted messages artifact path
+		// on the session history record; open that artifact's containing session directory.
+		const taskDirPath = historyItem.messagesPath ? path.dirname(historyItem.messagesPath) : undefined
+		if (!taskDirPath) {
+			throw new Error(`Task history item has no SDK artifact path: ${id}`)
+		}
+
+		await fs.access(taskDirPath)
+		Logger.log(`[EXPORT] Opening SDK task directory: ${taskDirPath}`)
 		const open = (await import("open")).default
 		await open(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
 		return this.taskHistory.deleteTaskFromState(id)
+	}
+
+	async deleteAllTaskHistory(): Promise<DeleteAllTaskHistoryCount> {
+		await this.clearTask()
+
+		const taskHistory = await this.taskHistory.listHistory({ hydrate: false })
+		const totalTasks = taskHistory.length
+
+		const userChoice = (
+			await HostProvider.window.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.WARNING,
+					message: "What would you like to delete?",
+					options: {
+						modal: true,
+						items: ["Delete All Except Favorites", "Delete Everything"],
+					},
+				}),
+			)
+		).selectedOption
+
+		if (userChoice === undefined) {
+			return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
+		}
+
+		if (userChoice === "Delete All Except Favorites") {
+			const hasFavoritedTasks = taskHistory.some(
+				(task) =>
+					metadataBoolean(task.metadata, "isFavorited") ?? metadataBoolean(task.metadata, "is_favorited") ?? false,
+			)
+
+			if (hasFavoritedTasks) {
+				const tasksDeleted = await this.taskHistory.deleteAllTaskHistory({ preserveFavorites: true })
+				await this.postStateToWebview()
+				return DeleteAllTaskHistoryCount.create({ tasksDeleted })
+			}
+
+			const answer = (
+				await HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+					options: {
+						modal: true,
+						items: ["Delete All Tasks"],
+					},
+				})
+			).selectedOption
+
+			if (answer === undefined) {
+				return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
+			}
+		}
+
+		const tasksDeleted = await this.taskHistory.deleteAllTaskHistory()
+		await this.postStateToWebview()
+		return DeleteAllTaskHistoryCount.create({ tasksDeleted: tasksDeleted || totalTasks })
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {

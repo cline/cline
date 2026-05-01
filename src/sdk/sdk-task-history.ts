@@ -331,6 +331,34 @@ export class SdkTaskHistory {
 		return (await this.listHistory()).map(sessionHistoryRecordToHistoryItem)
 	}
 
+	async deleteAllTaskHistory(options: { preserveFavorites?: boolean } = {}): Promise<number> {
+		const history = await this.listHistory({ hydrate: false })
+		const tasksToDelete = options.preserveFavorites
+			? history.filter(
+					(item) =>
+						!(
+							metadataBoolean(item.metadata, "isFavorited") ??
+							metadataBoolean(item.metadata, "is_favorited") ??
+							false
+						),
+				)
+			: history
+
+		let deletedCount = 0
+		await this.withHistoryHost(async (host) => {
+			for (const item of tasksToDelete) {
+				try {
+					await host.delete(item.sessionId)
+					deletedCount += 1
+				} catch (error) {
+					Logger.error(`[SdkTaskHistory] Failed to delete task history item: ${item.sessionId}`, error)
+				}
+			}
+		})
+
+		return deletedCount
+	}
+
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		await this.updateSession(item.id, item)
 		return (await this.listHistory()).map(sessionHistoryRecordToHistoryItem)
