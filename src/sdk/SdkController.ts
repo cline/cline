@@ -49,7 +49,6 @@ import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
-import { SdkSessionFactory } from "./sdk-session-factory"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
@@ -204,27 +203,24 @@ export class Controller {
 			},
 		})
 		this.sessions = new SdkSessionLifecycle({
-			factory: new SdkSessionFactory({
-				stateManager: this.stateManager,
-				mcpHub: this.mcpHub,
-				requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
-				askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
-				onSessionEvent: (event) => {
-					this.sessionEvents.handleSessionEvent(event).catch((err) => {
-						Logger.error("[SdkController] Failed to handle session event:", err)
-					})
-				},
-				// Lazy terminal manager for foreground terminal execution.
-				// The VscodeTerminalManager is created once and shared across sessions.
-				getTerminalManager: () => {
-					if (!this._terminalManager) {
-						this._terminalManager = new VscodeTerminalManager()
-						this.applyTerminalSettings(this._terminalManager)
-						Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
-					}
-					return this._terminalManager
-				},
-			}),
+			mcpHub: this.mcpHub,
+			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
+			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
+			onSessionEvent: (event) => {
+				this.sessionEvents.handleSessionEvent(event).catch((err) => {
+					Logger.error("[SdkController] Failed to handle session event:", err)
+				})
+			},
+			// Lazy terminal manager for foreground terminal execution.
+			// The VscodeTerminalManager is created once and shared across sessions.
+			getTerminalManager: () => {
+				if (!this._terminalManager) {
+					this._terminalManager = new VscodeTerminalManager()
+					this.applyTerminalSettings(this._terminalManager)
+					Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
+				}
+				return this._terminalManager
+			},
 			onSendComplete: async () => {
 				if (this.mode.hasPendingModeChange()) {
 					try {
@@ -649,7 +645,7 @@ export class Controller {
 	// ---- Telemetry ----
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
-		await this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		await this.postStateToWebview()
 	}
 

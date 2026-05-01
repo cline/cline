@@ -58,7 +58,6 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async clearTask(): Promise<void> {
-		const startedAt = Date.now()
 		this.options.interactions.clearPending("Task cleared")
 
 		const activeSession = this.options.sessions.clearActiveSessionReference()
@@ -82,11 +81,6 @@ export class SdkTaskControlCoordinator {
 		}
 
 		this.options.resetMessageTranslator()
-
-		const elapsed = Date.now() - startedAt
-		if (elapsed > 250) {
-			Logger.warn(`[SdkController] clearTask synchronous path took ${elapsed}ms`)
-		}
 	}
 
 	private stopAndDisposeSessionInBackground(

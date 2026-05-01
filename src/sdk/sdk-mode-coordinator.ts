@@ -75,13 +75,13 @@ export class SdkModeCoordinator {
 			return false
 		}
 
-		await this.options.stateManager.setGlobalState("mode", modeToSwitchTo)
+		this.options.stateManager.setGlobalState("mode", modeToSwitchTo)
 		await this.options.postStateToWebview()
 		return false
 	}
 
 	async rebuildSessionForMode(newMode: Mode, options: { autoContinue?: boolean } = {}): Promise<void> {
-		await this.options.stateManager.setGlobalState("mode", newMode)
+		this.options.stateManager.setGlobalState("mode", newMode)
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
