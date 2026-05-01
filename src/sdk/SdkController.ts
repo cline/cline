@@ -214,6 +214,7 @@ export class Controller {
 				getTerminalManager: () => {
 					if (!this._terminalManager) {
 						this._terminalManager = new VscodeTerminalManager()
+						this.applyTerminalSettings(this._terminalManager)
 						Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
 					}
 					return this._terminalManager
@@ -869,6 +870,49 @@ export class Controller {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
 		}
+	}
+
+	// ---- Terminal settings ----
+
+	/**
+	 * Apply the user's terminal settings from StateManager to a terminal manager.
+	 * Called once when the lazy VscodeTerminalManager is first created, and
+	 * can be called again when settings change at runtime.
+	 */
+	applyTerminalSettings(terminalManager: ITerminalManager): void {
+		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
+		if (shellIntegrationTimeout !== undefined) {
+			terminalManager.setShellIntegrationTimeout(Number(shellIntegrationTimeout))
+		}
+
+		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
+		if (terminalReuseEnabled !== undefined) {
+			terminalManager.setTerminalReuseEnabled(!!terminalReuseEnabled)
+		}
+
+		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		if (terminalOutputLineLimit !== undefined) {
+			terminalManager.setTerminalOutputLineLimit(Number(terminalOutputLineLimit))
+		}
+
+		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
+		if (defaultTerminalProfile !== undefined && defaultTerminalProfile !== "") {
+			terminalManager.setDefaultTerminalProfile(String(defaultTerminalProfile))
+		}
+
+		Logger.log(
+			`[SdkController] Applied terminal settings: profile=${defaultTerminalProfile ?? "default"}, ` +
+				`timeout=${shellIntegrationTimeout ?? 4000}, reuse=${terminalReuseEnabled ?? true}, ` +
+				`outputLimit=${terminalOutputLineLimit ?? 500}`,
+		)
+	}
+
+	/**
+	 * Get the terminal manager instance (if created).
+	 * Used by updateSettings handlers to apply runtime changes.
+	 */
+	get terminalManager(): ITerminalManager | undefined {
+		return this._terminalManager
 	}
 
 	// ---- Workspace (kept from classic) ----
