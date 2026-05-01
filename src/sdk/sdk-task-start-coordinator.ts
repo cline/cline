@@ -182,14 +182,10 @@ export class SdkTaskStartCoordinator {
 			text: task,
 			partial: false,
 		}
-		this.options.messages.appendAndEmit(
-			[taskMessage],
-			{
-				type: "status",
-				payload: { sessionId, status: "running" },
-			},
-			{ save: false },
-		)
+		this.options.messages.appendAndEmit([taskMessage], {
+			type: "status",
+			payload: { sessionId, status: "running" },
+		})
 	}
 
 	private handleInitError(error: unknown): void {

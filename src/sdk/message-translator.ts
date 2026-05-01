@@ -1372,6 +1372,15 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
 type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
+type SdkMessageWithMetrics = SdkMessage & {
+	metrics?: {
+		inputTokens?: number
+		outputTokens?: number
+		cacheReadTokens?: number
+		cacheWriteTokens?: number
+		cost?: number
+	}
+}
 
 function textContentBlocksToText(content: SdkMessage["content"]): string {
 	if (typeof content === "string") {
@@ -1400,6 +1409,48 @@ function agentEventToMessages(event: AgentEvent, state: MessageTranslatorState):
 		},
 		state,
 	).messages
+}
+
+function appendPersistedMetricsMessage(
+	clineMessages: ClineMessage[],
+	message: SdkMessageWithMetrics,
+	state: MessageTranslatorState,
+): void {
+	if (!message.metrics) {
+		return
+	}
+
+	const usage = normalizeUsageEvent({
+		inputTokens: message.metrics.inputTokens,
+		outputTokens: message.metrics.outputTokens,
+		cacheReadTokens: message.metrics.cacheReadTokens,
+		cacheWriteTokens: message.metrics.cacheWriteTokens,
+		cost: message.metrics.cost,
+	})
+
+	if (
+		usage.tokensIn === 0 &&
+		usage.tokensOut === 0 &&
+		(usage.cacheWrites ?? 0) === 0 &&
+		(usage.cacheReads ?? 0) === 0 &&
+		(usage.totalCost ?? 0) === 0
+	) {
+		return
+	}
+
+	clineMessages.push({
+		ts: state.nextTs(),
+		type: "say",
+		say: "api_req_started",
+		text: JSON.stringify({
+			tokensIn: usage.tokensIn,
+			tokensOut: usage.tokensOut,
+			cacheWrites: usage.cacheWrites,
+			cacheReads: usage.cacheReads,
+			cost: usage.totalCost,
+		} satisfies ClineApiReqInfo),
+		partial: false,
+	})
 }
 
 function finalizePersistedToolUse(
@@ -1440,7 +1491,7 @@ function finalizePersistedToolUse(
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
-export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage[] {
+export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
 	const state = new MessageTranslatorState()
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
@@ -1463,6 +1514,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage
 						...agentEventToMessages({ type: "content_end", contentType: "text", text } as AgentEvent, state),
 					)
 				}
+				appendPersistedMetricsMessage(clineMessages, message, state)
 				continue
 			}
 
@@ -1497,6 +1549,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage
 						break
 				}
 			}
+			appendPersistedMetricsMessage(clineMessages, message, state)
 			continue
 		}
 
