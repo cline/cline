@@ -4,49 +4,47 @@ description: "Complete command reference for Cline CLI including all commands, f
 ---
 
 ```bash
-cline --help           # Show all commands
-cline <command> --help # Show help for a specific command
+clite --help           # Show all commands
+clite <command> --help # Show help for a specific command
 ```
 
 ## Synopsis
 
 ```bash
-cline [options] [command] [prompt]
+clite [options] [command] [prompt]
 ```
 
 ## Help Menu (Source of Truth)
 
 ```text
-Usage: cline [options] [command] [prompt]
+Usage: clite [options] [command] [prompt]
 
 Cline CLI - AI coding assistant in your terminal
 
 Arguments:
-  prompt                       Task prompt (starts the task immediately in act mode)
+  prompt                       Your prompt. Default to start in act mode with auto-approve enabled.
 
 Options:
   -V, --version                Output the version number
-  -a, --act                    Run in act mode
   -p, --plan                   Run in plan mode
-  --autoapprove [value]        Set tool auto-approval for all tools (`true` or `false`)
-  -t, --timeout <seconds>      Optional timeout in seconds (applies only when provided)
-  -m, --model <model>          Model to use for the task
+  --json                       Output messages as JSON instead of styled text
+  --auto-approve <boolean>     Set tool auto-approval for all tools (default: true)
+  -t, --timeout <seconds>      Optional timeout in seconds (default: 0 for no timeout)
+  -m, --model <model-id>       Model to use for the session with the selected provider
   -v, --verbose                Show verbose output
   -c, --cwd <path>             Working directory
-  --config <dir>               Configuration directory
-  --data-dir <dir>             Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)
-  --thinking [level]           Enable extended thinking. Optional level: low|medium|high|xhigh (default: medium)
+  --config <path>              Configuration directory (default: ~/.cline/data/settings)
+  --data-dir <path>            Use isolated local state at this directory path (default: ~/.cline)
+  --thinking <level>           Set reasoning effort level between none|low|medium|high|xhigh (default: medium)
   --retries <count>            Maximum consecutive mistakes (retries) before halting
-  --json                       Output messages as JSON instead of styled text
-  --hooks-dir <dir>            Path to additional hooks directory for runtime hook injection
-  --acp                        Run in ACP (Agent Client Protocol) mode for editor integration
-  -i, --tui                    Start interactive TUI chat mode
-  --id <id>                    Resume an existing task by ID
+  --hooks-dir <path>           Directory path to additional hooks for runtime hook injection (default: ~/.cline/hooks)
+  --acp                        Run in Agent Client Protocol (ACP) mode for editor integration
+  -i, --tui                    Open the terminal user interface (TUI) for interactive sessions
+  --id <session-id>            Resume an existing session by ID
   -k, --key <api-key>          API key override for this run
   -P, --provider <id>          Provider id (default: cline)
-  -s, --system <prompt>        Override the system prompt
-  --team-name <name>           Override the runtime team state name
-  -z, --zen                    Run the task in the background hub and exit immediately (menubar app notifies on completion)
+  -s, --system <system-prompt> Override the default system prompt
+  -z, --zen                    Start a session that runs in the background hub
   -h, --help                   display help for command
 
 Commands:
@@ -70,40 +68,38 @@ Commands:
 | Option | Description |
 |--------|-------------|
 | `-V, --version` | Output the version number |
-| `-a, --act` | Run in act mode |
 | `-p, --plan` | Run in plan mode |
-| `--autoapprove [value]` | Set tool auto-approval for all tools (`true` or `false`) |
-| `-t, --timeout <seconds>` | Optional timeout in seconds (applies only when provided) |
-| `-m, --model <model>` | Model to use for the task |
+| `--json` | Output messages as JSON instead of styled text |
+| `--auto-approve <boolean>` | Set tool auto-approval for all tools (default: `true`) |
+| `-t, --timeout <seconds>` | Optional timeout in seconds (default: `0` for no timeout) |
+| `-m, --model <model-id>` | Model to use for the session with the selected provider |
 | `-v, --verbose` | Show verbose output |
 | `-c, --cwd <path>` | Working directory |
-| `--config <dir>` | Configuration directory |
-| `--data-dir <dir>` | Use isolated local state at `<dir>` instead of `~/.cline` (enables sandbox mode) |
-| `--thinking [level]` | Enable extended thinking. Optional level: `low\|medium\|high\|xhigh` (default: `medium`) |
+| `--config <path>` | Configuration directory (default: `~/.cline/data/settings`) |
+| `--data-dir <path>` | Use isolated local state at this directory path (default: `~/.cline`) |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh` (default `medium`) |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting |
-| `--json` | Output messages as JSON instead of styled text |
-| `--hooks-dir <dir>` | Path to additional hooks directory for runtime hook injection |
-| `--acp` | Run in ACP (Agent Client Protocol) mode for editor integration |
-| `-i, --tui` | Start interactive TUI chat mode |
-| `--id <id>` | Resume an existing task by ID |
+| `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |
+| `--acp` | Run in Agent Client Protocol (ACP) mode for editor integration |
+| `-i, --tui` | Open the terminal user interface (TUI) for interactive sessions |
+| `--id <session-id>` | Resume an existing session by ID |
 | `-k, --key <api-key>` | API key override for this run |
 | `-P, --provider <id>` | Provider id (default: `cline`) |
-| `-s, --system <prompt>` | Override the system prompt |
-| `--team-name <name>` | Override the runtime team state name |
-| `-z, --zen` | Run the task in the background hub and exit immediately |
+| `-s, --system <system-prompt>` | Override the default system prompt |
+| `-z, --zen` | Start a session that runs in the background hub |
 | `-h, --help` | Display help for command |
 
 ## Commands
 
-### `cline` (default)
+### `clite` (default)
 
 Start a task or enter interactive mode.
 
 ```bash
-cline
-cline "your prompt here"
-cline "Run tests and fix failures"
-echo "prompt" | cline
+clite
+clite "your prompt here"
+clite "Run tests and fix failures"
+echo "prompt" | clite
 ```
 
 ### `auth [options] [provider]`
@@ -111,7 +107,7 @@ echo "prompt" | cline
 Configure authentication with an AI provider.
 
 ```bash
-cline auth
+clite auth
 ```
 
 ### `config [options]`
@@ -119,7 +115,7 @@ cline auth
 Show current configuration.
 
 ```bash
-cline config
+clite config
 ```
 
 ### `connect [options] [adapter]`
@@ -127,8 +123,8 @@ cline config
 Connect to messaging platforms. See [Connectors](/cli/connectors).
 
 ```bash
-cline connect
-cline connect [adapter]
+clite connect
+clite connect [adapter]
 ```
 
 ### `mcp`
@@ -136,7 +132,7 @@ cline connect [adapter]
 Manage MCP servers. See [MCP](/mcp/mcp-overview).
 
 ```bash
-cline mcp
+clite mcp
 ```
 
 ### `dev`
@@ -144,7 +140,7 @@ cline mcp
 Developer tools and utilities.
 
 ```bash
-cline dev
+clite dev
 ```
 
 ### `doctor`
@@ -152,7 +148,7 @@ cline dev
 Diagnose and fix configuration issues.
 
 ```bash
-cline doctor
+clite doctor
 ```
 
 ### `history|h [options]`
@@ -160,8 +156,8 @@ cline doctor
 List session history or manage saved sessions.
 
 ```bash
-cline history
-cline h
+clite history
+clite h
 ```
 
 ### `hook`
@@ -169,7 +165,7 @@ cline h
 Handle a hook payload from stdin.
 
 ```bash
-cat payload.json | cline hook
+cat payload.json | clite hook
 ```
 
 ### `schedule`
@@ -177,7 +173,7 @@ cat payload.json | cline hook
 Manage scheduled agents. See [Scheduling](/cli/scheduling).
 
 ```bash
-cline schedule
+clite schedule
 ```
 
 ### `hub`
@@ -185,7 +181,7 @@ cline schedule
 Manage the local hub daemon.
 
 ```bash
-cline hub
+clite hub
 ```
 
 ### `update [options]`
@@ -193,7 +189,7 @@ cline hub
 Check for updates and install if available.
 
 ```bash
-cline update
+clite update
 ```
 
 ### `version`
@@ -201,8 +197,8 @@ cline update
 Show Cline CLI version number.
 
 ```bash
-cline version
-cline -V
+clite version
+clite -V
 ```
 
 ### `kanban`
@@ -210,7 +206,7 @@ cline -V
 Launch the kanban app and exit.
 
 ```bash
-cline kanban
+clite kanban
 ```
 
 ## Environment Variables

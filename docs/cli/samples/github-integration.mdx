@@ -7,7 +7,7 @@ Automate GitHub issue analysis with AI. Mention `@cline` in any issue comment to
 
 
 <Note>
-**New to Cline CLI?** This sample assumes you understand Cline CLI basics and have completed the [Installation Guide](https://docs.cline.bot/cli/installation). If you're new to Cline CLI, we recommend starting with the [GitHub RCA sample](./github-issue-rca) first, as it's simpler and will help you understand the fundamentals before setting up GitHub Actions.
+**New to Cline CLI?** This sample assumes you understand Cline CLI basics and have completed the [Installation Guide](https://docs.cline.bot/getting-started/installing-cline). If you're new to Cline CLI, we recommend starting with the [GitHub RCA sample](./github-issue-rca) first, as it's simpler and will help you understand the fundamentals before setting up GitHub Actions.
 </Note>
 
 ## The Workflow
@@ -32,7 +32,7 @@ Let's configure your repository.
 
 Before you begin, you'll need:
 
-- **Cline CLI knowledge** - Completed the [Installation Guide](https://docs.cline.bot/cli/installation) and understand basic usage
+- **Cline CLI knowledge** - Completed the [Installation Guide](https://docs.cline.bot/getting-started/installing-cline) and understand basic usage
 - **GitHub repository** - With admin access to configure Actions and secrets
 - **GitHub Actions familiarity** - Basic understanding of workflows and CI/CD
 - **API provider account** - OpenRouter, Anthropic, or similar with API key
@@ -95,7 +95,7 @@ jobs:
 
       - name: Install Cline CLI
         if: steps.detect.outputs.hit == 'true'
-        run: npm install -g cline
+        run: npm install -g @clinebot/cli
 
       - name: Configure Cline Authentication
         if: steps.detect.outputs.hit == 'true'
@@ -103,7 +103,7 @@ jobs:
           CLINE_DIR: ${{ runner.temp }}/cline
         run: |
           # Configure API key using the auth command
-          cline auth --provider openrouter --apikey "${{ secrets.OPENROUTER_API_KEY }}"
+          clite auth --provider openrouter --apikey "${{ secrets.OPENROUTER_API_KEY }}"
 
       - name: Download analyze script
         if: steps.detect.outputs.hit == 'true'
@@ -120,7 +120,6 @@ jobs:
         env:
           ISSUE_URL: ${{ steps.detect.outputs.issue_url }}
           COMMENT: ${{ steps.detect.outputs.comment_body }}
-          CLINE_ADDRESS: ${{ env.CLINE_ADDRESS }}
         run: |
           set -euo pipefail
           
@@ -231,9 +230,8 @@ nano git-scripts/analyze-issue.sh  # or use vim, code, etc.
 # Analyze a GitHub issue using Cline CLI
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Usage: $0 <github-issue-url> [prompt]"
     echo "Example: $0 https://github.com/owner/repo/issues/123"
-    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?'"
     echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?'"
     exit 1
 fi
@@ -243,9 +241,8 @@ ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
 
 # Ask Cline for its analysis, showing only the summary
-cline -y "$PROMPT: $ISSUE_URL" --mode act -F json | \
-    sed -n '/^{/,$p' | \
-    jq -r 'select(.say == "completion_result") | .text' | \
+clite --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
+    jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
     sed 's/\\n/\n/g'
 ```
 
@@ -283,7 +280,7 @@ GitHub Actions will:
 1. Detect the `@cline` mention
 2. Start a Cline CLI instance
 3. Download the analysis script
-4. Analyze the issue using act mode with yolo (fully autonomous)
+4. Analyze the issue using Act mode with auto-approval enabled
 5. Post Cline's analysis as a new comment
 
 **Note**: The workflow only triggers on issue comments, not pull request
@@ -296,7 +293,7 @@ The workflow (`cline-responder.yml`):
 1. **Triggers** on issue comments (created or edited)
 2. **Detects** `@cline` mentions (case-insensitive)
 3. **Installs** Cline CLI globally using npm
-4. **Configures** authentication using `cline config set open-router-api-key=...`
+4. **Configures** authentication using `clite auth --provider openrouter --apikey ...`
 6. **Downloads** the reusable `analyze-issue.sh` script from the
    `github-issue-rca` sample
 7. **Runs** analysis in Cline CLI
