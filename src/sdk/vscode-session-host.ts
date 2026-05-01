@@ -27,6 +27,7 @@ import {
 	type ToolExecutors,
 } from "@clinebot/core"
 import { type ToolApprovalRequest, type ToolApprovalResult, type ToolContext, type ToolPolicy } from "@clinebot/shared"
+import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -47,6 +48,12 @@ export interface VscodeSessionHostOptions {
 	askQuestion?: (question: string, options: string[], context: ToolContext) => Promise<string>
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
+	/**
+	 * Lazy factory for the VscodeTerminalManager.
+	 * When provided, the SDK's built-in `run_commands` is suppressed and replaced
+	 * with a custom tool that supports foreground/background terminal execution.
+	 */
+	getTerminalManager?: () => ITerminalManager
 }
 
 export class VscodeSessionHost implements SessionHost {
@@ -66,10 +73,19 @@ export class VscodeSessionHost implements SessionHost {
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
-		// Build defaultToolExecutors from options — only include keys that are provided
+		// Build defaultToolExecutors from options — only include keys that are provided.
+		// When a terminal manager is available, suppress the SDK's built-in run_commands
+		// tool by setting bash to undefined. Our custom run_commands (provided via
+		// extraTools) replaces it with foreground/background terminal support.
 		const defaultToolExecutors: Partial<ToolExecutors> = {}
 		if (options.askQuestion) {
 			defaultToolExecutors.askQuestion = options.askQuestion
+		}
+		if (options.getTerminalManager) {
+			// Setting bash to undefined suppresses the SDK's createBashTool():
+			// createDefaultTools() checks `enableBash && executors.bash` — falsy
+			// bash means no built-in run_commands tool is created.
+			;(defaultToolExecutors as Record<string, unknown>).bash = undefined
 		}
 
 		const inner = await ClineCore.create({
@@ -82,7 +98,10 @@ export class VscodeSessionHost implements SessionHost {
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
-					const extraTools = await createVscodeExtraTools(options.mcpHub, { cwd: input.config.cwd })
+					const extraTools = await createVscodeExtraTools(options.mcpHub, {
+						cwd: input.config.cwd,
+						getTerminalManager: options.getTerminalManager,
+					})
 					return {
 						...input,
 						source: input.source ?? "vscode",
@@ -96,6 +115,9 @@ export class VscodeSessionHost implements SessionHost {
 		})
 
 		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
+		if (options.getTerminalManager) {
+			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
+		}
 		return new VscodeSessionHost(inner)
 	}
 

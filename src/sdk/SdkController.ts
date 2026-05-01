@@ -28,6 +28,8 @@ import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import type { ITerminalManager } from "@/integrations/terminal/types"
 import { ExtensionRegistryInfo } from "@/registry"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
@@ -140,6 +142,10 @@ export class Controller {
 	ocaAuthService: AuthService
 	readonly stateManager: StateManager
 
+	// Lazy VscodeTerminalManager for foreground terminal execution.
+	// Created on first use; shared across all sessions in this Controller's lifetime.
+	private _terminalManager?: ITerminalManager
+
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
@@ -202,6 +208,15 @@ export class Controller {
 					this.sessionEvents.handleSessionEvent(event).catch((err) => {
 						Logger.error("[SdkController] Failed to handle session event:", err)
 					})
+				},
+				// Lazy terminal manager for foreground terminal execution.
+				// The VscodeTerminalManager is created once and shared across sessions.
+				getTerminalManager: () => {
+					if (!this._terminalManager) {
+						this._terminalManager = new VscodeTerminalManager()
+						Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
+					}
+					return this._terminalManager
 				},
 			}),
 			onSendComplete: async () => {

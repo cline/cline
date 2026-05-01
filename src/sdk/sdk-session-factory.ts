@@ -1,5 +1,6 @@
 import type { CoreSessionEvent, SessionHost } from "@clinebot/core"
 import type { StateManager } from "@/core/storage/StateManager"
+import type { ITerminalManager } from "@/integrations/terminal/types"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -13,6 +14,8 @@ export interface SdkSessionFactoryOptions {
 	requestToolApproval: RequestToolApprovalHandler
 	askQuestion: AskQuestionHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
+	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
+	getTerminalManager?: () => ITerminalManager
 }
 
 export class SdkSessionFactory {
@@ -31,6 +34,7 @@ export class SdkSessionFactory {
 			requestToolApproval: this.options.requestToolApproval,
 			askQuestion: this.options.askQuestion,
 			toolPolicies,
+			getTerminalManager: this.options.getTerminalManager,
 		})
 		const unsubscribe = sessionManager.subscribe(this.options.onSessionEvent)
 		const startResult = await sessionManager.start(startInput)
