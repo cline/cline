@@ -1616,6 +1616,20 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): C
 		}
 	}
 
+	// Always emit ask:"completion_result"
+	// as the LAST message so it comes after the usage event's
+	// say:"api_req_started". This is critical: the webview uses
+	// the last raw message to determine UI state. If the usage
+	// event is last, the webview shows "Thinking..." instead of
+	// the completion UI
+	clineMessages.push({
+		ts: state.nextTs(),
+		type: "ask",
+		ask: "completion_result",
+		text: "",
+		partial: false,
+	})
+
 	flushUnmatchedToolUses()
 	return clineMessages
 }
