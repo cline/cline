@@ -155,6 +155,20 @@ describe("SdkTaskHistory", () => {
 		})
 	})
 
+	it("hides subagent sessions from task history", async () => {
+		const rootTask = makeSessionRecord("root")
+		const subagent = makeSessionRecord("root__agent", {
+			source: "subagent",
+			isSubagent: true,
+			prompt: "Inspect the SDK adapter",
+		})
+		const { history } = makeHistory([rootTask, subagent])
+
+		const result = await history.listHistory()
+
+		expect(result.map((item) => item.sessionId)).toEqual(["root"])
+	})
+
 	it("finds a task from SDK history", async () => {
 		const record = makeSessionRecord("task-1")
 		const { history } = makeHistory([record])
@@ -277,8 +291,10 @@ function makeHistory(records: SessionHistoryRecord[]) {
 		return true
 	})
 	const listHistory = vi.fn(async () => currentRecords)
+	const readMessages = vi.fn(async () => [])
 	const host = {
 		listHistory,
+		readMessages,
 		update: updateSession,
 		delete: deleteSession,
 	} as unknown as VscodeSessionHost
