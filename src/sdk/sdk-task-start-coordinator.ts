@@ -53,13 +53,13 @@ export class SdkTaskStartCoordinator {
 	constructor(private readonly options: SdkTaskStartCoordinatorOptions) {}
 
 	async initTask(
-		task?: string,
+		prompt?: string,
 		images?: string[],
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
-		Logger.log(`[SdkController] initTask called: "${task?.substring(0, 50)}"`)
+		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
 		try {
 			await this.options.clearTask()
 
@@ -67,7 +67,7 @@ export class SdkTaskStartCoordinator {
 			const mode = this.getCurrentMode()
 			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
 			const config = await this.options.sessionConfigBuilder.build({
-				prompt: task,
+				prompt,
 				images,
 				files,
 				historyItem,
@@ -82,12 +82,12 @@ export class SdkTaskStartCoordinator {
 
 			if (config.providerId === "cline" && !config.apiKey) {
 				Logger.warn("[SdkController] Cline provider selected but no auth token — emitting auth error")
-				this.options.emitClineAuthError(task)
+				this.options.emitClineAuthError(prompt)
 				return undefined
 			}
 
 			const startInput = this.options.buildStartSessionInput(config, {
-				prompt: task,
+				prompt: prompt,
 				images,
 				files,
 				historyItem,
@@ -96,24 +96,24 @@ export class SdkTaskStartCoordinator {
 				mode,
 			})
 
-			const { startResult, sessionManager } = await this.options.sessions.startNewSession(startInput)
+			const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
 			this.createAndSetTask(startResult.sessionId)
 
 			const newHistoryItem = this.options.createHistoryItemFromSession(
 				startResult.sessionId,
-				task ?? "",
+				prompt ?? "",
 				config.modelId,
 				cwd,
 			)
 			await this.options.taskHistory.updateTaskHistory(newHistoryItem)
 
-			this.emitInitialTaskMessage(startResult.sessionId, task ?? "")
+			this.emitInitialTaskMessage(startResult.sessionId, prompt ?? "")
 			await this.options.postStateToWebview()
 
-			if (task?.trim()) {
+			if (prompt?.trim()) {
 				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(task)
-				this.options.sessions.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedTask, images, files)
+				const resolvedTask = await this.options.resolveContextMentions(prompt)
+				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedTask, images, files)
 			}
 
 			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
@@ -160,8 +160,8 @@ export class SdkTaskStartCoordinator {
 	}
 
 	private getCurrentMode(): Mode {
-		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")
-		return modeValue === "plan" || modeValue === "act" ? modeValue : "act"
+		const m = this.options.stateManager.getGlobalSettingsKey("mode")
+		return m === "plan" ? m : "act"
 	}
 
 	private createAndSetTask(sessionId: string): void {
@@ -182,14 +182,10 @@ export class SdkTaskStartCoordinator {
 			text: task,
 			partial: false,
 		}
-		this.options.messages.appendAndEmit(
-			[taskMessage],
-			{
-				type: "status",
-				payload: { sessionId, status: "running" },
-			},
-			{ save: false },
-		)
+		this.options.messages.appendAndEmit([taskMessage], {
+			type: "status",
+			payload: { sessionId, status: "running" },
+		})
 	}
 
 	private handleInitError(error: unknown): void {

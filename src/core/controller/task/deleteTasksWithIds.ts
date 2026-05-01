@@ -1,10 +1,7 @@
 import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
-import fs from "fs/promises"
-import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { fileExistsAtPath } from "../../../utils/fs"
 import { Controller } from ".."
 
 /**
@@ -56,33 +53,7 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 
 	// Remove task from state FIRST — this updates the in-memory cache
 	// immediately so the next postStateToWebview() sends the updated list.
-	const updatedTaskHistory = await controller.deleteTaskFromState(id)
-
-	// Try to clean up task files on disk (best-effort — don't let file
-	// errors prevent the UI from updating).
-	try {
-		const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
-		await fs.rm(taskDirPath, { recursive: true, force: true })
-	} catch (error) {
-		Logger.debug(`Error cleaning up task files for ${id}:`, error)
-	}
-
-	// If no tasks remain, clean up the top-level directories
-	if (updatedTaskHistory.length === 0) {
-		try {
-			const tasksDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
-			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
-
-			if (await fileExistsAtPath(tasksDirPath)) {
-				await fs.rm(tasksDirPath, { recursive: true, force: true })
-			}
-			if (await fileExistsAtPath(checkpointsDirPath)) {
-				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
-			}
-		} catch (error) {
-			Logger.debug("Error cleaning up empty task/checkpoint directories:", error)
-		}
-	}
+	await controller.deleteTaskFromState(id)
 
 	// Always update webview state so the history list and recents refresh
 	await controller.postStateToWebview()

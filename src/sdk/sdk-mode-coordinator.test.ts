@@ -66,7 +66,7 @@ describe("SdkModeCoordinator", () => {
 
 		await coordinator.rebuildSessionForMode("plan")
 
-		expect(options.loadInitialMessages).toHaveBeenCalledWith(activeSession.sessionManager, "old-session")
+		expect(options.loadInitialMessages).toHaveBeenCalledWith(activeSession.sdkHost, "old-session")
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "plan" })
 		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
 			cwd: "/workspace",
@@ -110,7 +110,7 @@ describe("SdkModeCoordinator", () => {
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Mode changed")
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
-		expect(activeSession.sessionManager.abort).toHaveBeenCalledWith("old-session")
+		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
 		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }], {
@@ -139,7 +139,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getActiveSession: vi.fn(() => activeSession),
 			replaceActiveSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "new-session" },
-				sessionManager: { send: vi.fn() },
+				sdkHost: { send: vi.fn() },
 			}),
 			fireAndForgetSend: vi.fn(),
 			setRunning: vi.fn(),
@@ -212,7 +212,7 @@ interface MakeCoordinatorInput {
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
 	return {
 		sessionId: "old-session",
-		sessionManager: {
+		sdkHost: {
 			abort: vi.fn().mockResolvedValue(undefined),
 			send: vi.fn(),
 			stop: vi.fn().mockResolvedValue(undefined),

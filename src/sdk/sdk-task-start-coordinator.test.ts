@@ -122,7 +122,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		dispose: vi.fn().mockResolvedValue(undefined),
 	}
-	const sessionManager = {
+	const sdkHost = {
 		send: vi.fn(),
 	}
 	const options = {
@@ -132,7 +132,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessions: {
 			startNewSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "session-123" },
-				sessionManager,
+				sdkHost,
 			}),
 			fireAndForgetSend: vi.fn(),
 		},

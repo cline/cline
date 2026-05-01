@@ -3,10 +3,6 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 
-vi.mock("./message-translator", () => ({
-	sdkToolToClineSayTool: vi.fn((toolName: string, input: unknown) => ({ tool: toolName, input })),
-}))
-
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
 }))
@@ -43,6 +39,7 @@ describe("SdkInteractionCoordinator", () => {
 		expect(clineMessages).toHaveLength(1)
 		expect(clineMessages[0].type).toBe("ask")
 		expect(clineMessages[0].ask).toBe("tool")
+		expect(JSON.parse(clineMessages[0].text || "{}")).toMatchObject({ tool: "readFile", path: "README.md" })
 		expect(listener).toHaveBeenCalledOnce()
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
@@ -68,8 +65,92 @@ describe("SdkInteractionCoordinator", () => {
 		})
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
+		const clineMessages = task.messageStateHandler.getClineMessages()
+		expect(clineMessages[0]).toMatchObject({ type: "ask", ask: "command", text: "npm test" })
+
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
+	})
+
+	it("auto-approves without emitting UI when the live settings allow the tool", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			shouldAutoApproveTool: () => true,
+		})
+
+		await expect(
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId: "tool-call",
+				toolName: "run_commands",
+				input: { command: "npm test" },
+				policy: { autoApprove: false },
+			}),
+		).resolves.toEqual({ approved: true })
+
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
+		expect(postStateToWebview).not.toHaveBeenCalled()
+	})
+
+	it("auto-approves without emitting UI when the SDK policy already allows the tool", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			shouldAutoApproveTool: () => false,
+		})
+
+		await expect(
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId: "tool-call",
+				toolName: "run_commands",
+				input: { command: "npm test" },
+				policy: { autoApprove: true },
+			}),
+		).resolves.toEqual({ approved: true })
+
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
+		expect(postStateToWebview).not.toHaveBeenCalled()
+	})
+
+	it("emits an MCP approval ask with server, tool, and arguments", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		void coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "github__search-repos",
+			input: { query: "cline" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		const [message] = task.messageStateHandler.getClineMessages()
+		expect(message).toMatchObject({ type: "ask", ask: "use_mcp_server", partial: false })
+		expect(JSON.parse(message.text || "{}")).toEqual({
+			type: "use_mcp_tool",
+			serverName: "github",
+			toolName: "search-repos",
+			arguments: '{\n  "query": "cline"\n}',
+		})
 	})
 
 	it("emits ask_question and resolves it with rendered user feedback", async () => {

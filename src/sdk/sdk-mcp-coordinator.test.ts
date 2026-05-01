@@ -63,7 +63,7 @@ describe("SdkMcpCoordinator", () => {
 		await coordinator.restartSessionForMcpTools()
 
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "plan" })
-		expect(options.loadInitialMessages).toHaveBeenCalledWith(activeSession.sessionManager, "old-session")
+		expect(options.loadInitialMessages).toHaveBeenCalledWith(activeSession.sdkHost, "old-session")
 		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
 			cwd: "/workspace",
 			mode: "plan",
@@ -123,7 +123,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getActiveSession: vi.fn(() => activeSession),
 			replaceActiveSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "new-session" },
-				sessionManager: { send: vi.fn() },
+				sdkHost: { send: vi.fn() },
 			}),
 		},
 		messages: {
@@ -164,7 +164,7 @@ interface MakeCoordinatorInput {
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
 	return {
 		sessionId: "old-session",
-		sessionManager: {
+		sdkHost: {
 			send: vi.fn(),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),

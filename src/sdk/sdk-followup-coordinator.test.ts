@@ -57,7 +57,7 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			activeSession.sessionManager,
+			activeSession.sdkHost,
 			"session-123",
 			"resolved: hello @file",
 			["image.png"],
@@ -74,7 +74,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			activeSession.sessionManager,
+			activeSession.sdkHost,
 			"session-123",
 			"resolved: queued",
 			undefined,
@@ -160,7 +160,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			fireAndForgetSend: vi.fn(),
 			startNewSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "resumed-session" },
-				sessionManager: { send: vi.fn() },
+				sdkHost: { send: vi.fn() },
 			}),
 		},
 		messages: {
@@ -240,7 +240,7 @@ interface MakeCoordinatorInput {
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
 	return {
 		sessionId: "session-123",
-		sessionManager: {
+		sdkHost: {
 			send: vi.fn(),
 		},
 		isRunning: input.isRunning ?? false,

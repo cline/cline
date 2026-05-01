@@ -18,7 +18,7 @@ export interface SdkMcpCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (sessionManager: SessionHost, sessionId: string) => Promise<unknown[] | undefined>
+	loadInitialMessages: (sdkHost: SessionHost, sessionId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
 }
@@ -71,7 +71,7 @@ export class SdkMcpCoordinator {
 			return
 		}
 
-		const { sessionManager: oldManager, sessionId: oldSessionId } = activeSession
+		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for MCP tool changes`)
 

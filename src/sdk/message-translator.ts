@@ -112,6 +112,8 @@ export class MessageTranslatorState {
 	private streamingTextTs: number | undefined
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
+	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
+	private streamingReasoningText = ""
 	/** Current streaming tool message timestamp */
 	private streamingToolTs: number | undefined
 	/** Stored tool input from content_start — used at content_end which doesn't carry input */
@@ -149,10 +151,17 @@ export class MessageTranslatorState {
 		return this.streamingReasoningTs
 	}
 
+	/** Append a reasoning delta and return the accumulated reasoning text */
+	appendStreamingReasoning(reasoningDelta: string): string {
+		this.streamingReasoningText += reasoningDelta
+		return this.streamingReasoningText
+	}
+
 	/** Clear streaming reasoning (content ended) */
 	clearStreamingReasoning(): number {
 		const ts = this.streamingReasoningTs ?? this.nextTs()
 		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
 		return ts
 	}
 
@@ -242,6 +251,11 @@ export class MessageTranslatorState {
 	/** Whether there are any active spawn_agent calls */
 	hasSpawnAgents(): boolean {
 		return this.spawnAgentEntries.size > 0
+	}
+
+	/** Whether any registered spawn_agent call has not finished yet. */
+	hasRunningSpawnAgents(): boolean {
+		return this.getSpawnAgentItems().some((entry) => entry.status === "running" || entry.status === "pending")
 	}
 
 	/** Get all spawn_agent entries as an ordered array */
@@ -668,6 +682,67 @@ function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, 
 	} satisfies ClineAskUseMcpServer)
 }
 
+function extractCommandText(input: unknown): string {
+	if (Array.isArray(input)) {
+		return (input as string[]).join(" && ")
+	}
+	if (typeof input === "string") {
+		return input
+	}
+	const parsedInput = parseToolInput(input)
+	const commands = getArrayField(parsedInput, "commands")
+	return commands?.join(" && ") ?? getStringField(parsedInput, "commands") ?? getStringField(parsedInput, "command") ?? ""
+}
+
+/**
+ * Build the classic Cline approval ask message for an SDK tool approval request.
+ * This keeps approval prompts aligned with the SDK event translator so the
+ * webview can render specialized rows (MCP, commands, subagents) instead of a
+ * generic tool approval with missing context.
+ */
+export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number): ClineMessage {
+	const mcpInfo = parseMcpToolName(toolName)
+	if (mcpInfo) {
+		return {
+			ts,
+			type: "ask",
+			ask: "use_mcp_server",
+			text: buildMcpToolPayload(mcpInfo, input),
+			partial: false,
+		}
+	}
+
+	if (toolName === "run_commands" || toolName === "execute_command") {
+		return {
+			ts,
+			type: "ask",
+			ask: "command",
+			text: extractCommandText(input),
+			partial: false,
+		}
+	}
+
+	if (toolName === "spawn_agent") {
+		const parsedInput = parseToolInput(input)
+		const taskPrompt = getStringField(parsedInput, "task") ?? ""
+		return {
+			ts,
+			type: "ask",
+			ask: "use_subagents",
+			text: JSON.stringify({ prompts: [taskPrompt] } satisfies ClineAskUseSubagents),
+			partial: false,
+		}
+	}
+
+	return {
+		ts,
+		type: "ask",
+		ask: "tool",
+		text: JSON.stringify(sdkToolToClineSayTool(toolName, input)),
+		partial: false,
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Agent event translation
 // ---------------------------------------------------------------------------
@@ -699,13 +774,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					break
 				}
 				case "reasoning": {
-					// Same pattern as text — use accumulated reasoning for smooth streaming
+					// SDK reasoning content_start events are deltas. The webview renders
+					// reasoning from `text`, so keep `text` and `reasoning` populated with
+					// the accumulated content for smooth in-place streaming.
 					const ts = state.getStreamingReasoningTs()
-					const reasoning = event.reasoning ?? ""
+					const reasoning = state.appendStreamingReasoning(event.reasoning ?? "")
 					messages.push({
 						ts,
 						type: "say",
 						say: "reasoning",
+						text: reasoning,
 						reasoning,
 						partial: true,
 					})
@@ -741,27 +819,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// command tools use say="command" (not say="tool")
 					// because the webview renders commands differently
 					if (toolName === "run_commands" || toolName === "execute_command") {
-						// Handle multiple input formats from SDK run_commands:
-						//   1. { commands: string[] }  — standard wrapped object
-						//   2. string[]                — bare array (parseToolInput returns undefined)
-						//   3. { command: string }     — single command as object (execute_command compat)
-						//   4. string                  — bare string
-						let commandText = ""
-						if (Array.isArray(input)) {
-							// Case 2: bare array of command strings
-							commandText = (input as string[]).join(" && ")
-						} else if (typeof input === "string") {
-							// Case 4: bare string command
-							commandText = input
-						} else {
-							const parsedInput = parseToolInput(input)
-							const commands = getArrayField(parsedInput, "commands")
-							commandText =
-								commands?.join(" && ") ??
-								getStringField(parsedInput, "commands") ??
-								getStringField(parsedInput, "command") ??
-								""
-						}
+						const commandText = extractCommandText(input)
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -885,11 +943,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "reasoning": {
 					const ts = state.clearStreamingReasoning()
+					const reasoning = event.reasoning ?? ""
 					messages.push({
 						ts,
 						type: "say",
 						say: "reasoning",
-						reasoning: event.reasoning ?? "",
+						text: reasoning,
+						reasoning,
 						partial: false,
 					})
 					break
@@ -1001,25 +1061,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// by combineCommandSequences in the chat pipeline).
 					if (toolName === "run_commands" || toolName === "execute_command") {
 						const storedInput = state.getStreamingToolInput()
-						// Handle multiple input formats (same as content_start):
-						//   1. { commands: string[] }  — standard wrapped object
-						//   2. string[]                — bare array (parseToolInput returns undefined)
-						//   3. { command: string }     — single command as object (execute_command compat)
-						//   4. string                  — bare string
-						let commandText = ""
-						if (Array.isArray(storedInput)) {
-							commandText = (storedInput as string[]).join(" && ")
-						} else if (typeof storedInput === "string") {
-							commandText = storedInput
-						} else {
-							const parsedInput = parseToolInput(storedInput)
-							const commands = getArrayField(parsedInput, "commands")
-							commandText =
-								commands?.join(" && ") ??
-								getStringField(parsedInput, "commands") ??
-								getStringField(parsedInput, "command") ??
-								""
-						}
+						const commandText = extractCommandText(storedInput)
 						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
 						const ts = state.clearStreamingTool()
 						messages.push({
@@ -1268,15 +1310,22 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "agent_event": {
-			// Sub-agent events (parentAgentId is set) should NOT produce
-			// ClineMessages in the main chat. The sub-agent's work is
-			// represented by the parent's spawn_agent tool events
-			// (content_start/update/end) which we translate into the rich
-			// SubagentStatusRow UI. Without this filter, every sub-agent
-			// tool call, text output, iteration, and usage event would
-			// flood the main chat.
+			// Sub-agent events should NOT produce ClineMessages in the main chat.
+			// The sub-agent's work is represented by the parent's spawn_agent tool
+			// events (content_start/update/end), which we translate into the rich
+			// SubagentStatusRow UI. Without this filter, every sub-agent tool call,
+			// text output, iteration, and usage event floods the main chat.
 			const agentEvent = event.payload.event
-			if (agentEvent.parentAgentId) {
+			const isToolLifecycleEvent =
+				agentEvent.type === "content_start" || agentEvent.type === "content_update" || agentEvent.type === "content_end"
+			const isSpawnAgentToolEvent =
+				isToolLifecycleEvent && agentEvent.contentType === "tool" && agentEvent.toolName === "spawn_agent"
+
+			// Newer SDK events carry parentAgentId on sub-agent events. Older/local
+			// RuntimeEventAdapter output does not, so while spawn_agent calls are in
+			// flight we also suppress every non-spawn_agent event. This preserves the
+			// parent spawn_agent status updates while hiding sub-agent internals.
+			if (agentEvent.parentAgentId || (state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent)) {
 				break
 			}
 
@@ -1318,6 +1367,12 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "hook": {
+			// Sub-agent hook events are internal progress and should not pollute the
+			// main chat. Their aggregate progress is shown by SubagentStatusRow.
+			if (event.payload.parentAgentId) {
+				break
+			}
+
 			// Tool hook events — translate to hook_status messages
 			const payload = event.payload
 			const hookName = payload.hookEventName
@@ -1372,6 +1427,15 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
 type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
+type SdkMessageWithMetrics = SdkMessage & {
+	metrics?: {
+		inputTokens?: number
+		outputTokens?: number
+		cacheReadTokens?: number
+		cacheWriteTokens?: number
+		cost?: number
+	}
+}
 
 function textContentBlocksToText(content: SdkMessage["content"]): string {
 	if (typeof content === "string") {
@@ -1400,6 +1464,48 @@ function agentEventToMessages(event: AgentEvent, state: MessageTranslatorState):
 		},
 		state,
 	).messages
+}
+
+function appendPersistedMetricsMessage(
+	clineMessages: ClineMessage[],
+	message: SdkMessageWithMetrics,
+	state: MessageTranslatorState,
+): void {
+	if (!message.metrics) {
+		return
+	}
+
+	const usage = normalizeUsageEvent({
+		inputTokens: message.metrics.inputTokens,
+		outputTokens: message.metrics.outputTokens,
+		cacheReadTokens: message.metrics.cacheReadTokens,
+		cacheWriteTokens: message.metrics.cacheWriteTokens,
+		cost: message.metrics.cost,
+	})
+
+	if (
+		usage.tokensIn === 0 &&
+		usage.tokensOut === 0 &&
+		(usage.cacheWrites ?? 0) === 0 &&
+		(usage.cacheReads ?? 0) === 0 &&
+		(usage.totalCost ?? 0) === 0
+	) {
+		return
+	}
+
+	clineMessages.push({
+		ts: state.nextTs(),
+		type: "say",
+		say: "api_req_started",
+		text: JSON.stringify({
+			tokensIn: usage.tokensIn,
+			tokensOut: usage.tokensOut,
+			cacheWrites: usage.cacheWrites,
+			cacheReads: usage.cacheReads,
+			cost: usage.totalCost,
+		} satisfies ClineApiReqInfo),
+		partial: false,
+	})
 }
 
 function finalizePersistedToolUse(
@@ -1440,7 +1546,7 @@ function finalizePersistedToolUse(
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
-export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage[] {
+export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
 	const state = new MessageTranslatorState()
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
@@ -1463,6 +1569,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage
 						...agentEventToMessages({ type: "content_end", contentType: "text", text } as AgentEvent, state),
 					)
 				}
+				appendPersistedMetricsMessage(clineMessages, message, state)
 				continue
 			}
 
@@ -1497,6 +1604,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage
 						break
 				}
 			}
+			appendPersistedMetricsMessage(clineMessages, message, state)
 			continue
 		}
 
@@ -1535,10 +1643,25 @@ export function sdkMessagesToClineMessages(messages: SdkMessage[]): ClineMessage
 				continue
 			}
 
+			;``
 			pendingToolUses.delete(block.tool_use_id)
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
 		}
 	}
+
+	// Always emit ask:"completion_result"
+	// as the LAST message so it comes after the usage event's
+	// say:"api_req_started". This is critical: the webview uses
+	// the last raw message to determine UI state. If the usage
+	// event is last, the webview shows "Thinking..." instead of
+	// the completion UI
+	clineMessages.push({
+		ts: state.nextTs(),
+		type: "ask",
+		ask: "completion_result",
+		text: "",
+		partial: false,
+	})
 
 	flushUnmatchedToolUses()
 	return clineMessages
