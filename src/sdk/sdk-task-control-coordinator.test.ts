@@ -28,7 +28,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.cancelTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cancelled")
-		expect(activeSession.sessionManager.abort).toHaveBeenCalledWith("session-123")
+		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("session-123")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ type: "ask", ask: "resume_task" })],
@@ -46,8 +46,8 @@ describe("SdkTaskControlCoordinator", () => {
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
-		expect(activeSession.sessionManager.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sessionManager.dispose).toHaveBeenCalledWith("clearTask")
+		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
+		expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("clearTask")
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
@@ -73,8 +73,8 @@ describe("SdkTaskControlCoordinator", () => {
 
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
-		expect(activeSession.sessionManager.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sessionManager.dispose).toHaveBeenCalledWith("showTaskWithId")
+		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
+		expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("showTaskWithId")
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
@@ -190,7 +190,7 @@ interface MakeCoordinatorInput {
 function makeActiveSession() {
 	return {
 		sessionId: "session-123",
-		sessionManager: {
+		sdkHost: {
 			abort: vi.fn().mockResolvedValue(undefined),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),

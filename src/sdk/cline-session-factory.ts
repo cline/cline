@@ -75,7 +75,7 @@ export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
 	/** The runtime host instance managing this session (VscodeSessionHost) */
-	sessionManager: SessionHost
+	sdkHost: SessionHost
 	/** Unsubscribe function for session events */
 	unsubscribe: () => void
 	/** The start result from the session */

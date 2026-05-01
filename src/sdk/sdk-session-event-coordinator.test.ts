@@ -151,7 +151,7 @@ describe("SdkSessionEventCoordinator", () => {
 			const abortFn = vi.fn().mockResolvedValue(undefined)
 			const activeSession = {
 				sessionId: "session-123",
-				sessionManager: { abort: abortFn },
+				sdkHost: { abort: abortFn },
 				unsubscribe: vi.fn(),
 				startResult: { sessionId: "session-123" },
 				isRunning: true,
@@ -220,7 +220,7 @@ describe("SdkSessionEventCoordinator", () => {
 			const abortFn = vi.fn().mockResolvedValue(undefined)
 			const activeSession = {
 				sessionId: "s1",
-				sessionManager: { abort: abortFn },
+				sdkHost: { abort: abortFn },
 				unsubscribe: vi.fn(),
 				startResult: { sessionId: "s1" },
 				isRunning: true,
@@ -328,7 +328,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 function makeActiveSession(input: Partial<{ isRunning: boolean }> = {}) {
 	return {
 		sessionId: "session-123",
-		sessionManager: {},
+		sdkHost: {},
 		unsubscribe: vi.fn(),
 		startResult: { sessionId: "session-123" },
 		isRunning: input.isRunning ?? true,

@@ -4,11 +4,11 @@ import { isAbortError, SdkSessionLifecycle } from "./sdk-session-lifecycle"
 describe("SdkSessionLifecycle", () => {
 	it("starts a session and stores active session state", async () => {
 		const unsubscribe = vi.fn()
-		const sessionManager = { send: vi.fn() }
+		const sdkHost = { send: vi.fn() }
 		const factory = {
 			createAndStartSession: vi.fn().mockResolvedValue({
 				startResult: { sessionId: "session-123" },
-				sessionManager,
+				sdkHost,
 				unsubscribe,
 			}),
 		}
@@ -29,10 +29,10 @@ describe("SdkSessionLifecycle", () => {
 
 	it("marks the active session idle after a non-queued send completes", async () => {
 		const onSendComplete = vi.fn()
-		const sessionManager = { send: vi.fn().mockResolvedValue(undefined) }
+		const sdkHost = { send: vi.fn().mockResolvedValue(undefined) }
 		const lifecycle = new SdkSessionLifecycle({
 			// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-			factory: makeFactory(sessionManager) as any,
+			factory: makeFactory(sdkHost) as any,
 			onSendComplete,
 			onSendError: vi.fn(),
 		})
@@ -40,7 +40,7 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as any)
 
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		lifecycle.fireAndForgetSend(sessionManager as any, "session-123", "hello")
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
 		await vi.waitFor(() => expect(onSendComplete).toHaveBeenCalledWith("session-123"))
 
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
@@ -48,10 +48,10 @@ describe("SdkSessionLifecycle", () => {
 
 	it("leaves the active session running when a message is queued", async () => {
 		const onSendComplete = vi.fn()
-		const sessionManager = { send: vi.fn().mockResolvedValue(undefined) }
+		const sdkHost = { send: vi.fn().mockResolvedValue(undefined) }
 		const lifecycle = new SdkSessionLifecycle({
 			// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-			factory: makeFactory(sessionManager) as any,
+			factory: makeFactory(sdkHost) as any,
 			onSendComplete,
 			onSendError: vi.fn(),
 		})
@@ -59,8 +59,8 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as any)
 
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		lifecycle.fireAndForgetSend(sessionManager as any, "session-123", "hello", undefined, undefined, "queue")
-		await vi.waitFor(() => expect(sessionManager.send).toHaveBeenCalled())
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello", undefined, undefined, "queue")
+		await vi.waitFor(() => expect(sdkHost.send).toHaveBeenCalled())
 
 		expect(onSendComplete).not.toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
@@ -69,10 +69,10 @@ describe("SdkSessionLifecycle", () => {
 	it("marks the active session idle and reports non-abort send errors", async () => {
 		const onSendError = vi.fn()
 		const error = new Error("boom")
-		const sessionManager = { send: vi.fn().mockRejectedValue(error) }
+		const sdkHost = { send: vi.fn().mockRejectedValue(error) }
 		const lifecycle = new SdkSessionLifecycle({
 			// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-			factory: makeFactory(sessionManager) as any,
+			factory: makeFactory(sdkHost) as any,
 			onSendComplete: vi.fn(),
 			onSendError,
 		})
@@ -80,7 +80,7 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as any)
 
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		lifecycle.fireAndForgetSend(sessionManager as any, "session-123", "hello")
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
 		await vi.waitFor(() => expect(onSendError).toHaveBeenCalledWith(error, "session-123"))
 
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
@@ -99,12 +99,12 @@ describe("SdkSessionLifecycle", () => {
 				.fn()
 				.mockResolvedValueOnce({
 					startResult: { sessionId: "old-session" },
-					sessionManager: oldSessionManager,
+					sdkHost: oldSessionManager,
 					unsubscribe: oldUnsubscribe,
 				})
 				.mockResolvedValueOnce({
 					startResult: { sessionId: "new-session" },
-					sessionManager: newSessionManager,
+					sdkHost: newSessionManager,
 					unsubscribe: vi.fn(),
 				}),
 		}
@@ -144,11 +144,11 @@ describe("SdkSessionLifecycle", () => {
 	})
 })
 
-function makeFactory(sessionManager: { send: ReturnType<typeof vi.fn> }) {
+function makeFactory(sdkHost: { send: ReturnType<typeof vi.fn> }) {
 	return {
 		createAndStartSession: vi.fn().mockResolvedValue({
 			startResult: { sessionId: "session-123" },
-			sessionManager,
+			sessionManager: sdkHost,
 			unsubscribe: vi.fn(),
 		}),
 	}

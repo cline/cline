@@ -155,8 +155,8 @@ export class SdkSessionEventCoordinator {
 				// ask message.
 				const activeSession = this.options.sessions.getActiveSession()
 				if (activeSession) {
-					const { sessionManager, sessionId } = activeSession
-					sessionManager.abort(sessionId).catch((err) => {
+					const { sdkHost, sessionId } = activeSession
+					sdkHost.abort(sessionId).catch((err) => {
 						// AbortError is expected — the session was intentionally stopped
 						if (
 							err instanceof Error &&
