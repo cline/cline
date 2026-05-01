@@ -1,1 +1,9 @@
+if ! command -v gitleaks >/dev/null 2>&1; then
+	echo "gitleaks is required for the pre-commit secret scan."
+	echo "Install it with: brew install gitleaks"
+	echo "Other install options: https://github.com/gitleaks/gitleaks#installing"
+	exit 1
+fi
+
+gitleaks git --pre-commit --redact --staged --verbose || exit 1
 lint-staged
