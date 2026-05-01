@@ -1,10 +1,12 @@
 ---
 title: "Architecture Overview"
 sidebarTitle: "Overview"
-description: "The SDK is a layered stack of packages with strict dependency boundaries and clear responsibilities."
+description: "How SDK packages fit together, what each one exports, and where boundaries are enforced."
 ---
 
-The Cline SDK is organized as a stack of packages. Each layer has a single responsibility and depends only on layers below it. You can use any layer independently -- consume just `@clinebot/agents` for a lightweight agent loop, or use `@clinebot/core` for the full runtime.
+The SDK is organized as a layered package stack. Each package has a clear responsibility and can only depend on lower layers.
+
+If you only need a stateless agent loop, use `@clinebot/agents`. If you need sessions, persistence, built-in tools, scheduling, and hub support, use `@clinebot/core` (or just install `@clinebot/sdk`).
 
 ## Package Stack
 
@@ -41,7 +43,7 @@ The Cline SDK is organized as a stack of packages. Each layer has a single respo
 
 ### @clinebot/shared
 
-The foundation layer. Contains type definitions, interfaces, and utilities that all other packages depend on.
+Foundation package for contracts and shared utilities.
 
 - `Tool` interface and `createTool` helper
 - `AgentEvent` union type
@@ -55,7 +57,7 @@ No higher-layer dependencies. Safe to import anywhere.
 
 ### @clinebot/llms
 
-LLM provider abstraction built on the Vercel AI SDK.
+Provider gateway and model catalog layer.
 
 - `DefaultGateway` for provider registration and model discovery
 - Provider handlers for Anthropic, OpenAI, Google, Bedrock, Mistral, and more
@@ -67,7 +69,7 @@ Depends on: `@clinebot/shared`
 
 ### @clinebot/agents
 
-The core agent execution loop. Stateless by design -- no persistence, no hub, no built-in tools.
+Stateless execution loop.
 
 - `Agent` class with `run()`, `continue()`, `abort()`, `shutdown()`
 - Turn processing (text, reasoning, tool calls)
@@ -80,7 +82,7 @@ Depends on: `@clinebot/shared`, `@clinebot/llms`
 
 ### @clinebot/core
 
-Full orchestration runtime. Wraps the agent loop with everything needed for production.
+Full runtime/orchestration layer.
 
 - `ClineCore` entry point
 - Session lifecycle and persistence (SQLite)
@@ -93,6 +95,68 @@ Full orchestration runtime. Wraps the agent loop with everything needed for prod
 - Team management for multi-agent coordination
 
 Depends on: `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`
+
+## Package Reference
+
+This section replaces the old separate "Packages" page.
+
+### Install each package
+
+```bash
+npm install @clinebot/shared
+npm install @clinebot/llms
+npm install @clinebot/agents
+npm install @clinebot/core
+```
+
+### @clinebot/shared key exports
+
+| Export | Description |
+|--------|-------------|
+| `createTool` | Helper to create a typed `Tool` |
+| `Tool` | Tool interface |
+| `ToolContext` | Context passed to tool execute functions |
+| `ToolPolicy` | Per-tool approval/enablement config |
+| `AgentEvent` | Union type of agent events |
+| `Message` | Conversation message type |
+| `ContentBlock` | Text/tool/thinking content blocks |
+| `HookEngine` | Lifecycle hook engine |
+| `ContributionRegistry` | Extension registration system |
+| `BasicLogger` | Logging interface |
+
+### @clinebot/llms key exports
+
+| Export | Description |
+|--------|-------------|
+| `DefaultGateway` | Main gateway for provider/model management |
+| `GatewayRegistry` | Registry for provider/model lookup |
+| `ModelInfo` | Model metadata (pricing/capabilities/context window) |
+| `ProviderInfo` | Provider metadata and capabilities |
+| Provider handlers | Anthropic, OpenAI, Google, Bedrock, Mistral, etc. |
+
+### @clinebot/agents key exports
+
+| Export | Description |
+|--------|-------------|
+| `Agent` | Main agent class |
+| `AgentConfig` | Constructor configuration type |
+| `AgentResult` | Return type from `run()` and `continue()` |
+| `AgentPlugin` | Plugin interface |
+| `AgentStream` | Async iterable event stream |
+| `streamRun` | Helper for streaming runs |
+| `AgentUsage` | Token usage tracking type |
+
+### @clinebot/core key exports
+
+| Export | Description |
+|--------|-------------|
+| `ClineCore` | Main runtime entry point |
+| `ClineCoreOptions` | Constructor options |
+| `StartSessionInput` | Session creation input |
+| `StartSessionResult` | Session creation result |
+| `CoreSessionConfig` | Session configuration type |
+| `SessionRecord` | Persisted session metadata |
+
 
 ## Design Principles
 
@@ -112,6 +176,3 @@ The [hub](/sdk/architecture/hub-spoke) coordinates sessions, routes events, mana
 
 Rules, skills, hooks, and plugins are discovered from the file system. New instruction sources should materialize as files and use the watcher discovery system, not parallel in-memory paths. This makes configuration version-controllable and inspectable.
 
-### Published vs internal
-
-Only `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`, and `@clinebot/core` are published to npm. Enterprise is an internal package.
