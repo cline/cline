@@ -1,11 +1,22 @@
-import type { SessionHost, StartSessionResult } from "@clinebot/core"
+import type { CoreSessionEvent, SessionHost, StartSessionResult } from "@clinebot/core"
+import { StateManager } from "@/core/storage/StateManager"
+import { ITerminalManager } from "@/integrations/terminal"
+import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
-import type { SdkSessionFactory } from "./sdk-session-factory"
-import type { VscodeSessionHost } from "./vscode-session-host"
+import { buildToolPolicies } from "./sdk-tool-policies"
+import { VscodeSessionHost } from "./vscode-session-host"
+
+export type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
+export type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
 
 export interface SdkSessionLifecycleOptions {
-	factory: SdkSessionFactory
+	mcpHub: McpHub
+	requestToolApproval: RequestToolApprovalHandler
+	askQuestion: AskQuestionHandler
+	onSessionEvent: (event: CoreSessionEvent) => void
+	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
+	getTerminalManager?: () => ITerminalManager
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 }
@@ -33,18 +44,29 @@ export class SdkSessionLifecycle {
 
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
-	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
-		const { startResult, sessionManager, unsubscribe } = await this.options.factory.createAndStartSession(startInput)
+	): Promise<{ startResult: StartSessionResult; sdkHost: SessionHost }> {
+		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
+		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+
+		const sdkHost = await VscodeSessionHost.create({
+			mcpHub: this.options.mcpHub,
+			requestToolApproval: this.options.requestToolApproval,
+			askQuestion: this.options.askQuestion,
+			toolPolicies,
+			getTerminalManager: this.options.getTerminalManager,
+		})
+		const unsubscribe = sdkHost.subscribe(this.options.onSessionEvent)
+		const startResult = await sdkHost.start(startInput)
 
 		this.activeSession = {
 			sessionId: startResult.sessionId,
-			sessionManager,
+			sdkHost,
 			unsubscribe,
 			startResult,
 			isRunning: true,
 		}
 
-		return { startResult, sessionManager }
+		return { startResult, sdkHost }
 	}
 
 	async replaceActiveSession(options: {
@@ -55,7 +77,7 @@ export class SdkSessionLifecycle {
 		| {
 				oldSessionId: string
 				startResult: StartSessionResult
-				sessionManager: SessionHost
+				sdkHost: SessionHost
 		  }
 		| undefined
 	> {
@@ -64,30 +86,30 @@ export class SdkSessionLifecycle {
 			return undefined
 		}
 
-		const { sessionManager: oldManager, unsubscribe, sessionId: oldSessionId } = oldSession
+		const { sdkHost: oldManager, unsubscribe, sessionId: oldSessionId } = oldSession
 
 		unsubscribe()
 		oldManager.stop(oldSessionId).catch(() => {})
 		oldManager.dispose(options.disposeReason).catch(() => {})
 
-		const { startResult, sessionManager } = await this.startNewSession({
+		const { startResult, sdkHost } = await this.startNewSession({
 			...options.startInput,
 			...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
 		})
 		this.setRunning(false)
 
-		return { oldSessionId, startResult, sessionManager }
+		return { oldSessionId, startResult, sdkHost }
 	}
 
 	fireAndForgetSend(
-		sessionManager: SessionHost,
+		sdkHost: SessionHost,
 		sessionId: string,
 		prompt: string,
 		images?: string[],
 		files?: string[],
 		delivery?: "queue" | "steer",
 	): void {
-		sessionManager
+		sdkHost
 			.send({
 				sessionId,
 				prompt,

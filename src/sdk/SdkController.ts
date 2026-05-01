@@ -5,7 +5,6 @@
 //
 // Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
 // Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
-
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -17,7 +16,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
-import { GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import { DeleteAllTaskHistoryCount, GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -36,6 +35,7 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
+import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
@@ -49,12 +49,12 @@ import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
-import { SdkSessionFactory } from "./sdk-session-factory"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
+import { isToolAutoApproved } from "./sdk-tool-policies"
 import type { TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -197,29 +197,30 @@ export class Controller {
 			messages: this.messages,
 			getSessionId: () => this.sessions.getActiveSession()?.sessionId ?? "",
 			postStateToWebview: () => this.postStateToWebview(),
+			shouldAutoApproveTool: (request) => {
+				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
+			},
 		})
 		this.sessions = new SdkSessionLifecycle({
-			factory: new SdkSessionFactory({
-				stateManager: this.stateManager,
-				mcpHub: this.mcpHub,
-				requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
-				askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
-				onSessionEvent: (event) => {
-					this.sessionEvents.handleSessionEvent(event).catch((err) => {
-						Logger.error("[SdkController] Failed to handle session event:", err)
-					})
-				},
-				// Lazy terminal manager for foreground terminal execution.
-				// The VscodeTerminalManager is created once and shared across sessions.
-				getTerminalManager: () => {
-					if (!this._terminalManager) {
-						this._terminalManager = new VscodeTerminalManager()
-						this.applyTerminalSettings(this._terminalManager)
-						Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
-					}
-					return this._terminalManager
-				},
-			}),
+			mcpHub: this.mcpHub,
+			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
+			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
+			onSessionEvent: (event) => {
+				this.sessionEvents.handleSessionEvent(event).catch((err) => {
+					Logger.error("[SdkController] Failed to handle session event:", err)
+				})
+			},
+			// Lazy terminal manager for foreground terminal execution.
+			// The VscodeTerminalManager is created once and shared across sessions.
+			getTerminalManager: () => {
+				if (!this._terminalManager) {
+					this._terminalManager = new VscodeTerminalManager()
+					this.applyTerminalSettings(this._terminalManager)
+					Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
+				}
+				return this._terminalManager
+			},
 			onSendComplete: async () => {
 				if (this.mode.hasPendingModeChange()) {
 					try {
@@ -272,8 +273,8 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: async (sessionManager, sessionId) =>
-				(await this.sessionHistory.loadInitialMessages(sessionManager, sessionId)) ?? [],
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
@@ -285,8 +286,8 @@ export class Controller {
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: async (sessionManager, sessionId) =>
-				(await this.sessionHistory.loadInitialMessages(sessionManager, sessionId)) ?? [],
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -558,7 +559,7 @@ export class Controller {
 	// ---- Task lifecycle (Step 4) ----
 
 	async initTask(
-		task?: string,
+		prompt?: string,
 		images?: string[],
 		files?: string[],
 		historyItem?: HistoryItem,
@@ -569,7 +570,7 @@ export class Controller {
 		// blocking the UI. fetchRemoteConfig() catches all errors internally
 		// and calls postStateToWebview() when done.
 		fetchRemoteConfig(this)
-		return this.taskStart.initTask(task, images, files, historyItem, taskSettings)
+		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
@@ -644,7 +645,7 @@ export class Controller {
 	// ---- Telemetry ----
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
-		await this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		await this.postStateToWebview()
 	}
 
@@ -799,8 +800,21 @@ export class Controller {
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
-		const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
-		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		const historyItem = (await this.taskHistory.listHistory({ hydrate: false })).find((item) => item.sessionId === id)
+		if (!historyItem) {
+			throw new Error(`Task not found in history: ${id}`)
+		}
+
+		// SDK-backed tasks are no longer stored under VS Code's globalStorageFsPath/tasks.
+		// The SDK owns session persistence and exposes the persisted messages artifact path
+		// on the session history record; open that artifact's containing session directory.
+		const taskDirPath = historyItem.messagesPath ? path.dirname(historyItem.messagesPath) : undefined
+		if (!taskDirPath) {
+			throw new Error(`Task history item has no SDK artifact path: ${id}`)
+		}
+
+		await fs.access(taskDirPath)
+		Logger.log(`[EXPORT] Opening SDK task directory: ${taskDirPath}`)
 		const open = (await import("open")).default
 		await open(taskDirPath)
 	}
@@ -809,8 +823,78 @@ export class Controller {
 		return this.taskHistory.deleteTaskFromState(id)
 	}
 
+	async deleteAllTaskHistory(): Promise<DeleteAllTaskHistoryCount> {
+		await this.clearTask()
+
+		const taskHistory = await this.taskHistory.listHistory({ hydrate: false })
+		const totalTasks = taskHistory.length
+
+		const userChoice = (
+			await HostProvider.window.showMessage(
+				ShowMessageRequest.create({
+					type: ShowMessageType.WARNING,
+					message: "What would you like to delete?",
+					options: {
+						modal: true,
+						items: ["Delete All Except Favorites", "Delete Everything"],
+					},
+				}),
+			)
+		).selectedOption
+
+		if (userChoice === undefined) {
+			return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
+		}
+
+		if (userChoice === "Delete All Except Favorites") {
+			const hasFavoritedTasks = taskHistory.some(
+				(task) =>
+					metadataBoolean(task.metadata, "isFavorited") ?? metadataBoolean(task.metadata, "is_favorited") ?? false,
+			)
+
+			if (hasFavoritedTasks) {
+				const tasksDeleted = await this.taskHistory.deleteAllTaskHistory({ preserveFavorites: true })
+				await this.postStateToWebview()
+				return DeleteAllTaskHistoryCount.create({ tasksDeleted })
+			}
+
+			const answer = (
+				await HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+					options: {
+						modal: true,
+						items: ["Delete All Tasks"],
+					},
+				})
+			).selectedOption
+
+			if (answer === undefined) {
+				return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
+			}
+		}
+
+		const tasksDeleted = await this.taskHistory.deleteAllTaskHistory()
+		await this.postStateToWebview()
+		return DeleteAllTaskHistoryCount.create({ tasksDeleted: tasksDeleted || totalTasks })
+	}
+
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		return this.taskHistory.updateTaskHistory(item)
+	}
+
+	async toggleTaskFavorite(taskId: string, isFavorited: boolean): Promise<void> {
+		const historyItem = await this.taskHistory.findHistoryItem(taskId)
+		if (!historyItem) {
+			Logger.log(`[toggleTaskFavorite] Task not found in history: ${taskId}`)
+			return
+		}
+
+		await this.taskHistory.updateTaskHistory({
+			...historyItem,
+			isFavorited,
+		})
+		await this.postStateToWebview()
 	}
 
 	// ---- Background command state ----
@@ -823,16 +907,10 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
-		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()
 		await sendStateUpdate(state)
-
-		const elapsed = Date.now() - startedAt
-		if (elapsed > 250) {
-			Logger.warn(`[SdkController] postStateToWebview took ${elapsed}ms`)
-		}
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -857,7 +935,22 @@ export class Controller {
 			if (historyElapsed > 250) {
 				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
 			}
-			const processedTaskHistory = sdkTaskHistory.slice(0, 100)
+			const classicTaskHistory = state.taskHistory ?? []
+			const mergedTaskHistoryById = new Map<string, HistoryItem>()
+
+			// Keep the SDK records authoritative for migrated/new tasks, but append
+			// classic persisted history so pre-migration tasks still appear in the UI.
+			for (const item of classicTaskHistory) {
+				mergedTaskHistoryById.set(item.id, item)
+			}
+			for (const item of sdkTaskHistory) {
+				mergedTaskHistoryById.set(item.id, item)
+			}
+
+			const processedTaskHistory = Array.from(mergedTaskHistoryById.values())
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts)
+				.slice(0, 100)
 
 			return {
 				...state,

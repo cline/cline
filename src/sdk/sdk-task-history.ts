@@ -1,9 +1,13 @@
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@clinebot/core"
 import type { Message as SdkMessage } from "@clinebot/llms"
+import type { ContentBlock, MessageWithMetadata } from "@clinebot/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { buildSessionConfig } from "./cline-session-factory"
+import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
+import { readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -54,6 +58,117 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRecord {
+	const startedAt = new Date(item.ts || Date.now()).toISOString()
+	return {
+		sessionId: item.id,
+		source: "vscode",
+		pid: 0,
+		startedAt,
+		endedAt: startedAt,
+		exitCode: 0,
+		status: "completed",
+		interactive: true,
+		provider: "",
+		model: item.modelId ?? "",
+		cwd: item.cwdOnTaskInitialization ?? "",
+		workspaceRoot: item.cwdOnTaskInitialization ?? "",
+		enableTools: true,
+		enableSpawn: false,
+		enableTeams: false,
+		isSubagent: false,
+		prompt: item.task,
+		metadata: {
+			title: item.task,
+			isFavorited: item.isFavorited ?? false,
+			size: item.size ?? 0,
+			totalCost: item.totalCost ?? 0,
+			tokensIn: item.tokensIn ?? 0,
+			tokensOut: item.tokensOut ?? 0,
+			cacheWrites: item.cacheWrites ?? 0,
+			cacheReads: item.cacheReads ?? 0,
+			modelId: item.modelId ?? "",
+			legacyTask: true,
+		},
+		updatedAt: startedAt,
+	}
+}
+
+function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefined {
+	if (!block || typeof block !== "object") {
+		return undefined
+	}
+	const record = block as Record<string, unknown>
+	switch (record.type) {
+		case "text":
+			return typeof record.text === "string" ? { type: "text", text: record.text } : undefined
+		case "tool_use":
+			return typeof record.id === "string" && typeof record.name === "string"
+				? { type: "tool_use", id: record.id, name: record.name, input: (record.input as Record<string, unknown>) ?? {} }
+				: undefined
+		case "tool_result":
+			return typeof record.tool_use_id === "string"
+				? {
+						type: "tool_result",
+						tool_use_id: record.tool_use_id,
+						content: typeof record.content === "string" ? record.content : JSON.stringify(record.content ?? ""),
+						is_error: typeof record.is_error === "boolean" ? record.is_error : undefined,
+					}
+				: undefined
+		case "thinking":
+			return typeof record.thinking === "string" ? { type: "thinking", thinking: record.thinking } : undefined
+		case "image": {
+			const source = record.source as Record<string, unknown> | undefined
+			return source?.type === "base64" && typeof source.data === "string" && typeof source.media_type === "string"
+				? { type: "image", data: source.data, mediaType: source.media_type }
+				: undefined
+		}
+		default:
+			return undefined
+	}
+}
+
+function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: HistoryItem): MessageWithMetadata[] {
+	const messages = apiHistory.flatMap((raw): MessageWithMetadata[] => {
+		if (!raw || typeof raw !== "object") {
+			return []
+		}
+		const record = raw as Record<string, unknown>
+		const role = record.role === "assistant" ? "assistant" : record.role === "user" ? "user" : undefined
+		if (!role) {
+			return []
+		}
+
+		if (typeof record.content === "string") {
+			return [{ role, content: record.content }]
+		}
+
+		if (Array.isArray(record.content)) {
+			const content = record.content.flatMap((block) => {
+				const converted = anthropicContentBlockToSdkBlock(block)
+				return converted ? [converted] : []
+			})
+			return content.length > 0 ? [{ role, content }] : []
+		}
+
+		return []
+	})
+
+	const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant")
+	if (lastAssistant && !lastAssistant.metrics) {
+		lastAssistant.metrics = {
+			inputTokens: (historyItem.tokensIn ?? 0) + (historyItem.cacheReads ?? 0) + (historyItem.cacheWrites ?? 0),
+			outputTokens: historyItem.tokensOut ?? 0,
+			cacheReadTokens: historyItem.cacheReads ?? 0,
+			cacheWriteTokens: historyItem.cacheWrites ?? 0,
+			cost: historyItem.totalCost ?? 0,
+		}
+		lastAssistant.modelInfo = historyItem.modelId ? { id: historyItem.modelId, provider: "unknown" } : lastAssistant.modelInfo
+	}
+
+	return sanitizeInitialMessagesForSessionStart(messages) as MessageWithMetadata[]
+}
+
 export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): HistoryItem {
 	const metadata = item.metadata
 	return {
@@ -76,9 +191,9 @@ export class SdkTaskHistory {
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
 
 	private getActiveHistoryHost(): VscodeSessionHost | undefined {
-		const sessionManager = this.options.sessions.getActiveSession()?.sessionManager
-		if (sessionManager && "listHistory" in sessionManager) {
-			return sessionManager as VscodeSessionHost
+		const sdkHost = this.options.sessions.getActiveSession()?.sdkHost
+		if (sdkHost && "listHistory" in sdkHost) {
+			return sdkHost as VscodeSessionHost
 		}
 		return undefined
 	}
@@ -101,12 +216,82 @@ export class SdkTaskHistory {
 	}
 
 	async listHistory(options: ClineCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
-		return this.withHistoryHost((host) => host.listHistory({ limit: 10_000, includeManifestFallback: true, ...options }))
+		const sdkHistory = await this.withHistoryHost((host) =>
+			host.listHistory({ limit: 10_000, includeManifestFallback: true, ...options }),
+		)
+		const visibleSdkHistory = sdkHistory.filter((item) => item.isSubagent !== true)
+		const sdkIds = new Set(visibleSdkHistory.map((item) => item.sessionId))
+		const legacyHistory = readTaskHistory()
+			.filter((item) => item.id && item.task && !sdkIds.has(item.id))
+			.map(historyItemToSessionHistoryRecord)
+
+		return [...visibleSdkHistory, ...legacyHistory]
+			.sort(
+				(a, b) =>
+					dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
+					dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt),
+			)
+			.slice(0, options.limit ?? 10_000)
 	}
 
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
+		await this.migrateLegacyTaskIfNeeded(taskId)
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
 		return sdkMessagesToClineMessages(sdkMessages)
+	}
+
+	private async migrateLegacyTaskIfNeeded(taskId: string): Promise<boolean> {
+		return this.withHistoryHost(async (host) => {
+			try {
+				const existing = await host.get(taskId)
+				if (existing) {
+					return false
+				}
+			} catch (error) {
+				Logger.warn(`[SdkTaskHistory] Failed to check SDK session before legacy migration: ${taskId}`, error)
+			}
+
+			const historyItem = readTaskHistory().find((item) => item.id === taskId)
+			if (!historyItem) {
+				return false
+			}
+
+			const legacyApiHistory = readApiConversationHistory(taskId)
+			if (legacyApiHistory.length === 0) {
+				return false
+			}
+
+			const initialMessages = legacyApiHistoryToSdkMessages(legacyApiHistory, historyItem)
+			if (initialMessages.length === 0) {
+				return false
+			}
+
+			const cwd = historyItem.cwdOnTaskInitialization || process.cwd()
+			const config = await buildSessionConfig({ cwd, workspaceRoot: cwd, mode: "act" })
+			config.sessionId = taskId
+
+			await host.start({
+				config,
+				prompt: undefined,
+				interactive: true,
+				initialMessages,
+				sessionMetadata: {
+					title: historyItem.task,
+					isFavorited: historyItem.isFavorited ?? false,
+					size: historyItem.size ?? 0,
+					totalCost: historyItem.totalCost ?? 0,
+					tokensIn: historyItem.tokensIn ?? 0,
+					tokensOut: historyItem.tokensOut ?? 0,
+					cacheWrites: historyItem.cacheWrites ?? 0,
+					cacheReads: historyItem.cacheReads ?? 0,
+					modelId: historyItem.modelId ?? "",
+					migratedFromLegacyTask: true,
+				},
+			})
+
+			Logger.log(`[SdkTaskHistory] Migrated legacy task to SDK session: ${taskId}`)
+			return true
+		})
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
@@ -145,6 +330,34 @@ export class SdkTaskHistory {
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
 		await this.deleteSession(id)
 		return (await this.listHistory()).map(sessionHistoryRecordToHistoryItem)
+	}
+
+	async deleteAllTaskHistory(options: { preserveFavorites?: boolean } = {}): Promise<number> {
+		const history = await this.listHistory({ hydrate: false })
+		const tasksToDelete = options.preserveFavorites
+			? history.filter(
+					(item) =>
+						!(
+							metadataBoolean(item.metadata, "isFavorited") ??
+							metadataBoolean(item.metadata, "is_favorited") ??
+							false
+						),
+				)
+			: history
+
+		let deletedCount = 0
+		await this.withHistoryHost(async (host) => {
+			for (const item of tasksToDelete) {
+				try {
+					await host.delete(item.sessionId)
+					deletedCount += 1
+				} catch (error) {
+					Logger.error(`[SdkTaskHistory] Failed to delete task history item: ${item.sessionId}`, error)
+				}
+			}
+		})
+
+		return deletedCount
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
