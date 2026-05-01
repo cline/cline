@@ -173,28 +173,33 @@
 				"icon": "cube",
 				"groups": [
 					{
-						"group": "Getting Started",
+						"group": "Start",
 						"pages": [
 							"sdk/overview",
-							"sdk/quickstart",
-							"sdk/examples"
+							"sdk/quickstart"
 						]
 					},
 					{
-						"group": "Core Concepts",
+						"group": "Concepts",
 						"pages": [
-							"sdk/agents",
-							"sdk/sessions",
+							"sdk/runtime",
 							"sdk/tools",
-							"sdk/streaming-and-events",
+							"sdk/events",
 							"sdk/plugins",
-							"sdk/hooks",
 							"sdk/model-providers"
+						]
+					},
+					{
+						"group": "Architecture",
+						"pages": [
+							"sdk/architecture/overview",
+							"sdk/architecture/hub-spoke"
 						]
 					},
 					{
 						"group": "Guides",
 						"pages": [
+							"sdk/guides/overview",
 							"sdk/guides/building-an-agent",
 							"sdk/guides/creating-custom-tools",
 							"sdk/guides/writing-plugins",
@@ -203,13 +208,6 @@
 							"sdk/guides/multi-agent-teams",
 							"sdk/guides/connectors",
 							"sdk/guides/going-to-production"
-						]
-					},
-					{
-						"group": "Architecture",
-						"pages": [
-							"sdk/architecture/overview",
-							"sdk/architecture/hub-spoke"
 						]
 					},
 					{
@@ -788,15 +786,15 @@
 		},
 		{
 			"source": "/cline-sdk/examples",
-			"destination": "/sdk/examples"
+			"destination": "/sdk/guides/overview"
 		},
 		{
 			"source": "/cline-sdk/agents",
-			"destination": "/sdk/agents"
+			"destination": "/sdk/runtime"
 		},
 		{
 			"source": "/cline-sdk/sessions",
-			"destination": "/sdk/sessions"
+			"destination": "/sdk/runtime"
 		},
 		{
 			"source": "/cline-sdk/tools",
@@ -804,7 +802,7 @@
 		},
 		{
 			"source": "/cline-sdk/streaming-and-events",
-			"destination": "/sdk/streaming-and-events"
+			"destination": "/sdk/events"
 		},
 		{
 			"source": "/cline-sdk/plugins",
@@ -812,7 +810,7 @@
 		},
 		{
 			"source": "/cline-sdk/hooks",
-			"destination": "/sdk/hooks"
+			"destination": "/sdk/plugins"
 		},
 		{
 			"source": "/cline-sdk/model-providers",
@@ -887,10 +885,6 @@
 			"destination": "/sdk/reference/types"
 		},
 		{
-			"source": "/sdk/extensions",
-			"destination": "/sdk/plugins"
-		},
-		{
 			"source": "/cline-sdk/extensions",
 			"destination": "/sdk/plugins"
 		},
@@ -921,6 +915,30 @@
 		{
 			"source": "/mcp/mcp-transport-mechanisms",
 			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/sdk/agents",
+			"destination": "/sdk/runtime"
+		},
+		{
+			"source": "/sdk/sessions",
+			"destination": "/sdk/runtime"
+		},
+		{
+			"source": "/sdk/streaming-and-events",
+			"destination": "/sdk/events"
+		},
+		{
+			"source": "/sdk/hooks",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/sdk/extensions",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/sdk/examples",
+			"destination": "/sdk/guides/overview"
 		}
 	],
 	"search": {

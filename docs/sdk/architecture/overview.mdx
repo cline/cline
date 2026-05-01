@@ -1,106 +1,116 @@
 ---
-title: "Architecture Overview"
-sidebarTitle: "Overview"
-description: "How SDK packages fit together, what each one exports, and where boundaries are enforced."
+title: "Packages"
+sidebarTitle: "Packages"
+description: "How SDK packages fit together, what each package exports, and where boundaries are enforced."
 ---
 
-The SDK is organized as a layered package stack. Each package has a clear responsibility and can only depend on lower layers.
-
-If you only need a stateless agent loop, use `@clinebot/agents`. If you need sessions, persistence, built-in tools, scheduling, and hub support, use `@clinebot/core` (or just install `@clinebot/sdk`).
+The SDK is split into layered packages. Dependencies flow downward: `core` depends on `agents`, `llms`, and `shared`; `agents` depends on `llms` and `shared`; `llms` depends on `shared`.
 
 ## Package Stack
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Your Application / CLI / VS Code / JetBrains                │
-└────────────────────────┬─────────────────────────────────────┘
-                         │
-┌────────────────────────▼─────────────────────────────────────┐
-│  @clinebot/core                                              │
-│  Sessions, persistence, config discovery, built-in tools,    │
-│  hub daemon, scheduling, telemetry                           │
-└────┬──────────────┬──────────────────────────────────────────┘
-     │              │
-┌────▼─────┐  ┌─────▼──────┐
-│@clinebot │  │ @clinebot  │
-│/agents   │  │ /llms      │
-│          │  │            │
-│Stateless │  │Provider    │
-│agent loop│  │gateway,    │
-│          │  │model       │
-│          │  │catalogs    │
-└────┬─────┘  └─────┬──────┘
-     │              │
-     └──────┬───────┘
-            │
-┌───────────▼──────────────────────────────────────────────────┐
-│  @clinebot/shared                                            │
-│  Contracts, types, schemas, hook engine, tool interfaces      │
-└──────────────────────────────────────────────────────────────┘
+```txt
+Your application / CLI / VS Code / JetBrains
+          │
+          ▼
+@clinebot/core
+Sessions, storage, built-in tools, hub, automation, telemetry
+          │
+          ├── @clinebot/agents
+          │   Browser-safe AgentRuntime / Agent loop
+          │
+          ├── @clinebot/llms
+          │   Provider handlers, gateway, model catalogs
+          │
+          └── @clinebot/shared
+              Types, schemas, tools, hooks, extension contracts
 ```
 
-## Package Responsibilities
+## Packages
 
 ### @clinebot/shared
 
-Foundation package for contracts and shared utilities.
+Foundation package for shared contracts and utilities.
 
-- `Tool` interface and `createTool` helper
-- `AgentEvent` union type
-- `HookEngine` for lifecycle callbacks
-- `ContributionRegistry` for extension registration
-- `Message` and `ContentBlock` types
-- Logging interfaces (`BasicLogger`)
-- Path helpers and schemas
+Key exports include:
 
-No higher-layer dependencies. Safe to import anywhere.
+| Export | Description |
+|--------|-------------|
+| `createTool` | Helper for creating typed tools |
+| `Tool`, `ToolContext`, `ToolPolicy` | Tool interfaces |
+| `AgentEvent`, `AgentResult`, `AgentConfig` | Host-facing agent types |
+| `AgentRuntimeEvent`, `AgentRunResult` | Runtime-facing agent types |
+| `HookEngine`, `HookStage`, `HookPolicies` | Hook contracts and engine |
+| `ContributionRegistry`, `AgentExtensionApi` | Extension registration contracts |
+| `ModelInfo`, `Message`, `ContentBlock` | Model/message types |
+| `BasicLogger`, `noopBasicLogger` | Logging contracts |
+
+No higher-layer dependencies.
 
 ### @clinebot/llms
 
-Provider gateway and model catalog layer.
+Provider and model layer.
 
-- `DefaultGateway` for provider registration and model discovery
-- Provider handlers for Anthropic, OpenAI, Google, Bedrock, Mistral, and more
-- Model catalogs with pricing, capabilities, and context window metadata
-- Streaming support with consistent event format across providers
-- Provider settings management
+Key exports include:
 
-Depends on: `@clinebot/shared`
+| Export | Description |
+|--------|-------------|
+| `DefaultGateway`, `createGateway` | Gateway for creating provider-backed agent models |
+| `createHandler`, `createHandlerAsync` | Provider handler factories |
+| `getAllProviders`, `getProviderIds`, `getModelsForProvider` | Catalog helpers |
+| `registerProvider`, `registerModel` | Runtime registry extension |
+| `ModelInfo`, `ProviderInfo` | Provider/model metadata |
+
+Depends on: `@clinebot/shared`.
 
 ### @clinebot/agents
 
-Stateless execution loop.
+Browser-safe agent execution loop.
 
-- `Agent` class with `run()`, `continue()`, `abort()`, `shutdown()`
-- Turn processing (text, reasoning, tool calls)
-- Tool orchestration with parallel execution support
-- Loop detection and mistake tracking
-- Plugin and hook runtime
-- `AgentStream` for async event iteration
+Key exports include:
 
-Depends on: `@clinebot/shared`, `@clinebot/llms`
+| Export | Description |
+|--------|-------------|
+| `AgentRuntime` | Core runtime class |
+| `Agent` | Alias for `AgentRuntime` |
+| `createAgentRuntime`, `createAgent` | Factory functions |
+| `AgentRuntimeConfig` | Constructor config union |
+| `AgentRunInput`, `AgentEventListener` | Runtime helper types |
+| `createTool` | Re-export from `@clinebot/shared` |
+
+Methods on `AgentRuntime` include `run`, `continue`, `abort`, `subscribe`, `restore`, and `snapshot`.
+
+Depends on: `@clinebot/shared`, `@clinebot/llms`.
 
 ### @clinebot/core
 
-Full runtime/orchestration layer.
+Node runtime/orchestration layer.
 
-- `ClineCore` entry point
-- Session lifecycle and persistence (SQLite)
-- Built-in tools (bash, editor, read_files, apply_patch, search, fetch_web)
-- Config file discovery and watching (rules, skills, hooks, plugins)
-- MCP server integration
-- Tool approval flows
-- Telemetry (OpenTelemetry)
-- Hub integration for multi-process architectures
-- Team management for multi-agent coordination
+Key exports include:
 
-Depends on: `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`
+| Export | Description |
+|--------|-------------|
+| `ClineCore` | Main runtime entry point |
+| `ClineCoreOptions` | Constructor options |
+| `ClineCoreStartInput` | Session start input |
+| `CoreSessionConfig` | Session configuration |
+| `SessionRecord` | Persisted session metadata |
+| `AgentPlugin` | Public alias for `AgentExtension` |
+| `createTool` | Re-export from shared |
 
-## Package Reference
+Capabilities include:
 
-This section replaces the old separate "Packages" page.
+- local/hub/remote runtime backends
+- session manifests and message artifacts
+- built-in tools
+- tool approvals
+- automation/scheduling services
+- telemetry hooks
+- plugin/extension loading
+- team/sub-agent tools
 
-### Install each package
+Depends on: `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`.
+
+## Install
 
 ```bash
 npm install @clinebot/shared
@@ -109,70 +119,18 @@ npm install @clinebot/agents
 npm install @clinebot/core
 ```
 
-### @clinebot/shared key exports
-
-| Export | Description |
-|--------|-------------|
-| `createTool` | Helper to create a typed `Tool` |
-| `Tool` | Tool interface |
-| `ToolContext` | Context passed to tool execute functions |
-| `ToolPolicy` | Per-tool approval/enablement config |
-| `AgentEvent` | Union type of agent events |
-| `Message` | Conversation message type |
-| `ContentBlock` | Text/tool/thinking content blocks |
-| `HookEngine` | Lifecycle hook engine |
-| `ContributionRegistry` | Extension registration system |
-| `BasicLogger` | Logging interface |
-
-### @clinebot/llms key exports
-
-| Export | Description |
-|--------|-------------|
-| `DefaultGateway` | Main gateway for provider/model management |
-| `GatewayRegistry` | Registry for provider/model lookup |
-| `ModelInfo` | Model metadata (pricing/capabilities/context window) |
-| `ProviderInfo` | Provider metadata and capabilities |
-| Provider handlers | Anthropic, OpenAI, Google, Bedrock, Mistral, etc. |
-
-### @clinebot/agents key exports
-
-| Export | Description |
-|--------|-------------|
-| `Agent` | Main agent class |
-| `AgentConfig` | Constructor configuration type |
-| `AgentResult` | Return type from `run()` and `continue()` |
-| `AgentPlugin` | Plugin interface |
-| `AgentStream` | Async iterable event stream |
-| `streamRun` | Helper for streaming runs |
-| `AgentUsage` | Token usage tracking type |
-
-### @clinebot/core key exports
-
-| Export | Description |
-|--------|-------------|
-| `ClineCore` | Main runtime entry point |
-| `ClineCoreOptions` | Constructor options |
-| `StartSessionInput` | Session creation input |
-| `StartSessionResult` | Session creation result |
-| `CoreSessionConfig` | Session configuration type |
-| `SessionRecord` | Persisted session metadata |
-
+There is currently no separate `@clinebot/sdk` meta package in the checked repo.
 
 ## Design Principles
 
 ### Strict dependency direction
 
-Dependencies flow downward only. `core` depends on `agents`, never the reverse. This keeps lower layers testable and embeddable without pulling in the full stack.
+Dependencies flow downward only. Lower layers stay embeddable without pulling in the full runtime.
 
-### Stateless agent loop
+### Browser-safe agent loop
 
-The `Agent` class in `@clinebot/agents` does not do I/O, persistence, or transport. It's a pure state machine: take messages in, produce tool calls and text out. This makes it easy to test, embed, and reason about.
+`@clinebot/agents` exposes a browser-safe runtime. It does not own session storage, built-in file/shell tools, hub transports, or Node-specific orchestration.
 
-### Hub as coordinator, not executor
+### Core as orchestration layer
 
-The [hub](/sdk/architecture/hub-spoke) coordinates sessions, routes events, manages schedules, and brokers capabilities between clients. It does not run the agent loop. Spoke workers handle execution with a process boundary so the hub stays responsive. Hub functionality lives inside `@clinebot/core`.
-
-### Config as files
-
-Rules, skills, hooks, and plugins are discovered from the file system. New instruction sources should materialize as files and use the watcher discovery system, not parallel in-memory paths. This makes configuration version-controllable and inspectable.
-
+`@clinebot/core` owns Node runtime integration: session persistence, built-in tools, automation, hub/remote transports, telemetry, and extension loading.

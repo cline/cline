@@ -1,0 +1,129 @@
+---
+title: "Events"
+sidebarTitle: "Events"
+description: "Subscribe to runtime and session events for UIs, logs, monitoring, and cancellation."
+---
+
+The SDK exposes two related event surfaces:
+
+- `AgentRuntimeEvent` from `@clinebot/agents`, delivered through `agent.subscribe(listener)`.
+- `AgentEvent` / `CoreSessionEvent` from `@clinebot/core`, delivered through config `onEvent` callbacks or `cline.subscribe(listener)`.
+
+Use this page for event handling patterns. For event shapes, see [Events reference](/sdk/reference/events).
+
+## AgentRuntime Events
+
+```typescript
+import { Agent } from "@clinebot/agents"
+
+const agent = new Agent({
+  // ...config
+})
+
+const unsubscribe = agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text)
+  }
+})
+
+await agent.run("Explain this codebase")
+unsubscribe()
+```
+
+`AgentRuntimeEvent` is the low-level event stream from the browser-safe runtime.
+
+## Host-Facing Agent Events
+
+`AgentConfig.onEvent` receives the legacy/host-facing `AgentEvent` shape used by core sessions:
+
+```typescript
+const agent = new Agent({
+  // ...config
+  onEvent: (event) => {
+    if (event.type === "content_end" && event.contentType === "text") {
+      process.stdout.write(event.text ?? "")
+    }
+  },
+})
+```
+
+Common host-facing event categories:
+
+| Category | Events | Use for |
+|----------|--------|---------|
+| Content | `content_start`, `content_update`, `content_end` | Text/reasoning/tool UI |
+| Iterations | `iteration_start`, `iteration_end` | Progress tracking |
+| Usage | `usage` | Token/cost tracking |
+| Notices | `notice` | Recovery and status updates |
+| Completion | `done`, `error` | Final state and failure handling |
+
+## ClineCore Session Events
+
+Use `cline.subscribe()` for session-level events:
+
+```typescript
+const unsubscribe = cline.subscribe((event) => {
+  console.log(event.type, event.sessionId)
+})
+
+await cline.start({ /* ... */ })
+unsubscribe()
+```
+
+Pass a `sessionId` filter when you only want one session:
+
+```typescript
+const unsubscribe = cline.subscribe(listener, { sessionId })
+```
+
+## Streaming UI Pattern
+
+```typescript
+const agent = new Agent({
+  // ...config
+  onEvent: (event) => {
+    switch (event.type) {
+      case "content_start":
+        if (event.contentType === "tool") {
+          onUpdate({ type: "tool_start", content: event.toolName ?? "" })
+        }
+        break
+      case "content_end":
+        if (event.contentType === "text") {
+          onUpdate({ type: "text", content: event.text ?? "" })
+        }
+        if (event.contentType === "tool") {
+          onUpdate({ type: "tool_end", content: event.toolName ?? "" })
+        }
+        break
+      case "done":
+        onUpdate({ type: "done", content: event.reason })
+        break
+    }
+  },
+})
+```
+
+## Usage Tracking Pattern
+
+```typescript
+let totalTokens = 0
+
+const agent = new Agent({
+  // ...config
+  onEvent: (event) => {
+    if (event.type === "usage") {
+      totalTokens = event.totalInputTokens + event.totalOutputTokens
+    }
+  },
+})
+```
+
+## Runtime State Snapshots
+
+For direct `AgentRuntime` usage, call `snapshot()` when you need the current state:
+
+```typescript
+const snapshot = agent.snapshot()
+console.log(snapshot.status, snapshot.iteration, snapshot.usage)
+```

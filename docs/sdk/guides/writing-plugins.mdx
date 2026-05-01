@@ -17,8 +17,8 @@ A GitHub integration plugin that:
 
 ```typescript
 // github-plugin.ts
-import { type AgentPlugin, type AgentResult } from "@clinebot/agents"
-import { createTool } from "@clinebot/sdk"
+import { type AgentExtension, type AgentResult } from "@clinebot/core"
+import { createTool } from "@clinebot/agents"
 
 interface GitHubConfig {
   token: string
@@ -26,13 +26,14 @@ interface GitHubConfig {
   repo: string
 }
 
-export function createGitHubPlugin(config: GitHubConfig): AgentPlugin {
+export function createGitHubPlugin(config: GitHubConfig): AgentExtension {
   let totalTokens = 0
 
   return {
     name: "github-integration",
     manifest: {
       capabilities: ["tools", "hooks"],
+      hookStages: ["run_start", "tool_call_before", "run_end"],
     },
 
     setup(api) {
@@ -195,7 +196,7 @@ const agent = new Agent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a project manager assistant with access to GitHub.",
   tools: [],
-  plugins: [
+  extensions: [
     createGitHubPlugin({
       token: process.env.GITHUB_TOKEN,
       owner: "my-org",
@@ -209,13 +210,13 @@ await agent.run("List all open bugs and create a summary issue with the count")
 
 ## Distributing as a File Plugin
 
-To make this plugin available to all ClineCore sessions, save it as a file plugin:
+To load this plugin from a file in ClineCore, pass its path in `pluginPaths`:
 
 ```typescript
-// ~/.cline/plugins/github.ts
-import { type AgentPlugin, createTool } from "@clinebot/sdk"
+// /absolute/path/to/github.ts
+import { type AgentExtension, createTool } from "@clinebot/core"
 
-const plugin: AgentPlugin = {
+const plugin: AgentExtension = {
   name: "github",
   manifest: { capabilities: ["tools"] },
   setup(api) {
@@ -231,7 +232,17 @@ const plugin: AgentPlugin = {
 export default plugin
 ```
 
-ClineCore automatically discovers and loads plugins from `~/.cline/plugins/` (global) and `.cline/plugins/` (project-level).
+Then include it in session config:
+
+```typescript
+await cline.start({
+  prompt: "Use the GitHub plugin",
+  config: {
+    // ...model/runtime config
+    pluginPaths: ["/absolute/path/to/github.ts"],
+  },
+})
+```
 
 ## Plugin Design Guidelines
 

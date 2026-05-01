@@ -4,7 +4,7 @@ sidebarTitle: "Permission Handling"
 description: "Control which tools agents can run automatically and which require explicit approval."
 ---
 
-By default, tools require approval before they execute. This guide covers the different strategies for managing tool permissions, from full auto-approve to interactive approval flows.
+Tool policies control whether tools are enabled and whether they run without approval. Tool names not listed in `toolPolicies` default to enabled and auto-approved, so set policies explicitly for tools that need review.
 
 ## Tool Policies
 
@@ -15,10 +15,10 @@ const agent = new Agent({
   // ...config
   tools: [readFileTool, writeFileTool, bashTool, searchTool],
   toolPolicies: {
-    read_file: { autoApprove: true },     // Always run without asking
-    search: { autoApprove: true },         // Always run without asking
+    read_files: { autoApprove: true },     // Always run without asking
+    search_codebase: { autoApprove: true },         // Always run without asking
     write_file: { autoApprove: false },    // Always ask before running
-    bash: { autoApprove: false },          // Always ask before running
+    run_commands: { autoApprove: false },          // Always ask before running
   },
 })
 ```
@@ -30,7 +30,7 @@ const agent = new Agent({
 | `{ autoApprove: true }` | Tool executes immediately without approval |
 | `{ autoApprove: false }` | Tool waits for approval before executing |
 | `{ enabled: false }` | Tool is completely disabled (model won't see it) |
-| No policy set | Falls back to the default (requires approval) |
+| No policy set | Defaults to enabled and auto-approved |
 
 ## Auto-Approve Everything
 
@@ -52,14 +52,14 @@ Or with ClineCore:
 const session = await cline.start({
   config: {
     enableTools: true,
-    toolPolicies: {
-      bash: { autoApprove: true },
-      editor: { autoApprove: true },
-      read_files: { autoApprove: true },
-      apply_patch: { autoApprove: true },
-      search: { autoApprove: true },
-      fetch_web: { autoApprove: true },
-    },
+  },
+  toolPolicies: {
+    run_commands: { autoApprove: true },
+    editor: { autoApprove: true },
+    read_files: { autoApprove: true },
+    apply_patch: { autoApprove: true },
+    search_codebase: { autoApprove: true },
+    fetch_web_content: { autoApprove: true },
   },
   requestToolApproval: async () => ({ approved: true }),
   // ...
@@ -75,7 +75,7 @@ Auto-approving all tools means the agent can execute any shell command, modify a
 For applications that need human oversight, implement a custom approval handler:
 
 ```typescript
-import { ClineCore } from "@clinebot/sdk"
+import { ClineCore } from "@clinebot/core"
 import * as readline from "readline"
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
@@ -98,8 +98,8 @@ const cline = await ClineCore.create({
 A practical middle ground: auto-approve read-only operations, require approval for writes:
 
 ```typescript
-const READ_TOOLS = new Set(["read_files", "search", "fetch_web"])
-const WRITE_TOOLS = new Set(["bash", "editor", "apply_patch"])
+const READ_TOOLS = new Set(["read_files", "search_codebase", "fetch_web_content"])
+const WRITE_TOOLS = new Set(["run_commands", "editor", "apply_patch"])
 
 const toolPolicies: Record<string, { autoApprove: boolean }> = {}
 
@@ -119,9 +119,9 @@ Approve based on what the tool is actually doing, not just which tool it is:
 const cline = await ClineCore.create({
   clientName: "smart-approval",
   requestToolApproval: async (request) => {
-    // Auto-approve non-destructive bash commands
-    if (request.toolName === "bash") {
-      const cmd = request.input.command as string
+    // Auto-approve non-destructive shell commands
+    if (request.toolName === "run_commands") {
+      const cmd = JSON.stringify(request.input)
       const safeCommands = ["ls", "cat", "grep", "find", "git status", "git log", "git diff"]
       if (safeCommands.some((safe) => cmd.startsWith(safe))) {
         return { approved: true }
