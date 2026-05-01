@@ -19,6 +19,7 @@ import { createTool, type Tool, type ToolContext } from "@clinebot/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
+import { getShellForProfile } from "@/utils/shell"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,11 +52,16 @@ export interface VscodeRunCommandsToolOptions {
 function createBackgroundExecutor(opts: {
 	timeoutMs: number
 	maxOutputBytes: number
+	shell: string
 }): (command: string, cwd: string, context: ToolContext) => Promise<string> {
 	const executors = createDefaultExecutors({
 		bash: {
 			timeoutMs: opts.timeoutMs,
 			maxOutputBytes: opts.maxOutputBytes,
+			shell: opts.shell,
+			// Set SHELL env to match the shell we're spawning so child
+			// processes see the correct value instead of the inherited parent's.
+			env: { SHELL: opts.shell },
 		},
 	})
 	return executors.bash!
@@ -208,8 +214,9 @@ async function executeBackground(
 export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): Tool {
 	const { cwd, getTerminalManager, backgroundTimeoutMs = 300_000, backgroundMaxOutputBytes = 1_000_000 } = options
 
-	// Lazy-init background executor
+	// Lazy-init background executor — recreated when the user's shell profile changes.
 	let bgExecutor: ((command: string, cwd: string, context: ToolContext) => Promise<string>) | undefined
+	let bgExecutorShell: string | undefined
 
 	// Lazy-init terminal manager reference
 	let terminalManager: ITerminalManager | undefined
@@ -247,11 +254,19 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 
 			if (mode === "backgroundExec") {
 				// Background path — use SDK's createBashExecutor
-				if (!bgExecutor) {
+				// Resolve shell from the user's terminal profile setting
+				const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"
+				const shell = getShellForProfile(profileId)
+
+				// Recreate the executor if the shell has changed
+				if (!bgExecutor || bgExecutorShell !== shell) {
+					bgExecutorShell = shell
 					bgExecutor = createBackgroundExecutor({
 						timeoutMs: backgroundTimeoutMs,
 						maxOutputBytes: backgroundMaxOutputBytes,
+						shell,
 					})
+					Logger.log(`[VscodeRunCommands] Background executor using shell: ${shell}`)
 				}
 				const results = await Promise.all(commands.map((cmd) => executeBackground(cmd, cwd, bgExecutor!, context)))
 				return results
