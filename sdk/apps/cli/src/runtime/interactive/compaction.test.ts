@@ -40,13 +40,14 @@ describe("compactInteractiveMessages", () => {
 			},
 		};
 
-		const compacted = await compactInteractiveMessages({
+		const result = await compactInteractiveMessages({
 			config,
 			sessionId: "sess-compact",
 			messages,
 		});
 
-		expect(compacted).toBe(messages);
+		expect(result.compacted).toBe(false);
+		expect(result.messages).toBe(messages);
 	});
 
 	it("uses a useful target budget for manual compaction", async () => {
@@ -56,21 +57,47 @@ describe("compactInteractiveMessages", () => {
 			content: `message ${index} ${longText}`,
 		}));
 
-		const compacted = await compactInteractiveMessages({
+		const result = await compactInteractiveMessages({
 			config: createConfig(),
 			sessionId: "sess-compact",
 			messages,
 		});
 
-		const compactedTextLength = compacted.reduce(
+		const compactedTextLength = result.messages.reduce(
 			(total, message) =>
 				total +
 				(typeof message.content === "string" ? message.content.length : 0),
 			0,
 		);
 
-		expect(compacted.length).toBeGreaterThan(1);
-		expect(compacted.length).toBeLessThan(messages.length);
+		expect(result.compacted).toBe(true);
+		expect(result.messages.length).toBeGreaterThan(1);
+		expect(result.messages.length).toBeLessThan(messages.length);
 		expect(compactedTextLength).toBeGreaterThan(1_000);
+	});
+
+	it("reports compaction when core returns changed messages with the same count", async () => {
+		const messages = [
+			{
+				role: "user" as const,
+				content: `${" ".repeat(80)}same count but content should be trimmed${" ".repeat(80)}`,
+			},
+		];
+		const config = createConfig();
+		config.compaction = {
+			contextWindowTokens: 80,
+		};
+
+		const result = await compactInteractiveMessages({
+			config,
+			sessionId: "sess-compact",
+			messages,
+		});
+
+		expect(result.compacted).toBe(true);
+		expect(result.messages).toHaveLength(messages.length);
+		expect(result.messages[0]?.content).toBe(
+			"same count but content should be trimmed",
+		);
 	});
 });

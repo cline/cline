@@ -9,7 +9,7 @@ export async function compactInteractiveMessages(input: {
 	config: Config;
 	sessionId: string;
 	messages: Message[];
-}): Promise<Message[]> {
+}): Promise<{ compacted: boolean; messages: Message[] }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
 	const contextWindowTokens =
 		input.config.compaction?.contextWindowTokens ??
@@ -33,7 +33,7 @@ export async function compactInteractiveMessages(input: {
 		},
 	});
 	if (!compact) {
-		return input.messages;
+		return { compacted: false, messages: input.messages };
 	}
 	const result = await compact({
 		agentId: "cli",
@@ -55,5 +55,8 @@ export async function compactInteractiveMessages(input: {
 			},
 		},
 	});
-	return result?.messages ?? input.messages;
+	if (!result) {
+		return { compacted: false, messages: input.messages };
+	}
+	return { compacted: true, messages: result.messages };
 }

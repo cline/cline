@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { formatCompactionStatus } from "../utils/compaction-status";
 import {
 	type LocalSlashCommandActionInput,
 	runLocalSlashCommandAction,
@@ -106,5 +107,37 @@ describe("runLocalSlashCommandAction", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe("formatCompactionStatus", () => {
+	it("reports when core did not return a compaction result", () => {
+		expect(
+			formatCompactionStatus({
+				messagesBefore: 300,
+				messagesAfter: 300,
+				compacted: false,
+			}),
+		).toBe("No compaction needed.");
+	});
+
+	it("reports same-count compaction without implying no-op", () => {
+		expect(
+			formatCompactionStatus({
+				messagesBefore: 300,
+				messagesAfter: 300,
+				compacted: true,
+			}),
+		).toBe("Compacted context; message count stayed at 300.");
+	});
+
+	it("reports empty sessions separately", () => {
+		expect(
+			formatCompactionStatus({
+				messagesBefore: 0,
+				messagesAfter: 0,
+				compacted: false,
+			}),
+		).toBe("No messages to compact.");
 	});
 });

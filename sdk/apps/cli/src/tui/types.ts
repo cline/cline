@@ -63,6 +63,12 @@ export interface InteractiveTurnResult {
 	queued?: boolean;
 }
 
+export interface InteractiveCompactionResult {
+	messagesBefore: number;
+	messagesAfter: number;
+	compacted: boolean;
+}
+
 export interface UserInputAttachments {
 	userImages?: string[];
 }
@@ -113,7 +119,7 @@ export interface TuiProps {
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
 	onResumeSession: (sessionId: string) => Promise<Message[]>;
-	onCompact: () => Promise<{ messagesBefore: number; messagesAfter: number }>;
+	onCompact: () => Promise<InteractiveCompactionResult>;
 	onFork: () => Promise<
 		{ forkedFromSessionId: string; newSessionId: string } | undefined
 	>;

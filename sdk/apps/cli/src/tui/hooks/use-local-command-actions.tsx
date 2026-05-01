@@ -9,6 +9,7 @@ import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
 import { HelpDialogContent } from "../components/dialogs/help-dialog";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
+import { formatCompactionStatus } from "../utils/compaction-status";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import { HistoryDialogContent } from "../views/history-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
@@ -112,7 +113,7 @@ export function useLocalCommandActions(input: {
 			const result = await onCompact();
 			session.updateLastEntry(() => ({
 				kind: "status",
-				text: `Compacted ${result.messagesBefore} messages to ${result.messagesAfter}`,
+				text: formatCompactionStatus(result),
 			}));
 		} catch (error) {
 			session.appendEntry({

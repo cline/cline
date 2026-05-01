@@ -346,24 +346,33 @@ export function createInteractiveSessionRuntime(input: {
 	const compactCurrentSession = async (): Promise<{
 		messagesBefore: number;
 		messagesAfter: number;
+		compacted: boolean;
 	}> => {
 		if (!sessionManager) {
-			return { messagesBefore: 0, messagesAfter: 0 };
+			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
 		const messages = await readCurrentMessages();
 		const messagesBefore = messages.length;
 		if (messagesBefore === 0) {
-			return { messagesBefore: 0, messagesAfter: 0 };
+			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const compactedMessages = await compactInteractiveMessages({
+		const result = await compactInteractiveMessages({
 			config: input.config,
 			sessionId: activeSessionId,
 			messages,
 		});
-		await restartWithMessages(compactedMessages);
+		if (!result.compacted) {
+			return {
+				messagesBefore,
+				messagesAfter: messagesBefore,
+				compacted: false,
+			};
+		}
+		await restartWithMessages(result.messages);
 		return {
 			messagesBefore,
-			messagesAfter: compactedMessages.length,
+			messagesAfter: result.messages.length,
+			compacted: true,
 		};
 	};
 
