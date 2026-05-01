@@ -55,6 +55,7 @@ import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
+import { isToolAutoApproved } from "./sdk-tool-policies"
 import type { TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -197,6 +198,10 @@ export class Controller {
 			messages: this.messages,
 			getSessionId: () => this.sessions.getActiveSession()?.sessionId ?? "",
 			postStateToWebview: () => this.postStateToWebview(),
+			shouldAutoApproveTool: (request) => {
+				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
+			},
 		})
 		this.sessions = new SdkSessionLifecycle({
 			factory: new SdkSessionFactory({

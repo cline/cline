@@ -668,6 +668,67 @@ function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, 
 	} satisfies ClineAskUseMcpServer)
 }
 
+function extractCommandText(input: unknown): string {
+	if (Array.isArray(input)) {
+		return (input as string[]).join(" && ")
+	}
+	if (typeof input === "string") {
+		return input
+	}
+	const parsedInput = parseToolInput(input)
+	const commands = getArrayField(parsedInput, "commands")
+	return commands?.join(" && ") ?? getStringField(parsedInput, "commands") ?? getStringField(parsedInput, "command") ?? ""
+}
+
+/**
+ * Build the classic Cline approval ask message for an SDK tool approval request.
+ * This keeps approval prompts aligned with the SDK event translator so the
+ * webview can render specialized rows (MCP, commands, subagents) instead of a
+ * generic tool approval with missing context.
+ */
+export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number): ClineMessage {
+	const mcpInfo = parseMcpToolName(toolName)
+	if (mcpInfo) {
+		return {
+			ts,
+			type: "ask",
+			ask: "use_mcp_server",
+			text: buildMcpToolPayload(mcpInfo, input),
+			partial: false,
+		}
+	}
+
+	if (toolName === "run_commands" || toolName === "execute_command") {
+		return {
+			ts,
+			type: "ask",
+			ask: "command",
+			text: extractCommandText(input),
+			partial: false,
+		}
+	}
+
+	if (toolName === "spawn_agent") {
+		const parsedInput = parseToolInput(input)
+		const taskPrompt = getStringField(parsedInput, "task") ?? ""
+		return {
+			ts,
+			type: "ask",
+			ask: "use_subagents",
+			text: JSON.stringify({ prompts: [taskPrompt] } satisfies ClineAskUseSubagents),
+			partial: false,
+		}
+	}
+
+	return {
+		ts,
+		type: "ask",
+		ask: "tool",
+		text: JSON.stringify(sdkToolToClineSayTool(toolName, input)),
+		partial: false,
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Agent event translation
 // ---------------------------------------------------------------------------
@@ -741,27 +802,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// command tools use say="command" (not say="tool")
 					// because the webview renders commands differently
 					if (toolName === "run_commands" || toolName === "execute_command") {
-						// Handle multiple input formats from SDK run_commands:
-						//   1. { commands: string[] }  — standard wrapped object
-						//   2. string[]                — bare array (parseToolInput returns undefined)
-						//   3. { command: string }     — single command as object (execute_command compat)
-						//   4. string                  — bare string
-						let commandText = ""
-						if (Array.isArray(input)) {
-							// Case 2: bare array of command strings
-							commandText = (input as string[]).join(" && ")
-						} else if (typeof input === "string") {
-							// Case 4: bare string command
-							commandText = input
-						} else {
-							const parsedInput = parseToolInput(input)
-							const commands = getArrayField(parsedInput, "commands")
-							commandText =
-								commands?.join(" && ") ??
-								getStringField(parsedInput, "commands") ??
-								getStringField(parsedInput, "command") ??
-								""
-						}
+						const commandText = extractCommandText(input)
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -1001,25 +1042,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// by combineCommandSequences in the chat pipeline).
 					if (toolName === "run_commands" || toolName === "execute_command") {
 						const storedInput = state.getStreamingToolInput()
-						// Handle multiple input formats (same as content_start):
-						//   1. { commands: string[] }  — standard wrapped object
-						//   2. string[]                — bare array (parseToolInput returns undefined)
-						//   3. { command: string }     — single command as object (execute_command compat)
-						//   4. string                  — bare string
-						let commandText = ""
-						if (Array.isArray(storedInput)) {
-							commandText = (storedInput as string[]).join(" && ")
-						} else if (typeof storedInput === "string") {
-							commandText = storedInput
-						} else {
-							const parsedInput = parseToolInput(storedInput)
-							const commands = getArrayField(parsedInput, "commands")
-							commandText =
-								commands?.join(" && ") ??
-								getStringField(parsedInput, "commands") ??
-								getStringField(parsedInput, "command") ??
-								""
-						}
+						const commandText = extractCommandText(storedInput)
 						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
 						const ts = state.clearStreamingTool()
 						messages.push({
