@@ -160,8 +160,8 @@ export class SdkTaskStartCoordinator {
 	}
 
 	private getCurrentMode(): Mode {
-		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")
-		return modeValue === "plan" || modeValue === "act" ? modeValue : "act"
+		const m = this.options.stateManager.getGlobalSettingsKey("mode")
+		return m === "plan" ? m : "act"
 	}
 
 	private createAndSetTask(sessionId: string): void {
