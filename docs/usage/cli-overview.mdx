@@ -1,6 +1,6 @@
 ---
-title: "CLI"
-sidebarTitle: "CLI"
+title: "CLI Overview"
+sidebarTitle: "CLI Overview"
 description: "Use Cline CLI for interactive terminal sessions and automated headless workflows."
 ---
 
@@ -32,7 +32,6 @@ Headless is triggered when using flags like `--json`, when stdin is piped, or wh
 
 | Invocation | Reason |
 |---|---|
-| `cline --autoapprove true "task"` | Auto-approval mode for unattended execution |
 | `cline --json "task"` | JSON output mode |
 | `cat file \| cline "task"` | stdin is piped |
 | `cline "task" > output.txt` | stdout is redirected |
@@ -45,24 +44,24 @@ git diff | cline "review these changes"
 cline --json "summarize this changelog" | jq -r '.text'
 ```
 
-See: [Headless Mode](/cli/three-core-flows)
+See: [Headless Mode](#headless-mode)
 
 ### Autonomous execution
 
 For fully unattended runs, use auto-approval:
 
 ```bash
-cline --autoapprove true "run tests and fix failures"
+cline "run tests and fix failures"
 ```
 
 Mode selection also works in headless runs:
 
 ```bash
 # plan-first
-cline --autoapprove true -p "design migration plan"
+cline -p "design migration plan"
 
 # act immediately
-cline --autoapprove true -a "apply migration"
+cline -a "apply migration"
 ```
 
 <Warning>
@@ -103,8 +102,7 @@ Source of truth: [CLI Reference](/cli/cli-reference)
 | `--config <dir>` | Use config directory |
 | `--data-dir <dir>` | Use isolated local state |
 | `--json` | Output newline-delimited JSON messages |
-| `--thinking` | Enable extended thinking |
-| `--reasoning-effort <level>` | Set reasoning effort |
+| `--thinking [level]` | Enable extended thinking (optional `low\|medium\|high\|xhigh`, default `medium`) |
 | `-t, --timeout <seconds>` | Set task timeout |
 
 ## Automation Patterns
@@ -140,7 +138,7 @@ cline "fix the UI shown in @./design-mockup.png"
 ### Set execution timeout
 
 ```bash
-cline --autoapprove true --timeout 600 "run full test suite"
+cline --timeout 600 "run full test suite"
 ```
 
 ## JSON Output Schema
@@ -165,5 +163,4 @@ When using `--json`, each line is a JSON message object.
 
 - [CLI Reference](/cli/cli-reference)
 - [Interactive Mode](/cli/interactive-mode)
-- [Headless Mode](/cli/three-core-flows)
 - [CLI Samples](/cli/samples/overview)

@@ -60,15 +60,9 @@
 				"icon": "robot",
 				"groups": [
 					{
-						"group": "Home",
-						"pages": [
-							"home",
-							"getting-started/quick-start"
-						]
-					},
-					{
 						"group": "Getting Started",
 						"pages": [
+							"cline-overview",
 							"getting-started/installing-cline",
 							{
 								"group": "Models & Providers",
@@ -112,11 +106,18 @@
 							{
 								"group": "CLI",
 								"pages": [
-									"usage/cli",
-									"cli/samples/github-issue-rca",
-									"cli/samples/github-integration",
-									"cli/samples/github-pr-review",
-									"cli/samples/model-orchestration"
+									"usage/cli-overview",
+									"cli/cli-reference",
+									{
+										"group": "Examples",
+										"pages": [
+											"cli/samples/github-issue-rca",
+											"cli/samples/github-integration",
+											"cli/samples/github-pr-review",
+											"cli/samples/model-orchestration"
+										]
+									},
+									"cli/acp-editor-integrations"
 								]
 							},
 							{
@@ -158,39 +159,11 @@
 							"features/web-tools"
 						]
 					},
-
 					{
 						"group": "Troubleshooting",
 						"pages": [
 							"troubleshooting/terminal-quick-fixes",
 							"troubleshooting/networking-and-proxies"
-						]
-					}
-				]
-			},
-
-			{
-				"tab": "CLI",
-				"icon": "terminal",
-				"groups": [
-					{
-						"group": "Getting Started",
-						"pages": [
-							"cli/getting-started",
-							"cli/installation"
-						]
-					},
-					{
-						"group": "Usage",
-						"pages": [
-							"cli/three-core-flows"
-						]
-					},
-					{
-						"group": "Reference",
-						"pages": [
-							"cli/cli-reference",
-							"cli/acp-editor-integrations"
 						]
 					}
 				]
@@ -254,7 +227,6 @@
 					}
 				]
 			},
-
 			{
 				"tab": "Enterprise",
 				"icon": "building",
@@ -376,17 +348,21 @@
 		{
 			"name": "Overview",
 			"icon": "house",
-			"url": "getting-started/quick-start"
+			"url": "cline-overview"
 		}
 	],
 	"redirects": [
+		{
+			"source": "/usage/cli",
+			"destination": "/usage/cli-overview"
+		},
 		{
 			"source": "/getting-started/installing-cline-jetbrains",
 			"destination": "/getting-started/installing-cline"
 		},
 		{
 			"source": "/getting-started/overview",
-			"destination": "/getting-started/quick-start"
+			"destination": "/cline-overview"
 		},
 		{
 			"source": "/getting-started/your-first-project",
@@ -394,15 +370,15 @@
 		},
 		{
 			"source": "/introduction",
-			"destination": "/getting-started/quick-start"
+			"destination": "/cline-overview"
 		},
 		{
 			"source": "/introduction/welcome",
-			"destination": "/getting-started/quick-start"
+			"destination": "/cline-overview"
 		},
 		{
 			"source": "/introduction/overview",
-			"destination": "/getting-started/quick-start"
+			"destination": "/cline-overview"
 		},
 		{
 			"source": "/getting-started/model-selection-guide",
@@ -689,12 +665,48 @@
 			"destination": "/api/overview"
 		},
 		{
+			"source": "/cli/overview",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/kanban/overview",
+			"destination": "/usage/kanban"
+		},
+		{
+			"source": "/kanban/getting-started",
+			"destination": "/usage/kanban"
+		},
+		{
+			"source": "/kanban/features",
+			"destination": "/usage/kanban"
+		},
+		{
+			"source": "/features/background-edit",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/features/worktrees",
+			"destination": "/usage/ide"
+		},
+		{
+			"source": "/cli/getting-started",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cli/installation",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/cli/three-core-flows",
+			"destination": "/usage/cli-overview#headless-mode"
+		},
+		{
 			"source": "/cline-cli/getting-started",
-			"destination": "/cli/getting-started"
+			"destination": "/usage/cli-overview"
 		},
 		{
 			"source": "/cline-cli/installation",
-			"destination": "/cli/installation"
+			"destination": "/getting-started/installing-cline"
 		},
 		{
 			"source": "/cline-cli/interactive-mode",
@@ -702,7 +714,7 @@
 		},
 		{
 			"source": "/cline-cli/three-core-flows",
-			"destination": "/cli/three-core-flows"
+			"destination": "/usage/cli-overview#headless-mode"
 		},
 		{
 			"source": "/cline-cli/connectors",
@@ -768,7 +780,6 @@
 			"source": "/cline-cli/samples/model-orchestration",
 			"destination": "/cli/samples/model-orchestration"
 		},
-
 		{
 			"source": "/cline-sdk/overview",
 			"destination": "/sdk/overview"

@@ -46,15 +46,8 @@ Teams are enabled by default. Disable them with:
 cline --no-teams "your prompt"
 ```
 
-In yolo mode (`-y`), teams are disabled by default to keep execution simple.
-
 ## Sub-Agents
 
-For simpler delegation within a single session (no persistent state), use sub-agents instead:
-
-```bash
-cline --spawn "your prompt"        # Enabled by default
-cline --no-spawn "your prompt"     # Disable spawning
-```
+For simpler delegation within a single session (no persistent state), use [sub-agents](/features/subagents). Sub-agents run in parallel for read-only research and return focused reports to the main agent.
 
 See the [SDK Multi-Agent Teams guide](/sdk/guides/multi-agent-teams) for the programmatic API.
