@@ -16,7 +16,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm",
+		"build": "rm -rf dist && bun bun.mts",
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "bunx tsc -p tsconfig.json --noEmit",
 		"test": "bunx vitest run --config vitest.config.ts",

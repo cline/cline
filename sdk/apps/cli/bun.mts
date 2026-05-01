@@ -6,11 +6,14 @@ function defineProcessEnv(name: string): string {
 	return JSON.stringify(process.env[name] ?? "");
 }
 
+const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+
 const result = await Bun.build({
 	entrypoints: ["./src/index.ts"],
 	outdir: "./dist",
 	target: "node",
 	format: "esm",
+	sourcemap,
 	packages: "bundle", // Keep private workspace packages bundled so npm consumers do not need @clinebot/* at runtime.
 	external: [
 		// OpenTUI resolves a platform-specific native package at runtime.

@@ -7,6 +7,7 @@ const buildMode: BuildMode =
 	rawMode === "bundle" || rawMode === "dev" ? rawMode : "package";
 
 const shouldEmitTypes = buildMode === "package";
+const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 
 const runBuild = async (
 	name: string,
@@ -39,7 +40,7 @@ await runBuild("node", {
 	outdir: "./dist",
 	target: "node",
 	minify: true,
-	sourcemap: "none",
+	sourcemap,
 });
 
 await runBuild("browser", {
@@ -47,7 +48,7 @@ await runBuild("browser", {
 	outdir: "./dist",
 	target: "browser",
 	minify: true,
-	sourcemap: "none",
+	sourcemap,
 	packages: "bundle",
 	external: ["zod"],
 });

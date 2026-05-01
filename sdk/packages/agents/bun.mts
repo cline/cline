@@ -4,6 +4,7 @@ export {};
 // Externalize third-party runtime deps plus the provider/runtime layer that
 // the Agent facade loads dynamically. `@clinebot/shared` stays bundled.
 const external = ["@clinebot/llms", "nanoid"];
+const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
@@ -11,7 +12,7 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		outdir: "./dist",
 		target: "node",
 		minify: true,
-		sourcemap: "none",
+		sourcemap,
 		packages: "bundle",
 		external,
 	},

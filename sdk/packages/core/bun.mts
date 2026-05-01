@@ -11,12 +11,14 @@ const external = [
 	"zod",
 ];
 
+const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+
 const buildConfig = {
 	target: "node",
 	format: "esm",
 	minify: true,
 	packages: "bundle",
-	sourcemap: "none",
+	sourcemap,
 	external,
 } as const;
 

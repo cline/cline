@@ -9,6 +9,7 @@ type PackageManifest = {
 const packageJson = (await Bun.file(
 	new URL("./package.json", import.meta.url),
 ).json()) as PackageManifest;
+const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 
 // Keep published third-party runtime packages external, but bundle internal workspace code.
 const external = Object.keys({
@@ -24,7 +25,7 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		external,
 		packages: "bundle",
 		minify: true,
-		sourcemap: "none",
+		sourcemap,
 	},
 	{
 		entrypoints: ["./src/index.browser.ts", "./src/providers.browser.ts"],
@@ -33,7 +34,7 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		external,
 		packages: "bundle",
 		minify: true,
-		sourcemap: "none",
+		sourcemap,
 	},
 ];
 
