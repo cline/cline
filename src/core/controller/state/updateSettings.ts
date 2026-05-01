@@ -7,9 +7,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
-import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
@@ -237,39 +235,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update default terminal profile
 		if (request.defaultTerminalProfile !== undefined) {
-			const profileId = request.defaultTerminalProfile
-
-			// Update the terminal profile in the state
-			controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
-
-			// Apply to the live terminal manager if it exists.
-			// setDefaultTerminalProfile() closes idle terminals with a different
-			// profile and returns info about what was closed.
-			if (controller.terminalManager) {
-				const result = controller.terminalManager.setDefaultTerminalProfile(profileId) as any
-				const closedCount = result?.closedCount ?? 0
-				const busyTerminalsCount = result?.busyTerminals?.length ?? 0
-
-				// Show information message if terminals were closed
-				if (closedCount > 0) {
-					const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message,
-					})
-				}
-
-				// Show warning if there are busy terminals that couldn't be closed
-				if (busyTerminalsCount > 0) {
-					const message =
-						`${busyTerminalsCount} busy ${busyTerminalsCount === 1 ? "terminal has" : "terminals have"} a different profile. ` +
-						`Close ${busyTerminalsCount === 1 ? "it" : "them"} to use the new profile for all commands.`
-					HostProvider.window.showMessage({
-						type: ShowMessageType.WARNING,
-						message,
-					})
-				}
-			}
+			controller.stateManager.setGlobalState("defaultTerminalProfile", request.defaultTerminalProfile)
+			// Update the live terminal manager so new terminals use the new profile.
+			// Existing terminals are left open — they're keyed by effective shell
+			// and reused when compatible, or skipped when not.
+			controller.terminalManager?.setDefaultTerminalProfile(request.defaultTerminalProfile)
 		}
 
 		if (request.backgroundEditEnabled !== undefined) {
