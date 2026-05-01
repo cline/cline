@@ -5,7 +5,6 @@
 //
 // Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
 // Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
-
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -816,6 +815,20 @@ export class Controller {
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		return this.taskHistory.updateTaskHistory(item)
+	}
+
+	async toggleTaskFavorite(taskId: string, isFavorited: boolean): Promise<void> {
+		const historyItem = await this.taskHistory.findHistoryItem(taskId)
+		if (!historyItem) {
+			Logger.log(`[toggleTaskFavorite] Task not found in history: ${taskId}`)
+			return
+		}
+
+		await this.taskHistory.updateTaskHistory({
+			...historyItem,
+			isFavorited,
+		})
+		await this.postStateToWebview()
 	}
 
 	// ---- Background command state ----
