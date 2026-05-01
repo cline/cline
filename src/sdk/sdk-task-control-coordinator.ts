@@ -30,10 +30,10 @@ export class SdkTaskControlCoordinator {
 			return
 		}
 
-		const { sessionManager, sessionId } = activeSession
+		const { sdkHost, sessionId } = activeSession
 
 		try {
-			await sessionManager.abort(sessionId)
+			await sdkHost.abort(sessionId)
 		} catch (error) {
 			if (!isAbortError(error)) {
 				Logger.error("[SdkController] Failed to abort session:", error)
@@ -58,18 +58,17 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async clearTask(): Promise<void> {
-		const startedAt = Date.now()
 		this.options.interactions.clearPending("Task cleared")
 
 		const activeSession = this.options.sessions.clearActiveSessionReference()
 		if (activeSession) {
-			const { sessionManager, unsubscribe, sessionId } = activeSession
+			const { sdkHost, unsubscribe, sessionId } = activeSession
 			unsubscribe()
 
 			// Do not block the webview on SDK shutdown. `stop()`/`dispose()` can take
 			// seconds (or hit their timeouts) while the UI only needs the active
 			// session reference and task proxy cleared synchronously.
-			this.stopAndDisposeSessionInBackground(sessionManager, sessionId)
+			this.stopAndDisposeSessionInBackground(sdkHost, sessionId)
 		}
 
 		const task = this.options.getTask()
@@ -82,15 +81,10 @@ export class SdkTaskControlCoordinator {
 		}
 
 		this.options.resetMessageTranslator()
-
-		const elapsed = Date.now() - startedAt
-		if (elapsed > 250) {
-			Logger.warn(`[SdkController] clearTask synchronous path took ${elapsed}ms`)
-		}
 	}
 
 	private stopAndDisposeSessionInBackground(
-		sessionManager: { stop(sessionId: string): Promise<unknown>; dispose(reason: string): Promise<unknown> },
+		sdkHost: { stop(sessionId: string): Promise<unknown>; dispose(reason: string): Promise<unknown> },
 		sessionId: string,
 	): void {
 		const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
@@ -99,13 +93,13 @@ export class SdkTaskControlCoordinator {
 		void (async () => {
 			const startedAt = Date.now()
 			try {
-				await withTimeout(sessionManager.stop(sessionId), 3000)
+				await withTimeout(sdkHost.stop(sessionId), 3000)
 			} catch (error) {
 				Logger.warn("[SdkController] Error stopping session during clear:", error)
 			}
 
 			try {
-				await withTimeout(sessionManager.dispose("clearTask"), 3000)
+				await withTimeout(sdkHost.dispose("clearTask"), 3000)
 			} catch (error) {
 				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
 			}
@@ -172,10 +166,10 @@ export class SdkTaskControlCoordinator {
 			return
 		}
 
-		const { sessionManager, unsubscribe, sessionId } = activeSession
+		const { sdkHost, unsubscribe, sessionId } = activeSession
 		unsubscribe()
-		sessionManager.stop(sessionId).catch(() => {})
-		sessionManager.dispose("showTaskWithId").catch(() => {})
+		sdkHost.stop(sessionId).catch(() => {})
+		sdkHost.dispose("showTaskWithId").catch(() => {})
 	}
 
 	private appendFreshResumeMessage(messages: ClineMessage[]): ClineMessage[] {

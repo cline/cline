@@ -97,6 +97,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.clineModelId || openRouterDefaultModelId)
+	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
@@ -196,6 +197,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
+		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
 
 		handleModeFieldsChange(
@@ -239,6 +241,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	// Sync external changes when the modelId changes
 	useEffect(() => {
 		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
+		searchTermEditedByUserRef.current = false
 		setSearchTerm(currentModelId)
 	}, [modeFields.clineModelId])
 
@@ -442,12 +445,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					<VSCodeTextField
 						id="model-search"
 						onBlur={() => {
-							if (searchTerm !== selectedModelId) {
+							if (searchTermEditedByUserRef.current && searchTerm !== selectedModelId) {
 								handleModelChange(searchTerm)
 							}
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
+							searchTermEditedByUserRef.current = true
 							setSearchTerm((e.target as HTMLInputElement)?.value.toLowerCase() || "")
 							setIsDropdownVisible(true)
 						}}
@@ -588,8 +592,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose, Cline
-					works best with <strong>anthropic/claude-sonnet-4.5</strong>.
+					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose,
+					compare available models by context window, pricing, and capabilities.
 				</p>
 			)}
 		</div>

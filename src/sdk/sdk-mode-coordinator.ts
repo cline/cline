@@ -24,7 +24,7 @@ export interface SdkModeCoordinatorOptions {
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (sessionManager: SessionHost, sessionId: string) => Promise<unknown[]>
+	loadInitialMessages: (sdkHost: SessionHost, sessionId: string) => Promise<unknown[]>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
@@ -75,13 +75,13 @@ export class SdkModeCoordinator {
 			return false
 		}
 
-		await this.options.stateManager.setGlobalState("mode", modeToSwitchTo)
+		this.options.stateManager.setGlobalState("mode", modeToSwitchTo)
 		await this.options.postStateToWebview()
 		return false
 	}
 
 	async rebuildSessionForMode(newMode: Mode, options: { autoContinue?: boolean } = {}): Promise<void> {
-		await this.options.stateManager.setGlobalState("mode", newMode)
+		this.options.stateManager.setGlobalState("mode", newMode)
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
@@ -89,7 +89,7 @@ export class SdkModeCoordinator {
 			return
 		}
 
-		const { sessionManager: oldManager, sessionId: oldSessionId } = activeSession
+		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
 		const wasRunning = activeSession.isRunning
 
 		Logger.log(`[SdkController] Rebuilding session ${oldSessionId} for mode change -> ${newMode} (wasRunning=${wasRunning})`)
@@ -126,7 +126,7 @@ export class SdkModeCoordinator {
 				return
 			}
 
-			const { sessionManager, startResult } = rebuildResult
+			const { sdkHost, startResult } = rebuildResult
 			const task = this.options.getTask()
 			if (task && task.taskId !== startResult.sessionId) {
 				Logger.warn(
@@ -138,7 +138,7 @@ export class SdkModeCoordinator {
 			this.options.resetMessageTranslator()
 			if (options.autoContinue) {
 				this.options.sessions.setRunning(true)
-				this.options.sessions.fireAndForgetSend(sessionManager, startResult.sessionId, ACT_MODE_CONTINUATION_PROMPT)
+				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, ACT_MODE_CONTINUATION_PROMPT)
 			}
 			await this.options.postStateToWebview()
 

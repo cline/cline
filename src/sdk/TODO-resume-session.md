@@ -20,7 +20,7 @@ carries the old conversation history so the model has full context.
   1. `ui_messages.json` — ClineMessage[] for the webview (already loaded by `showTaskWithId`)
   2. `api_conversation_history.json` — Anthropic.MessageParam[] (classic controller only)
   3. `~/.cline/data/sessions/<sessionId>/<sessionId>.messages.json` — SDK-persisted LLM
-     messages (SQLite-indexed, read via `sessionManager.readMessages(sessionId)`)
+     messages (SQLite-indexed, read via `sdkHost.readMessages(sessionId)`)
 - For SDK-created tasks, only #1 and #3 exist. `api_conversation_history.json` is never
   written by the SDK controller.
 - The SDK's `LlmsProviders.Message[]` format is compatible with `Anthropic.MessageParam[]`
@@ -34,7 +34,7 @@ carries the old conversation history so the model has full context.
   SDK-created tasks persist messages via `DefaultSessionManager.executeAgentTurn()`
   → `persistSessionMessages()` to SQLite/file storage at
   `~/.cline/data/sessions/<sessionId>/<sessionId>.messages.json`.
-- **Fix**: Use `sessionManager.readMessages(taskId)` FIRST (reads from SQLite via
+- **Fix**: Use `sdkHost.readMessages(taskId)` FIRST (reads from SQLite via
   the session service). Fall back to `getSavedApiConversationHistory(taskId)` for
   tasks created by the classic (non-SDK) controller.
 - **IMPORTANT**: Must read BEFORE `start()` since `start()` with the same `sessionId`
@@ -60,7 +60,7 @@ carries the old conversation history so the model has full context.
   Done before reading messages so `readMessages()` can use the session manager.
 
 ### 5. ✅ Start the session with `initialMessages`
-- Call `sessionManager.start()` with the loaded conversation history as `initialMessages`.
+- Call `sdkHost.start()` with the loaded conversation history as `initialMessages`.
 - Pass `interactive: true`, no `prompt` (same as `initTask` — fast return).
 - This gives the agent the full conversation context from the old task.
 - **Implementation**: Passes `initialMessages` when non-empty. Omits when empty (fresh session).
@@ -72,11 +72,11 @@ carries the old conversation history so the model has full context.
 - **Implementation**: Sets `this.activeSession` and updates `this.task.taskId` if needed.
 
 ### 7. ✅ Send the user's follow-up message
-- Call `sessionManager.send()` fire-and-forget with the user's prompt (same as current
+- Call `sdkHost.send()` fire-and-forget with the user's prompt (same as current
   `askResponse` logic).
 - The agent will call `agent.continue()` since `initialMessages` were provided, appending
   to the existing conversation.
-- **Implementation**: Fire-and-forget `sessionManager.send()` with `.then()` / `.catch()`.
+- **Implementation**: Fire-and-forget `sdkHost.send()` with `.then()` / `.catch()`.
 
 ### 8. ✅ Update the HistoryItem
 - Update the existing history item's timestamp and model info so it appears as recently active.
@@ -107,5 +107,5 @@ All changes in `src/sdk/SdkController.ts`:
 - **Root cause**: Original Task 1 read only from `api_conversation_history.json` (classic
   controller format), which is never written by the SDK controller. SDK-created tasks
   store LLM messages in SQLite at `~/.cline/data/sessions/`.
-- **Fix**: Read from `sessionManager.readMessages(taskId)` first (SDK persistence),
+- **Fix**: Read from `sdkHost.readMessages(taskId)` first (SDK persistence),
   fall back to `getSavedApiConversationHistory(taskId)` (classic persistence).

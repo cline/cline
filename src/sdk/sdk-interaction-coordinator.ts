@@ -1,7 +1,7 @@
 import type { ClineAskQuestion, ClineMessage } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
-import { sdkToolToClineSayTool } from "./message-translator"
+import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 
 export interface ToolApprovalRequest {
@@ -18,6 +18,7 @@ export interface SdkInteractionCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
+	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
 }
 
 export class SdkInteractionCoordinator {
@@ -28,14 +29,12 @@ export class SdkInteractionCoordinator {
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
-		const sayTool = sdkToolToClineSayTool(request.toolName, request.input)
-		const toolAskMessage: ClineMessage = {
-			ts: this.nextMessageTs(),
-			type: "ask",
-			ask: "tool",
-			text: JSON.stringify(sayTool),
-			partial: false,
+		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
+			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
+			return { approved: true }
 		}
+
+		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(request.toolName, request.input, this.nextMessageTs())
 
 		this.options.messages.appendAndEmit([toolAskMessage], {
 			type: "status",

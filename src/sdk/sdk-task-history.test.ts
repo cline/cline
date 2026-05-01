@@ -85,6 +85,33 @@ describe("SdkTaskHistory", () => {
 		])
 	})
 
+	it("includes persisted SDK message metrics for task header pricing", () => {
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "Build the feature" },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Done" }],
+				metrics: {
+					inputTokens: 120,
+					outputTokens: 30,
+					cacheReadTokens: 20,
+					cacheWriteTokens: 10,
+					cost: 0.0123,
+				},
+			},
+		])
+
+		const metricsMessage = result.find((message) => message.type === "say" && message.say === "api_req_started")
+		expect(metricsMessage).toBeDefined()
+		expect(JSON.parse(metricsMessage?.text ?? "{}")).toMatchObject({
+			tokensIn: 90,
+			tokensOut: 30,
+			cacheReads: 20,
+			cacheWrites: 10,
+			cost: 0.0123,
+		})
+	})
+
 	it("renders persisted SDK tool calls as structured tool rows instead of raw tool result JSON", () => {
 		const rawToolResult = JSON.stringify({
 			query: "edit:/Users/maxpaulus/c/c2/README.md",
@@ -126,6 +153,20 @@ describe("SdkTaskHistory", () => {
 			tool: "editedExistingFile",
 			path: "/Users/maxpaulus/c/c2/README.md",
 		})
+	})
+
+	it("hides subagent sessions from task history", async () => {
+		const rootTask = makeSessionRecord("root")
+		const subagent = makeSessionRecord("root__agent", {
+			source: "subagent",
+			isSubagent: true,
+			prompt: "Inspect the SDK adapter",
+		})
+		const { history } = makeHistory([rootTask, subagent])
+
+		const result = await history.listHistory()
+
+		expect(result.map((item) => item.sessionId)).toEqual(["root"])
 	})
 
 	it("finds a task from SDK history", async () => {
@@ -250,13 +291,15 @@ function makeHistory(records: SessionHistoryRecord[]) {
 		return true
 	})
 	const listHistory = vi.fn(async () => currentRecords)
+	const readMessages = vi.fn(async () => [])
 	const host = {
 		listHistory,
+		readMessages,
 		update: updateSession,
 		delete: deleteSession,
 	} as unknown as VscodeSessionHost
 	const sessions = {
-		getActiveSession: () => ({ sessionManager: host }),
+		getActiveSession: () => ({ sdkHost: host }),
 	} as unknown as SdkSessionLifecycle
 	const history = new SdkTaskHistory({
 		mcpHub: {} as McpHub,

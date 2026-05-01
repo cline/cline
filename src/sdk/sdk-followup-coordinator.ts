@@ -61,7 +61,7 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		const { sessionManager, sessionId } = activeSession
+		const { sdkHost, sessionId } = activeSession
 		const wasAlreadyRunning = activeSession.isRunning
 		const delivery = wasAlreadyRunning ? ("queue" as const) : undefined
 
@@ -77,7 +77,7 @@ export class SdkFollowupCoordinator {
 		}
 
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files, delivery)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
 	}
 
 	private async tryResumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
@@ -130,7 +130,7 @@ export class SdkFollowupCoordinator {
 
 		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
 
-		const { startResult, sessionManager } = await this.options.sessions.startNewSession({
+		const { startResult, sdkHost } = await this.options.sessions.startNewSession({
 			config,
 			interactive: true,
 			...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
@@ -162,7 +162,7 @@ export class SdkFollowupCoordinator {
 				: "[TASK RESUMPTION] Please continue where you left off.")
 
 		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
-		this.options.sessions.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedPrompt, images, files)
+		this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
 	}
 
 	private emitUserFeedback(sessionId: string, prompt?: string, images?: string[], files?: string[]): void {

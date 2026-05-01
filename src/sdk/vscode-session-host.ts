@@ -14,8 +14,6 @@ import {
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
-	RestoreSessionInput,
-	RestoreSessionResult,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
 	type SessionHistoryRecord,
@@ -63,9 +61,6 @@ export class VscodeSessionHost implements SessionHost {
 	private constructor(inner: ClineCore) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
-	}
-	restore(input: RestoreSessionInput): Promise<RestoreSessionResult> {
-		return this.inner.restore(input)
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		this.inner.updateSessionModel?.(sessionId, modelId)
