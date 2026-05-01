@@ -17,66 +17,84 @@ function normalizeAutoApproveValue(
  * Add the shared root-level options to any command.
  */
 export function addRootOptions(cmd: Command): Command {
-	return cmd
-		.addOption(
-			// Act mode is the default. Keep the legacy flags accepted for users who
-			// still pass them, but do not advertise them in help output.
-			new Option("-a, --act", "Run in act mode").hideHelp(),
-		)
-		.option("-p, --plan", "Run in plan mode")
-		.addOption(
-			// `-y, --yolo` is still accepted (and behaves the same as before) but
-			// hidden from `--help` output.
-			new Option(
-				"-y, --yolo",
-				"Enable yolo mode where agents can use tools without approval with only a small set of tools available.",
-			).hideHelp(),
-		)
-		.option(
-			"--auto-approve [value]",
-			"Set tool auto-approval for all tools (`true` or `false`)",
-			normalizeAutoApproveValue,
-		)
-		.option(
-			"-t, --timeout <seconds>",
-			"Optional timeout in seconds (applies only when provided)",
-		)
-		.option("-m, --model <model>", "Model to use for the task")
-		.option("-v, --verbose", "Show verbose output")
-		.option("-c, --cwd <path>", "Working directory")
-		.option("--config <dir>", "Configuration directory")
-		.option(
-			"--data-dir <dir>",
-			"Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)",
-		)
-		.option(
-			"--thinking [level]",
-			"Set thinking level: none|low|medium|high|xhigh (default: medium when flag is provided without a level)",
-		)
-		.option(
-			"--retries <count>",
-			"Maximum consecutive mistakes (retries) before halting",
-		)
-		.option("--json", "Output messages as JSON instead of styled text")
-		.option(
-			"--hooks-dir <dir>",
-			"Path to additional hooks directory for runtime hook injection",
-		)
-		.option(
-			"--acp",
-			"Run in ACP (Agent Client Protocol) mode for editor integration",
-		)
-		.option("--update", "Check for updates and install if available")
-		.option("-i, --tui", "Start interactive TUI chat mode")
-		.option("--id <id>", "Resume an existing task by ID")
-		.option("-k, --key <api-key>", "API key override for this run")
-		.option("-P, --provider <id>", "Provider id (default: cline)")
-		.option("-s, --system <prompt>", "Override the system prompt")
-		.option("--team-name <name>", "Override the runtime team state name")
-		.option(
-			"-z, --zen",
-			"Run the task in the background hub and exit immediately (menubar app notifies on completion)",
-		);
+	return (
+		cmd
+			.option("-p, --plan", "Run in plan mode")
+			.option("--json", "Output messages as JSON instead of styled text")
+			.option(
+				"--auto-approve <boolean>",
+				"Set tool auto-approval for all tools (default: true)",
+				normalizeAutoApproveValue,
+			)
+			.option("-c, --cwd <path>", "Working directory")
+			.option(
+				"--thinking <level>",
+				"Set reasoning effort level between none|low|medium|high|xhigh (default: medium)",
+			)
+			.option(
+				"-i, --tui",
+				"Open the terminal user interface (TUI) for interactive sessions",
+			)
+			.option("--id <session-id>", "Resume an existing session by ID")
+			.option("-P, --provider <id>", "Provider id (default: cline)")
+			.option("-k, --key <api-key>", "API key override for this run")
+			.option(
+				"-m, --model <model-id>",
+				"Model to use for the session with the selected provider",
+			)
+			.option(
+				"-s, --system <system-prompt>",
+				"Override the default system prompt",
+			)
+			.option("-z, --zen", "Start a session that runs in the background hub")
+			.option(
+				"--retries [value]",
+				"Number of maximum consecutive mistakes (retries) before exiting (default: 6)",
+			)
+			.option(
+				"-t, --timeout <seconds>",
+				"Optional timeout in seconds (default: 0 for no timeout)",
+			)
+			.option(
+				"--acp",
+				"Run in Agent Client Protocol (ACP) mode for editor integration",
+			)
+			.option(
+				"--config <path>",
+				"Configuration directory (default: ~/.cline/data/settings)",
+			)
+			.option(
+				"--data-dir <path>",
+				"Use isolated local state at this directory path (default: ~/.cline)",
+			)
+			.option(
+				"--hooks-dir <path>",
+				"Directory path to additional hooks for runtime hook injection (default: ~/.cline/hooks)",
+			)
+			.option("--update", "Check for updates and install if available")
+			.option("-v, --verbose", "Show verbose output")
+			// HIDDEN/LEGACY OPTIONS BELOW
+			.addOption(
+				// Act mode is the default. Keep the legacy flags accepted for users who
+				// still pass them, but do not advertise them in help output.
+				new Option("-a, --act", "Run in act mode").hideHelp(),
+			)
+			.addOption(
+				// `-y, --yolo` is still accepted (and behaves the same as before) but
+				// hidden from `--help` output.
+				new Option(
+					"-y, --yolo",
+					"Enable yolo mode where agents can use tools without approval with only a small set of tools available.",
+				).hideHelp(),
+			)
+			.addOption(
+				// TODO: Refactor teams to resume session without team name
+				new Option(
+					"--team-name <name>",
+					"Override the runtime team state name",
+				).hideHelp(),
+			)
+	);
 }
 
 export function createProgram(): Command {
@@ -91,7 +109,10 @@ export function createProgram(): Command {
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.enablePositionalOptions()
-		.argument("[prompt]", "Task prompt (starts task immediately)");
+		.argument(
+			"[prompt]",
+			"Your prompt. Default to start in act mode with auto-approve enabled.",
+		);
 
 	addRootOptions(program);
 

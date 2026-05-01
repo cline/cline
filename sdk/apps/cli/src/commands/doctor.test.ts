@@ -1,7 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getCliBuildInfo } from "../utils/common";
 
 const {
 	mockSpawnSync,
@@ -11,6 +19,8 @@ const {
 	mockProbeHubServer,
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
+	mockEnsureFileExists,
+	mockStopAllConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
 	mockResolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
@@ -28,6 +38,12 @@ const {
 	mockProbeHubServer: vi.fn(),
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
+	mockEnsureFileExists: vi.fn(),
+	mockStopAllConnectors: vi.fn(async () => ({
+		stoppedProcesses: 0,
+		stoppedSessions: 0,
+		executed: 0,
+	})),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -41,13 +57,18 @@ vi.mock("@clinebot/core", () => ({
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
+	ensureFileExists: mockEnsureFileExists,
 }));
 
 vi.mock("../connectors/common", () => ({
 	isProcessRunning: vi.fn(() => false),
 }));
 
-import { runDoctorCommand } from "./doctor";
+vi.mock("./connect", () => ({
+	stopAllConnectors: mockStopAllConnectors,
+}));
+
+import { createDoctorCommand, runDoctorCommand } from "./doctor";
 
 describe("runDoctorCommand", () => {
 	const tempDirs: string[] = [];
@@ -56,6 +77,11 @@ describe("runDoctorCommand", () => {
 		vi.clearAllMocks();
 		mockResolveClineDataDir.mockReturnValue("/tmp/cline-data");
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		mockStopAllConnectors.mockResolvedValue({
+			stoppedProcesses: 0,
+			stoppedSessions: 0,
+			executed: 0,
+		});
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -194,6 +220,38 @@ describe("runDoctorCommand", () => {
 		expect(mockClearHubDiscovery).toHaveBeenCalledWith(discoveryPath);
 	});
 
+	it("doctor --fix stops connector adapters and reports counts in JSON", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+		mockStopAllConnectors.mockResolvedValue({
+			stoppedProcesses: 2,
+			stoppedSessions: 5,
+			executed: 3,
+		});
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(mockStopAllConnectors).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			killed: {
+				connectorProcesses: 2,
+				connectorSessions: 5,
+			},
+		});
+	});
+
 	it("doctor --fix kills stale code sidecar processes", async () => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue(undefined);
@@ -237,5 +295,95 @@ describe("runDoctorCommand", () => {
 			},
 		});
 		killSpy.mockRestore();
+	});
+});
+
+describe("createDoctorCommand log subcommand", () => {
+	const tempDirs: string[] = [];
+	const commandName = getCliBuildInfo().name;
+
+	afterEach(() => {
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("opens the log file for doctor log", async () => {
+		const dataDir = mkdtempSync(
+			path.join(os.tmpdir(), `${commandName}-doctor-log-test-`),
+		);
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		mockEnsureFileExists.mockImplementation((filePath: string) => {
+			mkdirSync(path.dirname(filePath), { recursive: true });
+			appendFileSync(filePath, "");
+		});
+
+		const opened: string[] = [];
+		const output: string[] = [];
+		const errors: string[] = [];
+		let exitCode = 0;
+
+		const cmd = createDoctorCommand(
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text) => {
+					errors.push(text);
+				},
+			},
+			(code) => {
+				exitCode = code;
+			},
+			{
+				openPath: async (target) => {
+					opened.push(target);
+				},
+			},
+		);
+
+		await cmd.parseAsync(["log"], { from: "user" });
+
+		const expectedPath = path.join(dataDir, "logs", `${commandName}.log`);
+		expect(exitCode).toBe(0);
+		expect(errors).toHaveLength(0);
+		expect(opened).toEqual([expectedPath]);
+		expect(output).toEqual([`Opening logs stored at ${expectedPath}`]);
+		expect(existsSync(expectedPath)).toBe(true);
+	});
+
+	it("returns an error if opening log file fails", async () => {
+		const dataDir = mkdtempSync(
+			path.join(os.tmpdir(), `${commandName}-doctor-log-test-`),
+		);
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+
+		const errors: string[] = [];
+		let exitCode = 0;
+
+		const cmd = createDoctorCommand(
+			{
+				writeln: () => {},
+				writeErr: (text) => {
+					errors.push(text);
+				},
+			},
+			(code) => {
+				exitCode = code;
+			},
+			{
+				openPath: async () => {
+					throw new Error("open failed");
+				},
+			},
+		);
+
+		await cmd.parseAsync(["log"], { from: "user" });
+
+		expect(exitCode).toBe(1);
+		expect(errors[0]).toContain("failed to open log file");
+		expect(errors[0]).toContain("open failed");
 	});
 });

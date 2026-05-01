@@ -3,6 +3,7 @@ export {
 	CLINE_MCP_SETTINGS_FILE_NAME,
 	type CronSpecsScope,
 	discoverPluginModulePaths,
+	ensureFileExists,
 	ensureHookLogDir,
 	ensureParentDir,
 	HOOKS_CONFIG_DIRECTORY_NAME,

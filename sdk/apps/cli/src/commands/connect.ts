@@ -1,7 +1,9 @@
 import { getConnector, listConnectors } from "../connectors/registry";
 import type { ConnectIo, ConnectStopResult } from "../connectors/types";
 
-export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
+export async function stopAllConnectors(
+	io: ConnectIo,
+): Promise<ConnectStopResult & { executed: number }> {
 	let stoppedProcesses = 0;
 	let stoppedSessions = 0;
 	let executed = 0;
@@ -18,6 +20,12 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 		stoppedProcesses += result.stoppedProcesses;
 		stoppedSessions += result.stoppedSessions;
 	}
+	return { stoppedProcesses, stoppedSessions, executed };
+}
+
+export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
+	const { stoppedProcesses, stoppedSessions, executed } =
+		await stopAllConnectors(io);
 	if (executed === 0) {
 		io.writeln("[connect] no adapters support stop yet");
 		return 0;

@@ -1,4 +1,5 @@
 import {
+	appendFileSync,
 	existsSync,
 	mkdirSync,
 	readdirSync,
@@ -550,6 +551,11 @@ export function ensureParentDir(filePath: string): void {
 	if (!existsSync(parent)) {
 		mkdirSync(parent, { recursive: true });
 	}
+}
+
+export function ensureFileExists(filePath: string): void {
+	mkdirSync(dirname(filePath), { recursive: true });
+	appendFileSync(filePath, "");
 }
 
 export function ensureHookLogDir(filePath?: string): string {

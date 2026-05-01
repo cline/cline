@@ -23,7 +23,7 @@ test.describe("root flag descriptions", () => {
 			"verbose output",
 			"Working directory",
 			"Configuration directory",
-			"Set thinking level",
+			"Set reasoning effort level",
 			"consecutive mistakes",
 			"Output messages as JSON",
 			"ACP",

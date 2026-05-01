@@ -219,14 +219,14 @@ export async function runCli(): Promise<void> {
 		});
 	const connectCmd = program
 		.command("connect")
-		.description("Connect to an editor or IDE adapter")
-		.argument("[adapter]", "Adapter to connect")
-		.option("--stop", "Stop running connector(s)")
+		.description("Connect to an external channel")
+		.argument("[channel]", "Channel to connect Cline CLI to")
+		.option("--stop", "Kill all current channel connections")
 		.allowUnknownOption()
 		.passThroughOptions()
 		.addHelpText(
 			"after",
-			"\nRun 'connect <adapter> --help' for adapter-specific options.",
+			"\nRun 'connect <channel> --help' for channel-specific options.",
 		)
 		.action(async (adapter: string | undefined) => {
 			const {
@@ -271,25 +271,6 @@ export async function runCli(): Promise<void> {
 			}
 		});
 
-	const createDevRuntimeCommand = async () => {
-		const { createDevCommand } = await import("./commands/dev");
-		return createDevCommand(io, (code) => {
-			ctx.exitCode = code;
-		});
-	};
-
-	program
-		.command("dev")
-		.description("Developer tools and utilities")
-		.allowUnknownOption()
-		.allowExcessArguments()
-		.passThroughOptions()
-		.addHelpText("after", "\nCommands:\n  log  Open the CLI log file\n")
-		.action(async (_opts: unknown, cmd: Command) => {
-			const devCmd = await createDevRuntimeCommand();
-			await devCmd.parseAsync(cmd.args, { from: "user" });
-		});
-
 	const createDoctorRuntimeCommand = async () => {
 		const { createDoctorCommand } = await import("./commands/doctor");
 		return createDoctorCommand(io, (code) => {
@@ -303,6 +284,10 @@ export async function runCli(): Promise<void> {
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.passThroughOptions()
+		.addHelpText(
+			"after",
+			"\nCommands:\n  fix  Kill stale local processes\n  log  Open the CLI log file\n",
+		)
 		.action(async (_opts: unknown, cmd: Command) => {
 			const doctorCmd = await createDoctorRuntimeCommand();
 			await doctorCmd.parseAsync(cmd.args, { from: "user" });

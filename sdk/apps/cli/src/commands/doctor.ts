@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
+	ensureFileExists,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
@@ -10,13 +11,19 @@ import {
 	stopLocalHubServerGracefully,
 } from "@clinebot/core";
 import { Command } from "commander";
+import open from "open";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
 import { c, writeln } from "../utils/output";
+import { stopAllConnectors } from "./connect";
 
 type DoctorIo = {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
+};
+
+export type DoctorCommandDeps = {
+	openPath?: (target: string) => Promise<void> | void;
 };
 
 type StartupArtifact = {
@@ -109,6 +116,10 @@ function listMatchingProcesses(pattern: string): ProcessRecord[] {
 function resolveCliLogPath(): string {
 	const { name } = getCliBuildInfo();
 	return join(resolveClineDataDir(), "logs", `${name}.log`);
+}
+
+async function defaultOpenPath(target: string): Promise<void> {
+	await open(target, { wait: false });
 }
 
 function listListeningPids(port: number | undefined): number[] {
@@ -526,7 +537,7 @@ export async function runDoctorCommand(
 			before.staleSidecarPids.length > 0
 		) {
 			io.writeln(
-				"\nRun `clite doctor --fix` to kill all stale local processes, including stale sidecars.",
+				"\nRun `cline doctor fix` to kill all stale local processes, including stale sidecars.",
 			);
 		}
 		return 0;
@@ -551,6 +562,10 @@ export async function runDoctorCommand(
 			!staleCliTargets.includes(pid),
 	);
 	const killedSidecars = killPids(staleSidecarTargets);
+	const stoppedConnectors = await stopAllConnectors({
+		writeln: () => {},
+		writeErr: () => {},
+	});
 	const postKillStatus = await collectDoctorStatus(opts.cwd);
 	const clearedArtifacts = await clearHubStartupArtifacts(opts.cwd, {
 		clearDiscovery:
@@ -567,6 +582,8 @@ export async function runDoctorCommand(
 					hubListeners: killedHub,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
+					connectorProcesses: stoppedConnectors.stoppedProcesses,
+					connectorSessions: stoppedConnectors.stoppedSessions,
 					hubStartupLocks: clearedArtifacts.startupLocks,
 					hubDiscovery: clearedArtifacts.discovery,
 				},
@@ -577,6 +594,12 @@ export async function runDoctorCommand(
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
+	writeln(
+		`stopped connector processes ${c.dim}${stoppedConnectors.stoppedProcesses}${c.reset}`,
+	);
+	writeln(
+		`stopped connector sessions ${c.dim}${stoppedConnectors.stoppedSessions}${c.reset}`,
+	);
 	writeln(
 		`cleared hub startup locks ${c.dim}${clearedArtifacts.startupLocks}${c.reset}`,
 	);
@@ -599,22 +622,55 @@ export async function runDoctorCommand(
 export function createDoctorCommand(
 	io: DoctorIo,
 	setExitCode: (code: number) => void,
+	deps: DoctorCommandDeps = {},
 ): Command {
 	const doctor = new Command("doctor")
 		.description("Diagnose and fix local process issues")
 		.exitOverride()
 		.option("--cwd <path>", "Workspace root", process.cwd())
 		.option("--json", "Output as JSON")
-		.option("--fix", "Kill stale local processes")
 		.option("-v, --verbose", "Show additional diagnostic details")
 		.action(async function (this: Command) {
 			const opts = this.opts<{
 				cwd: string;
 				json?: boolean;
-				fix?: boolean;
 				verbose?: boolean;
 			}>();
 			setExitCode(await runDoctorCommand(opts, io));
 		});
+
+	doctor
+		.command("fix")
+		.description("Kill stale local processes")
+		.option("--cwd <path>", "Workspace root", process.cwd())
+		.option("--json", "Output as JSON")
+		.option("-v, --verbose", "Show additional diagnostic details")
+		.action(async function (this: Command) {
+			const opts = this.opts<{
+				cwd: string;
+				json?: boolean;
+				verbose?: boolean;
+			}>();
+			setExitCode(await runDoctorCommand({ ...opts, fix: true }, io));
+		});
+
+	doctor
+		.command("log")
+		.description("Open the CLI log file")
+		.action(async () => {
+			const logPath = resolveCliLogPath();
+			const openPath = deps.openPath ?? defaultOpenPath;
+			try {
+				ensureFileExists(logPath);
+				await openPath(logPath);
+				io.writeln(`Opening logs stored at ${logPath}`);
+				setExitCode(0);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				io.writeErr(`failed to open log file "${logPath}": ${message}`);
+				setExitCode(1);
+			}
+		});
+
 	return doctor;
 }

@@ -177,14 +177,14 @@ clite connect --stop whatsapp
 #   and turn/approval handling lives under apps/cli/src/connectors/
 
 # Open the CLI runtime log file
-clite dev log
+clite doctor log
 
 # Inspect local CLI/RPC process health
 clite doctor
 # Include historical spawn records from the shared CLI log
 clite doctor --verbose
 # Kill stale local RPC listeners and old CLI processes
-clite doctor --fix
+clite doctor fix
 
 # Open interactive config view directly
 clite config
@@ -298,8 +298,9 @@ Top-level commands:
 - `clite connect <adapter>` - Run a chat connector bridge (`telegram`, `gchat`, `whatsapp`)
 - `clite connect --stop [adapter]` - Stop connector bridge processes and their sessions
 - `clite schedule <command>` - Create and manage scheduled runs
-- `clite dev log` - Open the CLI runtime log file
 - `clite doctor` - Inspect local CLI health and stale processes
+- `clite doctor fix` - Kill stale local RPC listeners and old CLI processes
+- `clite doctor log` - Open the CLI runtime log file
 - `clite hook` - Handle a hook payload from stdin
 - `clite hub` - Manage the local hub daemon
 - `clite kanban` - Launch the external `kanban` app and exit (requires `npm i -g kanban`)

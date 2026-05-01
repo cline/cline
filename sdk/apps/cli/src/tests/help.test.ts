@@ -22,7 +22,7 @@ test.describe("clite --help", () => {
 			"auth [options]",
 			"version",
 			"update [options]",
-			"dev ",
+			"hub ",
 		]);
 	});
 
@@ -156,16 +156,18 @@ test.describe("clite update --help", () => {
 });
 
 // ===========================================================================
-// clite dev --help
+// clite doctor --help
 // ===========================================================================
-test.describe("clite dev --help", () => {
+test.describe("clite doctor --help", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["dev", "--help"] },
+		program: { file: CLINE_BIN, args: ["doctor", "--help"] },
 		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	});
 
-	test("shows dev usage and lists log subcommand", async ({ terminal }) => {
-		await expectVisible(terminal, ["Usage:", "log"]);
+	test("shows doctor usage and lists fix and log subcommands", async ({
+		terminal,
+	}) => {
+		await expectVisible(terminal, ["Usage:", "fix", "log"]);
 	});
 });
