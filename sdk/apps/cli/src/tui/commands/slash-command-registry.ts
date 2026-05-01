@@ -119,6 +119,10 @@ function normalizeCommandName(name: string): string {
 	return name.trim().replace(/^\/+/, "").toLowerCase();
 }
 
+function normalizeCommandDescription(description: string | undefined): string {
+	return description?.replace(/\s+/g, " ").trim() ?? "";
+}
+
 function addEntry(
 	byName: Map<string, SlashCommandRegistryEntry>,
 	entry: SlashCommandRegistryEntry,
@@ -130,6 +134,7 @@ function addEntry(
 	byName.set(normalized, {
 		...entry,
 		name: normalized,
+		description: normalizeCommandDescription(entry.description),
 	});
 }
 
