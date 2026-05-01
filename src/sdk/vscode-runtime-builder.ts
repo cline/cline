@@ -1,7 +1,9 @@
 import { createDefaultExecutors, createMcpTools } from "@clinebot/core"
 import { createTool, type Tool, type ToolContext } from "@clinebot/shared"
+import type { ITerminalManager } from "@/integrations/terminal/types"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { createVscodeRunCommandsTool } from "./vscode-run-commands-tool"
 
 interface McpToolDescriptor {
 	name: string
@@ -115,7 +117,17 @@ function createAttemptCompletionTool(options: { cwd?: string } = {}): Tool {
 	})
 }
 
-export async function createVscodeExtraTools(mcpHub: McpHub, options?: { cwd?: string }): Promise<Tool[]> {
+export interface VscodeExtraToolsOptions {
+	cwd?: string
+	/**
+	 * Lazy factory for the VscodeTerminalManager.
+	 * When provided, the custom `run_commands` tool replaces the SDK's
+	 * built-in version with foreground/background terminal support.
+	 */
+	getTerminalManager?: () => ITerminalManager
+}
+
+export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<Tool[]> {
 	const provider = new McpHubToolProvider(mcpHub)
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
@@ -135,7 +147,21 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: { cwd?: s
 		}),
 	)
 
-	const tools = [createAttemptCompletionTool({ cwd: options?.cwd }), ...mcpTools.flat()]
+	const tools: Tool[] = [createAttemptCompletionTool({ cwd: options?.cwd }), ...mcpTools.flat()]
+
+	// Add the custom run_commands tool when a terminal manager is available.
+	// This replaces the SDK's built-in run_commands (which is suppressed via
+	// defaultToolExecutors: { bash: undefined } in VscodeSessionHost).
+	if (options?.getTerminalManager) {
+		tools.push(
+			createVscodeRunCommandsTool({
+				cwd: options.cwd ?? process.cwd(),
+				getTerminalManager: options.getTerminalManager,
+			}),
+		)
+		Logger.log("[VscodeRuntimeTools] Added custom run_commands tool (foreground/background terminal)")
+	}
+
 	Logger.log(`[VscodeRuntimeTools] Prepared ${tools.length} VSCode extra tools`)
 	return tools
 }
