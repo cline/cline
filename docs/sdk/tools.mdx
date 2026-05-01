@@ -27,9 +27,12 @@ Tools are functions the model can call during execution. The SDK sends tool sche
 ## Custom Tool Shape
 
 ```typescript
-import { createTool } from "@clinebot/shared"
+import type { AgentTool } from "@clinebot/shared"
 
-const searchDatabase = createTool({
+const searchDatabase: AgentTool<
+  { query: string; limit?: number },
+  { results: unknown[]; count: number }
+> = {
   name: "search_database",
   description: "Search the application database. Returns matching records as JSON.",
   inputSchema: {
@@ -42,12 +45,14 @@ const searchDatabase = createTool({
   },
   execute: async (input, context) => {
     const results = await db.search(input.query, input.limit ?? 10)
-    return { results, count: results.length }
+    return {
+      output: { results, count: results.length },
+    }
   },
-})
+}
 ```
 
-`createTool` also accepts a Zod schema for `inputSchema` and converts it to JSON Schema.
+For `Agent` / `AgentRuntime`, define tools as `AgentTool` objects. For core/extensions, use `createTool(...)` from `@clinebot/shared`, `@clinebot/agents`, or `@clinebot/core` when you want the legacy/core `Tool` shape.
 
 For a full tutorial, see [Creating Custom Tools](/sdk/guides/creating-custom-tools). For exact types, see [Tools API](/sdk/reference/tools-api).
 

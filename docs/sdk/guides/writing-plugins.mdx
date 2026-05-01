@@ -196,7 +196,7 @@ const agent = new Agent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a project manager assistant with access to GitHub.",
   tools: [],
-  extensions: [
+  plugins: [
     createGitHubPlugin({
       token: process.env.GITHUB_TOKEN,
       owner: "my-org",

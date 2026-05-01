@@ -58,14 +58,16 @@ const databasePlugin: AgentExtension = {
 }
 ```
 
-Register with `Agent`:
+Register with `Agent` runtime plugins:
 
 ```typescript
 const agent = new Agent({
   // ...config
-  extensions: [databasePlugin],
+  plugins: [databasePlugin],
 })
 ```
+
+Use `plugins` with `Agent` / `AgentRuntime`. Use `extensions` with `ClineCore` session config.
 
 Register with `ClineCore`:
 

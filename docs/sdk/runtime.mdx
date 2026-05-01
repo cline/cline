@@ -47,6 +47,12 @@ const agent = new Agent({
   tools: [myTool],
 })
 
+agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text)
+  }
+})
+
 const result = await agent.run("Review this diff")
 console.log(result.outputText)
 ```
