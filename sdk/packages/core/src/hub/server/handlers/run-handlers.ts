@@ -1,4 +1,8 @@
-import type { HubCommandEnvelope, HubReplyEnvelope } from "@clinebot/shared";
+import type {
+	AgentResult,
+	HubCommandEnvelope,
+	HubReplyEnvelope,
+} from "@clinebot/shared";
 import { parseHookEventPayload } from "../../../hooks";
 import {
 	errorReply,
@@ -6,6 +10,14 @@ import {
 	type HubTransportContext,
 	okReply,
 } from "./context";
+
+function terminalRunEventForReason(
+	reason: string,
+): "run.aborted" | "run.completed" | "run.failed" {
+	if (reason === "aborted") return "run.aborted";
+	if (reason === "error" || reason === "failed") return "run.failed";
+	return "run.completed";
+}
 
 export async function handleSessionInput(
 	ctx: HubTransportContext,
@@ -39,27 +51,46 @@ export async function handleSessionInput(
 	const userFiles = Array.isArray(attachments?.userFiles)
 		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
 		: undefined;
-	const result = await ctx.sessionHost.send({
-		sessionId,
-		prompt,
-		delivery:
-			payload.delivery === "queue" || payload.delivery === "steer"
-				? payload.delivery
+	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
+	let result: AgentResult | undefined;
+	try {
+		result = await ctx.sessionHost.send({
+			sessionId,
+			prompt,
+			delivery:
+				payload.delivery === "queue" || payload.delivery === "steer"
+					? payload.delivery
+					: undefined,
+			userImages: Array.isArray(attachments?.userImages)
+				? (attachments.userImages as string[])
 				: undefined,
-		userImages: Array.isArray(attachments?.userImages)
-			? (attachments.userImages as string[])
-			: undefined,
-		userFiles,
-	});
+			userFiles,
+		});
+	} catch (error) {
+		if (
+			ctx.suppressNextTerminalEventBySession.get(sessionId) ===
+			"run.start.reply"
+		) {
+			ctx.suppressNextTerminalEventBySession.delete(sessionId);
+		}
+		throw error;
+	}
 	if (result) {
-		ctx.suppressNextTerminalEventBySession.set(sessionId, result.finishReason);
 		ctx.publish(
 			ctx.buildEvent(
-				"run.completed",
+				terminalRunEventForReason(result.finishReason),
 				{ reason: result.finishReason, result },
 				sessionId,
 			),
 		);
+		if (
+			ctx.suppressNextTerminalEventBySession.get(sessionId) ===
+			"run.start.reply"
+		) {
+			ctx.suppressNextTerminalEventBySession.delete(sessionId);
+		}
+	} else {
+		ctx.suppressNextTerminalEventBySession.delete(sessionId);
 	}
 	return okReply(envelope, result ? { result } : undefined);
 }

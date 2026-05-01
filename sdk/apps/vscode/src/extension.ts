@@ -40,6 +40,7 @@ const REFRESH_SESSION_EVENTS = new Set([
 	"session.detached",
 	"run.started",
 	"run.completed",
+	"run.failed",
 	"run.aborted",
 ]);
 
@@ -866,21 +867,6 @@ class CoreChatWebviewController implements vscode.Disposable {
 				prompt: trimmedPrompt,
 				userImages: attachments?.userImages,
 			});
-			const [persistedMessages, session] = await Promise.all([
-				host.readMessages(activeSessionId) as Promise<PersistedMessage[]>,
-				host.get(activeSessionId),
-			]);
-			await this.post({
-				type: "session_hydrated",
-				sessionId: activeSessionId,
-				status: session?.status,
-				providerId: session?.provider,
-				modelId: session?.model,
-				messages: mapPersistedMessagesToWebviewMessages(
-					persistedMessages,
-					session?.metadata?.checkpoint,
-				),
-			});
 			await this.refreshSessions();
 		} catch (error) {
 			await this.postError(error);
@@ -1315,12 +1301,17 @@ class CoreChatWebviewController implements vscode.Disposable {
 				});
 				return;
 			}
-			case "run.completed": {
+			case "run.completed":
+			case "run.failed": {
 				const result = asRecord(payload?.result);
 				await this.post({
 					type: "turn_done",
 					finishReason:
-						typeof payload?.reason === "string" ? payload.reason : "completed",
+						typeof payload?.reason === "string"
+							? payload.reason
+							: event.event === "run.failed"
+								? "error"
+								: "completed",
 					iterations:
 						typeof result?.iterations === "number" ? result.iterations : 0,
 					usage: asRecord(result?.usage) as

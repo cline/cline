@@ -1,3 +1,4 @@
+import { summarizeUsageFromMessages } from "@clinebot/core";
 import type { Message } from "@clinebot/shared";
 import { formatDisplayUserInput, truncateStr } from "@clinebot/shared";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
@@ -383,6 +384,9 @@ function App(props: TuiProps) {
 					return;
 				}
 				replaceSessionEntries(hydrateSessionMessages(messages));
+				const usage = summarizeUsageFromMessages(messages);
+				session.setLastTotalTokens(usage.inputTokens + usage.outputTokens);
+				session.setLastTotalCost(usage.totalCost);
 				setSessionHasSubmitted(true);
 				setAppView("chat");
 			})
@@ -403,6 +407,8 @@ function App(props: TuiProps) {
 		appendSessionEntry,
 		replaceSessionEntries,
 		setSessionHasSubmitted,
+		session.setLastTotalCost,
+		session.setLastTotalTokens,
 	]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
@@ -589,6 +595,10 @@ export function Root(
 		() => hydrateSessionMessages(props.initialMessages ?? []),
 		[props.initialMessages],
 	);
+	const initialUsage = useMemo(
+		() => summarizeUsageFromMessages(props.initialMessages ?? []),
+		[props.initialMessages],
+	);
 	const terminalColors = useMemo(
 		() => ({
 			background: props.terminalBackground ?? null,
@@ -602,6 +612,7 @@ export function Root(
 				<SessionProvider
 					config={props.config}
 					initialEntries={initialEntries}
+					initialUsage={initialUsage}
 					onRunningChange={props.onRunningChange}
 					onAutoApproveChange={props.onAutoApproveChange}
 					onExit={props.onExit}

@@ -7,17 +7,26 @@ import {
 	formatCheckpointDetail,
 	formatHistoryListLine,
 	runHistoryExport,
+	runHistoryList,
 } from "./history";
 
 vi.mock("../session/session", () => ({
+	listSessions: vi.fn(),
 	readSessionMessagesArtifact: vi.fn(),
 }));
 
-import { readSessionMessagesArtifact } from "../session/session";
+vi.mock("../tui/history-standalone", () => ({
+	renderHistoryStandalone: vi.fn(async () => 0),
+}));
+
+import { listSessions, readSessionMessagesArtifact } from "../session/session";
+import { renderHistoryStandalone } from "../tui/history-standalone";
 
 const mockedReadSessionMessagesArtifact = vi.mocked(
 	readSessionMessagesArtifact,
 );
+const mockedListSessions = vi.mocked(listSessions);
+const mockedRenderHistoryStandalone = vi.mocked(renderHistoryStandalone);
 
 function createHistoryRow(
 	overrides: Partial<SessionHistoryRecord> = {},
@@ -137,6 +146,75 @@ describe("formatHistoryListLine", () => {
 		);
 
 		expect(line).not.toContain("checkpoints:");
+	});
+});
+
+describe("runHistoryList", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("hydrates interactive history rows so titles can be inferred from messages", async () => {
+		const row = createHistoryRow({ prompt: undefined, metadata: undefined });
+		mockedListSessions.mockResolvedValue([row]);
+		const io = {
+			writeln: vi.fn(),
+			writeErr: vi.fn(),
+		};
+
+		const code = await runHistoryList({
+			limit: 25,
+			outputMode: "text",
+			io,
+		});
+
+		expect(code).toBe(0);
+		expect(mockedListSessions).toHaveBeenCalledWith(25, {
+			hydrate: true,
+		});
+		expect(mockedRenderHistoryStandalone).toHaveBeenCalledWith(
+			expect.objectContaining({ rows: [row] }),
+		);
+	});
+
+	it("keeps json history listing unhydrated", async () => {
+		const row = createHistoryRow({ prompt: undefined, metadata: undefined });
+		mockedListSessions.mockResolvedValue([row]);
+		const writeSpy = vi
+			.spyOn(process.stdout, "write")
+			.mockImplementation(() => true);
+
+		const code = await runHistoryList({
+			limit: 25,
+			outputMode: "json",
+		});
+
+		expect(code).toBe(0);
+		expect(mockedListSessions).toHaveBeenCalledWith(25, {
+			hydrate: false,
+		});
+		expect(writeSpy).toHaveBeenCalledWith(JSON.stringify([row]));
+		writeSpy.mockRestore();
+	});
+
+	it("defaults history listing to 50 rows", async () => {
+		mockedListSessions.mockResolvedValue([]);
+		const io = {
+			writeln: vi.fn(),
+			writeErr: vi.fn(),
+		};
+
+		const code = await runHistoryList({
+			limit: Number.NaN,
+			outputMode: "text",
+			io,
+		});
+
+		expect(code).toBe(0);
+		expect(mockedListSessions).toHaveBeenCalledWith(50, {
+			hydrate: true,
+		});
+		expect(io.writeln).toHaveBeenCalledWith("No history found.");
 	});
 });
 

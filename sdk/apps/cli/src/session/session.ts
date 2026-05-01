@@ -87,10 +87,10 @@ async function withCliCore<T>(
 }
 
 export async function listSessions(
-	limit = 200,
+	limit = 50,
 	options?: { workspaceRoot?: string; hydrate?: boolean },
 ): Promise<SessionHistoryRecord[]> {
-	const rows = await withCliCore(
+	return await withCliCore(
 		async (core) =>
 			await core.listHistory({
 				limit,
@@ -103,10 +103,6 @@ export async function listSessions(
 			workspaceRoot: options?.workspaceRoot,
 		},
 	);
-	if (!options?.workspaceRoot) {
-		return rows;
-	}
-	return rows.filter((row) => row.workspaceRoot === options.workspaceRoot);
 }
 
 export async function deleteSession(

@@ -211,6 +211,10 @@ describe("createCliCore", () => {
 				sessionId: "sess_1",
 				workspaceRoot: "/tmp/workspace",
 			},
+			{
+				sessionId: "sess_2",
+				workspaceRoot: "/tmp/other-workspace",
+			},
 		]);
 		const dispose = vi.fn();
 		createCore.mockResolvedValueOnce({
@@ -233,6 +237,10 @@ describe("createCliCore", () => {
 			{
 				sessionId: "sess_1",
 				workspaceRoot: "/tmp/workspace",
+			},
+			{
+				sessionId: "sess_2",
+				workspaceRoot: "/tmp/other-workspace",
 			},
 		]);
 	});

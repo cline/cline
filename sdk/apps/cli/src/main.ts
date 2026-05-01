@@ -298,7 +298,7 @@ export async function runCli(): Promise<void> {
 		.alias("h")
 		.description("List session history or manage saved sessions")
 		.option("--json", "Output as JSON")
-		.option("--limit <count>", "Maximum number of sessions to show", "200")
+		.option("--limit <count>", "Maximum number of sessions to show", "50")
 		.option("--page <number>", "Page number for paginated results")
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
@@ -312,9 +312,6 @@ export async function runCli(): Promise<void> {
 			const result = await runHistoryList({
 				limit,
 				outputMode,
-				workspaceRoot: resolveWorkspaceRoot(
-					program.opts().cwd ?? process.cwd(),
-				),
 				io,
 			});
 			if (typeof result === "string") {

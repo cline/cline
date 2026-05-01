@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { SessionSource } from "../../types/common";
+import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
 
 const require = createRequire(import.meta.url);
@@ -219,6 +220,71 @@ describe("UnifiedSessionPersistenceService", () => {
 			expect(row?.messagesPath).toBe(path);
 		},
 	);
+
+	it("preserves an existing title when the stored prompt changes", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "prompt-title-sessions-"));
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "prompt-title-session";
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			prompt: "first user message",
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		await expect(
+			service.updateSession({ sessionId, prompt: "second user message" }),
+		).resolves.toEqual({ updated: true });
+
+		const [row] = await service.listSessions(10);
+		expect(row?.prompt).toBe("second user message");
+		expect(row?.metadata).toMatchObject({ title: "first user message" });
+		const manifest = JSON.parse(
+			readFileSync(artifacts.manifestPath, "utf8"),
+		) as Record<string, unknown>;
+		expect(manifest.prompt).toBe("second user message");
+		expect(manifest.metadata).toMatchObject({ title: "first user message" });
+	});
+
+	it("derives a title from a prompt only when the session has no title yet", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "empty-title-sessions-"));
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "empty-title-session";
+		await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		await expect(
+			service.updateSession({ sessionId, prompt: "first saved prompt" }),
+		).resolves.toEqual({ updated: true });
+
+		const [row] = await service.listSessions(10);
+		expect(row?.metadata).toMatchObject({ title: "first saved prompt" });
+	});
 
 	sqliteIt(
 		"uploads messages after persisting them when a messages uploader is configured",

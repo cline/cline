@@ -619,11 +619,11 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
-	it("maps failed hub completion reasons back to error agent events", async () => {
+	it("maps failed hub runs back to error agent events", async () => {
 		let onEvent:
 			| ((event: {
 					version: 1;
-					event: "run.completed";
+					event: "run.failed";
 					sessionId: string;
 					payload?: Record<string, unknown>;
 			  }) => void)
@@ -658,10 +658,10 @@ describe("HubRuntimeHost", () => {
 
 		onEvent?.({
 			version: 1,
-			event: "run.completed",
+			event: "run.failed",
 			sessionId: "sess-1",
 			payload: {
-				reason: "failed",
+				reason: "error",
 				text: "run failed",
 				iterations: 2,
 			},
@@ -684,7 +684,7 @@ describe("HubRuntimeHost", () => {
 					type: "ended",
 					payload: expect.objectContaining({
 						sessionId: "sess-1",
-						reason: "failed",
+						reason: "error",
 					}),
 				}),
 			]),

@@ -248,9 +248,16 @@ async function projectSessionEnded(
 	ctx: HubTransportContext,
 	event: Extract<CoreSessionEvent, { type: "ended" }>,
 ): Promise<void> {
+	// `run.start` publishes the result-bearing terminal event after `send`
+	// returns. The local runtime emits `ended` synchronously during that send, so
+	// this token suppresses the earlier projector event. If session events move
+	// to an async transport, terminal-event correlation must move with them.
+	const suppressToken = ctx.suppressNextTerminalEventBySession.get(
+		event.payload.sessionId,
+	);
 	const suppressDuplicateTerminalEvent =
-		ctx.suppressNextTerminalEventBySession.get(event.payload.sessionId) ===
-		event.payload.reason;
+		suppressToken === event.payload.reason ||
+		suppressToken === "run.start.reply";
 	if (suppressDuplicateTerminalEvent) {
 		ctx.suppressNextTerminalEventBySession.delete(event.payload.sessionId);
 	}
@@ -266,7 +273,11 @@ async function projectSessionEnded(
 	}
 	ctx.publish(
 		ctx.buildEvent(
-			event.payload.reason === "aborted" ? "run.aborted" : "run.completed",
+			event.payload.reason === "aborted"
+				? "run.aborted"
+				: event.payload.reason === "error" || event.payload.reason === "failed"
+					? "run.failed"
+					: "run.completed",
 			{ reason: event.payload.reason },
 			event.payload.sessionId,
 		),

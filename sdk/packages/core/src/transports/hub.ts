@@ -1034,6 +1034,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "run.completed":
+			case "run.failed":
 			case "run.aborted": {
 				this.events.emit({
 					type: "agent_event",
@@ -1046,7 +1047,9 @@ export class HubRuntimeHost implements RuntimeHost {
 									? event.payload.reason
 									: event.event === "run.aborted"
 										? "aborted"
-										: "completed",
+										: event.event === "run.failed"
+											? "error"
+											: "completed",
 						}),
 					},
 				});
@@ -1059,7 +1062,9 @@ export class HubRuntimeHost implements RuntimeHost {
 								? event.payload.reason
 								: event.event === "run.aborted"
 									? "aborted"
-									: "completed",
+									: event.event === "run.failed"
+										? "error"
+										: "completed",
 						ts: event.timestamp ?? Date.now(),
 					},
 				});

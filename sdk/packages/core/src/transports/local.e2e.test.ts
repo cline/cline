@@ -364,14 +364,14 @@ describe("LocalRuntimeHost e2e", () => {
 
 		await manager.stop(started.sessionId);
 		const stopped = await manager.get(started.sessionId);
-		expect(stopped?.status).toBe("cancelled");
+		expect(stopped?.status).toBe("completed");
 		expect(stopped?.exitCode).toBe(0);
 		expect(agentShutdown).toHaveBeenCalledTimes(1);
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 		const parsedManifest = JSON.parse(
 			readFileSync(started.manifestPath, "utf8"),
 		) as SessionManifest;
-		expect(parsedManifest.status).toBe("cancelled");
+		expect(parsedManifest.status).toBe("completed");
 
 		const deleted = await manager.delete(started.sessionId);
 		expect(deleted).toBe(true);

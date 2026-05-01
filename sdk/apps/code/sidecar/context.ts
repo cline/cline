@@ -571,13 +571,16 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "run.completed":
+		case "run.failed":
 		case "run.aborted": {
 			const reason =
 				typeof event.payload?.reason === "string"
 					? event.payload.reason
 					: event.event === "run.aborted"
 						? "aborted"
-						: "completed";
+						: event.event === "run.failed"
+							? "error"
+							: "completed";
 			session.status = reason;
 			session.busy = false;
 			session.endedAt = nowMs();

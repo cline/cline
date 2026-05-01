@@ -18,6 +18,7 @@ import type { ToolExecutors } from "../extensions/tools";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
 import { retainCheckpointRefs } from "../hooks/checkpoint-hooks";
+import { manifestToSessionRecord } from "../runtime/host/history";
 import type {
 	PendingPromptMutationResult,
 	PendingPromptsAction,
@@ -65,6 +66,7 @@ import { resolveCoreDistinctId } from "../services/telemetry/distinct-id";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
+	summarizeUsageFromMessages,
 } from "../services/usage";
 import { enrichPromptWithMentions } from "../services/workspace";
 import {
@@ -214,7 +216,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const startInput: StartSessionInput = input;
-		this.usageBySession.set(sessionId, createInitialAccumulatedUsage());
+		const initialMessages = startInput.initialMessages ?? [];
+		this.usageBySession.set(
+			sessionId,
+			initialMessages.length > 0
+				? summarizeUsageFromMessages(initialMessages)
+				: createInitialAccumulatedUsage(),
+		);
 
 		const sessionsDir =
 			((await this.invokeOptionalValue("ensureSessionsDir")) as
@@ -231,7 +239,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const manifestPath = join(sessionDir, `${sessionId}.json`);
 		const workspacePath = resolveWorkspacePath(input.config);
 
-		const manifest = SessionManifestSchema.parse({
+		let manifest = SessionManifestSchema.parse({
 			version: 1,
 			session_id: sessionId,
 			source,
@@ -250,6 +258,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			prompt: startInput.prompt?.trim() || undefined,
 			messages_path: messagesPath,
 		});
+		let resumedArtifacts: RootSessionArtifacts | undefined;
+		const isReadOnlyResumeStart =
+			requestedSessionId.length > 0 &&
+			initialMessages.length > 0 &&
+			!startInput.prompt?.trim();
+		if (isReadOnlyResumeStart) {
+			const existingManifest = await this.invokeOptionalValue<SessionManifest>(
+				"readSessionManifest",
+				sessionId,
+			);
+			if (existingManifest) {
+				manifest = existingManifest;
+				resumedArtifacts = {
+					manifestPath,
+					messagesPath: existingManifest.messages_path || messagesPath,
+					manifest: existingManifest,
+				};
+			}
+		}
 
 		const sessionToolExecutors =
 			input.localRuntime?.defaultToolExecutors ?? this.defaultToolExecutors;
@@ -402,16 +429,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			config: configWithProvider,
 			sessionMetadata: startInput.sessionMetadata,
+			...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
 			source,
-			startedAt,
+			startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
+			updatedAt:
+				resumedArtifacts?.manifest.ended_at ??
+				resumedArtifacts?.manifest.started_at ??
+				startedAt,
 			pendingPrompt: manifest.prompt,
 			runtime,
 			agent,
 			started: false,
-			status: "running",
+			status: resumedArtifacts?.manifest.status ?? "running",
 			aborting: false,
 			interactive: input.interactive === true,
-			persistedMessages: startInput.initialMessages,
+			persistedMessages: initialMessages,
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
@@ -421,12 +453,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
-		if ((startInput.initialMessages?.length ?? 0) > 0) {
+		if (initialMessages.length > 0 && !resumedArtifacts) {
 			await this.ensureSessionPersisted(active);
 			await this.invoke<void>(
 				"persistSessionMessages",
 				active.sessionId,
-				startInput.initialMessages,
+				initialMessages,
 				active.config.systemPrompt,
 			);
 			if (!startInput.prompt?.trim()) {
@@ -444,6 +476,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				});
 				if (!active.interactive) {
 					await this.finalizeSingleRun(active, result.finishReason);
+				} else {
+					await this.completeInteractiveTurn(active, result.finishReason);
 				}
 			}
 		} catch (error) {
@@ -564,6 +598,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 			if (!session.interactive) {
 				await this.finalizeSingleRun(session, result.finishReason);
+			} else {
+				await this.completeInteractiveTurn(session, result.finishReason);
 			}
 			queueMicrotask(() => {
 				void this.pendingPromptsController.drain(input.sessionId);
@@ -633,6 +669,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.stopped",
 			properties: { sessionId },
 		});
+		if (session.interactive && session.status !== "running") {
+			await this.releaseSessionRuntime(session, "session_stop");
+			return;
+		}
 		// Abort the agent first if it's running, so shutdown can proceed
 		session.aborting = true;
 		session.agent.abort(new Error("session_stop"));
@@ -649,12 +689,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
-				this.shutdownSession(session, {
-					status: "cancelled",
-					exitCode: 0,
-					shutdownReason: reason,
-					endReason: "disposed",
-				}),
+				session.interactive && session.status !== "running"
+					? this.releaseSessionRuntime(session, reason)
+					: this.shutdownSession(session, {
+							status: "cancelled",
+							exitCode: 0,
+							shutdownReason: reason,
+							endReason: "disposed",
+						}),
 			),
 		);
 		this.usageBySession.clear();
@@ -665,8 +707,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (active) {
 			return toActiveSessionRecord(active);
 		}
-		const row = await this.getRow(sessionId);
-		return row ? toSessionRecord(row) : undefined;
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const row = await this.getRow(target);
+		if (row) return toSessionRecord(row);
+		const manifest = await this.readManifest(target);
+		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
 	async list(limit = 200): Promise<SessionRecord[]> {
@@ -717,8 +763,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
-		const row = await this.getRow(sessionId);
-		return readPersistedMessagesFile(row?.messagesPath);
+		const target = sessionId.trim();
+		if (!target) return [];
+		const row = await this.getRow(target);
+		if (row?.messagesPath) {
+			return readPersistedMessagesFile(row.messagesPath);
+		}
+		const manifest = await this.readManifest(target);
+		return readPersistedMessagesFile(manifest?.messages_path);
 	}
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {
@@ -787,6 +839,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		await this.ensureSessionPersisted(session);
 		await this.syncOAuthCredentials(session);
+		await this.markTurnRunning(session);
 
 		let result = await this.executeAgentTurn(
 			session,
@@ -806,6 +859,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 
 		return result;
+	}
+
+	private async completeInteractiveTurn(
+		session: ActiveSession,
+		finishReason: AgentResult["finishReason"],
+	): Promise<void> {
+		if (hasPendingTeamRunWork(session)) return;
+		const isAborted = finishReason === "aborted" || session.aborting;
+		const isError = finishReason === "error";
+		await this.updateStatus(
+			session,
+			isAborted ? "cancelled" : isError ? "failed" : "completed",
+			isError ? 1 : 0,
+		);
+		this.emit({
+			type: "ended",
+			payload: {
+				sessionId: session.sessionId,
+				reason: finishReason,
+				ts: Date.now(),
+			},
+		});
+		session.aborting = false;
 	}
 
 	private async executeAgentTurn(
@@ -954,6 +1030,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		})) as RootSessionArtifacts;
 	}
 
+	private async markTurnRunning(session: ActiveSession): Promise<void> {
+		if (session.status === "running") return;
+		await this.updateStatus(session, "running", null);
+	}
+
 	private async persistSessionMetadata(
 		sessionId: string,
 		resolveMetadata: (
@@ -1078,6 +1159,42 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	private async releaseSessionRuntime(
+		session: ActiveSession,
+		reason: string,
+	): Promise<void> {
+		const cleanupErrors: unknown[] = [];
+		const recordCleanupError = (stage: string, error: unknown) => {
+			cleanupErrors.push(error);
+			session.config.logger?.log("Session runtime cleanup failed", {
+				sessionId: session.sessionId,
+				stage,
+				error,
+				severity: "warn",
+			});
+		};
+
+		try {
+			await session.agent.shutdown(reason);
+		} catch (error) {
+			recordCleanupError("agent_shutdown", error);
+		}
+		try {
+			await Promise.resolve(session.runtime.shutdown(reason));
+		} catch (error) {
+			recordCleanupError("runtime_shutdown", error);
+		}
+		try {
+			await session.pluginSandboxShutdown?.();
+		} catch (error) {
+			recordCleanupError("plugin_sandbox_shutdown", error);
+		}
+		this.sessions.delete(session.sessionId);
+		if (cleanupErrors.length > 0) {
+			throw cleanupErrors[0];
+		}
+	}
+
 	private async updateStatus(
 		session: ActiveSession,
 		status: SessionStatus,
@@ -1097,11 +1214,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 				session.sessionId,
 			)) ?? session.artifacts.manifest;
 		latestManifest.status = status;
-		latestManifest.ended_at = result.endedAt ?? nowIso();
-		latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
+		if (status === "running") {
+			delete latestManifest.ended_at;
+			latestManifest.exit_code = null;
+		} else {
+			latestManifest.ended_at = result.endedAt ?? nowIso();
+			latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
+		}
 		session.artifacts.manifest = latestManifest;
 		session.status = status;
-		session.endedAt = latestManifest.ended_at;
+		session.updatedAt = result.endedAt ?? nowIso();
+		session.endedAt = status === "running" ? null : latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
 		await this.invoke<void>(
 			"writeSessionManifest",
@@ -1207,6 +1330,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!target) return undefined;
 		const rows = await this.listRows(MAX_SCAN_LIMIT);
 		return rows.find((row) => row.sessionId === target);
+	}
+
+	private async readManifest(
+		sessionId: string,
+	): Promise<SessionManifest | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		return await this.invokeOptionalValue<SessionManifest>(
+			"readSessionManifest",
+			target,
+		);
 	}
 
 	// ── Session service invocation ──────────────────────────────────────

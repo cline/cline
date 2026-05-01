@@ -377,6 +377,7 @@ export type HubEventName =
 	| "run.started"
 	| "run.aborted"
 	| "run.completed"
+	| "run.failed"
 	| "iteration.started"
 	| "iteration.finished"
 	| "assistant.delta"

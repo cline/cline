@@ -53,6 +53,11 @@ export function useSession(): SessionContextValue {
 export function SessionProvider(props: {
 	config: TuiProps["config"];
 	initialEntries?: ChatEntry[];
+	initialUsage?: {
+		inputTokens: number;
+		outputTokens: number;
+		totalCost: number;
+	};
 	onRunningChange: TuiProps["onRunningChange"];
 	onAutoApproveChange: TuiProps["onAutoApproveChange"];
 	onExit: TuiProps["onExit"];
@@ -61,6 +66,7 @@ export function SessionProvider(props: {
 	const {
 		config,
 		initialEntries,
+		initialUsage,
 		onRunningChange,
 		onAutoApproveChange,
 		onExit,
@@ -83,8 +89,12 @@ export function SessionProvider(props: {
 	const [autoApproveAll, _setAutoApproveAll] = useState(
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);
-	const [lastTotalTokens, setLastTotalTokens] = useState(0);
-	const [lastTotalCost, setLastTotalCost] = useState(0);
+	const [lastTotalTokens, setLastTotalTokens] = useState(
+		() => (initialUsage?.inputTokens ?? 0) + (initialUsage?.outputTokens ?? 0),
+	);
+	const [lastTotalCost, setLastTotalCost] = useState(
+		() => initialUsage?.totalCost ?? 0,
+	);
 	const [isExitRequested, setIsExitRequested] = useState(false);
 
 	const activeInlineStreamRef = useRef<InlineStream>(undefined);

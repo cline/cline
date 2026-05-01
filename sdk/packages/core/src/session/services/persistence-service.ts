@@ -178,12 +178,17 @@ export class UnifiedSessionPersistenceService {
 		const result = await withOccRetry(
 			() => this.adapter.getSession(sessionId),
 			async (row) => {
-				endedAt = nowIso();
+				endedAt = status === "running" ? undefined : nowIso();
 				return this.adapter.updateSession({
 					sessionId,
 					status,
-					endedAt,
-					exitCode: typeof exitCode === "number" ? exitCode : null,
+					endedAt: endedAt ?? null,
+					exitCode:
+						status === "running"
+							? null
+							: typeof exitCode === "number"
+								? exitCode
+								: null,
 					expectedStatusLock: row.statusLock,
 				});
 			},
@@ -225,9 +230,7 @@ export class UnifiedSessionPersistenceService {
 			const nextTitle =
 				input.title !== undefined
 					? normalizeTitle(input.title)
-					: input.prompt !== undefined
-						? deriveTitleFromPrompt(input.prompt)
-						: existingTitle;
+					: (existingTitle ?? deriveTitleFromPrompt(input.prompt));
 
 			if (nextTitle) {
 				baseMeta.title = nextTitle;

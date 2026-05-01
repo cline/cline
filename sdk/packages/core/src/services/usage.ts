@@ -1,3 +1,4 @@
+import type * as LlmsProviders from "@clinebot/llms";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 
 export function createInitialAccumulatedUsage(): SessionAccumulatedUsage {
@@ -29,4 +30,28 @@ export function accumulateUsageTotals(
 			baseline.cacheWriteTokens + Math.max(0, usage.cacheWriteTokens ?? 0),
 		totalCost: baseline.totalCost + Math.max(0, usage.totalCost ?? 0),
 	};
+}
+
+function asNumber(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export function summarizeUsageFromMessages(
+	messages: LlmsProviders.Message[],
+): SessionAccumulatedUsage {
+	let usage = createInitialAccumulatedUsage();
+	for (const message of messages) {
+		const metrics = (message as LlmsProviders.MessageWithMetadata).metrics;
+		if (!metrics) {
+			continue;
+		}
+		usage = accumulateUsageTotals(usage, {
+			inputTokens: asNumber(metrics.inputTokens),
+			outputTokens: asNumber(metrics.outputTokens),
+			cacheReadTokens: asNumber(metrics.cacheReadTokens),
+			cacheWriteTokens: asNumber(metrics.cacheWriteTokens),
+			totalCost: asNumber(metrics.cost),
+		});
+	}
+	return usage;
 }

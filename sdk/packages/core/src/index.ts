@@ -484,6 +484,7 @@ export {
 export {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
+	summarizeUsageFromMessages,
 } from "./services/usage";
 export type {
 	FastFileIndexOptions,

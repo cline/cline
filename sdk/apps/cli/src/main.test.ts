@@ -234,6 +234,15 @@ describe("runCli lightweight command dispatch", () => {
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(process.exitCode).toBe(0);
+		expect(historyMocks.runHistoryList).toHaveBeenCalledWith(
+			expect.objectContaining({
+				limit: 50,
+				outputMode: "json",
+			}),
+		);
+		const historyListCalls = historyMocks.runHistoryList.mock
+			.calls as unknown as Array<[Record<string, unknown>]>;
+		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});

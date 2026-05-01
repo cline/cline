@@ -47,6 +47,6 @@ export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		prompt: session.pendingPrompt,
 		metadata: session.sessionMetadata,
 		messagesPath: session.artifacts?.messagesPath,
-		updatedAt: session.startedAt,
+		updatedAt: session.updatedAt ?? session.endedAt ?? session.startedAt,
 	};
 }

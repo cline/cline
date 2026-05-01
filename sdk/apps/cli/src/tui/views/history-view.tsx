@@ -100,7 +100,7 @@ function HistoryListContent({
 			return;
 		}
 
-		listSessions(50)
+		listSessions(50, { hydrate: true })
 			.then((r) => setRows(r))
 			.catch(() => {})
 			.finally(() => setLoading(false));

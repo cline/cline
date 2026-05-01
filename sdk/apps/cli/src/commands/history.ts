@@ -165,10 +165,11 @@ export async function runHistoryList(input: {
 		writeln,
 		writeErr: (text: string) => process.stderr.write(`${text}\n`),
 	};
-	const limit = Number.isFinite(input.limit) ? input.limit : 200;
+	const limit = Number.isFinite(input.limit) ? input.limit : 50;
 
 	const rows = await listSessions(limit, {
 		workspaceRoot: input.workspaceRoot,
+		hydrate: input.outputMode !== "json",
 	});
 	if (rows.length === 0) {
 		if (input.outputMode === "json") {

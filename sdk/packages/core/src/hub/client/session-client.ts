@@ -177,6 +177,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.aborted",
 				payload: cloneRecord(event.payload),
 			};
+		case "run.failed":
+			return {
+				sessionId,
+				eventType: "runtime.chat.failed",
+				payload: cloneRecord(event.payload),
+			};
 		case "run.completed":
 			return {
 				sessionId,
