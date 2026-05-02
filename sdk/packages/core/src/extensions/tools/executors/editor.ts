@@ -6,7 +6,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
 
@@ -187,7 +187,7 @@ export function createEditorExecutor(
 	return async (
 		input: EditFileInput,
 		cwd: string,
-		_context: ToolContext,
+		_context: AgentToolContext,
 	): Promise<string> => {
 		const filePath = resolveFilePath(cwd, input.path, restrictToCwd);
 

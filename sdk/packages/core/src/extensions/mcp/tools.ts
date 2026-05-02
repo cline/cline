@@ -1,4 +1,4 @@
-import { createTool, type Tool } from "@clinebot/shared";
+import { type AgentTool, createTool } from "@clinebot/shared";
 import { defaultMcpToolNameTransform } from "./name-transform";
 import type { CreateMcpToolsOptions, McpToolDescriptor } from "./types";
 
@@ -15,7 +15,7 @@ function defaultMcpDescription(
 
 export async function createMcpTools(
 	options: CreateMcpToolsOptions,
-): Promise<Tool[]> {
+): Promise<AgentTool[]> {
 	const descriptors = await options.provider.listTools(options.serverName);
 	const nameTransform = options.nameTransform ?? defaultMcpToolNameTransform;
 

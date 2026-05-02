@@ -4,13 +4,13 @@ import {
 	resolveCompatibleLocalHubUrl,
 } from "../../hub/client";
 import { prewarmDetachedHubServer } from "../../hub/daemon";
-import { HubRuntimeHost } from "../../hub/transport/hub-runtime-host";
-import { RemoteRuntimeHost } from "../../hub/transport/remote-runtime-host";
+import { HubRuntimeHost } from "../../hub/runtime-host/hub-runtime-host";
+import { RemoteRuntimeHost } from "../../hub/runtime-host/remote-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { CoreSessionService } from "../../session/services/session-service";
-import { LocalRuntimeHost } from "../../transports/local";
+import { LocalRuntimeHost } from "./local-runtime-host";
 import type { RuntimeHost, RuntimeHostMode } from "./runtime-host";
 
 function resolveConfiguredBackendMode(

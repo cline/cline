@@ -11,6 +11,7 @@
  */
 
 import { z } from "zod";
+import type { AgentTool } from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
@@ -24,7 +25,6 @@ import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
 import type {
-	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	ToolCallRecord,
@@ -511,11 +511,11 @@ export type AgentExtensionBeforeAgentStartControl = Omit<
 export interface AgentExtensionContext extends PluginSetupContext {}
 
 export interface AgentExtension
-	extends ContributionRegistryExtension<Tool, Message[]> {
+	extends ContributionRegistryExtension<AgentTool, Message[]> {
 	name: string;
 	manifest: PluginManifest;
 	setup?: (
-		api: AgentExtensionApi<Tool, Message[]>,
+		api: AgentExtensionApi<AgentTool, Message[]>,
 		ctx: AgentExtensionContext,
 	) => void | Promise<void>;
 	onSessionStart?: (
@@ -563,7 +563,7 @@ export interface AgentExtension
 }
 
 export type AgentLoopExtensionRegistry = AgentExtensionRegistryGeneric<
-	Tool,
+	AgentTool,
 	Message
 >;
 
@@ -671,8 +671,8 @@ export const AgentFinishReasonSchema = z.enum([
 /**
  * Aggregated token usage and cost information (legacy, host-facing shape).
  *
- * Renamed from `AgentUsage` per PLAN.md §3.7.2 to make room for the new
- * runtime's stricter `AgentUsage` (see `../agent.ts`). Retained because
+ * Renamed from `AgentUsage` to make room for the runtime's stricter
+ * `AgentUsage` (see `../agent.ts`). Retained because
  * the host-facing `AgentResult`/`AgentUsageEvent` surface and the
  * `AgentUsageSchema` Zod schema use this more-permissive shape (all
  * cache/cost fields optional). The facade adapter converts between the
@@ -708,7 +708,7 @@ export interface AgentPrepareTurnContext {
 	apiMessages: MessageWithMetadata[];
 	abortSignal: AbortSignal;
 	systemPrompt: string;
-	tools: Tool[];
+	tools: AgentTool[];
 	model: {
 		id: string;
 		provider: string;
@@ -831,7 +831,7 @@ export interface AgentConfig {
 	/** System prompt for the agent */
 	systemPrompt: string;
 	/** Tools available to the agent */
-	tools: Tool[];
+	tools: AgentTool[];
 	/**
 	 * Maximum number of loop iterations
 	 * If undefined, no iteration cap is enforced.
@@ -1015,7 +1015,7 @@ export const AgentConfigSchema = z.object({
 
 	// Agent Behavior
 	systemPrompt: z.string(),
-	tools: z.array(z.custom<Tool>()),
+	tools: z.array(z.custom<AgentTool>()),
 	maxIterations: z.number().positive().optional(),
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),

@@ -1,4 +1,4 @@
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 
 export interface McpToolDescriptor {
 	name: string;
@@ -10,7 +10,7 @@ export interface McpToolCallRequest {
 	serverName: string;
 	toolName: string;
 	arguments?: Record<string, unknown>;
-	context?: ToolContext;
+	context?: AgentToolContext;
 }
 
 export type McpToolCallResult = unknown;
@@ -85,7 +85,7 @@ export interface McpServerClient {
 	callTool(request: {
 		name: string;
 		arguments?: Record<string, unknown>;
-		context?: ToolContext;
+		context?: AgentToolContext;
 	}): Promise<McpToolCallResult>;
 }
 

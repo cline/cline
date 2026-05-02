@@ -29,4 +29,33 @@ describe("createTool", () => {
 			additionalProperties: false,
 		});
 	});
+
+	it("applies default execution policy fields", () => {
+		const tool = createTool({
+			name: "defaulted_tool",
+			description: "Tool with default execution policy",
+			inputSchema: { type: "object" },
+			execute: async () => ({ ok: true }),
+		});
+
+		expect(tool.timeoutMs).toBe(30_000);
+		expect(tool.retryable).toBe(true);
+		expect(tool.maxRetries).toBe(3);
+	});
+
+	it("preserves explicit execution policy fields", () => {
+		const tool = createTool({
+			name: "custom_policy_tool",
+			description: "Tool with custom execution policy",
+			inputSchema: { type: "object" },
+			timeoutMs: 1_000,
+			retryable: false,
+			maxRetries: 0,
+			execute: async () => ({ ok: true }),
+		});
+
+		expect(tool.timeoutMs).toBe(1_000);
+		expect(tool.retryable).toBe(false);
+		expect(tool.maxRetries).toBe(0);
+	});
 });

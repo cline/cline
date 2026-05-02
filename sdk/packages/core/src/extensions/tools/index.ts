@@ -8,7 +8,7 @@
 export { validateWithZod, zodToJsonSchema } from "@clinebot/shared";
 // Constants
 export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
-// Tool Definitions
+// AgentTool Definitions
 export {
 	createApplyPatchTool,
 	createAskQuestionTool,
@@ -112,7 +112,7 @@ export type {
 // Convenience: Create Tools with Built-in Executors
 // =============================================================================
 
-import type { Tool } from "@clinebot/shared";
+import type { AgentTool } from "@clinebot/shared";
 import { createDefaultTools } from "./definitions";
 import {
 	createDefaultExecutors,
@@ -164,7 +164,7 @@ export interface CreateBuiltinToolsOptions
  */
 export function createBuiltinTools(
 	options: CreateBuiltinToolsOptions = {},
-): Tool[] {
+): AgentTool[] {
 	const {
 		executorOptions = {},
 		executors: executorOverrides,

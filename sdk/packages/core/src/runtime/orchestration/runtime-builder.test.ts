@@ -3,16 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	type AgentExtension,
+	type AgentTool,
 	createContributionRegistry,
 	type Message,
-	type Tool,
 } from "@clinebot/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
 
-function makeSpawnTool(): Tool {
+function makeSpawnTool(): AgentTool {
 	return {
 		name: "spawn_agent",
 		description: "Spawn a subagent",
@@ -39,8 +39,12 @@ function makeBaseConfig(
 
 async function collectExtensionTools(
 	extensions?: AgentExtension[],
-): Promise<Tool[]> {
-	const registry = createContributionRegistry<AgentExtension, Tool, Message[]>({
+): Promise<AgentTool[]> {
+	const registry = createContributionRegistry<
+		AgentExtension,
+		AgentTool,
+		Message[]
+	>({
 		extensions: extensions ?? [],
 	});
 	await registry.initialize();

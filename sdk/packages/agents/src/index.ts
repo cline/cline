@@ -17,6 +17,29 @@
  * directly from `@clinebot/shared`.
  */
 
+export type {
+	AgentAfterToolResult,
+	AgentBeforeModelResult,
+	AgentBeforeToolResult,
+	AgentMessage,
+	AgentMessagePart,
+	AgentModel,
+	AgentModelFinishReason,
+	AgentModelRequest,
+	AgentRunResult,
+	AgentRuntimeConfig as BaseAgentRuntimeConfig,
+	AgentRuntimeEvent,
+	AgentRuntimeHooks,
+	AgentRuntimeStateSnapshot,
+	AgentStopControl,
+	AgentTool,
+	AgentToolCallPart,
+	AgentToolDefinition,
+	AgentToolResult,
+	AgentUsage,
+	ToolApprovalResult,
+	ToolPolicy,
+} from "@clinebot/shared";
 export { createTool } from "@clinebot/shared";
 export type {
 	AgentEventListener,

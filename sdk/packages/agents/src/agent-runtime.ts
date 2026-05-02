@@ -1054,12 +1054,15 @@ export class AgentRuntime {
 			};
 		} else {
 			try {
-				result = await prepared.tool.execute(prepared.input, {
+				const output = await prepared.tool.execute(prepared.input, {
+					sessionId: this.config.sessionId,
 					agentId: this.state.agentId,
+					conversationId: this.config.conversationId,
 					runId: this.state.runId ?? createUID("run"),
 					iteration: this.state.iteration,
 					toolCallId: prepared.toolCall.toolCallId,
 					signal: this.abortController?.signal,
+					metadata: this.config.toolContextMetadata,
 					snapshot: this.snapshot(),
 					emitUpdate: (update: unknown) => {
 						void this.emit({
@@ -1071,6 +1074,7 @@ export class AgentRuntime {
 						});
 					},
 				});
+				result = { output };
 			} catch (error) {
 				result = {
 					output: {

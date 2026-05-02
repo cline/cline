@@ -1,6 +1,6 @@
+import type { AgentTool } from "../agent";
 import type { AutomationEventEnvelope } from "../cron";
 import type { HookStage } from "../hooks/contracts";
-import type { Tool } from "../llms/tools";
 import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
@@ -62,7 +62,7 @@ export interface AgentExtensionSessionContext {
  * registrations accumulate into the `ContributionRegistry` and are available to
  * the host after `setup()` completes.
  */
-export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
+export interface AgentExtensionApi<TTool = AgentTool, TMessage = unknown> {
 	/** Register a tool the agent can invoke during its run. Requires the `tools` capability. */
 	registerTool: (tool: TTool) => void;
 	/** Register a slash command available in connected chat surfaces. Requires the `commands` capability. */
@@ -152,7 +152,7 @@ export interface PluginManifest {
 	modelIds?: string[];
 }
 
-export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
+export interface AgentExtensionRegistry<TTool = AgentTool, TMessage = unknown> {
 	tools: TTool[];
 	commands: AgentExtensionCommand[];
 	rules: AgentExtensionRule[];
@@ -176,7 +176,7 @@ export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
  * context and return types.
  */
 export interface ContributionRegistryExtension<
-	TTool = Tool,
+	TTool = AgentTool,
 	TMessage = unknown,
 > {
 	type?: string; // Default to plugin for now.
@@ -233,7 +233,7 @@ export interface ContributionRegistryExtension<
 
 export interface ContributionRegistryOptions<
 	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
-	TTool = Tool,
+	TTool = AgentTool,
 	TMessage = unknown,
 > {
 	extensions?: TExtension[];
@@ -514,7 +514,7 @@ function normalizeAutomationEventType(
 
 export class ContributionRegistry<
 	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
-	TTool = Tool,
+	TTool = AgentTool,
 	TMessage = unknown,
 > {
 	private readonly extensions: TExtension[];
@@ -668,7 +668,7 @@ export class ContributionRegistry<
 
 export function createContributionRegistry<
 	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
-	TTool = Tool,
+	TTool = AgentTool,
 	TMessage = unknown,
 >(
 	options: ContributionRegistryOptions<TExtension, TTool, TMessage> = {},

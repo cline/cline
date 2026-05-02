@@ -4,7 +4,11 @@
  * Type definitions for executors, configuration, and results.
  */
 
-import type { ImageContent, TextContent, ToolContext } from "@clinebot/shared";
+import type {
+	AgentToolContext,
+	ImageContent,
+	TextContent,
+} from "@clinebot/shared";
 import type {
 	ApplyPatchInput,
 	EditFileInput,
@@ -47,7 +51,7 @@ export type FileReadResultContent = string | Array<TextContent | ImageContent>;
  */
 export type FileReadExecutor = (
 	request: ReadFileRequest,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<FileReadResultContent>;
 
 /**
@@ -61,7 +65,7 @@ export type FileReadExecutor = (
 export type SearchExecutor = (
 	query: string,
 	cwd: string,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -75,7 +79,7 @@ export type SearchExecutor = (
 export type BashExecutor = (
 	command: string | StructuredCommandInput,
 	cwd: string,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -89,7 +93,7 @@ export type BashExecutor = (
 export type WebFetchExecutor = (
 	url: string,
 	prompt: string,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -103,7 +107,7 @@ export type WebFetchExecutor = (
 export type EditorExecutor = (
 	input: EditFileInput,
 	cwd: string,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -117,7 +121,7 @@ export type EditorExecutor = (
 export type ApplyPatchExecutor = (
 	input: ApplyPatchInput,
 	cwd: string,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -131,7 +135,7 @@ export type ApplyPatchExecutor = (
 export type SkillsExecutor = (
 	skill: string,
 	args: string | undefined,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -145,7 +149,7 @@ export type SkillsExecutor = (
 export type AskQuestionExecutor = (
 	question: string,
 	options: string[],
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**
@@ -169,7 +173,7 @@ export interface SkillsExecutorWithMetadata {
 	(
 		skill: string,
 		args: string | undefined,
-		context: ToolContext,
+		context: AgentToolContext,
 	): Promise<string>;
 	configuredSkills?: SkillsExecutorSkillMetadata[];
 }
@@ -185,7 +189,7 @@ export interface SkillsExecutorWithMetadata {
 export type VerifySubmitExecutor = (
 	summary: string,
 	verified: boolean,
-	context: ToolContext,
+	context: AgentToolContext,
 ) => Promise<string>;
 
 /**

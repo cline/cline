@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentTool,
 	HookStage,
 	Message,
 	PluginSetupContext,
-	Tool,
 	WorkspaceInfo,
 } from "@clinebot/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
@@ -366,13 +366,13 @@ function registerTools(
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const td of descriptor.contributions?.tools ?? []) {
-		const tool: Tool = {
+		const tool: AgentTool = {
 			name: td.name,
 			description: td.description ?? "",
 			inputSchema: (td.inputSchema ?? {
 				type: "object",
 				properties: {},
-			}) as Tool["inputSchema"],
+			}) as AgentTool["inputSchema"],
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
 			execute: async (input: unknown, context: unknown) => {

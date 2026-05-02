@@ -1,8 +1,8 @@
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
 import { createBashExecutor } from "./bash";
 
-const ctx: ToolContext = {
+const ctx: AgentToolContext = {
 	agentId: "agent-1",
 	conversationId: "conv-1",
 	iteration: 1,
@@ -55,7 +55,7 @@ describe("createBashExecutor", () => {
 
 	it("rejects when abort signal fires", async () => {
 		const ac = new AbortController();
-		const abortCtx: ToolContext = { ...ctx, abortSignal: ac.signal };
+		const abortCtx: AgentToolContext = { ...ctx, signal: ac.signal };
 		const bash = createBashExecutor();
 
 		setTimeout(() => ac.abort(), 50);

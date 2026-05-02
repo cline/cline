@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, Tool } from "@clinebot/shared";
+import type { AgentConfig, AgentTool } from "@clinebot/shared";
 import { resolveGlobalSettingsPath } from "@clinebot/shared/storage";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -160,7 +160,7 @@ export function filterDisabledPluginPaths(
 	return pluginPaths.filter((pluginPath) => !disabled.has(pluginPath));
 }
 
-export function filterDisabledTools<T extends Pick<Tool, "name">>(
+export function filterDisabledTools<T extends Pick<AgentTool, "name">>(
 	tools: ReadonlyArray<T>,
 	disabledToolNames?: ReadonlyArray<string>,
 ): T[] {

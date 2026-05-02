@@ -13,7 +13,7 @@ const localRuntimeHostMock = vi.hoisted(() =>
 	}),
 );
 
-vi.mock("../../transports/local", () => ({
+vi.mock("../../runtime/host/local-runtime-host", () => ({
 	LocalRuntimeHost: localRuntimeHostMock,
 }));
 

@@ -1,10 +1,10 @@
 /**
- * Tool Presets
+ * AgentTool Presets
  *
  * Pre-configured tool combinations for common use cases.
  */
 
-import type { AgentMode, Tool, ToolPolicy } from "@clinebot/shared";
+import type { AgentMode, AgentTool, ToolPolicy } from "@clinebot/shared";
 import { ALL_DEFAULT_TOOL_NAMES } from "./constants";
 import { createDefaultTools } from "./definitions";
 import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types";
@@ -126,7 +126,7 @@ export function resolveToolPresetName(options: {
 }
 
 /**
- * Tool policy preset names
+ * AgentTool policy preset names
  */
 export type ToolPolicyPresetName = "default" | "yolo";
 
@@ -176,7 +176,7 @@ export function createDefaultToolsWithPreset(
 	presetName: ToolPresetName,
 	options: Omit<CreateDefaultToolsOptions, keyof DefaultToolsConfig> &
 		Partial<DefaultToolsConfig>,
-): Tool[] {
+): AgentTool[] {
 	const preset = ToolPresets[presetName];
 	const {
 		enableSpawnAgent: _enableSpawnAgent,

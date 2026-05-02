@@ -9,10 +9,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	type AgentPlugin,
+	type AgentTool,
+	type AgentToolContext,
 	ClineCore,
 	createTool,
-	type Tool,
-	type ToolContext,
 } from "@clinebot/core";
 import YAML from "yaml";
 import { z } from "zod";
@@ -152,13 +152,15 @@ let sessionManagerPromise: Promise<SessionManager> | undefined;
 // ---------------------------------------------------------------------------
 
 /**
- * Cast a fully-typed tool to the `Tool<unknown, unknown>` expected by
+ * Cast a fully-typed tool to the `AgentTool<unknown, unknown>` expected by
  * the plugin API's `registerTool` method. This is safe at runtime because the
  * registry only invokes `execute` with validated input that matches the
  * tool's `inputSchema`.
  */
-function toRegisteredTool<I, O>(tool: Tool<I, O>): Tool<unknown, unknown> {
-	return tool as Tool<unknown, unknown>;
+function toRegisteredTool<I, O>(
+	tool: AgentTool<I, O>,
+): AgentTool<unknown, unknown> {
+	return tool as AgentTool<unknown, unknown>;
 }
 
 function optStr(v: unknown): string | undefined {
@@ -268,7 +270,7 @@ function readSkillDefinitions(baseCwd: string): SkillDefinition[] {
 	return [...defs.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function parentSessionId(ctx: ToolContext): string | undefined {
+function parentSessionId(ctx: AgentToolContext): string | undefined {
 	const id = ctx.metadata?.sessionId;
 	return typeof id === "string" && id.trim() ? id.trim() : undefined;
 }
@@ -281,14 +283,17 @@ function sanitizeConversationId(conversationId: string): string {
 	return trimmed;
 }
 
-function handoffsDir(ctx: ToolContext): string {
+function handoffsDir(ctx: AgentToolContext): string {
 	const safeId = sanitizeConversationId(ctx.conversationId);
 	const dir = join(HANDOFFS_DIR, safeId);
 	mkdirSync(dir, { recursive: true });
 	return dir;
 }
 
-function resolveHandoffPath(ctx: ToolContext, relativePath: string): string {
+function resolveHandoffPath(
+	ctx: AgentToolContext,
+	relativePath: string,
+): string {
 	const dir = handoffsDir(ctx);
 	const resolved = resolve(dir, relativePath);
 	if (!resolved.startsWith(`${dir}/`)) {

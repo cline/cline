@@ -8,7 +8,6 @@
  * between the two lives in `@clinebot/core` (HookBridge,
  * `toLegacyAgentEvent`) and `@clinebot/agents` (the facade adapter).
  *
- * See PLAN.md §3.6 Step 3 and §3.7.2 for the migration context.
  */
 
 import type {
@@ -105,7 +104,7 @@ export interface AgentTokenUsage {
  * Canonical `AgentUsage` shape for the new runtime.
  *
  * This supersedes the legacy `AgentUsage` (now `LegacyAgentUsage` in
- * `./agents/types`) per PLAN.md §3.7.2. The old, host-facing shape is
+ * `./agents/types`). The old, host-facing shape is
  * retained for `AgentResult`/`AgentUsageEvent` consumers via the facade.
  */
 export interface AgentUsage extends AgentTokenUsage {
@@ -176,21 +175,27 @@ export interface AgentToolResult<TOutput = unknown> {
 }
 
 export interface AgentToolContext {
+	sessionId?: string;
 	agentId: string;
-	runId: string;
+	conversationId?: string;
+	runId?: string;
 	iteration: number;
-	toolCallId: string;
+	toolCallId?: string;
 	signal?: AbortSignal;
-	snapshot: AgentRuntimeStateSnapshot;
-	emitUpdate: (update: unknown) => void;
+	metadata?: Record<string, unknown>;
+	snapshot?: AgentRuntimeStateSnapshot;
+	emitUpdate?: (update: unknown) => void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	timeoutMs?: number;
+	retryable?: boolean;
+	maxRetries?: number;
 	execute: (
 		input: TInput,
 		context: AgentToolContext,
-	) => Promise<AgentToolResult<TOutput>> | AgentToolResult<TOutput>;
+	) => Promise<TOutput> | TOutput;
 }
 
 // =============================================================================
@@ -414,6 +419,7 @@ export interface AgentRuntimeConfig {
 	};
 	toolExecution?: "sequential" | "parallel";
 	toolPolicies?: Record<string, ToolPolicy>;
+	toolContextMetadata?: Record<string, unknown>;
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;

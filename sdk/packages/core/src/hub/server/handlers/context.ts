@@ -31,6 +31,7 @@ export type PendingCapabilityRequest = {
 	sessionId: string;
 	targetClientId: string;
 	capabilityName: string;
+	onProgress?: (payload: Record<string, unknown>) => void;
 	resolve: (result: {
 		ok: boolean;
 		payload?: Record<string, unknown>;
@@ -61,6 +62,7 @@ export interface HubTransportContext {
 		capabilityName: string,
 		payload: Record<string, unknown>,
 		targetClientId: string,
+		onProgress?: (payload: Record<string, unknown>) => void,
 	): Promise<Record<string, unknown> | undefined>;
 }
 

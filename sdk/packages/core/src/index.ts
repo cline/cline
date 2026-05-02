@@ -19,6 +19,7 @@ export type {
 	AgentResult,
 	AgentRunResult,
 	AgentRunStatus,
+	AgentToolContext,
 	AutomationEventEnvelope,
 	BasicLogger,
 	ChatRunTurnRequest,
@@ -63,10 +64,8 @@ export type {
 	TelemetryValue,
 	TextContent,
 	ThinkingContent,
-	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
-	ToolContext,
 	ToolPolicy,
 	ToolResultContent,
 	ToolUseContent,
@@ -341,8 +340,8 @@ export type {
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
 export * from "./hub";
-export { HubRuntimeHost } from "./hub/transport/hub-runtime-host";
-export { RemoteRuntimeHost } from "./hub/transport/remote-runtime-host";
+export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
+export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export type { RuntimeCapabilities } from "./runtime/capabilities";
 export { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 export { listSessionHistoryFromBackend } from "./runtime/host/history";
@@ -352,6 +351,7 @@ export {
 	createRuntimeHost as createSessionHost,
 	resolveSessionBackend,
 } from "./runtime/host/host";
+export { LocalRuntimeHost } from "./runtime/host/local-runtime-host";
 export type {
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
@@ -550,7 +550,6 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
-export { LocalRuntimeHost } from "./transports/local";
 export type {
 	ChatMessage,
 	ChatSessionConfig,

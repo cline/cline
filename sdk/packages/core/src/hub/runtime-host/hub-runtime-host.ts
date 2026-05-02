@@ -2,15 +2,24 @@ import type {
 	AgentEvent,
 	AgentFinishReason,
 	AgentResult,
+	AgentToolContext,
 	AgentUsage,
+	HubClientContribution,
 	HubEventEnvelope,
 	SessionRecord as HubSessionRecord,
 	JsonValue,
 	ToolApprovalRequest,
-	ToolContext,
 } from "@clinebot/shared";
-import { isHubToolExecutorName } from "@clinebot/shared";
-import type { ToolExecutors } from "../../extensions/tools";
+import {
+	HUB_CHECKPOINT_CAPABILITY,
+	HUB_COMPACTION_CAPABILITY,
+	HUB_CUSTOM_TOOL_CAPABILITY_PREFIX,
+	HUB_HOOK_CAPABILITY_PREFIX,
+	HUB_MISTAKE_LIMIT_CAPABILITY,
+	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
+	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isHubToolExecutorName,
+} from "@clinebot/shared";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -26,6 +35,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
@@ -40,7 +50,6 @@ import type {
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
 } from "../../settings";
-import { RuntimeHostEventBus } from "../../transports/runtime-host-support";
 import { SessionSource, type SessionStatus } from "../../types/common";
 import type {
 	CoreSessionEvent,
@@ -61,6 +70,34 @@ function toJsonRecord(
 	>;
 }
 
+const HUB_HOOK_NAMES = [
+	"onSessionStart",
+	"onRunStart",
+	"onRunEnd",
+	"onIterationStart",
+	"onIterationEnd",
+	"onTurnStart",
+	"onBeforeAgentStart",
+	"onTurnEnd",
+	"onStopError",
+	"onToolCallStart",
+	"onToolCallEnd",
+	"onSessionShutdown",
+	"onError",
+] as const;
+
+function toJsonSerializable(
+	value: unknown,
+): Record<string, JsonValue | undefined> | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+	return JSON.parse(JSON.stringify(value)) as Record<
+		string,
+		JsonValue | undefined
+	>;
+}
+
 function serializeSettingsInput(
 	input: CoreSettingsListInput | CoreSettingsToggleInput | undefined,
 ): Record<string, unknown> | undefined {
@@ -72,7 +109,7 @@ function serializeSettingsInput(
 	return JSON.parse(JSON.stringify(serializable)) as Record<string, unknown>;
 }
 
-function parseToolContext(value: unknown): ToolContext {
+function parseToolContext(value: unknown): AgentToolContext {
 	const payload =
 		value && typeof value === "object" && !Array.isArray(value)
 			? (value as Record<string, unknown>)
@@ -89,6 +126,183 @@ function parseToolContext(value: unknown): ToolContext {
 				? (payload.metadata as Record<string, unknown>)
 				: undefined,
 	};
+}
+
+type ClientContributionHandler = (input: {
+	payload: Record<string, unknown>;
+	abortSignal: AbortSignal;
+	progress: (payload: Record<string, unknown>) => void;
+}) => Promise<Record<string, unknown> | undefined>;
+
+interface ClientContributionRegistration {
+	manifest: HubClientContribution[];
+	handlers: Map<string, ClientContributionHandler>;
+}
+
+function addClientContribution(
+	registration: ClientContributionRegistration,
+	contribution: HubClientContribution,
+	handler: ClientContributionHandler,
+): void {
+	registration.manifest.push(contribution);
+	registration.handlers.set(contribution.capabilityName, handler);
+}
+
+function buildClientContributionRegistration(
+	localRuntime: StartSessionInput["localRuntime"] | undefined,
+	capabilities: RuntimeCapabilities,
+): ClientContributionRegistration {
+	const registration: ClientContributionRegistration = {
+		manifest: [],
+		handlers: new Map(),
+	};
+
+	for (const executor of Object.keys(capabilities.toolExecutors ?? {}).filter(
+		isHubToolExecutorName,
+	)) {
+		const executorFn = capabilities.toolExecutors?.[executor] as
+			| ((...args: unknown[]) => Promise<unknown>)
+			| undefined;
+		if (typeof executorFn !== "function") continue;
+		addClientContribution(
+			registration,
+			{
+				kind: "toolExecutor",
+				executor,
+				capabilityName: `${HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX}${executor}`,
+			},
+			async ({ payload, abortSignal }) => {
+				const args = Array.isArray(payload.args) ? [...payload.args] : [];
+				const context = {
+					...parseToolContext(payload.context),
+					signal: abortSignal,
+				};
+				return { result: await executorFn(...args, context) };
+			},
+		);
+	}
+
+	for (const tool of localRuntime?.extraTools ?? []) {
+		addClientContribution(
+			registration,
+			{
+				kind: "tool",
+				name: tool.name,
+				description: tool.description,
+				inputSchema: toJsonRecord(tool.inputSchema) ?? {},
+				...(tool.lifecycle
+					? {
+							lifecycle: toJsonRecord(
+								tool.lifecycle as Record<string, unknown>,
+							),
+						}
+					: {}),
+				capabilityName: `${HUB_CUSTOM_TOOL_CAPABILITY_PREFIX}${tool.name}`,
+			},
+			async ({ payload, abortSignal, progress }) => {
+				const context = {
+					...parseToolContext(payload.context),
+					signal: abortSignal,
+				};
+				const result = await tool.execute(payload.input, {
+					...context,
+					emitUpdate: (update) => {
+						progress({ update });
+					},
+				});
+				return { result };
+			},
+		);
+	}
+
+	const hooks = localRuntime?.hooks as Record<string, unknown> | undefined;
+	if (hooks) {
+		for (const name of HUB_HOOK_NAMES) {
+			const hook = hooks[name];
+			if (typeof hook !== "function") continue;
+			addClientContribution(
+				registration,
+				{
+					kind: "hook",
+					name,
+					capabilityName: `${HUB_HOOK_CAPABILITY_PREFIX}${name}`,
+				},
+				async ({ payload }) => ({
+					control: await hook(payload.context),
+				}),
+			);
+		}
+	}
+
+	if (localRuntime?.compaction?.compact) {
+		const compact = localRuntime.compaction.compact;
+		addClientContribution(
+			registration,
+			{
+				kind: "compaction",
+				capabilityName: HUB_COMPACTION_CAPABILITY,
+				config: toJsonSerializable(localRuntime.compaction),
+			},
+			async ({ payload }) => ({
+				result: await compact(payload.context as never),
+			}),
+		);
+	}
+
+	if (localRuntime?.checkpoint?.createCheckpoint) {
+		const createCheckpoint = localRuntime.checkpoint.createCheckpoint;
+		addClientContribution(
+			registration,
+			{
+				kind: "checkpoint",
+				capabilityName: HUB_CHECKPOINT_CAPABILITY,
+				config: toJsonSerializable(localRuntime.checkpoint),
+			},
+			async ({ payload }) => ({
+				result: await createCheckpoint(payload.context as never),
+			}),
+		);
+	}
+
+	if (localRuntime?.onConsecutiveMistakeLimitReached) {
+		const decide = localRuntime.onConsecutiveMistakeLimitReached;
+		addClientContribution(
+			registration,
+			{
+				kind: "mistakeLimit",
+				capabilityName: HUB_MISTAKE_LIMIT_CAPABILITY,
+			},
+			async ({ payload }) => ({
+				result: await decide(payload.context as never),
+			}),
+		);
+	}
+
+	if (localRuntime?.userInstructionService) {
+		const service = localRuntime.userInstructionService;
+		addClientContribution(
+			registration,
+			{
+				kind: "userInstructionService",
+				capabilityName: HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+			},
+			async () => {
+				await service.start().catch(() => {});
+				return {
+					snapshot: {
+						records: {
+							skill: service.listRecords("skill"),
+							rule: service.listRecords("rule"),
+							workflow: service.listRecords("workflow"),
+						},
+						runtimeCommands: service.listRuntimeCommands(),
+					},
+				};
+			},
+		);
+	}
+
+	return registration;
 }
 
 function abortReasonMessage(value: unknown): string {
@@ -374,8 +588,13 @@ export class HubRuntimeHost implements RuntimeHost {
 	private readonly client: NodeHubClient;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessionCapabilities = new Map<string, RuntimeCapabilities>();
+	private readonly sessionClientContributionHandlers = new Map<
+		string,
+		Map<string, ClientContributionHandler>
+	>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
 	private readonly pendingApprovalToolCallIds = new Set<string>();
+	private readonly agentDoneEmittedForCurrentRunBySession = new Set<string>();
 	private readonly activeCapabilityAbortControllers = new Map<
 		string,
 		AbortController
@@ -410,9 +629,10 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const capabilities = this.resolveCapabilities(input);
-		const advertisedToolExecutors = Object.keys(
-			capabilities.toolExecutors ?? {},
-		).filter(isHubToolExecutorName);
+		const clientContributions = buildClientContributionRegistration(
+			input.localRuntime,
+			capabilities,
+		);
 		const reply = await this.client.command("session.create", {
 			workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
 			cwd: input.config.cwd,
@@ -430,7 +650,12 @@ export class HubRuntimeHost implements RuntimeHost {
 				interactive: input.interactive === true,
 			},
 			runtimeOptions: {
-				toolExecutors: advertisedToolExecutors,
+				...(clientContributions.manifest.length > 0
+					? { clientContributions: clientContributions.manifest }
+					: {}),
+				...(input.localRuntime?.configExtensions
+					? { configExtensions: input.localRuntime.configExtensions }
+					: {}),
 			},
 			toolPolicies: toJsonRecord(
 				input.toolPolicies as Record<string, unknown> | undefined,
@@ -444,6 +669,12 @@ export class HubRuntimeHost implements RuntimeHost {
 			throw new Error("Hub runtime did not return a session id.");
 		}
 		this.sessionCapabilities.set(sessionId, capabilities);
+		if (clientContributions.handlers.size > 0) {
+			this.sessionClientContributionHandlers.set(
+				sessionId,
+				clientContributions.handlers,
+			);
+		}
 		this.ensureSessionSubscription(sessionId);
 
 		return {
@@ -472,11 +703,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		const capabilities = startConfig
 			? this.resolveCapabilities(startConfig)
 			: undefined;
-		const advertisedToolExecutors = startConfig
-			? Object.keys(capabilities?.toolExecutors ?? {}).filter(
-					isHubToolExecutorName,
+		const clientContributions = startConfig
+			? buildClientContributionRegistration(
+					startConfig.localRuntime,
+					capabilities ?? {},
 				)
-			: [];
+			: {
+					manifest: [],
+					handlers: new Map<string, ClientContributionHandler>(),
+				};
 		const reply = await this.client.command(
 			"session.restore",
 			{
@@ -505,7 +740,15 @@ export class HubRuntimeHost implements RuntimeHost {
 								interactive: startConfig.interactive === true,
 							},
 							runtimeOptions: {
-								toolExecutors: advertisedToolExecutors,
+								...(clientContributions.manifest.length > 0
+									? { clientContributions: clientContributions.manifest }
+									: {}),
+								...(startConfig.localRuntime?.configExtensions
+									? {
+											configExtensions:
+												startConfig.localRuntime.configExtensions,
+										}
+									: {}),
 							},
 							toolPolicies: toJsonRecord(
 								startConfig.toolPolicies as Record<string, unknown> | undefined,
@@ -530,6 +773,12 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		if (newSessionId && capabilities) {
 			this.sessionCapabilities.set(newSessionId, capabilities);
+		}
+		if (newSessionId && clientContributions.handlers.size > 0) {
+			this.sessionClientContributionHandlers.set(
+				newSessionId,
+				clientContributions.handlers,
+			);
 		}
 		if (newSessionId) {
 			this.ensureSessionSubscription(newSessionId);
@@ -692,6 +941,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		this.sessionSubscriptions.clear();
 		this.sessionCapabilities.clear();
+		this.agentDoneEmittedForCurrentRunBySession.clear();
 		for (const controller of this.activeCapabilityAbortControllers.values()) {
 			controller.abort("Hub runtime host disposed.");
 		}
@@ -843,6 +1093,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		this.sessionSubscriptions.get(target)?.();
 		this.sessionSubscriptions.delete(target);
+		this.agentDoneEmittedForCurrentRunBySession.delete(target);
 	}
 
 	private resolveCapabilities(input: StartSessionInput): RuntimeCapabilities {
@@ -875,6 +1126,26 @@ export class HubRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	private emitAgentDoneIfNeeded(input: {
+		sessionId: string;
+		payload: Record<string, unknown> | undefined;
+	}): void {
+		const alreadyEmitted = this.agentDoneEmittedForCurrentRunBySession.has(
+			input.sessionId,
+		);
+		if (alreadyEmitted) {
+			return;
+		}
+		this.agentDoneEmittedForCurrentRunBySession.add(input.sessionId);
+		this.events.emit({
+			type: "agent_event",
+			payload: {
+				sessionId: input.sessionId,
+				event: doneEventFromPayload(input.payload),
+			},
+		});
+	}
+
 	private handleHubEvent(event: HubEventEnvelope): void {
 		const sessionId = event.sessionId?.trim();
 		if (event.event === "capability.requested") {
@@ -894,6 +1165,25 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 
 		switch (event.event) {
+			case "run.started": {
+				this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
+				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
+				const session = event.payload?.session as HubSessionRecord | undefined;
+				if (snapshot) {
+					this.events.emit({
+						type: "session_snapshot",
+						payload: { sessionId, snapshot },
+					});
+				}
+				this.events.emit({
+					type: "status",
+					payload: {
+						sessionId,
+						status: session?.status ?? "running",
+					},
+				});
+				return;
+			}
 			case "iteration.started": {
 				this.events.emit({
 					type: "agent_event",
@@ -1006,12 +1296,9 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "agent.done": {
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: doneEventFromPayload(event.payload),
-					},
+				this.emitAgentDoneIfNeeded({
+					sessionId,
+					payload: event.payload,
 				});
 				return;
 			}
@@ -1064,7 +1351,6 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
-			case "run.started":
 			case "session.created":
 			case "session.updated":
 			case "session.attached":
@@ -1120,35 +1406,26 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "run.completed":
 			case "run.failed":
 			case "run.aborted": {
-				this.events.emit({
-					type: "agent_event",
+				const reason =
+					typeof event.payload?.reason === "string"
+						? event.payload.reason
+						: event.event === "run.aborted"
+							? "aborted"
+							: event.event === "run.failed"
+								? "error"
+								: "completed";
+				this.emitAgentDoneIfNeeded({
+					sessionId,
 					payload: {
-						sessionId,
-						event: doneEventFromPayload({
-							...event.payload,
-							reason:
-								typeof event.payload?.reason === "string"
-									? event.payload.reason
-									: event.event === "run.aborted"
-										? "aborted"
-										: event.event === "run.failed"
-											? "error"
-											: "completed",
-						}),
+						...event.payload,
+						reason,
 					},
 				});
 				this.events.emit({
 					type: "ended",
 					payload: {
 						sessionId,
-						reason:
-							typeof event.payload?.reason === "string"
-								? event.payload.reason
-								: event.event === "run.aborted"
-									? "aborted"
-									: event.event === "run.failed"
-										? "error"
-										: "completed",
+						reason,
 						ts: event.timestamp ?? Date.now(),
 					},
 				});
@@ -1181,24 +1458,13 @@ export class HubRuntimeHost implements RuntimeHost {
 			typeof event.payload?.capabilityName === "string"
 				? event.payload.capabilityName
 				: "";
-		if (!requestId || !capabilityName.startsWith("tool_executor.")) {
+		if (!requestId) {
 			return;
 		}
-		const executorName = capabilityName.slice("tool_executor.".length);
-		const executors = this.sessionCapabilities.get(sessionId)?.toolExecutors;
-		const executor = executors?.[executorName as keyof ToolExecutors] as
-			| ((...args: unknown[]) => Promise<unknown>)
-			| undefined;
-		if (typeof executor !== "function") {
-			await this.client.command(
-				"capability.respond",
-				{
-					requestId,
-					ok: false,
-					error: `No executor registered for ${executorName}`,
-				},
-				sessionId,
-			);
+		const handler = this.sessionClientContributionHandlers
+			.get(sessionId)
+			?.get(capabilityName);
+		if (!handler) {
 			return;
 		}
 		const payload =
@@ -1207,15 +1473,24 @@ export class HubRuntimeHost implements RuntimeHost {
 			!Array.isArray(event.payload.payload)
 				? (event.payload.payload as Record<string, unknown>)
 				: {};
-		const args = Array.isArray(payload.args) ? [...payload.args] : [];
 		const abortController = new AbortController();
 		this.activeCapabilityAbortControllers.set(requestId, abortController);
-		const context = {
-			...parseToolContext(payload.context),
-			abortSignal: abortController.signal,
+		const progress = (progressPayload: Record<string, unknown>): void => {
+			void this.client.command(
+				"capability.progress",
+				{
+					requestId,
+					payload: progressPayload,
+				},
+				sessionId,
+			);
 		};
 		try {
-			const result = await executor(...args, context);
+			const responsePayload = await handler({
+				payload,
+				abortSignal: abortController.signal,
+				progress,
+			});
 			if (abortController.signal.aborted) {
 				return;
 			}
@@ -1224,7 +1499,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				{
 					requestId,
 					ok: true,
-					payload: { result },
+					payload: responsePayload,
 				},
 				sessionId,
 			);

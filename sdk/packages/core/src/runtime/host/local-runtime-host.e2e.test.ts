@@ -14,12 +14,12 @@ import type { AgentResult } from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { splitCoreSessionConfig } from "../runtime/host/runtime-host";
-import type { SessionManifest } from "../session/models/session-manifest";
-import type { SessionRow } from "../session/models/session-row";
-import type { RootSessionArtifacts } from "../session/services/session-service";
-import type { SessionSource, SessionStatus } from "../types/common";
-import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local";
+import type { SessionManifest } from "../../session/models/session-manifest";
+import type { SessionRow } from "../../session/models/session-row";
+import type { RootSessionArtifacts } from "../../session/services/session-service";
+import type { SessionSource, SessionStatus } from "../../types/common";
+import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
+import { splitCoreSessionConfig } from "./runtime-host";
 
 function nowIso(): string {
 	return new Date().toISOString();

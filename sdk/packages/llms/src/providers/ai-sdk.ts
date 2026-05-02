@@ -12,7 +12,7 @@ import {
 	type AiSdkFormatterPart,
 	formatMessagesForAiSdk,
 } from "@clinebot/shared";
-import { streamText } from "ai";
+import { jsonSchema, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
@@ -199,10 +199,35 @@ function toAiSdkTools(
 			definition.name,
 			{
 				description: definition.description,
-				inputSchema: z.fromJSONSchema(definition.inputSchema) as never,
+				inputSchema: jsonSchema(
+					normalizeAiSdkToolInputSchema(definition.inputSchema),
+					{
+						validate: async (value) => {
+							const result = await z
+								.fromJSONSchema(definition.inputSchema)
+								.safeParseAsync(value);
+							return result.success
+								? { success: true, value: result.data }
+								: { success: false, error: result.error };
+						},
+					},
+				) as never,
 			} as unknown,
 		]),
 	);
+}
+
+function normalizeAiSdkToolInputSchema(
+	inputSchema: Record<string, unknown>,
+): Record<string, unknown> {
+	if (inputSchema.type === "object") {
+		return inputSchema;
+	}
+
+	return {
+		type: "object",
+		...inputSchema,
+	};
 }
 
 function providerDisablesExternalToolExecution(

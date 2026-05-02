@@ -1,8 +1,8 @@
 import type {
+	AgentTool,
 	BasicLogger,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
-	Tool,
 } from "@clinebot/shared";
 import { hasRuntimeConfigExtension } from "@clinebot/shared";
 import { nanoid } from "nanoid";
@@ -65,18 +65,18 @@ function isToolEnabledByPolicies(
 }
 
 function filterToolsByPolicies(
-	tools: Tool[],
+	tools: AgentTool[],
 	toolPolicies: CoreSessionConfig["toolPolicies"],
-): Tool[] {
+): AgentTool[] {
 	return tools.filter((tool) =>
 		isToolEnabledByPolicies(tool.name, toolPolicies),
 	);
 }
 
 function filterAvailableTools(
-	tools: Tool[],
+	tools: AgentTool[],
 	toolPolicies: CoreSessionConfig["toolPolicies"],
-): Tool[] {
+): AgentTool[] {
 	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
 }
 
@@ -93,7 +93,7 @@ function createBuiltinToolsList(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
-): Tool[] {
+): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
 		providerId,
@@ -145,7 +145,7 @@ function isSkillsToolEnabledForSession(input: {
 const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 
 async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
-	tools: Tool[];
+	tools: AgentTool[];
 	shutdown?: () => Promise<void>;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
@@ -179,7 +179,7 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 			createMcpTools({ serverName: r.name, provider: manager }),
 		),
 	);
-	const tools: Tool[] = [];
+	const tools: AgentTool[] = [];
 	for (const [i, result] of results.entries()) {
 		if (result.status === "fulfilled") {
 			tools.push(...result.value);
@@ -308,7 +308,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
 		const globallyDisabledToolNames = resolveDisabledToolNames();
-		const tools: Tool[] = [];
+		const tools: AgentTool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
 		const rulesEnabled = hasConfigExtension(configExtensions, "rules");
@@ -398,10 +398,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const registryKey = config.sessionId || effectiveTeamName;
 		let leadAgentInstance:
 			| {
-					addTools: (tools: Tool[]) => void;
+					addTools: (tools: AgentTool[]) => void;
 			  }
 			| undefined;
-		let pendingLeadTeamTools: Tool[] = [];
+		let pendingLeadTeamTools: AgentTool[] = [];
 		let restoredStateHydratedIntoRuntime = false;
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,

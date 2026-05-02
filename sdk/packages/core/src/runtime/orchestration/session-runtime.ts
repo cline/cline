@@ -2,10 +2,10 @@ import type {
 	AgentConfig,
 	AgentHooks,
 	AgentResult,
+	AgentTool,
 	BasicLogger,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
-	Tool,
 } from "@clinebot/shared";
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type { ToolExecutors } from "../../extensions/tools";
@@ -26,11 +26,11 @@ import type { CoreSessionConfig } from "../../types/config";
  * dropped entirely per §3.5 row #2.
  */
 type LeadAgentHandle = {
-	addTools(tools: Tool[]): unknown;
+	addTools(tools: AgentTool[]): unknown;
 };
 
 export interface BuiltRuntime {
-	tools: Tool[];
+	tools: AgentTool[];
 	hooks?: AgentHooks;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
@@ -48,7 +48,7 @@ export interface RuntimeBuilderInput {
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	onTeamEvent?: (event: TeamEvent) => void;
-	createSpawnTool?: () => Tool;
+	createSpawnTool?: () => AgentTool;
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
 	configExtensions?: RuntimeConfigExtensionKind[];

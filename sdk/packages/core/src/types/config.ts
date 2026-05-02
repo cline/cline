@@ -3,6 +3,7 @@ import type {
 	AgentConfig,
 	AgentHooks,
 	AgentMode,
+	AgentTool,
 	BasicLogger,
 	ConsecutiveMistakeLimitContext,
 	ConsecutiveMistakeLimitDecision,
@@ -13,7 +14,6 @@ import type {
 	SessionExecutionConfig,
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
-	Tool,
 } from "@clinebot/shared";
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
 import type { TeamEvent } from "../extensions/tools/team";
@@ -198,7 +198,7 @@ export interface CoreSessionConfig
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	extensionContext?: ExtensionContext;
-	extraTools?: Tool[];
+	extraTools?: AgentTool[];
 	pluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];

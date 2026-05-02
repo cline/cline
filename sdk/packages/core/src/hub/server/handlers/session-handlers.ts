@@ -6,7 +6,6 @@ import type {
 } from "@clinebot/shared";
 import {
 	createSessionId,
-	isHubToolExecutorName,
 	parseRuntimeConfigExtensions,
 } from "@clinebot/shared";
 import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
@@ -14,7 +13,10 @@ import {
 	SessionVersioningError,
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
-import { createHubCapabilityToolExecutors } from "../hub-capability-tool-executors";
+import {
+	createHubClientContributionRuntime,
+	parseHubClientContributions,
+} from "../hub-client-contributions";
 import { toHubSessionRecord } from "../hub-session-records";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
@@ -102,10 +104,10 @@ export async function handleSessionCreate(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
-	const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
-		? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
-		: [];
-	if (advertisedToolExecutors.length > 0) {
+	const clientContributions = parseHubClientContributions(
+		runtimeOptions.clientContributions,
+	);
+	if (clientContributions.length > 0) {
 		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 	}
 	const requestedSessionId =
@@ -116,6 +118,13 @@ export async function handleSessionCreate(
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
+	const clientContributionRuntime = createHubClientContributionRuntime({
+		sessionId,
+		targetClientId: clientId,
+		contributions: clientContributions,
+		sessionConfig,
+		requestCapability: ctx.requestCapability,
+	});
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
@@ -132,14 +141,10 @@ export async function handleSessionCreate(
 				loadPrivateOnAuth: true,
 			},
 			configExtensions,
+			...clientContributionRuntime.localRuntime,
 		},
 		capabilities: {
-			toolExecutors: createHubCapabilityToolExecutors(
-				sessionId,
-				clientId,
-				advertisedToolExecutors,
-				ctx.requestCapability,
-			),
+			toolExecutors: clientContributionRuntime.toolExecutors,
 			requestToolApproval,
 		},
 		config: {
@@ -310,10 +315,10 @@ export async function handleSessionRestore(
 				? (payload.modelSelection as Record<string, unknown>)
 				: {};
 		const clientId = envelope.clientId?.trim() || "hub-client";
-		const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
-			? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
-			: [];
-		if (advertisedToolExecutors.length > 0) {
+		const clientContributions = parseHubClientContributions(
+			runtimeOptions.clientContributions,
+		);
+		if (clientContributions.length > 0) {
 			setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 		}
 		const requestedSessionId =
@@ -324,6 +329,13 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
+		const clientContributionRuntime = createHubClientContributionRuntime({
+			sessionId,
+			targetClientId: clientId,
+			contributions: clientContributions,
+			sessionConfig,
+			requestCapability: ctx.requestCapability,
+		});
 		const service = new SessionVersioningService();
 		const result = await service.restoreCheckpoint({
 			sessionId: sourceSessionId,
@@ -371,17 +383,10 @@ export async function handleSessionRestore(
 							loadPrivateOnAuth: true,
 						},
 						configExtensions,
+						...clientContributionRuntime.localRuntime,
 					},
 					capabilities: {
-						toolExecutors:
-							advertisedToolExecutors.length > 0
-								? createHubCapabilityToolExecutors(
-										sessionId,
-										clientId,
-										advertisedToolExecutors,
-										ctx.requestCapability,
-									)
-								: undefined,
+						toolExecutors: clientContributionRuntime.toolExecutors,
 						requestToolApproval,
 					},
 					config: {

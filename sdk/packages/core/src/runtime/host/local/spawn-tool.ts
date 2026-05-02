@@ -1,19 +1,19 @@
-import type { AgentEvent, Tool } from "@clinebot/shared";
+import type { AgentEvent, AgentTool } from "@clinebot/shared";
 import {
 	createBuiltinTools,
 	resolveToolPresetName,
 	type ToolExecutors,
 	ToolPresets,
-} from "../../extensions/tools";
-import { createSpawnAgentTool } from "../../extensions/tools/team";
-import { buildTelemetryAgentIdentity } from "../../services/agent-events";
-import { filterDisabledTools } from "../../services/global-settings";
+} from "../../../extensions/tools";
+import { createSpawnAgentTool } from "../../../extensions/tools/team";
+import { buildTelemetryAgentIdentity } from "../../../services/agent-events";
+import { filterDisabledTools } from "../../../services/global-settings";
 import {
 	captureAgentCreated,
 	captureSubagentExecution,
-} from "../../services/telemetry/core-events";
-import type { CoreSessionConfig } from "../../types/config";
-import type { ActiveSession } from "../../types/session";
+} from "../../../services/telemetry/core-events";
+import type { CoreSessionConfig } from "../../../types/config";
+import type { ActiveSession } from "../../../types/session";
 
 export type SubAgentStartTracker = Map<
 	string,
@@ -36,9 +36,9 @@ export function createSessionSpawnTool(
 	config: CoreSessionConfig,
 	rootSessionId: string,
 	toolExecutors?: Partial<ToolExecutors>,
-): Tool {
+): AgentTool {
 	const createSubAgentTools = () => {
-		const tools: Tool[] = config.enableTools
+		const tools: AgentTool[] = config.enableTools
 			? createBuiltinTools({
 					cwd: config.cwd,
 					...ToolPresets[resolveToolPresetName({ mode: config.mode })],
@@ -158,5 +158,5 @@ export function createSessionSpawnTool(
 				context,
 			);
 		},
-	}) as Tool;
+	}) as AgentTool;
 }

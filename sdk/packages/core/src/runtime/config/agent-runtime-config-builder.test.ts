@@ -3,7 +3,6 @@
  * helpers (`buildModelOptions`, `buildMessageModelInfo`,
  * `resolveToolExecution`, `mapTelemetry`).
  *
- * Landed with PLAN.md Step 8c.
  */
 
 import type {
@@ -184,7 +183,7 @@ describe("createAgentRuntimeConfig", () => {
 				name: "echo",
 				description: "e",
 				inputSchema: { type: "object" },
-				execute: async () => ({ output: "x" }),
+				execute: async () => "x",
 			},
 		];
 		const runtimeConfig = createAgentRuntimeConfig({

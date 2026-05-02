@@ -25,6 +25,10 @@ const codexExecSpy = vi.fn((modelId: string) => ({
 }));
 
 vi.mock("ai", () => ({
+	jsonSchema: (schema: unknown, options: unknown) => ({
+		jsonSchema: schema,
+		...(options && typeof options === "object" ? options : {}),
+	}),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
 	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
@@ -1490,6 +1494,59 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it("passes object JSON schemas unchanged to the OpenAI Codex tool adapter", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: {
+							type: "object",
+							properties: {
+								commands: {
+									type: "array",
+									items: { type: "string" },
+								},
+							},
+							required: ["commands"],
+							additionalProperties: false,
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.run_commands.inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				commands: {
+					type: "array",
+					items: { type: "string" },
+				},
+			},
+			required: ["commands"],
+			additionalProperties: false,
+		});
 	});
 
 	it("passes reasoning effort through to Anthropic provider options", async () => {

@@ -8,7 +8,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 import type { ApplyPatchInput } from "../schemas";
 import type { ApplyPatchExecutor } from "../types";
 import {
@@ -315,7 +315,7 @@ export function createApplyPatchExecutor(
 	return async (
 		input: ApplyPatchInput,
 		cwd: string,
-		_context: ToolContext,
+		_context: AgentToolContext,
 	): Promise<string> => {
 		const normalizedInput = normalizePatchInput(input.input);
 		const currentFiles = await loadFiles(

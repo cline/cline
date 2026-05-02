@@ -156,14 +156,12 @@ export {
 } from "./llms/reasoning-effort";
 export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
 export type {
-	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	ToolCallRecord,
-	ToolContext,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema, ToolContextSchema } from "./llms/tools";
+export { ToolCallRecordSchema } from "./llms/tools";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,

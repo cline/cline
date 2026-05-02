@@ -8,6 +8,7 @@ export async function requestCapability(
 	capabilityName: string,
 	payload: Record<string, unknown>,
 	targetClientId: string,
+	onProgress?: (payload: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown> | undefined> {
 	const requestId = createSessionId("capreq_");
 	return await new Promise((resolve, reject) => {
@@ -15,6 +16,7 @@ export async function requestCapability(
 			sessionId,
 			targetClientId,
 			capabilityName,
+			onProgress,
 			resolve: (result) => {
 				if (!result.ok) {
 					reject(
@@ -41,6 +43,50 @@ export async function requestCapability(
 			),
 		);
 	});
+}
+
+export function handleCapabilityProgress(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const requestId =
+		typeof envelope.payload?.requestId === "string"
+			? envelope.payload.requestId.trim()
+			: "";
+	const pending = ctx.pendingCapabilityRequests.get(requestId);
+	if (!pending) {
+		return errorReply(
+			envelope,
+			"capability_not_found",
+			`Unknown capability request: ${requestId}`,
+		);
+	}
+	const responderClientId = envelope.clientId?.trim() || "";
+	if (responderClientId !== pending.targetClientId) {
+		return errorReply(
+			envelope,
+			"capability_wrong_client",
+			`Capability request ${requestId} is owned by ${pending.targetClientId}`,
+		);
+	}
+	if (
+		envelope.sessionId?.trim() &&
+		envelope.sessionId.trim() !== pending.sessionId
+	) {
+		return errorReply(
+			envelope,
+			"capability_wrong_session",
+			`Capability request ${requestId} belongs to session ${pending.sessionId}`,
+		);
+	}
+	const payload =
+		envelope.payload?.payload &&
+		typeof envelope.payload.payload === "object" &&
+		!Array.isArray(envelope.payload.payload)
+			? (envelope.payload.payload as Record<string, unknown>)
+			: {};
+	pending.onProgress?.(payload);
+	return okReply(envelope, { requestId });
 }
 
 export function cancelPendingCapabilityRequests(

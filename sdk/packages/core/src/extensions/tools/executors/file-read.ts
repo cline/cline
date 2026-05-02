@@ -6,7 +6,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
 
@@ -68,7 +68,7 @@ export function createFileReadExecutor(
 		...options,
 	};
 
-	return async (request: ReadFileRequest, context: ToolContext) => {
+	return async (request: ReadFileRequest, context: AgentToolContext) => {
 		const { path: filePath, start_line, end_line } = request;
 		const resolvedPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)

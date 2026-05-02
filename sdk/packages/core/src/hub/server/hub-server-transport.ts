@@ -9,6 +9,7 @@ import { createSessionId } from "@clinebot/shared";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
@@ -21,7 +22,6 @@ import {
 	type CoreSettingsToggleInput,
 	type CoreSettingsType,
 } from "../../settings";
-import { LocalRuntimeHost } from "../../transports/local";
 import type { CoreSessionEvent } from "../../types/events";
 import {
 	handleApprovalRespond,
@@ -30,6 +30,7 @@ import {
 } from "./handlers/approval-handlers";
 import {
 	cancelPendingCapabilityRequests,
+	handleCapabilityProgress,
 	handleCapabilityRequest,
 	handleCapabilityRespond,
 	requestCapability as requestCapabilityHandler,
@@ -194,13 +195,20 @@ export class HubServerTransport implements NativeHubTransport {
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
 			buildEvent: buildHubEvent,
-			requestCapability: (sessionId, capabilityName, payload, targetClientId) =>
+			requestCapability: (
+				sessionId,
+				capabilityName,
+				payload,
+				targetClientId,
+				onProgress,
+			) =>
 				requestCapabilityHandler(
 					this.ctx,
 					sessionId,
 					capabilityName,
 					payload,
 					targetClientId,
+					onProgress,
 				),
 		};
 		this.schedules = new HubScheduleService({
@@ -343,6 +351,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleApprovalRespond(this.ctx, envelope);
 			case "capability.respond":
 				return handleCapabilityRespond(this.ctx, envelope);
+			case "capability.progress":
+				return handleCapabilityProgress(this.ctx, envelope);
 			case "ui.notify":
 				this.publish(buildHubEvent("ui.notify", envelope.payload ?? {}));
 				return okReply(envelope);

@@ -1,5 +1,5 @@
 /**
- * Per-session `SessionRuntime` orchestrator (PLAN.md §3.2.3).
+ * Per-session `SessionRuntime` orchestrator.
  *
  * Owns all cross-turn state for one logical agent session:
  *
@@ -15,20 +15,9 @@
  *   - pending tool set, abort  — per-run lifecycle housekeeping
  *
  * A fresh `AgentRuntime` is instantiated per run via
- * `createAgentRuntime(createAgentRuntimeConfig({...}))`; it is the
- * only class that depends on `@clinebot/agents`. All session-level
- * state outlives any one `AgentRuntime`, making OAuth-retry + run
- * replay feasible (§3.2.2 invariant #3).
- *
- * NOTE: this class lives alongside the pre-existing
- * `packages/core/src/runtime/session-runtime.ts`, which exports
- * transport-level `SessionRuntime`/`RuntimeBuilder` interfaces
- * consumed by `LocalRuntimeHost`. Both coexist through Step 8/9; the
- * transport-level interface is retired in Step 10 (§3.6 Step 10).
- *
- * @see PLAN.md §3.2.3 — public surface.
- * @see PLAN.md §3.2.2 — call graph and invariants.
- * @see PLAN.md §3.6 Step 8d — landing commit.
+ * `createAgentRuntime(createAgentRuntimeConfig({...}))`. All
+ * session-level state outlives any one `AgentRuntime`, making
+ * OAuth-retry and run replay feasible.
  */
 
 import type { AgentRuntime } from "@clinebot/agents";
@@ -40,9 +29,12 @@ import {
 	type AgentExtensionRegistry,
 	type AgentExtensionRule,
 	type AgentFinishReason,
+	type AgentMessage,
 	type AgentResult,
 	type AgentRunResult,
 	type AgentRuntimeEvent,
+	type AgentRuntimeHooks,
+	type AgentTool,
 	type BasicLogger,
 	type ContributionRegistry,
 	createContributionRegistry,
@@ -53,22 +45,20 @@ import {
 	type Message,
 	type MessageWithMetadata,
 	type ModelInfo,
-	type Tool,
 	type ToolCallRecord,
 } from "@clinebot/shared";
 import { HookBridge } from "../../hooks/hook-bridge";
 import {
-	createHandlerFromConfig,
+	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
 import { MessageBuilder } from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
+	agentMessagesToMessages,
 	agentMessagesToMessagesWithMetadata,
-	apiHandlerToAgentModel,
 	messagesToAgentMessages,
-	toolsToAgentTools,
-} from "../config/agent-config-adapter";
+} from "../config/agent-message-codec";
 import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
@@ -158,13 +148,7 @@ export interface ConnectionOverrides {
 /**
  * Per-session orchestrator. Construct once per agent session; call
  * `run` / `continue` repeatedly. The class matches the subset of
- * legacy `Agent` surface that `legacy-agent-facade` needs in Step 8e.
- *
- * Named `SessionRuntime` to match PLAN.md §3.2.3. To avoid a symbol
- * collision with the pre-existing transport-level `SessionRuntime`
- * interface in `session-runtime.ts`, this file is **not** re-exported
- * from `runtime/index.ts` or `src/index.ts`. Consumers (facade in
- * Step 8e) import directly from this module.
+ * runtime-facing session surface.
  */
 export class SessionRuntime {
 	private config: AgentConfig;
@@ -187,10 +171,9 @@ export class SessionRuntime {
 	 * exists for API compatibility but is never fed.
 	 */
 	private readonly loopDetectionDisabled: boolean;
-	// Reserved for host-owned message assembly (currently handled
-	// inline by `agentMessagesToMessages` in the adapter). Kept as a
-	// ready slot so the compaction plugin can install a beforeModel
-	// hook that feeds an explicit `MessageBuilder` later.
+	// Host-owned provider request preparation. This runs immediately
+	// before the model call so every loop iteration sees extension
+	// message builders and API-safe normalization.
 	readonly messageBuilder: MessageBuilder;
 	/**
 	 * Contribution registry that hosts extension-provided tools,
@@ -200,7 +183,7 @@ export class SessionRuntime {
 	 */
 	private readonly contributionRegistry: ContributionRegistry<
 		AgentExtension,
-		Tool,
+		AgentTool,
 		Message[]
 	>;
 	private extensionsInitialized = false;
@@ -273,7 +256,7 @@ export class SessionRuntime {
 		this.messageBuilder = new MessageBuilder();
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
-			Tool,
+			AgentTool,
 			Message[]
 		>({
 			extensions: config.extensions ? [...config.extensions] : [],
@@ -380,12 +363,12 @@ export class SessionRuntime {
 	 * `api.registerTool` / `registerCommand` / `registerMessageBuilder`
 	 * / `registerProvider` / `registerAutomationEventType`.
 	 */
-	getExtensionRegistry(): AgentExtensionRegistry<Tool, Message[]> {
+	getExtensionRegistry(): AgentExtensionRegistry<AgentTool, Message[]> {
 		return this.contributionRegistry.getRegistrySnapshot();
 	}
 
 	/** Append additional tools to every subsequent turn's runtime config. */
-	addTools(tools: Tool[]): void {
+	addTools(tools: AgentTool[]): void {
 		if (tools.length === 0) {
 			return;
 		}
@@ -736,10 +719,7 @@ export class SessionRuntime {
 
 		// Build the AgentRuntime for this turn.
 		const systemPrompt = await this.composeSystemPrompt();
-		const handler = createHandlerFromConfig(this.config, this.logger);
-		const agentModel = apiHandlerToAgentModel(handler, {
-			prepareMessages: (messages) => this.prepareMessagesForApi(messages),
-		});
+		const agentModel = createAgentModelFromConfig(this.config, this.logger);
 		// Merge extension-contributed tools with the config-declared
 		// tools for this turn. Extensions register tools via
 		// `api.registerTool` during `setup()` — parity with legacy
@@ -750,7 +730,7 @@ export class SessionRuntime {
 		// `validateTools` rejects duplicates; here we prefer the
 		// explicitly-declared config tool).
 		const extensionTools = this.contributionRegistry.getRegisteredTools();
-		const mergedToolsByName = new Map<string, Tool>();
+		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {
 			mergedToolsByName.set(tool.name, tool);
 		}
@@ -759,17 +739,7 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const adaptedTools = toolsToAgentTools(
-			Array.from(mergedToolsByName.values()),
-			{
-				conversationId,
-				metadata: {
-					modelSupportsImages:
-						modelInfo?.capabilities?.includes("images") ?? true,
-					...this.config.toolContextMetadata,
-				},
-			},
-		);
+		const tools = Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is
 		// preserved across runs. Fixes P1 #1: prior turns were silently
@@ -787,8 +757,13 @@ export class SessionRuntime {
 			parentAgentId: this.parentAgentId,
 			model: agentModel,
 			logger: this.logger,
-			tools: adaptedTools,
-			hookBridge: this.hookBridge,
+			tools,
+			toolContextMetadata: {
+				modelSupportsImages:
+					modelInfo?.capabilities?.includes("images") ?? true,
+				...this.config.toolContextMetadata,
+			},
+			hooks: this.createRuntimeHooks(),
 			initialMessages,
 			systemPrompt,
 		});
@@ -931,13 +906,38 @@ export class SessionRuntime {
 		this.extensionsInitialized = true;
 	}
 
-	private async prepareMessagesForApi(messages: Message[]): Promise<Message[]> {
-		let prepared = messages;
-		for (const builder of this.contributionRegistry.getRegistrySnapshot()
-			.messageBuilder) {
-			prepared = await builder.build(prepared);
+	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {
+		const hooks = this.hookBridge.toRuntimeHooks();
+		return {
+			...hooks,
+			beforeModel: async (ctx) => {
+				const control = await hooks.beforeModel?.(ctx);
+				if (control?.stop) {
+					return control;
+				}
+				const messages = control?.messages ?? ctx.request.messages;
+				const preparedMessages =
+					await this.prepareMessagesForModelRequest(messages);
+				return {
+					...control,
+					messages: preparedMessages,
+				};
+			},
+		};
+	}
+
+	private async prepareMessagesForModelRequest(
+		messages: readonly AgentMessage[],
+	): Promise<AgentMessage[]> {
+		let providerMessages = agentMessagesToMessages(messages);
+		const messageBuilders =
+			this.contributionRegistry.getRegistrySnapshot().messageBuilder;
+		for (const builder of messageBuilders) {
+			providerMessages = await builder.build(providerMessages);
 		}
-		return this.messageBuilder.buildForApi(prepared);
+		return messagesToAgentMessages(
+			this.messageBuilder.buildForApi(providerMessages),
+		);
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {

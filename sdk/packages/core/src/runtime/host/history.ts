@@ -7,7 +7,6 @@ import { toSessionRecord } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionManifestSchema } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
-import { readPersistedMessagesFile } from "../../transports/runtime-host-support";
 import type {
 	SessionHistoryMetadata,
 	SessionHistoryRecord,
@@ -15,6 +14,7 @@ import type {
 } from "../../types/sessions";
 import type { SessionBackend } from "./host";
 import type { RuntimeHost } from "./runtime-host";
+import { readPersistedMessagesFile } from "./runtime-host-support";
 
 export interface SessionHistoryListOptions {
 	limit?: number;

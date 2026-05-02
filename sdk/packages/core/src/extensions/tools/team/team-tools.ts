@@ -1,5 +1,6 @@
 import type { AgentResult } from "@clinebot/shared";
 import {
+	type AgentTool,
 	createTool,
 	TEAM_AWAIT_TIMEOUT_MS,
 	TEAM_RUN_MESSAGE_PREVIEW_LIMIT,
@@ -67,7 +68,6 @@ import {
 	type TeamTaskToolResult,
 	TeamTaskToolResultSchema,
 	type TeamTeammateSpec,
-	type Tool,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@clinebot/shared";
@@ -167,27 +167,27 @@ export interface CreateAgentTeamsToolsOptions {
 	runtime: AgentTeamsRuntime;
 	requesterId: string;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
-	createBaseTools?: () => Tool[];
+	createBaseTools?: () => AgentTool[];
 	allowSpawn?: boolean;
 	includeSpawnTool?: boolean;
 	includeManagementTools?: boolean;
-	onLeadToolsUnlocked?: (tools: Tool[]) => void;
+	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
 }
 
 export interface BootstrapAgentTeamsOptions {
 	runtime: AgentTeamsRuntime;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
-	createBaseTools?: () => Tool[];
+	createBaseTools?: () => AgentTool[];
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
 	restoredFromPersistence?: boolean;
 	includeLeadSpawnTool?: boolean;
 	includeLeadManagementTools?: boolean;
-	onLeadToolsUnlocked?: (tools: Tool[]) => void;
+	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
 }
 
 export interface BootstrapAgentTeamsResult {
-	tools: Tool[];
+	tools: AgentTool[];
 	restoredFromPersistence: boolean;
 	restoredTeammates: string[];
 }
@@ -219,7 +219,7 @@ function spawnTeamTeammate(
 		spec: TeamTeammateSpec;
 	},
 ): void {
-	const teammateTools: Tool[] = [];
+	const teammateTools: AgentTool[] = [];
 	if (options.createBaseTools) {
 		teammateTools.push(...options.createBaseTools());
 	}
@@ -287,11 +287,11 @@ export function bootstrapAgentTeams(
 
 export function createAgentTeamsTools(
 	options: CreateAgentTeamsToolsOptions,
-): Tool[] {
+): AgentTool[] {
 	const allowSpawn = options.allowSpawn ?? true;
 	const includeSpawnTool = options.includeSpawnTool ?? true;
 	const includeManagementTools = options.includeManagementTools ?? true;
-	const tools: Tool[] = [];
+	const tools: AgentTool[] = [];
 
 	if (includeSpawnTool) {
 		tools.push(
@@ -336,7 +336,7 @@ export function createAgentTeamsTools(
 						status: "spawned",
 					});
 				},
-			}) as Tool,
+			}) as AgentTool,
 		);
 	}
 
@@ -366,7 +366,7 @@ export function createAgentTeamsTools(
 					status: "stopped",
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -382,7 +382,7 @@ export function createAgentTeamsTools(
 					options.runtime.getSnapshot(),
 				);
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -478,7 +478,7 @@ export function createAgentTeamsTools(
 					}
 				}
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	// Track in-flight sync runs per agent for dedup
@@ -551,7 +551,7 @@ export function createAgentTeamsTools(
 				pendingSyncRuns.set(validatedInput.agentId, runPromise);
 				return await runPromise;
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -570,7 +570,7 @@ export function createAgentTeamsTools(
 					status: run.status,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -586,7 +586,7 @@ export function createAgentTeamsTools(
 						.listRuns(validateWithZod(TeamListRunsInputSchema, input))
 						.map(summarizeRun),
 				),
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -623,7 +623,7 @@ export function createAgentTeamsTools(
 					runs.map(summarizeRun),
 				);
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -648,7 +648,7 @@ export function createAgentTeamsTools(
 					toAgentId: message.toAgentId,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -670,7 +670,7 @@ export function createAgentTeamsTools(
 					delivered: messages.length,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -691,7 +691,7 @@ export function createAgentTeamsTools(
 					}),
 				);
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -718,7 +718,7 @@ export function createAgentTeamsTools(
 					id: entry.id,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -737,7 +737,7 @@ export function createAgentTeamsTools(
 					status: "cleaned",
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -761,7 +761,7 @@ export function createAgentTeamsTools(
 					requiredSections: outcome.requiredSections,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -789,7 +789,7 @@ export function createAgentTeamsTools(
 					status: fragment.status,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -815,7 +815,7 @@ export function createAgentTeamsTools(
 					status: fragment.status,
 				});
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	tools.push(
@@ -838,7 +838,7 @@ export function createAgentTeamsTools(
 					});
 				},
 			},
-		) as Tool,
+		) as AgentTool,
 	);
 
 	tools.push(
@@ -853,7 +853,7 @@ export function createAgentTeamsTools(
 					options.runtime.listOutcomes(),
 				);
 			},
-		}) as Tool,
+		}) as AgentTool,
 	);
 
 	return tools;

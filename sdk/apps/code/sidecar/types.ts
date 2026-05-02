@@ -1,8 +1,8 @@
 import type {
+	AgentToolContext,
 	ClineCore,
 	NodeHubClient,
 	ToolApprovalResult,
-	ToolContext,
 } from "@clinebot/core";
 
 export type JsonRecord = Record<string, unknown>;
@@ -78,7 +78,7 @@ export type AskQuestionRequestItem = {
 	question: string;
 	options: string[];
 	context?: Pick<
-		ToolContext,
+		AgentToolContext,
 		"agentId" | "conversationId" | "iteration" | "metadata"
 	>;
 };

@@ -1,4 +1,4 @@
-import type { HubEventEnvelope, ToolContext } from "@clinebot/shared";
+import type { AgentToolContext, HubEventEnvelope } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import type {
 	StartSessionInput,
@@ -493,7 +493,15 @@ describe("HubServerTransport boundaries", () => {
 					systemPrompt: "system",
 				},
 				metadata: { source: "cli", interactive: true },
-				runtimeOptions: { toolExecutors: ["askQuestion"] },
+				runtimeOptions: {
+					clientContributions: [
+						{
+							kind: "toolExecutor",
+							executor: "askQuestion",
+							capabilityName: "tool_executor.askQuestion",
+						},
+					],
+				},
 			},
 		});
 
@@ -505,7 +513,7 @@ describe("HubServerTransport boundaries", () => {
 		if (!askQuestion) {
 			throw new Error("Expected askQuestion executor to be registered");
 		}
-		const toolContext: ToolContext = {
+		const toolContext: AgentToolContext = {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
@@ -617,7 +625,15 @@ describe("HubServerTransport boundaries", () => {
 					systemPrompt: "system",
 				},
 				metadata: { source: "cli", interactive: true },
-				runtimeOptions: { toolExecutors: ["askQuestion"] },
+				runtimeOptions: {
+					clientContributions: [
+						{
+							kind: "toolExecutor",
+							executor: "askQuestion",
+							capabilityName: "tool_executor.askQuestion",
+						},
+					],
+				},
 			},
 		});
 		await transport.handleCommand({

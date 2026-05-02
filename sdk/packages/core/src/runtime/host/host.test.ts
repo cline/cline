@@ -112,7 +112,7 @@ describe("runtime host resolution", () => {
 	it("prefers a compatible local hub when backendMode is auto", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const { HubRuntimeHost } = await import(
-			"../../hub/transport/hub-runtime-host"
+			"../../hub/runtime-host/hub-runtime-host"
 		);
 		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
@@ -144,7 +144,7 @@ describe("runtime host resolution", () => {
 
 	it("falls back to local runtime when auto hub discovery fails", async () => {
 		const { createRuntimeHost } = await import("./host");
-		const { LocalRuntimeHost } = await import("../../transports/local");
+		const { LocalRuntimeHost } = await import("./local-runtime-host");
 		resolveCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
 
 		const host = await createRuntimeHost({
@@ -170,7 +170,7 @@ describe("runtime host resolution", () => {
 
 	it("falls back to local runtime when auto hub connect fails", async () => {
 		const { createRuntimeHost } = await import("./host");
-		const { LocalRuntimeHost } = await import("../../transports/local");
+		const { LocalRuntimeHost } = await import("./local-runtime-host");
 		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
 		);
@@ -195,7 +195,7 @@ describe("runtime host resolution", () => {
 	it("uses a hub runtime host when backendMode is hub", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const { HubRuntimeHost } = await import(
-			"../../hub/transport/hub-runtime-host"
+			"../../hub/runtime-host/hub-runtime-host"
 		);
 		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
@@ -245,7 +245,7 @@ describe("runtime host resolution", () => {
 	it("uses a remote runtime host when backendMode is remote", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const { RemoteRuntimeHost } = await import(
-			"../../hub/transport/remote-runtime-host"
+			"../../hub/runtime-host/remote-runtime-host"
 		);
 
 		const host = await createRuntimeHost({
@@ -266,7 +266,7 @@ describe("runtime host resolution", () => {
 	it("allows runtime capabilities in remote runtime mode", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const { RemoteRuntimeHost } = await import(
-			"../../hub/transport/remote-runtime-host"
+			"../../hub/runtime-host/remote-runtime-host"
 		);
 		const askQuestion = vi.fn(async () => "yes");
 

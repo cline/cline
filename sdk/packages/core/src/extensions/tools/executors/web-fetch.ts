@@ -4,7 +4,7 @@
  * Built-in implementation for fetching web content using native fetch.
  */
 
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 import type { WebFetchExecutor } from "../types";
 
 /**
@@ -110,7 +110,7 @@ export function createWebFetchExecutor(
 	return async (
 		url: string,
 		prompt: string,
-		context: ToolContext,
+		context: AgentToolContext,
 	): Promise<string> => {
 		// Validate URL
 		let parsedUrl: URL;
@@ -133,9 +133,9 @@ export function createWebFetchExecutor(
 		let contextAbortHandler: (() => void) | undefined;
 
 		// Combine with context abort signal
-		if (context.abortSignal) {
+		if (context.signal) {
 			contextAbortHandler = () => controller.abort();
-			context.abortSignal.addEventListener("abort", contextAbortHandler);
+			context.signal.addEventListener("abort", contextAbortHandler);
 		}
 
 		try {
@@ -251,8 +251,8 @@ export function createWebFetchExecutor(
 			}
 			throw new Error(`Fetch failed: ${String(error)}`);
 		} finally {
-			if (context.abortSignal && contextAbortHandler) {
-				context.abortSignal.removeEventListener("abort", contextAbortHandler);
+			if (context.signal && contextAbortHandler) {
+				context.signal.removeEventListener("abort", contextAbortHandler);
 			}
 		}
 	};

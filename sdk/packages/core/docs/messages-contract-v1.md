@@ -101,7 +101,7 @@ assistant messages in the same turn still carry `modelInfo`.
 Enforced by
 [`withLatestAssistantTurnMetadata`](../src/services/session-data.ts) and
 covered by the LocalRuntimeHost e2e contract test in
-[`../src/transports/local.e2e.test.ts`](../src/transports/local.e2e.test.ts).
+[`../src/runtime/host/local-runtime-host.e2e.test.ts`](../src/runtime/host/local-runtime-host.e2e.test.ts).
 
 ## Failure and retry semantics
 
@@ -142,7 +142,7 @@ provided as a copy-paste reference for downstream translators.
 
 The authoritative guarantees come from the real writer path and the
 end-to-end tests in
-[`../src/transports/local.e2e.test.ts`](../src/transports/local.e2e.test.ts)
-and [`../src/transports/local.test.ts`](../src/transports/local.test.ts); if
+[`../src/runtime/host/local-runtime-host.e2e.test.ts`](../src/runtime/host/local-runtime-host.e2e.test.ts)
+and [`../src/runtime/host/local-runtime-host.test.ts`](../src/runtime/host/local-runtime-host.test.ts); if
 the example ever drifts from what the writer emits, those tests are the
 source of truth.

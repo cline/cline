@@ -4,7 +4,7 @@ import {
 	createContributionRegistry,
 	resolveAndLoadAgentPlugins,
 } from "@clinebot/core";
-import type { Message, Tool } from "@clinebot/shared";
+import type { AgentTool, Message } from "@clinebot/shared";
 import {
 	type ChatCommandDefinition,
 	type ChatCommandHost,
@@ -77,7 +77,7 @@ export async function createWorkspaceChatCommandHost(input: {
 
 	const registry = createContributionRegistry<
 		(typeof loaded.extensions)[number],
-		Tool,
+		AgentTool,
 		Message[]
 	>({
 		extensions: loaded.extensions,

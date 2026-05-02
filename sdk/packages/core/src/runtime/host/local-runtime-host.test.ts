@@ -10,15 +10,12 @@ import type {
 } from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	type StartSessionInput,
-	splitCoreSessionConfig,
-} from "../runtime/host/runtime-host";
-import { TelemetryService } from "../services/telemetry/TelemetryService";
-import type { SessionManifest } from "../session/models/session-manifest";
-import { SessionSource } from "../types/common";
-import type { CoreSessionConfig } from "../types/config";
-import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local";
+import { TelemetryService } from "../../services/telemetry/TelemetryService";
+import type { SessionManifest } from "../../session/models/session-manifest";
+import { SessionSource } from "../../types/common";
+import type { CoreSessionConfig } from "../../types/config";
+import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
+import { type StartSessionInput, splitCoreSessionConfig } from "./runtime-host";
 
 const distinctId = "test-machine-id";
 

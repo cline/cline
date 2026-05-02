@@ -4,19 +4,19 @@ import { join } from "node:path";
 import type {
 	AgentConfig,
 	AgentExtensionMessageBuilder,
+	AgentTool,
+	AgentToolContext,
 	Message,
-	Tool,
-	ToolContext,
 } from "@clinebot/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 
 function createApiCapture() {
-	const tools: Tool[] = [];
+	const tools: AgentTool[] = [];
 	const messageBuilders: AgentExtensionMessageBuilder<Message[]>[] = [];
 	const automationEventTypes: unknown[] = [];
 	const api = {
-		registerTool: (tool: Tool) => tools.push(tool),
+		registerTool: (tool: AgentTool) => tools.push(tool),
 		registerCommand: () => {},
 		registerMessageBuilder: (
 			builder: AgentExtensionMessageBuilder<Message[]>,
@@ -364,7 +364,7 @@ describe("plugin-sandbox", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-		} as ToolContext);
+		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
 	});
 
@@ -415,7 +415,7 @@ describe("plugin-sandbox", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-		} as ToolContext);
+		} as AgentToolContext);
 		expect(forwardedEvents).toEqual([
 			{
 				name: "test_event",
@@ -440,7 +440,7 @@ describe("plugin-sandbox", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-		} as ToolContext);
+		} as AgentToolContext);
 		expect(forwardedEvents).toEqual([
 			{
 				name: "automation_event",
@@ -509,7 +509,7 @@ describe("plugin-sandbox", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-		} as ToolContext);
+		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
 	});
 
@@ -584,7 +584,7 @@ describe("plugin-sandbox", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-		} as ToolContext);
+		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
 	});
 

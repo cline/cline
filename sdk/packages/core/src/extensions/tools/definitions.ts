@@ -1,12 +1,12 @@
 /**
- * Default Tool Definitions
+ * Default AgentTool Definitions
  *
  * Factory functions for creating the default tools.
  */
 
 import {
+	type AgentTool,
 	createTool,
-	type Tool,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@clinebot/shared";
@@ -65,7 +65,7 @@ import type {
 // =============================================================================
 
 // =============================================================================
-// Tool Factory Functions
+// AgentTool Factory Functions
 // =============================================================================
 
 /**
@@ -76,7 +76,7 @@ import type {
 export function createReadFilesTool(
 	executor: FileReadExecutor,
 	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
-): Tool<ReadFilesInput, ToolOperationResult[]> {
+): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
@@ -137,7 +137,7 @@ export function createReadFilesTool(
 export function createSearchTool(
 	executor: SearchExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "searchTimeoutMs"> = {},
-): Tool<SearchCodebaseInput, ToolOperationResult[]> {
+): AgentTool<SearchCodebaseInput, ToolOperationResult[]> {
 	const timeoutMs = config.searchTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
@@ -201,7 +201,7 @@ export function createSearchTool(
 export function createBashTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
-): Tool<RunCommandsInput, ToolOperationResult[]> {
+): AgentTool<RunCommandsInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
@@ -268,7 +268,7 @@ export function createBashTool(
 export function createWindowsShellTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
-): Tool<StructuredCommandInput, ToolOperationResult[]> {
+): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
@@ -321,7 +321,7 @@ export function createWindowsShellTool(
 export function createWebFetchTool(
 	executor: WebFetchExecutor,
 	config: Pick<DefaultToolsConfig, "webFetchTimeoutMs"> = {},
-): Tool<FetchWebContentInput, ToolOperationResult[]> {
+): AgentTool<FetchWebContentInput, ToolOperationResult[]> {
 	const timeoutMs = config.webFetchTimeoutMs ?? 30000;
 
 	return createTool<FetchWebContentInput, ToolOperationResult[]>({
@@ -414,7 +414,7 @@ Example:
 export function createApplyPatchTool(
 	executor: ApplyPatchExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "applyPatchTimeoutMs"> = {},
-): Tool<ApplyPatchInput, ToolOperationResult> {
+): AgentTool<ApplyPatchInput, ToolOperationResult> {
 	const timeoutMs = config.applyPatchTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
@@ -463,7 +463,7 @@ export function createApplyPatchTool(
 export function createEditorTool(
 	executor: EditorExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "editorTimeoutMs"> = {},
-): Tool<EditFileInput, ToolOperationResult> {
+): AgentTool<EditFileInput, ToolOperationResult> {
 	const timeoutMs = config.editorTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
@@ -526,7 +526,7 @@ export function createEditorTool(
 export function createSkillsTool(
 	executor: SkillsExecutorWithMetadata,
 	config: Pick<DefaultToolsConfig, "skillsTimeoutMs"> = {},
-): Tool<SkillsInput, string> {
+): AgentTool<SkillsInput, string> {
 	const timeoutMs = config.skillsTimeoutMs ?? 15000;
 
 	const baseDescription =
@@ -582,7 +582,7 @@ export function createSkillsTool(
  */
 export function createAskQuestionTool(
 	executor: AskQuestionExecutor,
-): Tool<AskQuestionInput, string> {
+): AgentTool<AskQuestionInput, string> {
 	return {
 		name: "ask_question",
 		description:
@@ -604,7 +604,7 @@ export function createAskQuestionTool(
 export function createSubmitAndExitTool(
 	executor: VerifySubmitExecutor,
 	config: Pick<DefaultToolsConfig, "submitTimeoutMs"> = {},
-): Tool<SubmitInput, string> {
+): AgentTool<SubmitInput, string> {
 	const timeoutMs = config.submitTimeoutMs ?? 15000;
 
 	return createTool<SubmitInput, string>({
@@ -674,7 +674,9 @@ export function createSubmitAndExitTool(
  * })
  * ```
  */
-export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
+export function createDefaultTools(
+	options: CreateDefaultToolsOptions,
+): AgentTool[] {
 	const {
 		executors,
 		enableReadFiles = true,
@@ -689,7 +691,7 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 		...config
 	} = options;
 
-	const tools: Tool<never, unknown>[] = [];
+	const tools: AgentTool<never, unknown>[] = [];
 
 	// Add read_files tool if enabled and executor provided
 	if (enableReadFiles && executors.readFile) {
@@ -729,13 +731,13 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 		tools.push(createSkillsTool(executors.skills, config));
 	}
 
-	// Add submit_and_exit tool if enabled and executor provided
-	// Else check if ask_question tool is enabled
-	if (enableSubmitAndExit && executors.submit) {
-		tools.push(createSubmitAndExitTool(executors.submit, config));
-	} else if (enableAskQuestion && executors.askQuestion) {
+	// Add ask_question tool if enabled and executor provided
+	if (enableAskQuestion && executors.askQuestion) {
 		tools.push(createAskQuestionTool(executors.askQuestion));
+	} else if (enableSubmitAndExit && executors.submit) {
+		// Add submit_and_exit tool if enabled and executor provided
+		tools.push(createSubmitAndExitTool(executors.submit, config));
 	}
 
-	return tools as unknown as Tool[];
+	return tools as unknown as AgentTool[];
 }

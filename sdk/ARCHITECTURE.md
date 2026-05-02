@@ -106,8 +106,8 @@ Design rules:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
-  - `transport/` contains `RuntimeHost` adapters for shared local hub and remote hub routing
-  - `server/` contains role-named WebSocket server startup, native/browser socket adapters, server transport, notifications, session projection, capability executor adapters, schedule-event mapping, and `handlers/` for hub command dispatch
+  - `runtime-host/` contains `RuntimeHost` adapters for shared local hub and remote hub routing
+  - `server/` contains role-named WebSocket server startup, native/browser socket adapters, server transport, notifications, session projection, client contribution proxy adapters, schedule-event mapping, and `handlers/` for hub command dispatch
   - `shared/` contains sparse pure helpers used across hub roles
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
 
@@ -147,7 +147,7 @@ Design rules:
 3. When no compatible local hub is already discovered, `@clinebot/core` can spawn a detached hub daemon and reconnect through discovery.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
-6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
+6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime contributions such as session-local tool executors, custom tools, hooks, checkpoints, compaction, mistake-limit decisions, and instruction services.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
 8. Hub client adapters exported from `@clinebot/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 
@@ -258,6 +258,18 @@ Design implications:
   handlers reject replies from non-owner clients. Hub cancellation paths publish
   cancelled `capability.resolved` events so the owner can abort long-running
   prompt handlers while preserving the proxied `ToolContext.conversationId`.
+- client-local runtime behavior uses one contribution model across local and
+  hub/remote modes. The client builds a serializable `clientContributions`
+  manifest plus a local handler table from the same tools, hooks, and runtime
+  services it would register in-process. Local mode calls those handlers
+  directly. Hub/remote mode sends only the manifest to the authority runtime,
+  which installs normal runtime proxy contributions and invokes the original
+  client handlers through named `capability.request` calls. The proxy translates
+  transport, not behavior; tool executors, custom `extraTools`, lifecycle hooks,
+  custom checkpoint creation, custom compaction, consecutive-mistake decisions,
+  and user-instruction services follow this same path. Tool progress flows back
+  through `capability.progress`, so `onChange` / `emitUpdate` remains on the
+  normal SDK tool-event path instead of requiring a side channel.
 - app-facing `defaultToolExecutors` and top-level `requestToolApproval`
   inputs are not part of the runtime capability contract; integrations provide
   `capabilities.toolExecutors` and `capabilities.requestToolApproval`.
@@ -272,7 +284,7 @@ transport-specific host implementations:
 - pending prompt / turn queue semantics live in
   `packages/core/src/runtime/turn-queue/pending-prompt-service.ts`; local and hub
   paths adapt to the same queue operations instead of each defining queue rules;
-  the queue service owns the semantics while transports only expose internal
+  the queue service owns the semantics while runtime hosts only expose internal
   routing adapters for list/update/delete/drain and apps use
   `ClineCore.pendingPrompts`;
 - checkpoint restore/fork planning is centralized in
@@ -286,7 +298,7 @@ transport-specific host implementations:
 
 Design implications:
 
-- transports should route commands/events and adapt protocol payloads, while
+- runtime hosts should route commands/events and adapt protocol payloads, while
   queue/checkpoint/snapshot semantics stay in shared core services;
 - canonical snapshots are the target shape for local and hub event/reply
   surfaces, so integrations should avoid adding feature-specific session shapes
@@ -356,6 +368,7 @@ Context compaction is owned by `core`.
   - allow hosts to rewrite message history or system prompt before the provider call
 - `@clinebot/core` owns compaction policy:
   - inject a prepare-turn pipeline for root sessions
+  - run registered message builders and API-safe message normalization before gateway model calls
   - choose between built-in strategies through a registry map
   - keep compaction logic out of the low-level agent message builder
 

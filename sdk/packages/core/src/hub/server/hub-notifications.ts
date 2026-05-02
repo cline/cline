@@ -1,5 +1,5 @@
 import type { SessionRecord as HubSessionRecord } from "@clinebot/shared";
-import { readPersistedMessagesFile } from "../../transports/runtime-host-support";
+import { readPersistedMessagesFile } from "../../runtime/host/runtime-host-support";
 
 function extractAssistantText(content: unknown): string | undefined {
 	if (typeof content === "string") {

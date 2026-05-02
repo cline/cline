@@ -1,10 +1,10 @@
 import type {
 	AgentConfig,
 	AgentHooks,
+	AgentTool,
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
-	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	WorkspaceInfo,
@@ -236,7 +236,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultFetch?: typeof fetch;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
 	onTeamEvent: (event: TeamEvent) => void;
-	createSpawnTool: () => Tool;
+	createSpawnTool: () => AgentTool;
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
 		metadata: Record<string, unknown>,

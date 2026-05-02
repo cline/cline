@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
+	type AgentToolContext,
 	ClineCore,
 	type CoreSessionEvent,
 	NodeHubClient,
@@ -10,7 +11,6 @@ import {
 	setHomeDirIfUnset,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
-	type ToolContext,
 } from "@clinebot/core";
 import type { AgentEvent } from "@clinebot/shared";
 import { sessionLogPath } from "./paths";
@@ -440,7 +440,7 @@ export async function disposeSidecarContext(
 }
 
 function serializeQuestionContext(
-	context: ToolContext,
+	context: AgentToolContext,
 ): PendingAskQuestion["item"]["context"] {
 	return {
 		agentId: context.agentId,
@@ -454,7 +454,7 @@ export function requestSidecarAskQuestion(
 	ctx: SidecarContext,
 	question: string,
 	options: string[],
-	context: ToolContext,
+	context: AgentToolContext,
 ): Promise<string> {
 	const choices = options
 		.map((option) => option.trim())

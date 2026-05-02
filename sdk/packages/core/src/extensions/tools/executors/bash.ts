@@ -6,9 +6,9 @@
 
 import { spawn } from "node:child_process";
 import {
+	type AgentToolContext,
 	getDefaultShell,
 	getShellArgs,
-	type ToolContext,
 } from "@clinebot/shared";
 import type { BashExecutor } from "../types";
 
@@ -55,7 +55,7 @@ interface SpawnConfig {
 
 function spawnAndCollect(
 	config: SpawnConfig,
-	context: ToolContext,
+	context: AgentToolContext,
 	timeoutMs: number,
 	maxOutputBytes: number,
 	combineOutput: boolean,
@@ -114,13 +114,13 @@ function spawnAndCollect(
 
 		const abortHandler = () => killAndReject(new Error("Command was aborted"));
 
-		if (context.abortSignal) {
-			context.abortSignal.addEventListener("abort", abortHandler);
+		if (context.signal) {
+			context.signal.addEventListener("abort", abortHandler);
 		}
 
 		const cleanup = () => {
 			clearTimeout(timeout);
-			context.abortSignal?.removeEventListener("abort", abortHandler);
+			context.signal?.removeEventListener("abort", abortHandler);
 		};
 
 		child.stdout?.on("data", (data: Buffer) => {

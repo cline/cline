@@ -23,8 +23,8 @@ import type {
 	AgentMessage,
 	AgentRunResult,
 	AgentRuntimeEvent,
+	AgentTool,
 	AgentToolContext,
-	Tool,
 } from "@clinebot/shared";
 import { HookEngine } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
@@ -240,7 +240,7 @@ describe("SessionRuntime construction", () => {
 
 describe("SessionRuntime.getExtensionRegistry", () => {
 	it("returns tools/commands registered by extension setup() after the first run", async () => {
-		const extTool: Tool = {
+		const extTool: AgentTool = {
 			name: "ext-echo",
 			description: "extension tool",
 			inputSchema: {},
@@ -255,7 +255,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 			name: "test-ext",
 			manifest: { capabilities: ["tools", "commands"] },
 			setup: (api: {
-				registerTool: (t: Tool) => void;
+				registerTool: (t: AgentTool) => void;
 				registerCommand: (c: typeof extCommand) => void;
 			}) => {
 				api.registerTool(extTool);
@@ -390,13 +390,13 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 	});
 
 	it("merges extension-registered tools into the AgentRuntime tools for the turn", async () => {
-		const extTool: Tool = {
+		const extTool: AgentTool = {
 			name: "ext-tool-a",
 			description: "ext tool a",
 			inputSchema: {},
 			execute: async () => ({}),
 		};
-		const configTool: Tool = {
+		const configTool: AgentTool = {
 			name: "config-tool-b",
 			description: "config tool b",
 			inputSchema: {},
@@ -405,7 +405,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		const extension = {
 			name: "tool-ext",
 			manifest: { capabilities: ["tools"] },
-			setup: (api: { registerTool: (t: Tool) => void }) => {
+			setup: (api: { registerTool: (t: AgentTool) => void }) => {
 				api.registerTool(extTool);
 			},
 		};
@@ -430,6 +430,82 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		await session.run("go");
 		const toolNames = observedTools.map((t) => t.name).sort();
 		expect(toolNames).toEqual(["config-tool-b", "ext-tool-a"]);
+	});
+});
+
+describe("SessionRuntime message preparation", () => {
+	it("runs registered message builders and API-safe normalization before model calls", async () => {
+		const build = vi.fn(async (messages) => [
+			...messages,
+			{
+				role: "user" as const,
+				content: [
+					{
+						type: "text" as const,
+						text: "<user_input>builder-added</user_input>",
+					},
+				],
+			},
+		]);
+		const extension: AgentExtension = {
+			name: "message-builder-ext",
+			manifest: { capabilities: ["messageBuilders"] },
+			setup(api) {
+				api.registerMessageBuilder({
+					name: "append-builder-message",
+					build,
+				});
+			},
+		};
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			deps,
+		);
+
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "<user_input>original</user_input>",
+							},
+						],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(build).toHaveBeenCalledTimes(1);
+		expect(build.mock.calls[0]?.[0]).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "<user_input>original</user_input>",
+					},
+				],
+			},
+		]);
+		const textParts = result?.messages?.flatMap((message) =>
+			message.content.flatMap((part) =>
+				part.type === "text" ? [part.text] : [],
+			),
+		);
+		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 });
 
@@ -489,15 +565,12 @@ it("derives tool image support metadata from resolved provider model catalog", a
 		emitUpdate: () => {},
 	};
 	const result = await tool.execute({}, toolContext);
-	expect(result).toEqual({ output: "ok" });
+	expect(result).toBe("ok");
 	expect(execute).toHaveBeenCalledTimes(1);
-	expect(execute.mock.calls[0]).toEqual([
-		expect.anything(),
-		expect.objectContaining({
-			metadata: expect.objectContaining({ modelSupportsImages: true }),
-		}),
-		expect.any(Function),
-	]);
+	expect(execute.mock.calls[0]).toEqual([expect.anything(), toolContext]);
+	expect(runtimeConfig.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: true }),
+	);
 });
 
 describe("SessionRuntime.run", () => {
@@ -872,7 +945,7 @@ describe("SessionRuntime.abort", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", () => {
-	const echoTool: Tool = {
+	const echoTool: AgentTool = {
 		name: "echo",
 		description: "e",
 		inputSchema: {},

@@ -45,7 +45,7 @@ const createEchoTool = (): AgentTool<{ text: string }, { echoed: string }> => ({
 	description: "Echo input text",
 	inputSchema: { type: "object" },
 	async execute(input) {
-		return { output: { echoed: input.text } };
+		return { echoed: input.text };
 	},
 });
 
@@ -105,7 +105,7 @@ describe("AgentRuntime", () => {
 			inputSchema: { type: "object" },
 			lifecycle: { completesRun: true },
 			async execute(input) {
-				return { output: `submitted: ${input.summary}` };
+				return `submitted: ${input.summary}`;
 			},
 		};
 		const model = new ScriptedModel([
@@ -156,7 +156,7 @@ describe("AgentRuntime", () => {
 			inputSchema: { type: "object" },
 			lifecycle: { completesRun: true },
 			async execute(input) {
-				return { output: `submitted: ${input.summary}` };
+				return `submitted: ${input.summary}`;
 			},
 		};
 		const model = new ScriptedModel([
@@ -215,7 +215,7 @@ describe("AgentRuntime", () => {
 			inputSchema: { type: "object" },
 			lifecycle: { completesRun: true },
 			async execute(input) {
-				return { output: input.summary };
+				return input.summary;
 			},
 		};
 		const model = new ScriptedModel([
@@ -279,7 +279,7 @@ describe("AgentRuntime", () => {
 					name: "read_file",
 					description: "Read file",
 					inputSchema: { type: "object" },
-					execute: async () => ({ output: structuredOutput }),
+					execute: async () => structuredOutput,
 				},
 			],
 		});
@@ -290,8 +290,57 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("saw image");
 	});
 
+	it("preserves plain tool outputs that contain an output property", async () => {
+		const plainOutput = {
+			output: "nested value",
+			status: "ok",
+			count: 2,
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_plain",
+					toolName: "plain_output",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					toolCallId: "call_plain",
+					toolName: "plain_output",
+					output: plainOutput,
+				});
+				return [
+					{ type: "text-delta", text: "preserved" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "plain_output",
+					description: "Return a plain object with an output key",
+					inputSchema: { type: "object" },
+					execute: async () => plainOutput,
+				},
+			],
+		});
+
+		const result = await runtime.run("Run tool");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("preserved");
+	});
+
 	it("requests approval when a tool policy disables auto-approval", async () => {
-		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
 			reason: "denied by test",
@@ -355,7 +404,7 @@ describe("AgentRuntime", () => {
 	});
 
 	it("stores tool calls but skips execution when metadata disables external execution", async () => {
-		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const model = new ScriptedModel([
 			() => [
 				{
@@ -515,7 +564,7 @@ describe("AgentRuntime", () => {
 						name: "plugin_tool",
 						description: "Provided by a plugin",
 						inputSchema: { type: "object" },
-						execute: async () => ({ output: { ok: true } }),
+						execute: async () => ({ ok: true }),
 					},
 				],
 			}),
@@ -822,7 +871,7 @@ describe("AgentRuntime", () => {
 				];
 			},
 		]);
-		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const runtime = new AgentRuntime({
 			model,
 			tools: [
@@ -891,7 +940,7 @@ describe("AgentRuntime", () => {
 				executionOrder.push("slow-start");
 				await new Promise((resolve) => setTimeout(resolve, 25));
 				finishOrder.push("slow-finish");
-				return { output: { name: "slow" } };
+				return { name: "slow" };
 			},
 		};
 		const fast: AgentTool = {
@@ -901,7 +950,7 @@ describe("AgentRuntime", () => {
 			async execute() {
 				executionOrder.push("fast-start");
 				finishOrder.push("fast-finish");
-				return { output: { name: "fast" } };
+				return { name: "fast" };
 			},
 		};
 		const model = new ScriptedModel([

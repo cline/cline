@@ -7,7 +7,7 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ToolContext } from "@clinebot/shared";
+import type { AgentToolContext } from "@clinebot/shared";
 import { getFileIndex } from "../../../services/workspace";
 import type { SearchExecutor } from "../types";
 
@@ -320,10 +320,10 @@ export function createSearchExecutor(
 	return async (
 		query: string,
 		cwd: string,
-		context: ToolContext,
+		context: AgentToolContext,
 	): Promise<string> => {
 		// Check for abort before starting
-		if (context.abortSignal?.aborted) {
+		if (context.signal?.aborted) {
 			throw new Error("Search operation aborted");
 		}
 
@@ -337,7 +337,7 @@ export function createSearchExecutor(
 				maxResults,
 				contextLines,
 				5000,
-				context.abortSignal,
+				context.signal,
 			);
 		}
 
@@ -380,7 +380,7 @@ export function createSearchExecutor(
 		// Search files from the fast index.
 		for (const relativePath of fileList) {
 			// Check for abort signal
-			if (context.abortSignal?.aborted) {
+			if (context.signal?.aborted) {
 				throw new Error("Search operation aborted");
 			}
 

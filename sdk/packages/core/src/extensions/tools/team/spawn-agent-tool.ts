@@ -7,14 +7,14 @@ import {
 	type AgentEvent,
 	type AgentHooks,
 	type AgentResult,
+	type AgentTool,
+	type AgentToolContext,
 	type BasicLogger,
 	createTool,
 	type HookErrorMode,
 	type ITelemetryService,
-	type Tool,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
-	type ToolContext,
 	type ToolPolicy,
 	zodToJsonSchema,
 } from "@clinebot/shared";
@@ -65,11 +65,11 @@ export interface SubAgentEndContext {
 export interface SpawnAgentToolConfig {
 	configProvider: DelegatedAgentConfigProvider;
 	defaultMaxIterations?: number;
-	subAgentTools?: Tool[];
+	subAgentTools?: AgentTool[];
 	createSubAgentTools?: (
 		input: SpawnAgentInput,
-		context: ToolContext,
-	) => Tool[] | Promise<Tool[]>;
+		context: AgentToolContext,
+	) => AgentTool[] | Promise<AgentTool[]>;
 	onSubAgentEvent?: (event: AgentEvent) => void;
 	/**
 	 * Lifecycle hooks forwarded to spawned sub-agent runs.
@@ -115,7 +115,7 @@ export interface SpawnAgentToolConfig {
  */
 export function createSpawnAgentTool(
 	config: SpawnAgentToolConfig,
-): Tool<SpawnAgentInput, SpawnAgentOutput> {
+): AgentTool<SpawnAgentInput, SpawnAgentOutput> {
 	return createTool<SpawnAgentInput, SpawnAgentOutput>({
 		name: "spawn_agent",
 		description: `Spawn a sub-agent with a custom system prompt for specialized tasks. Use when delegating work that benefits from focused expertise.`,
@@ -132,7 +132,7 @@ export function createSpawnAgentTool(
 				tools,
 				maxIterations: config.defaultMaxIterations,
 				parentAgentId: context.agentId,
-				abortSignal: context.abortSignal,
+				abortSignal: context.signal,
 				onEvent: config.onSubAgentEvent,
 				hookErrorMode: config.hookErrorMode,
 				toolPolicies: config.toolPolicies,

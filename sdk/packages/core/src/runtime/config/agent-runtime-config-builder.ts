@@ -2,20 +2,15 @@
  * Build an `AgentRuntimeConfig` from an `AgentConfig` plus session-owned
  * supporting objects (model handler, tools, hooks, plugins, telemetry).
  *
- * @see PLAN.md §3.1 — new file introduced alongside the core runtime port.
- * @see PLAN.md §3.2.1 — field-by-field mapping.
- *
- * Implemented in Step 8c. The function is intentionally **pure** — it
- * does not create handlers or tools itself; it receives them already
- * adapted (via `agent-config-adapter.ts`) from the caller
- * (`SessionRuntime`) and wires them into an `AgentRuntimeConfig`.
+ * The function is intentionally **pure**: it does not create handlers or tools
+ * itself; it receives them already resolved from the caller (`SessionRuntime`)
+ * and wires them into an `AgentRuntimeConfig`.
  *
  * Fields that do **not** round-trip into `AgentRuntimeConfig`
  * (e.g. `execution.maxConsecutiveMistakes`,
  * `execution.loopDetection`, `hookPolicies`) are
  * consumed by `SessionRuntime` / `MistakeTracker` /
- * `LoopDetectionTracker` — not passed through here. See §3.2.1's
- * "Fields with no corresponding AgentRuntimeConfig slot" note.
+ * `LoopDetectionTracker` — not passed through here.
  */
 
 import type {
@@ -23,6 +18,7 @@ import type {
 	AgentMessage,
 	AgentModel,
 	AgentRuntimeConfig,
+	AgentRuntimeHooks,
 	AgentRuntimePlugin,
 	AgentTelemetry,
 	AgentTool,
@@ -58,6 +54,7 @@ export interface CreateAgentRuntimeConfigInput {
 	readonly telemetry?: AgentTelemetry;
 	/** Pre-built tool array (builtins + plugin-contributed + session extras). */
 	readonly tools?: readonly AgentTool<unknown, unknown>[];
+	readonly toolContextMetadata?: Record<string, unknown>;
 	/** Pre-resolved plugin list from the plugin loader. */
 	readonly plugins?: readonly AgentRuntimePlugin[];
 	/**
@@ -66,6 +63,11 @@ export interface CreateAgentRuntimeConfigInput {
 	 * runtimes that do not need hook dispatch (e.g. unit tests).
 	 */
 	readonly hookBridge?: HookBridge;
+	/**
+	 * Pre-composed runtime hooks. Takes precedence over `hookBridge` when
+	 * the caller needs to layer session-owned behavior around legacy hooks.
+	 */
+	readonly hooks?: Partial<AgentRuntimeHooks>;
 	/** Seed messages (usually `session.conversation.getMessages()`). */
 	readonly initialMessages?: readonly AgentMessage[];
 	/**
@@ -78,7 +80,7 @@ export interface CreateAgentRuntimeConfigInput {
 }
 
 /**
- * Produce an `AgentRuntimeConfig` per PLAN.md §3.2.1 mapping.
+ * Produce an `AgentRuntimeConfig` from session-owned runtime inputs.
  */
 export function createAgentRuntimeConfig(
 	input: CreateAgentRuntimeConfigInput,
@@ -87,7 +89,7 @@ export function createAgentRuntimeConfig(
 
 	const modelOptions = buildModelOptions(agentConfig);
 	const messageModelInfo = buildMessageModelInfo(agentConfig);
-	const hooks = input.hookBridge?.toRuntimeHooks();
+	const hooks = input.hooks ?? input.hookBridge?.toRuntimeHooks();
 	const toolExecution = resolveToolExecution(agentConfig.maxParallelToolCalls);
 
 	const config: AgentRuntimeConfig = {
@@ -109,6 +111,7 @@ export function createAgentRuntimeConfig(
 		maxIterations: agentConfig.maxIterations,
 		toolExecution,
 		toolPolicies: agentConfig.toolPolicies,
+		toolContextMetadata: input.toolContextMetadata,
 		requestToolApproval: agentConfig.requestToolApproval,
 	};
 

@@ -1,4 +1,4 @@
-import type { HubEventEnvelope, ToolContext } from "@clinebot/shared";
+import type { AgentToolContext, HubEventEnvelope } from "@clinebot/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionSource } from "../../types/common";
 
@@ -31,6 +31,22 @@ function createConfig() {
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
 	};
+}
+
+function agentDoneEvents(events: unknown[]) {
+	return events.filter(
+		(
+			event,
+		): event is {
+			type: "agent_event";
+			payload: { event: { type: "done"; [key: string]: unknown } };
+		} =>
+			!!event &&
+			typeof event === "object" &&
+			(event as { type?: unknown }).type === "agent_event" &&
+			(event as { payload?: { event?: { type?: unknown } } }).payload?.event
+				?.type === "done",
+	);
 }
 
 describe("HubRuntimeHost", () => {
@@ -92,9 +108,7 @@ describe("HubRuntimeHost", () => {
 				prompt: "Hey",
 				interactive: false,
 			}),
-			runtimeOptions: {
-				toolExecutors: [],
-			},
+			runtimeOptions: {},
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
@@ -377,8 +391,11 @@ describe("HubRuntimeHost", () => {
 			.mockResolvedValueOnce({ ok: true, payload: {} })
 			.mockResolvedValueOnce({ ok: true, payload: {} });
 		const askQuestion = vi.fn(
-			async (_question: string, _options: string[], _context: ToolContext) =>
-				"Use the SDK",
+			async (
+				_question: string,
+				_options: string[],
+				_context: AgentToolContext,
+			) => "Use the SDK",
 		);
 		const requestToolApproval = vi.fn(async () => ({
 			approved: true,
@@ -399,7 +416,15 @@ describe("HubRuntimeHost", () => {
 		});
 		expect(commandMock.mock.calls[0]?.[0]).toBe("session.create");
 		expect(commandMock.mock.calls[0]?.[1]).toMatchObject({
-			runtimeOptions: { toolExecutors: ["askQuestion"] },
+			runtimeOptions: {
+				clientContributions: [
+					{
+						kind: "toolExecutor",
+						executor: "askQuestion",
+						capabilityName: "tool_executor.askQuestion",
+					},
+				],
+			},
 		});
 
 		onEvent?.({
@@ -506,8 +531,12 @@ describe("HubRuntimeHost", () => {
 		let receivedSignal: AbortSignal | undefined;
 		let resolveExecutor: ((value: string) => void) | undefined;
 		const askQuestion = vi.fn(
-			async (_question: string, _options: string[], context: ToolContext) => {
-				receivedSignal = context.abortSignal;
+			async (
+				_question: string,
+				_options: string[],
+				context: AgentToolContext,
+			) => {
+				receivedSignal = context.signal;
 				return await new Promise<string>((resolve) => {
 					resolveExecutor = resolve;
 				});
@@ -604,7 +633,7 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
-	it("maps hub completion events back to agent events", async () => {
+	it("maps hub completion events back to agent and lifecycle events without duplicating done", async () => {
 		let onEvent:
 			| ((event: {
 					version: 1;
@@ -702,6 +731,95 @@ describe("HubRuntimeHost", () => {
 							text: "hello",
 							iterations: 1,
 						}),
+					}),
+				}),
+			]),
+		);
+		expect(agentDoneEvents(events)).toHaveLength(1);
+		expect(agentDoneEvents(events)[0]?.payload.event).toMatchObject({
+			type: "done",
+			reason: "completed",
+			text: "hello",
+			iterations: 1,
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "ended",
+					payload: expect.objectContaining({
+						sessionId: "sess-1",
+						reason: "completed",
+					}),
+				}),
+			]),
+		);
+	});
+
+	it("synthesizes done from run.completed when no agent.done was observed", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "run.completed";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: {
+				reason: "completed",
+				result: {
+					finishReason: "completed",
+					text: "fallback text",
+					iterations: 2,
+				},
+			},
+		});
+
+		expect(agentDoneEvents(events)).toHaveLength(1);
+		expect(agentDoneEvents(events)[0]?.payload.event).toMatchObject({
+			type: "done",
+			reason: "completed",
+			text: "fallback text",
+			iterations: 2,
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "ended",
+					payload: expect.objectContaining({
+						sessionId: "sess-1",
+						reason: "completed",
 					}),
 				}),
 			]),

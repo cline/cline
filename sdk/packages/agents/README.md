@@ -48,7 +48,7 @@ const getWeather: AgentTool<{ city: string }, { forecast: string }> = {
 		required: ["city"],
 	},
 	async execute({ city }) {
-		return { output: { forecast: `sunny in ${city}` } };
+		return { forecast: `sunny in ${city}` };
 	},
 };
 
@@ -103,8 +103,7 @@ new Agent({
 
 Tools conform to the `AgentTool<TInput, TOutput>` interface from
 `@clinebot/shared`. Each tool has a JSON Schema `inputSchema` and an
-`execute(input, context)` function that returns an `AgentToolResult` — an
-object with an `output` field plus optional `isError` and `metadata`:
+`execute(input, context)` function that returns the tool output directly:
 
 ```ts
 import type { AgentTool } from "@clinebot/shared";
@@ -120,15 +119,14 @@ const summarize: AgentTool<{ text: string }, { summary: string }> = {
 	async execute({ text }, context) {
 		// context.signal — aborts when the run is cancelled
 		// context.emitUpdate(...) — stream progress as `tool-updated` events
-		return { output: { summary: text.slice(0, 120) } };
+		return { summary: text.slice(0, 120) };
 	},
 };
 ```
 
-> `@clinebot/agents` re-exports a `createTool(...)` helper, but it targets the
-> legacy `Tool` interface used by `@clinebot/core`'s session runtime, not the
-> newer `AgentTool` consumed by `AgentRuntime`. For `Agent`/`AgentRuntime`,
-> declare tools against `AgentTool` directly as shown above.
+The runtime wraps successful tool outputs in an internal tool-result message.
+Throw from `execute(...)` to report a tool failure, or use an `afterTool` hook
+to transform the internal `AgentToolResult` envelope.
 
 ### Events
 

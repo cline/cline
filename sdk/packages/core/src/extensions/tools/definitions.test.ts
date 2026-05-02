@@ -214,16 +214,18 @@ describe("default ask_question tool", () => {
 				throw new Error("Expected ask_question tool to be defined.");
 			}
 
-			const pending = askTool.execute(
-				{
-					question: "Which approach should I take?",
-					options: ["Option 1", "Option 2"],
-				},
-				{
-					agentId: "agent-1",
-					conversationId: "conv-1",
-					iteration: 1,
-				},
+			const pending = Promise.resolve(
+				askTool.execute(
+					{
+						question: "Which approach should I take?",
+						options: ["Option 1", "Option 2"],
+					},
+					{
+						agentId: "agent-1",
+						conversationId: "conv-1",
+						iteration: 1,
+					},
+				),
 			);
 			let settled: unknown;
 			pending.then(

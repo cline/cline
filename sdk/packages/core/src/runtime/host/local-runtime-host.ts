@@ -11,68 +11,45 @@ import {
 	normalizeUserInput,
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
-import { createContextCompactionPrepareTurn } from "../extensions/context/compaction";
-import type { ToolExecutors } from "../extensions/tools";
-import type { TeamEvent } from "../extensions/tools/team";
-import type { HookEventPayload } from "../hooks";
-import type { RuntimeCapabilities } from "../runtime/capabilities";
-import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
-import { manifestToSessionRecord } from "../runtime/host/history";
-import type {
-	PendingPromptsServiceApi,
-	RestoreSessionInput,
-	RestoreSessionResult,
-	RuntimeHost,
-	RuntimeHostSubscribeOptions,
-	SendSessionInput,
-	SessionAccumulatedUsage,
-	StartSessionInput,
-	StartSessionResult,
-} from "../runtime/host/runtime-host";
-import { DefaultRuntimeBuilder } from "../runtime/orchestration/runtime-builder";
-import {
-	OAuthReauthRequiredError,
-	type RuntimeOAuthResolution,
-	RuntimeOAuthTokenManager,
-} from "../runtime/orchestration/runtime-oauth-token-manager";
-import type { RuntimeBuilder } from "../runtime/orchestration/session-runtime";
-import { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
-import { PendingPromptsController } from "../runtime/turn-queue/pending-prompt-service";
-import { buildTelemetryAgentIdentity } from "../services/agent-events";
-import { resolveWorkspacePath } from "../services/config";
-import { prepareLocalRuntimeBootstrap } from "../services/local-runtime-bootstrap";
-import { nowIso } from "../services/session-artifacts";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import type { ToolExecutors } from "../../extensions/tools";
+import type { TeamEvent } from "../../extensions/tools/team";
+import type { HookEventPayload } from "../../hooks";
+import { buildTelemetryAgentIdentity } from "../../services/agent-events";
+import { resolveWorkspacePath } from "../../services/config";
+import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
-} from "../services/session-data";
+} from "../../services/session-data";
 import {
 	emitMentionTelemetry,
 	emitSessionCreationTelemetry,
-} from "../services/session-telemetry";
-import { ProviderSettingsManager } from "../services/storage/provider-settings-manager";
+} from "../../services/session-telemetry";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
 	captureAgentCreated,
 	captureAgentTeamCreated,
 	captureConversationTurnEvent,
 	captureModeSwitch,
 	captureTaskCompleted,
-} from "../services/telemetry/core-events";
-import { resolveCoreDistinctId } from "../services/telemetry/distinct-id";
+} from "../../services/telemetry/core-events";
+import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
 	summarizeUsageFromMessages,
-} from "../services/usage";
-import { enrichPromptWithMentions } from "../services/workspace";
+} from "../../services/usage";
+import { enrichPromptWithMentions } from "../../services/workspace";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
-} from "../session/models/session-manifest";
-import type { SessionRow } from "../session/models/session-row";
-import type { RootSessionArtifacts } from "../session/services/session-service";
-import { createCoreSessionSnapshot } from "../session/session-snapshot";
-import { SessionVersioningService } from "../session/session-versioning-service";
+} from "../../session/models/session-manifest";
+import type { SessionRow } from "../../session/models/session-row";
+import type { RootSessionArtifacts } from "../../session/services/session-service";
+import { createCoreSessionSnapshot } from "../../session/session-snapshot";
+import { SessionVersioningService } from "../../session/session-versioning-service";
 import {
 	buildTeamRunContinuationPrompt,
 	formatModePrompt,
@@ -80,12 +57,24 @@ import {
 	notifyTeamRunWaiters,
 	shouldAutoContinueTeamRuns,
 	waitForTeamRunUpdates,
-} from "../session/team";
-import { SessionSource, type SessionStatus } from "../types/common";
-import type { CoreSessionConfig } from "../types/config";
-import type { CoreSessionEvent } from "../types/events";
-import type { ActiveSession, PreparedTurnInput } from "../types/session";
-import type { SessionRecord } from "../types/sessions";
+} from "../../session/team";
+import { SessionSource, type SessionStatus } from "../../types/common";
+import type { CoreSessionConfig } from "../../types/config";
+import type { CoreSessionEvent } from "../../types/events";
+import type { ActiveSession, PreparedTurnInput } from "../../types/session";
+import type { SessionRecord } from "../../types/sessions";
+import type { RuntimeCapabilities } from "../capabilities";
+import { normalizeRuntimeCapabilities } from "../capabilities";
+import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
+import {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "../orchestration/runtime-oauth-token-manager";
+import type { RuntimeBuilder } from "../orchestration/session-runtime";
+import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
+import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
+import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
 import {
 	type SessionBackend,
@@ -101,6 +90,17 @@ import {
 	type SubAgentStartTracker,
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
+import type {
+	PendingPromptsServiceApi,
+	RestoreSessionInput,
+	RestoreSessionResult,
+	RuntimeHost,
+	RuntimeHostSubscribeOptions,
+	SendSessionInput,
+	SessionAccumulatedUsage,
+	StartSessionInput,
+	StartSessionResult,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,

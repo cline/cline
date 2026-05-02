@@ -19,6 +19,7 @@ import {
 	type ToolPolicy,
 } from "@clinebot/core";
 import {
+	type AgentTool,
 	buildClineSystemPrompt,
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
@@ -37,6 +38,9 @@ const SESSION_REFRESH_INTERVAL_MS = 4_000;
 const SESSION_HISTORY_LIMIT = 50;
 const HUB_DAEMON_TIMEOUT_MS = 8_000;
 const HUB_POLL_INTERVAL_MS = 200;
+const TERMINAL_SHELL_INTEGRATION_TIMEOUT_MS = 5_000;
+const TERMINAL_EXECUTION_TIMEOUT_MS = 120_000;
+const TERMINAL_OUTPUT_LIMIT = 1_000_000;
 const REFRESH_SESSION_EVENTS = new Set([
 	"session.created",
 	"session.updated",
@@ -132,6 +136,7 @@ type StartConfig = {
 	autoApproveTools?: boolean;
 	logger: BasicLogger;
 	extensionContext?: import("@clinebot/shared").ExtensionContext;
+	extraTools?: AgentTool[];
 };
 
 type ProviderListItem = {
@@ -195,6 +200,129 @@ function parseSessionTimestamp(value: unknown): number | undefined {
 				? Date.parse(value)
 				: Number.NaN;
 	return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function wait(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readTerminalCommandInput(input: unknown): {
+	command: string;
+	cwd?: string;
+} {
+	if (typeof input === "string") {
+		return { command: input.trim() };
+	}
+	const record = asRecord(input);
+	const command =
+		typeof record?.command === "string" ? record.command.trim() : "";
+	const cwd = typeof record?.cwd === "string" ? record.cwd.trim() : "";
+	return {
+		command,
+		...(cwd ? { cwd } : {}),
+	};
+}
+
+async function waitForShellIntegration(
+	terminal: vscode.Terminal,
+	timeoutMs: number,
+): Promise<vscode.TerminalShellIntegration | undefined> {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		if (terminal.shellIntegration) {
+			return terminal.shellIntegration;
+		}
+		await wait(100);
+	}
+	return terminal.shellIntegration;
+}
+
+async function readTerminalExecution(
+	execution: vscode.TerminalShellExecution,
+	abortSignal: AbortSignal | undefined,
+	onChange: ((update: unknown) => void) | undefined,
+): Promise<string> {
+	let output = "";
+	let outputSize = 0;
+	const timeout = AbortSignal.timeout(TERMINAL_EXECUTION_TIMEOUT_MS);
+	const abortPromise = new Promise<never>((_, reject) => {
+		const onAbort = () => reject(new Error("Command was aborted"));
+		const onTimeout = () =>
+			reject(
+				new Error(`Command timed out after ${TERMINAL_EXECUTION_TIMEOUT_MS}ms`),
+			);
+		abortSignal?.addEventListener("abort", onAbort, { once: true });
+		timeout.addEventListener("abort", onTimeout, { once: true });
+	});
+	const readPromise = (async () => {
+		for await (const chunk of execution.read()) {
+			onChange?.({ stream: "stdout", chunk });
+			outputSize += chunk.length;
+			if (output.length < TERMINAL_OUTPUT_LIMIT) {
+				output += chunk.slice(0, TERMINAL_OUTPUT_LIMIT - output.length);
+			}
+		}
+		if (outputSize > TERMINAL_OUTPUT_LIMIT) {
+			output += `\n\n[Output truncated: ${outputSize} characters total, showing first ${TERMINAL_OUTPUT_LIMIT} characters]`;
+		}
+		return output;
+	})();
+	return Promise.race([readPromise, abortPromise]);
+}
+
+function createVsCodeTerminalTool(defaultCwd: string): AgentTool {
+	return {
+		name: "vscode_terminal",
+		description:
+			"Run a shell command in the VS Code integrated terminal and return the captured terminal output when shell integration is available.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				command: {
+					type: "string",
+					description: "The shell command to run in the integrated terminal.",
+				},
+				cwd: {
+					type: "string",
+					description:
+						"Optional working directory. Defaults to the active workspace directory.",
+				},
+			},
+			required: ["command"],
+		},
+		async execute(input, context) {
+			const { command, cwd } = readTerminalCommandInput(input);
+			if (!command) {
+				throw new Error("command is required.");
+			}
+			const terminal = vscode.window.createTerminal({
+				name: "Cline",
+				cwd: cwd || defaultCwd,
+			});
+			terminal.show(true);
+			context.emitUpdate?.({ stream: "stdout", chunk: `$ ${command}\n` });
+
+			const shellIntegration = await waitForShellIntegration(
+				terminal,
+				TERMINAL_SHELL_INTEGRATION_TIMEOUT_MS,
+			);
+			if (!shellIntegration) {
+				terminal.sendText(command, true);
+				return [
+					"Command sent to the VS Code integrated terminal.",
+					"Shell integration was not available, so output could not be captured.",
+				].join("\n");
+			}
+
+			const execution = shellIntegration.executeCommand(command);
+			const output = await readTerminalExecution(
+				execution,
+				context.signal,
+				context.emitUpdate,
+			);
+			return output.trim() || "Command completed with no output.";
+		},
+	};
 }
 
 function readCheckpointEntriesByRunCount(
@@ -982,6 +1110,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 				defaults.workspaceRoot,
 				defaults.cwd,
 			),
+			extraTools: [createVsCodeTerminalTool(defaults.cwd)],
 		};
 
 		if (this.sessionId && this.startConfig) {

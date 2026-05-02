@@ -2,12 +2,12 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type * as LlmsProviders from "@clinebot/llms";
 import { formatDisplayUserInput } from "@clinebot/shared";
-import type { HookEventPayload } from "../hooks";
+import type { HookEventPayload } from "../../hooks";
+import type { CoreSessionEvent } from "../../types/events";
 import type {
 	RuntimeHostSubscribeOptions,
 	SessionAccumulatedUsage,
-} from "../runtime/host/runtime-host";
-import type { CoreSessionEvent } from "../types/events";
+} from "./runtime-host";
 
 export class RuntimeHostEventBus {
 	private readonly listeners = new Set<{

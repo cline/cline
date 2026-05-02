@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Tool } from "@clinebot/shared";
+import type { AgentTool } from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createBuiltinTools } from "../../extensions/tools";
@@ -18,7 +18,7 @@ type LegacyConfig = {
 	enableAgentTeams: boolean;
 };
 
-function legacyBuiltinTools(cwd: string): Tool[] {
+function legacyBuiltinTools(cwd: string): AgentTool[] {
 	return createBuiltinTools({
 		cwd,
 		enableReadFiles: true,
@@ -30,9 +30,9 @@ function legacyBuiltinTools(cwd: string): Tool[] {
 
 function legacyBuildRuntimeEnvironment(
 	config: LegacyConfig,
-	createSpawnTool?: () => Tool,
-): Tool[] {
-	const tools: Tool[] = [];
+	createSpawnTool?: () => AgentTool,
+): AgentTool[] {
+	const tools: AgentTool[] = [];
 	if (config.enableTools) {
 		tools.push(...legacyBuiltinTools(config.cwd));
 	}
@@ -60,7 +60,7 @@ function makeEmptyWorkspaceCwd(): string {
 	return mkdtempSync(join(tmpdir(), "runtime-parity-"));
 }
 
-function makeSpawnTool(): Tool {
+function makeSpawnTool(): AgentTool {
 	return {
 		name: "spawn_agent",
 		description: "Spawn a subagent",

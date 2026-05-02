@@ -1,31 +1,8 @@
 /**
- * Types and Zod Schemas for the Agent Package
- *
- * This module defines all TypeScript types and Zod validation schemas
- * for agent configuration, tools, events, and results.
+ * Shared tool policy and execution record types.
  */
 
 import { z } from "zod";
-
-// =============================================================================
-// Tool Context
-// =============================================================================
-
-/**
- * Context passed to tool execution functions
- */
-export interface ToolContext {
-	/** Unique identifier for the agent instance */
-	agentId: string;
-	/** Unique identifier for the current conversation */
-	conversationId: string;
-	/** Current iteration number in the agentic loop */
-	iteration: number;
-	/** Abort signal for cancellation */
-	abortSignal?: AbortSignal;
-	/** Optional metadata for the tool execution */
-	metadata?: Record<string, unknown>;
-}
 
 export interface ToolPolicy {
 	/**
@@ -38,63 +15,6 @@ export interface ToolPolicy {
 	 * @default true
 	 */
 	autoApprove?: boolean;
-}
-
-export interface ToolLifecycle {
-	/**
-	 * Whether a successful call to this tool completes the current agent run.
-	 */
-	completesRun?: boolean;
-}
-
-export const ToolContextSchema = z.object({
-	agentId: z.string(),
-	conversationId: z.string(),
-	iteration: z.number(),
-	abortSignal: z.custom<AbortSignal>().optional(),
-	metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-// =============================================================================
-// Tool Definition
-// =============================================================================
-
-/**
- * A tool that the agent can use
- *
- * @template TInput - The type of the input to the tool
- * @template TOutput - The type of the output from the tool
- */
-export interface Tool<TInput = unknown, TOutput = unknown> {
-	/** Unique name for the tool */
-	name: string;
-	/** Human-readable description of what the tool does */
-	description: string;
-	/** JSON Schema defining the tool's input parameters */
-	inputSchema: Record<string, unknown>;
-	/** Runtime lifecycle semantics for this tool. */
-	lifecycle?: ToolLifecycle;
-	/** The function that executes the tool */
-	execute: (
-		input: TInput,
-		context: ToolContext,
-		onChange?: (update: unknown) => void,
-	) => Promise<TOutput>;
-	/**
-	 * Optional timeout in milliseconds for tool execution
-	 * @default 30000 (30 seconds)
-	 */
-	timeoutMs?: number;
-	/**
-	 * Whether the tool can be retried on failure
-	 * @default true
-	 */
-	retryable?: boolean;
-	/**
-	 * Maximum number of retries for this tool
-	 * @default 2
-	 */
-	maxRetries?: number;
 }
 
 // =============================================================================

@@ -308,7 +308,7 @@ describe("HookBridge — constructor registration", () => {
 				name: "read",
 				description: "r",
 				inputSchema: {},
-				execute: async () => ({ output: "" }),
+				execute: async () => "",
 			} as AgentTool;
 			const toolCall: AgentToolCallPart = {
 				type: "tool-call",
@@ -333,7 +333,7 @@ describe("HookBridge — constructor registration", () => {
 				name: "read",
 				description: "r",
 				inputSchema: {},
-				execute: async () => ({ output: "" }),
+				execute: async () => "",
 			} as AgentTool;
 			const toolCall: AgentToolCallPart = {
 				type: "tool-call",
@@ -402,7 +402,7 @@ describe("HookBridge — constructor registration", () => {
 				name: "read",
 				description: "r",
 				inputSchema: {},
-				execute: async () => ({ output: "" }),
+				execute: async () => "",
 			} as AgentTool;
 			const toolCall: AgentToolCallPart = {
 				type: "tool-call",
@@ -427,7 +427,7 @@ describe("HookBridge — constructor registration", () => {
 				name: "read",
 				description: "r",
 				inputSchema: {},
-				execute: async () => ({ output: "" }),
+				execute: async () => "",
 			} as AgentTool;
 			const toolCall: AgentToolCallPart = {
 				type: "tool-call",
@@ -452,7 +452,7 @@ describe("HookBridge — constructor registration", () => {
 				name: "read",
 				description: "r",
 				inputSchema: {},
-				execute: async () => ({ output: "" }),
+				execute: async () => "",
 			} as AgentTool;
 			const toolCall: AgentToolCallPart = {
 				type: "tool-call",

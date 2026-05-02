@@ -2,10 +2,10 @@ import type {
 	AgentConfig,
 	AgentEvent,
 	AgentHooks,
+	AgentTool,
 	BasicLogger,
 	HookErrorMode,
 	ITelemetryService,
-	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
@@ -56,7 +56,7 @@ export type DelegatedAgentKind = "subagent" | "teammate";
 export interface BuildDelegatedAgentConfigOptions {
 	kind: DelegatedAgentKind;
 	prompt: string;
-	tools: Tool[];
+	tools: AgentTool[];
 	configProvider: DelegatedAgentConfigProvider;
 	parentAgentId?: string;
 	maxIterations?: number;

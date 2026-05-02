@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Tool, ToolContext } from "../llms/tools";
+import type { AgentTool, AgentToolContext } from "../agent";
 import { zodToJsonSchema } from "../parse/zod";
 
 function normalizeToolInputSchema(
@@ -43,32 +43,35 @@ export function createTool<TInput, TOutput>(config: {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
-	execute: (input: TInput, context: ToolContext) => Promise<TOutput>;
-	lifecycle?: Tool<TInput, TOutput>["lifecycle"];
+	execute: (input: TInput, context: AgentToolContext) => Promise<TOutput>;
+	lifecycle?: AgentTool<TInput, TOutput>["lifecycle"];
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
-}): Tool<TInput, TOutput>;
+}): AgentTool<TInput, TOutput>;
 export function createTool<TSchema extends z.ZodTypeAny, TOutput>(config: {
 	name: string;
 	description: string;
 	inputSchema: TSchema;
-	execute: (input: z.infer<TSchema>, context: ToolContext) => Promise<TOutput>;
-	lifecycle?: Tool<z.infer<TSchema>, TOutput>["lifecycle"];
+	execute: (
+		input: z.infer<TSchema>,
+		context: AgentToolContext,
+	) => Promise<TOutput>;
+	lifecycle?: AgentTool<z.infer<TSchema>, TOutput>["lifecycle"];
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
-}): Tool<z.infer<TSchema>, TOutput>;
+}): AgentTool<z.infer<TSchema>, TOutput>;
 export function createTool<TInput, TOutput>(config: {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown> | z.ZodTypeAny;
-	execute: (input: TInput, context: ToolContext) => Promise<TOutput>;
-	lifecycle?: Tool<TInput, TOutput>["lifecycle"];
+	execute: (input: TInput, context: AgentToolContext) => Promise<TOutput>;
+	lifecycle?: AgentTool<TInput, TOutput>["lifecycle"];
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
-}): Tool<TInput, TOutput> {
+}): AgentTool<TInput, TOutput> {
 	const inputSchema = normalizeToolInputSchema(
 		config.inputSchema instanceof z.ZodType
 			? zodToJsonSchema(config.inputSchema)
@@ -80,9 +83,9 @@ export function createTool<TInput, TOutput>(config: {
 		description: config.description,
 		inputSchema,
 		lifecycle: config.lifecycle,
-		execute: config.execute,
-		timeoutMs: config.timeoutMs ?? 30000,
+		timeoutMs: config.timeoutMs ?? 30_000,
 		retryable: config.retryable ?? true,
-		maxRetries: config.maxRetries ?? 2,
+		maxRetries: config.maxRetries ?? 3,
+		execute: config.execute,
 	};
 }

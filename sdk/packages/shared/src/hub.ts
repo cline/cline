@@ -1,6 +1,7 @@
 import type { AgentMessage } from "./agent";
 import type { ReasoningEffort } from "./agents/types";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
+import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 
 export type HubProtocolVersion = "v1";
 
@@ -320,6 +321,7 @@ export type HubCommandName =
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
+	| "capability.progress"
 	| "capability.respond"
 	| "peer.register"
 	| "peer.list_sessions"
@@ -477,6 +479,79 @@ export function isHubToolExecutorName(
 	return typeof value === "string" && HUB_TOOL_EXECUTOR_NAME_SET.has(value);
 }
 
+export const HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX = "tool_executor.";
+export const HUB_CUSTOM_TOOL_CAPABILITY_PREFIX = "custom_tool.";
+export const HUB_HOOK_CAPABILITY_PREFIX = "hook.";
+export const HUB_COMPACTION_CAPABILITY = "compaction.compact";
+export const HUB_CHECKPOINT_CAPABILITY = "checkpoint.create";
+export const HUB_MISTAKE_LIMIT_CAPABILITY = "mistake_limit.decide";
+export const HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY =
+	"user_instructions.snapshot";
+
+export type HubClientContributionKind =
+	| "toolExecutor"
+	| "tool"
+	| "hook"
+	| "compaction"
+	| "checkpoint"
+	| "mistakeLimit"
+	| "userInstructionService";
+
+export interface HubClientContributionBase {
+	kind: HubClientContributionKind;
+	capabilityName: string;
+}
+
+export interface HubClientToolExecutorContribution
+	extends HubClientContributionBase {
+	kind: "toolExecutor";
+	executor: HubToolExecutorName;
+}
+
+export interface HubClientToolContribution extends HubClientContributionBase {
+	kind: "tool";
+	name: string;
+	description: string;
+	inputSchema: Record<string, JsonValue | undefined>;
+	lifecycle?: Record<string, JsonValue | undefined>;
+}
+
+export interface HubClientHookContribution extends HubClientContributionBase {
+	kind: "hook";
+	name: string;
+}
+
+export interface HubClientCompactionContribution
+	extends HubClientContributionBase {
+	kind: "compaction";
+	config?: Record<string, JsonValue | undefined>;
+}
+
+export interface HubClientCheckpointContribution
+	extends HubClientContributionBase {
+	kind: "checkpoint";
+	config?: Record<string, JsonValue | undefined>;
+}
+
+export interface HubClientMistakeLimitContribution
+	extends HubClientContributionBase {
+	kind: "mistakeLimit";
+}
+
+export interface HubClientUserInstructionServiceContribution
+	extends HubClientContributionBase {
+	kind: "userInstructionService";
+}
+
+export type HubClientContribution =
+	| HubClientToolExecutorContribution
+	| HubClientToolContribution
+	| HubClientHookContribution
+	| HubClientCompactionContribution
+	| HubClientCheckpointContribution
+	| HubClientMistakeLimitContribution
+	| HubClientUserInstructionServiceContribution;
+
 export interface HubSessionRuntimeOptions {
 	mode?: "act" | "plan" | "yolo";
 	systemPrompt?: string;
@@ -488,7 +563,8 @@ export interface HubSessionRuntimeOptions {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	autoApproveTools?: boolean;
-	toolExecutors?: HubToolExecutorName[];
+	configExtensions?: RuntimeConfigExtensionKind[];
+	clientContributions?: HubClientContribution[];
 }
 
 export interface HubSessionCreateInput {

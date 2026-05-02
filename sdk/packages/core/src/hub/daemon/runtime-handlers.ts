@@ -8,9 +8,9 @@ import type {
 	HubScheduleRuntimeHandlers,
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
+import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
-import { LocalRuntimeHost } from "../../transports/local";
 import { SessionSource } from "../../types/common";
 
 function toChatTurnResult(result: {
