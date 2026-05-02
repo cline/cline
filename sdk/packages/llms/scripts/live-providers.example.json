@@ -85,6 +85,24 @@
 				"requireCacheReadTokens": true
 			}
 		},
+		"gemini-pro": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-pro-preview"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"gemma": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemma-4-31b-it"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
 		"deepseek-v4-pro": {
 			"settings": {
 				"provider": "deepseek",

@@ -51,6 +51,26 @@
 				"requireToolCall": true
 			}
 		},
+		"gemini-pro-tools": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-pro-preview"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"gemma-tools": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemma-4-31b-it"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
 		"deepseek-v4-pro-tools": {
 			"settings": {
 				"provider": "deepseek",
