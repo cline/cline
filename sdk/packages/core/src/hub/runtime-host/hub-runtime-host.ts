@@ -11,6 +11,7 @@ import type {
 	ToolApprovalRequest,
 } from "@clinebot/shared";
 import {
+	createSessionId,
 	HUB_CHECKPOINT_CAPABILITY,
 	HUB_COMPACTION_CAPABILITY,
 	HUB_CUSTOM_TOOL_CAPABILITY_PREFIX,
@@ -56,7 +57,12 @@ import type {
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
-import { NodeHubClient } from "../client";
+import {
+	type HubClientOptions,
+	isHubCommandTimeoutError,
+	NodeHubClient,
+	restartLocalHubIfIdleAfterStartupTimeout,
+} from "../client";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -577,9 +583,11 @@ function buildManifestFromSnapshot(
 }
 
 export class HubRuntimeHost implements RuntimeHost {
-	public readonly runtimeAddress: string;
+	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
-	private readonly client: NodeHubClient;
+	private client: NodeHubClient;
+	private readonly clientOptions: Omit<HubClientOptions, "url">;
+	private readonly clientContext?: { workspaceRoot?: string; cwd?: string };
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessionCapabilities = new Map<string, RuntimeCapabilities>();
 	private readonly sessionClientContributionHandlers = new Map<
@@ -599,6 +607,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		options: HubRuntimeHostOptions,
 		clientContext?: { workspaceRoot?: string; cwd?: string },
 	) {
+		this.clientContext = clientContext;
+		this.clientOptions = {
+			authToken: options.authToken,
+			clientType: options.clientType ?? "core-hub-runtime",
+			displayName: options.displayName ?? "core hub runtime",
+			workspaceRoot: clientContext?.workspaceRoot,
+			cwd: clientContext?.cwd,
+		};
 		this.defaultCapabilities =
 			normalizeRuntimeCapabilities(options.capabilities) ?? {};
 		this.runtimeAddress = options.url;
@@ -607,14 +623,62 @@ export class HubRuntimeHost implements RuntimeHost {
 			update: (input) => this.requestPendingPromptUpdate(input),
 			delete: (input) => this.requestPendingPromptDelete(input),
 		};
-		this.client = new NodeHubClient({
-			url: options.url,
-			authToken: options.authToken,
-			clientType: options.clientType ?? "core-hub-runtime",
-			displayName: options.displayName ?? "core hub runtime",
-			workspaceRoot: clientContext?.workspaceRoot,
-			cwd: clientContext?.cwd,
-		});
+		this.client = this.createClient(options.url);
+	}
+
+	private createClient(url: string): NodeHubClient {
+		return new NodeHubClient({ ...this.clientOptions, url });
+	}
+
+	private async replaceClient(url: string): Promise<void> {
+		const previous = this.client;
+		this.client = this.createClient(url);
+		this.runtimeAddress = url;
+		await Promise.resolve(previous.dispose()).catch(() => undefined);
+	}
+
+	private async recoverLocalHubStartupDeadlock(
+		error: unknown,
+	): Promise<boolean> {
+		if (!isHubCommandTimeoutError(error, "session.create")) {
+			return false;
+		}
+		const restartedUrl = await restartLocalHubIfIdleAfterStartupTimeout({
+			url: this.client.getUrl(),
+			workspaceRoot: this.clientContext?.workspaceRoot,
+			cwd: this.clientContext?.cwd,
+		}).catch(() => undefined);
+		if (!restartedUrl) {
+			return false;
+		}
+		await this.replaceClient(restartedUrl);
+		return true;
+	}
+
+	private registerPlannedSession(
+		sessionId: string,
+		capabilities: RuntimeCapabilities,
+		clientContributionHandlers: Map<string, ClientContributionHandler>,
+	): void {
+		this.sessionCapabilities.set(sessionId, capabilities);
+		if (clientContributionHandlers.size > 0) {
+			this.sessionClientContributionHandlers.set(
+				sessionId,
+				clientContributionHandlers,
+			);
+		}
+		// The hub may call back into client contributions while handling
+		// `session.create` (for example user_instructions.snapshot during local
+		// runtime bootstrap). Subscribe before sending the command so those
+		// capability.requested events are observed and answered instead of
+		// deadlocking session.create.
+		this.ensureSessionSubscription(sessionId);
+	}
+
+	private cleanupPlannedSession(sessionId: string): void {
+		this.sessionCapabilities.delete(sessionId);
+		this.sessionClientContributionHandlers.delete(sessionId);
+		this.disposeSessionSubscription(sessionId);
 	}
 
 	async connect(): Promise<void> {
@@ -627,49 +691,82 @@ export class HubRuntimeHost implements RuntimeHost {
 			input.localRuntime,
 			capabilities,
 		);
-		const reply = await this.client.command("session.create", {
-			workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
-			cwd: input.config.cwd,
-			sessionConfig: toJsonRecord(input.config as Record<string, unknown>),
-			metadata: {
-				...(input.sessionMetadata ?? {}),
-				source: input.source ?? SessionSource.CORE,
-				provider: input.config.providerId,
-				model: input.config.modelId,
-				enableTools: input.config.enableTools,
-				enableSpawn: input.config.enableSpawnAgent,
-				enableTeams: input.config.enableAgentTeams,
-				teamName: input.config.teamName,
-				prompt: input.prompt,
-				interactive: input.interactive === true,
-			},
-			runtimeOptions: {
-				...(clientContributions.manifest.length > 0
-					? { clientContributions: clientContributions.manifest }
-					: {}),
-				...(input.localRuntime?.configExtensions
-					? { configExtensions: input.localRuntime.configExtensions }
-					: {}),
-			},
-			toolPolicies: toJsonRecord(
-				input.toolPolicies as Record<string, unknown> | undefined,
-			),
-			initialMessages: input.initialMessages,
-		});
+		const plannedSessionId =
+			input.config.sessionId?.trim() || createSessionId();
+		const sendCreateCommand = () =>
+			this.client.command("session.create", {
+				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
+				cwd: input.config.cwd,
+				sessionConfig: toJsonRecord({
+					...(input.config as Record<string, unknown>),
+					sessionId: plannedSessionId,
+				}),
+				metadata: {
+					...(input.sessionMetadata ?? {}),
+					source: input.source ?? SessionSource.CORE,
+					provider: input.config.providerId,
+					model: input.config.modelId,
+					enableTools: input.config.enableTools,
+					enableSpawn: input.config.enableSpawnAgent,
+					enableTeams: input.config.enableAgentTeams,
+					teamName: input.config.teamName,
+					prompt: input.prompt,
+					interactive: input.interactive === true,
+				},
+				runtimeOptions: {
+					...(clientContributions.manifest.length > 0
+						? { clientContributions: clientContributions.manifest }
+						: {}),
+					...(input.localRuntime?.configExtensions
+						? { configExtensions: input.localRuntime.configExtensions }
+						: {}),
+				},
+				toolPolicies: toJsonRecord(
+					input.toolPolicies as Record<string, unknown> | undefined,
+				),
+				initialMessages: input.initialMessages,
+			});
+		this.registerPlannedSession(
+			plannedSessionId,
+			capabilities,
+			clientContributions.handlers,
+		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await sendCreateCommand();
+		} catch (error) {
+			this.cleanupPlannedSession(plannedSessionId);
+			if (await this.recoverLocalHubStartupDeadlock(error)) {
+				this.registerPlannedSession(
+					plannedSessionId,
+					capabilities,
+					clientContributions.handlers,
+				);
+				try {
+					reply = await sendCreateCommand();
+				} catch (retryError) {
+					this.cleanupPlannedSession(plannedSessionId);
+					throw retryError;
+				}
+			} else {
+				throw error;
+			}
+		}
 		const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
 		const session = reply.payload?.session as HubSessionRecord | undefined;
 		const sessionId = (snapshot?.sessionId ?? session?.sessionId)?.trim();
 		if (!sessionId) {
+			this.cleanupPlannedSession(plannedSessionId);
 			throw new Error("Hub runtime did not return a session id.");
 		}
-		this.sessionCapabilities.set(sessionId, capabilities);
-		if (clientContributions.handlers.size > 0) {
-			this.sessionClientContributionHandlers.set(
+		if (sessionId !== plannedSessionId) {
+			this.cleanupPlannedSession(plannedSessionId);
+			this.registerPlannedSession(
 				sessionId,
+				capabilities,
 				clientContributions.handlers,
 			);
 		}
-		this.ensureSessionSubscription(sessionId);
 
 		return {
 			sessionId,
@@ -706,64 +803,105 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
-		const reply = await this.client.command(
-			"session.restore",
-			{
+		const plannedSessionId = startConfig
+			? startConfig.config.sessionId?.trim() || createSessionId()
+			: undefined;
+		if (plannedSessionId && capabilities) {
+			this.sessionCapabilities.set(plannedSessionId, capabilities);
+		}
+		if (plannedSessionId && clientContributions.handlers.size > 0) {
+			this.sessionClientContributionHandlers.set(
+				plannedSessionId,
+				clientContributions.handlers,
+			);
+			this.ensureSessionSubscription(plannedSessionId);
+		}
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command(
+				"session.restore",
+				{
+					sessionId,
+					checkpointRunCount: input.checkpointRunCount,
+					restore: input.restore,
+					...(startConfig
+						? {
+								workspaceRoot:
+									startConfig.config.workspaceRoot?.trim() ||
+									startConfig.config.cwd,
+								cwd: startConfig.config.cwd ?? input.cwd,
+								sessionConfig: toJsonRecord({
+									...(startConfig.config as Record<string, unknown>),
+									sessionId: plannedSessionId,
+								}),
+								metadata: {
+									...(startConfig.sessionMetadata ?? {}),
+									source: startConfig.source ?? SessionSource.CORE,
+									provider: startConfig.config.providerId,
+									model: startConfig.config.modelId,
+									enableTools: startConfig.config.enableTools,
+									enableSpawn: startConfig.config.enableSpawnAgent,
+									enableTeams: startConfig.config.enableAgentTeams,
+									teamName: startConfig.config.teamName,
+									prompt: startConfig.prompt,
+									interactive: startConfig.interactive === true,
+								},
+								runtimeOptions: {
+									...(clientContributions.manifest.length > 0
+										? { clientContributions: clientContributions.manifest }
+										: {}),
+									...(startConfig.localRuntime?.configExtensions
+										? {
+												configExtensions:
+													startConfig.localRuntime.configExtensions,
+											}
+										: {}),
+								},
+								toolPolicies: toJsonRecord(
+									startConfig.toolPolicies as
+										| Record<string, unknown>
+										| undefined,
+								),
+							}
+						: {}),
+				},
 				sessionId,
-				checkpointRunCount: input.checkpointRunCount,
-				restore: input.restore,
-				...(startConfig
-					? {
-							workspaceRoot:
-								startConfig.config.workspaceRoot?.trim() ||
-								startConfig.config.cwd,
-							cwd: startConfig.config.cwd ?? input.cwd,
-							sessionConfig: toJsonRecord(
-								startConfig.config as Record<string, unknown>,
-							),
-							metadata: {
-								...(startConfig.sessionMetadata ?? {}),
-								source: startConfig.source ?? SessionSource.CORE,
-								provider: startConfig.config.providerId,
-								model: startConfig.config.modelId,
-								enableTools: startConfig.config.enableTools,
-								enableSpawn: startConfig.config.enableSpawnAgent,
-								enableTeams: startConfig.config.enableAgentTeams,
-								teamName: startConfig.config.teamName,
-								prompt: startConfig.prompt,
-								interactive: startConfig.interactive === true,
-							},
-							runtimeOptions: {
-								...(clientContributions.manifest.length > 0
-									? { clientContributions: clientContributions.manifest }
-									: {}),
-								...(startConfig.localRuntime?.configExtensions
-									? {
-											configExtensions:
-												startConfig.localRuntime.configExtensions,
-										}
-									: {}),
-							},
-							toolPolicies: toJsonRecord(
-								startConfig.toolPolicies as Record<string, unknown> | undefined,
-							),
-						}
-					: {}),
-			},
-			sessionId,
-		);
+			);
+		} catch (error) {
+			if (plannedSessionId) {
+				this.sessionCapabilities.delete(plannedSessionId);
+				this.sessionClientContributionHandlers.delete(plannedSessionId);
+				this.disposeSessionSubscription(plannedSessionId);
+			}
+			throw error;
+		}
 		if (!reply.ok) {
 			const errorMsg =
 				typeof reply.payload?.error === "string"
 					? reply.payload.error
 					: "session.restore failed";
+			if (plannedSessionId) {
+				this.sessionCapabilities.delete(plannedSessionId);
+				this.sessionClientContributionHandlers.delete(plannedSessionId);
+				this.disposeSessionSubscription(plannedSessionId);
+			}
 			throw new Error(errorMsg);
 		}
 		const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
 		const session = reply.payload?.session as HubSessionRecord | undefined;
 		const newSessionId = (snapshot?.sessionId ?? session?.sessionId)?.trim();
 		if (restoreMessages && !newSessionId) {
+			if (plannedSessionId) {
+				this.sessionCapabilities.delete(plannedSessionId);
+				this.sessionClientContributionHandlers.delete(plannedSessionId);
+				this.disposeSessionSubscription(plannedSessionId);
+			}
 			throw new Error("Hub checkpoint restore returned no session id");
+		}
+		if (newSessionId && plannedSessionId && newSessionId !== plannedSessionId) {
+			this.sessionCapabilities.delete(plannedSessionId);
+			this.sessionClientContributionHandlers.delete(plannedSessionId);
+			this.disposeSessionSubscription(plannedSessionId);
 		}
 		if (newSessionId && capabilities) {
 			this.sessionCapabilities.set(newSessionId, capabilities);
@@ -1459,6 +1597,17 @@ export class HubRuntimeHost implements RuntimeHost {
 			.get(sessionId)
 			?.get(capabilityName);
 		if (!handler) {
+			await this.client
+				.command(
+					"capability.respond",
+					{
+						requestId,
+						ok: false,
+						error: `No client contribution handler registered for capability ${capabilityName} in session ${sessionId}.`,
+					},
+					sessionId,
+				)
+				.catch(() => {});
 			return;
 		}
 		const payload =

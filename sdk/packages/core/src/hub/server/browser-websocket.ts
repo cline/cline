@@ -6,6 +6,12 @@ import type {
 } from "@clinebot/shared";
 import { safeJsonParse } from "@clinebot/shared";
 import type { HubCommandTransport } from "./command-transport";
+import { logHubMessage } from "./hub-server-logging";
+
+const HUB_SERVER_COMMAND_TIMEOUT_MS = 25_000;
+const HUB_SERVER_COMMAND_SLOW_MS = 5_000;
+
+type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
 export interface BrowserHubSocketLike {
 	send(data: string): void;
@@ -19,6 +25,28 @@ export interface BrowserHubSocketLike {
 		listener: (event: { data: string }) => void,
 	): void;
 	removeEventListener(type: "close", listener: () => void): void;
+}
+
+function commandLogContext(frame: HubCommandFrame) {
+	return {
+		command: frame.envelope.command,
+		requestId: frame.envelope.requestId,
+		clientId: frame.envelope.clientId,
+		sessionId: frame.envelope.sessionId,
+	};
+}
+
+function commandErrorReply(
+	frame: HubCommandFrame,
+	code: string,
+	message: string,
+): HubReplyEnvelope {
+	return {
+		version: frame.envelope.version,
+		requestId: frame.envelope.requestId,
+		ok: false,
+		error: { code, message },
+	};
 }
 
 export class BrowserWebSocketHubAdapter {
@@ -52,7 +80,85 @@ export class BrowserWebSocketHubAdapter {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
 					case "command": {
-						const reply = await this.transport.command(frame.envelope);
+						const startedAt = performance.now();
+						let settled = false;
+						const context = commandLogContext(frame);
+						logHubMessage("info", "command.start", context);
+						const slowTimer = setTimeout(() => {
+							if (settled) return;
+							logHubMessage("warn", "command.slow", {
+								...context,
+								elapsedMs: Math.round(performance.now() - startedAt),
+							});
+						}, HUB_SERVER_COMMAND_SLOW_MS);
+						const commandPromise = this.transport.command(frame.envelope);
+						commandPromise.then(
+							(lateReply) => {
+								if (!settled) return;
+								logHubMessage(
+									lateReply.ok ? "warn" : "error",
+									"command.late_end",
+									{
+										...context,
+										elapsedMs: Math.round(performance.now() - startedAt),
+										ok: lateReply.ok,
+										errorCode: lateReply.error?.code,
+										errorMessage: lateReply.error?.message,
+									},
+								);
+							},
+							(error) => {
+								if (!settled) return;
+								logHubMessage("error", "command.late_error", {
+									...context,
+									elapsedMs: Math.round(performance.now() - startedAt),
+									error,
+								});
+							},
+						);
+						let timedOut = false;
+						let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+						let reply: HubReplyEnvelope;
+						try {
+							reply = await Promise.race([
+								commandPromise,
+								new Promise<HubReplyEnvelope>((resolve) => {
+									timeoutTimer = setTimeout(() => {
+										timedOut = true;
+										resolve(
+											commandErrorReply(
+												frame,
+												"hub_command_timeout",
+												`Hub command ${frame.envelope.command} did not complete within ${HUB_SERVER_COMMAND_TIMEOUT_MS}ms. Check hub-daemon.log for command.start/command.slow logs with requestId ${frame.envelope.requestId}.`,
+											),
+										);
+									}, HUB_SERVER_COMMAND_TIMEOUT_MS);
+								}),
+							]);
+						} catch (error) {
+							clearTimeout(slowTimer);
+							if (timeoutTimer) clearTimeout(timeoutTimer);
+							throw error;
+						}
+						settled = timedOut;
+						clearTimeout(slowTimer);
+						if (timeoutTimer) clearTimeout(timeoutTimer);
+						const durationMs = Math.round(performance.now() - startedAt);
+						if (timedOut) {
+							logHubMessage("error", "command.timeout", {
+								...context,
+								durationMs,
+								timeoutMs: HUB_SERVER_COMMAND_TIMEOUT_MS,
+							});
+						} else {
+							logHubMessage(reply.ok ? "info" : "warn", "command.end", {
+								...context,
+								durationMs,
+								ok: reply.ok,
+								errorCode: reply.error?.code,
+								errorMessage: reply.error?.message,
+							});
+						}
 						if (frame.envelope.command === "client.register" && reply.ok) {
 							const registration = (frame.envelope.payload ??
 								{}) as unknown as HubClientRegistration;
@@ -106,26 +212,22 @@ export class BrowserWebSocketHubAdapter {
 						? safeJsonParse<HubTransportFrame>(event.data)
 						: undefined;
 				if (!parsed || parsed.kind !== "command") {
-					console.error(
-						`[hub] rejected malformed websocket frame: ${
-							error instanceof Error
-								? error.stack || error.message
-								: String(error)
-						}`,
-					);
+					logHubMessage("error", "rejected malformed websocket frame", {
+						error,
+					});
 					return;
 				}
+				logHubMessage("error", "command.error", {
+					...commandLogContext(parsed),
+					error,
+				});
 				sendFrame({
 					kind: "reply",
-					envelope: {
-						...parsed.envelope,
-						ok: false,
-						error: {
-							code: "command_failed",
-							message:
-								error instanceof Error ? error.message : "Unknown hub error",
-						},
-					} satisfies HubReplyEnvelope,
+					envelope: commandErrorReply(
+						parsed,
+						"command_failed",
+						error instanceof Error ? error.message : "Unknown hub error",
+					),
 				});
 			}
 		};

@@ -6,11 +6,12 @@ import { HOME_VIEW_MAX_WIDTH } from "../types";
 
 function createContextBar(
 	used: number,
-	total: number,
+	total?: number,
 	width = 8,
 ): { filled: string; empty: string } {
-	const ratio = total > 0 ? Math.min(used / total, 1) : 0;
-	const filledCount = used > 0 ? Math.max(1, Math.round(ratio * width)) : 0;
+	const ratio = total && total > 0 ? Math.min(used / total, 1) : 0;
+	const filledCount =
+		total && total > 0 && used > 0 ? Math.max(1, Math.round(ratio * width)) : 0;
 	const emptyCount = Math.max(0, width - filledCount);
 	return {
 		filled: "\u2588".repeat(filledCount),
@@ -57,7 +58,7 @@ export function resolveModelDisplayName(config: {
 export function resolveModelContextWindow(config: {
 	modelId: string;
 	knownModels?: Record<string, unknown>;
-}): number {
+}): number | undefined {
 	const info = (lookupModelInfo(config.modelId, config.knownModels) ?? {}) as {
 		contextWindow?: number;
 		context_window?: number;
@@ -68,7 +69,7 @@ export function resolveModelContextWindow(config: {
 	if (typeof info.context_window === "number" && info.context_window > 0) {
 		return info.context_window;
 	}
-	return 200000;
+	return undefined;
 }
 
 export interface StatusBarProps {
@@ -76,7 +77,7 @@ export interface StatusBarProps {
 	modelId: string;
 	totalTokens: number;
 	totalCost: number;
-	contextWindow: number;
+	contextWindow?: number;
 	uiMode: AgentMode;
 	autoApproveAll: boolean;
 	workspaceName: string;
@@ -107,7 +108,13 @@ export function StatusBar(props: StatusBarProps) {
 	const { width } = useTerminalDimensions();
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
-	const bar = createContextBar(totalTokens, contextWindow);
+	const hasContextWindow =
+		typeof contextWindow === "number" &&
+		Number.isFinite(contextWindow) &&
+		contextWindow > 0;
+	const bar = hasContextWindow
+		? createContextBar(totalTokens, contextWindow)
+		: undefined;
 
 	// Available content width after accounting for padding.
 	// Home view: parent box is capped at 60 wide, status bar adds paddingX=1 (-2).
@@ -121,7 +128,10 @@ export function StatusBar(props: StatusBarProps) {
 	// When the full row doesn't fit, context info drops to its own row 2.
 	// Model ID truncates with "..." before wrapping; toggle stays right-aligned.
 	const toggleWidth = 20;
-	const contextText = ` ${bar.filled}${bar.empty} (${totalTokens.toLocaleString()}) ${formatCost(totalCost)}`;
+	const usageText = `(${totalTokens.toLocaleString()}) ${formatCost(totalCost)}`;
+	const contextText = bar
+		? ` ${bar.filled}${bar.empty} ${usageText}`
+		: ` ${usageText}`;
 	const firstRowFits =
 		modelId.length + contextText.length + toggleWidth + 1 <= avail;
 

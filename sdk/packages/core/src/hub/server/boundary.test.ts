@@ -80,11 +80,15 @@ describe("HubServerTransport boundaries", () => {
 			});
 
 			expect(delivered).toEqual(["ui.notify"]);
-			expect(errorSpy).toHaveBeenCalledWith(
-				expect.stringContaining(
-					"[hub] listener threw while publishing ui.notify:",
-				),
-			);
+			const logged = String(errorSpy.mock.calls[0]?.[0] ?? "");
+			expect(logged.startsWith("[hub] ")).toBe(true);
+			const payload = JSON.parse(logged.slice("[hub] ".length));
+			expect(payload).toMatchObject({
+				level: "error",
+				component: "hub",
+				message: "listener threw while publishing ui.notify",
+			});
+			expect(payload.error).toContain("listener boom");
 		} finally {
 			errorSpy.mockRestore();
 		}

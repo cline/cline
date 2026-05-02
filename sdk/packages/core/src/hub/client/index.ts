@@ -145,6 +145,31 @@ const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_COMMAND_TIMEOUT_MS = 30_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
+const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 3_000;
+const HUB_RECOVERY_RETIRE_TIMEOUT_MS = 3_000;
+const HUB_RECOVERY_RETIRE_POLL_MS = 100;
+
+export class HubCommandError extends Error {
+	constructor(
+		readonly command: HubCommandEnvelope["command"],
+		readonly code: string | undefined,
+		message: string,
+	) {
+		super(message);
+		this.name = "HubCommandError";
+	}
+}
+
+export function isHubCommandTimeoutError(
+	error: unknown,
+	command?: HubCommandEnvelope["command"],
+): boolean {
+	return (
+		error instanceof HubCommandError &&
+		error.code === "hub_command_timeout" &&
+		(command === undefined || error.command === command)
+	);
+}
 
 function rememberLocalHubAuthToken(url: string, authToken: string): string {
 	const parsed = new URL(url);
@@ -181,6 +206,10 @@ export class NodeHubClient {
 
 	getClientId(): string {
 		return this.clientId;
+	}
+
+	getUrl(): string {
+		return this.options.url;
 	}
 
 	async connect(): Promise<void> {
@@ -311,6 +340,7 @@ export class NodeHubClient {
 		const requestId = createSessionId("hubreq_");
 		const reply = new Promise<HubReplyEnvelope>((resolve, reject) => {
 			const timeoutMs = options?.timeoutMs;
+			const effectiveTimeoutMs = timeoutMs ?? HUB_COMMAND_TIMEOUT_MS;
 			const timeout =
 				timeoutMs === null
 					? undefined
@@ -319,11 +349,13 @@ export class NodeHubClient {
 								return;
 							}
 							reject(
-								new Error(
-									`Hub command ${command} timed out after ${timeoutMs ?? HUB_COMMAND_TIMEOUT_MS}ms`,
+								new HubCommandError(
+									command,
+									"hub_command_timeout",
+									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.options.url}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run with CLINE_SESSION_BACKEND_MODE=local to bypass the hub.`,
 								),
 							);
-						}, timeoutMs ?? HUB_COMMAND_TIMEOUT_MS);
+						}, effectiveTimeoutMs);
 			this.pendingReplies.set(requestId, {
 				resolve: (value) => {
 					if (timeout) {
@@ -352,7 +384,9 @@ export class NodeHubClient {
 		});
 		const resolved = await reply;
 		if (!resolved.ok) {
-			throw new Error(
+			throw new HubCommandError(
+				command,
+				resolved.error?.code,
 				resolved.error?.message ?? `Hub command ${command} failed`,
 			);
 		}
@@ -583,6 +617,78 @@ async function waitForCompatibleHubUrl(
 	return undefined;
 }
 
+async function waitForHubToRetire(url: string): Promise<boolean> {
+	const deadline = Date.now() + HUB_RECOVERY_RETIRE_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		const healthy = await probeHubServer(url).catch(() => undefined);
+		if (!healthy?.url) {
+			return true;
+		}
+		await new Promise((resolve) =>
+			setTimeout(resolve, HUB_RECOVERY_RETIRE_POLL_MS),
+		);
+	}
+	return false;
+}
+
+function sameNormalizedHubUrl(left: string, right: string): boolean {
+	try {
+		return normalizeHubWebSocketUrl(left) === normalizeHubWebSocketUrl(right);
+	} catch {
+		return false;
+	}
+}
+
+function hasActiveHubSessions(payload: unknown): boolean {
+	const sessions =
+		payload &&
+		typeof payload === "object" &&
+		Array.isArray((payload as { sessions?: unknown }).sessions)
+			? (payload as { sessions: unknown[] }).sessions
+			: [];
+	return sessions.some((session) => {
+		if (!session || typeof session !== "object") {
+			return false;
+		}
+		const record = session as {
+			status?: unknown;
+			participants?: unknown;
+		};
+		if (record.status === "running" || record.status === "idle") {
+			return true;
+		}
+		return Array.isArray(record.participants) && record.participants.length > 0;
+	});
+}
+
+async function localHubHasNoActiveSessions(
+	url: string,
+	authToken?: string,
+	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
+): Promise<boolean> {
+	const client = new NodeHubClient({
+		url,
+		authToken,
+		clientType: "hub-recovery-check",
+		displayName: "hub recovery check",
+		workspaceRoot: options?.workspaceRoot,
+		cwd: options?.cwd,
+	});
+	try {
+		const reply = await client.command(
+			"session.list",
+			{ limit: 500 },
+			undefined,
+			{ timeoutMs: HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS },
+		);
+		return !hasActiveHubSessions(reply.payload);
+	} catch {
+		return false;
+	} finally {
+		await client.dispose().catch(() => undefined);
+	}
+}
+
 export async function resolveCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
@@ -668,4 +774,35 @@ export async function stopLocalHubServerGracefully(): Promise<boolean> {
 		// Fall through so callers can apply a stronger fallback.
 	}
 	return false;
+}
+
+export async function restartLocalHubIfIdleAfterStartupTimeout(options: {
+	url: string;
+	workspaceRoot?: string;
+	cwd?: string;
+}): Promise<string | undefined> {
+	const owner = resolveSharedHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	if (!discovery?.url || !sameNormalizedHubUrl(discovery.url, options.url)) {
+		return undefined;
+	}
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+		discovery.url,
+		discovery.authToken,
+		{ workspaceRoot: options.workspaceRoot, cwd: options.cwd },
+	);
+	if (!hasNoActiveSessions) {
+		return undefined;
+	}
+	if (!(await stopLocalHubServerGracefully())) {
+		return undefined;
+	}
+	if (!(await waitForHubToRetire(discovery.url))) {
+		return undefined;
+	}
+	await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+	return await ensureCompatibleLocalHubUrl({
+		workspaceRoot: options.workspaceRoot,
+		cwd: options.cwd,
+	});
 }

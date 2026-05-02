@@ -7,15 +7,34 @@ const subscribeMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
 const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
+const restartLocalHubIfIdleAfterStartupTimeoutMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../client", () => ({
 	NodeHubClient: class {
+		private readonly url: string;
+
+		constructor(options: { url: string }) {
+			this.url = options.url;
+		}
+
 		command = commandMock;
 		subscribe = subscribeMock;
 		close = closeMock;
 		dispose = disposeMock;
 		getClientId = getClientIdMock;
+		getUrl = () => this.url;
 	},
+	isHubCommandTimeoutError: (
+		error: unknown,
+		command?: string,
+	): error is Error & { command?: string; code?: string } =>
+		!!error &&
+		typeof error === "object" &&
+		(error as { code?: unknown }).code === "hub_command_timeout" &&
+		(command === undefined ||
+			(error as { command?: unknown }).command === command),
+	restartLocalHubIfIdleAfterStartupTimeout:
+		restartLocalHubIfIdleAfterStartupTimeoutMock,
 }));
 
 function createConfig() {
@@ -56,6 +75,7 @@ describe("HubRuntimeHost", () => {
 		closeMock.mockReset();
 		disposeMock.mockReset();
 		getClientIdMock.mockClear();
+		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
 	});
 
 	it("does not auto-start a run during session creation", async () => {
@@ -112,6 +132,51 @@ describe("HubRuntimeHost", () => {
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
+	});
+
+	it("restarts an idle local hub and retries session.create after startup timeout", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const timeoutError = Object.assign(new Error("session.create timed out"), {
+			command: "session.create",
+			code: "hub_command_timeout",
+		});
+		commandMock.mockRejectedValueOnce(timeoutError).mockResolvedValueOnce({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "sess-recovered",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		restartLocalHubIfIdleAfterStartupTimeoutMock.mockResolvedValue(
+			"ws://127.0.0.1:25464/hub",
+		);
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost(
+			{ url: "ws://127.0.0.1:25463/hub" },
+			{ workspaceRoot: "/tmp/project", cwd: "/tmp/project" },
+		);
+
+		const started = await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		expect(started.sessionId).toBe("sess-recovered");
+		expect(commandMock).toHaveBeenCalledTimes(2);
+		expect(restartLocalHubIfIdleAfterStartupTimeoutMock).toHaveBeenCalledWith({
+			url: "ws://127.0.0.1:25463/hub",
+			workspaceRoot: "/tmp/project",
+			cwd: "/tmp/project",
+		});
+		expect(disposeMock).toHaveBeenCalledOnce();
 	});
 
 	it("starts runs only through send", async () => {
@@ -617,7 +682,7 @@ describe("HubRuntimeHost", () => {
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await host.startSession({
-			config: createConfig(),
+			config: { ...createConfig(), sessionId: "sess-1" },
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});

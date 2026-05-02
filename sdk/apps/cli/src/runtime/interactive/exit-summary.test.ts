@@ -82,11 +82,23 @@ describe("interactive exit summary", () => {
 			totalCost: 0.25,
 		});
 
-		expect(output).toContain("Session saved");
+		expect(output).toContain("Session Summary");
 		expect(output).toContain("  ID        sess_123");
 		expect(output).toContain("  Model     cline:openai/gpt-5.3-codex");
 		expect(output).toContain("  Messages  2");
 		expect(output).toContain("  Cost      $0.250000");
-		expect(output).toContain("  Continue  clite --id sess_123");
+		expect(output).toContain("  Continue  ");
+		expect(output).toContain("clite --id sess_123");
+	});
+
+	it("formats an invalid start time without leaking NaN", () => {
+		const output = formatInteractiveExitSummary({
+			sessionId: "sess_123",
+			startedAt: "not-a-date",
+			messageCount: 1,
+		});
+
+		expect(output).toContain("  Duration  0s");
+		expect(output).not.toContain("NaN");
 	});
 });

@@ -17,6 +17,7 @@ import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
 } from "../hub-client-contributions";
+import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
@@ -53,6 +54,14 @@ export async function handleSessionCreate(
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
 ): Promise<HubReplyEnvelope> {
+	const startedAt = performance.now();
+	const baseLogContext = {
+		command: envelope.command,
+		requestId: envelope.requestId,
+		clientId: envelope.clientId,
+		sessionId: envelope.sessionId,
+	};
+	logHubMessage("info", "session.create.begin", baseLogContext);
 	const payload =
 		envelope.payload && typeof envelope.payload === "object"
 			? envelope.payload
@@ -97,6 +106,10 @@ export async function handleSessionCreate(
 				? payload.cwd.trim()
 				: "";
 	if (!workspaceRoot) {
+		logHubMessage("warn", "session.create.invalid", {
+			...baseLogContext,
+			reason: "missing_workspace_root",
+		});
 		return errorReply(
 			envelope,
 			"invalid_session_create",
@@ -107,6 +120,13 @@ export async function handleSessionCreate(
 	const clientContributions = parseHubClientContributions(
 		runtimeOptions.clientContributions,
 	);
+	logHubMessage("info", "session.create.contributions_parsed", {
+		...baseLogContext,
+		clientId,
+		workspaceRoot,
+		cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+		contributionCount: clientContributions.length,
+	});
 	if (clientContributions.length > 0) {
 		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 	}
@@ -118,12 +138,35 @@ export async function handleSessionCreate(
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
+	logHubMessage("info", "session.create.runtime_build.begin", {
+		...baseLogContext,
+		sessionId,
+		configExtensionCount: configExtensions?.length ?? 0,
+	});
 	const clientContributionRuntime = createHubClientContributionRuntime({
 		sessionId,
 		targetClientId: clientId,
 		contributions: clientContributions,
 		sessionConfig,
 		requestCapability: ctx.requestCapability,
+	});
+	logHubMessage("info", "session.create.start_session.begin", {
+		...baseLogContext,
+		sessionId,
+		provider:
+			sessionConfig?.providerId ??
+			(typeof modelSelection.provider === "string"
+				? modelSelection.provider
+				: typeof metadata.provider === "string"
+					? metadata.provider
+					: "hub"),
+		model:
+			sessionConfig?.modelId ??
+			(typeof modelSelection.model === "string"
+				? modelSelection.model
+				: typeof metadata.model === "string"
+					? metadata.model
+					: "hub"),
 	});
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
@@ -217,13 +260,30 @@ export async function handleSessionCreate(
 					? { "*": { autoApprove: true } }
 					: undefined,
 	});
+	logHubMessage("info", "session.create.start_session.end", {
+		...baseLogContext,
+		sessionId: started.sessionId,
+		elapsedMs: Math.round(performance.now() - startedAt),
+		hasImmediateResult: !!started.result,
+	});
 	ensureSessionState(ctx, started.sessionId, clientId, "creator", {
 		interactive: metadata.interactive !== false,
+	});
+	logHubMessage("info", "session.create.read_records.begin", {
+		...baseLogContext,
+		sessionId: started.sessionId,
 	});
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, started.sessionId),
 		readCoreSessionSnapshot(ctx, started.sessionId),
 	]);
+	logHubMessage("info", "session.create.read_records.end", {
+		...baseLogContext,
+		sessionId: started.sessionId,
+		hasSession: !!session,
+		hasSnapshot: !!snapshot,
+		elapsedMs: Math.round(performance.now() - startedAt),
+	});
 	if (session) {
 		ctx.publish(
 			ctx.buildEvent(
@@ -233,6 +293,11 @@ export async function handleSessionCreate(
 			),
 		);
 	}
+	logHubMessage("info", "session.create.reply", {
+		...baseLogContext,
+		sessionId: started.sessionId,
+		elapsedMs: Math.round(performance.now() - startedAt),
+	});
 	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
 }
 

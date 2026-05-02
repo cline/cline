@@ -1,6 +1,6 @@
 import type { SessionAccumulatedUsage, SessionRecord } from "@clinebot/core";
 import type { Message } from "@clinebot/shared";
-import { formatUsd } from "../../utils/output";
+import { c, formatUsd } from "../../utils/output";
 
 export interface InteractiveExitSummary {
 	sessionId: string;
@@ -28,6 +28,17 @@ function providerModel(summary: InteractiveExitSummary): string | undefined {
 	const model = trim(summary.model);
 	if (provider && model) return `${provider}:${model}`;
 	return provider ?? model;
+}
+
+function formatDuration(startedAt: string | undefined): string {
+	if (!startedAt) {
+		return "0s";
+	}
+	const startedAtMs = new Date(startedAt).getTime();
+	if (!Number.isFinite(startedAtMs)) {
+		return "0s";
+	}
+	return `${Math.max(0, Math.round((Date.now() - startedAtMs) / 1000))}s`;
 }
 
 export function createInteractiveExitSummary(input: {
@@ -68,16 +79,16 @@ export function formatInteractiveExitSummary(
 	const model = providerModel(summary);
 	const lines = [
 		"",
-		"Session saved",
+		"Session Summary",
 		`  ID        ${summary.sessionId}`,
-		summary.startedAt ? `  Started   ${summary.startedAt}` : undefined,
+		`  Duration  ${formatDuration(summary.startedAt)}`,
 		model ? `  Model     ${model}` : undefined,
 		summary.cwd ? `  CWD       ${summary.cwd}` : undefined,
 		`  Messages  ${summary.messageCount.toLocaleString()}`,
 		typeof summary.totalCost === "number"
 			? `  Cost      ${formatUsd(summary.totalCost)}`
 			: undefined,
-		`  Continue  clite --id ${summary.sessionId}`,
+		`  Continue  ${c.cyan}clite --id ${summary.sessionId}${c.reset}`,
 		"",
 	];
 	return lines.filter((line): line is string => line !== undefined).join("\n");

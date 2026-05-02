@@ -63,7 +63,9 @@ describe("BrowserWebSocketHubAdapter", () => {
 			expect(transport.command).not.toHaveBeenCalled();
 			expect(socket.sent).toHaveLength(0);
 			expect(errorSpy).toHaveBeenCalledWith(
-				expect.stringContaining("[hub] rejected malformed websocket frame:"),
+				expect.stringContaining(
+					'"message":"rejected malformed websocket frame"',
+				),
 			);
 		} finally {
 			errorSpy.mockRestore();

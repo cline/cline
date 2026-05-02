@@ -1,5 +1,6 @@
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@clinebot/shared";
 import { createSessionId } from "@clinebot/shared";
+import { logHubMessage } from "../hub-server-logging";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
 export async function requestCapability(
@@ -11,6 +12,13 @@ export async function requestCapability(
 	onProgress?: (payload: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown> | undefined> {
 	const requestId = createSessionId("capreq_");
+	const startedAt = performance.now();
+	logHubMessage("info", "capability.request.start", {
+		requestId,
+		sessionId,
+		capabilityName,
+		targetClientId,
+	});
 	return await new Promise((resolve, reject) => {
 		ctx.pendingCapabilityRequests.set(requestId, {
 			sessionId,
@@ -18,6 +26,15 @@ export async function requestCapability(
 			capabilityName,
 			onProgress,
 			resolve: (result) => {
+				logHubMessage(result.ok ? "info" : "warn", "capability.request.end", {
+					requestId,
+					sessionId,
+					capabilityName,
+					targetClientId,
+					ok: result.ok,
+					error: result.error,
+					durationMs: Math.round(performance.now() - startedAt),
+				});
 				if (!result.ok) {
 					reject(
 						new Error(
@@ -42,6 +59,12 @@ export async function requestCapability(
 				sessionId,
 			),
 		);
+		logHubMessage("info", "capability.request.published", {
+			requestId,
+			sessionId,
+			capabilityName,
+			targetClientId,
+		});
 	});
 }
 
@@ -107,6 +130,13 @@ export function cancelPendingCapabilityRequests(
 			continue;
 		}
 		ctx.pendingCapabilityRequests.delete(requestId);
+		logHubMessage("warn", "capability.request.cancelled", {
+			requestId,
+			sessionId: pending.sessionId,
+			capabilityName: pending.capabilityName,
+			targetClientId: pending.targetClientId,
+			reason,
+		});
 		pending.resolve({ ok: false, error: reason });
 		ctx.publish(
 			ctx.buildEvent(
@@ -219,6 +249,15 @@ export function handleCapabilityRespond(
 			? envelope.payload.error
 			: undefined;
 	const ok = envelope.payload?.ok === true;
+	logHubMessage(ok ? "info" : "warn", "capability.respond", {
+		requestId,
+		sessionId: pending.sessionId,
+		capabilityName: pending.capabilityName,
+		targetClientId: pending.targetClientId,
+		respondedByClientId: responderClientId,
+		ok,
+		error,
+	});
 	pending.resolve({ ok, payload, error });
 	ctx.publish(
 		ctx.buildEvent(
