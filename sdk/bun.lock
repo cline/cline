@@ -263,6 +263,7 @@
       "dependencies": {
         "@clinebot/agents": "workspace:*",
         "@clinebot/llms": "workspace:*",
+        "@clinebot/shared": "workspace:*",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/api-logs": "^0.214.0",
         "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
@@ -283,7 +284,6 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@clinebot/shared": "workspace:*",
         "@types/ws": "^8.18.1",
       },
     },

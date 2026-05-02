@@ -2,7 +2,7 @@ import {
 	createLocalHubScheduleRuntimeHandlers,
 	ensureHubWebSocketServer,
 	resolveSharedHubOwnerContext,
-} from "@clinebot/core";
+} from "@clinebot/core/hub";
 
 type DetachedHubDaemonConfig = {
 	workspaceRoot: string;

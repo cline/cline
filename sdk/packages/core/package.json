@@ -32,7 +32,7 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"build": "rm -rf dist && bun run ./bun.mts && bun tsc -p tsconfig.build.json",
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "bun run test:unit && bun run test:e2e",
@@ -43,6 +43,7 @@
 	},
 	"dependencies": {
 		"@clinebot/agents": "workspace:*",
+		"@clinebot/shared": "workspace:*",
 		"@clinebot/llms": "workspace:*",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/api-logs": "^0.214.0",
@@ -64,7 +65,6 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
-		"@clinebot/shared": "workspace:*",
 		"@types/ws": "^8.18.1"
 	},
 	"engines": {
@@ -72,8 +72,6 @@
 	},
 	"files": [
 		"dist",
-		"src",
-		"!src/**/*.test.ts",
-		"!src/**/*.e2e.test.ts"
+		"!dist/**/*.d.ts.map"
 	]
 }

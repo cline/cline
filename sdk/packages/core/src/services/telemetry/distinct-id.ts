@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
-import { machineIdSync } from "node-machine-id";
+import * as nodeMachineId from "node-machine-id";
 
 const GENERATED_DISTINCT_ID_FILE_NAME = "machine-id";
 
@@ -20,8 +20,19 @@ export function resolveCoreDistinctId(explicitDistinctId?: string): string {
 	return resolveGeneratedFallbackDistinctId();
 }
 
+function resolveMachineIdSync(): ((original?: boolean) => string) | undefined {
+	const module = nodeMachineId as typeof nodeMachineId & {
+		default?: typeof nodeMachineId;
+	};
+	return module.machineIdSync ?? module.default?.machineIdSync;
+}
+
 function getMachineDistinctId(): string | undefined {
 	try {
+		const machineIdSync = resolveMachineIdSync();
+		if (!machineIdSync) {
+			return undefined;
+		}
 		const distinctId = machineIdSync();
 		return distinctId.trim() || undefined;
 	} catch {

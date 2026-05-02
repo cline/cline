@@ -4,6 +4,7 @@
 		"declaration": true,
 		"emitDeclarationOnly": true,
 		"sourceMap": false,
+		"declarationMap": false,
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"incremental": false
@@ -12,6 +13,6 @@
 		"src/index.ts",
 		"src/hub/index.ts",
 		"src/hub/daemon/entry.ts",
-		"src/telemetry/index.ts"
+		"src/services/telemetry/index.ts"
 	]
 }

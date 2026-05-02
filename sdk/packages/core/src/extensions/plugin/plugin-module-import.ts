@@ -3,7 +3,6 @@ import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_FILE_EXTENSIONS } from "@clinebot/shared";
-import createJiti from "jiti";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const HOST_REQUIRE = createRequire(import.meta.url);
@@ -263,6 +262,16 @@ export async function importPluginModule(
 		pluginPath,
 		preferHostRuntimeDependencies,
 	);
+	const jitiModule = (await import("jiti")) as unknown;
+	const createJiti =
+		typeof jitiModule === "function"
+			? jitiModule
+			: typeof (jitiModule as { default?: unknown }).default === "function"
+				? (jitiModule as { default: typeof import("jiti").default }).default
+				: undefined;
+	if (!createJiti) {
+		throw new Error("Unable to load jiti");
+	}
 	const jiti = createJiti(pluginPath, {
 		alias: aliases,
 		cache: options.useCache,
