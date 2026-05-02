@@ -15,7 +15,6 @@ type PluginLike = {
 	name: string;
 	manifest: {
 		capabilities: string[];
-		hookStages?: string[];
 		providerIds?: string[];
 		modelIds?: string[];
 	};
@@ -61,14 +60,6 @@ function validatePluginManifest(
 	if (plugin.manifest.capabilities.length === 0) {
 		throw new Error(
 			`Invalid plugin module at ${absolutePath}: manifest.capabilities cannot be empty`,
-		);
-	}
-	if (
-		Object.hasOwn(plugin.manifest, "hookStages") &&
-		!hasValidStringArray(plugin.manifest.hookStages)
-	) {
-		throw new Error(
-			`Invalid plugin module at ${absolutePath}: manifest.hookStages must be a string array when provided`,
 		);
 	}
 	if (

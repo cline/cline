@@ -159,17 +159,19 @@ const metrics: AgentExtension = {
     api.registerTool(myCustomTool)
   },
 
-  onRunStart({ userMessage }) {
-    console.time("agent")
-  },
+  hooks: {
+    beforeRun() {
+      console.time("agent")
+    },
 
-  onToolCall({ call }) {
-    console.log(`tool: ${call.name}`)
-  },
+    beforeTool({ toolCall }) {
+      console.log(`tool: ${toolCall.toolName}`)
+    },
 
-  onRunEnd({ result }) {
-    console.timeEnd("agent")
-    console.log(`${result.iterations} iterations, ${result.usage.outputTokens} tokens`)
+    afterRun({ result }) {
+      console.timeEnd("agent")
+      console.log(`${result.iterations} iterations, ${result.usage.outputTokens} tokens`)
+    },
   },
 }
 ```

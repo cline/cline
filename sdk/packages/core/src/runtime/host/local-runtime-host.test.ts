@@ -1239,19 +1239,27 @@ describe("LocalRuntimeHost", () => {
 			createAgent: (config) =>
 				({
 					run: vi.fn().mockImplementation(async () => {
-						await config.hooks?.onRunStart?.({
+						const snapshot = {
 							agentId: "agent_1",
-							conversationId: "conv_1",
+							runId: "conv_1",
 							parentAgentId: null,
-							userMessage: "hello",
-						});
-						await config.hooks?.onBeforeAgentStart?.({
-							agentId: "agent_1",
-							conversationId: "conv_1",
-							parentAgentId: null,
+							status: "running" as const,
 							iteration: 1,
-							systemPrompt: "system",
 							messages: [],
+							pendingToolCalls: [],
+							usage: {
+								inputTokens: 0,
+								outputTokens: 0,
+								cacheReadTokens: 0,
+								cacheWriteTokens: 0,
+							},
+						};
+						await config.hooks?.beforeRun?.({
+							snapshot: { ...snapshot, iteration: 0 },
+						});
+						await config.hooks?.beforeModel?.({
+							snapshot,
+							request: { messages: [], tools: [] },
 						});
 						return createResult();
 					}),
@@ -1336,19 +1344,27 @@ describe("LocalRuntimeHost", () => {
 			createAgent: (config) =>
 				({
 					run: vi.fn().mockImplementation(async () => {
-						await config.hooks?.onRunStart?.({
+						const snapshot = {
 							agentId: "agent_1",
-							conversationId: "conv_1",
+							runId: "conv_1",
 							parentAgentId: null,
-							userMessage: "hello",
-						});
-						await config.hooks?.onBeforeAgentStart?.({
-							agentId: "agent_1",
-							conversationId: "conv_1",
-							parentAgentId: null,
+							status: "running" as const,
 							iteration: 1,
-							systemPrompt: "system",
 							messages: [],
+							pendingToolCalls: [],
+							usage: {
+								inputTokens: 0,
+								outputTokens: 0,
+								cacheReadTokens: 0,
+								cacheWriteTokens: 0,
+							},
+						};
+						await config.hooks?.beforeRun?.({
+							snapshot: { ...snapshot, iteration: 0 },
+						});
+						await config.hooks?.beforeModel?.({
+							snapshot,
+							request: { messages: [], tools: [] },
 						});
 						return createResult();
 					}),

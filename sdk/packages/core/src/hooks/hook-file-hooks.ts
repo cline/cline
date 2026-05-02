@@ -1,10 +1,18 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentExtension, AgentHooks } from "@clinebot/shared";
+import type {
+	AgentAfterToolContext,
+	AgentBeforeToolContext,
+	AgentExtension,
+	AgentHooks,
+	AgentRunLifecycleContext,
+	AgentRuntimeEvent,
+} from "@clinebot/shared";
 import {
 	augmentNodeCommandForDebug,
 	type BasicLogger,
+	type HookControl,
 	type HookSessionContext,
 	type WorkspaceInfo,
 	withResolvedClineBuildEnv,
@@ -20,27 +28,42 @@ type HookContextBase = {
 	parentAgentId: string | null;
 };
 
-type AgentHookControl = NonNullable<
-	Awaited<ReturnType<NonNullable<AgentHooks["onToolCallStart"]>>>
->;
-type AgentHookRunStartContext = Parameters<
-	NonNullable<AgentHooks["onRunStart"]>
->[0];
-type AgentHookToolCallStartContext = Parameters<
-	NonNullable<AgentHooks["onToolCallStart"]>
->[0];
-type AgentHookToolCallEndContext = Parameters<
-	NonNullable<AgentHooks["onToolCallEnd"]>
->[0];
-type AgentHookTurnEndContext = Parameters<
-	NonNullable<AgentHooks["onTurnEnd"]>
->[0];
-type AgentHookStopErrorContext = Parameters<
-	NonNullable<AgentHooks["onStopError"]>
->[0];
-type AgentHookSessionShutdownContext = Parameters<
-	NonNullable<AgentHooks["onSessionShutdown"]>
->[0];
+type HookCommandControl = Omit<HookControl, "appendMessages"> & {
+	systemPrompt?: string;
+	appendMessages?: unknown[];
+};
+
+type HookCommandRunStartContext = HookContextBase & {
+	userMessage: string;
+};
+type HookCommandToolCallStartContext = HookContextBase & {
+	iteration: number;
+	call: { id: string; name: string; input: unknown };
+};
+type HookCommandToolCallEndContext = HookContextBase & {
+	iteration: number;
+	record: {
+		id: string;
+		name: string;
+		input: unknown;
+		output: unknown;
+		error?: string;
+		durationMs: number;
+		startedAt: Date;
+		endedAt: Date;
+	};
+};
+type HookCommandTurnEndContext = HookContextBase & {
+	iteration: number;
+	turn: unknown;
+};
+type HookCommandStopErrorContext = HookContextBase & {
+	iteration: number;
+	error: Error;
+};
+type HookCommandSessionShutdownContext = HookContextBase & {
+	reason?: string;
+};
 
 type HookRuntimeOptions = {
 	cwd: string;
@@ -85,9 +108,9 @@ function logHookError(
 }
 
 function mergeHookControls(
-	current: AgentHookControl | undefined,
-	next: AgentHookControl | undefined,
-): AgentHookControl | undefined {
+	current: HookCommandControl | undefined,
+	next: HookCommandControl | undefined,
+): HookCommandControl | undefined {
 	if (!next) {
 		return current;
 	}
@@ -119,7 +142,7 @@ function mergeHookControls(
 	};
 }
 
-function parseHookControl(value: unknown): AgentHookControl | undefined {
+function parseHookControl(value: unknown): HookCommandControl | undefined {
 	if (!value || typeof value !== "object") {
 		return undefined;
 	}
@@ -499,8 +522,8 @@ async function runBlockingHookCommands(options: {
 	cwd: string;
 	logger?: BasicLogger;
 	timeoutMs?: number;
-}): Promise<AgentHookControl | undefined> {
-	let merged: AgentHookControl | undefined;
+}): Promise<HookCommandControl | undefined> {
+	let merged: HookCommandControl | undefined;
 	for (const command of options.commands) {
 		const commandLabel = command.join(" ");
 		try {
@@ -557,6 +580,85 @@ function runAsyncHookCommands(options: {
 	}
 }
 
+function baseContextFromSnapshot(
+	snapshot: AgentRunLifecycleContext["snapshot"],
+): HookContextBase {
+	return {
+		agentId: snapshot.agentId,
+		conversationId:
+			snapshot.conversationId ?? snapshot.runId ?? snapshot.agentId,
+		parentAgentId: snapshot.parentAgentId ?? null,
+	};
+}
+
+function runStartContext(
+	ctx: AgentRunLifecycleContext,
+	userMessage: string,
+): HookCommandRunStartContext {
+	return {
+		...baseContextFromSnapshot(ctx.snapshot),
+		userMessage,
+	};
+}
+
+function toolCallStartContext(
+	ctx: AgentBeforeToolContext,
+): HookCommandToolCallStartContext {
+	return {
+		...baseContextFromSnapshot(ctx.snapshot),
+		iteration: ctx.snapshot.iteration,
+		call: {
+			id: ctx.toolCall.toolCallId,
+			name: ctx.toolCall.toolName,
+			input: ctx.input,
+		},
+	};
+}
+
+function toolCallEndContext(
+	ctx: AgentAfterToolContext,
+): HookCommandToolCallEndContext {
+	return {
+		...baseContextFromSnapshot(ctx.snapshot),
+		iteration: ctx.snapshot.iteration,
+		record: {
+			id: ctx.toolCall.toolCallId,
+			name: ctx.toolCall.toolName,
+			input: ctx.input,
+			output: ctx.result.output,
+			error: ctx.result.isError ? String(ctx.result.output) : undefined,
+			durationMs: ctx.durationMs,
+			startedAt: ctx.startedAt,
+			endedAt: ctx.endedAt,
+		},
+	};
+}
+
+function textFromMessageContent(
+	content: readonly { type: string; text?: string }[],
+): string {
+	return content
+		.filter((part) => part.type === "text" && typeof part.text === "string")
+		.map((part) => part.text)
+		.join("");
+}
+
+function beforeToolResultFromControl(
+	control: HookCommandControl | undefined,
+): { stop?: boolean; reason?: string; input?: unknown } | undefined {
+	if (!control) {
+		return undefined;
+	}
+	const result: { stop?: boolean; reason?: string; input?: unknown } = {};
+	if (control.cancel === true) {
+		result.stop = true;
+	}
+	if (control.overrideInput !== undefined) {
+		result.input = control.overrideInput;
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export function createHookAuditHooks(options: {
 	rootSessionId?: string;
 	workspacePath: string;
@@ -581,96 +683,103 @@ export function createHookAuditHooks(options: {
 	};
 
 	return {
-		onRunStart: async (ctx: AgentHookRunStartContext) => {
+		beforeRun: async (ctx: AgentRunLifecycleContext) => {
+			const commandCtx = runStartContext(ctx, "");
 			append({
-				...createPayloadBase(ctx, runtimeOptions),
+				...createPayloadBase(commandCtx, runtimeOptions),
 				hookName: "agent_start",
 				taskStart: { taskMetadata: {} },
 			});
+			return undefined;
+		},
+		beforeTool: async (ctx: AgentBeforeToolContext) => {
+			const commandCtx = toolCallStartContext(ctx);
 			append({
-				...createPayloadBase(ctx, runtimeOptions),
+				...createPayloadBase(commandCtx, runtimeOptions),
+				hookName: "tool_call",
+				iteration: commandCtx.iteration,
+				tool_call: {
+					id: commandCtx.call.id,
+					name: commandCtx.call.name,
+					input: commandCtx.call.input,
+				},
+				preToolUse: {
+					toolName: commandCtx.call.name,
+					parameters: mapParams(commandCtx.call.input),
+				},
+			});
+			return undefined;
+		},
+		afterTool: async (ctx: AgentAfterToolContext) => {
+			const commandCtx = toolCallEndContext(ctx);
+			append({
+				...createPayloadBase(commandCtx, runtimeOptions),
+				hookName: "tool_result",
+				iteration: commandCtx.iteration,
+				tool_result: commandCtx.record,
+				postToolUse: {
+					toolName: commandCtx.record.name,
+					parameters: mapParams(commandCtx.record.input),
+					result:
+						typeof commandCtx.record.output === "string"
+							? commandCtx.record.output
+							: JSON.stringify(commandCtx.record.output),
+					success: !commandCtx.record.error,
+					executionTimeMs: commandCtx.record.durationMs,
+				},
+			});
+			return undefined;
+		},
+		afterRun: async ({ snapshot, result }) => {
+			const base = baseContextFromSnapshot(snapshot);
+			if (result.status === "completed") {
+				append({
+					...createPayloadBase(base, runtimeOptions),
+					hookName: "agent_end",
+					iteration: result.iterations,
+					turn: { outputText: result.outputText, status: result.status },
+					taskComplete: { taskMetadata: {} },
+				});
+				return;
+			}
+			if (result.status === "aborted" || isAbortReason(result.error?.message)) {
+				append({
+					...createPayloadBase(base, runtimeOptions),
+					hookName: "agent_abort",
+					reason: result.error?.message,
+					taskCancel: { taskMetadata: {} },
+				});
+				return;
+			}
+			if (result.error) {
+				append({
+					...createPayloadBase(base, runtimeOptions),
+					hookName: "agent_error",
+					iteration: result.iterations,
+					error: {
+						name: result.error.name,
+						message: result.error.message,
+						stack: result.error.stack,
+					},
+				});
+			}
+		},
+		onEvent: async (event: AgentRuntimeEvent) => {
+			if (event.type !== "message-added" || event.message.role !== "user") {
+				return;
+			}
+			const commandCtx = runStartContext(
+				{ snapshot: event.snapshot },
+				textFromMessageContent(event.message.content),
+			);
+			append({
+				...createPayloadBase(commandCtx, runtimeOptions),
 				hookName: "prompt_submit",
 				userPromptSubmit: {
-					prompt: ctx.userMessage,
+					prompt: commandCtx.userMessage,
 					attachments: [],
 				},
 			});
-			return undefined;
-		},
-		onToolCallStart: async (ctx: AgentHookToolCallStartContext) => {
-			append({
-				...createPayloadBase(ctx, runtimeOptions),
-				hookName: "tool_call",
-				iteration: ctx.iteration,
-				tool_call: {
-					id: ctx.call.id,
-					name: ctx.call.name,
-					input: ctx.call.input,
-				},
-				preToolUse: {
-					toolName: ctx.call.name,
-					parameters: mapParams(ctx.call.input),
-				},
-			});
-			return undefined;
-		},
-		onToolCallEnd: async (ctx: AgentHookToolCallEndContext) => {
-			append({
-				...createPayloadBase(ctx, runtimeOptions),
-				hookName: "tool_result",
-				iteration: ctx.iteration,
-				tool_result: ctx.record,
-				postToolUse: {
-					toolName: ctx.record.name,
-					parameters: mapParams(ctx.record.input),
-					result:
-						typeof ctx.record.output === "string"
-							? ctx.record.output
-							: JSON.stringify(ctx.record.output),
-					success: !ctx.record.error,
-					executionTimeMs: ctx.record.durationMs,
-				},
-			});
-			return undefined;
-		},
-		onTurnEnd: async (ctx: AgentHookTurnEndContext) => {
-			append({
-				...createPayloadBase(ctx, runtimeOptions),
-				hookName: "agent_end",
-				iteration: ctx.iteration,
-				turn: ctx.turn,
-				taskComplete: { taskMetadata: {} },
-			});
-			return undefined;
-		},
-		onStopError: async (ctx: AgentHookStopErrorContext) => {
-			append({
-				...createPayloadBase(ctx, runtimeOptions),
-				hookName: "agent_error",
-				iteration: ctx.iteration,
-				error: {
-					name: ctx.error.name,
-					message: ctx.error.message,
-					stack: ctx.error.stack,
-				},
-			});
-			return undefined;
-		},
-		onSessionShutdown: async (ctx: AgentHookSessionShutdownContext) => {
-			if (isAbortReason(ctx.reason)) {
-				append({
-					...createPayloadBase(ctx, runtimeOptions),
-					hookName: "agent_abort",
-					reason: ctx.reason,
-					taskCancel: { taskMetadata: {} },
-				});
-			}
-			append({
-				...createPayloadBase(ctx, runtimeOptions),
-				hookName: "session_shutdown",
-				reason: ctx.reason,
-			});
-			return undefined;
 		},
 	};
 }
@@ -680,29 +789,45 @@ export function createHookConfigFileHooks(
 ): AgentHooks | undefined {
 	const commandMap = createHookCommandMap(options.workspacePath);
 	const hasAnyHooks = Object.values(commandMap).some(
-		(paths) => (paths?.length ?? 0) > 0,
+		(commands) => commands.length > 0,
 	);
 	if (!hasAnyHooks) {
 		return undefined;
 	}
 
-	const runStartPayload = async (
-		ctx: AgentHookRunStartContext,
+	const runAgentStart = async (
+		ctx: HookContextBase,
+		hookName: "agent_start" | "agent_resume",
 	): Promise<void> => {
-		const agentStart = commandMap.agent_start ?? [];
-		if (agentStart.length > 0) {
-			runAsyncHookCommands({
-				commands: agentStart,
-				cwd: options.cwd,
-				logger: options.logger,
-				payload: {
-					...createPayloadBase(ctx, options),
-					hookName: "agent_start",
-					taskStart: { taskMetadata: {} },
-				},
-			});
+		const commandPaths = commandMap[hookName] ?? [];
+		if (commandPaths.length === 0) {
+			return;
 		}
+		runAsyncHookCommands({
+			commands: commandPaths,
+			cwd: options.cwd,
+			logger: options.logger,
+			payload:
+				hookName === "agent_resume"
+					? {
+							...createPayloadBase(ctx, options),
+							hookName,
+							taskResume: {
+								taskMetadata: {},
+								previousState: {},
+							},
+						}
+					: {
+							...createPayloadBase(ctx, options),
+							hookName,
+							taskStart: { taskMetadata: {} },
+						},
+		});
+	};
 
+	const runPromptSubmit = async (
+		ctx: HookCommandRunStartContext,
+	): Promise<void> => {
 		const promptSubmit = commandMap.prompt_submit ?? [];
 		if (promptSubmit.length > 0) {
 			runAsyncHookCommands({
@@ -722,8 +847,8 @@ export function createHookConfigFileHooks(
 	};
 
 	const runToolCallStart = async (
-		ctx: AgentHookToolCallStartContext,
-	): Promise<AgentHookControl | undefined> => {
+		ctx: HookCommandToolCallStartContext,
+	): Promise<HookCommandControl | undefined> => {
 		const commandPaths = commandMap.tool_call ?? [];
 		if (commandPaths.length === 0) {
 			return undefined;
@@ -751,7 +876,7 @@ export function createHookConfigFileHooks(
 	};
 
 	const runToolCallEnd = async (
-		ctx: AgentHookToolCallEndContext,
+		ctx: HookCommandToolCallEndContext,
 	): Promise<void> => {
 		const commandPaths = commandMap.tool_result ?? [];
 		if (commandPaths.length === 0) {
@@ -780,7 +905,7 @@ export function createHookConfigFileHooks(
 		});
 	};
 
-	const runTurnEnd = async (ctx: AgentHookTurnEndContext): Promise<void> => {
+	const runTurnEnd = async (ctx: HookCommandTurnEndContext): Promise<void> => {
 		const commandPaths = commandMap.agent_end ?? [];
 		if (commandPaths.length === 0) {
 			return;
@@ -800,7 +925,7 @@ export function createHookConfigFileHooks(
 	};
 
 	const runStopError = async (
-		ctx: AgentHookStopErrorContext,
+		ctx: HookCommandStopErrorContext,
 	): Promise<void> => {
 		const commandPaths = commandMap.agent_error ?? [];
 		if (commandPaths.length === 0) {
@@ -824,7 +949,7 @@ export function createHookConfigFileHooks(
 	};
 
 	const runSessionShutdown = async (
-		ctx: AgentHookSessionShutdownContext,
+		ctx: HookCommandSessionShutdownContext,
 	): Promise<void> => {
 		if (isAbortReason(ctx.reason)) {
 			const abortCommands = commandMap.agent_abort ?? [];
@@ -861,42 +986,86 @@ export function createHookConfigFileHooks(
 	const hooks: AgentHooks = {};
 	if (
 		(commandMap.agent_start?.length ?? 0) > 0 ||
+		(commandMap.agent_resume?.length ?? 0) > 0 ||
 		(commandMap.prompt_submit?.length ?? 0) > 0
 	) {
-		hooks.onRunStart = async (ctx: AgentHookRunStartContext) => {
-			await runStartPayload(ctx);
-			return undefined;
-		};
+		if (
+			(commandMap.agent_start?.length ?? 0) > 0 ||
+			(commandMap.agent_resume?.length ?? 0) > 0
+		) {
+			hooks.beforeRun = async (ctx: AgentRunLifecycleContext) => {
+				const hookName =
+					process.env.CLINE_HOOK_AGENT_RESUME === "1"
+						? "agent_resume"
+						: "agent_start";
+				await runAgentStart(baseContextFromSnapshot(ctx.snapshot), hookName);
+				return undefined;
+			};
+		}
+		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
+			hooks.onEvent = async (event: AgentRuntimeEvent) => {
+				if (event.type !== "message-added" || event.message.role !== "user") {
+					return;
+				}
+				await runPromptSubmit(
+					runStartContext(
+						{ snapshot: event.snapshot },
+						textFromMessageContent(event.message.content),
+					),
+				);
+			};
+		}
 	}
 	if ((commandMap.tool_call?.length ?? 0) > 0) {
-		hooks.onToolCallStart = async (ctx: AgentHookToolCallStartContext) =>
-			runToolCallStart(ctx);
+		hooks.beforeTool = async (ctx: AgentBeforeToolContext) => {
+			const control = await runToolCallStart(toolCallStartContext(ctx));
+			return beforeToolResultFromControl(control);
+		};
 	}
 	if ((commandMap.tool_result?.length ?? 0) > 0) {
-		hooks.onToolCallEnd = async (ctx: AgentHookToolCallEndContext) => {
-			await runToolCallEnd(ctx);
+		hooks.afterTool = async (ctx: AgentAfterToolContext) => {
+			await runToolCallEnd(toolCallEndContext(ctx));
 			return undefined;
 		};
 	}
 	if ((commandMap.agent_end?.length ?? 0) > 0) {
-		hooks.onTurnEnd = async (ctx: AgentHookTurnEndContext) => {
-			await runTurnEnd(ctx);
-			return undefined;
-		};
-	}
-	if ((commandMap.agent_error?.length ?? 0) > 0) {
-		hooks.onStopError = async (ctx: AgentHookStopErrorContext) => {
-			await runStopError(ctx);
-			return undefined;
+		hooks.afterRun = async ({ snapshot, result }) => {
+			if (result.status !== "completed") {
+				return;
+			}
+			await runTurnEnd({
+				...baseContextFromSnapshot(snapshot),
+				iteration: result.iterations,
+				turn: {
+					outputText: result.outputText,
+					status: result.status,
+				},
+			});
 		};
 	}
 	if (
+		(commandMap.agent_error?.length ?? 0) > 0 ||
 		(commandMap.agent_abort?.length ?? 0) > 0 ||
 		(commandMap.session_shutdown?.length ?? 0) > 0
 	) {
-		hooks.onSessionShutdown = async (ctx: AgentHookSessionShutdownContext) => {
-			await runSessionShutdown(ctx);
-			return undefined;
+		const previousAfterRun = hooks.afterRun;
+		hooks.afterRun = async (ctx) => {
+			await previousAfterRun?.(ctx);
+			const { snapshot, result } = ctx;
+			if (result.status === "aborted" || isAbortReason(result.error?.message)) {
+				await runSessionShutdown({
+					...baseContextFromSnapshot(snapshot),
+					reason: result.error?.message,
+				});
+				return;
+			}
+			if (result.error) {
+				await runStopError({
+					...baseContextFromSnapshot(snapshot),
+					iteration: result.iterations,
+					error: result.error,
+				});
+			}
 		};
 	}
 	return hooks;
@@ -922,15 +1091,30 @@ function mergeHookFunction<K extends keyof AgentHooks>(
 		return undefined;
 	}
 	return (async (ctx: unknown) => {
-		let control: AgentHookControl | undefined;
+		let merged: Record<string, unknown> | undefined;
 		for (const handler of handlers) {
 			const next = await (handler as (arg: unknown) => unknown)(ctx);
-			control = mergeHookControls(
-				control,
-				next as AgentHookControl | undefined,
-			);
+			if (!next || typeof next !== "object") {
+				continue;
+			}
+			const record = next as Record<string, unknown>;
+			merged = {
+				...(merged ?? {}),
+				...record,
+				stop:
+					merged?.stop === true || record.stop === true ? true : record.stop,
+				options:
+					merged?.options || record.options
+						? {
+								...((merged?.options as Record<string, unknown> | undefined) ??
+									{}),
+								...((record.options as Record<string, unknown> | undefined) ??
+									{}),
+							}
+						: undefined,
+			};
 		}
-		return control;
+		return merged;
 	}) as AgentHooks[K];
 }
 
@@ -945,18 +1129,12 @@ export function mergeAgentHooks(
 	}
 
 	return {
-		onSessionStart: mergeHookFunction(activeLayers, "onSessionStart"),
-		onRunStart: mergeHookFunction(activeLayers, "onRunStart"),
-		onRunEnd: mergeHookFunction(activeLayers, "onRunEnd"),
-		onIterationStart: mergeHookFunction(activeLayers, "onIterationStart"),
-		onIterationEnd: mergeHookFunction(activeLayers, "onIterationEnd"),
-		onTurnStart: mergeHookFunction(activeLayers, "onTurnStart"),
-		onBeforeAgentStart: mergeHookFunction(activeLayers, "onBeforeAgentStart"),
-		onTurnEnd: mergeHookFunction(activeLayers, "onTurnEnd"),
-		onStopError: mergeHookFunction(activeLayers, "onStopError"),
-		onToolCallStart: mergeHookFunction(activeLayers, "onToolCallStart"),
-		onToolCallEnd: mergeHookFunction(activeLayers, "onToolCallEnd"),
-		onSessionShutdown: mergeHookFunction(activeLayers, "onSessionShutdown"),
-		onError: mergeHookFunction(activeLayers, "onError"),
+		beforeRun: mergeHookFunction(activeLayers, "beforeRun"),
+		afterRun: mergeHookFunction(activeLayers, "afterRun"),
+		beforeModel: mergeHookFunction(activeLayers, "beforeModel"),
+		afterModel: mergeHookFunction(activeLayers, "afterModel"),
+		beforeTool: mergeHookFunction(activeLayers, "beforeTool"),
+		afterTool: mergeHookFunction(activeLayers, "afterTool"),
+		onEvent: mergeHookFunction(activeLayers, "onEvent"),
 	};
 }

@@ -585,10 +585,19 @@ describe("AgentRuntime", () => {
 			],
 		]);
 
-		const runtime = new AgentRuntime({ model, plugins: [plugin] });
+		const runtime = new AgentRuntime({
+			model,
+			conversationId: "conversation_plugin",
+			plugins: [plugin],
+		});
 		const result = await runtime.run("Run plugin");
 
 		expect(beforeRun).toHaveBeenCalledOnce();
+		expect(beforeRun).toHaveBeenCalledWith({
+			snapshot: expect.objectContaining({
+				conversationId: "conversation_plugin",
+			}),
+		});
 		expect(result.status).toBe("completed");
 		expect(result.outputText).toBe("plugin complete");
 	});

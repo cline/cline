@@ -26,7 +26,6 @@ import type {
 	AgentTool,
 	AgentToolContext,
 } from "@clinebot/shared";
-import { HookEngine } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	SessionRuntime,
@@ -365,30 +364,6 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		});
 	});
 
-	it("propagates the stable core session id into session_shutdown extension hooks", async () => {
-		let shutdownSessionId: string | undefined;
-		const extension: AgentExtension = {
-			name: "shutdown-context-ext",
-			manifest: { capabilities: ["hooks"], hookStages: ["session_shutdown"] },
-			onSessionShutdown: (ctx) => {
-				shutdownSessionId = ctx.sessionId;
-				return undefined;
-			},
-		};
-		const { deps } = withFakeRuntime();
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				sessionId: "sess_shutdown_context",
-				extensions: [extension],
-			}),
-			deps,
-		);
-
-		await session.shutdown("test");
-
-		expect(shutdownSessionId).toBe("sess_shutdown_context");
-	});
-
 	it("merges extension-registered tools into the AgentRuntime tools for the turn", async () => {
 		const extTool: AgentTool = {
 			name: "ext-tool-a",
@@ -589,47 +564,6 @@ describe("SessionRuntime.run", () => {
 		expect(result.startedAt).toBeInstanceOf(Date);
 		expect(result.endedAt).toBeInstanceOf(Date);
 		expect(typeof result.durationMs).toBe("number");
-	});
-
-	it("dispatches run_end hooks with the host-facing AgentResult shape", async () => {
-		const observed: unknown[] = [];
-		const { deps } = withFakeRuntime({
-			result: { outputText: "hello world", iterations: 2 },
-		});
-		const hookEngine = new HookEngine({
-			policies: { stages: { run_end: { mode: "blocking" } } },
-		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				hooks: {
-					onRunEnd: (ctx) => {
-						observed.push(ctx);
-					},
-				},
-			}),
-			{ ...deps, hookEngine },
-		);
-		const result = await session.run("Say hi");
-
-		expect(observed).toHaveLength(1);
-		expect(observed[0]).toMatchObject({
-			agentId: session.getAgentId(),
-			conversationId: session.getConversationId(),
-			parentAgentId: null,
-			result: {
-				text: "hello world",
-				finishReason: "completed",
-				iterations: 2,
-			},
-		});
-		expect((observed[0] as { result: unknown }).result).toBe(result);
-		expect(
-			"status" in (observed[0] as { result: Record<string, unknown> }).result,
-		).toBe(false);
-		expect(
-			"outputText" in
-				(observed[0] as { result: Record<string, unknown> }).result,
-		).toBe(false);
 	});
 
 	it("appends the user turn into the conversation store", async () => {
@@ -1016,38 +950,6 @@ describe("SessionRuntime.shutdown", () => {
 		await expect(session.shutdown()).resolves.toBeUndefined();
 	});
 
-	it("propagates the shutdown reason into the session_shutdown hook payload (P2 #1)", async () => {
-		const capturedReasons: Array<string | undefined> = [];
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				hooks: {
-					onSessionShutdown: async (ctx) => {
-						capturedReasons.push(ctx.reason);
-						return undefined;
-					},
-				},
-			}),
-		);
-		await session.shutdown("session_complete");
-		expect(capturedReasons).toEqual(["session_complete"]);
-	});
-
-	it("leaves ctx.reason undefined when shutdown() is called without a reason", async () => {
-		const capturedReasons: Array<string | undefined> = [];
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				hooks: {
-					onSessionShutdown: async (ctx) => {
-						capturedReasons.push(ctx.reason);
-						return undefined;
-					},
-				},
-			}),
-		);
-		await session.shutdown();
-		expect(capturedReasons).toEqual([undefined]);
-	});
-
 	it("waits for an aborted in-flight run before shutting down", async () => {
 		let releaseRun: (() => void) | undefined;
 		let markRunEntered: (() => void) | undefined;
@@ -1349,140 +1251,6 @@ describe("SessionRuntime.run — initialMessages seeding (P1 #1)", () => {
 		const seed = configs[0].initialMessages ?? [];
 		expect(seed.length).toBeGreaterThanOrEqual(3);
 		expect(seed.some((m) => m.role === "assistant")).toBe(true);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// [#2] session_start + input hook dispatch (P1 defect #2)
-// ---------------------------------------------------------------------------
-
-describe("SessionRuntime.run — session_start/input hooks (P1 #2)", () => {
-	it("dispatches hook.session_start once per logical session (parity with legacy)", async () => {
-		// Legacy parity (pre-Step-9 agent.ts L503): `run()` calls
-		// `conversationStore.resetForRun()` which resets the
-		// sessionStarted gate, so each `run()` refires session_start.
-		// `continue()` does NOT reset the gate, so session_start fires
-		// only on the first of a continue-chain. Here we validate:
-		//   run → dispatches (fresh session)
-		//   continue, continue → no further dispatches (same session)
-		const onSessionStart = vi.fn();
-		const { deps } = withFakeRuntime();
-		const session = new SessionRuntime(
-			makeAgentConfig({ hooks: { onSessionStart } }),
-			deps,
-		);
-		await session.run("first");
-		await session.continue("second");
-		await session.continue("third");
-		expect(onSessionStart).toHaveBeenCalledTimes(1);
-		const payload = onSessionStart.mock.calls[0][0];
-		expect(payload.agentId).toBe(session.getAgentId());
-	});
-
-	it("re-dispatches hook.session_start after clearHistory() (parity with legacy)", async () => {
-		const onSessionStart = vi.fn();
-		const { deps } = withFakeRuntime();
-		const session = new SessionRuntime(
-			makeAgentConfig({ hooks: { onSessionStart } }),
-			deps,
-		);
-		await session.run("first");
-		session.clearHistory();
-		await session.run("second");
-		expect(onSessionStart).toHaveBeenCalledTimes(2);
-	});
-
-	it("dispatches hook.input with mode and input payload on run() and continue()", async () => {
-		const onInput = vi.fn();
-		const { deps } = withFakeRuntime();
-		const extension = {
-			name: "test-ext",
-			manifest: {
-				name: "test-ext",
-				version: "1.0.0",
-				capabilities: ["hooks" as const],
-				hookStages: ["input" as const],
-			},
-			onInput,
-		};
-		const session = new SessionRuntime(
-			makeAgentConfig({ extensions: [extension] as never }),
-			deps,
-		);
-		await session.run("hello");
-		await session.continue("followup");
-		expect(onInput).toHaveBeenCalledTimes(2);
-		expect(onInput.mock.calls[0][0].mode).toBe("run");
-		expect(onInput.mock.calls[0][0].input).toBe("hello");
-		expect(onInput.mock.calls[1][0].mode).toBe("continue");
-		expect(onInput.mock.calls[1][0].input).toBe("followup");
-	});
-
-	it("honors hook.input control.overrideInput by using the replacement user message", async () => {
-		const onInput = vi.fn(() => ({ overrideInput: "redirected" }));
-		const { deps } = withFakeRuntime();
-		const extension = {
-			name: "test-ext",
-			manifest: {
-				name: "test-ext",
-				version: "1.0.0",
-				capabilities: ["hooks" as const],
-				hookStages: ["input" as const],
-			},
-			onInput,
-		};
-		const session = new SessionRuntime(
-			makeAgentConfig({ extensions: [extension] as never }),
-			deps,
-		);
-		await session.run("original");
-		const messages = session.getMessages();
-		const userMsg = messages.find((m) => m.role === "user");
-		expect(userMsg).toBeDefined();
-		// `buildInitialUserContent` returns a string when there are no
-		// images/files; otherwise a `ContentBlock[]`. Handle both.
-		const content = userMsg?.content;
-		const textFromContent =
-			typeof content === "string"
-				? content
-				: ((content as ReadonlyArray<{ type: string; text?: string }>)?.find(
-						(p) => p.type === "text",
-					)?.text ?? "");
-		expect(textFromContent).toBe("redirected");
-	});
-
-	it("returns aborted result when hook.input returns control.cancel", async () => {
-		const onInput = vi.fn(() => ({ cancel: true }));
-		const { deps, calls } = withFakeRuntime();
-		const extension = {
-			name: "test-ext",
-			manifest: {
-				name: "test-ext",
-				version: "1.0.0",
-				capabilities: ["hooks" as const],
-				hookStages: ["input" as const],
-			},
-			onInput,
-		};
-		const session = new SessionRuntime(
-			makeAgentConfig({ extensions: [extension] as never }),
-			deps,
-		);
-		const result = await session.run("please-block");
-		expect(result.finishReason).toBe("aborted");
-		expect(calls.run).toHaveLength(0);
-	});
-
-	it("returns aborted result when hook.session_start returns control.cancel", async () => {
-		const onSessionStart = vi.fn(() => ({ cancel: true }));
-		const { deps, calls } = withFakeRuntime();
-		const session = new SessionRuntime(
-			makeAgentConfig({ hooks: { onSessionStart } }),
-			deps,
-		);
-		const result = await session.run("attempt");
-		expect(result.finishReason).toBe("aborted");
-		expect(calls.run).toHaveLength(0);
 	});
 });
 

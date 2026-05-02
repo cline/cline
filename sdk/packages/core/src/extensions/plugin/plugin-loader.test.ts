@@ -21,8 +21,8 @@ describe("plugin-loader", () => {
 			[
 				"export default {",
 				"  name: 'from-default',",
-				"  manifest: { capabilities: ['hooks'], hookStages: ['input'] },",
-				"  onInput: ({ input }) => ({ overrideInput: input })",
+				"  manifest: { capabilities: ['hooks'] },",
+				"  hooks: { beforeRun: () => undefined }",
 				"};",
 			].join("\n"),
 			"utf8",

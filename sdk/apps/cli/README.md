@@ -248,6 +248,8 @@ For non-interactive runs, if one of these providers is selected and no saved cre
 
 During OAuth login, `clite` tries to open the authorization URL in your default browser automatically and still prints the URL for manual fallback.
 
+OAuth refresh is handled by `@clinebot/core` during session turns. If refresh cannot recover credentials, the run fails with a re-authentication message; clients are not sent a separate auth-request event that can mutate provider config on their behalf.
+
 `clite auth` (without a provider) opens the interactive auth TUI with the same auth options as the old CLI flow:
 
 - Sign in with Cline
@@ -258,6 +260,7 @@ During OAuth login, `clite` tries to open the authorization URL in your default 
 Runtime note:
 
 - Hook dispatch now runs in-process against the active runtime session instead of spinning up a separate `clite hook-worker` service.
+- Hook commands are adapters over the SDK runtime hook bag; hook payload `taskId` uses the stable conversation id when available, not the per-run id.
 
 ## Options
 
@@ -428,7 +431,7 @@ CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./sr
 - Hub-backed sessions include a serialized logger payload in `ChatStartSessionRequest.logger`; the runtime reconstructs the same `pino` settings and injects them into core.
 - Hosts can attach stable runtime logger bindings (for example `clientId`, `clientType`, `clientApp`) through `RuntimeLoggerConfig.bindings`.
 
-After login, OAuth credentials are persisted with `auth.expiresAt`, and `@clinebot/core` refreshes these tokens automatically during session turns.
+After login, OAuth credentials are persisted with `auth.expiresAt`, and `@clinebot/core` refreshes these tokens automatically during session turns. Provider auth and model settings should be changed through `clite auth`, the interactive config UI, or core provider-settings APIs rather than editing provider settings files directly.
 
 On startup, `clite` also attempts a legacy settings import:
 

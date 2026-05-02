@@ -71,19 +71,13 @@ function toJsonRecord(
 }
 
 const HUB_HOOK_NAMES = [
-	"onSessionStart",
-	"onRunStart",
-	"onRunEnd",
-	"onIterationStart",
-	"onIterationEnd",
-	"onTurnStart",
-	"onBeforeAgentStart",
-	"onTurnEnd",
-	"onStopError",
-	"onToolCallStart",
-	"onToolCallEnd",
-	"onSessionShutdown",
-	"onError",
+	"beforeRun",
+	"afterRun",
+	"beforeModel",
+	"afterModel",
+	"beforeTool",
+	"afterTool",
+	"onEvent",
 ] as const;
 
 function toJsonSerializable(

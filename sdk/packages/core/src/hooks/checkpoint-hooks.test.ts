@@ -30,6 +30,36 @@ async function createGitRepo(): Promise<string> {
 	return cwd;
 }
 
+async function runCheckpointHooks(
+	hooks: ReturnType<typeof createCheckpointHooks>,
+	options: { parentAgentId?: string | null } = {},
+): Promise<void> {
+	const snapshot = {
+		agentId: options.parentAgentId ? "agent_child" : "agent_1",
+		parentAgentId: options.parentAgentId,
+		conversationId: options.parentAgentId ? "conv_child" : "conv_1",
+		runId: options.parentAgentId ? "run_child" : "run_1",
+		status: "running" as const,
+		iteration: 1,
+		messages: [],
+		pendingToolCalls: [],
+		usage: {
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		},
+	};
+	await hooks.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
+	await hooks.beforeModel?.({
+		snapshot,
+		request: {
+			messages: [],
+			tools: [],
+		},
+	});
+}
+
 describe("createCheckpointHooks", () => {
 	it("creates one checkpoint at the start of each root run and appends metadata", async () => {
 		const cwd = await createGitRepo();
@@ -45,20 +75,7 @@ describe("createCheckpointHooks", () => {
 			});
 
 			await writeFile(join(cwd, "note.txt"), "run-one\n", "utf8");
-			await hooks.onRunStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				userMessage: "first",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks);
 
 			const first = metadata?.checkpoint as CheckpointMetadata;
 			expect(first.history).toHaveLength(1);
@@ -66,20 +83,7 @@ describe("createCheckpointHooks", () => {
 			expect(first.latest.ref).toMatch(/^[0-9a-f]{40}$/);
 
 			await writeFile(join(cwd, "note.txt"), "run-two\n", "utf8");
-			await hooks.onRunStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				userMessage: "second",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.runCount).toBe(2);
@@ -106,20 +110,7 @@ describe("createCheckpointHooks", () => {
 				},
 			});
 
-			await hooks.onRunStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				userMessage: "clean",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.history).toHaveLength(1);
@@ -143,39 +134,13 @@ describe("createCheckpointHooks", () => {
 				},
 			});
 
-			await hooks.onRunStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				userMessage: "first",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks);
 
 			const first = metadata?.checkpoint as CheckpointMetadata;
 			expect(first.history).toHaveLength(1);
 			expect(first.latest.kind).toBe("commit");
 
-			await hooks.onRunStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				userMessage: "second",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.history).toHaveLength(1);
@@ -199,25 +164,37 @@ describe("createCheckpointHooks", () => {
 			});
 
 			await writeFile(join(cwd, "note.txt"), "subagent-dirty\n", "utf8");
-			await hooks.onRunStart?.({
-				agentId: "agent_child",
-				conversationId: "conv_child",
-				parentAgentId: "agent_root",
-				userMessage: "child",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_child",
-				conversationId: "conv_child",
-				parentAgentId: "agent_root",
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks, { parentAgentId: "agent_root" });
 
 			expect(writes).toBe(0);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
+	});
+
+	it("does not advance root checkpoint numbering for subagent runs", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_subagent_count",
+			createCheckpoint: ({ runCount }) => ({
+				ref: `checkpoint-${runCount}`,
+				createdAt: runCount,
+				runCount,
+				kind: "commit",
+			}),
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (next) => {
+				metadata = next;
+			},
+		});
+
+		await runCheckpointHooks(hooks, { parentAgentId: "agent_root" });
+		await runCheckpointHooks(hooks);
+
+		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+		expect(checkpoint.latest.runCount).toBe(1);
+		expect(checkpoint.history.map((entry) => entry.runCount)).toEqual([1]);
 	});
 
 	it("continues checkpoint numbering after seeded messages", async () => {
@@ -235,20 +212,7 @@ describe("createCheckpointHooks", () => {
 			});
 
 			await writeFile(join(cwd, "note.txt"), "run-three\n", "utf8");
-			await hooks.onRunStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				userMessage: "third",
-			});
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				systemPrompt: "system",
-				messages: [],
-			});
+			await runCheckpointHooks(hooks);
 
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.runCount).toBe(3);
@@ -294,20 +258,7 @@ describe("createCheckpointHooks", () => {
 			},
 		});
 
-		await hooks.onRunStart?.({
-			agentId: "agent_1",
-			conversationId: "conv_1",
-			parentAgentId: null,
-			userMessage: "third",
-		});
-		await hooks.onBeforeAgentStart?.({
-			agentId: "agent_1",
-			conversationId: "conv_1",
-			parentAgentId: null,
-			iteration: 1,
-			systemPrompt: "system",
-			messages: [],
-		});
+		await runCheckpointHooks(hooks);
 
 		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 		expect(checkpoint.latest).toMatchObject({

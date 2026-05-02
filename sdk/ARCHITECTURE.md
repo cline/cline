@@ -44,7 +44,7 @@ Owns reusable low-level contracts and infrastructure:
 
 - shared types and schemas
 - path resolution
-- hook contracts/engine
+- hook event contracts and runtime hook types
 - extension registry contracts
 - prompt and parsing helpers
 - storage path helpers
@@ -74,7 +74,8 @@ Owns the stateless runtime loop:
 - agent iteration loop
 - tool orchestration
 - runtime event emission
-- hook/extension execution
+- direct `Partial<AgentRuntimeHooks>` hook-bag execution
+- extension contribution setup
 - turn preparation before provider calls
 - in-memory team/runtime primitives
 
@@ -91,6 +92,7 @@ Owns stateful orchestration:
 - storage and persistence
 - config watching/loading and watcher projections
 - settings listing and mutation orchestration
+- file-hook config loading and hook-command adapters
 - default host tool assembly
 - plugin discovery/loading
 - default context compaction policy
@@ -109,7 +111,7 @@ Design rules:
   - `runtime-host/` contains `RuntimeHost` adapters for shared local hub and remote hub routing
   - `server/` contains role-named WebSocket server startup, native/browser socket adapters, server transport, notifications, session projection, client contribution proxy adapters, schedule-event mapping, and `handlers/` for hub command dispatch
   - `shared/` contains sparse pure helpers used across hub roles
-- settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
+- settings and provider/auth mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings/provider facades or the hub command surface and react to the resulting events, such as `settings.changed` for settings toggles.
 
 ### `@clinebot/enterprise`
 
@@ -150,6 +152,14 @@ Design rules:
 6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime contributions such as session-local tool executors, custom tools, hooks, checkpoints, compaction, mistake-limit decisions, and instruction services.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
 8. Hub client adapters exported from `@clinebot/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+
+Provider authentication and provider-settings mutation are not modeled as
+runtime lifecycle hooks. OAuth setup is initiated by explicit host/provider
+commands, and managed OAuth refresh is handled by core during session turns. If
+refresh cannot recover credentials, the runtime fails with a re-authentication
+error; current hub clients are not sent a first-class `auth.requested` event.
+Any future interactive auth handoff should add an explicit hub event/command
+contract and keep provider settings writes behind core-owned services.
 
 Local hub discovery also carries the authentication contract for the shared
 daemon. On startup, the hub server generates a cryptographically random
@@ -209,7 +219,7 @@ Design implications:
 `DefaultRuntimeBuilder` composes a runtime from generic inputs:
 
 - tools
-- hooks
+- hooks as a direct `Partial<AgentRuntimeHooks>` bag
 - extensions
 - user instruction watcher
 - telemetry
@@ -308,6 +318,8 @@ Design implications:
 
 Core owns settings snapshots and mutations through `packages/core/src/settings`.
 The hub exposes the same path through `settings.list` and `settings.toggle`.
+Provider authentication and provider settings are also core-owned state, even
+when a host renders the UI that collects credentials.
 
 Design implications:
 
@@ -315,6 +327,7 @@ Design implications:
 - domain-specific persistence helpers, such as skill markdown frontmatter writes, stay internal to the owning settings provider/service
 - successful hub-backed mutations return an updated settings snapshot and publish `settings.changed` with the changed settings types
 - CLI settings surfaces may keep local snapshot rendering for startup responsiveness, but mutation flow must refresh the relevant watcher before reloading UI data
+- provider auth setup should call core/provider APIs such as provider-settings save or OAuth login helpers; until a dedicated hub auth-request protocol exists, runtime auth failures are surfaced as ordinary run errors rather than client-mutable config events
 
 ## Logging
 
@@ -353,7 +366,8 @@ Design implications:
 Extensibility is split deliberately:
 
 - extensions register runtime contributions
-- hooks intercept lifecycle stages
+- hooks intercept lifecycle stages through `Partial<AgentRuntimeHooks>`
+- file-based hook commands are core/CLI adapters over that hook bag
 
 Design implications:
 

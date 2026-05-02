@@ -21,7 +21,7 @@ Important exported areas:
 - shared schemas and common types
 - prompt helpers
 - path helpers under `@clinebot/shared/storage`
-- hook contracts and `HookEngine`
+- runtime hook contracts
 - extension contracts and `ContributionRegistry`
 - telemetry config contracts
 - runtime build env helpers for debug-aware subprocess launches
@@ -87,7 +87,7 @@ The agent runtime exposes a turn-preparation seam before each model call.
 
 Behavior:
 
-- `before_agent_start` hooks/extensions still run before the provider request
+- `beforeModel` hooks/extensions run before the provider request
 - hosts may also supply `prepareTurn` to rewrite message history or the system prompt before the turn is sent
 - this is the primary seam for host-owned context pipelines such as compaction
 

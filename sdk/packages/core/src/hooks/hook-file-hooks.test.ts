@@ -9,6 +9,7 @@ import {
 } from "@clinebot/shared/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+	createHookAuditHooks,
 	createHookConfigFileExtension,
 	createHookConfigFileHooks,
 	getWindowsPythonFallbackCommand,
@@ -36,6 +37,28 @@ async function waitForFile(
 	}
 }
 
+async function waitForJsonLines(
+	filePath: string,
+	expectedLines: number,
+	timeoutMs = 1500,
+): Promise<string[]> {
+	const started = Date.now();
+	for (;;) {
+		const content = await waitForFile(
+			filePath,
+			Math.max(1, timeoutMs - (Date.now() - started)),
+		);
+		const lines = content.trim().split("\n").filter(Boolean);
+		if (lines.length >= expectedLines) {
+			return lines;
+		}
+		if (Date.now() - started >= timeoutMs) {
+			return lines;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 25));
+	}
+}
+
 async function createWorkspaceWithHook(
 	fileName: string,
 	body: string,
@@ -46,6 +69,52 @@ async function createWorkspaceWithHook(
 	const hookPath = join(hooksDir, fileName);
 	await writeFile(hookPath, body, "utf8");
 	return { workspace, hookPath };
+}
+
+function beforeToolContext(input: unknown = { path: "README.md" }) {
+	return {
+		snapshot: {
+			agentId: "agent_1",
+			conversationId: "conv_1",
+			runId: "run_1",
+			status: "running" as const,
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		},
+		tool: {
+			name: "read_file",
+			description: "",
+			inputSchema: {},
+			execute: async () => "",
+		},
+		toolCall: {
+			type: "tool-call" as const,
+			toolCallId: "call_1",
+			toolName: "read_file",
+			input,
+		},
+		input,
+	};
+}
+
+function afterToolContext(input: unknown = { path: "README.md" }) {
+	const startedAt = new Date("2026-01-01T00:00:00.000Z");
+	const endedAt = new Date("2026-01-01T00:00:00.037Z");
+	const before = beforeToolContext(input);
+	return {
+		...before,
+		result: { output: "ok" },
+		startedAt,
+		endedAt,
+		durationMs: 37,
+	};
 }
 
 describe("createHookConfigFileHooks", () => {
@@ -104,19 +173,9 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 			});
-			expect(hooks?.onToolCallStart).toBeTypeOf("function");
-			const control = await hooks?.onToolCallStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				call: {
-					id: "call_1",
-					name: "read_file",
-					input: { path: "README.md" },
-				},
-			});
-			expect(control).toMatchObject({ cancel: true, context: "legacy-ok" });
+			expect(hooks?.beforeTool).toBeTypeOf("function");
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control).toMatchObject({ stop: true });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -141,19 +200,36 @@ describe("createHookConfigFileHooks", () => {
 			expect(extension?.manifest).toMatchObject({
 				capabilities: ["hooks"],
 			});
-			expect(extension?.manifest.hookStages).toContain("tool_call_before");
-			const control = await extension?.onToolCall?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				call: {
-					id: "call_1",
+			const control = await extension?.hooks?.beforeTool?.({
+				snapshot: {
+					agentId: "agent_1",
+					conversationId: "conv_1",
+					status: "running",
+					iteration: 1,
+					messages: [],
+					pendingToolCalls: [],
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+					},
+				},
+				tool: {
 					name: "read_file",
+					description: "",
+					inputSchema: {},
+					execute: async () => "",
+				},
+				toolCall: {
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "read_file",
 					input: { path: "README.md" },
 				},
+				input: { path: "README.md" },
 			});
-			expect(control).toMatchObject({ cancel: true, context: "extension-ok" });
+			expect(control).toMatchObject({ stop: true });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -174,19 +250,9 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 			});
-			expect(hooks?.onToolCallStart).toBeTypeOf("function");
-			const control = await hooks?.onToolCallStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				call: {
-					id: "call_1",
-					name: "read_file",
-					input: { path: "README.md" },
-				},
-			});
-			expect(control).toMatchObject({ cancel: false, context: "shebang-ok" });
+			expect(hooks?.beforeTool).toBeTypeOf("function");
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control).toBeUndefined();
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -207,22 +273,12 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 			});
-			expect(hooks?.onToolCallStart).toBeTypeOf("function");
-			const control = await hooks?.onToolCallStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				call: {
-					id: "call_1",
-					name: "run_commands",
-					input: { commands: ["git status"] },
-				},
-			});
-			expect(control).toMatchObject({
-				review: true,
-				context: "needs-review",
-			});
+			expect(hooks?.beforeTool).toBeTypeOf("function");
+			const ctx = beforeToolContext({ commands: ["git status"] });
+			ctx.tool.name = "run_commands";
+			ctx.toolCall.toolName = "run_commands";
+			const control = await hooks?.beforeTool?.(ctx);
+			expect(control).toBeUndefined();
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -243,22 +299,9 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 			});
-			expect(hooks?.onToolCallStart).toBeTypeOf("function");
-			const control = await hooks?.onToolCallStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 1,
-				call: {
-					id: "call_1",
-					name: "read_file",
-					input: { path: "README.md" },
-				},
-			});
-			expect(control).toMatchObject({
-				cancel: false,
-				context: "python-ok",
-			});
+			expect(hooks?.beforeTool).toBeTypeOf("function");
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control).toBeUndefined();
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -312,22 +355,9 @@ describe("createHookConfigFileHooks", () => {
 					cwd: workspace,
 					workspacePath: workspace,
 				});
-				expect(hooks?.onToolCallStart).toBeTypeOf("function");
-				const control = await hooks?.onToolCallStart?.({
-					agentId: "agent_1",
-					conversationId: "conv_1",
-					parentAgentId: null,
-					iteration: 1,
-					call: {
-						id: "call_1",
-						name: "read_file",
-						input: { path: "README.md" },
-					},
-				});
-				expect(control).toMatchObject({
-					cancel: false,
-					context: "powershell-ok",
-				});
+				expect(hooks?.beforeTool).toBeTypeOf("function");
+				const control = await hooks?.beforeTool?.(beforeToolContext());
+				expect(control).toBeUndefined();
 			} finally {
 				await rm(workspace, {
 					recursive: true,
@@ -350,19 +380,27 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 			});
-			await hooks?.onStopError?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 3,
-				error: new Error("401 unauthorized"),
+			await hooks?.afterRun?.({
+				snapshot: beforeToolContext().snapshot,
+				result: {
+					agentId: "agent_1",
+					runId: "conv_1",
+					status: "failed",
+					iterations: 3,
+					outputText: "",
+					messages: [],
+					usage: beforeToolContext().snapshot.usage,
+					error: new Error("401 unauthorized"),
+				},
 			});
 			const payload = JSON.parse(await waitForFile(outputPath)) as {
 				hookName: string;
 				error?: { message?: string };
+				taskId?: string;
 			};
 			expect(payload.hookName).toBe("agent_error");
 			expect(payload.error?.message).toBe("401 unauthorized");
+			expect(payload.taskId).toBe("conv_1");
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -373,42 +411,183 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
-	it("merges before-agent-start controls across hook layers", async () => {
+	it("writes audit tool timing and completed turn payloads", async () => {
+		const outputPath = join(tmpdir(), `hooks-audit-${Date.now()}.jsonl`);
+		const originalLogPath = process.env.CLINE_HOOKS_LOG_PATH;
+		process.env.CLINE_HOOKS_LOG_PATH = outputPath;
+		try {
+			const hooks = createHookAuditHooks({
+				workspacePath: "/workspace",
+			});
+			await hooks.afterTool?.(afterToolContext());
+			await hooks.afterRun?.({
+				snapshot: beforeToolContext().snapshot,
+				result: {
+					agentId: "agent_1",
+					runId: "run_1",
+					status: "completed",
+					iterations: 1,
+					outputText: "done",
+					messages: [],
+					usage: beforeToolContext().snapshot.usage,
+				},
+			});
+
+			const payloads = (await readFile(outputPath, "utf8"))
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line));
+			const toolResult = payloads.find(
+				(payload) => payload.hookName === "tool_result",
+			);
+			const agentEnd = payloads.find(
+				(payload) => payload.hookName === "agent_end",
+			);
+			expect(toolResult.tool_result).toMatchObject({
+				durationMs: 37,
+				startedAt: "2026-01-01T00:00:00.000Z",
+				endedAt: "2026-01-01T00:00:00.037Z",
+			});
+			expect(toolResult.postToolUse.executionTimeMs).toBe(37);
+			expect(agentEnd.turn).toEqual({
+				outputText: "done",
+				status: "completed",
+			});
+		} finally {
+			if (originalLogPath === undefined) {
+				delete process.env.CLINE_HOOKS_LOG_PATH;
+			} else {
+				process.env.CLINE_HOOKS_LOG_PATH = originalLogPath;
+			}
+			await rm(outputPath, { force: true });
+		}
+	});
+
+	it("merges before-model controls across hook layers", async () => {
 		const hooks = mergeAgentHooks([
 			{
-				onBeforeAgentStart: async () => ({
-					systemPrompt: "system-a",
+				beforeModel: async () => ({
+					options: { systemPrompt: "system-a" },
 				}),
 			},
 			{
-				onBeforeAgentStart: async () => ({
-					appendMessages: [
-						{
-							role: "user",
-							content: [{ type: "text", text: "ctx-a" }],
-						},
-					],
+				beforeModel: async () => ({
+					options: { extra: "ctx-a" },
 				}),
 			},
 		]);
 
-		const control = await hooks?.onBeforeAgentStart?.({
-			agentId: "agent_1",
-			conversationId: "conv_1",
-			parentAgentId: null,
-			iteration: 1,
-			systemPrompt: "base",
-			messages: [],
+		const control = await hooks?.beforeModel?.({
+			snapshot: beforeToolContext().snapshot,
+			request: {
+				messages: [],
+				tools: [],
+			},
 		});
 
 		expect(control).toMatchObject({
-			systemPrompt: "system-a",
-			appendMessages: [
-				{
-					role: "user",
-					content: [{ type: "text", text: "ctx-a" }],
-				},
-			],
+			options: { systemPrompt: "system-a", extra: "ctx-a" },
 		});
+	});
+
+	it("dispatches agent_start and prompt_submit exactly once when both are configured", async () => {
+		const outputPath = join(tmpdir(), `hooks-start-prompt-${Date.now()}.jsonl`);
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data.trim()+"\\n");});\n`,
+		);
+		try {
+			await writeFile(
+				join(workspace, ".clinerules", "hooks", "UserPromptSubmit.js"),
+				`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data.trim()+"\\n");});\n`,
+				"utf8",
+			);
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+			});
+			const snapshot = beforeToolContext().snapshot;
+			await hooks?.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
+			await hooks?.onEvent?.({
+				type: "message-added",
+				snapshot,
+				message: {
+					id: "msg_1",
+					role: "user",
+					content: [{ type: "text", text: "real prompt" }],
+					createdAt: 0,
+				},
+			});
+
+			const payloads = (await waitForJsonLines(outputPath, 2)).map(
+				(line) =>
+					JSON.parse(line) as {
+						hookName: string;
+						userPromptSubmit?: { prompt?: string };
+					},
+			);
+			expect(payloads.map((payload) => payload.hookName).sort()).toEqual([
+				"agent_start",
+				"prompt_submit",
+			]);
+			expect(
+				payloads.find((payload) => payload.hookName === "prompt_submit")
+					?.userPromptSubmit?.prompt,
+			).toBe("real prompt");
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
+
+	it("returns hooks and dispatches abort shutdown when only SessionShutdown is configured", async () => {
+		const outputPath = join(
+			tmpdir(),
+			`hooks-session-shutdown-${Date.now()}.json`,
+		);
+		const { workspace } = await createWorkspaceWithHook(
+			"SessionShutdown.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').writeFileSync(${JSON.stringify(outputPath)}, data);});\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+			});
+			expect(hooks?.afterRun).toBeTypeOf("function");
+			await hooks?.afterRun?.({
+				snapshot: beforeToolContext().snapshot,
+				result: {
+					agentId: "agent_1",
+					runId: "run_1",
+					status: "aborted",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: beforeToolContext().snapshot.usage,
+					error: new Error("user cancel"),
+				},
+			});
+
+			const payload = JSON.parse(await waitForFile(outputPath)) as {
+				hookName: string;
+				reason?: string;
+			};
+			expect(payload.hookName).toBe("session_shutdown");
+			expect(payload.reason).toBe("user cancel");
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
 	});
 });

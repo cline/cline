@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentRuntimeHooks,
 	AgentTool,
-	HookStage,
 	Message,
 	PluginSetupContext,
 	WorkspaceInfo,
@@ -69,6 +69,7 @@ type SandboxedPluginDescriptor = {
 	pluginPath: string;
 	name: string;
 	manifest: AgentExtension["manifest"];
+	hooks?: Array<keyof AgentRuntimeHooks>;
 	contributions: {
 		tools: SandboxedContributionDescriptor[];
 		commands: SandboxedContributionDescriptor[];
@@ -150,88 +151,6 @@ function resolveBootstrap(): { file: string } | { script: string } {
 }
 
 const BOOTSTRAP = resolveBootstrap();
-
-/**
- * Map from hook stage names in the manifest to the property name on AgentExtension
- * and the corresponding hook method name inside the sandbox subprocess.
- */
-const HOOK_BINDINGS: Array<{
-	stage: HookStage;
-	extensionKey: keyof AgentExtension;
-	sandboxHookName: string;
-}> = [
-	{ stage: "input", extensionKey: "onInput", sandboxHookName: "onInput" },
-	{
-		stage: "session_start",
-		extensionKey: "onSessionStart",
-		sandboxHookName: "onSessionStart",
-	},
-	{
-		stage: "run_start",
-		extensionKey: "onRunStart",
-		sandboxHookName: "onRunStart",
-	},
-	{
-		stage: "iteration_start",
-		extensionKey: "onIterationStart",
-		sandboxHookName: "onIterationStart",
-	},
-	{
-		stage: "turn_start",
-		extensionKey: "onTurnStart",
-		sandboxHookName: "onTurnStart",
-	},
-	{
-		stage: "before_agent_start",
-		extensionKey: "onBeforeAgentStart",
-		sandboxHookName: "onBeforeAgentStart",
-	},
-	{
-		stage: "tool_call_before",
-		extensionKey: "onToolCall",
-		sandboxHookName: "onToolCall",
-	},
-	{
-		stage: "tool_call_after",
-		extensionKey: "onToolResult",
-		sandboxHookName: "onToolResult",
-	},
-	{
-		stage: "turn_end",
-		extensionKey: "onTurnEnd",
-		sandboxHookName: "onTurnEnd",
-	},
-	{
-		stage: "stop_error",
-		extensionKey: "onAgentError",
-		sandboxHookName: "onAgentError",
-	},
-	{
-		stage: "iteration_end",
-		extensionKey: "onIterationEnd",
-		sandboxHookName: "onIterationEnd",
-	},
-	{
-		stage: "run_end",
-		extensionKey: "onRunEnd",
-		sandboxHookName: "onRunEnd",
-	},
-	{
-		stage: "session_shutdown",
-		extensionKey: "onSessionShutdown",
-		sandboxHookName: "onSessionShutdown",
-	},
-	{
-		stage: "runtime_event",
-		extensionKey: "onRuntimeEvent",
-		sandboxHookName: "onRuntimeEvent",
-	},
-	{ stage: "error", extensionKey: "onError", sandboxHookName: "onError" },
-];
-
-function hasHookStage(extension: AgentExtension, stage: HookStage): boolean {
-	return extension.manifest.hookStages?.includes(stage) === true;
-}
 
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
@@ -332,10 +251,9 @@ export async function loadSandboxedPlugins(
 				},
 			};
 
-			bindHooks(
-				extension,
+			extension.hooks = createSandboxRuntimeHooks(
 				sandbox,
-				descriptor.pluginId,
+				descriptor,
 				hookTimeoutMs,
 				reinitialize,
 			);
@@ -561,26 +479,25 @@ function makeHookHandler(
 	};
 }
 
-function bindHooks(
-	extension: AgentExtension,
+function createSandboxRuntimeHooks(
 	sandbox: SubprocessSandbox,
-	pluginId: string,
+	descriptor: SandboxedPluginDescriptor,
 	hookTimeoutMs: number,
 	reinitialize: () => Promise<void>,
-): void {
-	for (const { stage, extensionKey, sandboxHookName } of HOOK_BINDINGS) {
-		if (hasHookStage(extension, stage)) {
-			const handler = makeHookHandler(
-				sandbox,
-				pluginId,
-				sandboxHookName,
-				hookTimeoutMs,
-				reinitialize,
-			);
-			// Each hook property on AgentExtension accepts (payload: unknown) => Promise<unknown>.
-			// TypeScript cannot narrow a union of optional callback keys via computed access,
-			// so we use Object.assign to set the property safely.
-			Object.assign(extension, { [extensionKey]: handler });
-		}
+): Partial<AgentRuntimeHooks> | undefined {
+	const hooks: Partial<
+		Record<keyof AgentRuntimeHooks, (payload: unknown) => Promise<unknown>>
+	> = {};
+	for (const hookName of descriptor.hooks ?? []) {
+		hooks[hookName] = makeHookHandler(
+			sandbox,
+			descriptor.pluginId,
+			hookName,
+			hookTimeoutMs,
+			reinitialize,
+		);
 	}
+	return Object.keys(hooks).length > 0
+		? (hooks as Partial<AgentRuntimeHooks>)
+		: undefined;
 }

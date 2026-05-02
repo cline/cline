@@ -11,16 +11,17 @@
  */
 
 import { z } from "zod";
-import type { AgentTool } from "../agent";
+import type { AgentRuntimeHooks, AgentTool } from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
+	AgentExtensionHooks,
 	AgentExtensionRegistry as AgentExtensionRegistryGeneric,
 	ContributionRegistryExtension,
 	PluginManifest,
 	PluginSetupContext,
 } from "../extensions/contribution-registry";
-import type { HookControl, HookPolicies } from "../hooks/contracts";
+import type { HookControl } from "../hooks/contracts";
 import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
@@ -483,83 +484,17 @@ export interface AgentExtensionSessionShutdownContext {
 	reason?: string;
 }
 
-export interface AgentExtensionInputContext {
-	agentId: string;
-	conversationId: string;
-	parentAgentId: string | null;
-	mode: "run" | "continue";
-	input: string;
-}
-
-export interface AgentExtensionBeforeAgentStartContext {
-	agentId: string;
-	conversationId: string;
-	parentAgentId: string | null;
-	iteration: number;
-	systemPrompt: string;
-	messages: Message[];
-}
-
-export type AgentExtensionBeforeAgentStartControl = Omit<
-	AgentHookControl,
-	"appendMessages"
-> & {
-	systemPrompt?: string;
-	appendMessages?: Message[];
-};
-
 export interface AgentExtensionContext extends PluginSetupContext {}
 
 export interface AgentExtension
 	extends ContributionRegistryExtension<AgentTool, Message[]> {
 	name: string;
 	manifest: PluginManifest;
+	hooks?: AgentExtensionHooks;
 	setup?: (
 		api: AgentExtensionApi<AgentTool, Message[]>,
 		ctx: AgentExtensionContext,
 	) => void | Promise<void>;
-	onSessionStart?: (
-		ctx: AgentExtensionSessionStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onRunStart?: (
-		ctx: AgentHookRunStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onIterationStart?: (
-		ctx: AgentHookIterationStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onTurnStart?: (
-		ctx: AgentHookTurnStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onInput?: (
-		ctx: AgentExtensionInputContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onBeforeAgentStart?: (
-		ctx: AgentExtensionBeforeAgentStartContext,
-	) =>
-		| undefined
-		| AgentExtensionBeforeAgentStartControl
-		| Promise<undefined | AgentExtensionBeforeAgentStartControl>;
-	onToolCall?: (
-		ctx: AgentHookToolCallStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onToolResult?: (
-		ctx: AgentHookToolCallEndContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onTurnEnd?: (
-		ctx: AgentHookTurnEndContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onAgentError?: (
-		ctx: AgentHookStopErrorContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onIterationEnd?: (ctx: AgentHookIterationEndContext) => void | Promise<void>;
-	onRunEnd?: (ctx: AgentHookRunEndContext) => void | Promise<void>;
-	onSessionShutdown?: (
-		ctx: AgentExtensionSessionShutdownContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onRuntimeEvent?: (
-		ctx: AgentExtensionRuntimeEventContext,
-	) => void | Promise<void>;
-	onError?: (ctx: AgentHookErrorContext) => void | Promise<void>;
 }
 
 export type AgentLoopExtensionRegistry = AgentExtensionRegistryGeneric<
@@ -570,77 +505,7 @@ export type AgentLoopExtensionRegistry = AgentExtensionRegistryGeneric<
 /**
  * Lifecycle hooks for observing or influencing agent execution.
  */
-export interface AgentHooks {
-	/**
-	 * Runs once when the conversation/session is first initialized.
-	 */
-	onSessionStart?: (
-		ctx: AgentHookSessionStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	/**
-	 * Runs once per user-submitted run or continuation, before the first
-	 * iteration starts.
-	 */
-	onRunStart?: (
-		ctx: AgentHookRunStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onRunEnd?: (ctx: AgentHookRunEndContext) => void | Promise<void>;
-	/**
-	 * Runs at the start of every loop iteration.
-	 *
-	 * Use this for iteration-scoped bookkeeping or guards that should happen
-	 * before turn construction begins.
-	 */
-	onIterationStart?: (
-		ctx: AgentHookIterationStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onIterationEnd?: (ctx: AgentHookIterationEndContext) => void | Promise<void>;
-	onTurnStart?: (
-		ctx: AgentHookTurnStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	/**
-	 * Runs immediately before the model call for an iteration.
-	 *
-	 * This is the last hook that can shape the upcoming turn. It can replace the
-	 * system prompt, append messages, or cancel before the provider request is made.
-	 */
-	onBeforeAgentStart?: (
-		ctx: AgentHookBeforeAgentStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onTurnEnd?: (
-		ctx: AgentHookTurnEndContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	/**
-	 * Runs when a turn encounters an error that will stop forward progress for the
-	 * current run.
-	 *
-	 * This hook is dispatched on non-recoverable turn failures and also when a
-	 * recoverable turn failure exhausts the mistake-limit path and the run is about
-	 * to stop. It is intended for "this run is stopping because of this error"
-	 * semantics.
-	 */
-	onStopError?: (
-		ctx: AgentHookStopErrorContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onToolCallStart?: (
-		ctx: AgentHookToolCallStartContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onToolCallEnd?: (
-		ctx: AgentHookToolCallEndContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onSessionShutdown?: (
-		ctx: AgentHookSessionShutdownContext,
-	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	/**
-	 * Runs when an error escapes the main agent loop and the run fails with the
-	 * final `finishReason = "error"`.
-	 *
-	 * Unlike `onStopError`, this is not part of the recoverable turn-error path;
-	 * it represents a top-level loop failure after the agent has already concluded
-	 * that execution errored out.
-	 */
-	onError?: (ctx: AgentHookErrorContext) => void | Promise<void>;
-}
+export type AgentHooks = Partial<AgentRuntimeHooks>;
 
 // =============================================================================
 // Agent Finish Reasons
@@ -908,10 +773,6 @@ export interface AgentConfig {
 	 */
 	hookErrorMode?: HookErrorMode;
 	/**
-	 * Optional deterministic hook execution policies.
-	 */
-	hookPolicies?: HookPolicies;
-	/**
 	 * Optional schedule metadata for runs initiated by scheduler services.
 	 * Used by session_start lifecycle hooks.
 	 */
@@ -1057,7 +918,6 @@ export const AgentConfigSchema = z.object({
 	parentAgentId: z.string().optional(),
 	extensions: z.array(z.custom<AgentExtension>()).optional(),
 	hookErrorMode: z.enum(["ignore", "throw"]).default("ignore"),
-	hookPolicies: z.custom<HookPolicies>().optional(),
 	toolPolicies: z
 		.record(
 			z.string(),

@@ -7,8 +7,7 @@
  *   - `MistakeTracker`         — per-session consecutive-mistake counter
  *   - `LoopDetectionTracker`   — per-session repeated-tool-call detector
  *   - `MessageBuilder`         — provider-message assembly cache
- *   - `HookEngine` + `HookBridge` — legacy `AgentHooks`/`AgentExtension[]`
- *                                   → runtime-hook synthesis
+ *   - `AgentRuntimeHooks`      — runtime-native hooks from config/extensions
  *   - `RuntimeEventAdapter`    — per-run stateful `AgentRuntimeEvent`
  *                                → legacy `AgentEvent` translator
  *   - listener registry        — host subscribers see legacy `AgentEvent`s
@@ -38,7 +37,6 @@ import {
 	type BasicLogger,
 	type ContributionRegistry,
 	createContributionRegistry,
-	HookEngine,
 	type ITelemetryService,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -47,7 +45,6 @@ import {
 	type ModelInfo,
 	type ToolCallRecord,
 } from "@clinebot/shared";
-import { HookBridge } from "../../hooks/hook-bridge";
 import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
@@ -102,6 +99,104 @@ function mergeSystemPromptRules(
 	return base || additional;
 }
 
+function mergeRuntimeHooks(
+	layers: Array<Partial<AgentRuntimeHooks> | undefined>,
+): Partial<AgentRuntimeHooks> {
+	const hooks = layers.filter(
+		(layer): layer is Partial<AgentRuntimeHooks> => layer !== undefined,
+	);
+	if (hooks.length === 0) {
+		return {};
+	}
+
+	return {
+		beforeRun: async (ctx) => {
+			for (const hook of hooks) {
+				const result = await hook.beforeRun?.(ctx);
+				if (result?.stop) return result;
+			}
+			return undefined;
+		},
+		afterRun: async (ctx) => {
+			for (const hook of hooks) {
+				await hook.afterRun?.(ctx);
+			}
+		},
+		beforeModel: async (ctx) => {
+			let request = ctx.request;
+			let aggregate:
+				| Awaited<ReturnType<NonNullable<AgentRuntimeHooks["beforeModel"]>>>
+				| undefined;
+			for (const hook of hooks) {
+				const result = await hook.beforeModel?.({ ...ctx, request });
+				if (!result) continue;
+				if (result.stop) return result;
+				aggregate = {
+					...aggregate,
+					...result,
+					options: {
+						...(aggregate?.options ?? {}),
+						...(result.options ?? {}),
+					},
+				};
+				request = {
+					...request,
+					...(result.messages ? { messages: result.messages } : {}),
+					...(result.tools ? { tools: result.tools } : {}),
+					...(result.options
+						? { options: { ...(request.options ?? {}), ...result.options } }
+						: {}),
+				};
+			}
+			return aggregate;
+		},
+		afterModel: async (ctx) => {
+			for (const hook of hooks) {
+				const result = await hook.afterModel?.(ctx);
+				if (result?.stop) return result;
+			}
+			return undefined;
+		},
+		beforeTool: async (ctx) => {
+			let input = ctx.input;
+			let aggregate:
+				| Awaited<ReturnType<NonNullable<AgentRuntimeHooks["beforeTool"]>>>
+				| undefined;
+			for (const hook of hooks) {
+				const result = await hook.beforeTool?.({ ...ctx, input });
+				if (!result) continue;
+				if (result.stop || result.skip) return result;
+				aggregate = { ...aggregate, ...result };
+				if (Object.hasOwn(result, "input")) {
+					input = result.input;
+				}
+			}
+			return aggregate;
+		},
+		afterTool: async (ctx) => {
+			let result = ctx.result;
+			let aggregate:
+				| Awaited<ReturnType<NonNullable<AgentRuntimeHooks["afterTool"]>>>
+				| undefined;
+			for (const hook of hooks) {
+				const next = await hook.afterTool?.({ ...ctx, result });
+				if (!next) continue;
+				if (next.stop) return next;
+				aggregate = { ...aggregate, ...next };
+				if (next.result) {
+					result = next.result;
+				}
+			}
+			return aggregate;
+		},
+		onEvent: async (event) => {
+			for (const hook of hooks) {
+				await hook.onEvent?.(event);
+			}
+		},
+	};
+}
+
 // =============================================================================
 // Public types
 // =============================================================================
@@ -117,8 +212,6 @@ export type SessionEventListener = (event: AgentEvent) => void;
 export interface SessionRuntimeOrchestratorDeps {
 	readonly logger?: BasicLogger;
 	readonly telemetry?: ITelemetryService;
-	/** Optional pre-constructed `HookEngine`. A fresh one is built when omitted. */
-	readonly hookEngine?: HookEngine;
 	/**
 	 * Test hook: override the `AgentRuntime` factory. Production
 	 * callers leave this undefined and get the real `createAgentRuntime`.
@@ -160,8 +253,6 @@ export class SessionRuntime {
 	// Typed as `readonly` to preserve the field slot for future use
 	// without re-touching the constructor.
 	readonly telemetry?: ITelemetryService;
-	private readonly hookEngine: HookEngine;
-	private readonly hookBridge: HookBridge;
 	private readonly conversation: ConversationStore;
 	private readonly mistakeTracker: MistakeTracker;
 	private readonly loopTracker: LoopDetectionTracker;
@@ -192,7 +283,7 @@ export class SessionRuntime {
 		config: Parameters<typeof createAgentRuntime>[0],
 	) => AgentRuntime;
 
-	/** Stable run id shared with the HookBridge during an active run. */
+	/** Stable run id for the active run. */
 	private activeRunId: string | null = null;
 	/** True while a run is in flight. `canStartRun()` is the negation. */
 	private running = false;
@@ -248,7 +339,6 @@ export class SessionRuntime {
 		this.parentAgentId = config.parentAgentId;
 		this.logger = deps.logger ?? config.logger;
 		this.telemetry = deps.telemetry ?? config.telemetry;
-		this.hookEngine = deps.hookEngine ?? new HookEngine();
 		this.createAgentRuntimeImpl =
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
@@ -278,30 +368,6 @@ export class SessionRuntime {
 		// constructor.
 		this.contributionRegistry.resolve();
 		this.contributionRegistry.validate();
-		this.hookBridge = new HookBridge({
-			agentId: this.agentId,
-			conversationId: this.conversation.getConversationId(),
-			parentAgentId: this.parentAgentId ?? null,
-			hookEngine: this.hookEngine,
-			hooks: config.hooks,
-			extensions: config.extensions,
-			getRunId: () => this.activeRunId ?? "",
-			onHookContext: (_source, context) => {
-				// Legacy behaviour: hook-returned context becomes a user
-				// message on the next turn. Stash it on the conversation
-				// store so subsequent turns pick it up.
-				this.conversation.appendMessage({
-					role: "user",
-					content: [{ type: "text", text: context }],
-				});
-			},
-			onDispatchError: (error) => {
-				this.logger?.error?.("SessionRuntime hook dispatch failed", {
-					agentId: this.agentId,
-					error,
-				});
-			},
-		});
 
 		const maxMistakes = config.execution?.maxConsecutiveMistakes ?? 6;
 		this.mistakeTracker = new MistakeTracker({
@@ -501,25 +567,8 @@ export class SessionRuntime {
 		this.activeRuntime?.abort(message);
 	}
 
-	/**
-	 * Shut the session down. Fires `hook.session_shutdown` exactly once
-	 * (legacy parity with `Agent.shutdown` at pre-Step-9 `agent.ts:325`)
-	 * and drains any in-flight async hooks through the hook engine.
-	 *
-	 * @param reason    Optional caller-supplied reason string (e.g.
-	 *                  `"session_complete"`, `"session_error"`,
-	 *                  `"session_stop"`, `"ctrl_d"`). Propagated into
-	 *                  the `session_shutdown` hook payload as
-	 *                  `AgentHookSessionShutdownContext.reason` so hook
-	 *                  handlers (e.g. hook-file runners) can route on
-	 *                  it — this matches the legacy `Agent.shutdown(reason)`
-	 *                  contract and keeps `isAbortReason(ctx.reason)`
-	 *                  checks in `hook-file-hooks.ts` working.
-	 * @param timeoutMs Optional drain timeout forwarded to
-	 *                  `HookEngine.shutdown`. Defaults to the engine's
-	 *                  own default (3000 ms) when omitted.
-	 */
-	async shutdown(reason?: string, timeoutMs?: number): Promise<void> {
+	/** Shut the session down after any active run drains. */
+	async shutdown(_reason?: string, _timeoutMs?: number): Promise<void> {
 		if (this.running) {
 			if (!this.abortRequested || !this.activeRunPromise) {
 				throw new Error(
@@ -532,17 +581,6 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
-		await this.hookBridge.dispatch("hook.session_shutdown", {
-			stage: "session_shutdown",
-			payload: {
-				agentId: this.agentId,
-				conversationId: this.conversation.getConversationId(),
-				sessionId: this.config.sessionId,
-				parentAgentId: this.parentAgentId ?? null,
-				reason,
-			},
-		});
-		await this.hookBridge.shutdown(timeoutMs);
 	}
 
 	// -------------------------------------------------------------------
@@ -631,9 +669,7 @@ export class SessionRuntime {
 			.toString(36)
 			.slice(2, 8)}`;
 		// Lazily initialize contribution-registry extensions on the
-		// first run. Legacy parity with `Agent.ensureExtensionsInitialized`
-		// (pre-Step-9 `agent.ts:245`/:277), called before any
-		// session_start / input / run_start dispatch.
+		// first run, before runtime construction.
 		await this.ensureExtensionsInitialized();
 		this.eventAdapter.reset();
 		this.currentRunToolCalls = [];
@@ -647,58 +683,7 @@ export class SessionRuntime {
 		this.trackerAbortInFlight = false;
 
 		const startedAt = new Date();
-		const mode: "run" | "continue" = input.isContinue ? "continue" : "run";
-
-		// ------------------------------------------------------------------
-		// session_start — dispatched once per logical session, before any
-		// run-scoped work. Parity with legacy agent.ts pre-Step-9 (L503).
-		// ConversationStore owns the "started" gate and resets it on
-		// resetForRun()/clearHistory()/restore() — i.e. a fresh session
-		// boundary refires session_start, matching legacy semantics.
-		// ------------------------------------------------------------------
-		if (!this.conversation.isSessionStarted()) {
-			const sessionStartControl = await this.hookBridge.dispatch(
-				"hook.session_start",
-				{
-					stage: "session_start",
-					payload: {
-						agentId: this.agentId,
-						conversationId: this.conversation.getConversationId(),
-						parentAgentId: this.parentAgentId ?? null,
-					},
-				},
-			);
-			this.conversation.markSessionStarted();
-			if (sessionStartControl?.cancel === true) {
-				return this.finalizeAbortedRun(startedAt);
-			}
-		}
-
-		// ------------------------------------------------------------------
-		// hook.input — dispatched once per run/continue when the caller
-		// supplied a user message. Honors control.overrideInput (string)
-		// and control.cancel. Parity with legacy agent.ts pre-Step-9
-		// (L1154 `prepareUserInput`).
-		// ------------------------------------------------------------------
-		let effectiveUserMessage = input.userMessage;
-		if (effectiveUserMessage !== undefined) {
-			const inputControl = await this.hookBridge.dispatch("hook.input", {
-				stage: "input",
-				payload: {
-					agentId: this.agentId,
-					conversationId: this.conversation.getConversationId(),
-					parentAgentId: this.parentAgentId ?? null,
-					mode,
-					input: effectiveUserMessage,
-				},
-			});
-			if (inputControl?.cancel === true) {
-				return this.finalizeAbortedRun(startedAt);
-			}
-			if (typeof inputControl?.overrideInput === "string") {
-				effectiveUserMessage = inputControl.overrideInput;
-			}
-		}
+		const effectiveUserMessage = input.userMessage;
 
 		// Append the user turn (if any) to the conversation store. This
 		// must happen BEFORE we snapshot `initialMessages` below so the
@@ -825,50 +810,15 @@ export class SessionRuntime {
 
 		const endedAt = new Date();
 		try {
-			const result = this.buildLegacyResult({
+			return this.buildLegacyResult({
 				runResult,
 				thrownError,
 				startedAt,
 				endedAt,
 			});
-			await this.dispatchRunEnd(result);
-			return result;
 		} finally {
 			this.activeRunId = null;
 		}
-	}
-
-	/**
-	 * Build an aborted `AgentResult` without invoking the AgentRuntime.
-	 * Used by the `hook.session_start` / `hook.input` cancel paths —
-	 * legacy parity: a hook that returns `{ cancel: true }` short-circuits
-	 * the run and yields `finishReason: "aborted"`.
-	 */
-	private finalizeAbortedRun(startedAt: Date): AgentResult {
-		this.activeRuntime = null;
-		this.activeRunId = null;
-		this.running = false;
-		this.abortRequested = false;
-		this.abortReason = undefined;
-		const endedAt = new Date();
-		const messages = this.conversation.getMessages();
-		const modelInfo = tryGetModelInfo(this.config);
-		return {
-			text: "",
-			usage: { inputTokens: 0, outputTokens: 0 },
-			messages,
-			toolCalls: [],
-			iterations: 0,
-			finishReason: "aborted",
-			model: {
-				id: this.config.modelId,
-				provider: this.config.providerId,
-				info: modelInfo,
-			},
-			startedAt,
-			endedAt,
-			durationMs: endedAt.getTime() - startedAt.getTime(),
-		};
 	}
 
 	/**
@@ -907,7 +857,12 @@ export class SessionRuntime {
 	}
 
 	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {
-		const hooks = this.hookBridge.toRuntimeHooks();
+		const hooks = mergeRuntimeHooks([
+			this.config.hooks,
+			...this.contributionRegistry
+				.getValidatedExtensions()
+				.map((extension) => extension.hooks),
+		]);
 		return {
 			...hooks,
 			beforeModel: async (ctx) => {
@@ -1209,19 +1164,6 @@ export class SessionRuntime {
 			endedAt,
 			durationMs,
 		};
-	}
-
-	private async dispatchRunEnd(result: AgentResult): Promise<void> {
-		await this.hookBridge.dispatch("hook.run_end", {
-			stage: "run_end",
-			iteration: result.iterations,
-			payload: {
-				agentId: this.agentId,
-				conversationId: this.conversation.getConversationId(),
-				parentAgentId: this.parentAgentId ?? null,
-				result,
-			},
-		});
 	}
 }
 

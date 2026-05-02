@@ -27,6 +27,7 @@ const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
+const COMPILED_BUN_HUB_DAEMON_ARG = "--cline-hub-daemon";
 
 function endpointArgs(endpoint: HubEndpointOverrides): string[] {
 	return [
@@ -107,17 +108,18 @@ function resolveLaunchCommand(
 		throw new Error("unable to resolve runtime executable for hub daemon");
 	}
 	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
+	const isCompiledBunEmbeddedEntry = daemonEntryPath.startsWith("/$bunfs/");
 	const useDevelopmentConditions =
 		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
+	const entryArgs = isCompiledBunEmbeddedEntry
+		? [COMPILED_BUN_HUB_DAEMON_ARG]
+		: [
+				...(useDevelopmentConditions ? ["--conditions=development"] : []),
+				daemonEntryPath,
+			];
 	return {
 		launcher: execPath,
-		args: [
-			...(useDevelopmentConditions ? ["--conditions=development"] : []),
-			daemonEntryPath,
-			"--cwd",
-			workspaceRoot,
-			...endpointArgs(endpoint),
-		],
+		args: [...entryArgs, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
 		cwd: workspaceRoot,
 		env: {
 			...withResolvedClineBuildEnv(process.env),

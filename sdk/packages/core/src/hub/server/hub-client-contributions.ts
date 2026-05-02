@@ -1,6 +1,5 @@
 import type {
 	AgentExtension,
-	AgentHookControl,
 	AgentHooks,
 	AgentTool,
 	AgentToolContext,
@@ -75,19 +74,13 @@ type UserInstructionSnapshot = {
 };
 
 const HOOK_NAMES = [
-	"onSessionStart",
-	"onRunStart",
-	"onRunEnd",
-	"onIterationStart",
-	"onIterationEnd",
-	"onTurnStart",
-	"onBeforeAgentStart",
-	"onTurnEnd",
-	"onStopError",
-	"onToolCallStart",
-	"onToolCallEnd",
-	"onSessionShutdown",
-	"onError",
+	"beforeRun",
+	"afterRun",
+	"beforeModel",
+	"afterModel",
+	"beforeTool",
+	"afterTool",
+	"onEvent",
 ] as const satisfies readonly (keyof AgentHooks)[];
 
 type HubAgentHookName = (typeof HOOK_NAMES)[number];
@@ -519,7 +512,7 @@ function createHookProxies(
 				{ context: ctx },
 				targetClientId,
 			);
-			return response?.control as AgentHookControl | undefined;
+			return response?.control;
 		};
 	}
 	return Object.keys(hooks).length > 0 ? (hooks as AgentHooks) : undefined;

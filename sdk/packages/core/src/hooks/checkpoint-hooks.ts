@@ -253,14 +253,19 @@ export function createCheckpointHooks(
 	};
 
 	return {
-		onRunStart: async ({ parentAgentId }) => {
-			if (parentAgentId === null) {
-				runCount += 1;
+		beforeRun: async ({ snapshot }) => {
+			if (snapshot.parentAgentId != null) {
+				return undefined;
 			}
+			runCount += 1;
 			return undefined;
 		},
-		onBeforeAgentStart: async ({ parentAgentId, iteration }) => {
-			if (parentAgentId !== null || iteration !== 1 || runCount < 1) {
+		beforeModel: async ({ snapshot }) => {
+			if (
+				snapshot.parentAgentId != null ||
+				snapshot.iteration !== 1 ||
+				runCount < 1
+			) {
 				return undefined;
 			}
 			const entry = await createCheckpoint();

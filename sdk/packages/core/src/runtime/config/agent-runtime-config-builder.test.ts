@@ -9,12 +9,10 @@ import type {
 	AgentConfig,
 	AgentModel,
 	AgentModelEvent,
-	AgentRuntimeHooks,
 	AgentTool,
 	ITelemetryService,
 } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { HookBridge } from "../../hooks/hook-bridge";
 import {
 	buildMessageModelInfo,
 	buildModelOptions,
@@ -234,22 +232,18 @@ describe("createAgentRuntimeConfig", () => {
 		expect(runtimeConfig.systemPrompt).toBe("override");
 	});
 
-	it("populates hooks via HookBridge.toRuntimeHooks()", () => {
-		const toRuntimeHooks = vi.fn<() => AgentRuntimeHooks>(() => ({
-			beforeRun: () => undefined,
-		}));
-		const hookBridge = { toRuntimeHooks } as unknown as HookBridge;
+	it("populates hooks when provided", () => {
+		const beforeRun = vi.fn();
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: makeAgentConfig(),
 			agentId: "a",
 			model: nullModel,
-			hookBridge,
+			hooks: { beforeRun },
 		});
-		expect(toRuntimeHooks).toHaveBeenCalledTimes(1);
-		expect(typeof runtimeConfig.hooks?.beforeRun).toBe("function");
+		expect(runtimeConfig.hooks?.beforeRun).toBe(beforeRun);
 	});
 
-	it("omits hooks when no hookBridge is provided", () => {
+	it("omits hooks when none are provided", () => {
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: makeAgentConfig(),
 			agentId: "a",

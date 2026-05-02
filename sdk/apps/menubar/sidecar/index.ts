@@ -40,6 +40,21 @@ type ClientSummaryGroup = {
 	firstConnectedAt: number;
 };
 
+function isBundledDaemonEntryInvocation(): boolean {
+	const entryArg = process.argv[1]?.trim() ?? "";
+	const isBunEmbeddedEntry =
+		entryArg.includes("/$bunfs/") &&
+		(entryArg.endsWith("/entry.js") || entryArg.endsWith("/entry.ts"));
+	return (
+		process.argv.includes("--cline-hub-daemon") ||
+		isBunEmbeddedEntry ||
+		entryArg.endsWith("/daemon-entry.js") ||
+		entryArg.endsWith("/daemon-entry.ts") ||
+		entryArg === "daemon-entry.js" ||
+		entryArg === "daemon-entry.ts"
+	);
+}
+
 interface LastSessionContext {
 	workspaceRoot: string;
 	cwd?: string;
@@ -645,9 +660,13 @@ async function main(): Promise<void> {
 	});
 }
 
-main().catch((err) => {
-	const msg = err instanceof Error ? err.message : String(err);
-	emitNotification("Menubar sidecar fatal error", msg, "error");
-	process.stderr.write(`[menubar-sidecar] fatal: ${msg}\n`);
-	process.exit(1);
-});
+if (isBundledDaemonEntryInvocation()) {
+	await import("@clinebot/core/hub/daemon-entry");
+} else {
+	main().catch((err) => {
+		const msg = err instanceof Error ? err.message : String(err);
+		emitNotification("Menubar sidecar fatal error", msg, "error");
+		process.stderr.write(`[menubar-sidecar] fatal: ${msg}\n`);
+		process.exit(1);
+	});
+}

@@ -31,6 +31,78 @@ vi.mock("./events", () => ({
 
 import { createRuntimeHooks } from "./hooks";
 
+async function emitRunStartAndPrompt(
+	hooks: NonNullable<ReturnType<typeof createRuntimeHooks>["hooks"]>,
+): Promise<void> {
+	const snapshot = {
+		agentId: "agent-1",
+		conversationId: "conversation-1",
+		runId: "run-1",
+		parentAgentId: null,
+		status: "running" as const,
+		iteration: 0,
+		messages: [],
+		pendingToolCalls: [],
+		usage: {
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		},
+	};
+	await hooks.beforeRun?.({ snapshot });
+	await hooks.onEvent?.({
+		type: "message-added",
+		snapshot,
+		message: {
+			id: "msg-1",
+			role: "user",
+			content: [{ type: "text", text: "hello" }],
+			createdAt: 0,
+		},
+	});
+}
+
+async function emitToolResult(
+	hooks: NonNullable<ReturnType<typeof createRuntimeHooks>["hooks"]>,
+): Promise<void> {
+	await hooks.afterTool?.({
+		snapshot: {
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			runId: "run-1",
+			parentAgentId: null,
+			status: "running",
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		},
+		tool: {
+			name: "read_file",
+			description: "",
+			inputSchema: {},
+			execute: async () => "ok",
+		},
+		toolCall: {
+			type: "tool-call",
+			toolCallId: "call-1",
+			toolName: "read_file",
+			input: { path: "README.md" },
+		},
+		input: { path: "README.md" },
+		result: { output: "ok" },
+		startedAt: new Date("2026-01-01T00:00:00.000Z"),
+		endedAt: new Date("2026-01-01T00:00:00.042Z"),
+		durationMs: 42,
+	});
+}
+
 describe("createRuntimeHooks", () => {
 	beforeEach(() => {
 		outputMocks.write.mockReset();
@@ -63,19 +135,14 @@ describe("createRuntimeHooks", () => {
 		});
 
 		expect(runtimeHooks.hooks).toBeDefined();
-		await runtimeHooks.hooks?.onRunStart?.({
-			agentId: "agent-1",
-			conversationId: "session-1",
-			parentAgentId: null,
-			userMessage: "hello",
-		});
+		await emitRunStartAndPrompt(runtimeHooks.hooks!);
 
 		expect(dispatchHookEvent).toHaveBeenCalledTimes(2);
 		expect(dispatchHookEvent).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
 				hookName: "agent_start",
-				taskId: "session-1",
+				taskId: "conversation-1",
 				workspaceRoots: ["/workspace"],
 			}),
 		);
@@ -83,8 +150,34 @@ describe("createRuntimeHooks", () => {
 			2,
 			expect.objectContaining({
 				hookName: "prompt_submit",
-				taskId: "session-1",
+				taskId: "conversation-1",
 				workspaceRoots: ["/workspace"],
+			}),
+		);
+	});
+
+	it("forwards runtime tool timing to tool_result hook payloads", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			dispatchHookEvent,
+		});
+
+		await emitToolResult(runtimeHooks.hooks!);
+
+		expect(dispatchHookEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hookName: "tool_result",
+				tool_result: expect.objectContaining({
+					durationMs: 42,
+					startedAt: new Date("2026-01-01T00:00:00.000Z"),
+					endedAt: new Date("2026-01-01T00:00:00.042Z"),
+				}),
+				postToolUse: expect.objectContaining({
+					executionTimeMs: 42,
+				}),
 			}),
 		);
 	});
@@ -99,12 +192,7 @@ describe("createRuntimeHooks", () => {
 			dispatchHookEvent,
 		});
 
-		await runtimeHooks.hooks?.onRunStart?.({
-			agentId: "agent-1",
-			conversationId: "session-1",
-			parentAgentId: null,
-			userMessage: "hello",
-		});
+		await emitRunStartAndPrompt(runtimeHooks.hooks!);
 
 		expect(dispatchHookEvent).toHaveBeenCalledTimes(2);
 		expect(outputMocks.write).not.toHaveBeenCalled();
@@ -121,12 +209,7 @@ describe("createRuntimeHooks", () => {
 			dispatchHookEvent,
 		});
 
-		await runtimeHooks.hooks?.onRunStart?.({
-			agentId: "agent-1",
-			conversationId: "session-1",
-			parentAgentId: null,
-			userMessage: "hello",
-		});
+		await emitRunStartAndPrompt(runtimeHooks.hooks!);
 
 		expect(outputMocks.write).toHaveBeenCalledWith("\n[hook:agent_start]\n");
 		expect(outputMocks.write).toHaveBeenCalledWith("\n[hook:prompt_submit]\n");

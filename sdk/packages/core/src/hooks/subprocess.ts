@@ -1,10 +1,15 @@
 import {
 	type AgentAbortHookPayload,
+	type AgentAfterToolContext,
+	type AgentBeforeToolContext,
 	type AgentEndHookPayload,
 	type AgentErrorHookPayload,
 	type AgentHooks,
 	type AgentResumeHookPayload,
+	type AgentRunLifecycleContext,
+	type AgentRuntimeEvent,
 	type AgentStartHookPayload,
+	type HookControl,
 	type HookEventName,
 	HookEventNameSchema,
 	type HookEventPayload,
@@ -34,27 +39,9 @@ import {
 	runSubprocessEvent,
 } from "./subprocess-runner";
 
-type AgentHookControl = NonNullable<
-	Awaited<ReturnType<NonNullable<AgentHooks["onToolCallStart"]>>>
->;
-type AgentHookRunStartContext = Parameters<
-	NonNullable<AgentHooks["onRunStart"]>
->[0];
-type AgentHookSessionShutdownContext = Parameters<
-	NonNullable<AgentHooks["onSessionShutdown"]>
->[0];
-type AgentHookStopErrorContext = Parameters<
-	NonNullable<AgentHooks["onStopError"]>
->[0];
-type AgentHookToolCallEndContext = Parameters<
-	NonNullable<AgentHooks["onToolCallEnd"]>
->[0];
-type AgentHookToolCallStartContext = Parameters<
-	NonNullable<AgentHooks["onToolCallStart"]>
->[0];
-type AgentHookTurnEndContext = Parameters<
-	NonNullable<AgentHooks["onTurnEnd"]>
->[0];
+type AgentHookControl = Omit<HookControl, "appendMessages"> & {
+	appendMessages?: unknown[];
+};
 
 export interface HookOutput {
 	contextModification: string;
@@ -272,6 +259,53 @@ function isAbortReason(reason?: string): boolean {
 	);
 }
 
+function runtimeBase(ctx: AgentRunLifecycleContext): {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+} {
+	return {
+		agentId: ctx.snapshot.agentId,
+		conversationId:
+			ctx.snapshot.conversationId ?? ctx.snapshot.runId ?? ctx.snapshot.agentId,
+		parentAgentId: ctx.snapshot.parentAgentId ?? null,
+	};
+}
+
+function textFromRuntimeMessage(
+	content: readonly { type: string; text?: string }[],
+): string {
+	return content
+		.filter((part) => part.type === "text" && typeof part.text === "string")
+		.map((part) => part.text)
+		.join("");
+}
+
+function runtimeToolRecord(
+	ctx: AgentAfterToolContext,
+): ToolResultHookPayload["tool_result"] {
+	return {
+		id: ctx.toolCall.toolCallId,
+		name: ctx.toolCall.toolName,
+		input: ctx.input,
+		output: ctx.result.output,
+		error: ctx.result.isError ? String(ctx.result.output) : undefined,
+		durationMs: ctx.durationMs,
+		startedAt: ctx.startedAt,
+		endedAt: ctx.endedAt,
+	};
+}
+
+function beforeToolResultFromControl(
+	control: AgentHookControl | undefined,
+): { stop?: boolean; input?: unknown } | undefined {
+	if (!control) return undefined;
+	const result: { stop?: boolean; input?: unknown } = {};
+	if (control.cancel === true) result.stop = true;
+	if (control.overrideInput !== undefined) result.input = control.overrideInput;
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
 async function dispatchDetached(
 	payload: HookEventPayload,
 	options: SubprocessHooksOptions,
@@ -293,14 +327,15 @@ async function dispatchDetached(
 export function createSubprocessHooks(
 	options: SubprocessHooksOptions = {},
 ): SubprocessHookControl {
-	const onRunStart = async (
-		ctx: AgentHookRunStartContext,
-	): Promise<AgentHookControl | undefined> => {
+	const beforeRun = async (
+		ctx: AgentRunLifecycleContext,
+	): Promise<undefined> => {
+		const base = runtimeBase(ctx);
 		const isResume =
 			(options.env ?? process.env).CLINE_HOOK_AGENT_RESUME === "1";
 		if (isResume) {
 			const resumePayload: AgentResumeHookPayload = {
-				...basePayload("agent_resume", ctx, options),
+				...basePayload("agent_resume", base, options),
 				hookName: "agent_resume",
 				taskResume: {
 					taskMetadata: {},
@@ -310,40 +345,61 @@ export function createSubprocessHooks(
 			await dispatchDetached(resumePayload, options);
 		} else {
 			const startPayload: AgentStartHookPayload = {
-				...basePayload("agent_start", ctx, options),
+				...basePayload("agent_start", base, options),
 				hookName: "agent_start",
 				taskStart: { taskMetadata: {} },
 			};
 			await dispatchDetached(startPayload, options);
 		}
+		return undefined;
+	};
 
+	const onEvent = async (event: AgentRuntimeEvent): Promise<void> => {
+		if (event.type !== "message-added" || event.message.role !== "user") {
+			return;
+		}
+		const base = {
+			agentId: event.snapshot.agentId,
+			conversationId:
+				event.snapshot.conversationId ??
+				event.snapshot.runId ??
+				event.snapshot.agentId,
+			parentAgentId: event.snapshot.parentAgentId ?? null,
+		};
 		const promptPayload: PromptSubmitHookPayload = {
-			...basePayload("prompt_submit", ctx, options),
+			...basePayload("prompt_submit", base, options),
 			hookName: "prompt_submit",
 			userPromptSubmit: {
-				prompt: ctx.userMessage,
+				prompt: textFromRuntimeMessage(event.message.content),
 				attachments: [],
 			},
 		};
 		await dispatchDetached(promptPayload, options);
-		return undefined;
 	};
 
-	const onToolCallStart = async (
-		ctx: AgentHookToolCallStartContext,
-	): Promise<AgentHookControl | undefined> => {
+	const beforeTool = async (
+		ctx: AgentBeforeToolContext,
+	): Promise<{ stop?: boolean; input?: unknown } | undefined> => {
+		const base = {
+			agentId: ctx.snapshot.agentId,
+			conversationId:
+				ctx.snapshot.conversationId ??
+				ctx.snapshot.runId ??
+				ctx.snapshot.agentId,
+			parentAgentId: ctx.snapshot.parentAgentId ?? null,
+		};
 		const payload: ToolCallHookPayload = {
-			...basePayload("tool_call", ctx, options),
+			...basePayload("tool_call", base, options),
 			hookName: "tool_call",
-			iteration: ctx.iteration,
+			iteration: ctx.snapshot.iteration,
 			tool_call: {
-				id: ctx.call.id,
-				name: ctx.call.name,
-				input: ctx.call.input,
+				id: ctx.toolCall.toolCallId,
+				name: ctx.toolCall.toolName,
+				input: ctx.input,
 			},
 			preToolUse: {
-				toolName: ctx.call.name,
-				parameters: mapParams(ctx.call.input),
+				toolName: ctx.toolCall.toolName,
+				parameters: mapParams(ctx.input),
 			},
 		};
 
@@ -365,73 +421,86 @@ export function createSubprocessHooks(
 					`tool_call hook produced invalid control JSON: ${result.parseError}`,
 				);
 			}
-			return toHookControl(result?.parsedJson);
+			return beforeToolResultFromControl(toHookControl(result?.parsedJson));
 		} catch (error) {
 			options.onDispatchError?.(toError(error), payload);
 			return;
 		}
 	};
 
-	const onToolCallEnd = async (
-		ctx: AgentHookToolCallEndContext,
-	): Promise<AgentHookControl | undefined> => {
+	const afterTool = async (ctx: AgentAfterToolContext): Promise<undefined> => {
+		const record = runtimeToolRecord(ctx);
+		const base = {
+			agentId: ctx.snapshot.agentId,
+			conversationId:
+				ctx.snapshot.conversationId ??
+				ctx.snapshot.runId ??
+				ctx.snapshot.agentId,
+			parentAgentId: ctx.snapshot.parentAgentId ?? null,
+		};
 		const payload: ToolResultHookPayload = {
-			...basePayload("tool_result", ctx, options),
+			...basePayload("tool_result", base, options),
 			hookName: "tool_result",
-			iteration: ctx.iteration,
-			tool_result: ctx.record,
+			iteration: ctx.snapshot.iteration,
+			tool_result: record,
 			postToolUse: {
-				toolName: ctx.record.name,
-				parameters: mapParams(ctx.record.input),
+				toolName: record.name,
+				parameters: mapParams(record.input),
 				result:
-					typeof ctx.record.output === "string"
-						? ctx.record.output
-						: JSON.stringify(ctx.record.output),
-				success: !ctx.record.error,
-				executionTimeMs: ctx.record.durationMs,
+					typeof record.output === "string"
+						? record.output
+						: JSON.stringify(record.output),
+				success: !record.error,
+				executionTimeMs: record.durationMs,
 			},
 		};
 		await dispatchDetached(payload, options);
 		return undefined;
 	};
 
-	const onTurnEnd = async (
-		ctx: AgentHookTurnEndContext,
-	): Promise<AgentHookControl | undefined> => {
-		const payload: AgentEndHookPayload = {
-			...basePayload("agent_end", ctx, options),
-			hookName: "agent_end",
-			iteration: ctx.iteration,
-			turn: ctx.turn,
-			taskComplete: { taskMetadata: {} },
+	const afterRun: NonNullable<AgentHooks["afterRun"]> = async ({
+		snapshot,
+		result,
+	}) => {
+		const base = {
+			agentId: snapshot.agentId,
+			conversationId:
+				snapshot.conversationId ?? snapshot.runId ?? snapshot.agentId,
+			parentAgentId: snapshot.parentAgentId ?? null,
 		};
-		await dispatchDetached(payload, options);
-		return undefined;
-	};
-
-	const onStopError = async (
-		ctx: AgentHookStopErrorContext,
-	): Promise<AgentHookControl | undefined> => {
-		const hookName: HookEventName = isAbortReason(ctx.error.message)
-			? "agent_abort"
-			: "agent_error";
+		if (result.status === "completed") {
+			const payload: AgentEndHookPayload = {
+				...basePayload("agent_end", base, options),
+				hookName: "agent_end",
+				iteration: result.iterations,
+				turn: { outputText: result.outputText, status: result.status },
+				taskComplete: { taskMetadata: {} },
+			};
+			await dispatchDetached(payload, options);
+			return;
+		}
+		const hookName: HookEventName =
+			result.status === "aborted" || isAbortReason(result.error?.message)
+				? "agent_abort"
+				: "agent_error";
 		const payload: AgentErrorHookPayload | AgentAbortHookPayload =
 			hookName === "agent_error"
 				? {
-						...basePayload(hookName, ctx, options),
+						...basePayload(hookName, base, options),
 						hookName,
-						iteration: ctx.iteration,
-						error: serializeHookError(ctx.error),
+						iteration: result.iterations,
+						error: serializeHookError(
+							result.error ?? new Error("Agent run failed"),
+						),
 						taskCancel: { taskMetadata: {} },
 					}
 				: {
-						...basePayload(hookName, ctx, options),
+						...basePayload(hookName, base, options),
 						hookName,
-						reason: ctx.error.message,
+						reason: result.error?.message,
 						taskCancel: { taskMetadata: {} },
 					};
 		await dispatchDetached(payload, options);
-		return undefined;
 	};
 
 	const shutdown = async ({
@@ -439,7 +508,12 @@ export function createSubprocessHooks(
 		conversationId,
 		parentAgentId,
 		reason,
-	}: AgentHookSessionShutdownContext): Promise<void> => {
+	}: {
+		agentId: string;
+		conversationId: string;
+		parentAgentId: string | null;
+		reason?: string;
+	}): Promise<void> => {
 		const payload: SessionShutdownHookPayload = {
 			...basePayload(
 				"session_shutdown",
@@ -458,11 +532,11 @@ export function createSubprocessHooks(
 
 	return {
 		hooks: {
-			onRunStart,
-			onToolCallStart,
-			onToolCallEnd,
-			onTurnEnd,
-			onStopError,
+			beforeRun,
+			beforeTool,
+			afterTool,
+			afterRun,
+			onEvent,
 		},
 		shutdown,
 	};

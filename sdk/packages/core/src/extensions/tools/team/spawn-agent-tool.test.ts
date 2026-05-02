@@ -55,8 +55,8 @@ describe("createSpawnAgentTool", () => {
 		const extensions = [
 			{
 				name: "sample-ext",
-				manifest: { capabilities: ["hooks"], hookStages: ["runtime_event"] },
-				onRuntimeEvent: vi.fn(),
+				manifest: { capabilities: ["hooks"] },
+				hooks: { onEvent: vi.fn() },
 			} as AgentExtension,
 		];
 
@@ -125,9 +125,8 @@ describe("createSpawnAgentTool", () => {
 				name: "before-start-ext",
 				manifest: {
 					capabilities: ["hooks"],
-					hookStages: ["before_agent_start"],
 				},
-				onBeforeAgentStart: vi.fn(),
+				hooks: { beforeModel: vi.fn() },
 			} as AgentExtension,
 		];
 

@@ -10,7 +10,7 @@
  */
 
 import { execFile } from "node:child_process";
-import type { AgentPlugin, AgentResult } from "@clinebot/core";
+import type { AgentPlugin, AgentRunResult } from "@clinebot/core";
 
 function quoteAppleScriptString(value: string): string {
 	return `"${value
@@ -40,8 +40,8 @@ function sendMacNotification(title: string, body: string): void {
 	});
 }
 
-function summarizeResult(result: AgentResult): string {
-	const summary = result.text.trim();
+function summarizeResult(result: AgentRunResult): string {
+	const summary = result.outputText.trim();
 	if (summary.length > 0) {
 		return summary;
 	}
@@ -52,14 +52,15 @@ const plugin: AgentPlugin = {
 	name: "mac-notify-on-complete",
 	manifest: {
 		capabilities: ["hooks"],
-		hookStages: ["run_end"],
 	},
 
-	onRunEnd({ result }) {
-		if (result.finishReason !== "completed") {
-			return;
-		}
-		sendMacNotification("Cline session completed", summarizeResult(result));
+	hooks: {
+		afterRun({ result }) {
+			if (result.status !== "completed") {
+				return;
+			}
+			sendMacNotification("Cline session completed", summarizeResult(result));
+		},
 	},
 };
 

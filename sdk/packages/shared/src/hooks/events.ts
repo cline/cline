@@ -1,30 +1,59 @@
 import { z } from "zod";
-import type { AgentHooks } from "../agents/types";
 import type { ToolCallRecord } from "../llms/tools";
 import type { HookSessionContext } from "../session/hook-context";
 import type { WorkspaceInfo } from "../session/workspace";
+import type { HookControl } from "./contracts";
 
-type AgentHookControl = NonNullable<
-	Awaited<ReturnType<NonNullable<AgentHooks["onToolCallStart"]>>>
->;
-type AgentHookRunStartContext = Parameters<
-	NonNullable<AgentHooks["onRunStart"]>
->[0];
-type AgentHookSessionShutdownContext = Parameters<
-	NonNullable<AgentHooks["onSessionShutdown"]>
->[0];
-type AgentHookStopErrorContext = Parameters<
-	NonNullable<AgentHooks["onStopError"]>
->[0];
-type AgentHookToolCallEndContext = Parameters<
-	NonNullable<AgentHooks["onToolCallEnd"]>
->[0];
-type AgentHookToolCallStartContext = Parameters<
-	NonNullable<AgentHooks["onToolCallStart"]>
->[0];
-type AgentHookTurnEndContext = Parameters<
-	NonNullable<AgentHooks["onTurnEnd"]>
->[0];
+type AgentHookControl = Omit<HookControl, "appendMessages"> & {
+	systemPrompt?: string;
+	appendMessages?: unknown[];
+};
+
+export interface AgentHookRunStartPayload {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	userMessage: string;
+}
+
+export interface AgentHookToolCallStartPayload {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	call: { id: string; name: string; input: unknown };
+}
+
+export interface AgentHookToolCallEndPayload {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	record: ToolCallRecord;
+}
+
+export interface AgentHookTurnEndPayload {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	turn: unknown;
+}
+
+export interface AgentHookStopErrorPayload {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	error: Error;
+}
+
+export interface AgentHookSessionShutdownPayload {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	reason?: string;
+}
 
 export const HookEventNameSchema = z.enum([
 	"agent_start",
@@ -187,7 +216,7 @@ export interface ToolResultHookPayload extends HookEventPayloadBase {
 export interface AgentEndHookPayload extends HookEventPayloadBase {
 	hookName: "agent_end";
 	iteration: number;
-	turn: AgentHookTurnEndContext["turn"];
+	turn?: unknown;
 }
 
 export interface AgentErrorHookPayload extends HookEventPayloadBase {
@@ -266,7 +295,7 @@ export const HookEventPayloadSchema: z.ZodType<unknown> = z
 			})
 			.optional(),
 		tool_result: z.custom<ToolCallRecord>().optional(),
-		turn: z.custom<AgentHookTurnEndContext["turn"]>().optional(),
+		turn: z.unknown().optional(),
 		error: z
 			.object({
 				name: z.string(),
@@ -296,9 +325,3 @@ export function parseHookEventPayload(
 }
 
 export type SubprocessHookControl = AgentHookControl;
-export type AgentHookRunStartPayload = AgentHookRunStartContext;
-export type AgentHookToolCallStartPayload = AgentHookToolCallStartContext;
-export type AgentHookToolCallEndPayload = AgentHookToolCallEndContext;
-export type AgentHookTurnEndPayload = AgentHookTurnEndContext;
-export type AgentHookStopErrorPayload = AgentHookStopErrorContext;
-export type AgentHookSessionShutdownPayload = AgentHookSessionShutdownContext;

@@ -23,8 +23,7 @@ function emitterKey(sessionId: string | undefined): string | undefined {
 export const plugin: AgentPlugin = {
 	name: "local-automation-events",
 	manifest: {
-		capabilities: ["automationEvents", "hooks"],
-		hookStages: ["session_shutdown"],
+		capabilities: ["automationEvents"],
 	},
 
 	setup(api, ctx) {
@@ -86,14 +85,6 @@ export const plugin: AgentPlugin = {
 		}, intervalMs);
 
 		stopLocalEmitters.set(key, () => clearInterval(timer));
-	},
-
-	onSessionShutdown(ctx) {
-		const key = emitterKey(ctx.sessionId);
-		if (!key) return undefined;
-		stopLocalEmitters.get(key)?.();
-		stopLocalEmitters.delete(key);
-		return undefined;
 	},
 };
 

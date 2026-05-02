@@ -7,8 +7,7 @@
  * and wires them into an `AgentRuntimeConfig`.
  *
  * Fields that do **not** round-trip into `AgentRuntimeConfig`
- * (e.g. `execution.maxConsecutiveMistakes`,
- * `execution.loopDetection`, `hookPolicies`) are
+ * (e.g. `execution.maxConsecutiveMistakes`, `execution.loopDetection`) are
  * consumed by `SessionRuntime` / `MistakeTracker` /
  * `LoopDetectionTracker` — not passed through here.
  */
@@ -24,7 +23,6 @@ import type {
 	AgentTool,
 	BasicLogger,
 } from "@clinebot/shared";
-import type { HookBridge } from "../../hooks/hook-bridge";
 
 /**
  * Inputs required to assemble an `AgentRuntimeConfig`. Distinct from
@@ -57,16 +55,7 @@ export interface CreateAgentRuntimeConfigInput {
 	readonly toolContextMetadata?: Record<string, unknown>;
 	/** Pre-resolved plugin list from the plugin loader. */
 	readonly plugins?: readonly AgentRuntimePlugin[];
-	/**
-	 * Optional hook bridge. When provided, `AgentRuntimeConfig.hooks`
-	 * is populated from `hookBridge.toRuntimeHooks()`. Omit for
-	 * runtimes that do not need hook dispatch (e.g. unit tests).
-	 */
-	readonly hookBridge?: HookBridge;
-	/**
-	 * Pre-composed runtime hooks. Takes precedence over `hookBridge` when
-	 * the caller needs to layer session-owned behavior around legacy hooks.
-	 */
+	/** Runtime hooks supplied by the session/runtime builder. */
 	readonly hooks?: Partial<AgentRuntimeHooks>;
 	/** Seed messages (usually `session.conversation.getMessages()`). */
 	readonly initialMessages?: readonly AgentMessage[];
@@ -89,13 +78,14 @@ export function createAgentRuntimeConfig(
 
 	const modelOptions = buildModelOptions(agentConfig);
 	const messageModelInfo = buildMessageModelInfo(agentConfig);
-	const hooks = input.hooks ?? input.hookBridge?.toRuntimeHooks();
+	const hooks = input.hooks;
 	const toolExecution = resolveToolExecution(agentConfig.maxParallelToolCalls);
 
 	const config: AgentRuntimeConfig = {
 		sessionId: input.sessionId ?? agentConfig.sessionId,
 		agentId: input.agentId,
 		conversationId: input.conversationId,
+		parentAgentId: input.parentAgentId,
 		agentRole: input.agentRole,
 		systemPrompt: input.systemPrompt ?? agentConfig.systemPrompt,
 		messageModelInfo,

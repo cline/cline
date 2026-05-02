@@ -29,6 +29,22 @@ function createApiCapture() {
 	return { tools, messageBuilders, automationEventTypes, api };
 }
 
+function makeSnapshot() {
+	return {
+		agentId: "agent-1",
+		status: "running" as const,
+		iteration: 1,
+		messages: [],
+		pendingToolCalls: [],
+		usage: {
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		},
+	};
+}
+
 describe("plugin-sandbox", () => {
 	let dir = "";
 	let sharedSandbox:
@@ -49,7 +65,7 @@ describe("plugin-sandbox", () => {
 			[
 				"export default {",
 				"  name: 'sandbox-test',",
-				"  manifest: { capabilities: ['hooks','tools'], hookStages: ['input'] },",
+				"  manifest: { capabilities: ['hooks','tools'] },",
 				"  setup(api) {",
 				"    api.registerTool({",
 				"      name: 'sandbox_echo',",
@@ -58,7 +74,7 @@ describe("plugin-sandbox", () => {
 				"      execute: async (input) => ({ echoed: input.value }),",
 				"    });",
 				"  },",
-				"  onInput(ctx) { return { overrideInput: String(ctx.input || '').toUpperCase() }; }",
+				"  hooks: { beforeRun() { return { reason: 'sandbox-before-run' }; } },",
 				"};",
 			].join("\n"),
 			"utf8",
@@ -91,13 +107,13 @@ describe("plugin-sandbox", () => {
 			[
 				"export default {",
 				"  name: 'sandbox-run-end',",
-				"  manifest: { capabilities: ['hooks'], hookStages: ['run_end'] },",
-				"  onRunEnd(ctx) {",
+				"  manifest: { capabilities: ['hooks'] },",
+				"  hooks: { afterRun(ctx) {",
 				"    globalThis.__clinePluginHost?.emitEvent?.('run_end_hook', {",
-				"      finishReason: ctx.result?.finishReason,",
+				"      finishReason: ctx.result?.status,",
 				"      iterations: ctx.result?.iterations,",
 				"    });",
-				"  },",
+				"  } },",
 				"};",
 			].join("\n"),
 			"utf8",
@@ -342,18 +358,10 @@ describe("plugin-sandbox", () => {
 		expect(sharedSandbox?.extensions).toBeDefined();
 		const extension = sharedExtensions.get("sandbox-test");
 		expect(extension?.name).toBe("sandbox-test");
-		type AgentExtensionInputContext = Parameters<
-			NonNullable<NonNullable<AgentConfig["extensions"]>[number]["onInput"]>
-		>[0];
-		const inputContext: AgentExtensionInputContext = {
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			mode: "run",
-			input: "hello",
-		};
-		const control = await extension?.onInput?.(inputContext);
-		expect(control?.overrideInput).toBe("HELLO");
+		const control = await extension?.hooks?.beforeRun?.({
+			snapshot: makeSnapshot(),
+		});
+		expect(control?.reason).toBe("sandbox-before-run");
 
 		const { tools, api } = createApiCapture();
 		await extension?.setup?.(api, {});
@@ -379,8 +387,8 @@ describe("plugin-sandbox", () => {
 				[
 					"export default {",
 					"  name: 'sandbox-timeout',",
-					"  manifest: { capabilities: ['hooks'], hookStages: ['input'] },",
-					"  onInput() { return new Promise(() => {}); }",
+					"  manifest: { capabilities: ['hooks'] },",
+					"  hooks: { beforeRun() { return new Promise(() => {}); } },",
 					"};",
 				].join("\n"),
 				"utf8",
@@ -392,13 +400,7 @@ describe("plugin-sandbox", () => {
 			});
 			const extension = sandboxed.extensions?.[0];
 			await expect(
-				extension?.onInput?.({
-					agentId: "agent-1",
-					conversationId: "conv-1",
-					parentAgentId: null,
-					mode: "run",
-					input: "hello",
-				}),
+				extension?.hooks?.beforeRun?.({ snapshot: makeSnapshot() }),
 			).rejects.toThrow(/timed out/i);
 			await sandboxed.shutdown();
 		} finally {
@@ -455,22 +457,22 @@ describe("plugin-sandbox", () => {
 
 	it("runs run_end hooks in sandbox process", async () => {
 		const extension = sharedExtensions.get("sandbox-run-end");
-		expect(typeof extension?.onRunEnd).toBe("function");
-		await extension?.onRunEnd?.({
-			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
+		expect(typeof extension?.hooks?.afterRun).toBe("function");
+		await extension?.hooks?.afterRun?.({
+			snapshot: makeSnapshot(),
 			result: {
-				text: "done",
-				usage: { inputTokens: 1, outputTokens: 2 },
-				messages: [],
-				toolCalls: [],
+				agentId: "agent-1",
+				runId: "run-1",
+				status: "completed",
 				iterations: 2,
-				finishReason: "completed",
-				model: { id: "test-model", provider: "test-provider" },
-				startedAt: new Date("2026-04-25T00:00:00.000Z"),
-				endedAt: new Date("2026-04-25T00:00:01.000Z"),
-				durationMs: 1000,
+				outputText: "done",
+				messages: [],
+				usage: {
+					inputTokens: 1,
+					outputTokens: 2,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
 			},
 		});
 		expect(forwardedEvents).toEqual([

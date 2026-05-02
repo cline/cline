@@ -120,31 +120,39 @@ describe("hub client runtime capabilities", () => {
 			contributions: [
 				{
 					kind: "hook",
-					name: "onRunStart",
-					capabilityName: "hook.onRunStart",
+					name: "beforeRun",
+					capabilityName: "hook.beforeRun",
 				},
 			],
 			requestCapability: request,
 		});
 		const hooks = runtime.localRuntime.hooks;
 
-		const result = await hooks?.onRunStart?.({
+		const snapshot = {
 			agentId: "agent-1",
-			conversationId: "conv-1",
-			parentAgentId: null,
-			userMessage: "hello",
+			runId: "conv-1",
+			status: "running" as const,
+			iteration: 0,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		};
+		const result = await hooks?.beforeRun?.({
+			snapshot,
 		});
 
 		expect(result).toEqual({ context: "extra context" });
 		expect(request).toHaveBeenCalledWith(
 			"session-1",
-			"hook.onRunStart",
+			"hook.beforeRun",
 			{
 				context: {
-					agentId: "agent-1",
-					conversationId: "conv-1",
-					parentAgentId: null,
-					userMessage: "hello",
+					snapshot,
 				},
 			},
 			"client-1",

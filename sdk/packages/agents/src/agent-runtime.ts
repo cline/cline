@@ -284,6 +284,7 @@ export class AgentRuntime {
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
+		parentAgentId: undefined as string | null | undefined,
 		runId: undefined as string | undefined,
 		status: "idle" as AgentRuntimeStateSnapshot["status"],
 		iteration: 0,
@@ -303,6 +304,7 @@ export class AgentRuntime {
 		};
 		this.state.agentId = resolved.agentId ?? createUID("agent");
 		this.state.agentRole = resolved.agentRole;
+		this.state.parentAgentId = resolved.parentAgentId;
 		this.state.messages = cloneMessages(resolved.initialMessages ?? []);
 	}
 
@@ -359,6 +361,8 @@ export class AgentRuntime {
 		return {
 			agentId: this.state.agentId,
 			agentRole: this.state.agentRole,
+			parentAgentId: this.state.parentAgentId,
+			conversationId: this.config.conversationId?.trim() || undefined,
 			runId: this.state.runId,
 			status: this.state.status,
 			iteration: this.state.iteration,
@@ -1034,6 +1038,7 @@ export class AgentRuntime {
 	private async executePreparedTool(
 		prepared: PreparedToolExecution,
 	): Promise<AgentMessage> {
+		const startedAt = new Date();
 		await this.emit({
 			type: "tool-started",
 			snapshot: this.snapshot(),
@@ -1085,6 +1090,9 @@ export class AgentRuntime {
 			}
 		}
 
+		const endedAt = new Date();
+		const durationMs = Math.max(0, endedAt.getTime() - startedAt.getTime());
+
 		if (prepared.tool) {
 			for (const hook of this.hooks.afterTool) {
 				const after = (await hook({
@@ -1093,6 +1101,9 @@ export class AgentRuntime {
 					toolCall: prepared.toolCall,
 					input: prepared.input,
 					result,
+					startedAt,
+					endedAt,
+					durationMs,
 				})) as AgentAfterToolResult | undefined;
 				this.applyStopControl(after);
 				if (after?.result) {

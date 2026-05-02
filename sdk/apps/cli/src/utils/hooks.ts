@@ -60,25 +60,6 @@ type HookRuntimeBaseContext = {
 	parentAgentId: string | null;
 };
 
-type AgentHookRunStartContext = Parameters<
-	NonNullable<AgentHooks["onRunStart"]>
->[0];
-type AgentHookStopErrorContext = Parameters<
-	NonNullable<AgentHooks["onStopError"]>
->[0];
-type AgentHookToolCallEndContext = Parameters<
-	NonNullable<AgentHooks["onToolCallEnd"]>
->[0];
-type AgentHookToolCallStartContext = Parameters<
-	NonNullable<AgentHooks["onToolCallStart"]>
->[0];
-type AgentHookTurnEndContext = Parameters<
-	NonNullable<AgentHooks["onTurnEnd"]>
->[0];
-type AgentHookSessionShutdownContext = Parameters<
-	NonNullable<AgentHooks["onSessionShutdown"]>
->[0];
-
 function mapParams(input: unknown): Record<string, string> {
 	if (!input || typeof input !== "object") {
 		return {};
@@ -88,6 +69,29 @@ function mapParams(input: unknown): Record<string, string> {
 		output[key] = typeof value === "string" ? value : JSON.stringify(value);
 	}
 	return output;
+}
+
+function baseContextFromSnapshot(snapshot: {
+	agentId: string;
+	conversationId?: string;
+	runId?: string;
+	parentAgentId?: string | null;
+}): HookRuntimeBaseContext {
+	return {
+		agentId: snapshot.agentId,
+		conversationId:
+			snapshot.conversationId ?? snapshot.runId ?? snapshot.agentId,
+		parentAgentId: snapshot.parentAgentId ?? null,
+	};
+}
+
+function textFromMessageContent(
+	content: readonly { type: string; text?: string }[],
+): string {
+	return content
+		.filter((part) => part.type === "text" && typeof part.text === "string")
+		.map((part) => part.text)
+		.join("");
 }
 
 function isAbortReason(reason?: string): boolean {
@@ -170,8 +174,11 @@ export function createRuntimeHooks(options: {
 	const workspaceRoot = options.workspaceRoot?.trim() || cwd;
 	return {
 		hooks: {
-			onRunStart: async (ctx: AgentHookRunStartContext) => {
-				const root = basePayload(ctx, { cwd, workspaceRoot });
+			beforeRun: async (ctx) => {
+				const root = basePayload(baseContextFromSnapshot(ctx.snapshot), {
+					cwd,
+					workspaceRoot,
+				});
 				const isResume = process.env.CLINE_HOOK_AGENT_RESUME === "1";
 				await dispatchHookPayload(
 					isResume
@@ -193,12 +200,129 @@ export function createRuntimeHooks(options: {
 						verbose,
 					},
 				);
+				return undefined;
+			},
+			beforeTool: async (ctx) => {
 				await dispatchHookPayload(
 					{
-						...basePayload(ctx, { cwd, workspaceRoot }),
+						...basePayload(baseContextFromSnapshot(ctx.snapshot), {
+							cwd,
+							workspaceRoot,
+						}),
+						hookName: "tool_call",
+						iteration: ctx.snapshot.iteration,
+						tool_call: {
+							id: ctx.toolCall.toolCallId,
+							name: ctx.toolCall.toolName,
+							input: ctx.input,
+						},
+						preToolUse: {
+							toolName: ctx.toolCall.toolName,
+							parameters: mapParams(ctx.input),
+						},
+					},
+					{
+						dispatchHookEvent: options.dispatchHookEvent,
+						verbose,
+					},
+				);
+				return undefined;
+			},
+			afterTool: async (ctx) => {
+				const record = {
+					id: ctx.toolCall.toolCallId,
+					name: ctx.toolCall.toolName,
+					input: ctx.input,
+					output: ctx.result.output,
+					error: ctx.result.isError ? String(ctx.result.output) : undefined,
+					durationMs: ctx.durationMs,
+					startedAt: ctx.startedAt,
+					endedAt: ctx.endedAt,
+				};
+				await dispatchHookPayload(
+					{
+						...basePayload(baseContextFromSnapshot(ctx.snapshot), {
+							cwd,
+							workspaceRoot,
+						}),
+						hookName: "tool_result",
+						iteration: ctx.snapshot.iteration,
+						tool_result: record,
+						postToolUse: {
+							toolName: record.name,
+							parameters: mapParams(record.input),
+							result:
+								typeof record.output === "string"
+									? record.output
+									: JSON.stringify(record.output),
+							success: !record.error,
+							executionTimeMs: record.durationMs,
+						},
+					},
+					{
+						dispatchHookEvent: options.dispatchHookEvent,
+						verbose,
+					},
+				);
+				return undefined;
+			},
+			afterRun: async ({ snapshot, result }) => {
+				const base = baseContextFromSnapshot(snapshot);
+				if (result.status === "completed") {
+					await dispatchHookPayload(
+						{
+							...basePayload(base, { cwd, workspaceRoot }),
+							hookName: "agent_end",
+							iteration: result.iterations,
+							turn: { outputText: result.outputText, status: result.status },
+							taskComplete: { taskMetadata: {} },
+						},
+						{
+							dispatchHookEvent: options.dispatchHookEvent,
+							verbose,
+						},
+					);
+					return;
+				}
+				const hookName = isAbortReason(result.error?.message)
+					? "agent_abort"
+					: "agent_error";
+				await dispatchHookPayload(
+					hookName === "agent_abort"
+						? {
+								...basePayload(base, { cwd, workspaceRoot }),
+								hookName,
+								reason: result.error?.message,
+								taskCancel: { taskMetadata: {} },
+							}
+						: {
+								...basePayload(base, { cwd, workspaceRoot }),
+								hookName,
+								iteration: result.iterations,
+								error: serializeHookError(
+									result.error ?? new Error("Agent run failed"),
+								),
+								taskCancel: { taskMetadata: {} },
+							},
+					{
+						dispatchHookEvent: options.dispatchHookEvent,
+						verbose,
+					},
+				);
+			},
+			onEvent: async (event) => {
+				if (event.type !== "message-added" || event.message.role !== "user") {
+					return;
+				}
+				await dispatchHookPayload(
+					{
+						...basePayload(baseContextFromSnapshot(event.snapshot), {
+							cwd,
+							workspaceRoot,
+						}),
 						hookName: "prompt_submit",
 						userPromptSubmit: {
-							prompt: ctx.userMessage,
+							prompt: textFromMessageContent(event.message.content),
 							attachments: [],
 						},
 					},
@@ -207,111 +331,6 @@ export function createRuntimeHooks(options: {
 						verbose,
 					},
 				);
-				return undefined;
-			},
-			onToolCallStart: async (ctx: AgentHookToolCallStartContext) => {
-				await dispatchHookPayload(
-					{
-						...basePayload(ctx, { cwd, workspaceRoot }),
-						hookName: "tool_call",
-						iteration: ctx.iteration,
-						tool_call: {
-							id: ctx.call.id,
-							name: ctx.call.name,
-							input: ctx.call.input,
-						},
-						preToolUse: {
-							toolName: ctx.call.name,
-							parameters: mapParams(ctx.call.input),
-						},
-					},
-					{
-						dispatchHookEvent: options.dispatchHookEvent,
-						verbose,
-					},
-				);
-				return undefined;
-			},
-			onToolCallEnd: async (ctx: AgentHookToolCallEndContext) => {
-				await dispatchHookPayload(
-					{
-						...basePayload(ctx, { cwd, workspaceRoot }),
-						hookName: "tool_result",
-						iteration: ctx.iteration,
-						tool_result: ctx.record,
-						postToolUse: {
-							toolName: ctx.record.name,
-							parameters: mapParams(ctx.record.input),
-							result:
-								typeof ctx.record.output === "string"
-									? ctx.record.output
-									: JSON.stringify(ctx.record.output),
-							success: !ctx.record.error,
-							executionTimeMs: ctx.record.durationMs,
-						},
-					},
-					{
-						dispatchHookEvent: options.dispatchHookEvent,
-						verbose,
-					},
-				);
-				return undefined;
-			},
-			onTurnEnd: async (ctx: AgentHookTurnEndContext) => {
-				await dispatchHookPayload(
-					{
-						...basePayload(ctx, { cwd, workspaceRoot }),
-						hookName: "agent_end",
-						iteration: ctx.iteration,
-						turn: ctx.turn,
-						taskComplete: { taskMetadata: {} },
-					},
-					{
-						dispatchHookEvent: options.dispatchHookEvent,
-						verbose,
-					},
-				);
-				return undefined;
-			},
-			onStopError: async (ctx: AgentHookStopErrorContext) => {
-				const hookName = isAbortReason(ctx.error.message)
-					? "agent_abort"
-					: "agent_error";
-				await dispatchHookPayload(
-					hookName === "agent_abort"
-						? {
-								...basePayload(ctx, { cwd, workspaceRoot }),
-								hookName,
-								reason: ctx.error.message,
-								taskCancel: { taskMetadata: {} },
-							}
-						: {
-								...basePayload(ctx, { cwd, workspaceRoot }),
-								hookName,
-								iteration: ctx.iteration,
-								error: serializeHookError(ctx.error),
-								taskCancel: { taskMetadata: {} },
-							},
-					{
-						dispatchHookEvent: options.dispatchHookEvent,
-						verbose,
-					},
-				);
-				return undefined;
-			},
-			onSessionShutdown: async (ctx: AgentHookSessionShutdownContext) => {
-				await dispatchHookPayload(
-					{
-						...basePayload(ctx, { cwd, workspaceRoot }),
-						hookName: "session_shutdown",
-						reason: ctx.reason,
-					},
-					{
-						dispatchHookEvent: options.dispatchHookEvent,
-						verbose,
-					},
-				);
-				return undefined;
 			},
 		},
 		shutdown: async () => {},

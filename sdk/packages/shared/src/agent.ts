@@ -1,12 +1,7 @@
 /**
  * AgentRuntime contract types (ported from clinee `@clinebot/shared`).
  *
- * These are the canonical type definitions consumed by the new
- * `AgentRuntime` implementation. They are intentionally decoupled from
- * the legacy `AgentConfig`/`AgentHooks`/`AgentEvent` surface in
- * `./agents/types` (which remains as the host-facing API). Bridging
- * between the two lives in `@clinebot/core` (HookBridge,
- * `toLegacyAgentEvent`) and `@clinebot/agents` (the facade adapter).
+ * These are the canonical type definitions consumed by `AgentRuntime`.
  *
  */
 
@@ -143,6 +138,8 @@ export type AgentRunStatus =
 export interface AgentRuntimeStateSnapshot {
 	agentId: string;
 	agentRole?: AgentRole;
+	parentAgentId?: string | null;
+	conversationId?: string;
 	runId?: string;
 	status: AgentRunStatus;
 	iteration: number;
@@ -298,6 +295,9 @@ export interface AgentAfterToolContext {
 	toolCall: AgentToolCallPart;
 	input: unknown;
 	result: AgentToolResult;
+	startedAt: Date;
+	endedAt: Date;
+	durationMs: number;
 }
 
 export interface AgentAfterToolResult {
@@ -311,14 +311,11 @@ export interface AgentRunLifecycleContext {
 }
 
 // =============================================================================
-// Runtime hook bag (distinct from the host-facing `AgentHooks`)
+// Runtime hook bag
 // =============================================================================
 
 /**
  * 7-callback hook bag consumed by `AgentRuntime`.
- *
- * Distinct from the host-facing `AgentHooks` (in `./agents/types`);
- * `HookBridge.toRuntimeHooks()` adapts between the two.
  */
 export interface AgentRuntimeHooks {
 	beforeRun?: (
@@ -400,6 +397,7 @@ export interface AgentRuntimeConfig {
 	 * should not be used as the hub/session routing key.
 	 */
 	conversationId?: string;
+	parentAgentId?: string | null;
 	agentRole?: AgentRole;
 	systemPrompt?: string;
 	messageModelInfo?: AgentMessage["modelInfo"];

@@ -45,7 +45,7 @@ export type {
 	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
-	AgentExtensionHookStage,
+	AgentExtensionHooks,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
@@ -62,22 +62,7 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
-export type {
-	HookControl,
-	HookDispatchResult,
-	HookEventEnvelope,
-	HookHandlerResult,
-	HookPolicies,
-	HookStage,
-	HookStagePolicy,
-	HookStagePolicyInput,
-} from "./hooks/contracts";
-export {
-	type HookDispatchInput,
-	HookEngine,
-	type HookEngineOptions,
-	type HookHandler,
-} from "./hooks/engine";
+export type { HookControl } from "./hooks/contracts";
 export type {
 	AgentAbortHookPayload,
 	AgentEndHookPayload,

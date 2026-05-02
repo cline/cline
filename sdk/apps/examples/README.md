@@ -4,6 +4,19 @@ Learn how to build with the Cline SDK through practical, runnable examples.
 
 ## 📁 Plugin Examples
 
+### [`hooks/`](./hooks)
+
+Hook-focused examples for lifecycle automation:
+
+- `agent_end.sh` shows a file hook that runs only when a task completes successfully
+- `custom-compaction-hook.example.ts` shows a runtime `beforeModel` hook that rewrites provider-bound messages for custom compaction
+
+```bash
+mkdir -p .cline/hooks
+cp apps/examples/hooks/agent_end.sh .cline/hooks/agent_end.sh
+chmod +x .cline/hooks/agent_end.sh
+```
+
 ### [`cline-plugin/`](./plugin-examples/cline-plugin)
 
 **Plugin module example** showing how to extend the CLI and SDK with custom capabilities:

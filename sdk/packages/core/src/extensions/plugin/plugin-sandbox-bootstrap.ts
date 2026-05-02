@@ -88,7 +88,7 @@ interface PluginModule {
 	name: string;
 	manifest: PluginManifest;
 	setup?: (api: PluginApi, ctx: PluginSetupCtx) => void | Promise<void>;
-	[hookName: string]: unknown;
+	hooks?: Record<string, (ctx: unknown) => unknown | Promise<unknown>>;
 }
 
 interface ContributionDescriptor {
@@ -119,6 +119,7 @@ interface PluginDescriptor {
 	pluginPath: string;
 	name: string;
 	manifest: PluginManifest;
+	hooks?: string[];
 	contributions: {
 		tools: ContributionDescriptor[];
 		commands: ContributionDescriptor[];
@@ -551,6 +552,11 @@ async function initialize(args: {
 				pluginPath,
 				name: plugin.name,
 				manifest: plugin.manifest,
+				hooks: plugin.hooks
+					? Object.entries(plugin.hooks)
+							.filter(([, hook]) => typeof hook === "function")
+							.map(([name]) => name)
+					: undefined,
 				contributions,
 			});
 		} catch (error) {
@@ -573,7 +579,7 @@ async function invokeHook(args: {
 	payload: unknown;
 }): Promise<unknown> {
 	const state = getPlugin(args.pluginId);
-	const handler = state.plugin[args.hookName];
+	const handler = state.plugin.hooks?.[args.hookName];
 	if (typeof handler !== "function") {
 		return undefined;
 	}

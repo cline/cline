@@ -6,9 +6,7 @@
  * Demonstrates:
  *   - setup(api, ctx)      — workspace-aware tool registration via
  *                            ctx.workspaceInfo
- *   - onSessionStart(ctx)  — session-scoped init; ctx carries the same
- *                            workspace fields including git metadata
- *   - onRunStart / onToolCall / onToolResult / onRunEnd — lifecycle metrics
+ *   - hooks.beforeRun / beforeTool / afterTool / afterRun — lifecycle metrics
  *
  * CLI usage:
  *   mkdir -p .cline/plugins
@@ -22,8 +20,8 @@
 import { type AgentPlugin, ClineCore, createTool } from "@clinebot/core";
 
 // ---------------------------------------------------------------------------
-// Plugin-level state — populated once in onSessionStart, available to all
-// hook handlers and tool executors for the duration of the session.
+// Plugin-level state — populated from setup context and available to all hook
+// handlers and tool executors for the duration of the session.
 // ---------------------------------------------------------------------------
 
 let sessionWorkspaceRoot: string | undefined;
@@ -34,13 +32,6 @@ const plugin: AgentPlugin = {
 	name: "weather-and-metrics",
 	manifest: {
 		capabilities: ["tools", "hooks"],
-		hookStages: [
-			"session_start",
-			"run_start",
-			"tool_call_before",
-			"tool_call_after",
-			"run_end",
-		],
 	},
 
 	// -------------------------------------------------------------------------
@@ -57,7 +48,7 @@ const plugin: AgentPlugin = {
 	//
 	// Use setup() context for anything that affects tool registration itself —
 	// e.g. building workspace-relative descriptions or defaulting file paths.
-	// For session-scoped side-effects (caching, logging) prefer onSessionStart.
+	// Use setup context for session-scoped plugin state.
 	// -------------------------------------------------------------------------
 	setup(api, ctx) {
 		// Build a workspace-aware description so the model knows exactly where
@@ -91,29 +82,7 @@ const plugin: AgentPlugin = {
 				},
 			}),
 		);
-	},
-
-	// -------------------------------------------------------------------------
-	// onSessionStart(ctx)
-	//
-	// Fired exactly once when the session is first initialized, before any run
-	// starts. The canonical place for session-scoped initialization.
-	//
-	// Session hooks receive the wider session workspace envelope:
-	//   ctx.cwd            — session working directory
-	//   ctx.workspaceRoot  — project/repo root
-	//   ctx.workspaceInfo  — structured workspace + git metadata (rootPath,
-	//                        branch, commit, associatedRemoteUrls)
-	//
-	// Unlike process.cwd() — which may return the wrong path when --cwd is
-	// used without process.chdir() — these values always match the session
-	// config and are safe to use in global plugins or cross-workspace setups.
-	// -------------------------------------------------------------------------
-	onSessionStart(ctx) {
-		// Cache workspace context so all hooks below can reference it without
-		// re-reading from disk on every tool call.
-		sessionWorkspaceRoot =
-			ctx.workspaceInfo?.rootPath ?? ctx.workspaceRoot ?? ctx.cwd;
+		sessionWorkspaceRoot = ctx.workspaceInfo?.rootPath;
 		sessionBranch = ctx.workspaceInfo?.latestGitBranchName;
 		sessionCommit = ctx.workspaceInfo?.latestGitCommitHash?.slice(0, 7);
 		const remotes = ctx.workspaceInfo?.associatedRemoteUrls ?? [];
@@ -130,54 +99,52 @@ const plugin: AgentPlugin = {
 		if (remotes.length > 0) {
 			console.log(`[metrics] remotes  : ${remotes.join(", ")}`);
 		}
-		return undefined;
 	},
 
 	// -------------------------------------------------------------------------
 	// Lifecycle metrics hooks
 	// -------------------------------------------------------------------------
+	hooks: {
+		beforeRun() {
+			console.log("\n[metrics] run started");
+			return undefined;
+		},
 
-	onRunStart({ userMessage }) {
-		console.log(`\n[metrics] run started: "${userMessage}"`);
-		return undefined;
-	},
+		beforeTool({ toolCall, input }) {
+			console.log(`[metrics] -> ${toolCall.toolName}`, input);
 
-	onToolCall({ call }) {
-		console.log(`[metrics] -> ${call.name}`, call.input);
-
-		// Example policy using context cached from onSessionStart: block
-		// "git push" on main/master without shelling out to git again.
-		if (call.name === "run_commands") {
-			const { commands } = call.input as { commands?: string[] };
-			const isProtected =
-				sessionBranch === "main" || sessionBranch === "master";
-			const hasPush = commands?.some((c) =>
-				c.trimStart().startsWith("git push"),
-			);
-			if (isProtected && hasPush) {
-				console.error(
-					`[metrics] blocked: git push on protected branch "${sessionBranch}"`,
+			if (toolCall.toolName === "run_commands") {
+				const { commands } = input as { commands?: string[] };
+				const isProtected =
+					sessionBranch === "main" || sessionBranch === "master";
+				const hasPush = commands?.some((c) =>
+					c.trimStart().startsWith("git push"),
 				);
-				return { cancel: true };
+				if (isProtected && hasPush) {
+					console.error(
+						`[metrics] blocked: git push on protected branch "${sessionBranch}"`,
+					);
+					return { stop: true, reason: "Blocked git push on protected branch" };
+				}
 			}
-		}
-		return undefined;
-	},
+			return undefined;
+		},
 
-	onToolResult({ record }) {
-		console.log(`[metrics] <- ${record.name} (${record.durationMs}ms)`);
-		return undefined;
-	},
+		afterTool({ toolCall }) {
+			console.log(`[metrics] <- ${toolCall.toolName}`);
+			return undefined;
+		},
 
-	onRunEnd({ result }) {
-		const { finishReason, iterations, usage } = result;
-		const loc = sessionWorkspaceRoot ? ` in ${sessionWorkspaceRoot}` : "";
-		console.log(
-			`[metrics] run done${loc} — ${iterations} iteration(s), reason: ${finishReason}`,
-		);
-		console.log(
-			`[metrics] tokens — in: ${usage.inputTokens}, out: ${usage.outputTokens}, cost: ${usage.totalCost?.toFixed(6)}`,
-		);
+		afterRun({ result }) {
+			const { status, iterations, usage } = result;
+			const loc = sessionWorkspaceRoot ? ` in ${sessionWorkspaceRoot}` : "";
+			console.log(
+				`[metrics] run done${loc} — ${iterations} iteration(s), status: ${status}`,
+			);
+			console.log(
+				`[metrics] tokens — in: ${usage.inputTokens}, out: ${usage.outputTokens}, cost: ${usage.totalCost?.toFixed(6)}`,
+			);
+		},
 	},
 };
 
@@ -197,8 +164,7 @@ async function runDemo(): Promise<void> {
 				systemPrompt: "You are a helpful assistant. Use tools when needed.",
 				extensions: [plugin],
 				// extensionContext.workspace is the authoritative source for
-				// workspaceInfo that flows into setup(api, ctx), and for the wider
-				// session workspace fields consumed by onSessionStart(ctx). The CLI
+				// workspaceInfo that flows into setup(api, ctx). The CLI
 				// and VS Code hosts populate this automatically from their runtime
 				// state. When using the SDK directly, set it explicitly so plugins
 				// always receive accurate workspace metadata.
