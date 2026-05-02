@@ -1,5 +1,21 @@
 # cline
 
+## [2.18.0]
+
+### Added
+
+- Restore foreground terminal support and settings.
+- Add latest OpenAI, SAP AI Core, and Z AI models.
+
+### Fixed
+
+- Fix hook template JSON escaping.
+- Improve ripgrep file search error handling.
+
+### Changed
+
+- Remove hardcoded model lists from docs.
+
 ## [2.17.0]
 
 ### Added
