@@ -33,9 +33,13 @@ export function createOAuthClientCallbacks(
 		onAuth: ({ url, instructions }) => {
 			options.onOutput?.(instructions ?? "Complete sign-in in your browser.");
 			if (options.openUrl) {
-				void Promise.resolve(options.openUrl(url)).catch((error) => {
+				try {
+					void Promise.resolve(options.openUrl(url)).catch((error) => {
+						options.onOpenUrlError?.({ url, error });
+					});
+				} catch (error) {
 					options.onOpenUrlError?.({ url, error });
-				});
+				}
 			}
 			options.onOutput?.(url);
 		},

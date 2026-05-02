@@ -362,11 +362,17 @@ export function OAuthLoginContent(
 			(url: string) => {
 				setAuthUrl(url);
 				setStatus("Waiting for authentication in browser...");
-				open(url, { wait: false }).catch(() => {
+				try {
+					void open(url, { wait: false }).catch(() => {
+						setStatus(
+							"Could not open browser automatically. Open the URL below.",
+						);
+					});
+				} catch {
 					setStatus(
 						"Could not open browser automatically. Open the URL below.",
 					);
-				});
+				}
 			},
 		)
 			.then((credentials) => {

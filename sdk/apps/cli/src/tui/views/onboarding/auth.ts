@@ -35,9 +35,13 @@ export function runOAuthAuthFlow(input: {
 	loginLocalProvider(input.providerId, existing, (url: string) => {
 		input.setAuthUrl(url);
 		input.setStatus("Waiting for sign-in...");
-		open(url, { wait: false }).catch(() => {
+		try {
+			void open(url, { wait: false }).catch(() => {
+				input.setStatus("Could not open browser. Visit the URL below.");
+			});
+		} catch {
 			input.setStatus("Could not open browser. Visit the URL below.");
-		});
+		}
 	})
 		.then((credentials) => {
 			if (input.isAborted()) return;

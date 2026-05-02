@@ -262,7 +262,9 @@ function createOAuthCallbacks(io: AuthIo): {
 			io.writeln(
 				`${c.dim}[auth] Could not open browser automatically; open the URL above manually.${c.reset}`,
 			);
-			io.writeErr(error instanceof Error ? error.message : String(error));
+			io.writeln(
+				`${c.dim}[auth] Browser open failed: ${error instanceof Error ? error.message : String(error)}${c.reset}`,
+			);
 		},
 	});
 }
