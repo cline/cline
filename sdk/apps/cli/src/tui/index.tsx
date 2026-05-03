@@ -1,6 +1,7 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Root } from "./root";
+import { installTuiStdioCapture } from "./stdio-capture";
 import type { TuiProps } from "./types";
 
 export type { TuiProps } from "./types";
@@ -13,6 +14,7 @@ export async function renderOpenTui(
 		autoFocus: false,
 		enableMouseMovement: true,
 	});
+	const restoreStdio = installTuiStdioCapture();
 
 	const detectedPalette = await renderer
 		.getPalette({ timeout: 150 })
@@ -31,6 +33,7 @@ export async function renderOpenTui(
 			/>,
 		);
 	} catch (error) {
+		restoreStdio();
 		renderer.destroy();
 		throw error;
 	}
@@ -51,6 +54,7 @@ export async function renderOpenTui(
 
 	renderer.on("destroy", () => {
 		unmountRoot();
+		restoreStdio();
 		resolveExit?.();
 	});
 
