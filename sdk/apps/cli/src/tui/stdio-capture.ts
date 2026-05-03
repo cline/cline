@@ -2,8 +2,9 @@ type WriteCallback = (error?: Error | null) => void;
 type WriteMethod = NodeJS.WriteStream["write"];
 type CapturedStream = "stdout" | "stderr";
 
+// Covers CSI, OSC (including OSC52 clipboard writes), and Fe sequences. OSC must precede the Fe catch-all because ] falls in the Fe range.
 const ANSI_PATTERN = new RegExp(
-	`${String.fromCharCode(27)}(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])`,
+	`${String.fromCharCode(27)}(?:\\[[0-?]*[ -/]*[@-~]|\\].*?(?:${String.fromCharCode(27)}\\\\|${String.fromCharCode(7)})|[@-Z\\\\-_])`,
 	"g",
 );
 
@@ -45,17 +46,27 @@ function createCapturedWrite(stream: CapturedStream): {
 	flush: () => void;
 } {
 	let pending = "";
+	// Guards against recursion: if console.log/error internally calls process.stdout.write, the re-entrant write is dropped.
+	let emitting = false;
 
 	const emitLine = (line: string) => {
 		const cleaned = cleanLine(line);
 		if (!cleaned) {
 			return;
 		}
-		if (stream === "stderr") {
-			console.error(cleaned);
+		if (emitting) {
 			return;
 		}
-		console.log(cleaned);
+		emitting = true;
+		try {
+			if (stream === "stderr") {
+				console.error(cleaned);
+				return;
+			}
+			console.log(cleaned);
+		} finally {
+			emitting = false;
+		}
 	};
 
 	const write = ((

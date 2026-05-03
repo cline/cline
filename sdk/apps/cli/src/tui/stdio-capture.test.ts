@@ -56,6 +56,29 @@ describe("installTuiStdioCapture", () => {
 		expect(consoleLogSpy).toHaveBeenCalledWith("next");
 	});
 
+	it("strips OSC sequences from captured output", () => {
+		restoreCapture = installTuiStdioCapture();
+
+		process.stdout.write("\x1b]52;c;SGVsbG8=\x1b\\visible text\n");
+		process.stdout.write("\x1b]0;window title\x07only this\n");
+
+		expect(consoleLogSpy).toHaveBeenCalledWith("visible text");
+		expect(consoleLogSpy).toHaveBeenCalledWith("only this");
+	});
+
+	it("does not recurse when console methods trigger stdout writes", () => {
+		restoreCapture = installTuiStdioCapture();
+
+		consoleLogSpy.mockImplementation((text: string) => {
+			process.stdout.write(`[re-entrant] ${text}\n`);
+		});
+
+		process.stdout.write("hello\n");
+
+		expect(consoleLogSpy).toHaveBeenCalledTimes(1);
+		expect(consoleLogSpy).toHaveBeenCalledWith("hello");
+	});
+
 	it("restores the original stream writers", () => {
 		restoreCapture = installTuiStdioCapture();
 
