@@ -550,6 +550,9 @@ async function main() {
 			trialWorkdirs.push(trialWorkdir)
 			const result = await runTrial(scenario, modelId, trialWorkdir)
 			trialResults.push(result)
+			if (result.passed && trials > 1) {
+				break
+			}
 		}
 
 		trialResults.forEach((result, t) => {
