@@ -45,7 +45,10 @@ export interface InteractiveConfigItem {
 	path: string;
 	enabled?: boolean;
 	kind: InteractiveConfigItemKind;
+	enabledState?: "enabled" | "disabled" | "partial";
 	toolNames?: string[];
+	configKind?: "tool" | "plugin";
+	pluginName?: string;
 	source:
 		| "global"
 		| "workspace"
@@ -88,18 +91,29 @@ function detectSource(
 	return path.startsWith(workspaceRoot) ? "workspace" : "global";
 }
 
+function detectPluginSource(
+	path: string,
+	workspaceRoot: string,
+): "global-plugin" | "workspace-plugin" {
+	return detectSource(path, workspaceRoot) === "workspace"
+		? "workspace-plugin"
+		: "global-plugin";
+}
+
 function toSorted<T extends InteractiveConfigItem>(items: T[]): T[] {
 	return [...items].sort((a, b) => {
 		const sourceRank = (source: InteractiveConfigItem["source"]): number => {
 			switch (source) {
-				case "workspace":
-				case "workspace-plugin":
-					return 0;
-				case "global":
-				case "global-plugin":
-					return 1;
 				case "builtin":
+					return 0;
+				case "workspace":
+					return 1;
+				case "workspace-plugin":
 					return 2;
+				case "global":
+					return 3;
+				case "global-plugin":
+					return 4;
 			}
 		};
 		if (a.source !== b.source) {
@@ -251,7 +265,8 @@ export async function loadInteractiveConfigData(input: {
 					path: filePath,
 					enabled: !disabledPlugins.has(filePath),
 					kind: "plugin",
-					source: detectSource(filePath, input.workspaceRoot),
+					configKind: "plugin",
+					source: detectPluginSource(filePath, input.workspaceRoot),
 				});
 			}
 		} catch {
@@ -290,8 +305,12 @@ export async function loadInteractiveConfigData(input: {
 					? tool.id
 					: tool.headlessToolNames.join(", "),
 			enabled: tool.defaultEnabled,
+			enabledState: tool.defaultEnabled
+				? ("enabled" as const)
+				: ("disabled" as const),
 			kind: "tool" as const,
 			toolNames: [tool.id, ...tool.headlessToolNames],
+			configKind: "tool" as const,
 			source: "builtin" as const,
 			description: tool.description,
 		})),
@@ -308,8 +327,11 @@ export async function loadInteractiveConfigData(input: {
 				name: pluginTool.name,
 				path: pluginTool.path,
 				enabled: pluginTool.enabled,
+				enabledState: pluginTool.enabled ? "enabled" : "disabled",
 				kind: "tool" as const,
 				toolNames: [pluginTool.name],
+				configKind: "tool",
+				pluginName: pluginTool.pluginName,
 				source: pluginTool.source,
 				description: pluginTool.description,
 			});

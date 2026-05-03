@@ -10,6 +10,7 @@ import {
 	loadClineAccountSnapshot,
 	switchClineAccount,
 } from "../tui/cline-account";
+import type { InteractiveConfigItem } from "../tui/interactive-config";
 import {
 	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
@@ -179,17 +180,23 @@ export async function runInteractive(
 		return await cleanupPromise;
 	};
 	let sessionPolicyRefresh: Promise<void> | undefined;
-	const refreshInteractiveSessionPolicies = (): void => {
-		if (
-			isRunning ||
-			sessionRuntime.isShutdownRequested() ||
-			sessionPolicyRefresh
-		) {
+	let pendingSessionPolicyRefresh = false;
+	const refreshInteractiveSessionPolicies = async (): Promise<void> => {
+		if (sessionRuntime.isShutdownRequested()) {
 			return;
 		}
+		if (isRunning) {
+			pendingSessionPolicyRefresh = true;
+			return;
+		}
+		if (sessionPolicyRefresh) {
+			return await sessionPolicyRefresh;
+		}
+		pendingSessionPolicyRefresh = false;
 		sessionPolicyRefresh = (async () => {
 			await sessionRuntime.ensureReady();
 			if (isRunning || sessionRuntime.isShutdownRequested()) {
+				pendingSessionPolicyRefresh = isRunning;
 				return;
 			}
 			await sessionRuntime.restartWithCurrentMessages();
@@ -203,6 +210,29 @@ export async function runInteractive(
 			.finally(() => {
 				sessionPolicyRefresh = undefined;
 			});
+		return await sessionPolicyRefresh;
+	};
+	const refreshInteractiveSessionPoliciesIfPending = (): void => {
+		if (pendingSessionPolicyRefresh) {
+			void refreshInteractiveSessionPolicies();
+		}
+	};
+
+	const shouldRefreshInteractiveSessionForConfigItem = (
+		item: InteractiveConfigItem,
+	): boolean =>
+		item.kind === "tool" || item.kind === "plugin" || item.kind === "skill";
+
+	const onToggleConfigItem = async (
+		item: InteractiveConfigItem,
+	): Promise<
+		Awaited<ReturnType<typeof configDataLoader.onToggleConfigItem>>
+	> => {
+		const data = await configDataLoader.onToggleConfigItem(item);
+		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
+			await refreshInteractiveSessionPolicies();
+		}
+		return data;
 	};
 
 	process.on("SIGINT", handleSigint);
@@ -256,7 +286,7 @@ export async function runInteractive(
 				clineApiBaseUrl: options?.clineApiBaseUrl,
 			}),
 		loadConfigData: configDataLoader.loadConfigData,
-		onToggleConfigItem: configDataLoader.onToggleConfigItem,
+		onToggleConfigItem,
 		subscribeToEvents: ({
 			onAgentEvent: onAgent,
 			onTeamEvent: onTeam,
@@ -363,6 +393,7 @@ export async function runInteractive(
 			} finally {
 				if (!delivery) {
 					isRunning = false;
+					refreshInteractiveSessionPoliciesIfPending();
 				}
 			}
 		},
@@ -374,11 +405,14 @@ export async function runInteractive(
 		},
 		onRunningChange: (running) => {
 			isRunning = running;
+			if (!running) {
+				refreshInteractiveSessionPoliciesIfPending();
+			}
 		},
 		onTurnErrorReported: () => {},
 		onAutoApproveChange: (enabled) => {
 			setInteractiveAutoApprove(enabled);
-			refreshInteractiveSessionPolicies();
+			void refreshInteractiveSessionPolicies();
 		},
 		onModeChange: async (mode) => {
 			await sessionRuntime.ensureReady();

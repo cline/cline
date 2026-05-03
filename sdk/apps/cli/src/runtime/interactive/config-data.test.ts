@@ -137,6 +137,35 @@ Use this skill.`,
 		expect(data).toBeDefined();
 	});
 
+	it("toggles every SDK tool name for a displayed built-in tool", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+		const item: InteractiveConfigItem = {
+			id: "editor",
+			name: "editor",
+			path: "editor, apply_patch",
+			enabled: true,
+			source: "builtin",
+			kind: "tool",
+			configKind: "tool",
+			toolNames: ["editor", "apply_patch"],
+		};
+
+		await loader.onToggleConfigItem(item);
+		const settings = JSON.parse(
+			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+		) as { disabledTools?: string[] };
+
+		expect(settings.disabledTools).toEqual(["apply_patch", "editor"]);
+	});
+
 	it("loads and toggles plugin enabled state from global settings", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);

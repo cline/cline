@@ -135,9 +135,8 @@ export function resolveConfigItemSelectAction(
 ): ConfigAction {
 	if (
 		typeof item.enabled === "boolean" &&
-		(item.kind === "plugin" ||
-			item.source === "workspace-plugin" ||
-			item.source === "global-plugin")
+		item.kind !== "skill" &&
+		isToggleableConfigItem(item)
 	) {
 		return { kind: "toggle-item", item };
 	}
@@ -164,7 +163,7 @@ export function isInlineConfigAction(
 }
 
 export function getConfigFooterText(): string {
-	return "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select/details, Space toggle, Esc close";
+	return "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select, Space toggle, Esc close";
 }
 
 export function getConfigItemDisplayName(name: string): string {

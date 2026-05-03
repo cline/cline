@@ -85,6 +85,11 @@ describe("config view helpers", () => {
 	it("handles toggle actions inline so the settings dialog stays open", () => {
 		const skill = createItem({ kind: "skill", name: "review" });
 		const plugin = createItem({ kind: "plugin", name: "workspace-plugin" });
+		const builtinTool = createItem({
+			kind: "tool",
+			name: "read_file",
+			source: "builtin",
+		});
 
 		expect(isInlineConfigAction(resolveConfigItemToggleAction(skill))).toBe(
 			true,
@@ -95,6 +100,10 @@ describe("config view helpers", () => {
 		expect(isInlineConfigAction(resolveConfigItemSelectAction(plugin))).toBe(
 			true,
 		);
+		expect(
+			isInlineConfigAction(resolveConfigItemSelectAction(builtinTool)),
+		).toBe(true);
+		expect(getConfigFooterText()).not.toContain("details");
 	});
 
 	it("returns item names without decoration", () => {

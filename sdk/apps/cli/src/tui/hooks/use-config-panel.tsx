@@ -29,6 +29,7 @@ export function useConfigPanel(opts: {
 	refocusTextarea: () => void;
 }) {
 	const activeTabRef = useRef<InteractiveConfigTab>("general");
+	const navPosRef = useRef(0);
 	const emptyConfigData = useMemo(
 		() => ({
 			workflows: [] as InteractiveConfigItem[],
@@ -63,8 +64,12 @@ export function useConfigPanel(opts: {
 						providerDisplayName={providerDisplayName}
 						currentMode={opts.sessionUiMode}
 						initialTab={activeTabRef.current}
+						initialNavPos={navPosRef.current}
 						onActiveTabChange={(tab) => {
 							activeTabRef.current = tab;
+						}}
+						onNavPosChange={(navPos) => {
+							navPosRef.current = navPos;
 						}}
 						onToggleConfigItem={opts.onToggleConfigItem}
 						onToggleMode={opts.toggleMode}
@@ -75,7 +80,10 @@ export function useConfigPanel(opts: {
 
 			if (!action) {
 				keepOpen = false;
-			} else if (action.kind === "open-provider") {
+				continue;
+			}
+
+			if (action.kind === "open-provider") {
 				await opts.openModelSelector({
 					startWithProviderChange: true,
 					onCancel: () => {},

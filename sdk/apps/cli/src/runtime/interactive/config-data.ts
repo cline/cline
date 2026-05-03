@@ -63,23 +63,22 @@ export function createInteractiveConfigDataLoader(input: {
 		) {
 			return undefined;
 		}
-		const toolNames = [
-			...new Set([...(item.toolNames ?? []), item.name].filter(Boolean)),
-		];
-		await Promise.all(
-			toolNames.map((name) =>
-				settings.toggle({
-					type: "tools",
-					name,
-					enabled:
-						typeof item.enabled === "boolean" ? !item.enabled : undefined,
-					cwd: input.config.cwd,
-					workspaceRoot: workspaceRoot(),
-					userInstructionService: input.userInstructionService,
-					availabilityContext: availabilityContext(),
-				}),
-			),
-		);
+		const rawToolNames =
+			item.toolNames && item.toolNames.length > 0
+				? item.toolNames
+				: [item.name];
+		const toolNames = [...new Set(rawToolNames.filter(Boolean))];
+		for (const name of toolNames) {
+			await settings.toggle({
+				type: "tools",
+				name,
+				enabled: typeof item.enabled === "boolean" ? !item.enabled : undefined,
+				cwd: input.config.cwd,
+				workspaceRoot: workspaceRoot(),
+				userInstructionService: input.userInstructionService,
+				availabilityContext: availabilityContext(),
+			});
+		}
 		return await loadConfigData();
 	};
 

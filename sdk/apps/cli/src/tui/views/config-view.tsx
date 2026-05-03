@@ -27,28 +27,49 @@ import {
 
 type ConfigRow =
 	| { kind: "spacer" }
-	| { kind: "head"; label: string }
+	| { kind: "head"; label: string; indent?: number }
 	| { kind: "detail"; text: string }
 	| { kind: "provider" }
 	| { kind: "model" }
 	| { kind: "toggle"; id: string; label: string }
+	| { kind: "tool-group"; label: string; rightLabel: string; indent?: number }
 	| {
 			kind: "ext";
 			name: string;
 			path: string;
-			source: string;
+			source: InteractiveConfigItem["source"];
 			enabled?: boolean;
 			description?: string;
 			item: InteractiveConfigItem;
+			indent?: number;
+			rightLabel?: string;
 	  }
 	| { kind: "mcp-manager" };
 
-function getSourceColor(source: string): string {
-	return source === "workspace" || source === "workspace-plugin"
-		? palette.success
-		: source === "builtin"
-			? "cyan"
-			: "gray";
+function sourceRank(source: InteractiveConfigItem["source"]): number {
+	switch (source) {
+		case "builtin":
+			return 0;
+		case "workspace":
+			return 1;
+		case "workspace-plugin":
+			return 2;
+		case "global":
+			return 3;
+		case "global-plugin":
+			return 4;
+	}
+}
+
+function sortBySourceThenName(
+	items: InteractiveConfigItem[],
+): InteractiveConfigItem[] {
+	return [...items].sort((a, b) => {
+		if (a.source !== b.source) {
+			return sourceRank(a.source) - sourceRank(b.source);
+		}
+		return a.name.localeCompare(b.name);
+	});
 }
 
 function isNavigable(row: ConfigRow): boolean {
@@ -90,12 +111,116 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	providerDisplayName: string;
 	currentMode: string;
 	initialTab?: InteractiveConfigTab;
+	initialNavPos?: number;
 	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
+	onNavPosChange?: (navPos: number) => void;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
 	) => Promise<InteractiveConfigData | undefined>;
 	onToggleMode: () => void;
 	onToggleAutoApprove: () => void;
+}
+
+function groupToolItems(
+	items: InteractiveConfigItem[],
+): Array<[string, InteractiveConfigItem[]]> {
+	const groups = new Map<string, InteractiveConfigItem[]>();
+	for (const item of items) {
+		const groupKey = `${item.source}:${item.path}:${item.pluginName}`;
+		const group = groups.get(groupKey) ?? [];
+		group.push(item);
+		groups.set(groupKey, group);
+	}
+
+	return [...groups.entries()].sort((left, right) => {
+		const leftItem = left[1][0];
+		const rightItem = right[1][0];
+		const leftSource = leftItem?.source ?? "global-plugin";
+		const rightSource = rightItem?.source ?? "global-plugin";
+		if (leftSource !== rightSource) {
+			return sourceRank(leftSource) - sourceRank(rightSource);
+		}
+		return (leftItem?.pluginName ?? "").localeCompare(
+			rightItem?.pluginName ?? "",
+		);
+	});
+}
+
+function getSharedToolNames(items: InteractiveConfigItem[]): Set<string> {
+	const counts = new Map<string, number>();
+	for (const item of items) {
+		counts.set(item.name, (counts.get(item.name) ?? 0) + 1);
+	}
+	return new Set(
+		[...counts.entries()]
+			.filter(([, count]) => count > 1)
+			.map(([name]) => name),
+	);
+}
+
+function appendToolGroupRows(
+	rows: ConfigRow[],
+	groups: Array<[string, InteractiveConfigItem[]]>,
+	sharedToolNames: ReadonlySet<string>,
+): void {
+	for (const [, groupItems] of groups) {
+		const first = groupItems[0];
+		const enabledCount = groupItems.filter(
+			(item) => item.enabled !== false,
+		).length;
+		rows.push({
+			kind: "tool-group",
+			label: first?.pluginName ?? "plugin",
+			rightLabel: `${enabledCount}/${groupItems.length} tools enabled`,
+			indent: 2,
+		});
+		for (const item of sortBySourceThenName(groupItems)) {
+			rows.push({
+				kind: "ext",
+				name: item.name,
+				path: item.path,
+				source: item.source,
+				enabled: item.enabled,
+				description: item.description,
+				item,
+				indent: 4,
+				rightLabel: sharedToolNames.has(item.name) ? "shared tool name" : "",
+			});
+		}
+	}
+}
+
+function appendToolRows(
+	rows: ConfigRow[],
+	items: InteractiveConfigItem[],
+): void {
+	const builtinTools = sortBySourceThenName(
+		items.filter((item) => !item.pluginName),
+	);
+	if (builtinTools.length > 0) {
+		rows.push({ kind: "head", label: "Built-in" });
+		for (const item of builtinTools) {
+			rows.push({
+				kind: "ext",
+				name: item.name,
+				path: item.path,
+				source: item.source,
+				enabled: item.enabled,
+				description: item.description,
+				item,
+			});
+		}
+	}
+
+	const pluginGroups = groupToolItems(items.filter((item) => item.pluginName));
+	if (pluginGroups.length > 0) {
+		rows.push({ kind: "head", label: "Plugins" });
+		appendToolGroupRows(
+			rows,
+			pluginGroups,
+			getSharedToolNames(items.filter((item) => item.pluginName)),
+		);
+	}
 }
 
 export function ConfigPanelContent(props: ConfigPanelProps) {
@@ -113,7 +238,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [configData, setConfigData] = useState(props.configData);
 	const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
 	const [toggleError, setToggleError] = useState<string | undefined>();
-	const [navPos, setNavPos] = useState(0);
+	const [navPos, setNavPos] = useState(props.initialNavPos ?? 0);
 
 	const displayName = resolveModelDisplayName(config);
 
@@ -142,6 +267,8 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					kind: "detail",
 					text: `No ${toTabLabel(activeTab).toLowerCase()} found.`,
 				});
+			} else if (activeTab === "tools") {
+				appendToolRows(r, activeItems);
 			} else {
 				for (const item of activeItems) {
 					r.push({
@@ -169,7 +296,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		[rows],
 	);
 
-	const selectedRowIdx = navIndices[navPos] ?? 0;
+	const clampedNavPos = Math.min(navPos, Math.max(0, navIndices.length - 1));
+	const selectedRowIdx = navIndices[clampedNavPos] ?? 0;
+
+	const setNavPosition = (nextNavPos: number) => {
+		setNavPos(nextNavPos);
+		props.onNavPosChange?.(nextNavPos);
+	};
 
 	const handleInlineToggle = async (item: InteractiveConfigItem) => {
 		if (!props.onToggleConfigItem || togglingItemId) return;
@@ -214,18 +347,19 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						break;
 				}
 				break;
-			case "ext":
-				{
-					const action = resolveConfigItemSelectAction(row.item);
-					if (isInlineConfigAction(action)) {
-						void handleInlineToggle(row.item);
-					} else {
-						resolve(action);
-					}
+			case "ext": {
+				const action = resolveConfigItemSelectAction(row.item);
+				if (isInlineConfigAction(action)) {
+					void handleInlineToggle(row.item);
+				} else {
+					resolve(action);
 				}
 				break;
+			}
 			case "mcp-manager":
 				resolve({ kind: "open-mcp" });
+				break;
+			case "tool-group":
 				break;
 		}
 	};
@@ -251,15 +385,19 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				props.onActiveTabChange?.(nextTab);
 				return nextTab;
 			});
-			setNavPos(0);
+			setNavPosition(0);
 			return;
 		}
 		if (key.name === "up") {
-			setNavPos((p) => (p > 0 ? p - 1 : navIndices.length - 1));
+			const nextNavPos =
+				clampedNavPos > 0 ? clampedNavPos - 1 : navIndices.length - 1;
+			setNavPosition(nextNavPos);
 			return;
 		}
 		if (key.name === "down") {
-			setNavPos((p) => (p < navIndices.length - 1 ? p + 1 : 0));
+			const nextNavPos =
+				clampedNavPos < navIndices.length - 1 ? clampedNavPos + 1 : 0;
+			setNavPosition(nextNavPos);
 			return;
 		}
 		if (key.name === "space") {
@@ -317,6 +455,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					case "head":
 						return (
 							<text key={absIdx} fg="white">
+								{" ".repeat(row.indent ?? 0)}
 								{row.label}
 							</text>
 						);
@@ -326,6 +465,21 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								{"  "}
 								{row.text}
 							</text>
+						);
+					case "tool-group":
+						return (
+							<box
+								key={absIdx}
+								flexDirection="row"
+								justifyContent="space-between"
+							>
+								<text fg="white">
+									{"  "}
+									{" ".repeat(row.indent ?? 0)}
+									{row.label}
+								</text>
+								<text fg="gray">{row.rightLabel}</text>
+							</box>
 						);
 					case "provider":
 						return (
@@ -377,41 +531,44 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						);
 					}
 					case "ext": {
-						const stateLabel =
+						const enabledState =
+							row.item.enabledState ??
+							(row.enabled === false ? "disabled" : "enabled");
+						const isPending = togglingItemId === row.item.id;
+						const enabledIcon =
 							typeof row.enabled === "boolean"
-								? row.enabled
-									? "Enabled"
-									: "Disabled"
-								: undefined;
-						const rightLabel = stateLabel
-							? `${stateLabel} · ${row.source}`
-							: row.source;
+								? isPending
+									? "~ "
+									: enabledState === "partial"
+										? "◐ "
+										: row.enabled
+											? "● "
+											: "○ "
+								: "";
+						const rightLabel = row.rightLabel ?? "";
+						const toggleable = isToggleableConfigItem(row.item);
+						const prefix = " ".repeat(row.indent ?? 0);
+						const rowColor =
+							toggleable && enabledState === "enabled"
+								? palette.success
+								: enabledState === "partial"
+									? "yellow"
+									: isSel
+										? "cyan"
+										: "gray";
 						return (
 							<box
 								key={absIdx}
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text
-									fg={
-										isSel ? "cyan" : row.enabled === false ? "gray" : undefined
-									}
-								>
+								<text fg={rowColor}>
 									{pfx}
-									{typeof row.enabled === "boolean"
-										? row.enabled
-											? "● "
-											: "○ "
-										: ""}
+									{prefix}
+									{enabledIcon}
 									{getConfigItemDisplayName(row.name)}
 								</text>
-								<text
-									fg={
-										row.enabled === false ? "gray" : getSourceColor(row.source)
-									}
-								>
-									{rightLabel}
-								</text>
+								<text fg="gray">{rightLabel}</text>
 							</box>
 						);
 					}
@@ -436,7 +593,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			<text> </text>
 			{toggleError && <text fg="red">{toggleError}</text>}
 			<text fg="gray">
-				<em>{getConfigFooterText()}</em>
+				<em>{togglingItemId ? "Applying settings" : getConfigFooterText()}</em>
 			</text>
 		</box>
 	);
