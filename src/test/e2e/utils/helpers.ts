@@ -287,14 +287,20 @@ export const e2e = test
 			try {
 				await use(app)
 			} finally {
-				// Race app.close() against a timeout to prevent worker teardown hangs.
-				// VS Code's Electron process can hang during shutdown if the extension
-				// host is busy (file watchers, terminal cleanup, etc.). Force-kill
-				// after 15s so fixture teardown stays well within the 60s budget.
+				// Graceful shutdown: ask Electron to quit from inside the process.
+				// This fires before-quit/will-quit events, giving the extension host
+				// a chance to clean up (file watchers, terminals, etc.) — unlike
+				// app.close() alone which just waits for the process to exit.
+				try {
+					await app.evaluate(({ app: electronApp }) => electronApp.quit())
+				} catch {}
+				// Close the Playwright connection with a timeout. If the process
+				// still hangs (e.g. stuck IPC handler), force-kill after 10s so
+				// fixture teardown stays well within the 60s worker budget.
 				try {
 					await Promise.race([
 						app.close(),
-						new Promise<never>((_, reject) => setTimeout(() => reject(new Error("app.close() timed out")), 15_000)),
+						new Promise<never>((_, reject) => setTimeout(() => reject(new Error("app.close() timed out")), 10_000)),
 					])
 				} catch {
 					try {
