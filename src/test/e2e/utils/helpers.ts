@@ -287,7 +287,20 @@ export const e2e = test
 			try {
 				await use(app)
 			} finally {
-				await app.close()
+				// Race app.close() against a timeout to prevent worker teardown hangs.
+				// VS Code's Electron process can hang during shutdown if the extension
+				// host is busy (file watchers, terminal cleanup, etc.). Force-kill
+				// after 15s so fixture teardown stays well within the 60s budget.
+				try {
+					await Promise.race([
+						app.close(),
+						new Promise<never>((_, reject) => setTimeout(() => reject(new Error("app.close() timed out")), 15_000)),
+					])
+				} catch {
+					try {
+						app.process().kill("SIGKILL")
+					} catch {}
+				}
 				// Cleanup in parallel - include clineTestDir if it was created
 				const cleanupTasks = [
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
@@ -328,10 +341,18 @@ export const e2e = test
 			try {
 				await use(page)
 			} finally {
-				// Ensure proper cleanup: Close the page if it's still open and not already closed by app.close()
-				// This provides a common teardown mechanism for all e2e tests without requiring explicit page.close() calls
+				// Close the page with a timeout guard. page.close() can hang if
+				// the renderer is unresponsive. 5s is generous for a BrowserWindow
+				// close; if exceeded, skip it and let app.close() handle termination.
 				if (!page.isClosed()) {
-					await page.close()
+					try {
+						await Promise.race([
+							page.close(),
+							new Promise<never>((_, reject) =>
+								setTimeout(() => reject(new Error("page.close() timed out")), 5_000),
+							),
+						])
+					} catch {}
 				}
 			}
 		},
