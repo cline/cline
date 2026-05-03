@@ -297,15 +297,20 @@ export const e2e = test
 				// Close the Playwright connection with a timeout. If the process
 				// still hangs (e.g. stuck IPC handler), force-kill after 10s so
 				// fixture teardown stays well within the 60s worker budget.
+				let appCloseTimer: ReturnType<typeof setTimeout> | undefined
 				try {
 					await Promise.race([
 						app.close(),
-						new Promise<never>((_, reject) => setTimeout(() => reject(new Error("app.close() timed out")), 10_000)),
+						new Promise<never>(
+							(_, reject) => (appCloseTimer = setTimeout(() => reject(new Error("app.close() timed out")), 10_000)),
+						),
 					])
 				} catch {
 					try {
 						app.process().kill("SIGKILL")
 					} catch {}
+				} finally {
+					clearTimeout(appCloseTimer)
 				}
 				// Cleanup in parallel - include clineTestDir if it was created
 				const cleanupTasks = [
@@ -351,14 +356,19 @@ export const e2e = test
 				// the renderer is unresponsive. 5s is generous for a BrowserWindow
 				// close; if exceeded, skip it and let app.close() handle termination.
 				if (!page.isClosed()) {
+					let pageCloseTimer: ReturnType<typeof setTimeout> | undefined
 					try {
 						await Promise.race([
 							page.close(),
-							new Promise<never>((_, reject) =>
-								setTimeout(() => reject(new Error("page.close() timed out")), 5_000),
+							new Promise<never>(
+								(_, reject) =>
+									(pageCloseTimer = setTimeout(() => reject(new Error("page.close() timed out")), 5_000)),
 							),
 						])
-					} catch {}
+					} catch {
+					} finally {
+						clearTimeout(pageCloseTimer)
+					}
 				}
 			}
 		},
