@@ -202,12 +202,12 @@ describe("Shell Detection Tests", () => {
 		})
 
 		afterEach(() => {
-			;(vscode.env as any).remoteName = originalRemoteName
+			Object.defineProperty(vscode.env, "remoteName", { value: originalRemoteName, configurable: true })
 		})
 
 		it("returns true on Windows with WSL source profile and no remote extension", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
-			;(vscode.env as any).remoteName = undefined
+			Object.defineProperty(vscode.env, "remoteName", { value: undefined, configurable: true })
 			mockVsCodeConfig("windows", "WSL", {
 				WSL: { source: "WSL" },
 			})
@@ -216,7 +216,7 @@ describe("Shell Detection Tests", () => {
 
 		it("returns true on Windows when profile name includes 'wsl'", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
-			;(vscode.env as any).remoteName = undefined
+			Object.defineProperty(vscode.env, "remoteName", { value: undefined, configurable: true })
 			mockVsCodeConfig("windows", "Ubuntu WSL", {
 				"Ubuntu WSL": {},
 			})
@@ -225,7 +225,7 @@ describe("Shell Detection Tests", () => {
 
 		it("returns false when remoteName is 'wsl' (extension is active)", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
-			;(vscode.env as any).remoteName = "wsl"
+			Object.defineProperty(vscode.env, "remoteName", { value: "wsl", configurable: true })
 			mockVsCodeConfig("windows", "WSL", {
 				WSL: { source: "WSL" },
 			})
@@ -234,7 +234,7 @@ describe("Shell Detection Tests", () => {
 
 		it("returns false on non-Windows platforms", () => {
 			Object.defineProperty(process, "platform", { value: "linux" })
-			;(vscode.env as any).remoteName = undefined
+			Object.defineProperty(vscode.env, "remoteName", { value: undefined, configurable: true })
 			mockVsCodeConfig("linux", "bash", {
 				bash: { path: "/bin/bash" },
 			})
@@ -243,7 +243,7 @@ describe("Shell Detection Tests", () => {
 
 		it("returns false on Windows with non-WSL profile", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
-			;(vscode.env as any).remoteName = undefined
+			Object.defineProperty(vscode.env, "remoteName", { value: undefined, configurable: true })
 			mockVsCodeConfig("windows", "PowerShell", {
 				PowerShell: { source: "PowerShell" },
 			})
@@ -252,7 +252,7 @@ describe("Shell Detection Tests", () => {
 
 		it("returns false for profile names that contain 'wsl' as a substring but not a word", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
-			;(vscode.env as any).remoteName = undefined
+			Object.defineProperty(vscode.env, "remoteName", { value: undefined, configurable: true })
 			mockVsCodeConfig("windows", "awslify", {
 				awslify: {},
 			})
@@ -261,7 +261,7 @@ describe("Shell Detection Tests", () => {
 
 		it("returns false on Windows with no default profile set", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
-			;(vscode.env as any).remoteName = undefined
+			Object.defineProperty(vscode.env, "remoteName", { value: undefined, configurable: true })
 			mockVsCodeConfig("windows", null, {})
 			expect(isWslWithoutRemoteExtension()).to.equal(false)
 		})
