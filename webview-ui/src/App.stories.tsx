@@ -842,6 +842,26 @@ export const ShellIntegrationWarning: Story = {
 	},
 }
 
+export const ShellIntegrationWarningWsl: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_wsl", ""),
+			],
+			vscodeTerminalExecutionMode: "integrated",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows WSL-specific shell integration warning recommending the VS Code WSL extension.",
+			},
+		},
+	},
+}
+
 export const ErrorRetryInProgress: Story = {
 	decorators: [
 		createStoryDecorator({

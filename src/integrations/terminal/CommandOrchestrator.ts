@@ -464,7 +464,9 @@ export async function orchestrateCommandExecution(
 	})
 
 	process.once("no_shell_integration", async () => {
-		if (showShellIntegrationSuggestion) {
+		if (options.isWslWithoutRemoteExtension) {
+			await say("shell_integration_warning_wsl")
+		} else if (showShellIntegrationSuggestion) {
 			await say("shell_integration_warning_with_suggestion")
 		} else {
 			await say("shell_integration_warning")

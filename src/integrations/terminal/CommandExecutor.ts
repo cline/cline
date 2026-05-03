@@ -15,6 +15,7 @@
 
 import { findLastIndex } from "@shared/array"
 import { ClineToolResponseContent } from "@shared/messages"
+import { isWslWithoutRemoteExtension } from "@utils/shell"
 import { Logger } from "@/shared/services/Logger"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
@@ -141,6 +142,7 @@ export class CommandExecutor {
 					}
 				: undefined,
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
+			isWslWithoutRemoteExtension: isWslWithoutRemoteExtension(),
 			terminalType: useStandalone ? "standalone" : "vscode",
 		})
 

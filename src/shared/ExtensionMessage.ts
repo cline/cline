@@ -171,6 +171,7 @@ export type ClineSay =
 	| "tool"
 	| "shell_integration_warning"
 	| "shell_integration_warning_with_suggestion"
+	| "shell_integration_warning_wsl"
 	| "browser_action_launch"
 	| "browser_action"
 	| "browser_action_result"
