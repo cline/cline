@@ -28,7 +28,7 @@ export function isWslWithoutRemoteExtension(): boolean {
 	}
 
 	const profile = profiles[defaultProfileName]
-	return profile?.source === "WSL" || defaultProfileName.toLowerCase().includes("wsl")
+	return profile?.source === "WSL" || /\bwsl\b/i.test(defaultProfileName)
 }
 
 const SHELL_PATHS = {

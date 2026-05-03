@@ -250,6 +250,15 @@ describe("Shell Detection Tests", () => {
 			expect(isWslWithoutRemoteExtension()).to.equal(false)
 		})
 
+		it("returns false for profile names that contain 'wsl' as a substring but not a word", () => {
+			Object.defineProperty(process, "platform", { value: "win32" })
+			;(vscode.env as any).remoteName = undefined
+			mockVsCodeConfig("windows", "awslify", {
+				awslify: {},
+			})
+			expect(isWslWithoutRemoteExtension()).to.equal(false)
+		})
+
 		it("returns false on Windows with no default profile set", () => {
 			Object.defineProperty(process, "platform", { value: "win32" })
 			;(vscode.env as any).remoteName = undefined

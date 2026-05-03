@@ -394,8 +394,8 @@ export interface OrchestrationOptions {
 	onOutputLine?: (line: string) => void
 	/** Whether to show shell integration warning with suggestion */
 	showShellIntegrationSuggestion?: boolean
-	/** Whether the user is on Windows with a WSL profile but without the VS Code WSL extension */
-	isWslWithoutRemoteExtension?: boolean
+	/** Lazily checks whether the user is on Windows with a WSL profile but without the VS Code WSL extension */
+	isWslWithoutRemoteExtension?: () => boolean
 	/**
 	 * Callback invoked when user clicks "Proceed While Running".
 	 * Used to start background command tracking in the terminal manager.

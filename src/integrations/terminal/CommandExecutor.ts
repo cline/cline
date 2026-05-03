@@ -142,7 +142,7 @@ export class CommandExecutor {
 					}
 				: undefined,
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
-			isWslWithoutRemoteExtension: isWslWithoutRemoteExtension(),
+			isWslWithoutRemoteExtension,
 			terminalType: useStandalone ? "standalone" : "vscode",
 		})
 
