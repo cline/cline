@@ -1,5 +1,21 @@
 # Cline CLI Changelog
 
+## 0.0.8 (2026-05-03)
+
+- Fix crash when pressing Escape to cancel a running turn
+- Add plugin and SDK tool toggles to the settings panel
+- Add `@clinebot/sdk` as a user-facing alias for `@clinebot/core`
+- Improve hub recovery with better error handling, logging, and recovery timeouts
+- Show session summary (ID, model, cost, resume command) on exit
+- Fix OAuth browser-launch failure
+- Fix compact no-op being reported indistinctly
+- Fix CLI history resume being non-transactional (could leave blank UI or corrupt session on disk)
+- Fix cross-client session history not loading Code/VS Code sessions, and fix interactive turn status showing stale state
+- Fix configuration file paths for hooks and rules (now resolve from `~/.cline/hooks` and `~/.cline/rules`)
+- Fix Telegram connector: honor `--no-tools` flag, lock tool-disabled mode across state changes, post replies as raw text to avoid markdown parse failures, add `/help` and `/start` commands
+- Clean up CLI program description and compact slash command descriptions
+- Clean up CLI flags
+
 ## 0.0.7 (2026-04-30)
 
 - Fix graceful recovery when the model returns malformed tool call inputs, preventing crashes mid-conversation
