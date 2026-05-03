@@ -64,7 +64,8 @@ const isGlobal = changedFiles.some((f) => matchesAny(f, GLOBAL_PATTERNS))
 
 const scopes = {
 	run_quality_checks:
-		isGlobal || changedFiles.some((f) => matchesAny(f, [...CORE_PATTERNS, ...WEBVIEW_PATTERNS, ...CLI_PATTERNS])),
+		isGlobal ||
+		changedFiles.some((f) => matchesAny(f, [...CORE_PATTERNS, ...WEBVIEW_PATTERNS, ...CLI_PATTERNS, ...PLATFORM_PATTERNS])),
 	run_core_tests: isGlobal || changedFiles.some((f) => matchesAny(f, CORE_PATTERNS)),
 	run_webview_tests: isGlobal || changedFiles.some((f) => matchesAny(f, WEBVIEW_PATTERNS)),
 	run_cli_tests: isGlobal || changedFiles.some((f) => matchesAny(f, CLI_PATTERNS)),

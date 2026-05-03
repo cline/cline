@@ -83,7 +83,9 @@ jobs:
         if: |
             always() &&
             (needs.quality-checks.result == 'success' || needs.quality-checks.result == 'skipped') &&
-            needs.preflight.outputs.run_core_tests == 'true'
+            (needs.preflight.outputs.run_core_tests == 'true' ||
+             needs.preflight.outputs.run_webview_tests == 'true' ||
+             needs.preflight.outputs.run_cli_tests == 'true')
         env:
             VSCODE_TEST_VERSION: 1.103.0
         strategy:
@@ -110,6 +112,8 @@ jobs:
               with:
                   path: node_modules
                   key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-npm-
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
@@ -117,6 +121,8 @@ jobs:
               with:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-npm-webview-
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
