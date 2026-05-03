@@ -329,6 +329,13 @@
         "@aws-sdk/client-bedrock-runtime",
       ],
     },
+    "packages/sdk": {
+      "name": "@clinebot/sdk",
+      "version": "0.0.36",
+      "dependencies": {
+        "@clinebot/core": "workspace:*",
+      },
+    },
     "packages/shared": {
       "name": "@clinebot/shared",
       "version": "0.0.37",
@@ -579,6 +586,8 @@
     "@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
 
     "@clinebot/menubar": ["@clinebot/menubar@workspace:apps/menubar"],
+
+    "@clinebot/sdk": ["@clinebot/sdk@workspace:packages/sdk"],
 
     "@clinebot/shared": ["@clinebot/shared@workspace:packages/shared"],
 

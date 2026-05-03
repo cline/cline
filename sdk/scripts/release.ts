@@ -46,7 +46,9 @@ if (!target || !["sdk", "cli"].includes(target)) {
 	console.error("Usage: bun release <sdk|cli> [version] [options]");
 	console.error("");
 	console.error("Targets:");
-	console.error("  sdk   Publish @clinebot/{shared,llms,agents,core} to npm");
+	console.error(
+		"  sdk   Publish @clinebot/{shared,llms,agents,core,sdk} to npm",
+	);
 	console.error(
 		"  cli   Publish @clinebot/cli from an existing cli-vX.Y.Z git tag",
 	);
@@ -75,7 +77,7 @@ if (explicitVersion && !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(explicitVersion)) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SDK_PUBLISH_ORDER = ["shared", "llms", "agents", "core"] as const;
+const SDK_PUBLISH_ORDER = ["shared", "llms", "agents", "core", "sdk"] as const;
 const MAIN_BRANCH = "main";
 const root = join(import.meta.dir, "..");
 const packagesDir = join(root, "packages");

@@ -1,0 +1,35 @@
+{
+	"name": "@clinebot/sdk",
+	"description": "Cline SDK - user-facing alias for @clinebot/core",
+	"version": "0.0.36",
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"development": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"clean": "rm -rf dist node_modules",
+		"typecheck": "bun tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@clinebot/core": "workspace:*"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"license": "Apache-2.0"
+}
