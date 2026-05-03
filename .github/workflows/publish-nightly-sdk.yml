@@ -1,6 +1,8 @@
 name: "Publish SDK Nightly Release"
 
 on:
+    schedule:
+        - cron: '0 12 * * *' # 4 AM PST (UTC-8) = 12 UTC
     workflow_dispatch:
 
 permissions:
@@ -53,7 +55,7 @@ jobs:
                     fi
                   done
 
-            - name: Publish SDK nightly extension as pre-release
+            - name: Publish SDK nightly extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -67,4 +69,4 @@ jobs:
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-              run: npm run publish:marketplace:nightly -- --pre-release
+              run: npm run publish:marketplace:nightly

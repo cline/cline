@@ -8,6 +8,7 @@ import * as isBinaryFileModule from "isbinaryfile"
 import * as path from "path"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
+import * as terminalModule from "@/hosts/vscode/terminal/get-latest-output"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { parseMentions } from "."
 
@@ -19,6 +20,7 @@ describe("parseMentions", () => {
 	let fsReaddirStub: sinon.SinonStub
 	let extractTextStub: sinon.SinonStub
 	let isBinaryFileStub: sinon.SinonStub
+	let getLatestTerminalOutputStub: sinon.SinonStub
 	let getWorkingStateStub: sinon.SinonStub
 	let getCommitInfoStub: sinon.SinonStub
 	let showMessageStub: sinon.SinonStub
@@ -46,6 +48,7 @@ describe("parseMentions", () => {
 		// Stub other modules
 		extractTextStub = sandbox.stub(extractTextModule, "extractTextFromFile")
 		isBinaryFileStub = sandbox.stub(isBinaryFileModule, "isBinaryFile")
+		getLatestTerminalOutputStub = sandbox.stub(terminalModule, "getLatestTerminalOutput")
 		getWorkingStateStub = sandbox.stub(gitModule, "getWorkingState")
 		getCommitInfoStub = sandbox.stub(gitModule, "getCommitInfo")
 		showMessageStub = sandbox.stub(HostProvider.window, "showMessage")
@@ -221,6 +224,23 @@ Error fetching content: Network error
 	})
 
 	describe("Special mentions", () => {
+		it("should handle @terminal mention", async () => {
+			const text = "See @terminal output"
+
+			getLatestTerminalOutputStub.resolves("$ npm test\nAll tests passed!")
+
+			const result = await parseMentions(text, cwd, urlContentFetcherStub)
+
+			const expectedOutput = `See Terminal Output (see below for output) output
+
+<terminal_output>
+$ npm test
+All tests passed!
+</terminal_output>`
+
+			expect(result).to.equal(expectedOutput)
+		})
+
 		it("should handle @git-changes mention", async () => {
 			const text = "Review @git-changes"
 
@@ -328,19 +348,24 @@ Content here
 
 	describe("Error handling", () => {
 		it("should handle errors for each mention type gracefully", async () => {
-			const text = "@/error.txt @git-changes @abc1234567"
+			const text = "@/error.txt @terminal @git-changes @abc1234567"
 
 			fsStatStub.rejects(new Error("File error"))
+			getLatestTerminalOutputStub.rejects(new Error("Terminal error"))
 			getWorkingStateStub.rejects(new Error("Git state error"))
 			getCommitInfoStub.rejects(new Error("Commit error"))
 
 			const result = await parseMentions(text, cwd, urlContentFetcherStub)
 
-			const expectedOutput = `'error.txt' (see below for file content) Working directory changes (see below for details) Git commit 'abc1234567' (see below for commit info)
+			const expectedOutput = `'error.txt' (see below for file content) Terminal Output (see below for output) Working directory changes (see below for details) Git commit 'abc1234567' (see below for commit info)
 
 <file_content path="error.txt">
 Error fetching content: Failed to access path "error.txt": File error
 </file_content>
+
+<terminal_output>
+Error fetching terminal output: Terminal error
+</terminal_output>
 
 <git_working_state>
 Error fetching working state: Git state error

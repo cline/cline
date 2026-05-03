@@ -26,6 +26,12 @@ body:
       placeholder: 'e.g., 1.2.3'
     validations:
       required: true
+  - type: checkboxes
+    id: beta
+    attributes:
+      label: Beta version
+      options:
+        - label: I am using a beta version of Cline
   - type: textarea
     id: what-happened
     attributes:

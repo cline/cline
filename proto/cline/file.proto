@@ -151,6 +151,16 @@ message FileSearchRequest {
 message FileSearchResults {
   repeated FileInfo results = 1; // Array of file/folder results
   optional string mentions_request_id = 2; // Echo of the request ID for tracking
+  // Machine-readable reason for an empty result list. Unset on success.
+  // Known values:
+  //   "workspace_not_ready"   - host project model not yet loaded; retry-able.
+  //   "workspace_unavailable" - no workspace path; configuration error.
+  //   "ripgrep_spawn_failed"  - rg binary failed to spawn or exited non-zero.
+  //   "results_truncated"     - result cap hit (reserved for Phase 2C).
+  //   "unknown"               - catch-all; see error_message.
+  optional string error_reason = 3;
+  // Optional human-readable detail; rendered as a subtitle in the picker UI.
+  optional string error_message = 4;
 }
 
 // File information structure for search results

@@ -15,10 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
-// Managed timeouts now apply to all execute_command invocations.
-// Commands without an explicit timeout fall back to a short default or a longer
-// timeout for known long-running command families, and can continue in
-// background tracking if they exceed that managed timeout.
+// Default timeout for commands in yolo mode and background exec mode
 const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
 const LONG_RUNNING_COMMAND_TIMEOUT_SECONDS = 300
 
@@ -117,7 +114,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Handling of timeout while in yolo mode or background exec mode
-		timeoutSeconds = resolveCommandTimeoutSeconds(command, timeoutParam, true)
+		timeoutSeconds = resolveCommandTimeoutSeconds(
+			command,
+			timeoutParam,
+			config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec",
+		)
 
 		// Pre-process command for certain models
 		if (config.api.getModel().id.includes("gemini")) {
