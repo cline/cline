@@ -6,6 +6,7 @@ import { logCliProcessError } from "./logging/errors";
 import {
 	abortActiveRuntime,
 	cleanupActiveRuntime,
+	isAbortInProgress,
 } from "./runtime/active-runtime";
 import { writeErr } from "./utils/output";
 
@@ -45,7 +46,13 @@ if (!isMainThread) {
 	process.on("uncaughtException", (error) => {
 		handleFatalProcessError("uncaughtException", error);
 	});
-	process.on("unhandledRejection", (reason) => {
+	process.on("unhandledRejection", (reason, promise) => {
+		if (isAbortInProgress()) {
+			// Mark the promise as handled so OpenTUI's error overlay
+			// does not surface expected abort-related rejections.
+			promise.catch(() => {});
+			return;
+		}
 		handleFatalProcessError("unhandledRejection", reason);
 	});
 

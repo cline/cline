@@ -23,6 +23,8 @@ import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import {
+	clearAbortInProgress,
+	isAbortInProgress,
 	setActiveRuntimeAbort,
 	setActiveRuntimeCleanup,
 } from "./active-runtime";
@@ -365,11 +367,14 @@ export async function runInteractive(
 					};
 				}
 				if (result.finishReason !== "completed") {
-					if (result.finishReason === "aborted") {
+					if (
+						result.finishReason === "aborted" ||
+						isAbortInProgress()
+					) {
 						return {
 							usage: result.usage,
 							iterations: result.iterations,
-							finishReason: result.finishReason,
+							finishReason: "aborted",
 						};
 					}
 					const errorText = result.text.trim();
@@ -384,6 +389,13 @@ export async function runInteractive(
 					finishReason: result.finishReason,
 				};
 			} catch (error) {
+				if (isAbortInProgress()) {
+					return {
+						usage: { inputTokens: 0, outputTokens: 0 },
+						iterations: 0,
+						finishReason: "aborted",
+					};
+				}
 				logCliError(config.logger, "Interactive turn failed", {
 					error,
 					sessionId: sessionRuntime.getActiveSessionId() || undefined,
@@ -393,6 +405,7 @@ export async function runInteractive(
 			} finally {
 				if (!delivery) {
 					isRunning = false;
+					clearAbortInProgress();
 					refreshInteractiveSessionPoliciesIfPending();
 				}
 			}
