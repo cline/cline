@@ -142,11 +142,22 @@ Design rules:
 6. `@clinebot/agents` runs the loop using `@clinebot/llms` handlers.
 7. `@clinebot/core` persists state, artifacts, and metadata.
 
+Completion telemetry is anchored to the assistant's explicit completion
+declaration, not session shutdown. After each agent turn, the local
+runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
+moment a successful `submit_and_exit` (the SDK analog of original
+Cline's `attempt_completion`) is observed. `shutdownSession(...)`
+retains a fallback emission for completed sessions that finished
+without an explicit completion-tool observation, so non-interactive
+runs not using the yolo preset still produce a `task.completed` signal.
+Each session emits at most one `task.completed`. See `DOC.md` for the
+event payload and `source` field.
+
 ### Hub-Backed Runtime
 
 1. Host constructs a `RuntimeHost` through `@clinebot/core`.
 2. `@clinebot/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host/host.ts`.
-3. When no compatible local hub is already discovered, `@clinebot/core` can spawn a detached hub daemon and reconnect through discovery.
+3. When no compatible local hub is already discovered, `@clinebot/core` can spawn a detached hub daemon and reconnect through discovery. Hosts that want workspace-lifecycle telemetry to flow through the daemon should forward telemetry metadata into the spawn payload — for example, `apps/vscode/src/extension.ts` base64-encodes `{ extension_version, cline_type, platform, platform_version, os_type, os_version, is_remote_workspace }` into the daemon argv, which the daemon decodes to construct `createConfiguredTelemetryService(...)` for the hub server and the schedule runtime handlers (`apps/vscode/src/hub-daemon.ts`).
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
 6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime contributions such as session-local tool executors, custom tools, hooks, checkpoints, compaction, mistake-limit decisions, and instruction services.

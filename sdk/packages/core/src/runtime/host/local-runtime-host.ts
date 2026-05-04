@@ -13,6 +13,7 @@ import {
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
+import { DefaultToolNames } from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -450,6 +451,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			pendingPrompts: [],
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
+			submitAndExitObserved: false,
 		};
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
@@ -869,6 +871,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				persistedMessages,
 				session.config.systemPrompt,
 			);
+			this.observeTaskCompletionTool(session, result);
 			return result;
 		} catch (error) {
 			await this.invoke<void>(
@@ -881,6 +884,43 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} finally {
 			session.turnUsageBaseline = undefined;
 		}
+	}
+
+	/**
+	 * Anchor `task.completed` telemetry to the assistant's explicit
+	 * completion declaration. We emit at most once per session, the moment
+	 * a successful `submit_and_exit` tool call is observed in the run
+	 * result. This is the SDK analog of original Cline's
+	 * `attempt_completion`-driven emission and works for both interactive
+	 * and non-interactive sessions.
+	 *
+	 * `shutdownSession(...)` retains a fallback emission for completed
+	 * sessions that finish without an explicit completion-tool observation
+	 * (e.g., non-interactive runs not using the yolo preset). This helper
+	 * sets `submitAndExitObserved` so the shutdown fallback can suppress a
+	 * duplicate emission for the same logical completion.
+	 */
+	private observeTaskCompletionTool(
+		session: ActiveSession,
+		result: AgentResult,
+	): void {
+		if (session.submitAndExitObserved) return;
+		const completedWithSubmitAndExit = result.toolCalls.some(
+			(call) =>
+				call.name === DefaultToolNames.SUBMIT_AND_EXIT &&
+				call.error === undefined,
+		);
+		if (!completedWithSubmitAndExit) return;
+		session.submitAndExitObserved = true;
+		captureTaskCompleted(session.config.telemetry, {
+			ulid: session.sessionId,
+			provider: session.config.providerId,
+			modelId: session.config.modelId,
+			mode: session.config.mode,
+			durationMs: Date.now() - Date.parse(session.startedAt),
+			source: "submit_and_exit",
+			...this.getSessionAgentTelemetryIdentity(session),
+		});
 	}
 
 	private async prepareTurnInput(
@@ -1024,13 +1064,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
-		if (input.status === "completed") {
+		// Fallback `task.completed` emission for completed sessions that
+		// did not observe an explicit `submit_and_exit` tool call. The
+		// observer in `executeAgentTurn(...)` already emitted the event in
+		// that case, so we suppress here to avoid double-counting.
+		if (input.status === "completed" && !session.submitAndExitObserved) {
 			captureTaskCompleted(session.config.telemetry, {
 				ulid: session.sessionId,
 				provider: session.config.providerId,
 				modelId: session.config.modelId,
 				mode: session.config.mode,
 				durationMs: Date.now() - Date.parse(session.startedAt),
+				source: "shutdown",
 				...this.getSessionAgentTelemetryIdentity(session),
 			});
 		}

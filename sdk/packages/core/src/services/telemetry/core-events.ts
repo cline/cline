@@ -23,7 +23,7 @@ export interface TelemetryAgentIdentityProperties {
 
 export const CORE_TELEMETRY_EVENTS = {
 	CLIENT: {
-		STARTED: "extension.activated",
+		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
 	SESSION: {
 		STARTED: "session.started",
@@ -57,7 +57,38 @@ export const CORE_TELEMETRY_EVENTS = {
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
 	},
+	WORKSPACE: {
+		INITIALIZED: "workspace.initialized",
+		INIT_ERROR: "workspace.init_error",
+		PATH_RESOLVED: "workspace.path_resolved",
+	},
 } as const;
+
+export interface WorkspaceInitializedProperties {
+	root_count: number;
+	vcs_types: ReadonlyArray<string>;
+	init_duration_ms?: number;
+	feature_flag_enabled?: boolean;
+	is_remote_workspace?: boolean;
+}
+
+export interface WorkspaceInitErrorProperties {
+	fallback_to_single_root: boolean;
+	workspace_count?: number;
+}
+
+export interface WorkspacePathResolvedProperties {
+	ulid: string;
+	context: string;
+	resolution_type:
+		| "hint_provided"
+		| "fallback_to_primary"
+		| "cross_workspace_search";
+	hint_type?: "workspace_name" | "workspace_path" | "invalid";
+	resolution_success?: boolean;
+	target_workspace_index?: number;
+	is_multi_root_enabled?: boolean;
+}
 
 function emit(
 	telemetry: ITelemetryService | undefined,
@@ -72,6 +103,76 @@ function truncateErrorMessage(errorMessage?: string): string | undefined {
 		return undefined;
 	}
 	return errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+}
+
+function normalizeErrorType(error: Error | string): string {
+	if (typeof error === "string") {
+		return "Error";
+	}
+	return error.name?.trim() || error.constructor?.name || "Error";
+}
+
+function normalizeErrorMessage(error: Error | string): string {
+	return typeof error === "string" ? error : error.message;
+}
+
+function hasVcsType(
+	vcsTypes: ReadonlyArray<string>,
+	candidates: ReadonlySet<string>,
+): boolean {
+	return vcsTypes.some((type) => candidates.has(type.trim().toLowerCase()));
+}
+
+export function captureExtensionActivated(
+	telemetry: ITelemetryService | undefined,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.CLIENT.EXTENSION_ACTIVATED);
+}
+
+export function captureWorkspaceInitialized(
+	telemetry: ITelemetryService | undefined,
+	properties: WorkspaceInitializedProperties,
+): void {
+	const vcsTypes = [...properties.vcs_types];
+	const payload: TelemetryProperties = {
+		root_count: properties.root_count,
+		vcs_types: vcsTypes,
+		is_multi_root: properties.root_count > 1,
+		has_git: hasVcsType(vcsTypes, new Set(["git"])),
+		has_mercurial: hasVcsType(vcsTypes, new Set(["mercurial", "hg"])),
+	};
+	if (properties.init_duration_ms !== undefined) {
+		payload.init_duration_ms = properties.init_duration_ms;
+	}
+	if (properties.feature_flag_enabled !== undefined) {
+		payload.feature_flag_enabled = properties.feature_flag_enabled;
+	}
+	if (properties.is_remote_workspace !== undefined) {
+		payload.is_remote_workspace = properties.is_remote_workspace;
+	}
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.INITIALIZED, payload);
+}
+
+export function captureWorkspaceInitError(
+	telemetry: ITelemetryService | undefined,
+	error: Error | string,
+	properties: WorkspaceInitErrorProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.INIT_ERROR, {
+		error_type: normalizeErrorType(error),
+		error_message: truncateErrorMessage(normalizeErrorMessage(error)),
+		fallback_to_single_root: properties.fallback_to_single_root,
+		workspace_count: properties.workspace_count ?? 0,
+	});
+}
+
+export function captureWorkspacePathResolved(
+	telemetry: ITelemetryService | undefined,
+	properties: WorkspacePathResolvedProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.PATH_RESOLVED, {
+		...properties,
+	});
 }
 
 export function captureAuthStarted(
@@ -157,6 +258,19 @@ export function captureTaskRestarted(
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
 }
 
+/**
+ * Distinguishes the trigger that produced a `task.completed` telemetry event.
+ *
+ * - `submit_and_exit`: the assistant explicitly declared completion by
+ *   invoking the canonical completion tool. Parity with original Cline's
+ *   `attempt_completion`-anchored emission.
+ * - `shutdown`: the session lifecycle completed (typically a non-interactive
+ *   single-run that finished without an explicit completion tool). Acts as a
+ *   safety-net so we still report completed runs that never observed
+ *   `submit_and_exit`.
+ */
+export type TaskCompletedSource = "submit_and_exit" | "shutdown";
+
 export function captureTaskCompleted(
 	telemetry: ITelemetryService | undefined,
 	properties: {
@@ -165,6 +279,7 @@ export function captureTaskCompleted(
 		modelId?: string;
 		mode?: string;
 		durationMs?: number;
+		source?: TaskCompletedSource;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPLETED, properties);

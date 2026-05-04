@@ -31,6 +31,7 @@ import {
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
+import { captureCliExtensionActivated } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
 import { runMcpWizard } from "./wizards/mcp";
@@ -107,6 +108,13 @@ export async function runCli(): Promise<void> {
 		setClineDir(configDir);
 	}
 	setHomeDir(homedir());
+
+	// Capture activation telemetry only after config/home directory selection
+	// has been applied, so the telemetry singleton's persisted distinct-id
+	// (and any other storage it touches) lands under the user-selected
+	// `--config <dir>` rather than the default home/config location.
+	captureCliExtensionActivated();
+
 	let launchConfigView = false;
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 

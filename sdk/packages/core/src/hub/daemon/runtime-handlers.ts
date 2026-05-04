@@ -3,6 +3,7 @@ import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
 	ChatTurnResult,
+	ITelemetryService,
 } from "@clinebot/shared";
 import type {
 	HubScheduleRuntimeHandlers,
@@ -65,6 +66,7 @@ export interface CreateLocalHubScheduleRuntimeHandlersOptions
 	 * scheduled session executed inside this hub process.
 	 */
 	fetch?: typeof fetch;
+	telemetry?: ITelemetryService;
 }
 
 export function createLocalHubScheduleRuntimeHandlers(
@@ -73,6 +75,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 	const sessionHost = new LocalRuntimeHost({
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
 		fetch: options.fetch,
+		telemetry: options.telemetry,
 	});
 
 	return {

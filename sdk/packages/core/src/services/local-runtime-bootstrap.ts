@@ -40,7 +40,9 @@ import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
+import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
+import { emitWorkspaceLifecycleTelemetry } from "./workspace/workspace-telemetry";
 
 function formatPluginFailure(failure: PluginInitializationFailure): string {
 	const label = failure.pluginName ?? failure.pluginPath;
@@ -294,8 +296,8 @@ export async function prepareLocalRuntimeBootstrap(
 	// Generate workspace + git metadata once, early, so it can be forwarded to
 	// hooks and extensions. The serialized string goes into CoreSessionConfig
 	// as workspaceMetadata; the structured object is kept as workspaceInfo.
-	const { workspaceInfo, workspaceMetadata } =
-		await buildWorkspaceMetadataWithInfo(input.config.cwd);
+	const { workspaceInfo, workspaceMetadata, durationMs, vcsType, initError } =
+		await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
@@ -313,6 +315,16 @@ export async function prepareLocalRuntimeBootstrap(
 			localConfig?.telemetry ??
 			defaultTelemetry,
 	};
+	emitWorkspaceLifecycleTelemetry({
+		telemetry: extensionContext.telemetry,
+		rootPath: workspaceInfo.rootPath,
+		workspaceInfo,
+		rootCount: 1,
+		vcsType,
+		durationMs,
+		initError,
+		featureFlagEnabled: true,
+	});
 
 	const fileHookExtension = createHookConfigFileExtension({
 		cwd: input.config.cwd,
@@ -415,6 +427,12 @@ export async function prepareLocalRuntimeBootstrap(
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
 	const effectiveToolExecutors = capabilities?.toolExecutors;
+	const workspaceManager = new InMemoryWorkspaceManager({
+		currentWorkspacePath: workspaceInfo.rootPath,
+		workspaces: {
+			[workspaceInfo.rootPath]: workspaceInfo,
+		},
+	});
 
 	return {
 		effectiveInput: input,
@@ -437,6 +455,7 @@ export async function prepareLocalRuntimeBootstrap(
 			userInstructionService: userInstructionService,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
+			workspaceManager,
 			logger: config.logger,
 			telemetry: config.telemetry,
 		},

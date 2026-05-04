@@ -32,6 +32,22 @@ export type ActiveSession = {
 	drainingPendingPrompts: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
 	turnUsageBaseline?: SessionAccumulatedUsage;
+	/**
+	 * Set to `true` once the assistant successfully invoked the canonical
+	 * completion tool (`submit_and_exit`) for this session. Used to:
+	 *
+	 * 1. Emit `task.completed` exactly once at the moment the assistant
+	 *    declares completion (parity with original Cline's
+	 *    `attempt_completion`).
+	 * 2. Suppress the fallback `task.completed` emission from
+	 *    `shutdownSession(...)` so the same logical completion is not
+	 *    reported twice.
+	 *
+	 * Non-interactive sessions that finish without ever calling the
+	 * completion tool still receive a `task.completed` from the shutdown
+	 * fallback.
+	 */
+	submitAndExitObserved: boolean;
 };
 
 export type PendingPrompt = {

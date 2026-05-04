@@ -441,6 +441,9 @@ export {
 export type {
 	TelemetryAgentIdentityProperties,
 	TelemetryAgentKind,
+	WorkspaceInitErrorProperties,
+	WorkspaceInitializedProperties,
+	WorkspacePathResolvedProperties,
 } from "./services/telemetry/core-events";
 export {
 	CORE_TELEMETRY_EVENTS,
@@ -452,6 +455,7 @@ export {
 	captureAuthSucceeded,
 	captureConversationTurnEvent,
 	captureDiffEditFailure,
+	captureExtensionActivated,
 	captureHookDiscovery,
 	captureMentionFailed,
 	captureMentionSearchResults,
@@ -465,11 +469,16 @@ export {
 	captureTaskRestarted,
 	captureTokenUsage,
 	captureToolUsage,
+	captureWorkspaceInitError,
+	captureWorkspaceInitialized,
+	captureWorkspacePathResolved,
 	identifyAccount,
 } from "./services/telemetry/core-events";
 export type { ITelemetryAdapter } from "./services/telemetry/ITelemetryAdapter";
 export {
+	type ConfiguredTelemetryHandle,
 	type CreateOpenTelemetryTelemetryServiceOptions,
+	createConfiguredTelemetryHandle,
 	createConfiguredTelemetryService,
 	createOpenTelemetryTelemetryService,
 	OpenTelemetryProvider,
@@ -502,6 +511,7 @@ export { InMemoryWorkspaceManager } from "./services/workspace/workspace-manager
 export {
 	buildWorkspaceMetadata,
 	generateWorkspaceInfo,
+	generateWorkspaceInfoWithDiagnostics,
 	normalizeWorkspacePath,
 } from "./services/workspace/workspace-manifest";
 export { readSessionCheckpointHistory } from "./session/checkpoint-restore";

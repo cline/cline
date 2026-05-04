@@ -358,7 +358,42 @@ The main integration pattern is:
 - **Metrics:** counters, histograms, and observable gauges from `recordCounter`, `recordHistogram`, `recordGauge`.
 - **Traces (optional):** set `tracesExporter` (for example `"console"` or `"otlp"`) on `OpenTelemetryProviderOptions`, or `OTEL_TRACES_EXPORTER` via `createClineTelemetryServiceConfig`. OTLP traces POST to `{otlpTracesEndpoint ?? otlpEndpoint}/v1/traces`. A global `TracerProvider` is registered so `trace.getTracer(...)` from `@opentelemetry/api` and integrations such as Langfuse (`@clinebot/llms`) can emit spans. End-to-end correlation across separate processes (CLI → RPC → worker) still requires your transport to propagate W3C `traceparent` / baggage; the SDK does not yet attach those headers automatically to RPC calls.
 
-**Event catalog.** Structured product events are named in `packages/core/src/telemetry/core-events.ts` (`CORE_TELEMETRY_EVENTS` and the `capture*` helpers). Use that module as the source of truth for event strings and typical properties.
+**Event catalog.** Structured product events are named in `packages/core/src/services/telemetry/core-events.ts` (`CORE_TELEMETRY_EVENTS` and the `capture*` helpers). Use that module as the source of truth for event strings and typical properties.
+
+**`task.completed` semantics.** `task.completed` marks the moment the
+assistant declared the task done, not the moment the SDK session record
+was finalized. The local runtime emits it when it observes a successful
+`submit_and_exit` tool call in an `AgentResult` — the SDK's analog of
+original Cline's `attempt_completion`. For non-interactive runs that
+finish without invoking the explicit completion tool (for example when
+the configured tools do not include the yolo preset), the same event is
+emitted from `shutdownSession` as a fallback. Each session is guaranteed
+at most one `task.completed` emission. The payload includes an optional
+`source: "submit_and_exit" | "shutdown"` field so dashboards can
+differentiate parity-driven emissions from lifecycle-driven fallbacks.
+
+**Activation funnel.** The startup activation/workspace events emitted by
+hosts and the local-runtime bootstrap (`user.extension_activated`,
+`workspace.initialized`, `workspace.init_error`, `workspace.path_resolved`)
+are defined alongside their `capture*` helpers in
+`packages/core/src/services/telemetry/core-events.ts`. They are emitted via
+the normal `ITelemetryService.capture(...)` path so the user's telemetry
+opt-out setting is honored — they are *not* `captureRequired` events.
+
+Host integration rules:
+
+- Hosts must call the configured telemetry singleton via the CLI/VS Code
+  helpers (`captureCliExtensionActivated`, `captureExtensionActivated`)
+  rather than constructing their own services.
+- The CLI must apply `setClineDir(...)` and `setHomeDir(...)` from
+  `@clinebot/shared/storage` **before** calling
+  `captureCliExtensionActivated()` so the persisted distinct-id and any
+  other on-disk telemetry state lands under a user-supplied
+  `--config <dir>` rather than the default `~/.cline` location.
+- Hosts that spawn a detached `@clinebot/core/hub/daemon-entry` process
+  should forward enough metadata into the daemon argv for it to
+  reconstruct an equivalent telemetry service. The reference VS Code
+  daemon (`apps/vscode/src/hub-daemon.ts`) shows the expected shape.
 
 **Collector configuration.** Standard OpenTelemetry environment variables are read by `createClineTelemetryServiceConfig`, including `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER`, `OTEL_TRACES_EXPORTER`, `OTEL_METRIC_EXPORT_INTERVAL`, and `OTEL_TELEMETRY_ENABLED`. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at an OTLP HTTP/JSON collector (for example OpenTelemetry Collector or a vendor endpoint); paths `/v1/logs`, `/v1/metrics`, and `/v1/traces` are appended automatically.
 

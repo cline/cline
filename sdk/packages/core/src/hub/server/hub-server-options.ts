@@ -1,3 +1,4 @@
+import type { ITelemetryService } from "@clinebot/shared";
 import type { CronServiceOptions } from "../../cron/service/cron-service";
 import type {
 	HubScheduleRuntimeHandlers,
@@ -37,6 +38,11 @@ export interface HubWebSocketServerOptions {
 	 * runtime construction and is responsible for wiring its own fetch.
 	 */
 	fetch?: typeof fetch;
+	/**
+	 * Telemetry forwarded to the internally-constructed `LocalRuntimeHost`.
+	 * Ignored when `sessionHost` is supplied.
+	 */
+	telemetry?: ITelemetryService;
 }
 
 export interface HubWebSocketServer {

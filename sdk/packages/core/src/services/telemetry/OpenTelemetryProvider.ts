@@ -307,6 +307,63 @@ export function createConfiguredTelemetryService(
 	return createOpenTelemetryTelemetryService(options);
 }
 
+/**
+ * Telemetry service plus the lifecycle closures (`flush`, `dispose`) every
+ * host needs to drive the underlying provider during shutdown. Returned by
+ * {@link createConfiguredTelemetryHandle} so detached daemons, the VS Code
+ * extension, and the CLI can share one canonical implementation of the
+ * "best-effort flush; settle dispose" semantics instead of each
+ * re-implementing the same closures.
+ */
+export interface ConfiguredTelemetryHandle {
+	readonly telemetry: ITelemetryService;
+	/**
+	 * The underlying OpenTelemetry provider, when telemetry is enabled.
+	 * `undefined` when telemetry is opted out so callers can detect
+	 * the disabled case without inspecting `enabled` themselves.
+	 */
+	readonly provider?: OpenTelemetryProvider;
+	/**
+	 * Best-effort flush of any pending telemetry batches. Errors are
+	 * swallowed so callers can `await` this in shutdown paths without
+	 * blocking deactivation on a misbehaving exporter.
+	 */
+	flush: () => Promise<void>;
+	/** Disposes the telemetry service and its provider concurrently. */
+	dispose: () => Promise<void>;
+}
+
+/**
+ * Builds a {@link ConfiguredTelemetryHandle} so hosts (CLI, VS Code, hub
+ * daemon) share one canonical flush/dispose implementation. Without a
+ * shared helper each host re-derived the same closures and they tended
+ * to drift; this factory keeps the lifecycle uniform across hosts.
+ */
+export function createConfiguredTelemetryHandle(
+	options: CreateOpenTelemetryTelemetryServiceOptions,
+): ConfiguredTelemetryHandle {
+	const { telemetry, provider } = createConfiguredTelemetryService(options);
+
+	const flush = async (): Promise<void> => {
+		const candidate = provider as
+			| { forceFlush?: () => Promise<void> }
+			| undefined;
+		if (candidate && typeof candidate.forceFlush === "function") {
+			try {
+				await candidate.forceFlush();
+			} catch {
+				// best-effort flush; swallow to avoid blocking shutdown paths
+			}
+		}
+	};
+
+	const dispose = async (): Promise<void> => {
+		await Promise.allSettled([telemetry.dispose(), provider?.dispose()]);
+	};
+
+	return { telemetry, provider, flush, dispose };
+}
+
 function normalizeExporters(
 	exporters: OpenTelemetryProviderOptions["logsExporter"],
 ): OpenTelemetryExporterKind[] {

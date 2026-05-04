@@ -14,6 +14,7 @@ import type {
 	DelegatedAgentConfigProvider,
 	TeamEvent,
 } from "../../extensions/tools/team";
+import type { WorkspaceManager } from "../../services/workspace/workspace-manager";
 import type { CoreSessionConfig } from "../../types/config";
 
 /**
@@ -53,6 +54,7 @@ export interface RuntimeBuilderInput {
 	userInstructionService?: UserInstructionConfigService;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 }

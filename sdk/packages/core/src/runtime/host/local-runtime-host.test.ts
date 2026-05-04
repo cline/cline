@@ -3845,4 +3845,334 @@ describe("LocalRuntimeHost", () => {
 			{ kind: "text" },
 		);
 	});
+
+	describe("task.completed telemetry anchoring", () => {
+		function createTaskCompletedAdapter() {
+			return {
+				name: "task-completed-test",
+				emit: vi.fn(),
+				emitRequired: vi.fn(),
+				recordCounter: vi.fn(),
+				recordHistogram: vi.fn(),
+				recordGauge: vi.fn(),
+				isEnabled: vi.fn(() => true),
+				flush: vi.fn().mockResolvedValue(undefined),
+				dispose: vi.fn().mockResolvedValue(undefined),
+			};
+		}
+
+		function createSubmitAndExitToolCall(): NonNullable<
+			AgentResult["toolCalls"]
+		>[number] {
+			return {
+				id: "call-submit-1",
+				name: "submit_and_exit",
+				input: { result: "done" },
+				output: { ok: true },
+				durationMs: 1,
+				startedAt: new Date("2026-01-01T00:00:00.500Z"),
+				endedAt: new Date("2026-01-01T00:00:00.600Z"),
+			};
+		}
+
+		function createMockSessionService(manifest: SessionManifest) {
+			return {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({
+					updated: true,
+					endedAt: "2026-01-01T00:00:05.000Z",
+				}),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			};
+		}
+
+		function countTaskCompletedEmissions(
+			adapter: ReturnType<typeof createTaskCompletedAdapter>,
+		): Array<Record<string, unknown>> {
+			return adapter.emit.mock.calls
+				.filter(([event]) => event === "task.completed")
+				.map(([, payload]) => payload as Record<string, unknown>);
+		}
+
+		it("emits task.completed once with source=submit_and_exit when the assistant calls the completion tool in a non-interactive run", async () => {
+			const sessionId = "sess-task-completed-submit-non-interactive";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(
+					createResult({
+						toolCalls: [createSubmitAndExitToolCall()],
+					}),
+				),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "do a thing then submit_and_exit",
+					interactive: false,
+				}),
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "submit_and_exit",
+				provider: "mock-provider",
+				modelId: "mock-model",
+			});
+		});
+
+		it("falls back to source=shutdown when a non-interactive run completes without submit_and_exit", async () => {
+			const sessionId = "sess-task-completed-shutdown-fallback";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				// No `submit_and_exit` in toolCalls — represents a non-interactive
+				// run that finished cleanly without invoking the completion tool.
+				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "just finish",
+					interactive: false,
+				}),
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "shutdown",
+			});
+		});
+
+		it("emits task.completed exactly once when an interactive turn invokes submit_and_exit and is later cancelled", async () => {
+			const sessionId = "sess-task-completed-interactive-then-cancel";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(
+					createResult({
+						toolCalls: [createSubmitAndExitToolCall()],
+					}),
+				),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "complete and remain attached",
+					interactive: true,
+				}),
+			);
+
+			// Simulate the user later closing the interactive session via stop.
+			await manager.stopSession(sessionId);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "submit_and_exit",
+			});
+		});
+
+		it("does not emit a duplicate task.completed when shutdownSession runs after a successful submit_and_exit observation", async () => {
+			const sessionId = "sess-task-completed-no-double-fire";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			// Non-interactive: executeAgentTurn → finalizeSingleRun → shutdownSession,
+			// all in the same `startSession(...)` call. We must see exactly one emission.
+			const agent = {
+				run: vi.fn().mockResolvedValue(
+					createResult({
+						toolCalls: [createSubmitAndExitToolCall()],
+					}),
+				),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "do then submit_and_exit",
+					interactive: false,
+				}),
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({ source: "submit_and_exit" });
+		});
+
+		it("ignores failed submit_and_exit tool calls so the shutdown fallback still fires", async () => {
+			const sessionId = "sess-task-completed-failed-submit";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const failedSubmitCall: NonNullable<AgentResult["toolCalls"]>[number] = {
+				...createSubmitAndExitToolCall(),
+				error: "missing required field",
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(
+					createResult({
+						toolCalls: [failedSubmitCall],
+					}),
+				),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "attempt submit but fail",
+					interactive: false,
+				}),
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({ source: "shutdown" });
+		});
+	});
 });

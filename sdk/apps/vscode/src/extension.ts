@@ -4,6 +4,7 @@ import {
 	type BasicLogger,
 	buildWorkspaceMetadata,
 	ClineCore,
+	captureExtensionActivated,
 	createConfiguredTelemetryService,
 	createLocalHubScheduleRuntimeHandlers,
 	ensureHubWebSocketServer,
@@ -27,6 +28,7 @@ import {
 import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
 import { createVsCodeRuntimeCapabilities } from "./runtime-capabilities";
+import { createVscodeTelemetry } from "./telemetry";
 import type {
 	WebviewChatMessage,
 	WebviewInboundMessage,
@@ -52,11 +54,23 @@ const REFRESH_SESSION_EVENTS = new Set([
 	"run.aborted",
 ]);
 
+let extensionTelemetryHandle:
+	| ReturnType<typeof createVscodeTelemetry>
+	| undefined;
+
 export function activate(context: vscode.ExtensionContext): void {
 	const outputChannel = vscode.window.createOutputChannel("Cline");
+	extensionTelemetryHandle = createVscodeTelemetry({
+		extensionVersion: version,
+		clineType: displayName,
+		platform: vscode.env.appName,
+		platformVersion: vscode.version,
+	});
+	captureExtensionActivated(extensionTelemetryHandle.telemetry);
 	const sidebarProvider = new ClineChatViewProvider(
 		context.extensionUri,
 		outputChannel,
+		extensionTelemetryHandle.telemetry,
 	);
 	context.subscriptions.push(
 		outputChannel,
@@ -83,20 +97,25 @@ export function activate(context: vscode.ExtensionContext): void {
 				context.extensionUri,
 				outputChannel,
 				panel.onDidDispose,
+				extensionTelemetryHandle?.telemetry,
 			);
 			context.subscriptions.push(controller);
 		}),
 	);
 }
 
-export function deactivate(): void {
-	// no-op; webview controllers are disposed by VS Code subscriptions
+export function deactivate(): Promise<void> {
+	const handle = extensionTelemetryHandle;
+	extensionTelemetryHandle = undefined;
+	if (!handle) return Promise.resolve();
+	return handle.flush().finally(() => handle.dispose());
 }
 
 class ClineChatViewProvider implements vscode.WebviewViewProvider {
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		private readonly outputChannel: vscode.OutputChannel,
+		private readonly sharedTelemetry?: ITelemetryService,
 	) {}
 
 	public resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -111,6 +130,7 @@ class ClineChatViewProvider implements vscode.WebviewViewProvider {
 			this.extensionUri,
 			this.outputChannel,
 			webviewView.onDidDispose,
+			this.sharedTelemetry,
 		);
 		webviewView.onDidDispose(() => controller.dispose());
 	}
@@ -539,6 +559,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		private readonly extensionUri: vscode.Uri,
 		outputChannel: vscode.OutputChannel,
 		onDidDispose?: vscode.Event<void>,
+		sharedTelemetry?: ITelemetryService,
 	) {
 		this.logger = createOutputChannelLogger(outputChannel);
 		this.disposables.push(
@@ -550,19 +571,23 @@ class CoreChatWebviewController implements vscode.Disposable {
 			this.disposables.push(onDidDispose(() => this.dispose()));
 		}
 
-		const { telemetry } = createConfiguredTelemetryService(
-			createClineTelemetryServiceConfig({
-				metadata: createClineTelemetryServiceMetadata({
-					extension_version: version,
-					cline_type: displayName,
-					platform: vscode.env.appName,
-					platform_version: vscode.version,
-					os_type: os.platform(),
-					os_version: os.version(),
+		if (sharedTelemetry) {
+			this.telemetry = sharedTelemetry;
+		} else {
+			const { telemetry } = createConfiguredTelemetryService(
+				createClineTelemetryServiceConfig({
+					metadata: createClineTelemetryServiceMetadata({
+						extension_version: version,
+						cline_type: displayName,
+						platform: vscode.env.appName,
+						platform_version: vscode.version,
+						os_type: os.platform(),
+						os_version: os.version(),
+					}),
 				}),
-			}),
-		);
-		this.telemetry = telemetry;
+			);
+			this.telemetry = telemetry;
+		}
 
 		void this.initializeWebview();
 	}

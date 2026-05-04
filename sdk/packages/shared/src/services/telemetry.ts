@@ -19,6 +19,7 @@ export interface TelemetryMetadata {
 	os_type: string;
 	os_version: string;
 	is_dev?: string;
+	is_remote_workspace?: boolean;
 }
 
 export interface ITelemetryService {

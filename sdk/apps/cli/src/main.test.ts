@@ -80,6 +80,12 @@ const hubRuntimeMocks = vi.hoisted(() => ({
 		authToken: "test-token",
 	})),
 }));
+const telemetryMocks = vi.hoisted(() => ({
+	captureCliExtensionActivated: vi.fn(),
+	identifyCliTelemetryAccount: vi.fn(),
+	getCliTelemetryService: vi.fn(),
+	disposeCliTelemetryService: vi.fn(async () => {}),
+}));
 
 function forcePromptModeInput() {
 	Object.defineProperty(process.stdin, "isTTY", {
@@ -143,6 +149,7 @@ vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
+vi.mock("./utils/telemetry", () => telemetryMocks);
 
 describe("runCli lightweight command dispatch", () => {
 	afterEach(() => {
@@ -197,6 +204,11 @@ describe("runCli lightweight command dispatch", () => {
 		updateMocks.autoUpdateOnStartup.mockReset();
 		updateMocks.checkForUpdates.mockReset();
 		updateMocks.checkForUpdates.mockResolvedValue(0);
+		telemetryMocks.captureCliExtensionActivated.mockReset();
+		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+		telemetryMocks.getCliTelemetryService.mockReset();
+		telemetryMocks.disposeCliTelemetryService.mockReset();
+		telemetryMocks.disposeCliTelemetryService.mockResolvedValue(undefined);
 		// CI: fd 0 is often a pipe with no EOF. If routing ever falls through to agent bootstrap,
 		// `main` can block forever in `for await (process.stdin)` (see `!process.stdin.isTTY && …`).
 		// Mark stdin as a TTY so that path is skipped in unit tests (real piped-input behavior is

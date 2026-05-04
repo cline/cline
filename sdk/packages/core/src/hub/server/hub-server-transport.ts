@@ -184,6 +184,7 @@ export class HubServerTransport implements NativeHubTransport {
 			new LocalRuntimeHost({
 				sessionService: new CoreSessionService(new SqliteSessionStore()),
 				fetch: options.fetch,
+				telemetry: options.telemetry,
 			});
 		this.ctx = {
 			clients: this.clients,
