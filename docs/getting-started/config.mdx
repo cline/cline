@@ -11,7 +11,7 @@ Cline configuration lives in two scopes:
 
 ## Configuration Directory Layout
 
-Cline stores shared configuration under `~/.cline/`:
+Cline stores shared configuration across a few well-known locations. The primary root is `~/.cline/`, with structured app state under `~/.cline/data/`:
 
 ```text
 ~/.cline/
@@ -20,17 +20,26 @@ Cline stores shared configuration under `~/.cline/`:
       providers.json           # API keys and provider configuration
       global-settings.json     # Global settings
       cline_mcp_settings.json  # MCP settings
-    rules/                     # Global rules
-    hooks/                     # Global hooks
     teams/                     # Team state
     sessions/                  # Session data
     db/                        # SQLite databases (for example cron.db)
-    logs/
-      hub-daemon.log           # Hub logs
+    workflows/                 # Global workflows
+  rules/                       # Global rules
+  hooks/                       # Global hooks
   skills/                      # Global skills
   agents/                      # Global agent definitions
   plugins/                     # Global plugins (.js, .ts)
   cron/                        # Global cron specs
+```
+
+Additional global search paths supported by the code:
+
+```text
+~/Documents/Cline/
+  Rules/                       # Additional global rules
+  Hooks/                       # Additional global hooks
+  Plugins/                     # Additional global plugins
+  Workflows/                   # Additional global workflows
 ```
 
 Project-level configuration lives in `.cline/` at your repository root:
@@ -44,6 +53,13 @@ Project-level configuration lives in `.cline/` at your repository root:
   plugins/                     # Project plugins
   cron/                        # Workspace cron specs
 ```
+
+Notes:
+
+- Global provider settings, global settings, and MCP settings are stored under `~/.cline/data/settings/`.
+- Global workflows resolve from `~/.cline/data/workflows/`.
+- Global rules, hooks, skills, agents, plugins, and cron specs resolve directly under `~/.cline/`.
+- Rules, hooks, plugins, and workflows may also be discovered from `~/Documents/Cline/` for compatibility.
 
 ## What Goes Where?
 
