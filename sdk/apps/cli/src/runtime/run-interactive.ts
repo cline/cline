@@ -367,10 +367,7 @@ export async function runInteractive(
 					};
 				}
 				if (result.finishReason !== "completed") {
-					if (
-						result.finishReason === "aborted" ||
-						isAbortInProgress()
-					) {
+					if (result.finishReason === "aborted" || isAbortInProgress()) {
 						return {
 							usage: result.usage,
 							iterations: result.iterations,

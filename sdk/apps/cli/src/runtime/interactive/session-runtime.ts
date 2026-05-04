@@ -9,7 +9,6 @@ import {
 	type UserInstructionConfigService,
 } from "@clinebot/core";
 import type { Message } from "@clinebot/shared";
-import { markAbortInProgress } from "../active-runtime";
 import { createCliCore } from "../../session/session";
 import { submitAndExitInTerminal } from "../../utils/approval";
 import type {
@@ -20,6 +19,7 @@ import { createRuntimeHooks } from "../../utils/hooks";
 import { setActiveCliSession } from "../../utils/output";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
+import { markAbortInProgress } from "../active-runtime";
 import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,

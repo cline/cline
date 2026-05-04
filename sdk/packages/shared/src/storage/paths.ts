@@ -377,7 +377,6 @@ export function resolveWorkflowsConfigSearchPaths(
 		workspacePath
 			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
 			: "",
-		join(resolveClineDataDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsExtensionPath("Workflows"),
 	]);
 }
