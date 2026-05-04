@@ -13,10 +13,7 @@
  *   # or
  *   bun packages/core/scripts/telemetry-smoke.ts
  */
-import type {
-	ITelemetryService,
-	TelemetryProperties,
-} from "@clinebot/shared";
+import type { ITelemetryService, TelemetryProperties } from "@clinebot/shared";
 import {
 	captureConversationTurnEvent,
 	captureExtensionActivated,

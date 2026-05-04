@@ -25,7 +25,7 @@ import {
  *
  * CLI usage:
  *   mkdir -p .cline/plugins
- *   cp apps/examples/plugin-examples/cline-plugin/background-terminal.ts .cline/plugins/background-terminal.ts
+ *   cp apps/examples/plugins/background-terminal.ts .cline/plugins/background-terminal.ts
  *   cline -i "Start the dev server in the background and keep working"
  */
 

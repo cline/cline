@@ -1,15 +1,23 @@
 # Cline SDK Architecture
 
-This document is the architecture source of truth for the repository.
+This document is the architecture source of truth for the Cline SDK repository. It describes how the system is organized, how components interact, and the design principles that guide development decisions.
 
-It focuses on:
+**Who should read this?**
+- SDK contributors working across multiple packages
+- Developers building integrations or host applications using `@clinebot/core`
+- Plugin authors understanding the runtime and extension systems
 
-- package boundaries
-- dependency direction
-- runtime flows
-- design constraints
+**What this covers:**
+- Package boundaries and responsibilities
+- Dependency direction and layering rules
+- Runtime flows (local, hub-backed, enterprise-managed)
+- Design seams (repeated patterns instead of one-off integrations)
+- Architectural constraints and why they exist
 
-It is not the main onboarding guide and it is not the detailed API reference.
+**What this is NOT:**
+- An onboarding guide for new contributors (see README.md and CONTRIBUTING.md)
+- A detailed API reference (see package READMEs and inline JSDoc)
+- A user guide (see the main documentation)
 
 ## Layered Model
 
@@ -44,7 +52,7 @@ Owns reusable low-level contracts and infrastructure:
 
 - shared types and schemas
 - path resolution
-- hook event contracts and runtime hook types
+- hook contracts/engine
 - extension registry contracts
 - prompt and parsing helpers
 - storage path helpers
@@ -74,8 +82,7 @@ Owns the stateless runtime loop:
 - agent iteration loop
 - tool orchestration
 - runtime event emission
-- direct `Partial<AgentRuntimeHooks>` hook-bag execution
-- extension contribution setup
+- hook/extension execution
 - turn preparation before provider calls
 - in-memory team/runtime primitives
 
@@ -92,7 +99,6 @@ Owns stateful orchestration:
 - storage and persistence
 - config watching/loading and watcher projections
 - settings listing and mutation orchestration
-- file-hook config loading and hook-command adapters
 - default host tool assembly
 - plugin discovery/loading
 - default context compaction policy
@@ -108,10 +114,8 @@ Design rules:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
-  - `runtime-host/` contains `RuntimeHost` adapters for shared local hub and remote hub routing
-  - `server/` contains role-named WebSocket server startup, native/browser socket adapters, server transport, notifications, session projection, client contribution proxy adapters, schedule-event mapping, and `handlers/` for hub command dispatch
-  - `shared/` contains sparse pure helpers used across hub roles
-- settings and provider/auth mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings/provider facades or the hub command surface and react to the resulting events, such as `settings.changed` for settings toggles.
+  - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
+- settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
 
 ### `@clinebot/enterprise`
 
@@ -135,9 +139,9 @@ Design rules:
 ### Local In-Process Runtime
 
 1. Host constructs a `RuntimeHost` through `@clinebot/core`.
-2. `@clinebot/core` selects `LocalRuntimeHost` through `packages/core/src/runtime/host/host.ts`.
-3. Hosts normalize config into transport-safe `RuntimeSessionConfig` plus explicit `localRuntime` bootstrap fields before calling `RuntimeHost.startSession(...)`.
-4. `@clinebot/core` prepares a local bootstrap artifact from those named local fields, then builds the runtime from it.
+2. `@clinebot/core` selects `LocalRuntimeHost` through `packages/core/src/runtime/host.ts`.
+3. Hosts normalize broad local config into `RuntimeSessionConfig` plus `localRuntime` overrides before calling `RuntimeHost.start(...)`.
+4. `@clinebot/core` prepares a local bootstrap artifact from `localRuntime`, then builds the runtime from it.
 5. `@clinebot/core` creates an `Agent` from `@clinebot/agents`.
 6. `@clinebot/agents` runs the loop using `@clinebot/llms` handlers.
 7. `@clinebot/core` persists state, artifacts, and metadata.
@@ -156,21 +160,13 @@ event payload and `source` field.
 ### Hub-Backed Runtime
 
 1. Host constructs a `RuntimeHost` through `@clinebot/core`.
-2. `@clinebot/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host/host.ts`.
-3. When no compatible local hub is already discovered, `@clinebot/core` can spawn a detached hub daemon and reconnect through discovery. Hosts that want workspace-lifecycle telemetry to flow through the daemon should forward telemetry metadata into the spawn payload — for example, `apps/vscode/src/extension.ts` base64-encodes `{ extension_version, cline_type, platform, platform_version, os_type, os_version, is_remote_workspace }` into the daemon argv, which the daemon decodes to construct `createConfiguredTelemetryService(...)` for the hub server and the schedule runtime handlers (`apps/vscode/src/hub-daemon.ts`).
+2. `@clinebot/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
+3. When no compatible local hub is already discovered, `@clinebot/core` can spawn a detached hub daemon and reconnect through discovery.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
-6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime contributions such as session-local tool executors, custom tools, hooks, checkpoints, compaction, mistake-limit decisions, and instruction services.
+6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
 8. Hub client adapters exported from `@clinebot/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
-
-Provider authentication and provider-settings mutation are not modeled as
-runtime lifecycle hooks. OAuth setup is initiated by explicit host/provider
-commands, and managed OAuth refresh is handled by core during session turns. If
-refresh cannot recover credentials, the runtime fails with a re-authentication
-error; current hub clients are not sent a first-class `auth.requested` event.
-Any future interactive auth handoff should add an explicit hub event/command
-contract and keep provider settings writes behind core-owned services.
 
 Local hub discovery also carries the authentication contract for the shared
 daemon. On startup, the hub server generates a cryptographically random
@@ -199,8 +195,8 @@ commands, or stop the daemon.
 3. Enterprise caches the token and bundle through enterprise stores.
 4. Enterprise materializes managed rules/workflows/skills under workspace-local `.cline/<plugin>/`.
 5. Enterprise optionally derives telemetry config or telemetry services.
-6. Hosts pass the prepared result into `@clinebot/core` through the generic `prepare` hook.
-7. Enterprise applies extensions and telemetry through explicit `localRuntime` bootstrap fields, not the transport-safe `RuntimeSessionConfig`.
+6. Hosts pass the prepared result into `@clinebot/core` through the generic `prepare` seam.
+7. Enterprise applies extensions and telemetry through `localRuntime.configOverrides`, not the transport-safe `RuntimeSessionConfig`.
 8. `@clinebot/core` consumes the prepared local overrides during local bootstrap.
 
 This keeps enterprise-specific behavior above the published orchestration layer.
@@ -209,7 +205,7 @@ This keeps enterprise-specific behavior above the published orchestration layer.
 
 The codebase relies on a few repeated seams instead of one-off integration paths.
 
-### Config Watchers
+### 1. Config Watchers
 
 Core uses file-based discovery and watchers for:
 
@@ -220,27 +216,27 @@ Core uses file-based discovery and watchers for:
 - hooks
 - plugins
 
-Design implications:
+Design implication:
 
-- additional instruction sources should usually materialize into files and reuse watcher-based loading instead of inventing parallel in-memory execution paths.
+- new instruction sources should usually materialize into files and reuse watcher-based loading instead of inventing parallel in-memory execution paths.
 - in `packages/core`, config-facing discovery, parsing, watching, and slash-command projection live under `src/extensions/config`
 
-### Runtime Builder Inputs
+### 2. Runtime Builder Inputs
 
 `DefaultRuntimeBuilder` composes a runtime from generic inputs:
 
 - tools
-- hooks as a direct `Partial<AgentRuntimeHooks>` bag
+- hooks
 - extensions
 - user instruction watcher
 - telemetry
 
-Design implications:
+Design implication:
 
-- higher-level integrations should prefer feeding those inputs rather than patching agent internals directly.
+- higher-level integrations should prefer feeding those seams rather than patching agent internals directly.
 - the local runtime bootstrap lives in `packages/core/src/services/local-runtime-bootstrap.ts` and feeds the builder rather than bypassing it
 
-### Runtime Host Boundary
+### 3. Runtime Host Boundary
 
 Core exposes one shared execution boundary: `RuntimeHost`.
 
@@ -250,97 +246,38 @@ Concrete implementations:
 - `HubRuntimeHost` for shared local hub execution
 - `RemoteRuntimeHost` for explicit remote hub endpoints
 
-Design implications:
+Design implication:
 
-- host selection happens in `packages/core/src/runtime/host/host.ts`
+- host selection happens in `packages/core/src/runtime/host.ts`
 - `ClineCore` delegates uniformly to `RuntimeHost` and does not branch on local vs hub behavior
 - transport-specific translation belongs inside concrete hosts, not in top-level orchestration
-- `RuntimeHost` uses runtime-primitive method names (`startSession`,
-  `runTurn`, `restoreSession`, `getSession`, `listSessions`, `stopSession`,
-  `deleteSession`, `readSessionMessages`, `dispatchHookEvent`) while
-  `ClineCore` keeps the app-facing product API (`start`, `send`, `restore`,
-  `get`, `list`, `stop`, `delete`, `readMessages`, `ingestHookEvent`).
 - `RuntimeHost` inputs stay transport-safe, while `ClineCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
-- `RuntimeSessionConfig` is transport-neutral across local, shared hub, and remote hub modes; host-local bootstrap concerns stay under named `localRuntime` fields rather than a broad override bag
-- pending prompt list/update/delete are exposed through the grouped
-  `ClineCore.pendingPrompts` service. Accumulated usage lookup and
-  active-session model switching are also service-style capabilities exposed
-  through `ClineCore` when the concrete transport implements them. These
-  service APIs are intentionally outside the minimal `RuntimeHost` primitive
-  vocabulary.
-- client-local runtime behaviors are expressed as `RuntimeCapabilities` on
-  `ClineCoreOptions` / `StartSessionInput`; local hosts invoke those handlers
-  directly, while hub/remote hosts advertise the same handlers and proxy hub
-  `capability.requested` / `approval.requested` events back through core
-- for hub/remote sessions, advertised client-local capabilities are owned by the
-  client that created or restored the runtime session. Other clients may attach
-  as participants/observers, but capability requests remain routed by
-  `sessionId` to the original capability-owner `targetClientId`; response
-  handlers reject replies from non-owner clients. Hub cancellation paths publish
-  cancelled `capability.resolved` events so the owner can abort long-running
-  prompt handlers while preserving the proxied `ToolContext.conversationId`.
-- client-local runtime behavior uses one contribution model across local and
-  hub/remote modes. The client builds a serializable `clientContributions`
-  manifest plus a local handler table from the same tools, hooks, and runtime
-  services it would register in-process. Local mode calls those handlers
-  directly. Hub/remote mode sends only the manifest to the authority runtime,
-  which installs normal runtime proxy contributions and invokes the original
-  client handlers through named `capability.request` calls. The proxy translates
-  transport, not behavior; tool executors, custom `extraTools`, lifecycle hooks,
-  custom checkpoint creation, custom compaction, consecutive-mistake decisions,
-  and user-instruction services follow this same path. Tool progress flows back
-  through `capability.progress`, so `onChange` / `emitUpdate` remains on the
-  normal SDK tool-event path instead of requiring a side channel.
-- app-facing `defaultToolExecutors` and top-level `requestToolApproval`
-  inputs are not part of the runtime capability contract; integrations provide
-  `capabilities.toolExecutors` and `capabilities.requestToolApproval`.
-  Internal local runtime builder wiring uses `toolExecutors`, so
-  default-executor vocabulary is not a feature channel.
+- `RuntimeSessionConfig` is transport-neutral across local, shared hub, and remote hub modes; host-local bootstrap concerns stay under `localRuntime`
+- client-local runtime behaviors that must survive hub mode, such as `defaultToolExecutors`, are attached at session start and proxied through hub capability requests instead of changing host selection
 
-### Session State Services
-
-Core-owned services hold session behaviors that must stay consistent across
-transport-specific host implementations:
-
-- pending prompt / turn queue semantics live in
-  `packages/core/src/runtime/turn-queue/pending-prompt-service.ts`; local and hub
-  paths adapt to the same queue operations instead of each defining queue rules;
-  the queue service owns the semantics while runtime hosts only expose internal
-  routing adapters for list/update/delete/drain and apps use
-  `ClineCore.pendingPrompts`;
-- checkpoint restore/fork planning is centralized in
-  `packages/core/src/session/session-versioning-service.ts`, which validates the
-  target checkpoint, applies workspace restore when requested, builds restored
-  session start input, retains checkpoint refs, and returns source/restored
-  canonical snapshots;
-- canonical session projection lives in
-  `packages/core/src/session/session-snapshot.ts` as `CoreSessionSnapshot` plus
-  `createCoreSessionSnapshot(...)`.
-
-Design implications:
-
-- runtime hosts should route commands/events and adapt protocol payloads, while
-  queue/checkpoint/snapshot semantics stay in shared core services;
-- canonical snapshots are the target shape for local and hub event/reply
-  surfaces, so integrations should avoid adding feature-specific session shapes
-  unless a storage boundary requires one.
-
-### Settings Mutation Boundary
+### 4. Settings Mutation Boundary
 
 Core owns settings snapshots and mutations through `packages/core/src/settings`.
 The hub exposes the same path through `settings.list` and `settings.toggle`.
-Provider authentication and provider settings are also core-owned state, even
-when a host renders the UI that collects credentials.
 
-Design implications:
+Design implication:
 
 - hosts should not mutate skill, tool, MCP, provider, or other settings files directly
 - domain-specific persistence helpers, such as skill markdown frontmatter writes, stay internal to the owning settings provider/service
 - successful hub-backed mutations return an updated settings snapshot and publish `settings.changed` with the changed settings types
 - CLI settings surfaces may keep local snapshot rendering for startup responsiveness, but mutation flow must refresh the relevant watcher before reloading UI data
-- provider auth setup should call core/provider APIs such as provider-settings save or OAuth login helpers; until a dedicated hub auth-request protocol exists, runtime auth failures are surfaced as ordinary run errors rather than client-mutable config events
 
-## Logging
+### 5. Session Startup Bootstrap
+
+`ClineCore.create(...)` exposes a generic `prepare(input)` hook.
+
+Design implication:
+
+- higher-level packages can prepare workspace-scoped runtime state before a session starts
+- core stays unaware of enterprise-specific contracts
+- cleanup stays at the host boundary rather than inside the agent loop
+
+### 6. Logging
 
 Cross-package logging uses a small injected interface exported from `@clinebot/shared`:
 
@@ -352,39 +289,33 @@ Naming clarity:
 - **`CliLoggerAdapter` (CLI)** — a **host bundle**: holds the raw `pino` logger (for file paths, rotation, and CLI-only concerns) and exposes `.core: BasicLogger` for anything that consumes the SDK contract. It is not an `ITelemetryAdapter`.
 - **`TelemetryLoggerSink` (`@clinebot/core`)** — an **`ITelemetryAdapter`** that mirrors telemetry events and metrics into a `BasicLogger`. It is a telemetry sink, not a host logging implementation.
 
-The agent and other call sites route `info` / `warn`-style semantics through `log` (warnings include `severity: "warn"` in metadata). Errors prefer `error` when implemented; otherwise `log` with `severity: "error"` is used as a fallback.
+The agent and other call sites route former `info` / `warn` semantics through `log` (warnings include `severity: "warn"` in metadata). Errors prefer `error` when implemented; otherwise `log` with `severity: "error"` is used as a fallback.
 
-### Session Startup Bootstrap
+Design implication:
 
-`ClineCore.create(...)` exposes a generic `prepare(input)` hook.
+- logging is injectable and transport-agnostic, allowing host environments (CLI, VS Code, browser) to wire their own backends
+- do not hardcode logging calls; accept a `logger?: BasicLogger` parameter instead
 
-Design implications:
-
-- higher-level packages can prepare workspace-scoped runtime state before a session starts
-- core stays unaware of enterprise-specific contracts
-- cleanup stays at the host boundary rather than inside the agent loop
-
-### Storage Adapters
+### 7. Storage Adapters
 
 Stateful persistence should be isolated behind adapter/service layers.
 
-Design implications:
+Design implication:
 
 - file-backed, SQLite-backed, RPC-backed, and enterprise-specific persistence should share service logic where possible and isolate backend differences in adapters.
 
-### Extension and Hook System
+### 8. Extension and Hook System
 
 Extensibility is split deliberately:
 
 - extensions register runtime contributions
-- hooks intercept lifecycle stages through `Partial<AgentRuntimeHooks>`
-- file-based hook commands are core/CLI adapters over that hook bag
+- hooks intercept lifecycle stages
 
-Design implications:
+Design implication:
 
-- additive runtime behavior should usually enter through these extension points instead of bespoke host-specific code.
+- additive runtime behavior should usually enter through these extension points instead of bespoke special-case host code.
 
-### Context Compaction
+### 9. Context Compaction
 
 Context compaction is owned by `core`.
 
@@ -393,7 +324,6 @@ Context compaction is owned by `core`.
   - allow hosts to rewrite message history or system prompt before the provider call
 - `@clinebot/core` owns compaction policy:
   - inject a prepare-turn pipeline for root sessions
-  - run registered message builders and API-safe message normalization before gateway model calls
   - choose between built-in strategies through a registry map
   - keep compaction logic out of the low-level agent message builder
 
@@ -403,7 +333,7 @@ Design implications:
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 
-### Extension Layering Inside Core
+### 10. Extension Layering Inside Core
 
 `packages/core/src/extensions` is split by concern:
 
@@ -444,9 +374,9 @@ That rule is what keeps:
 - `enterprise -> core` acceptable
 - `core -> enterprise` unacceptable
 
-## Internal Enterprise Design
+## Current Internal Enterprise Design
 
-`@clinebot/enterprise` integrates with core through three main entrypoints:
+`@clinebot/enterprise` currently integrates with core through three main entrypoints:
 
 - `prepareEnterpriseRuntime(...)`
 - `prepareEnterpriseCoreIntegration(...)`
@@ -463,7 +393,7 @@ Why:
 - it can create a telemetry service from enterprise telemetry settings
 - it lets core consume enterprise behavior through existing generic seams and normal watcher discovery
 
-## File-Based and Event-Driven Automation (`ClineCore` / `CronService`)
+## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
 
 `@clinebot/core` ships a file-based automation subsystem under
 `packages/core/src/cron/`. It lets operators author recurring and one-off
@@ -537,6 +467,56 @@ claim/requeue/report flow as file-backed one-off, recurring, and
 event-driven specs. The hub schedule command surface remains a thin adapter;
 there is no separate schedules table, schedule store, or schedule runner.
 
+## Navigating the Codebase
+
+### Starting Points by Task
+
+**I want to understand the agent loop and tool execution:**
+- Start: `packages/agents/src/agent.ts` — the stateless runtime loop
+- Then: `packages/agents/src/agent-step.ts` — individual iteration steps
+- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery and sandboxing
+
+**I want to understand session persistence and state:**
+- Start: `packages/core/src/runtime/host/local-runtime-host.ts` — local session lifecycle
+- Then: `packages/core/src/runtime/orchestration/` — session orchestration
+- Settings: `packages/core/src/settings/` — settings mutation and state
+
+**I want to understand the hub system:**
+- Start: `packages/core/src/hub/server/` — WebSocket server and hub command handlers
+- Clients: `packages/core/src/hub/client/` — host-side hub clients
+- Transport: `packages/core/src/hub/runtime-host/` — hub-backed runtime hosts
+
+**I want to add a new tool:**
+- Tools registry: `packages/core/src/extensions/tools/` — built-in tool definitions
+- Tool execution: `packages/agents/src/tool-use.ts` — how tools are called
+- Plugin tools: `packages/core/src/extensions/plugin/` — plugin-registered tools
+
+**I want to understand settings and configuration:**
+- Watcher system: `packages/core/src/extensions/config/` — file watching and loading
+- Provider config: `packages/core/src/runtime/config/` — provider settings resolution
+- Settings services: `packages/core/src/settings/` — settings state and mutation
+
+**I want to add a new runtime feature (hook/extension):**
+- Hook contracts: `packages/shared/src/hooks/` — hook types and engine
+- Plugin system: `packages/core/src/extensions/plugin/` — plugin discovery and execution
+- Runtime builder: `packages/core/src/services/local-runtime-bootstrap.ts` — how runtime is composed
+
+### File Naming Conventions
+
+- `*.ts` — TypeScript source
+- `*.test.ts` — unit tests (Vitest)
+- `*.e2e.test.ts` — end-to-end tests requiring full integration
+- `*.ts` in examples — runnable example files (plugins, hooks)
+- `*.md` files in `apps/examples/` — documentation and markdown-based specs (cron, events)
+
+### Key Type Locations
+
+- **`ClineCore`** — `packages/core/src/index.ts` — the main SDK orchestrator
+- **`Agent`** — `packages/agents/src/agent.ts` — the agent loop
+- **`RuntimeHost`** — `packages/core/src/runtime/host/runtime-host.ts` — execution abstraction
+- **`AgentPlugin`** — `packages/shared/src/plugin/` — plugin contract
+- **`CronSpec`** — `packages/shared/src/cron/cron-spec-types.ts` — automation specs
+
 ## Publishability Constraint
 
 This repo has both publishable SDK packages and internal workspace packages.
@@ -546,3 +526,21 @@ Architectural consequence:
 - internal packages must not accidentally become part of the publishable SDK surface
 - release automation should only target the intended published packages
 - internal code may compose with published packages, but published packages should not take hard dependencies on internal-only workspace layers unless you explicitly intend to publish that integration
+
+### Published Packages
+
+The following packages are published to npm:
+
+- `@clinebot/shared` — shared types, contracts, and low-level utilities
+- `@clinebot/llms` — provider integrations and model manifests
+- `@clinebot/agents` — the agent loop and tool orchestration
+- `@clinebot/core` — the main SDK with session management, hub, and configuration
+
+### Internal Packages
+
+The following packages are internal and not published:
+
+- `@clinebot/enterprise` — enterprise integrations (internal only)
+- `apps/cli` — CLI implementation
+- `apps/webview` — VS Code webview
+- `apps/examples` — example plugins and integrations

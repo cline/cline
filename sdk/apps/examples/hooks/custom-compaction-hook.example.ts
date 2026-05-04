@@ -6,9 +6,11 @@
  * and recent working context, and replaces older middle history with one
  * summary message before the provider request.
  *
- * CLI usage:
+ * Installation:
  *   mkdir -p .cline/plugins
  *   cp apps/examples/hooks/custom-compaction-hook.example.ts .cline/plugins/custom-compaction-hook.ts
+ *
+ * Usage:
  *   cline -i "Search the codebase for dispatcher usage, then summarize it"
  *
  * Note: for most plugin-owned message rewrites, prefer registerMessageBuilder().

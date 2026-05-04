@@ -7,8 +7,8 @@ tools: run_commands,read_files
 mode: act
 enabled: true
 modelSelection:
-  providerId: openai
-  modelId: gpt-5.4
+  providerId: cline
+  modelId: anthropic/claude-opus-4.7
 timeoutSeconds: 1800
 systemPrompt: You are a precise automation agent that reports only actionable review findings.
 maxIterations: 20

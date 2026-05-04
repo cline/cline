@@ -33,8 +33,8 @@ The Cline SDK is a TypeScript framework for building AI agents that can edit fil
 import { Agent } from "@clinebot/sdk"
 
 const agent = new Agent({
-  providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  providerId: "cline",
+  modelId: "openai/gpt-5.5",
   systemPrompt: "You are a helpful coding assistant.",
   tools: [],
 })
@@ -63,8 +63,8 @@ async function handleMessage(threadId: string, message: string) {
   let agent = agents.get(threadId)
   if (!agent) {
     agent = new Agent({
-      providerId: "anthropic",
-      modelId: "claude-sonnet-4-6",
+      providerId: "gemini",
+      modelId: "gemini-3.1-pro-preview",
       systemPrompt: "You are a concise Slack assistant.",
       tools: [],
     })
@@ -111,8 +111,8 @@ const deploy = createTool({
 })
 
 const agent = new Agent({
-  providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  providerId: "moonshot",
+  modelId: "kimi-k2.5",
   systemPrompt: "You are a deployment assistant.",
   tools: [deploy],
 })
@@ -127,7 +127,7 @@ Every event during execution is observable in real time:
 ```typescript
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-opus-4-7",
   systemPrompt: "You are a helpful assistant.",
   tools: [myTool],
   onEvent: (event) => {
@@ -146,12 +146,12 @@ const agent = new Agent({
 })
 ```
 
-## Extensions
+## Plugins
 
 Package reusable capabilities as extensions. An extension can register tools, observe lifecycle events, and modify agent behavior:
 
 ```typescript
-const metrics: AgentExtension = {
+const metrics: AgentPlugin = {
   name: "metrics",
   manifest: { capabilities: ["tools", "hooks"] },
 
@@ -239,9 +239,9 @@ Works with every major LLM provider out of the box:
 
 | Provider | Models |
 |----------|--------|
-| Anthropic | Claude Opus 4, Sonnet 4, Haiku 3.5 |
-| OpenAI | GPT-4o, o1, o3 |
-| Google | Gemini 2.5 Pro, Flash |
+| Anthropic | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 |
+| OpenAI | GPT-5.5, GPT-5.3 Codex |
+| Google | Gemini 3.1 Pro Preview, Gemini 3 Flash Preview |
 | AWS Bedrock | Claude, Llama |
 | Mistral | Mistral Large, Codestral |
 | Any OpenAI-compatible | vLLM, Together, Fireworks, Groq, etc. |

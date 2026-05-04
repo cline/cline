@@ -1,226 +1,317 @@
-# Cline SDK DOC
+# Cline SDK Documentation
 
-This document is the detailed API and behavior reference for this repository.
+This document is the API and behavior reference for the Cline SDK workspace. It
+describes the current package surfaces, runtime features, host entrypoints, and
+file formats.
 
-Use it when you need:
+For contributor workflow and repository setup, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+For architecture and package boundaries, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+For development routing rules, see [AGENTS.md](./AGENTS.md).
 
-- exported package surfaces
-- behavior notes
-- lifecycle semantics
-- integration entrypoints
+## Package Map
 
-For contributor onboarding, use [AGENTS.md](./AGENTS.md).
-For system design and dependency direction, use [ARCHITECTURE.md](./ARCHITECTURE.md).
+| Package | Role |
+|---|---|
+| `@clinebot/shared` | Shared contracts, schemas, prompt helpers, path helpers, hooks, extension registry, telemetry config, automation types, and low-level utilities. |
+| `@clinebot/llms` | Provider/model runtime, model catalogs, provider registration, handler creation, and gateway contracts. |
+| `@clinebot/agents` | Stateless agent loop, model/tool orchestration, lifecycle hooks, streaming events, and standalone runtime factories. |
+| `@clinebot/core` | Stateful orchestration, sessions, runtime hosts, hub integration, config watching, plugin loading, default tools, automation, settings, storage, and telemetry. |
+| `@clinebot/enterprise` | Internal enterprise layer for identity, control-plane sync, managed instruction materialization, claims mapping, and telemetry. |
+| `@clinebot/cli` | Executable reference host for local, interactive, scheduled, connector, and ACP workflows. |
 
 ## `@clinebot/shared`
 
-Primary role: shared contracts and reusable runtime infrastructure.
+`@clinebot/shared` is the low-level contract package used by the SDK packages and
+host apps.
 
-Important exported areas:
+### Exports
 
-- shared schemas and common types
-- prompt helpers
-- path helpers under `@clinebot/shared/storage`
-- runtime hook contracts
+Primary exports from the package root include:
+
+- agent and runtime contracts
+- message, tool, provider, model, and gateway types
+- hook contracts and hook payload schemas
 - extension contracts and `ContributionRegistry`
-- telemetry config contracts
-- runtime build env helpers for debug-aware subprocess launches
+- connector event contracts
+- prompt formatting helpers
+- remote config schemas
+- telemetry contracts and telemetry config helpers
+- `BasicLogger`, `BasicLogMetadata`, and `noopBasicLogger`
+- JSON, shell, string, date, and Zod helpers
+- hub, RPC, workspace, and chat contracts
 
-Behavior notes:
+Subpath exports:
 
-- shared contracts should be reusable by multiple higher layers
-- **`BasicLogger`** (`@clinebot/shared`) is the cross-package logging contract: required `debug` and `log`, optional `error`. Verbose diagnostics use `debug` (hosts typically gate on debug log level). Operational messages use `log`. Implementations may attach **`BasicLogMetadata`** (`sessionId`, `runId`, `providerId`, `toolName`, `durationMs`, optional `severity` on `log` for warning-style lines). Use **`noopBasicLogger`** when a complete no-op instance is required.
-- path/search helpers define the default config discovery locations used elsewhere in the stack
-- `resolveClineBuildEnv(...)` prefers `CLINE_BUILD_ENV`, falls back to `NODE_ENV`, and also treats `--conditions=development` as a development build
-- SDK-owned `node`/`bun` subprocess launches add inspector endpoints plus `--enable-source-maps` in development builds unless those flags are already present
-- By default those child-process inspector ports are ephemeral (`--inspect=127.0.0.1:0`) to avoid collisions; set `CLINE_DEBUG_PORT_BASE` to restore deterministic role-based ports when needed
-- Top-level Bun hosts still need Bun inspector flags separately; for example launch `apps/cli/src/index.ts` directly with `bun --inspect-brk=6499 ...` for the CLI process
-- The VS Code launch config uses `"type": "bun"` (requires `oven.bun-vscode`) so the Bun debug adapter handles source maps natively; attach configs use `ws://` URLs with `localRoot`/`remoteRoot` pointing to `${workspaceFolder}` so breakpoints resolve correctly in workspace packages such as `packages/core`
+- `@clinebot/shared/browser` for browser-safe shared exports
+- `@clinebot/shared/types` for shared type contracts
+- `@clinebot/shared/storage` for Cline directory and storage path helpers
+- `@clinebot/shared/db` for shared database helpers
+- `@clinebot/shared/automation` for automation frontmatter and automation spec types
+
+### Logging
+
+`BasicLogger` is the cross-package logging contract. It requires `debug` and
+`log`, with optional `error`. Use `debug` for verbose diagnostics and `log` for
+operational messages.
+
+`BasicLogMetadata` supports structured fields such as `sessionId`, `runId`,
+`providerId`, `toolName`, `durationMs`, and optional `severity` for warning-style
+log lines. Use `noopBasicLogger` when a complete no-op logger is needed.
+
+### Build Environment Helpers
+
+`resolveClineBuildEnv(...)` prefers `CLINE_BUILD_ENV`, falls back to `NODE_ENV`,
+and treats `--conditions=development` as a development build.
+
+SDK-owned `node` and `bun` subprocess launches add source maps and inspector
+flags in development builds unless those flags are already present. Inspector
+ports are ephemeral by default (`--inspect=127.0.0.1:0`) to avoid collisions. Set
+`CLINE_DEBUG_PORT_BASE` when deterministic role-based ports are needed.
+
+Top-level Bun hosts still need Bun inspector flags on the host process itself,
+for example:
+
+```sh
+bun --inspect-brk=6499 apps/cli/src/index.ts
+```
 
 ## `@clinebot/llms`
 
-Primary role: provider/model runtime layer built around an internal gateway registry.
+`@clinebot/llms` owns provider configuration, model catalogs, provider
+registration, handler construction, and gateway-backed model execution.
 
-Important exported areas:
+### Exports
 
-- provider settings/config helpers
-- model catalog helpers
-- handler creation
-- provider manifests and runtime registry
-- shared gateway/provider contracts re-exported from `@clinebot/shared`
+Primary exports include:
 
-Behavior notes:
+- provider and model catalog helpers: `getAllProviders`, `getProvider`,
+  `getProviderIds`, `getModelsForProvider`, `getGeneratedProviderModels`,
+  `getGeneratedModelsForProvider`, `registerProvider`, `registerModel`,
+  `unregisterProvider`, `resetRegistry`
+- handler helpers: `createHandler`, `createHandlerAsync`, `registerHandler`,
+  `registerAsyncHandler`
+- provider id utilities: `BUILT_IN_PROVIDER`, `BUILT_IN_PROVIDER_IDS`,
+  `isBuiltInProviderId`, `normalizeProviderId`
+- gateway helpers: `createGateway`, `DefaultGateway`
+- shared message, tool, content, provider, and model types
+- Langfuse telemetry cleanup: `disposeLangfuseTelemetry`
 
-- provider execution is organized around a gateway registry plus AI SDK-backed protocol families, not just provider ids
-- app and runtime code should use the package root exports rather than deep internal imports
+The browser entrypoint is available at `@clinebot/llms/browser`.
 
-## `@clinebot/agents`
+### Provider Runtime
 
-Primary role: stateless execution layer.
+Provider execution is organized around a gateway registry and protocol families.
+Callers should use root exports instead of importing internal provider modules.
 
-Important exported areas:
-
-- `Agent`
-- tool definitions/registry helpers
-- runtime streaming helpers
-- hook and extension typing
-
-Behavior notes:
-
-- one `Agent` instance supports one active run at a time
-- `run(...)` starts a new conversation
-- `continue(...)` appends to existing conversation state
-- tool execution concurrency is bounded by `maxParallelToolCalls`
-- hook and extension setup is deterministic and happens before active execution
-
-### Extensions vs Hooks
-
-- extensions register contributions such as tools, commands, message builders, renderers, and providers
-- hooks intercept lifecycle stages and can influence execution
-
-Use extensions for additive runtime surface.
-Use hooks for lifecycle interception and policy.
-
-### Turn Preparation
-
-The agent runtime exposes a turn-preparation seam before each model call.
-
-Behavior:
-
-- `beforeModel` hooks/extensions run before the provider request
-- hosts may also supply `prepareTurn` to rewrite message history or the system prompt before the turn is sent
-- this is the primary seam for host-owned context pipelines such as compaction
-
-## `@clinebot/core/hub`
-
-Primary role: hub infrastructure, discovery, and host-side client access. Exposed as a subpath export of `@clinebot/core`; everything is also re-exported from the `@clinebot/core` root barrel.
-
-Important exported areas:
-
-- local hub discovery helpers (`resolveHubOwnerContext`, `resolveSharedHubOwnerContext`, `readHubDiscovery`, `writeHubDiscovery`, `clearHubDiscovery`, `probeHubServer`, `toHubHealthUrl`, `createHubServerUrl`, `withHubStartupLock`, `resolveHubBuildId`)
-- endpoint defaults and env resolution (`resolveHubEndpointOptions`, `DEFAULT_HUB_HOST`, `DEFAULT_HUB_PORT`, `DEFAULT_HUB_PATHNAME`)
-- hub WebSocket server (`startHubWebSocketServer`, `ensureHubWebSocketServer`, and the shared-owner wrappers `startHubServer`, `ensureHubServer`)
-- detached daemon control (`spawnDetachedHubServer`, `ensureDetachedHubServer`, `prewarmDetachedHubServer`), plus the daemon process entry at `@clinebot/core/hub/daemon-entry`
-- WebSocket hub clients (`NodeHubClient`, `connectToHub`, `resolveHubUrl`, `sendHubCommand`, `probeHubConnection`, `verifyHubConnection`, `normalizeHubWebSocketUrl`)
-- high-level client adapters (`HubSessionClient`, `HubUIClient`)
-- compatible-local-hub resolution used by `createRuntimeHost` (`resolveCompatibleLocalHubUrl`, `ensureCompatibleLocalHubUrl`)
-
-Behavior notes:
-
-- hub infrastructure, discovery, and client adapters live in a single module tree under `packages/core/src/hub/`.
-- hub code is organized by role: `protocol/` for protocol contracts, `client/`
-  for websocket clients, `server/` for server-side transport/handlers and
-  server-owned adapters, `daemon/` for detached process lifecycle,
-  `discovery/` for endpoint resolution, `transport/` for `RuntimeHost`
-  adapters, and sparse `shared/` helpers for pure cross-role utilities.
-- `HubSessionClient` and `HubUIClient` wrap `NodeHubClient` to provide session-lifecycle and UI-notification surfaces respectively.
-- `ensureCompatibleLocalHubUrl` is the canonical entry point for "start the shared hub if it isn't already running"; it honors build-ID-aware discovery and uses `ensureDetachedHubServer` internally.
-
-## `@clinebot/core`
-
-Primary role: stateful orchestration over the stateless agent runtime.
-
-Important exported areas:
-
-- `ClineCore`
-- `RuntimeHost`, `LocalRuntimeHost`, `HubRuntimeHost`, `RemoteRuntimeHost`, and `createRuntimeHost`
-- runtime builder
-- config watchers/loaders
-- config-side watcher projection helpers
-- settings snapshots and mutations (`ClineCore.settings`, `CoreSettingsService`)
-- default tools and tool routing
-- provider settings management
-- telemetry factories
-- `TelemetryLoggerSink`: an `ITelemetryAdapter` that forwards capture/metric calls to a `BasicLogger` (distinct from host-specific logger bundles such as the CLI Pino wrapper).
-
-### Telemetry and logging
-
-- `TelemetryService` can accept a `BasicLogger`; when present, core installs a `TelemetryLoggerSink` so telemetry events are also written to that logger with structured fields (`telemetrySink`, `event`, `properties`, …).
-- Host applications (for example the CLI) typically construct a logger bundle that includes both the native backend and a `BasicLogger` view: the CLI keeps the `pino` instance for transport concerns and passes `adapter.core` into SDK/runtime options.
-- `ClineCore.create(...)` also accepts `logger?: BasicLogger` in `ClineCoreOptions`; core uses it for operational diagnostics such as RPC backend auto-start, reuse, and fallback decisions.
-
-### Runtime Composition
-
-Core composes the runtime from:
-
-- provider config
-- tools
-- hooks
-- extensions
-- default context compaction policy
-- user instruction watcher
-- telemetry
-
-### Runtime Capabilities
-
-`ClineCore.create(...)` and `ClineCore.start(...)` accept
-`capabilities?: RuntimeCapabilities` for client-owned runtime behavior that must
-work the same way in local and hub-backed sessions.
+The gateway accepts one or more provider configs and creates agent-compatible
+model adapters:
 
 ```ts
-const core = await ClineCore.create({
-	backendMode: "hub", // also works with "local", "auto", and "remote"
-	capabilities: {
-		toolExecutors: {
-			askQuestion: async (question, options, context) => {
-				return appUi.askQuestion({ question, options, context });
-			},
-		},
-		requestToolApproval: async (request) => {
-			return appUi.requestToolApproval(request);
-		},
-	},
+import { createGateway } from "@clinebot/llms";
+
+const gateway = createGateway({
+  providerConfigs: [{ providerId: "openai", apiKey: process.env.OPENAI_API_KEY }],
+});
+
+const model = gateway.createAgentModel({
+  providerId: "openai",
+  modelId: "gpt-5.4",
 });
 ```
 
-Core adapts the same handlers to the selected transport:
+## `@clinebot/agents`
 
-- local mode invokes `capabilities.toolExecutors` and
-  `capabilities.requestToolApproval` directly through the local runtime
-  bootstrap;
-- hub and remote modes advertise tool executor capability names, handle hub
-  `capability.requested` / `approval.requested` events inside core, invoke the
-  same app handlers, and respond to the hub protocol;
-- in hub/remote mode, the client that creates or restores a runtime session owns
-  the advertised client-local tool executor capabilities for that session.
-  `session.attach` adds observers/participants only; attached clients do not
-  take over capability execution. The hub routes capability requests by
-  `sessionId` and explicit `targetClientId`, and only the target client may
-  answer a pending capability request.
-- long-running capability prompts receive a `ToolContext.abortSignal`. If the hub
-  aborts a run, detaches/disconnects the owning client, or shuts down while a
-  request is pending, it publishes a cancelled `capability.resolved` event so the
-  owning client can abort the in-process handler. `ToolContext.conversationId` is
-  preserved exactly from the runtime tool context across this proxy hop.
-- apps using `ClineCore` should not implement separate local callbacks and hub
-  event listeners for the same UI behavior.
-- App-facing legacy `defaultToolExecutors` and top-level `requestToolApproval`
-  options have been removed. Use `capabilities.toolExecutors` and
-  `capabilities.requestToolApproval` on `ClineCore.create(...)` or per
-	`ClineCore.start(...)` call instead. Lower-level runtime-builder wiring also
-	uses `toolExecutors` so capabilities stay the only feature channel.
+`@clinebot/agents` provides the stateless agent loop. It can run standalone or be
+composed by `@clinebot/core`.
 
-Core’s internal extension layer is split by concern:
+### Exports
 
-- `extensions/config`: watchers, parsers, config loaders, and slash-command projection helpers
-- `extensions/plugin`: plugin loading and sandbox runtime
-- `extensions/context`: context pipeline behavior such as compaction
+Primary exports include:
 
-### Settings mutations
+- `AgentRuntime` and `Agent`
+- `createAgentRuntime` and `createAgent`
+- `AgentRuntimeConfig`, `AgentRuntimeConfigWithModel`, and
+  `AgentRuntimeConfigWithProvider`
+- `AgentRunInput` and `AgentEventListener`
+- shared runtime types re-exported from `@clinebot/shared`
+- `createTool` for authoring tools
 
-`@clinebot/core` exposes settings listing and mutation through `ClineCore.settings` and `CoreSettingsService`.
+### Runtime Construction
 
-Hub-backed runtimes expose the same mutation path through `settings.list` and `settings.toggle`; successful mutations return an updated settings snapshot and publish `settings.changed` with the changed settings types.
+Standalone callers can supply either a pre-built model or provider/model IDs.
 
-Behavior:
+```ts
+import { Agent, createTool } from "@clinebot/agents";
 
-- Disabling a skill writes or updates skill frontmatter with `disabled: true`.
-- Enabling a skill removes disabling fields, including `disabled` and legacy `enabled: false` when present.
-- Markdown body content is preserved; unrelated frontmatter fields are preserved semantically.
-- Skill enabled state stays in the SDK skill markdown frontmatter. It is not a session-scoped, workspace-scoped, or external toggle store.
-- Host UIs should call the settings facade/service rather than directly writing skill files.
+const echo = createTool<{ text: string }, string>({
+  name: "echo",
+  description: "Echo text back to the model.",
+  inputSchema: {
+    type: "object",
+    properties: { text: { type: "string" } },
+    required: ["text"],
+  },
+  execute: async (input) => input.text,
+});
 
-### Session Behavior
+const agent = new Agent({
+  providerId: "openai",
+  modelId: "gpt-5.4",
+  apiKey: process.env.OPENAI_API_KEY,
+  systemPrompt: "You are a concise coding assistant.",
+  tools: [echo],
+});
+
+const result = await agent.run("Say hello through the echo tool.");
+```
+
+### Execution Model
+
+- `run(input)` starts a run from the supplied input and current runtime state.
+- `continue(input?)` appends optional input and continues from the current
+  conversation state.
+- `restore(messages)` replaces the conversation state while preserving the model,
+  tools, hooks, plugins, and subscribers.
+- `abort(reason?)` aborts the active run.
+- `subscribe(listener)` receives runtime events and returns an unsubscribe
+  callback.
+- `toolExecution` controls sequential or parallel tool execution. The runtime
+  defaults to sequential execution.
+- Tool policies can auto-approve, require approval, or block tools by name.
+
+### Hooks and Turn Preparation
+
+Agent hooks can observe and influence lifecycle stages such as run start, model
+calls, tool calls, and run completion. `prepareTurn` can rewrite messages or the
+system prompt before each model call and is the primary entrypoint for
+host-owned context pipelines.
+
+## `@clinebot/core`
+
+`@clinebot/core` is the main SDK entrypoint for stateful applications. It
+combines provider settings, tools, hooks, extensions, sessions, storage,
+telemetry, settings, automation, and runtime-host selection.
+
+### Exports
+
+Important root exports include:
+
+- `ClineCore`
+- runtime hosts: `RuntimeHost`, `LocalRuntimeHost`, `HubRuntimeHost`,
+  `RemoteRuntimeHost`, `createRuntimeHost`
+- runtime capabilities: `RuntimeCapabilities`, `normalizeRuntimeCapabilities`
+- default tools: `createBuiltinTools`, `createDefaultTools`,
+  `createDefaultToolsWithPreset`, `createDefaultExecutors`, `DefaultToolNames`,
+  `ALL_DEFAULT_TOOL_NAMES`, `ToolPresets`
+- config services: rule, skill, workflow, and user-instruction loaders/watchers
+- plugin loading helpers
+- MCP loading and tool creation helpers
+- session services, snapshots, checkpoint restore, history, and storage
+- settings APIs: `CoreSettingsService`, `createCoreSettingsService`
+- provider settings, provider catalog, OAuth, and account helpers
+- telemetry services and event helpers
+- automation API types
+- `Agent` and `createAgentRuntime` from `@clinebot/agents`
+- `Llms` namespace export for `@clinebot/llms`
+
+Subpath exports:
+
+- `@clinebot/core/hub` for hub clients, servers, daemon helpers, discovery, and
+  hub transport utilities
+- `@clinebot/core/hub/daemon-entry` for the detached hub daemon entrypoint
+- `@clinebot/core/telemetry` for OpenTelemetry adapter/provider exports
+
+### Creating Core
+
+```ts
+import { ClineCore } from "@clinebot/core";
+
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  backendMode: "auto",
+  logger,
+  telemetry,
+});
+
+const started = await cline.start({
+  prompt: "Inspect this repository and summarize the test setup.",
+  config: {
+    providerId: "cline",
+    modelId: "openai/gpt-5.3-codex",
+    systemPrompt: "You are a precise coding assistant.",
+    workspaceRoot: process.cwd(),
+    cwd: process.cwd(),
+    enableTools: true,
+    enableSpawnAgent: true,
+    enableAgentTeams: true,
+  },
+});
+```
+
+`ClineCore.create(...)` accepts:
+
+- `clientName` and `distinctId` for client identity
+- `backendMode: "auto" | "local" | "hub" | "remote"`
+- `hub` and `remote` connection options
+- `capabilities` for app-owned tool executors and approval UI
+- `telemetry` and `logger`
+- `toolPolicies`
+- `messagesArtifactUploader`
+- `automation`
+- `fetch` for local provider HTTP customization
+- `prepare(input)` for workspace-scoped session bootstrap
+
+### Runtime Hosts
+
+Core can execute through four host modes:
+
+- `auto`: prefer a compatible local hub when available, otherwise use the local
+  runtime.
+- `local`: run in-process with local storage.
+- `hub`: require a compatible local websocket hub.
+- `remote`: require an explicit remote websocket hub endpoint.
+
+`RuntimeHost` is the transport boundary beneath `ClineCore`. It exposes
+transport-safe methods such as `startSession`, `runTurn`, `restoreSession`,
+`abort`, `stopSession`, `getSession`, `listSessions`, `deleteSession`,
+`updateSession`, `readSessionMessages`, `dispatchHookEvent`, and `subscribe`.
+
+App integrations should prefer `ClineCore` methods (`start`, `send`, `restore`,
+`get`, `list`, `listHistory`, `stop`, `delete`, `readMessages`,
+`ingestHookEvent`) unless they are implementing a runtime host.
+
+### Runtime Capabilities
+
+`RuntimeCapabilities` let host apps implement interactive behavior once and use
+it across local, hub, and remote sessions.
+
+```ts
+const cline = await ClineCore.create({
+  backendMode: "hub",
+  capabilities: {
+    toolExecutors: {
+      askQuestion: async (question, options, context) => {
+        return appUi.askQuestion({ question, options, context });
+      },
+    },
+    requestToolApproval: async (request) => {
+      return appUi.requestToolApproval(request);
+    },
+  },
+});
+```
+
+Local mode invokes capability handlers directly. Hub and remote modes advertise
+capability names to the hub, receive targeted capability and approval requests,
+call the same handlers in the owning client, and respond through the hub
+protocol. The client that creates or restores a runtime session owns the
+client-local capabilities for that session.
+
+Long-running capability prompts receive a `ToolContext.abortSignal`. If a run is
+aborted, the owning client disconnects, or the hub shuts down while a capability
+request is pending, the in-process handler is aborted.
+
+### Sessions
 
 Core owns:
 
@@ -229,135 +320,76 @@ Core owns:
 - transcript and hook artifact persistence
 - pending prompt queueing
 - team/session persistence
-- checkpoint hooks when `CLINE_CHECKPOINT=true`
-- default context compaction injection for root sessions
+- checkpoint restore and fork coordination
+- default context compaction for root sessions
 
-Runtime boundary notes:
+`ClineCore.start(...)` is the ergonomic app-facing entrypoint and accepts
+`ClineCoreStartInput`, whose `config` field is a `CoreSessionConfig`.
 
-- `ClineCore.start(...)` is the ergonomic app-facing entrypoint and accepts the broad `CoreSessionConfig`
-- `ClineCore.listHistory(...)` is the shared history listing entrypoint for app-facing history UIs. It hydrates display metadata and supports opt-in manifest fallback for callers that need to include legacy file-backed session rows.
-- `ClineCore.list(...)` delegates to the hydrated history path for backward-compatible recent-session listing.
-- `RuntimeHost` is the lower-level transport-safe execution contract used beneath `ClineCore`
-- `LocalRuntimeHost` owns local in-process execution and local session persistence behavior
-- `HubRuntimeHost` owns shared local hub request translation and event adaptation
-- `RemoteRuntimeHost` is a thin hub-transport specialization for explicit remote endpoints
-- the internal host contract uses runtime-primitive method names such as `startSession`, `runTurn`, `restoreSession`, `getSession`, `listSessions`, `stopSession`, `deleteSession`, `readSessionMessages`, and `dispatchHookEvent`; app integrations continue to use the `ClineCore` product API (`start`, `send`, `restore`, `get`, `list`, `stop`, `delete`, `readMessages`, `ingestHookEvent`)
-- pending prompt list/update/delete are exposed through
-  `ClineCore.pendingPrompts.list(input)`,
-  `ClineCore.pendingPrompts.update(input)`, and
-  `ClineCore.pendingPrompts.delete(input)`. Accumulated usage lookup and
-  active-session model switching are also exposed by `ClineCore` as
-  service-style capabilities when the selected transport implements them. These
-  service APIs are intentionally outside the minimal `RuntimeHost` primitive
-  contract.
-- host selection happens in `createRuntimeHost(...)`
+`CoreSessionConfig` includes:
 
-### Session Snapshots and Checkpoints
+- model selection: `providerId`, `modelId`, `apiKey`, `baseUrl`, headers,
+  provider config, known models, thinking, and reasoning effort
+- runtime behavior: tools, spawn-agent support, team support, MCP settings tools,
+  yolo flag, max iterations, timeout, execution settings, and tool routing rules
+- workspace and prompt config: `workspaceRoot`, `cwd`, `systemPrompt`,
+  `workspaceMetadata`, images, files, and initial messages
+- local runtime hooks: hooks, logger, telemetry, extension context, extra tools,
+  extensions, and team callbacks
+- context features: compaction, checkpointing, skills allowlist, and mistake
+  limits
 
-Core defines a canonical `CoreSessionSnapshot` projection in
-`packages/core/src/session/session-snapshot.ts`. The projection combines the
-current `SessionRecord` with optional messages, accumulated usage, checkpoint
-metadata, workspace/model details, lineage, and app metadata. Use this shape for
-new cross-transport session state work instead of introducing another local-only
-or hub-only session record variant.
+### History and Snapshots
 
-Checkpoint restore/fork behavior is coordinated through
-`SessionVersioningService` in
-`packages/core/src/session/session-versioning-service.ts`:
+`ClineCore.listHistory(...)` is the shared history listing entrypoint for
+app-facing history UIs. It hydrates display metadata and supports manifest
+fallback when requested by the caller. `ClineCore.list(...)` delegates to the
+same history path for recent-session listing.
 
-- it validates the requested source session and checkpoint run count;
-- it plans the message slice and workspace checkpoint to restore;
-- it delegates session materialization to the active transport adapter;
-- it retains checkpoint refs for the restored session; and
-- it returns source/restored canonical snapshots where available.
+`CoreSessionSnapshot` is the canonical cross-transport session projection. It
+combines the current session record with optional messages, accumulated usage,
+checkpoint metadata, workspace/model details, lineage, and app metadata. Use
+this shape for session-detail UIs and cross-transport session state work.
 
-Local and hub adapters should call this shared service for restore semantics and
-only adapt the surrounding command/event protocol.
+Checkpoint restore and fork behavior is coordinated through
+`SessionVersioningService`. It validates the source session and checkpoint run
+count, plans message/workspace restoration, delegates materialization to the
+active transport adapter, retains checkpoint refs, and returns canonical
+snapshots when available.
 
-### Context Compaction
-
-Core provides a built-in default compaction policy for root sessions.
-
-Behavior:
-
-- core owns context compaction through its turn-preparation pipeline
-- the default core pipeline supports two built-in strategies:
-  - `agentic`: summarize older history with a model and roll summaries forward
-  - `basic`: compact locally without calling a model
-- built-in strategy dispatch is registry-based, so adding a new strategy is a file plus one registry entry
-- compaction runs before the model request, not as an agent lifecycle hook after usage is recorded
-
-Integration rule:
-
-- if a host needs custom compaction behavior, prefer a core-owned prepare-turn pipeline
-- do not rely on a public `AgentConfig.compaction` field
-
-### Watcher Projections
-
-Core exposes watcher-derived runtime helpers from the config layer rather than from `runtime/` wrappers.
-
-Behavior:
-
-- slash-command expansion for skills and workflows is provided by the generic runtime-command projection in `extensions/config`
-- there are no separate `runtime/skills.ts` or `runtime/workflows.ts` wrapper layers
-- rules formatting remains a runtime concern because it feeds prompt assembly
-
-### Session Bootstrap
-
-`ClineCore.create(...)` accepts an optional `prepare(input)` hook.
-
-Use it when a higher-level integration needs to prepare workspace-scoped runtime
-state before core starts a session, then attach the result through existing
-generic seams.
-
-`prepare(input)` runs on the broad `ClineCoreStartInput` before core normalizes
-that input into the lower-level `RuntimeHost` contract. This means integrations
-should mutate `input.config` directly for app-facing concerns such as
-extensions, telemetry, or a generated session id.
-
-The returned bootstrap can:
-
-- transform the app-facing start input
-- attach local runtime bootstrap state
-- add extensions through `input.config.extensions`
-- provide telemetry through `input.config.telemetry`
-- register cleanup with `dispose()`
-
-### Interactive Queueing
+### Pending Prompts
 
 Turn requests support:
 
-- `delivery: "queue"`
-- `delivery: "steer"`
+- `delivery: "queue"` to append to the pending prompt queue
+- `delivery: "steer"` to insert at the front of the queue
 
-Behavior:
+Interactive sessions automatically queue a send while a run is active unless the
+caller requests another delivery mode. Attachments are preserved.
 
-- queued turns are stored as pending prompts
-- steer inserts at the front of the pending queue
-- attachments are preserved
-- interactive sessions automatically treat a new send as `delivery: "queue"` while a run is already in progress unless the caller explicitly requests another delivery mode
-- core emits queue-related events and should be treated as the source of truth
-- pending prompts can be listed, edited, steered, or removed through `pendingPrompts.list(input)`, `pendingPrompts.update(input)`, and `pendingPrompts.delete(input)` before they are drained into a turn
+Pending prompts can be inspected and edited through:
 
-### Telemetry
+- `cline.pendingPrompts.list({ sessionId })`
+- `cline.pendingPrompts.update({ sessionId, promptId, prompt, delivery })`
+- `cline.pendingPrompts.delete({ sessionId, promptId })`
 
-Core supports:
+### Context Compaction
 
-- basic telemetry service usage
-- OpenTelemetry-backed telemetry factories (`createConfiguredTelemetryService`, `OpenTelemetryProvider` in `@clinebot/core/telemetry`)
+Core provides default context compaction through the turn-preparation pipeline.
 
-The main integration pattern is:
+Built-in strategies:
 
-1. construct a telemetry service (often via `createClineTelemetryServiceConfig` from `@clinebot/shared` or explicit `OpenTelemetryProviderOptions`)
-2. pass it to the host or session config
-3. flush/dispose it at the host boundary (`ITelemetryService.flush` / `dispose`, and `OpenTelemetryProvider.dispose` when using the OTel provider)
+- `basic`: compact locally without a model call
+- `agentic`: summarize earlier history with a model and roll summaries forward
 
-**Signals.** When OpenTelemetry is enabled, the provider registers:
+Compaction runs before the model request. Hosts that need custom compaction
+should supply core-level compaction behavior through `CoreSessionConfig` or the
+prepare-turn pipeline.
 
-- **Logs (events):** each `ITelemetryService.capture` / `captureRequired` becomes a log record whose body is the event name and whose attributes carry flattened properties (see `OpenTelemetryAdapter`).
-- **Metrics:** counters, histograms, and observable gauges from `recordCounter`, `recordHistogram`, `recordGauge`.
-- **Traces (optional):** set `tracesExporter` (for example `"console"` or `"otlp"`) on `OpenTelemetryProviderOptions`, or `OTEL_TRACES_EXPORTER` via `createClineTelemetryServiceConfig`. OTLP traces POST to `{otlpTracesEndpoint ?? otlpEndpoint}/v1/traces`. A global `TracerProvider` is registered so `trace.getTracer(...)` from `@opentelemetry/api` and integrations such as Langfuse (`@clinebot/llms`) can emit spans. End-to-end correlation across separate processes (CLI → RPC → worker) still requires your transport to propagate W3C `traceparent` / baggage; the SDK does not yet attach those headers automatically to RPC calls.
+### Settings
 
+`ClineCore.settings` and `CoreSettingsService` expose settings listing and
+mutation.
 **Event catalog.** Structured product events are named in `packages/core/src/services/telemetry/core-events.ts` (`CORE_TELEMETRY_EVENTS` and the `capture*` helpers). Use that module as the source of truth for event strings and typical properties.
 
 **`task.completed` semantics.** `task.completed` marks the moment the
@@ -395,868 +427,334 @@ Host integration rules:
   reconstruct an equivalent telemetry service. The reference VS Code
   daemon (`apps/vscode/src/hub-daemon.ts`) shows the expected shape.
 
-**Collector configuration.** Standard OpenTelemetry environment variables are read by `createClineTelemetryServiceConfig`, including `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER`, `OTEL_TRACES_EXPORTER`, `OTEL_METRIC_EXPORT_INTERVAL`, and `OTEL_TELEMETRY_ENABLED`. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at an OTLP HTTP/JSON collector (for example OpenTelemetry Collector or a vendor endpoint); paths `/v1/logs`, `/v1/metrics`, and `/v1/traces` are appended automatically.
+Hub-backed runtimes expose the same mutation path through `settings.list` and
+`settings.toggle`. Successful mutations return an updated settings snapshot and
+publish `settings.changed` with the changed setting types.
 
-## `@clinebot/enterprise`
+Skill enabled state is stored in skill Markdown frontmatter:
 
-Status:
+- disabling a skill writes or updates `disabled: true`
+- enabling a skill removes frontmatter fields that disable the skill
+- Markdown body content and unrelated frontmatter fields are preserved
 
-- internal-only workspace package
-- excluded from root SDK build/version/publish flows
+Host UIs should call the settings API instead of writing skill files directly.
 
-Primary role: enterprise integration layer above core.
+### Default Tools
 
-Important exported areas:
+Core default tool names are:
 
-- `createWorkosIdentityAdapter`
-- `createWorkosControlPlaneAdapter`
-- `EnterpriseAuthService`
-- `EnterpriseSyncService`
-- `prepareEnterpriseRuntime`
-- `prepareEnterpriseCoreIntegration`
-- `createEnterprisePlugin`
-- file-backed enterprise stores and materializer implementations
+- `read_files`
+- `search_codebase`
+- `run_commands`
+- `fetch_web_content`
+- `apply_patch`
+- `editor`
+- `skills`
+- `ask_question`
+- `submit_and_exit`
 
-### Core Contracts
-
-- `IdentityAdapter`
-- `EnterpriseControlPlane`
-- `EnterpriseConfigBundle`
-- `EnterpriseIdentityClaims`
-- `EnterpriseAccessToken`
-- `EnterpriseClaimsMapper`
-- `EnterpriseTelemetryAdapter`
-
-### Enterprise Sync Behavior
-
-`prepareEnterpriseRuntime(...)` performs:
-
-1. enterprise identity resolution
-2. normalized bundle fetch
-3. token/bundle caching
-4. managed instruction materialization
-5. claims-to-role mapping
-6. telemetry normalization
-
-Returned data includes:
-
-- bundle
-- identity
-- claims
-- roles
-- telemetry config
-- managed paths
-- plugin definition
-
-### Core Bridge Behavior
-
-`prepareEnterpriseCoreIntegration(...)` is the preferred bridge into core.
-
-It:
-
-- prepares the enterprise runtime
-- relies on core's default watcher to discover enterprise-managed instruction paths from `.cline/<plugin>/managed.json`
-- optionally creates a telemetry service from enterprise telemetry settings
-- returns `applyToStartSessionInput(...)` plus `dispose()` so callers can feed it into `ClineCore.create({ prepare })`
-
-### Plugin Behavior
-
-`createEnterprisePlugin(...)` returns a valid `AgentPlugin`.
-
-Behavior:
-
-- `setup(...)` is side-effect-only
-- it can sync enterprise state and register provider contributions
-- it should not be treated as the rich data-returning enterprise bootstrap API
-
-### Managed Files
-
-Enterprise-managed content is written under:
-
-- `.cline/<plugin>/rules.md`
-- `.cline/<plugin>/workflows/*.md`
-- `.cline/<plugin>/skills/*/SKILL.md`
-- `.cline/<plugin>/cache/bundle.json`
-- `.cline/<plugin>/cache/token.json`
-- `.cline/<plugin>/managed.json`
-
-Those files are then consumed through the same watcher-based loading path as other user instruction files.
-
-## `@clinebot/cli`
-
-Primary role: executable reference host for the SDK stack.
-
-Important areas:
-
-- CLI argument parsing
-- runtime/session assembly through core
-- provider/model resolution
-- interactive TUI
-- connector bridges
-- RPC server lifecycle commands
-
-Behavior notes:
-
-- supports single-shot, interactive, and piped input flows
-- approval behavior varies by environment and tool policy
-- chat commands and runtime slash commands are distinct systems
-
-## Host Apps
-
-### `@clinebot/code`
-
-Desktop/Tauri host with a Next.js UI.
-
-Notable behaviors:
-
-- provider settings and model selection are driven by SDK packages rather than static app-local state
-- settings surfaces for rules, MCP servers, and provider config map back to shared/core behavior
-
-### `@clinebot/vscode`
-
-VS Code extension host over RPC-backed chat/runtime interactions.
-
-Notable behaviors:
-
-- ensures RPC runtime
-- streams chat/runtime events into the webview
-
-## Reference Usage Pattern
-
-If you are integrating the published SDK stack directly, the usual path is:
-
-1. use `@clinebot/core` as the orchestration entrypoint
-2. let core compose `@clinebot/agents` and `@clinebot/llms`
-3. optionally use `@clinebot/rpc` when the runtime must be split across processes
-
-If you are integrating enterprise-specific behavior inside this repo, the usual path is:
-
-1. use `@clinebot/enterprise` to prepare enterprise state
-2. bridge into core through `prepare`, watcher, extensions, and telemetry inputs
-3. keep enterprise-specific logic out of the published core API surface
-
-## CLI Features
+Use `createBuiltinTools`, `createDefaultTools`, or
+`createDefaultToolsWithPreset` to construct the tool set for a runtime. Tool
+policies control auto-approval and blocking by tool name.
 
 ### Hooks
 
-Hooks are shell scripts (or any executable) that Cline runs automatically at key points in the agent lifecycle. They let you inspect, modify, or cancel agent actions without changing your prompts or source code. Hook files are discovered from `.cline/hooks/` in your project root and from any directory passed via `--hooks-dir`.
+Hook files are executable scripts discovered from hook search paths such as
+`.cline/hooks/` and the global hook directory. They receive JSON payloads on
+stdin and return a JSON control object on stdout.
 
----
+Supported hook events:
 
-#### Creating a Hook
-
-Name your hook file after the event it should handle and place it in `.cline/hooks/`. The file must be executable.
-
-```
-.cline/
-└── hooks/
-    ├── tool_call.sh
-    ├── tool_result.sh
-    └── agent_start.sh
-```
-
-**Example — log every tool call and allow it to proceed:**
-
-```bash
-#!/usr/bin/env bash
-# .cline/hooks/tool_call.sh
-input=$(cat)
-echo "Tool called: $(echo "$input" | jq -r '.tool')" >&2
-echo '{}'
-```
-
-Make it executable: `chmod +x .cline/hooks/tool_call.sh`
-
----
-
-#### Supported Hook Events
-
-| Event | Fires when… |
+| Event | Description |
 |---|---|
-| `tool_call` | **Before** a tool executes. Output can modify or cancel the call. |
-| `tool_result` | **After** a tool executes. Output can add context to the result. |
-| `agent_start` | The agent session starts. |
-| `agent_resume` | The agent resumes after a pause or review. |
-| `agent_end` | The agent session ends normally. |
-| `agent_abort` | The agent session is aborted. |
-| `prompt_submit` | A prompt is submitted to the model. |
-| `pre_compact` | Just before context compaction runs. |
+| `agent_start` | Session execution starts. |
+| `agent_resume` | A session resumes. |
+| `agent_abort` | A session is aborted. |
+| `agent_end` | Session execution completes. |
+| `agent_error` | Session execution fails. |
+| `tool_call` | A tool call is about to execute. |
+| `tool_result` | A tool call has completed. |
+| `prompt_submit` | A user prompt is submitted. |
+| `pre_compact` | Context compaction is about to run. |
 | `session_shutdown` | The session is shutting down. |
 
----
+Hook output supports:
 
-#### Hook Output Fields
+| Field | Effect |
+|---|---|
+| `cancel` | Cancels the pending operation. |
+| `review` | Requests user review. |
+| `context` | Adds context for the next turn. |
+| `contextModification` | Replaces or adjusts context content. |
+| `errorMessage` | Surfaces an error message. |
+| `overrideInput` | Replaces a tool input before execution. |
+| `systemPrompt` | Adjusts the system prompt for supported hook stages. |
+| `appendMessages` | Adds messages for supported hook stages. |
 
-Return a JSON object from stdout. An empty `{}` means "do nothing."
+### Rules, Skills, and Workflows
 
-| Field | Type | Effect |
-|---|---|---|
-| `cancel` | `boolean` | Cancels the pending tool call. |
-| `review` | `boolean` | Pauses and prompts the user to review. |
-| `context` | `string` | Injects context into the agent's next turn. |
-| `contextModification` | `string` | Replaces or amends the context window content. |
-| `errorMessage` | `string` | Surfaces an error message to the agent. |
-| `overrideInput` | `any` | Replaces the tool's input before execution. |
+Core loads user instruction files through unified config watchers. Files are
+watched while sessions are running and updates apply on the next turn.
 
-**Example — cancel a destructive file write:**
-
-```bash
-#!/usr/bin/env bash
-# .cline/hooks/tool_call.sh
-input=$(cat)
-tool=$(echo "$input" | jq -r '.tool')
-if [ "$tool" = "write_file" ]; then
-  echo '{"cancel": true, "errorMessage": "File writes are not allowed."}'
-else
-  echo '{}'
-fi
-```
-
----
-
-#### CLI Usage
-
-```bash
-# List all registered hooks
-clite list hooks
-
-# Load hooks from an additional directory at runtime
-clite --hooks-dir ./ci/hooks "run the test suite"
-```
-
-> **Note:** Hooks are disabled in `--yolo` mode. Pass `--verbose` to print each hook invocation as it fires.
-
----
-
-### Plugins
-
-Plugins extend Cline CLI with custom chat commands. Each plugin registers one or more `AgentPluginCommand` handlers that become available as slash commands across all connected chat surfaces. Plugins are loaded per-workspace and run in-process alongside the agent.
-
----
-
-#### Installing a Plugin
-
-Drop a `.js` or `.mjs` file into `.cline/plugins/` at your workspace root. Cline discovers modules automatically — no registration step required.
-
-```
-my-project/
-└── .cline/
-    └── plugins/
-        └── my-plugin.js
-```
-
-```js
-// .cline/plugins/my-plugin.js
-export default [
-  {
-    name: "greet",
-    description: "Say hello",
-    handler: async (ctx) => "Hello from my plugin!",
-  },
-];
-```
-
-Once loaded, users can type `/greet` in any active connector (Telegram, Slack, etc.).
-
----
-
-#### Listing Plugins
-
-```bash
-clite list plugins
-clite list plugins --json
-```
-
----
-
-### Rules
-
-Rules are named instruction sets automatically injected into the agent's system prompt at the start of every session. They encode persistent conventions — coding style, tool preferences, project constraints — without repeating them in every prompt. Rules apply to all run modes, including headless and yolo runs.
-
----
-
-#### File Locations
+Rules are persistent instructions injected into the system prompt.
 
 | Scope | Path |
 |---|---|
-| Workspace-local | `.cline/rules/*.md` |
-| Global (user) | `~/Documents/Cline/Rules/*.md` |
-| Global (data dir) | `~/.cline/data/settings/rules/*.md` |
-| AGENTS.md convention | `AGENTS.md` at the repository root (auto-loaded as a rule) |
+| Workspace | `.cline/rules/*.md` |
+| Global documents | `~/Documents/Cline/Rules/*.md` |
+| Global data dir | `~/.cline/data/settings/rules/*.md` |
+| Repository convention | `AGENTS.md` at the repository root |
 
-Files with `disabled: true` in their YAML frontmatter are skipped.
+Skills are reusable behavior instructions. Workflows are named procedures
+available as slash commands.
 
----
+| Type | Search paths |
+|---|---|
+| Skills | `.cline/skills/`, `~/Documents/Cline/Skills/` |
+| Workflows | `.cline/workflows/` |
 
-#### Rule File Format
+Files with `disabled: true` in YAML frontmatter are ignored.
 
-```markdown
+Example rule:
+
+```md
 ---
 name: typescript-style
 ---
 
-Always prefer TypeScript. Never use the `any` type.
-Imports must use ES module syntax (`import`/`export`).
+Prefer TypeScript. Use ES module imports and exports.
 ```
 
-The `name` field is optional — the file name is used if omitted.
+Example skill:
 
----
-
-#### Listing Rules and Hot-Reloading
-
-```bash
-clite list rules
-clite list rules --json
-```
-
-Rule files are **watched for changes** while a session is running. Edits take effect on the next agent turn — no restart required.
-
----
-
-### Skills and Workflows
-
-Skills and workflows extend Cline's behavior through plain Markdown files with a YAML frontmatter header.
-
-- **Skills** inject reusable capabilities into the system prompt, shaping *how* Cline behaves across all tasks.
-- **Workflows** are named procedures invoked on demand as slash commands (e.g., `/deploy`), telling Cline *what to do* when triggered.
-
----
-
-#### File Locations
-
-| Type | Search Paths |
-|---|---|
-| Skills | `.cline/skills/` (project), `~/Documents/Cline/Skills/` (global) |
-| Workflows | `.cline/workflows/` (project) |
-
-Files with `disabled: true` in frontmatter are ignored.
-
----
-
-#### File Format
-
-**Skill:**
-
-```markdown
+```md
 ---
 name: test-runner
 ---
-Run tests with `bun test`. Always show the full output.
+
+Run tests with `bun test` and report failures with file paths.
 ```
 
-**Workflow:**
+Example workflow:
 
-```markdown
+```md
 ---
-name: deploy
+name: release-check
 ---
-Run the full deployment pipeline: lint, test, build, then push.
+
+Run lint, typecheck, tests, and build, then summarize blockers.
 ```
 
----
+### Plugins
 
-#### Invoking Workflows
+Plugins register additive runtime contributions such as tools, commands, message
+builders, renderers, providers, rules, and automation event types.
 
-**Interactive CLI (TUI):** Type `/` in the message composer to open the workflow picker. Use arrow keys to navigate, then **Enter** or **Tab** to insert.
+Core exposes helpers to discover and load plugin modules:
 
-**Connector mode (Telegram, Slack, etc.):** Send the workflow as a slash command in chat:
+- `resolveAgentPluginPaths`
+- `discoverPluginModulePaths`
+- `loadAgentPluginFromPath`
+- `loadAgentPluginsFromPaths`
+- `loadAgentPluginsFromPathsWithDiagnostics`
+- `resolveAndLoadAgentPlugins`
 
+Plugin setup receives extension context and can register contributions through
+the extension registry. Use plugins for additive runtime surface and hooks for
+lifecycle interception.
+
+### MCP
+
+Core can load MCP settings, register MCP servers, and expose MCP tools through
+the runtime.
+
+Important helpers include:
+
+- `resolveDefaultMcpSettingsPath`
+- `loadMcpSettingsFile`
+- `registerMcpServersFromSettingsFile`
+- `createMcpTools`
+- `createDisabledMcpToolPolicy`
+- `createDisabledMcpToolPolicies`
+- `InMemoryMcpManager`
+
+`disableMcpSettingsTools` in `CoreSessionConfig` skips tools from MCP settings
+for that session.
+
+### Telemetry
+
+Core supports no-op telemetry, basic telemetry service usage, and
+OpenTelemetry-backed telemetry through `@clinebot/core/telemetry`.
+
+Main exports:
+
+- `TelemetryService`
+- `TelemetryLoggerSink`
+- `createConfiguredTelemetryService`
+- `createOpenTelemetryTelemetryService`
+- `OpenTelemetryProvider`
+- `OpenTelemetryAdapter`
+- structured core event helpers from `core-events`
+
+When a `BasicLogger` is supplied to `TelemetryService`, core installs
+`TelemetryLoggerSink` so telemetry events are also written to the logger with
+structured fields such as `telemetrySink`, `event`, and `properties`.
+
+OpenTelemetry support includes:
+
+- logs for `capture` and `captureRequired`
+- metrics for counters, histograms, and gauges
+- optional traces through `tracesExporter` or `OTEL_TRACES_EXPORTER`
+
+`createClineTelemetryServiceConfig` reads standard OpenTelemetry environment
+variables such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
+`OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER`, `OTEL_TRACES_EXPORTER`,
+`OTEL_METRIC_EXPORT_INTERVAL`, and `OTEL_TELEMETRY_ENABLED`.
+
+## `@clinebot/core/hub`
+
+The hub is the shared websocket runtime for local multi-client and remote-style
+execution. It is exported through `@clinebot/core/hub` and re-exported from
+`@clinebot/core`.
+
+### Exports
+
+Important exports include:
+
+- discovery helpers: `resolveHubOwnerContext`, `resolveSharedHubOwnerContext`,
+  `readHubDiscovery`, `writeHubDiscovery`, `clearHubDiscovery`,
+  `probeHubServer`, `toHubHealthUrl`, `createHubServerUrl`,
+  `withHubStartupLock`, `resolveHubBuildId`
+- endpoint defaults: `resolveHubEndpointOptions`, `DEFAULT_HUB_HOST`,
+  `DEFAULT_HUB_PORT`, `DEFAULT_HUB_PATHNAME`
+- server helpers: `startHubWebSocketServer`, `ensureHubWebSocketServer`,
+  `startHubServer`, `ensureHubServer`
+- detached daemon helpers: `spawnDetachedHubServer`, `ensureDetachedHubServer`,
+  `prewarmDetachedHubServer`
+- clients: `NodeHubClient`, `connectToHub`, `resolveHubUrl`,
+  `sendHubCommand`, `probeHubConnection`, `verifyHubConnection`,
+  `normalizeHubWebSocketUrl`
+- adapters: `HubSessionClient`, `HubUIClient`
+- hub schedule services: `HubScheduleService`, `HubScheduleCommandService`
+- browser websocket, command transport, and native transport utilities
+
+### Module Layout
+
+Hub code is organized by role:
+
+- `protocol/` for protocol contracts
+- `client/` for websocket clients
+- `server/` for server-side transport and handlers
+- `daemon/` for detached process lifecycle
+- `discovery/` for endpoint resolution and discovery files
+- `transport/` and runtime-host modules for `RuntimeHost` adapters
+- `shared/` for pure cross-role helpers
+
+`ensureCompatibleLocalHubUrl` is the canonical entrypoint for finding or
+starting a compatible shared local hub.
+
+## Automation
+
+Core automation is exposed through `ClineCore.create({ automation })` and the
+`cline.automation` API. It supports one-off file tasks, recurring cron tasks,
+and event-driven tasks.
+
+```ts
+const cline = await ClineCore.create({
+  automation: {
+    workspaceRoot: "/absolute/path/to/repo",
+    cronScope: "workspace",
+  },
+});
+
+await cline.automation.reconcileNow();
+const specs = cline.automation.listSpecs({ parseStatus: "valid" });
 ```
-/deploy
-/review
-```
 
----
+### API
 
-#### Listing Skills and Workflows
+`cline.automation` exposes:
 
-```bash
-clite list skills
-clite list workflows
-```
+- `start()`
+- `stop()`
+- `reconcileNow()`
+- `ingestEvent(event)`
+- `listEvents(options?)`
+- `getEvent(eventId)`
+- `listSpecs(options?)`
+- `listRuns(options?)`
 
----
+Automation is enabled with `automation: true` or an options object. Options
+include `cronSpecsDir`, `cronScope`, `workspaceRoot`, `dbPath`,
+`pollIntervalMs`, `claimLeaseSeconds`, `globalMaxConcurrency`,
+`watcherDebounceMs`, and `autoStart`.
 
-### Scheduled Agents
+### File Layout
 
-Schedules let the agent run a prompt autonomously on a cron pattern. There are two entry points: the `/schedule` chat command (when using a connector) and the `clite schedule` CLI subcommand.
+Automation files live under a global, user, or workspace `.cline/cron/`
+directory depending on configuration.
 
----
-
-#### 1. Via Chat (Connectors — Slack, Telegram, Discord, etc.)
-
-When connected via a chat connector, type `/schedule` commands directly in the thread. The connector dispatches the command using your current thread's context (workspace, provider, model) and ties delivery back to that same thread.
-
-| Command | Description |
+| Path | Purpose |
 |---|---|
-| `/schedule` or `/schedule help` | Show usage |
-| `/schedule create "<name>" --cron "<pattern>" --prompt "<text>"` | Create a recurring schedule |
-| `/schedule list` | List schedules targeting this thread |
-| `/schedule trigger <schedule-id>` | Trigger a schedule immediately |
-| `/schedule delete <schedule-id>` | Delete a schedule |
-
-**Example:**
-
-```
-/schedule create "Daily standup" --cron "0 9 * * MON-FRI" --prompt "Summarize open PRs and blockers."
-```
-
-The agent replies with the schedule ID, cron pattern, and next run time.
-
----
-
-#### 2. Via the CLI (`clite schedule`)
-
-Manage schedules from the terminal using `clite schedule` subcommands. The CLI communicates with the `clite` RPC sidecar, starting it automatically if needed.
-
-**Required flags for `create`:** `--cron`, `--prompt`, `--workspace`.
-
-```bash
-# Create a schedule
-clite schedule create "Daily code review" \
-  --cron "0 9 * * MON-FRI" \
-  --prompt "Review PRs opened yesterday and summarize issues." \
-  --workspace /path/to/repo \
-  --provider cline \
-  --model openai/gpt-5.3-codex \
-  --timeout 3600 \
-  --max-iterations 50 \
-  --tags automation,review
-
-# Route results to a chat thread (use /whereami in Telegram to get the thread ID)
-clite schedule create "Daily summary" \
-  --cron "0 9 * * *" \
-  --prompt "Summarize yesterday's activity in this workspace." \
-  --workspace /path/to/repo \
-  --delivery-adapter telegram \
-  --delivery-bot my_bot \
-  --delivery-thread telegram:123456789
-
-# Update a schedule
-clite schedule update <schedule-id> --cron "0 10 * * MON-FRI" --enabled
-
-# Inspect and manage
-clite schedule list
-clite schedule list --enabled --tags automation
-clite schedule get <schedule-id>
-clite schedule trigger <schedule-id>
-clite schedule pause <schedule-id>
-clite schedule resume <schedule-id>
-clite schedule delete <schedule-id>
-
-# Execution history and stats
-clite schedule history <schedule-id> --limit 20
-clite schedule stats <schedule-id>
-clite schedule active
-clite schedule upcoming --limit 10
-
-# Export and import (YAML by default; use --json for JSON)
-clite schedule export <schedule-id> > daily-review.yaml
-clite schedule import ./daily-review.yaml
-```
-
-**`schedule update` flags:** `--cron`, `--prompt`, `--name`, `--model`, `--provider`, `--workspace`, `--cwd`, `--mode <act|plan>`, `--system-prompt`, `--timeout`, `--max-iterations`, `--tags`, `--enabled`/`--disabled`, `--pause`/`--resume`, delivery options, autonomous options.
-
-**Delivery options** (on `create` and `update`): `--delivery-adapter`, `--delivery-bot`, `--delivery-channel`, `--delivery-thread`.
-
-**Autonomous options** (on `create` and `update`): `--autonomous`/`--no-autonomous`, `--idle-timeout <seconds>`, `--poll-interval <seconds>`.
-
----
-
-#### How It Works
-
-1. **RPC-backed persistence.** All commands talk to the `clite` RPC sidecar (`127.0.0.1:25463` by default, overridable via `--address` or `CLINE_RPC_ADDRESS`). The sidecar starts automatically if not running.
-2. **Cron patterns** use standard five-field cron syntax (e.g., `"0 9 * * MON-FRI"` = 9 am Mon–Fri).
-3. **Three required fields** for `create`: a name, a `--cron` pattern, and a `--prompt`.
-4. **Delivery metadata.** When a schedule is created from a chat thread, the adapter and thread ID are stored automatically. Use `--delivery-*` flags to set this explicitly from the CLI.
-5. **Autonomous mode.** Pass `--autonomous` to keep the agent alive between cron firings, controlled by `--idle-timeout` and `--poll-interval`.
-6. **Export format** is YAML by default; pass `--json` or use a `.json` extension to export as JSON. `import` accepts both formats.
-
----
-
-### Agent Team
-
-The agent team runtime gives Cline the ability to spawn and coordinate multiple sub-agents within a single run. Use it for tasks that benefit from parallelism or specialization — such as planning, implementation, and verification happening concurrently. Team tools are enabled by default and can be disabled with `--no-teams`.
-
----
-
-#### Available Team Tools
-
-**Teammate Management:**
-
-| Tool | Description |
-|---|---|
-| `team_spawn_teammate` | Spawn a new teammate agent with a given agentId and rolePrompt. Only the lead agent can spawn. |
-| `team_shutdown_teammate` | Shut down a running teammate by agentId. Only the lead agent can manage teammates. |
-| `team_status` | Return a snapshot of team members, task counts, mailbox, and mission log stats. |
-
-**Task Delegation:**
-
-| Tool | Description |
-|---|---|
-| `team_run_task` | Route a delegated task to a teammate. Choose sync (wait for result) or async (run in background). Sync mode only allows one call per agent per turn. |
-| `team_list_runs` | List teammate runs started with team_run_task in async mode, including live activity/progress fields. |
-| `team_await_runs` | Wait for async teammate runs. Provide runId to wait for one specific run, or omit it to wait for all active async runs. Uses a long timeout (1 hour). |
-| `team_cancel_run` | Cancel one async teammate run by runId. |
-
-**Task Board:**
-
-| Tool | Description |
-|---|---|
-| `team_task` | Manage shared team tasks with action-specific payloads. Actions: create (requires title and description, optional dependsOn and assignee), list (optional status and assignee filters), claim (mark task in_progress), complete (finish task with summary), block (mark as blocked with reason). |
-
-**Communication:**
-
-| Tool | Description |
-|---|---|
-| `team_send_message` | Send a mailbox message to a specific teammate with optional subject, body, and taskId. |
-| `team_broadcast` | Broadcast a message to all teammates with optional subject, body, and taskId. |
-| `team_read_mailbox` | Read the current agent's mailbox, with optional unreadOnly filter and automatic mark-as-read. |
-
-**Mission Log:**
-
-| Tool | Description |
-|---|---|
-| `team_mission_log` | Append a mission log update with kind (progress, handoff, blocked, decision, done, error), summary, optional evidence array, and nextAction. |
-
-**Outcomes:**
-
-| Tool | Description |
-|---|---|
-| `team_create_outcome` | Create a converged team outcome document with a title and optional requiredSections array (defaults to current_state, boundary_analysis, interface_proposal). |
-| `team_attach_outcome_fragment` | Attach a content fragment to an outcome section with optional sourceRunId. |
-| `team_review_outcome_fragment` | Review (approve/reject) one outcome fragment. |
-| `team_finalize_outcome` | Finalize a completed outcome. |
-| `team_list_outcomes` | List all team outcomes. |
-
-**Cleanup:**
-
-| Tool | Description |
-|---|---|
-| `team_cleanup` | Clean up the team runtime. Only the lead agent can run cleanup. Fails if teammates are still running. |
-
----
-
-#### Named Team State (Persistent Workflows)
-
-Pass `--team-name <name>` to persist team state across multiple CLI invocations. State is stored under `CLINE_TEAM_DATA_DIR` (defaults to `~/.cline/data/teams/<name>/`) and includes the task board, mailbox, mission log, and spawn/run records.
-
-On subsequent runs with the same name, the prior state is restored automatically and the agent receives a `team_restored` event — allowing multi-day workflows to resume where they left off.
-
-```bash
-# Start a named team workflow
-clite --team-name sprint "Plan and implement the auth module"
-
-# Resume the same team on the next day
-clite --team-name sprint "Continue — pick up any incomplete tasks"
-```
-
----
-
-#### CLI Flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--teams` / `--no-teams` | enabled | Enable or disable agent team tools |
-| `--team-name <name>` | — | Persist and restore team state under this name |
-| `--mission-step-interval <n>` | `3` | Steps between automatic mission log updates |
-| `--mission-time-interval-ms <ms>` | `120000` | Milliseconds between automatic mission log updates |
-
-> **Note:** Team tools are automatically disabled in `--yolo` mode.
-
----
-
-#### Examples
-
-```bash
-# Team tools are on by default — no flag needed
-clite "Plan, implement, and verify the release checklist"
-
-# Named persistent team
-clite --team-name my-team "Plan, implement, and verify the release checklist"
-clite --team-name my-team "Continue yesterday's team workflow"
-
-# Disable team tools entirely
-clite --no-teams "Answer from general knowledge only"
-
-# Emit structured JSON events including team lifecycle and progress
-clite --json --team-name my-team "Run the full release workflow"
-```
-
----
-
-### Sub Agent
-
-Sub-agents allow the CLI agent to delegate discrete subtasks to autonomous child agents that run independently within their own session. Each spawned sub-agent has access to all tools enabled in the parent session and executes its assigned task to completion before the parent resumes. This enables complex, multi-step workflows to be broken down and handled in parallel or sequentially without the parent agent losing context.
-
----
-
-#### How It Works
-
-The parent agent invokes the `spawn_agent` tool, passing a task description and any relevant context. The spawned sub-agent runs with its own session ID (tracked as a child of the parent session), executes the task using all enabled tools, and returns a result. The parent agent blocks until the sub-agent completes. All tool calls, events, and completions within the sub-agent are recorded in its own transcript for audit purposes. When spawning is enabled, sub-agents themselves also receive the `spawn_agent` tool, allowing recursive delegation.
-
----
-
-#### CLI Flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--spawn` | `true` | Enable the `spawn_agent` tool |
-| `--no-spawn` | — | Disable sub-agent spawning |
-| `--enable-spawn` | — | Force-enable `spawn_agent`, overriding `--no-spawn` |
-
----
-
-#### Behavior in Yolo Mode
-
-In `--yolo` mode, sub-agent spawning is **disabled by default**. To enable it, pass `--spawn` explicitly alongside `--yolo`. Use `--enable-spawn` to override a prior `--no-spawn` in any mode.
-
----
-
-#### Example
-
-```bash
-# Default: spawn_agent enabled — agent may delegate subtasks automatically
-clite "Audit the codebase and fix all lint errors"
-
-# Disable sub-agent spawning for a focused, single-agent task
-clite --no-spawn "Fix this specific function"
-
-# Yolo mode with spawning explicitly re-enabled
-clite --yolo --spawn "Refactor the entire auth module"
-```
-
----
-
-### Connectors
-
-Connectors bridge external messaging platforms into Cline CLI RPC sessions, letting you interact with an AI agent through Telegram, Slack, Google Chat, WhatsApp, or Linear without leaving those tools. Each connector runs as a persistent background process (or foreground with `-i`) and maps platform messages to the same RPC chat model used by `clite`.
-
----
-
-#### Available Connectors
-
-| Connector | Platform | Transport |
-|-----------|----------|-----------|
-| `telegram` | Telegram Bot | Polling |
-| `slack` | Slack | Webhook |
-| `gchat` | Google Chat | Webhook |
-| `whatsapp` | WhatsApp | Webhook |
-| `linear` | Linear | Webhook |
-
----
-
-#### Telegram
-
-Telegram uses long-polling — no public URL required. Register a bot via [@BotFather](https://t.me/BotFather) to get a token.
-
-```bash
-# Background (default)
-clite connect telegram -m <bot_username> -k <bot_token>
-
-# Foreground (logs in active terminal)
-clite connect telegram -i -m <bot_username> -k <bot_token>
-```
-
-Credentials can also be set via environment variables:
-
-```bash
-export TELEGRAM_BOT_USERNAME=my_bot
-export TELEGRAM_BOT_TOKEN=123456:ABC-xyz
-clite connect telegram
-```
-
-> **Note:** Tool use is enabled by default for Telegram sessions. Disable with `--no-tools`.
-
-| Flag | Description |
-|------|-------------|
-| `-m`, `--bot-username` | Telegram bot username |
-| `-k`, `--bot-token` | Telegram bot token |
-| `--provider` | AI provider override |
-| `--model` | Model name override |
-| `--api-key` | Provider API key override |
-| `--system` | System prompt override |
-| `--cwd` | Working directory for the session |
-| `--mode` | Agent mode (`act` or `plan`) |
-| `--max-iterations` | Max agent iterations per message |
-| `--no-tools` | Disable tool use (on by default) |
-| `--hook-command` | Shell command for lifecycle events |
-| `--rpc-address` | Custom RPC server address |
-| `-i` | Run in foreground |
-
----
-
-#### Google Chat
-
-Configure your Google Chat App to send events to `<base-url>/api/webhooks/gchat`.
-
-```bash
-# Background
-clite connect gchat --base-url https://your-domain.com
-
-# Foreground on a custom port
-clite connect gchat -i --base-url https://your-domain.com --port 8787
-
-# With Pub/Sub for Workspace Events
-clite connect gchat --base-url https://your-domain.com \
-  --pubsub-topic projects/my-project/topics/my-topic
-```
-
----
-
-#### WhatsApp
-
-Point your Meta webhook URL to `<base-url>/api/webhooks/whatsapp`.
-
-```bash
-# Background
-clite connect whatsapp --base-url https://your-domain.com
-
-# Foreground on a custom port
-clite connect whatsapp -i --base-url https://your-domain.com --port 8787
-```
-
-| Flag | Description |
-|------|-------------|
-| `--base-url` | Public base URL of this server |
-| `--port` | Local port to bind |
-| `--phone-number-id` | WhatsApp phone number ID |
-| `--access-token` | Meta access token |
-| `--app-secret` | Meta app secret (for request verification) |
-| `--verify-token` | Webhook verification token |
-
----
-
-#### Slack and Linear
-
-```bash
-clite connect slack --base-url https://your-domain.com
-clite connect linear --base-url https://your-domain.com
-```
-
-Run `clite connect slack --help` or `clite connect linear --help` for the full flag list.
-
----
-
-#### Shared Chat Commands
-
-These slash commands work in any connector conversation:
-
-| Command | Description |
-|---------|-------------|
-| `/clear` or `/new` | Start a fresh session |
-| `/abort` | Abort the current running task |
-| `/exit` | Stop the connector process |
-| `/whereami` | Print the current delivery thread ID |
-| `/tools [on\|off\|toggle]` | Enable, disable, or toggle tool use |
-| `/yolo [on\|off\|toggle]` | Enable, disable, or toggle auto-approve mode |
-| `/cwd <path>` | Change the agent's working directory |
-| `/schedule create\|list\|trigger\|delete` | Manage scheduled deliveries |
-
----
-
-#### Stopping Connectors
-
-```bash
-# Stop all running connectors
-clite connect --stop
-
-# Stop a specific connector
-clite connect --stop telegram
-clite connect --stop gchat
-```
-
----
-
-#### Hook Command
-
-Pass `--hook-command` to run a shell script on connector lifecycle events.
-
-```bash
-clite connect telegram -m my_bot -k TOKEN --hook-command '/path/to/hook.sh'
-```
-
-| Event | Fired when |
-|-------|------------|
-| `message.received` | A new message arrives from the platform |
-| `message.completed` | The agent successfully responds |
-| `message.failed` | The agent fails to respond |
-| `connector.stopping` | The connector is shutting down |
-| `schedule.delivery.started` | A scheduled delivery begins |
-| `schedule.delivery.sent` | A scheduled delivery is sent successfully |
-| `schedule.delivery.failed` | A scheduled delivery fails |
-
----
-
-## File-Based And Event-Driven Automation (`.cline/cron/`)
-
-Operators can author automation tasks as Markdown files inside a
-global `~/.cline/cron/` directory by default, or a configured workspace
-`.cline/cron/` directory. `ClineCore` exposes the public automation API
-through `cline.automation`; internally core parses these files, stores spec
-state in its own `cron.db`, materializes runs, executes them through the
-runtime, and writes per-run reports.
-
-### File layout
-
-- `.cline/cron/*.md` — **one-off** task specs.
-- `.cline/cron/*.cron.md` — **recurring** task specs (standard 5-field cron pattern).
-- `.cline/cron/events/*.event.md` — **event-driven** task specs.
-- `.cline/cron/reports/<run-id>.md` — generated reports. Derived artifact; do not edit by hand.
-- `.cline/data/db/cron.db` — durable cron state. Never edit by hand; sessions live in a separate `sessions.db`.
+| `.cline/cron/*.md` | One-off task specs. |
+| `.cline/cron/*.cron.md` | Recurring task specs using standard five-field cron patterns. |
+| `.cline/cron/events/*.event.md` | Event-driven task specs. |
+| `.cline/cron/reports/<run-id>.md` | Generated run reports. |
+| `.cline/data/db/cron.db` | Durable automation state. |
+
+Generated reports and `cron.db` are derived artifacts and should not be edited
+by hand.
 
 ### Frontmatter
-
-Use YAML frontmatter delimited by `---` lines. The Markdown body is used as
-the task prompt when frontmatter `prompt` is omitted.
 
 Common fields:
 
 | Field | Required | Notes |
 |---|---|---|
-| `id` | no | Stable external id. Falls back to normalized relative path. |
-| `title` | no | Defaults to `id`, then to filename stem. |
-| `prompt` | no | If omitted, the markdown body is used. One of the two is required. |
-| `workspaceRoot` | **yes** | Absolute path for the session. |
-| `mode` | no | `yolo` (default), `act`, or `plan`. |
-| `tools` | no | Comma-separated string or string array of allowed tools. Omitted defaults to all tools; `[]` disables work tools. |
-| `systemPrompt` | no | Override system prompt. Rules and notes metadata are appended. |
+| `id` | no | Stable external id. Defaults to normalized relative path. |
+| `title` | no | Defaults to `id`, then filename stem. |
+| `prompt` | no | If omitted, the Markdown body is used. One of `prompt` or body content is required. |
+| `workspaceRoot` | yes | Absolute path for the session. |
+| `mode` | no | `yolo`, `act`, or `plan`. |
+| `tools` | no | Comma-separated string or string array of allowed default tools. |
+| `systemPrompt` | no | System prompt override. |
 | `modelSelection` | no | `{ providerId, modelId }`. |
 | `maxIterations` | no | Positive integer. |
-| `timeoutSeconds` | no | Positive integer. Aborts the run on expiry. |
-| `notesDirectory` | no | Absolute directory path injected into the system prompt for durable automation notes. |
-| `extensions` | no | String array containing any of `rules`, `skills`, `plugins`. Omitted defaults to all; `[]` disables config extensions. |
+| `timeoutSeconds` | no | Positive integer. |
+| `notesDirectory` | no | Absolute directory injected into the prompt for durable notes. |
+| `extensions` | no | String array containing `rules`, `skills`, and/or `plugins`. |
 | `source` | no | Session source string. Defaults to `user`. |
 | `tags` | no | String array. |
 | `enabled` | no | Defaults to `true`. |
 | `metadata` | no | Arbitrary object. |
 
-Recurring-only fields (`*.cron.md`): `schedule` (required), `timezone`.
+Recurring-only fields for `*.cron.md`:
 
-Event-only fields (`events/*.event.md`): `event` (required), `filters`,
-`debounceSeconds`, `dedupeWindowSeconds`, `cooldownSeconds`, `maxParallel`.
+- `schedule` (required)
+- `timezone`
+
+Event-only fields for `events/*.event.md`:
+
+- `event` (required)
+- `filters`
+- `debounceSeconds`
+- `dedupeWindowSeconds`
+- `cooldownSeconds`
+- `maxParallel`
 
 Event filters match fields on the normalized automation event envelope. Filter
 keys first look in `attributes`, then `payload`, then top-level envelope fields
 such as `source`, `subject`, `workspaceRoot`, and `dedupeKey`. Dot paths are
-supported, so `pullRequest.baseBranch: main` matches
-`attributes.pullRequest.baseBranch`.
+supported.
 
-Supported `tools` values are the default tool names: `read_files`,
-`search_codebase`, `run_commands`, `fetch_web_content`, `apply_patch`,
-`editor`, `skills`, `ask_question`, `submit_and_exit`. In `yolo` mode, the
-completion tool `submit_and_exit` remains enabled even when `tools` narrows the
-work tools.
+Supported `tools` values are the default tool names listed in the Default Tools
+section. In `yolo` mode, `submit_and_exit` remains enabled as the completion
+tool even when `tools` narrows the work tools.
 
-Unknown trigger-specific fields on the wrong file kind mark the spec
-invalid; they are recorded with `parse_status='invalid'` but never run.
-`cwd` is not part of file-based cron specs; cron sessions use
-`workspaceRoot` as their working directory.
+Trigger-specific fields must match the file kind. For example, `schedule`
+belongs in `*.cron.md`, and `event` belongs in `events/*.event.md`.
 
-### Example cron job file
-
-Recurring spec example:
+### Recurring Task Example
 
 ```md
 ---
@@ -1268,16 +766,14 @@ tools: run_commands,read_files
 mode: act
 enabled: true
 modelSelection:
-  providerId: openai
-  modelId: gpt-5.4
+  providerId: cline
+  modelId: openai/gpt-5.3-codex
 timeoutSeconds: 1800
-systemPrompt: You are a precise automation agent that reports only actionable review findings.
+systemPrompt: You are a precise automation agent that reports actionable findings.
 maxIterations: 20
 tags:
   - automation
   - review
-metadata:
-  owner: platform
 notesDirectory: /absolute/path/to/notes
 extensions:
   - rules
@@ -1285,22 +781,17 @@ extensions:
   - plugins
 source: user
 ---
-Review the open pull requests, identify the highest-risk changes, run the
-relevant checks if needed, and write a concise summary of findings.
+
+Review the open pull requests, identify the highest-risk changes, run relevant
+checks if needed, and write a concise summary of findings.
 ```
 
-Save recurring specs as `.cline/cron/<name>.cron.md`. For a one-off task,
-use `.cline/cron/<name>.md` and omit the `schedule` field.
-
-A copyable example is also available at
-[`apps/examples/cron/daily-code-review.cron.md`](./apps/examples/cron/daily-code-review.cron.md).
-
-Event-driven spec example:
+### Event Task Example
 
 ```md
 ---
 id: pr-review
-title: Review new PRs
+title: Review PRs
 workspaceRoot: /absolute/path/to/repo
 event: github.pull_request.opened
 filters:
@@ -1315,94 +806,348 @@ tags:
   - github
   - review
 ---
+
 Review the opened pull request, summarize risks, and recommend follow-up work.
 ```
 
-Save event specs as `.cline/cron/events/<name>.event.md`. A copyable
-event-driven example is available at
-[`apps/examples/cron/events/pr-review.event.md`](./apps/examples/cron/events/pr-review.event.md).
-For a local test that does not need GitHub or any webhook receiver, use
-[`apps/examples/cron/events/local-manual-test.event.md`](./apps/examples/cron/events/local-manual-test.event.md).
+### Event Flow
 
-### Event-driven flow
-
-Event type strings such as `github.pull_request.opened` are conventions, not a
-built-in global registry. A spec file subscribes to a normalized event type, and
-an adapter fires that event after translating a native source payload.
-
-1. **Register interest with a spec file** — create
-   `.cline/cron/events/pr-review.event.md` with
-   `event: github.pull_request.opened`. On startup or watcher reconcile,
-   automation stores the spec in `cron_specs.event_type`.
-2. **Receive a source-specific event** — for GitHub, a GitHub App, webhook
-   receiver, connector, plugin, or host integration receives the raw pull
-   request webhook payload.
-3. **Normalize before ingress** — the adapter translates the source payload into
-   an `AutomationEventEnvelope` and calls `cline.automation.ingestEvent(...)`
-   or the hub `cron.event.ingest` command.
-4. **Match and enqueue** — `CronEventIngress` records the event, matches event
-   specs by type and filters, applies dedupe/debounce/cooldown policy, and
-   queues matching `cron_runs`.
-5. **Run and report** — `CronRunner` executes the queued event run and injects
-   trigger event context into the prompt. Reports include trigger event
-   frontmatter and a `## Trigger Event` section.
+1. A spec file subscribes to a normalized event type such as
+   `github.pull_request.opened`.
+2. A source adapter receives a native event from a webhook, connector, plugin, or
+   host integration.
+3. The adapter normalizes the source payload into an `AutomationEventEnvelope`.
+4. The adapter calls `cline.automation.ingestEvent(...)` or the hub
+   `cron.event.ingest` command.
+5. `CronEventIngress` records the event, matches specs by type and filters, and
+   applies dedupe, debounce, cooldown, and max-parallel policy.
+6. Matching runs are queued and executed by `CronRunner`.
+7. Each completed or failed run writes a report under `.cline/cron/reports/`.
 
 ### Lifecycle
 
-- **Startup reconciliation** — the hub walks `.cline/cron/`, parses every
-  file, and upserts the result. Invalid specs are recorded with
-  `parse_error`; they never run until fixed.
-- **Watcher** — `.cline/cron/` is watched recursively. Each create/change/
-  delete triggers a debounced (~250ms) re-reconcile of the affected file.
-- **Meaningful change detection** — whitespace-only body edits don't bump
-  revisions. Changes to prompt, workspace, mode, model, system prompt,
-  `tools`, `notesDirectory`, `extensions`, `source`, `schedule`/`timezone`,
-  `event`/`filters`/throttling, or enabling a previously-disabled spec
-  increment `revision`.
-- **One-off runs** — at most one queued|running|done run exists per
-  `(spec_id, revision)`. Editing a one-off in a meaningful way bumps its
-  revision and materializes a new run.
-- **Recurring runs** — `getNextCronTime` computes timezone-aware
-  `next_run_at`. One overdue run is enqueued on startup (no unbounded
-  backfill), then the scheduler advances to the next slot.
-- **Event runs** — normalized events are recorded in `cron_event_log`, matched
-  against valid enabled event specs, and queued with `trigger_kind='event'`.
-  Dedupe, debounce, cooldown, and max-parallel policy are enforced before
-  execution.
-- **Deletions** — removing a file marks the spec as `removed=1`, disables
-  it, and cancels any queued runs. Historical `done`/`failed` runs stay
-  queryable.
+- Startup reconciliation parses automation specs and records valid and invalid
+  specs.
+- The watcher monitors `.cline/cron/` recursively and reconciles changed files
+  after a debounce window.
+- Meaningful changes increment the spec revision and may materialize a run.
+- One-off specs materialize one run per `(spec_id, revision)`.
+- Recurring specs compute timezone-aware `next_run_at` and enqueue one overdue
+  run on startup.
+- Event specs queue runs from normalized event ingress.
+- Removing a spec disables it, marks it as removed, and cancels queued runs.
 
-### Reports
+## `@clinebot/enterprise`
 
-Each completed or failed run writes
-`.cline/cron/reports/<run-id>.md`. The file includes YAML frontmatter
-(`runId`, `specId`, `externalId`, `title`, `triggerKind`, `status`,
-`sessionId`, `sourcePath`, `startedAt`, `completedAt`) and body sections
-for summary, usage (token counts + cost), and a tool-call bullet list. Event
-runs also include trigger event frontmatter plus a `## Trigger Event` section.
+`@clinebot/enterprise` is an internal workspace package that composes with core
+without adding enterprise-specific dependencies to published core APIs.
 
-### Programmatic access
+### Exports
 
-`HubWebSocketServer` accepts optional `cronOptions` that enable the
-`CronService`:
+Important exports include:
 
-```ts
-new HubWebSocketServer({
-  runtimeHandlers: ...,
-  cronOptions: { workspaceRoot: "/absolute/workspace" },
-});
+- WorkOS provider adapters
+- identity contracts and adapters
+- control-plane contracts and adapters
+- enterprise auth and sync services
+- managed instruction materializers
+- runtime preparation helpers
+- enterprise plugin creation helpers
+- storage and telemetry helpers
+
+### Runtime Preparation
+
+`prepareEnterpriseRuntime(...)` performs:
+
+1. identity resolution
+2. normalized bundle fetch
+3. token and bundle caching
+4. managed instruction materialization
+5. claims-to-role mapping
+6. telemetry normalization
+
+Returned data includes the bundle, identity, claims, roles, telemetry config,
+managed paths, and plugin definition.
+
+`prepareEnterpriseCoreIntegration(...)` prepares enterprise state and returns
+`applyToStartSessionInput(...)` plus `dispose()` so callers can feed it into
+`ClineCore.create({ prepare })`.
+
+### Managed Files
+
+Enterprise-managed content is written under:
+
+- `.cline/<plugin>/rules.md`
+- `.cline/<plugin>/workflows/*.md`
+- `.cline/<plugin>/skills/*/SKILL.md`
+- `.cline/<plugin>/cache/bundle.json`
+- `.cline/<plugin>/cache/token.json`
+- `.cline/<plugin>/managed.json`
+
+Those files are consumed through the same watcher-based loading path as other
+instruction files.
+
+## `@clinebot/cli`
+
+`@clinebot/cli` provides the `clite` executable and acts as the reference host
+for the SDK stack.
+
+### Main Flows
+
+`clite` supports:
+
+- single-prompt runs
+- interactive TUI sessions with `--tui`
+- session resume with `--id`
+- JSON output for non-interactive prompt runs with `--json`
+- plan mode with `--plan`
+- background hub dispatch with `--zen`
+- ACP mode with `--acp`
+- provider authentication through `clite auth`
+- history listing, update, delete, and HTML export
+- config, MCP, doctor, schedule, hub, connector, update, version, and kanban
+  commands
+
+Common root options:
+
+| Option | Description |
+|---|---|
+| `-p, --plan` | Run in plan mode. |
+| `--json` | Emit JSON for non-interactive prompt runs. |
+| `--auto-approve <boolean>` | Set default tool auto-approval. |
+| `-c, --cwd <path>` | Working directory. |
+| `--thinking <level>` | `none`, `low`, `medium`, `high`, or `xhigh`. |
+| `-i, --tui` | Open the interactive terminal UI. |
+| `--id <session-id>` | Resume an existing session. |
+| `-P, --provider <id>` | Provider id. |
+| `-k, --key <api-key>` | API key override for the run. |
+| `-m, --model <model-id>` | Model id for the selected provider. |
+| `-s, --system <system-prompt>` | System prompt override. |
+| `-z, --zen` | Dispatch the run to the background hub. |
+| `--retries [value]` | Maximum consecutive mistakes before exit. |
+| `-t, --timeout <seconds>` | Optional run timeout. |
+| `--acp` | Run Agent Client Protocol mode. |
+| `--config <path>` | Configuration directory. |
+| `--data-dir <path>` | Isolated local state directory. |
+| `--hooks-dir <path>` | Additional hook directory. |
+| `--update` | Check for updates and install when available. |
+| `-v, --verbose` | Show verbose output. |
+
+### Auth
+
+```sh
+clite auth cline
+clite auth openai --apikey "$OPENAI_API_KEY" --modelid gpt-5.4
+clite auth openai-compatible --baseurl http://localhost:8000/v1 --apikey local
 ```
 
-The service exposes `listSpecs`, `getSpec`, `listRuns`, `getRun`,
-`listActiveRuns`, `listUpcomingRuns`, `ingestEvent`, `listEventLogs`,
-`getEventLog`, and `reconcileNow()` for hub-side query and ingress APIs.
-SDK callers should prefer `cline.automation`: `start`, `stop`,
-`reconcileNow`, `ingestEvent`, `listEvents`, `getEvent`, `listSpecs`, and
-`listRuns`. Tests cover the parser (`@clinebot/core`
-`src/cron/specs/cron-spec-parser.test.ts`), store, reconciler, materializer,
-and runner.
+### History
 
-### Test Plan
+```sh
+clite history --limit 50
+clite history --json
+clite history update --session-id <id> --title "New title"
+clite history delete --session-id <id>
+clite history export <sessionId> --output session.html
+```
 
-Drop one-off specs into `.cline/cron/*.md`, recurring specs into `.cline/cron/*.cron.md`, event specs into `.cline/cron/events/*.event.md`, create `ClineCore` with automation enabled or run the hub, and see runs materialized, executed, and reported to `.cline/cron/reports/<run-id>.md` — all backed by `.cline/data/db/cron.db`.
+### Config Listing
+
+The `config` command exposes discovered rules, skills, workflows, hooks,
+plugins, MCP servers, tools, and related configuration views.
+
+```sh
+clite config
+clite config --json
+```
+
+### Hooks in the CLI
+
+Use `--hooks-dir` to add a hook directory for a run:
+
+```sh
+clite --hooks-dir ./ci/hooks "run the test suite"
+```
+
+The `hook` subcommand handles a hook payload from stdin and is used by hook
+execution plumbing.
+
+### Scheduled Tasks
+
+The `schedule` command manages durable schedules through the local hub. It starts
+or connects to the scheduler hub as needed.
+
+Required flags for `schedule create` are `--cron`, `--prompt`, and
+`--workspace`.
+
+```sh
+clite schedule create "Daily code review" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "Review PRs opened yesterday and summarize issues." \
+  --workspace /path/to/repo \
+  --provider cline \
+  --model openai/gpt-5.3-codex \
+  --timeout 3600 \
+  --max-parallel 1 \
+  --tags automation,review
+```
+
+Schedule commands:
+
+```sh
+clite schedule list
+clite schedule get <schedule-id>
+clite schedule update <schedule-id> --cron "0 10 * * MON-FRI"
+clite schedule trigger <schedule-id>
+clite schedule pause <schedule-id>
+clite schedule resume <schedule-id>
+clite schedule delete <schedule-id>
+clite schedule history <schedule-id> --limit 20
+clite schedule stats <schedule-id>
+clite schedule active
+clite schedule upcoming --limit 10
+clite schedule export <schedule-id> --to daily-review.yaml
+clite schedule import daily-review.yaml
+```
+
+`schedule update` supports cron, prompt, name, provider, model, workspace, cwd,
+mode, system prompt, timeout, tags, metadata JSON, max parallel, enabled/disabled
+state, and pause/resume controls.
+
+### Connectors
+
+Connectors bridge external messaging platforms into CLI sessions.
+
+Available connectors:
+
+| Connector | Platform |
+|---|---|
+| `telegram` | Telegram Bot |
+| `slack` | Slack |
+| `gchat` | Google Chat |
+| `whatsapp` | WhatsApp |
+| `linear` | Linear |
+
+Examples:
+
+```sh
+clite connect telegram -m <bot_username> -k <bot_token>
+clite connect telegram -i -m <bot_username> -k <bot_token>
+clite connect slack --base-url https://your-domain.example
+clite connect linear --base-url https://your-domain.example
+clite connect --stop
+clite connect --stop telegram
+```
+
+Shared connector chat commands:
+
+| Command | Description |
+|---|---|
+| `/help` or `/start` | Show connector command help. |
+| `/clear` or `/new` | Start a fresh session. |
+| `/abort` | Abort the current running task. |
+| `/exit` | Stop the connector process. |
+| `/whereami` | Print the delivery thread id. |
+| `/tools [on\|off\|toggle]` | Control tool use. |
+| `/yolo [on\|off\|toggle]` | Control auto-approve mode. |
+| `/cwd <path>` | Change the working directory. |
+| `/schedule create\|list\|trigger\|delete` | Manage scheduled deliveries. |
+
+### Agent Teams
+
+Agent teams are core tools that let a lead agent coordinate teammate agents,
+shared task state, mailbox messages, mission logs, and converged outcomes.
+
+Team tools include:
+
+- `team_spawn_teammate`
+- `team_shutdown_teammate`
+- `team_status`
+- `team_task`
+- `team_run_task`
+- `team_cancel_run`
+- `team_list_runs`
+- `team_await_runs`
+- `team_send_message`
+- `team_broadcast`
+- `team_read_mailbox`
+- `team_mission_log`
+- `team_create_outcome`
+- `team_attach_outcome_fragment`
+- `team_review_outcome_fragment`
+- `team_finalize_outcome`
+- `team_list_outcomes`
+- `team_cleanup`
+
+Named team state is stored under the configured team data directory and restores
+task board, mailbox, mission log, teammate specs, and run records by team name.
+
+### Sub-Agents
+
+The `spawn_agent` tool lets an agent delegate a bounded task to a child agent.
+The child runs in its own session, uses the enabled tool set, records its own
+transcript, and returns a result to the parent.
+
+Spawn behavior is controlled by runtime config in core and by CLI flags exposed
+through the tool/config surfaces.
+
+## Host Apps
+
+### `@clinebot/code`
+
+`@clinebot/code` is the desktop/Tauri host with a Next.js UI. Provider settings,
+model selection, MCP settings, rules, and runtime behavior are driven by SDK
+packages and core services.
+
+### `@clinebot/vscode`
+
+`@clinebot/vscode` is the VS Code extension host. It ensures the runtime service,
+streams chat/runtime events into the webview, and adapts VS Code UI actions to
+core runtime capabilities.
+
+## Integration Patterns
+
+### Direct SDK Integration
+
+Use `@clinebot/core` for app integrations that need sessions, persistence,
+tools, config, hub support, settings, and automation.
+
+```ts
+import { ClineCore } from "@clinebot/core";
+
+const cline = await ClineCore.create({ backendMode: "auto" });
+await cline.start({ prompt, config });
+```
+
+Use `@clinebot/agents` directly for a standalone stateless loop when the host
+owns persistence, config, and tools.
+
+```ts
+import { Agent } from "@clinebot/agents";
+
+const agent = new Agent({ providerId, modelId, apiKey, systemPrompt, tools });
+const result = await agent.run("Implement the task.");
+```
+
+Use `@clinebot/llms` when building custom provider/model flows or registering
+providers.
+
+### Enterprise Integration
+
+Inside this workspace, enterprise behavior should be prepared through
+`@clinebot/enterprise`, bridged into core through `prepare`, and consumed through
+core's watcher, extension, and telemetry surfaces.
+
+## Verification
+
+For changes that affect package APIs, runtime behavior, or this documentation,
+run the relevant checks:
+
+```sh
+bun run types
+bun run test
+bun run check
+```
+
+For targeted package work, use the package scripts from the relevant
+`package.json`.

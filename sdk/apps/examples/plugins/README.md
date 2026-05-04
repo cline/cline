@@ -10,10 +10,10 @@ Shows how to author a reusable plugin module that works in both the SDK and the 
 Example plugins:
 
 - [weather-plugin.example.ts](./weather-plugin.example.ts) - weather tool plus lifecycle metrics hooks
-- [mac-notify.example.ts](./mac-notify.example.ts) - macOS Notification Center alert on successful run completion
+- [mac-notify.ts](./mac-notify.ts) - macOS Notification Center alert on successful run completion
 - [automation-events.ts](./automation-events.ts) - local plugin-emitted automation event example
-- [custom-compaction.example.ts](./custom-compaction.example.ts) - custom summary-based message compaction
-- [../../hooks/custom-compaction-hook.example.ts](../../hooks/custom-compaction-hook.example.ts) - equivalent compaction using a runtime `beforeModel` hook
+- [custom-compaction.ts](./custom-compaction.ts) - custom summary-based message compaction
+- [../../hooks/custom-compaction-hook.ts](../../hooks/custom-compaction-hook.example.ts) - equivalent compaction using a runtime `beforeModel` hook
 - [background-terminal.ts](./background-terminal.ts) - detached background shell jobs with persisted logs and optional session steering
 
 ## Use It With The CLI
@@ -22,7 +22,7 @@ The CLI does not have a `--plugin` flag yet. It discovers plugin modules from `.
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts .cline/plugins/weather-metrics.ts
+cp apps/examples/plugins/weather-plugin.example.ts .cline/plugins/weather-metrics.ts
 
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
@@ -33,7 +33,7 @@ To send a macOS Notification Center alert when a run completes successfully:
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/plugin-examples/cline-plugin/mac-notify.example.ts .cline/plugins/mac-notify.ts
+cp apps/examples/plugins/mac-notify.ts .cline/plugins/mac-notify.ts
 
 cline -i "Run the test suite"
 ```
@@ -44,7 +44,7 @@ To add custom provider-message compaction before each model call:
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/plugin-examples/cline-plugin/custom-compaction.example.ts .cline/plugins/custom-compaction.ts
+cp apps/examples/plugins/custom-compaction.ts .cline/plugins/custom-compaction.ts
 
 cline -i "Search the codebase for dispatcher usage, then summarize it"
 ```
@@ -53,7 +53,7 @@ To add background shell jobs that keep running after the tool call returns:
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/plugin-examples/cline-plugin/background-terminal.ts .cline/plugins/background-terminal.ts
+cp apps/examples/plugins/background-terminal.ts .cline/plugins/background-terminal.ts
 
 cline -i "Start the dev server in the background, then continue with the next task"
 ```
@@ -74,7 +74,7 @@ commands without blocking the original tool call.
 ## Run The Demo Directly
 
 ```bash
-ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugin-examples/cline-plugin/weather-plugin.example.ts
+ANTHROPIC_API_KEY=sk-... bun run apps/examples/plugins/weather-plugin.example.ts
 ```
 
 ## How it works
@@ -242,7 +242,7 @@ message list before the model call. Message builders run after runtime messages
 are converted into SDK message blocks and before the built-in API safety pass,
 so core still applies final provider-safe truncation afterward.
 
-See [`custom-compaction.example.ts`](./custom-compaction.example.ts) for a full
+See [`custom-compaction.ts`](./custom-compaction.ts) for a full
 plugin that estimates context size, preserves the first user message and recent
 working context, and replaces older middle history with one continuation summary.
 
@@ -252,7 +252,7 @@ Both examples perform similar compaction, but they run at different layers:
 
 | Example | Extension point | Message shape | Best for |
 | ------- | --------------- | ------------- | -------- |
-| `custom-compaction.example.ts` | `api.registerMessageBuilder()` | SDK/provider-bound `Message[]` after runtime messages are converted for model delivery | most reusable plugin-owned message rewrites and compaction policies |
+| `custom-compaction.ts` | `api.registerMessageBuilder()` | SDK/provider-bound `Message[]` after runtime messages are converted for model delivery | most reusable plugin-owned message rewrites and compaction policies |
 | `../../hooks/custom-compaction-hook.example.ts` | `hooks.beforeModel` runtime hook | Agent runtime request messages with runtime parts such as `tool-call`, `tool-result`, `reasoning`, `image`, and `file` | cases that need runtime-hook context, the current runtime snapshot, or direct request mutation |
 
 Prefer the message-builder version for normal plugin-owned compaction because

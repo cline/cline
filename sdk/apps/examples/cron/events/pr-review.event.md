@@ -15,8 +15,8 @@ maxParallel: 2
 mode: act
 enabled: true
 modelSelection:
-  providerId: openai
-  modelId: gpt-5.4
+  providerId: cline
+  modelId: anthropic/claude-opus-4.7
 timeoutSeconds: 1800
 maxIterations: 20
 tags:
