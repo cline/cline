@@ -195,7 +195,6 @@ export function InputBar(props: InputBarProps) {
 	return (
 		<box
 			flexDirection="row"
-			gap={1}
 			alignItems="flex-start"
 			backgroundColor={inputBackground}
 			paddingX={2}
@@ -204,41 +203,43 @@ export function InputBar(props: InputBarProps) {
 			<text fg={accent}>
 				<strong>{">"}</strong>
 			</text>
-			<textarea
-				key={inputKey}
-				ref={textareaRefCallback as React.RefCallback<never>}
-				initialValue={initialValue}
-				onContentChange={() => {
-					queueMicrotask(() => {
-						const text = inputRef.current?.plainText ?? "";
-						onContentChangeRef.current(text);
-						emitVisualCursorChange();
-					});
-				}}
-				onPaste={handlePaste}
-				onKeyDown={(event: KeyEvent) => {
-					handleKeyDown(event);
-					queueMicrotask(() => {
-						emitVisualCursorChange();
-					});
-				}}
-				placeholder={placeholder}
-				placeholderColor={inputPlaceholder}
-				textColor={inputForeground}
-				focusedTextColor={inputForeground}
-				focused
-				flexGrow={1}
-				cursorColor={accent}
-				minHeight={1}
-				maxHeight={5}
-				wrapMode="word"
-				keyBindings={[
-					{ name: "return", action: "submit" },
-					{ name: "return", shift: true, action: "newline" },
-					{ name: "return", ctrl: true, action: "newline" },
-					{ name: "return", meta: true, action: "newline" },
-				]}
-			/>
+			<box flexGrow={1} paddingLeft={1}>
+				<textarea
+					key={inputKey}
+					ref={textareaRefCallback as React.RefCallback<never>}
+					initialValue={initialValue}
+					onContentChange={() => {
+						queueMicrotask(() => {
+							const text = inputRef.current?.plainText ?? "";
+							onContentChangeRef.current(text);
+							emitVisualCursorChange();
+						});
+					}}
+					onPaste={handlePaste}
+					onKeyDown={(event: KeyEvent) => {
+						handleKeyDown(event);
+						queueMicrotask(() => {
+							emitVisualCursorChange();
+						});
+					}}
+					placeholder={placeholder}
+					placeholderColor={inputPlaceholder}
+					textColor={inputForeground}
+					focusedTextColor={inputForeground}
+					focused
+					flexGrow={1}
+					cursorColor={accent}
+					minHeight={1}
+					maxHeight={5}
+					wrapMode="word"
+					keyBindings={[
+						{ name: "return", action: "submit" },
+						{ name: "return", shift: true, action: "newline" },
+						{ name: "return", ctrl: true, action: "newline" },
+						{ name: "return", meta: true, action: "newline" },
+					]}
+				/>
+			</box>
 		</box>
 	);
 }
