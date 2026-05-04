@@ -40,6 +40,10 @@ export interface InputBarProps {
 	onContentChange: (text: string) => void;
 	onImagePaste?: (dataUrl: string) => string;
 	onLargeTextPaste?: (text: string) => string;
+	onVisualCursorChange?: (cursor: {
+		visualCol: number;
+		visualRow: number;
+	}) => void;
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
 }
 
@@ -77,6 +81,17 @@ export function InputBar(props: InputBarProps) {
 	onImagePasteRef.current = props.onImagePaste;
 	const onLargeTextPasteRef = useRef(props.onLargeTextPaste);
 	onLargeTextPasteRef.current = props.onLargeTextPaste;
+	const onVisualCursorChangeRef = useRef(props.onVisualCursorChange);
+	onVisualCursorChangeRef.current = props.onVisualCursorChange;
+
+	const emitVisualCursorChange = useCallback(() => {
+		const cursor = inputRef.current?.visualCursor;
+		if (!cursor) return;
+		onVisualCursorChangeRef.current?.({
+			visualCol: cursor.visualCol,
+			visualRow: cursor.visualRow,
+		});
+	}, [inputRef]);
 
 	const textareaRefCallback = useCallback(
 		(node: unknown) => {
@@ -86,9 +101,10 @@ export function InputBar(props: InputBarProps) {
 				ta.onSubmit = () => {
 					onSubmitRef.current();
 				};
+				emitVisualCursorChange();
 			}
 		},
-		[inputRef],
+		[emitVisualCursorChange, inputRef],
 	);
 
 	const insertImageAttachment = useCallback(
@@ -196,10 +212,16 @@ export function InputBar(props: InputBarProps) {
 					queueMicrotask(() => {
 						const text = inputRef.current?.plainText ?? "";
 						onContentChangeRef.current(text);
+						emitVisualCursorChange();
 					});
 				}}
 				onPaste={handlePaste}
-				onKeyDown={handleKeyDown}
+				onKeyDown={(event: KeyEvent) => {
+					handleKeyDown(event);
+					queueMicrotask(() => {
+						emitVisualCursorChange();
+					});
+				}}
 				placeholder={placeholder}
 				placeholderColor={inputPlaceholder}
 				textColor={inputForeground}
