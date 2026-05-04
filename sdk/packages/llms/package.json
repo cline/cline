@@ -4,7 +4,7 @@
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cline/sdk-wip.git",
+		"url": "https://github.com/cline/sdk-wip",
 		"directory": "packages/llms"
 	},
 	"main": "./dist/index.js",

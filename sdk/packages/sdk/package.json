@@ -4,7 +4,7 @@
 	"version": "0.0.36",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cline/sdk-wip.git",
+		"url": "https://github.com/cline/sdk-wip",
 		"directory": "packages/sdk"
 	},
 	"type": "module",
