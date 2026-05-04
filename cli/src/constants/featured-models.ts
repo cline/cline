@@ -86,6 +86,5 @@ export function mapRecommendedModelsToFeaturedModels(data: RecommendedModelsByTi
 
 export function withFeaturedModelFallback(modelsByTier: FeaturedModelsByTier): FeaturedModelsByTier {
 	const recommended = modelsByTier.recommended.length > 0 ? modelsByTier.recommended : FEATURED_MODELS.recommended
-	const free = modelsByTier.free.length > 0 ? modelsByTier.free : FEATURED_MODELS.free
-	return { recommended, free }
+	return { recommended, free: modelsByTier.free }
 }

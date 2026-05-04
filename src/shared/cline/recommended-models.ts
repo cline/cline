@@ -40,18 +40,5 @@ export const CLINE_RECOMMENDED_MODELS_FALLBACK: ClineRecommendedModelsData = {
 			tags: ["NEW"],
 		},
 	],
-	free: [
-		{
-			id: "kwaipilot/kat-coder-pro",
-			name: "KwaiKAT Kat Coder Pro",
-			description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
-			tags: ["FREE"],
-		},
-		{
-			id: "arcee-ai/trinity-large-preview:free",
-			name: "Arcee AI Trinity Large Preview",
-			description: "Arcee AI's advanced large preview model in the Trinity series",
-			tags: ["FREE"],
-		},
-	],
+	free: [],
 }

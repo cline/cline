@@ -9,7 +9,6 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -36,8 +35,6 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
-
-const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
 
 function getCacheReadTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
@@ -68,14 +65,12 @@ export class ClineHandler implements ApiHandler {
 		try {
 			const models = await refreshClineRecommendedModels()
 			const freeModelIds = models.free.map((model) => normalizeModelId(model.id)).filter((modelId) => modelId.length > 0)
-			if (freeModelIds.length > 0) {
-				return new Set(freeModelIds)
-			}
+			return new Set(freeModelIds)
 		} catch (error) {
 			Logger.error("Error resolving Cline free model IDs from recommended models:", error)
 		}
 
-		return CLINE_FREE_MODEL_IDS
+		return new Set<string>()
 	}
 
 	private async ensureClient(): Promise<OpenAI> {

@@ -1,12 +1,14 @@
 import "should"
 import { openRouterDefaultModelInfo } from "@shared/api"
 import sinon from "sinon"
+import { resetClineRecommendedModelsCacheForTests } from "@/core/controller/models/refreshClineRecommendedModels"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { ClineHandler } from "../cline"
 
 describe("ClineHandler", () => {
 	afterEach(() => {
+		resetClineRecommendedModelsCacheForTests()
 		sinon.restore()
 	})
 
@@ -60,6 +62,49 @@ describe("ClineHandler", () => {
 				inputTokens: 17,
 				outputTokens: 9,
 				totalCost: 0,
+			},
+		])
+	})
+
+	it("should not zero usage cost for removed free fallback models", async () => {
+		const handler = createHandler({})
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(
+						createAsyncIterable([
+							{
+								choices: [{}],
+								usage: {
+									prompt_tokens: 17,
+									completion_tokens: 9,
+									cost: 0.02,
+								},
+							},
+						]),
+					),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").resolves(fakeClient as any)
+		sinon.stub(handler, "getModel").returns({
+			id: "kwaipilot/kat-coder-pro",
+			info: openRouterDefaultModelInfo,
+		})
+
+		const chunks: any[] = []
+		for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			chunks.push(chunk)
+		}
+
+		chunks.should.deepEqual([
+			{
+				type: "usage",
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				inputTokens: 17,
+				outputTokens: 9,
+				totalCost: 0.02,
 			},
 		])
 	})

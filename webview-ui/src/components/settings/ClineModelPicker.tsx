@@ -88,10 +88,6 @@ const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_
 	.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
-const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.free
-	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
-	.filter((model): model is FeaturedModelCardEntry => model !== null)
-
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
@@ -102,9 +98,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
 	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
 	const freeClineModelIds = useMemo(() => {
-		const freeModelIds =
-			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
-		return [...new Set(freeModelIds)]
+		return [...new Set(clineFreeModels.map((model) => model.id))]
 	}, [clineFreeModels])
 	const freeClineModelIdSet = useMemo(
 		() => new Set(freeClineModelIds.map((modelId) => normalizeModelId(modelId))),
@@ -115,7 +109,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
 		[clineRecommendedModels],
 	)
-	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const freeModels = clineFreeModels
+	const hasFreeModels = freeModels.length > 0
 	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
 	const isFetchingClineRecommendedModelsRef = useRef(false)
 	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
@@ -179,10 +174,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	}, [clearClineRecommendedModelsRetryTimeout])
 
 	useEffect(() => {
-		if (initialTab) {
-			setActiveTab(initialTab)
+		if (initialTab === "free") {
+			setActiveTab(hasFreeModels ? "free" : "recommended")
+			return
 		}
-	}, [initialTab])
+		if (initialTab === "recommended") {
+			setActiveTab("recommended")
+		}
+	}, [hasFreeModels, initialTab])
 
 	useEffect(() => {
 		if (initialTab) {
@@ -400,9 +399,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
 							Recommended
 						</Tab>
-						<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-							Free
-						</Tab>
+						{hasFreeModels && (
+							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
+								Free
+							</Tab>
+						)}
 					</TabsContainer>
 
 					{/* Model Cards */}
