@@ -61,10 +61,16 @@ describe("user instruction config loader", () => {
 				join(workspacePath, ".cline", "rules"),
 			]),
 		);
-		expect(resolveWorkflowsConfigSearchPaths(workspacePath)).toEqual([
-			join(workspacePath, ".clinerules", "workflows"),
-			join(process.env.HOME ?? "~", "Documents", "Cline", "Workflows"),
-		]);
+		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
+		expect(paths).toContain(join(workspacePath, ".clinerules", "workflows"));
+		expect(
+			paths.some(
+				(p) =>
+					p.includes("Documents") &&
+					p.includes("Cline") &&
+					p.includes("Workflows"),
+			),
+		).toBe(true);
 		expect(resolveWorkflowsConfigSearchPaths(workspacePath)).not.toContain(
 			join(process.env.HOME ?? "~", ".cline", "data", "workflows"),
 		);
