@@ -4,19 +4,33 @@ import { useTerminalBackground } from "../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 
-function createContextBar(
+export function createContextBar(
 	used: number,
 	total?: number,
 	width = 8,
 ): { filled: string; empty: string } {
+	const normalizedWidth = Math.max(0, Math.floor(width));
 	const ratio = total && total > 0 ? Math.min(used / total, 1) : 0;
 	const filledCount =
-		total && total > 0 && used > 0 ? Math.max(1, Math.round(ratio * width)) : 0;
-	const emptyCount = Math.max(0, width - filledCount);
+		total && total > 0 && used > 0
+			? used >= total
+				? normalizedWidth
+				: Math.min(
+						Math.max(1, Math.ceil(ratio * normalizedWidth)),
+						Math.max(0, normalizedWidth - 1),
+					)
+			: 0;
+	const emptyCount = Math.max(0, normalizedWidth - filledCount);
 	return {
 		filled: "\u2588".repeat(filledCount),
 		empty: "\u2588".repeat(emptyCount),
 	};
+}
+
+export function resolveContextBarFilledForeground(
+	defaultForeground: string | undefined,
+): string {
+	return defaultForeground ?? "#ffffff";
 }
 
 function formatCost(cost: number): string {
@@ -108,6 +122,7 @@ export function StatusBar(props: StatusBarProps) {
 	const { width } = useTerminalDimensions();
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
+	const contextBarFilledFg = resolveContextBarFilledForeground(defaultFg);
 	const hasContextWindow =
 		typeof contextWindow === "number" &&
 		Number.isFinite(contextWindow) &&
@@ -134,6 +149,18 @@ export function StatusBar(props: StatusBarProps) {
 		: ` ${usageText}`;
 	const firstRowFits =
 		modelId.length + contextText.length + toggleWidth + 1 <= avail;
+	const renderContextText = (withLeadingSpace: boolean) => (
+		<>
+			{withLeadingSpace && " "}
+			{bar && (
+				<>
+					<span fg={contextBarFilledFg}>{bar.filled}</span>
+					<span fg="gray">{bar.empty}</span>{" "}
+				</>
+			)}
+			{usageText}
+		</>
+	);
 
 	const modelMaxLen = Math.max(
 		10,
@@ -161,7 +188,7 @@ export function StatusBar(props: StatusBarProps) {
 			<box flexDirection="row" justifyContent="space-between">
 				<text fg="gray">
 					{truncatedModel}
-					{firstRowFits && contextText}
+					{firstRowFits && renderContextText(true)}
 				</text>
 				<box
 					flexDirection="row"
@@ -179,7 +206,7 @@ export function StatusBar(props: StatusBarProps) {
 				</box>
 			</box>
 
-			{!firstRowFits && <text fg="gray">{contextText.trimStart()}</text>}
+			{!firstRowFits && <text fg="gray">{renderContextText(false)}</text>}
 
 			<text fg={defaultFg}>
 				{truncatedPath}
