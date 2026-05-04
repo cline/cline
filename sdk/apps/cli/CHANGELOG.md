@@ -1,5 +1,10 @@
 # Cline CLI Changelog
 
+## 0.0.9 (2026-05-03)
+
+- Fix stray text appearing over the TUI when background operations (like hub restart messages) write directly to stdout/stderr during interactive sessions
+- Fix hub connection recovery: when a newer CLI instance restarts the shared hub daemon, already-running CLI sessions now automatically reconnect to the new hub endpoint instead of failing with transport errors
+
 ## 0.0.8 (2026-05-03)
 
 - Fix crash when pressing Escape to cancel a running turn
