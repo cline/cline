@@ -415,6 +415,7 @@ export interface HubRuntimeHostOptions {
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
+	allowLocalHubRediscovery?: boolean;
 }
 
 function mapStatus(
@@ -614,6 +615,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
 			cwd: clientContext?.cwd,
+			allowLocalHubRediscovery: options.allowLocalHubRediscovery ?? true,
 		};
 		this.defaultCapabilities =
 			normalizeRuntimeCapabilities(options.capabilities) ?? {};
@@ -1141,7 +1143,9 @@ export class HubRuntimeHost implements RuntimeHost {
 	async deleteSession(sessionId: string): Promise<boolean> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
-		const reply = await this.client.command("session.delete", { sessionId });
+		const reply = await this.client.command("session.delete", {
+			sessionId,
+		});
 		return reply.payload?.deleted === true;
 	}
 

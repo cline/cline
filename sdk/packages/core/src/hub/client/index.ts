@@ -85,9 +85,15 @@ function decodeCloseReason(reason: unknown): string {
 	return "";
 }
 
-function normalizeWebSocketConnectError(error: unknown, url: URL): Error {
-	if (error instanceof Error) {
+function normalizeWebSocketConnectError(
+	error: unknown,
+	url: URL,
+): HubTransportError {
+	if (error instanceof HubTransportError) {
 		return error;
+	}
+	if (error instanceof Error) {
+		return new HubTransportError("hub_connect_failed", error.message);
 	}
 	if (
 		error &&
@@ -95,7 +101,10 @@ function normalizeWebSocketConnectError(error: unknown, url: URL): Error {
 		"error" in error &&
 		(error as { error?: unknown }).error instanceof Error
 	) {
-		return (error as { error: Error }).error;
+		return new HubTransportError(
+			"hub_connect_failed",
+			(error as { error: Error }).error.message,
+		);
 	}
 	const message =
 		error &&
@@ -105,7 +114,7 @@ function normalizeWebSocketConnectError(error: unknown, url: URL): Error {
 			? (error as { message: string }).message.trim()
 			: "";
 	if (message) {
-		return new Error(message);
+		return new HubTransportError("hub_connect_failed", message);
 	}
 	const eventType =
 		error &&
@@ -114,7 +123,8 @@ function normalizeWebSocketConnectError(error: unknown, url: URL): Error {
 		typeof (error as { type?: unknown }).type === "string"
 			? (error as { type: string }).type.trim()
 			: "";
-	return new Error(
+	return new HubTransportError(
+		"hub_connect_failed",
 		eventType
 			? `Failed to connect to hub at ${url.toString()} (${eventType} event before socket open).`
 			: `Failed to connect to hub at ${url.toString()}.`,
@@ -129,6 +139,7 @@ export interface HubClientOptions {
 	workspaceRoot?: string;
 	cwd?: string;
 	authToken?: string;
+	allowLocalHubRediscovery?: boolean;
 }
 
 export interface LocalHubResolutionOptions {
@@ -148,6 +159,30 @@ const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
 const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 3_000;
 const HUB_RECOVERY_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RECOVERY_RETIRE_POLL_MS = 100;
+const DEFAULT_HUB_CLOSED_MESSAGE = "Hub connection closed";
+
+export type HubTransportErrorCode =
+	| "hub_connect_timeout"
+	| "hub_connect_failed"
+	| "hub_connection_closed"
+	| "hub_connection_not_open";
+
+export class HubTransportError extends Error {
+	constructor(
+		readonly code: HubTransportErrorCode,
+		message: string,
+		readonly details?: { closeCode?: number; closeReason?: string },
+	) {
+		super(message);
+		this.name = "HubTransportError";
+	}
+}
+
+export function isHubReconnectableTransportError(
+	error: unknown,
+): error is HubTransportError {
+	return error instanceof HubTransportError;
+}
 
 export class HubCommandError extends Error {
 	constructor(
@@ -192,16 +227,25 @@ export class NodeHubClient {
 	private socket: WebSocketLike | undefined;
 	private connectPromise: Promise<void> | undefined;
 	private readonly clientId: string;
+	private currentUrl: string;
+	private readonly allowLocalHubRediscovery: boolean;
+	private recoveryPromise: Promise<boolean> | undefined;
 	private readonly pendingReplies = new Map<string, PendingReply>();
 	private readonly listeners = new Set<SubscriptionEntry>();
 	private readonly subscriptionCounts = new Map<string, number>();
-	private lastCloseMessage = "Hub connection closed";
+	private lastCloseError = new HubTransportError(
+		"hub_connection_closed",
+		DEFAULT_HUB_CLOSED_MESSAGE,
+	);
+	private sawSocketClose = false;
 	private registered = false;
 
 	constructor(private readonly options: HubClientOptions) {
 		this.clientId =
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+		this.currentUrl = options.url;
+		this.allowLocalHubRediscovery = options.allowLocalHubRediscovery === true;
 	}
 
 	getClientId(): string {
@@ -209,7 +253,7 @@ export class NodeHubClient {
 	}
 
 	getUrl(): string {
-		return this.options.url;
+		return this.currentUrl;
 	}
 
 	async connect(): Promise<void> {
@@ -220,7 +264,7 @@ export class NodeHubClient {
 			return this.connectPromise ?? Promise.resolve();
 		}
 
-		const url = new URL(this.options.url);
+		const url = new URL(this.currentUrl);
 		const authToken =
 			this.options.authToken?.trim() || resolveLocalHubAuthToken(url);
 		url.hash = "";
@@ -240,7 +284,11 @@ export class NodeHubClient {
 				}
 				settled = true;
 				suppressCloseMessage = true;
-				this.lastCloseMessage = `Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`;
+				this.lastCloseError = new HubTransportError(
+					"hub_connect_timeout",
+					`Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`,
+				);
+				this.sawSocketClose = false;
 				this.connectPromise = undefined;
 				this.socket = undefined;
 				try {
@@ -248,7 +296,7 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				reject(new Error(this.lastCloseMessage));
+				reject(this.lastCloseError);
 			}, HUB_CONNECT_TIMEOUT_MS);
 			socket.addEventListener("open", () => {
 				if (settled) {
@@ -264,9 +312,11 @@ export class NodeHubClient {
 				}
 				settled = true;
 				clearTimeout(timeout);
+				this.lastCloseError = normalizeWebSocketConnectError(error, url);
+				this.sawSocketClose = false;
 				this.connectPromise = undefined;
 				this.socket = undefined;
-				reject(normalizeWebSocketConnectError(error, url));
+				reject(this.lastCloseError);
 			});
 		});
 
@@ -274,19 +324,26 @@ export class NodeHubClient {
 			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
 		});
 		socket.addEventListener("close", (event: unknown) => {
-			if (this.socket !== socket && this.connectPromise === undefined) {
+			if (this.socket !== socket) {
 				return;
 			}
 			const closeEvent = event as { code?: number; reason?: unknown };
 			const reasonText = decodeCloseReason(closeEvent.reason);
 			if (!suppressCloseMessage) {
-				this.lastCloseMessage =
+				this.lastCloseError = new HubTransportError(
+					"hub_connection_closed",
 					closeEvent.code || reasonText
 						? `Hub connection closed (code=${closeEvent.code ?? 0}${reasonText ? `, reason=${reasonText}` : ""})`
-						: "Hub connection closed";
+						: DEFAULT_HUB_CLOSED_MESSAGE,
+					{
+						closeCode: closeEvent.code,
+						closeReason: reasonText || undefined,
+					},
+				);
+				this.sawSocketClose = true;
 			}
 			for (const pending of this.pendingReplies.values()) {
-				pending.reject(new Error(this.lastCloseMessage));
+				pending.reject(this.lastCloseError);
 			}
 			this.pendingReplies.clear();
 			this.connectPromise = undefined;
@@ -336,6 +393,31 @@ export class NodeHubClient {
 		sessionId?: string,
 		options?: { timeoutMs?: number | null },
 	): Promise<HubReplyEnvelope> {
+		let attempt = 0;
+		const canRecoverTransport =
+			command !== "client.register" && command !== "client.unregister";
+		while (true) {
+			try {
+				return await this.commandOnce(command, payload, sessionId, options);
+			} catch (error) {
+				if (
+					!canRecoverTransport ||
+					attempt >= 1 ||
+					!(await this.recoverLocalHubTransport(error))
+				) {
+					throw error;
+				}
+				attempt += 1;
+			}
+		}
+	}
+
+	private async commandOnce(
+		command: HubCommandEnvelope["command"],
+		payload?: Record<string, unknown>,
+		sessionId?: string,
+		options?: { timeoutMs?: number | null },
+	): Promise<HubReplyEnvelope> {
 		await this.connect();
 		const requestId = createSessionId("hubreq_");
 		const reply = new Promise<HubReplyEnvelope>((resolve, reject) => {
@@ -352,7 +434,7 @@ export class NodeHubClient {
 								new HubCommandError(
 									command,
 									"hub_command_timeout",
-									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.options.url}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run with CLINE_SESSION_BACKEND_MODE=local to bypass the hub.`,
+									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run with CLINE_SESSION_BACKEND_MODE=local to bypass the hub.`,
 								),
 							);
 						}, effectiveTimeoutMs);
@@ -371,17 +453,22 @@ export class NodeHubClient {
 				},
 			});
 		});
-		this.sendFrame({
-			kind: "command",
-			envelope: {
-				version: "v1",
-				command,
-				requestId,
-				clientId: this.clientId,
-				sessionId,
-				payload,
-			},
-		});
+		try {
+			this.sendFrame({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command,
+					requestId,
+					clientId: this.clientId,
+					sessionId,
+					payload,
+				},
+			});
+		} catch (error) {
+			this.pendingReplies.delete(requestId);
+			throw error;
+		}
 		const resolved = await reply;
 		if (!resolved.ok) {
 			throw new HubCommandError(
@@ -393,15 +480,46 @@ export class NodeHubClient {
 		return resolved;
 	}
 
+	private async recoverLocalHubTransport(error: unknown): Promise<boolean> {
+		if (
+			!this.allowLocalHubRediscovery ||
+			!isHubReconnectableTransportError(error)
+		) {
+			return false;
+		}
+		if (this.recoveryPromise) {
+			return await this.recoveryPromise;
+		}
+		this.recoveryPromise = (async () => {
+			const recoveredUrl = await ensureCompatibleLocalHubUrl({
+				workspaceRoot: this.options.workspaceRoot,
+				cwd: this.options.cwd,
+			}).catch(() => undefined);
+			if (!recoveredUrl) {
+				return false;
+			}
+			this.currentUrl = recoveredUrl;
+			this.close();
+			return true;
+		})().finally(() => {
+			this.recoveryPromise = undefined;
+		});
+		return await this.recoveryPromise;
+	}
+
 	close(): void {
 		const socket = this.socket;
 		this.registered = false;
 		if (!socket) {
 			return;
 		}
-		this.lastCloseMessage = "Hub connection closed";
+		this.lastCloseError = new HubTransportError(
+			"hub_connection_closed",
+			DEFAULT_HUB_CLOSED_MESSAGE,
+		);
+		this.sawSocketClose = false;
 		for (const pending of this.pendingReplies.values()) {
-			pending.reject(new Error(this.lastCloseMessage));
+			pending.reject(this.lastCloseError);
 		}
 		this.pendingReplies.clear();
 		this.connectPromise = undefined;
@@ -430,11 +548,16 @@ export class NodeHubClient {
 
 	private sendFrame(frame: HubTransportFrame): void {
 		if (!this.socket || this.socket.readyState !== 1) {
-			throw new Error(
-				this.lastCloseMessage === "Hub connection closed"
-					? "Hub connection is not open."
-					: this.lastCloseMessage,
-			);
+			if (
+				this.lastCloseError.code === "hub_connection_closed" &&
+				!this.sawSocketClose
+			) {
+				throw new HubTransportError(
+					"hub_connection_not_open",
+					"Hub connection is not open.",
+				);
+			}
+			throw this.lastCloseError;
 		}
 		this.socket.send(JSON.stringify(frame));
 	}

@@ -17,6 +17,7 @@ export class RemoteRuntimeHost extends HubRuntimeHost {
 				clientType: options.clientType ?? "core-remote-runtime",
 				displayName: options.displayName ?? "core remote runtime",
 				capabilities: options.capabilities,
+				allowLocalHubRediscovery: false,
 			},
 			{
 				workspaceRoot: options.workspaceRoot,

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NodeHubClient } from "../client";
+import {
+	HubTransportError,
+	isHubReconnectableTransportError,
+	NodeHubClient,
+} from "../client";
 
 type SocketListener = (...args: unknown[]) => void;
 type MessageListener = (event: { data: string }) => void;
@@ -55,7 +59,9 @@ class MockWebSocket {
 
 	close(): void {
 		this.readyState = MockWebSocket.CLOSED;
-		this.emit("close", { code: 1000, reason: "" });
+		queueMicrotask(() => {
+			this.emit("close", { code: 1000, reason: "" });
+		});
 	}
 
 	addEventListener(type: string, listener: SocketListener): void {
@@ -197,6 +203,29 @@ describe("NodeHubClient", () => {
 			);
 			expect(socket.readyState).toBe(MockWebSocket.CLOSED);
 		});
+
+		it("ignores stale close events from retired sockets", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			await client.connect();
+			client.close();
+
+			await expect(client.connect()).resolves.toBeUndefined();
+
+			expect(MockWebSocket.instances).toHaveLength(2);
+			expect(MockWebSocket.instances[1]?.sentFrames).toContainEqual(
+				expect.objectContaining({
+					kind: "command",
+					envelope: expect.objectContaining({
+						command: "client.register",
+						clientId: client.getClientId(),
+					}),
+				}),
+			);
+
+			await client.dispose();
+		});
 	});
 
 	describe("timeouts", () => {
@@ -228,6 +257,10 @@ describe("NodeHubClient", () => {
 
 			await vi.advanceTimersByTimeAsync(8_001);
 			await expectation;
+			await expect(connectPromise).rejects.toMatchObject({
+				name: "HubTransportError",
+				code: "hub_connect_timeout",
+			});
 		});
 
 		it("times out when a hub command never replies", async () => {
@@ -365,6 +398,166 @@ describe("NodeHubClient", () => {
 			} else {
 				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
 			}
+		}
+	});
+
+	it("marks transport errors as reconnectable", () => {
+		expect(
+			isHubReconnectableTransportError(
+				new HubTransportError("hub_connection_closed", "closed"),
+			),
+		).toBe(true);
+		expect(isHubReconnectableTransportError(new Error("closed"))).toBe(false);
+	});
+
+	it("rediscovers the local hub and retries commands after transport close", async () => {
+		vi.resetModules();
+		const originalWebSocket = globalThis.WebSocket;
+		const recoveredUrl = "ws://127.0.0.1:25464/hub";
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25464,
+			url: recoveredUrl,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		class RecoveryWebSocket {
+			readyState = 0;
+			private failedCommand = false;
+			private readonly listeners = new Map<string, Set<GenericListener>>();
+
+			constructor(
+				private readonly url: string,
+				_protocols?: string | string[],
+			) {
+				queueMicrotask(() => {
+					this.readyState = 1;
+					this.emit("open");
+				});
+			}
+
+			addEventListener(type: string, listener: GenericListener): void {
+				const current = this.listeners.get(type) ?? new Set<GenericListener>();
+				current.add(listener);
+				this.listeners.set(type, current);
+			}
+
+			send(data: string): void {
+				const frame = JSON.parse(data) as {
+					kind?: string;
+					envelope?: { requestId?: string; command?: string };
+				};
+				if (frame.kind !== "command" || !frame.envelope?.requestId) {
+					return;
+				}
+				if (frame.envelope.command === "client.register") {
+					queueMicrotask(() => {
+						this.emit("message", {
+							data: JSON.stringify({
+								kind: "reply",
+								envelope: {
+									version: "v1",
+									requestId: frame.envelope?.requestId,
+									ok: true,
+									payload: {},
+								},
+							}),
+						});
+					});
+					return;
+				}
+				if (this.url.includes(":25463/") && !this.failedCommand) {
+					this.failedCommand = true;
+					queueMicrotask(() => {
+						this.readyState = 3;
+						this.emit("close", { code: 1006, reason: "" });
+					});
+					return;
+				}
+				queueMicrotask(() => {
+					this.emit("message", {
+						data: JSON.stringify({
+							kind: "reply",
+							envelope: {
+								version: "v1",
+								requestId: frame.envelope?.requestId,
+								ok: true,
+								payload: { clients: [] },
+							},
+						}),
+					});
+				});
+			}
+
+			close(): void {
+				this.readyState = 3;
+				this.emit("close", { code: 1000, reason: "" });
+			}
+
+			private emit(type: string, payload?: unknown): void {
+				for (const listener of this.listeners.get(type) ?? []) {
+					if (type === "message") {
+						(listener as MessageListener)(payload as { data: string });
+						continue;
+					}
+					listener(payload);
+				}
+			}
+		}
+
+		(
+			globalThis as unknown as { WebSocket?: typeof RecoveryWebSocket }
+		).WebSocket = RecoveryWebSocket;
+		vi.doMock("../daemon", () => ({
+			spawnDetachedHubServer: vi.fn(),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery-recovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: vi.fn(async () => record),
+				probeHubServer: vi.fn(async (url: string) =>
+					url.includes(":25464/") ? record : undefined,
+				),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		try {
+			const { NodeHubClient: DynamicClient } = await import(".");
+			const client = new DynamicClient({
+				url: "ws://127.0.0.1:25463/hub",
+				allowLocalHubRediscovery: true,
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			});
+
+			await expect(client.command("client.list")).resolves.toMatchObject({
+				ok: true,
+				payload: { clients: [] },
+			});
+			expect(client.getUrl()).toBe(recoveredUrl);
+			await client.dispose();
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			vi.resetModules();
 		}
 	});
 });
