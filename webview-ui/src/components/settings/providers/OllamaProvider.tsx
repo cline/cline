@@ -110,7 +110,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
 						onChange={(value) => {
 							// Convert to number, with validation
-							const numValue = parseInt(value, 10)
+							const numValue = Number.parseInt(value, 10)
 							if (!Number.isNaN(numValue) && numValue > 0) {
 								handleFieldChange("requestTimeoutMs", numValue)
 							}
@@ -140,8 +140,8 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					quickstart guide.
 				</VSCodeLink>{" "}
 				<span style={{ color: "var(--vscode-errorForeground)" }}>
-					(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude models.
-					Less capable models may not work as expected.)
+					(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts, so behavior can vary across
+					models. Less capable models may not work as expected.)
 				</span>
 			</p>
 		</div>
