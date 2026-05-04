@@ -72,9 +72,36 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	// Sanitize text input to remove null bytes and ASCII control characters
-	// that could be used for prompt injection attacks
-	const sanitizedText = request.text ? request.text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim() : request.text
-	const taskId = await controller.initTask(sanitizedText, request.images, request.files, undefined, filteredTaskSettings)
+	// Remove null bytes and non-printable ASCII control characters from a string.
+	// This eliminates C0 control character abuse (e.g. null-byte injection, terminal
+	// escape smuggling) and logs when any mutation occurs so it is observable during
+	// debugging.
+	// NOTE: Real prompt-injection attacks use ordinary printable text and cannot be
+	// defeated by character-level filtering alone; full mitigation requires model-level
+	// and architectural safeguards (e.g. privilege separation, output monitoring).
+	const sanitizeControlChars = (text: string | undefined, label: string): string | undefined => {
+		if (text === undefined || text === null) {
+			return text
+		}
+		const sanitized = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim()
+		if (sanitized !== text) {
+			console.warn(`[newTask] sanitizeControlChars: stripped non-printable control characters from ${label}`)
+		}
+		return sanitized
+	}
+
+	const sanitizedText = sanitizeControlChars(request.text, "request.text")
+
+	// Sanitize the text content of every file entry to remove control characters.
+	// Files are also listed as a vulnerable input surface in the security report.
+	const sanitizedFiles = request.files?.map((file, index) => {
+		const fileWithText = file as typeof file & { text?: string }
+		if (typeof fileWithText.text === "string") {
+			return { ...file, text: sanitizeControlChars(fileWithText.text, `request.files[${index}].text`) }
+		}
+		return file
+	})
+
+	const taskId = await controller.initTask(sanitizedText, request.images, sanitizedFiles ?? request.files, undefined, filteredTaskSettings)
 	return String.create({ value: taskId || "" })
 }
