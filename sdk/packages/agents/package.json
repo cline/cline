@@ -3,7 +3,7 @@
 	"version": "0.0.37",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline.git",
+		"url": "git+https://github.com/cline/sdk-wip.git",
 		"directory": "packages/agents"
 	},
 	"main": "dist/index.js",

@@ -35,12 +35,6 @@ jobs:
     name: Publish SDK Packages
     if: github.repository == 'cline/sdk-wip' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    env:
-      # `bun publish` reads NPM_CONFIG_TOKEN directly. It does NOT expand
-      # ${NODE_AUTH_TOKEN} placeholders inside the .npmrc that
-      # actions/setup-node writes, so we must expose the token under the
-      # name Bun expects. See https://bun.sh/docs/cli/publish.
-      NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -82,9 +76,20 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Verify trusted publishing context
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "GitHub OIDC request environment is unavailable. Ensure this job has id-token: write for npm trusted publishing."
+            exit 1
+          fi
+          echo "GitHub OIDC request environment is available for npm trusted publishing."
+
       - name: Setup Bun
         if: steps.check_commits.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
 
       - name: Setup Node.js
         if: steps.check_commits.outputs.skip != 'true'
@@ -92,6 +97,19 @@ jobs:
         with:
           node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Verify publish tooling
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          NPM_VERSION=$(npm --version)
+          echo "npm ${NPM_VERSION}"
+          IFS=. read -r major minor patch <<EOF
+          ${NPM_VERSION}
+          EOF
+          if [ "$major" -lt 11 ] || { [ "$major" -eq 11 ] && [ "$minor" -lt 5 ]; } || { [ "$major" -eq 11 ] && [ "$minor" -eq 5 ] && [ "$patch" -lt 1 ]; }; then
+            echo "npm 11.5.1 or newer is required for trusted publishing"
+            exit 1
+          fi
 
       - name: Install dependencies
         if: steps.check_commits.outputs.skip != 'true'
@@ -130,14 +148,21 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         run: bun scripts/check-publish.ts
 
-      # Publish sequentially in dependency order: shared → llms → agents → core
+      - name: Prepare package tarball directory
+        if: steps.check_commits.outputs.skip != 'true'
+        run: mkdir -p "$RUNNER_TEMP/sdk-npm-packs"
+
+      # Pack with Bun so workspace/catalog protocols are resolved in the tarball,
+      # then publish that tarball with npm so npm trusted publishing can use GitHub OIDC.
+      # Publish sequentially in dependency order: shared → llms → agents → core → sdk
       - name: Publish @clinebot/shared
         if: steps.check_commits.outputs.skip != 'true'
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/shared@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/shared
-          bun publish --tag "$CHANNEL" --access restricted
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
       - name: Publish @clinebot/llms
         if: steps.check_commits.outputs.skip != 'true'
@@ -145,7 +170,8 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/llms@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/llms
-          bun publish --tag "$CHANNEL" --access restricted
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
       - name: Publish @clinebot/agents
         if: steps.check_commits.outputs.skip != 'true'
@@ -153,7 +179,8 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/agents@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/agents
-          bun publish --tag "$CHANNEL" --access restricted
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
       - name: Publish @clinebot/core
         if: steps.check_commits.outputs.skip != 'true'
@@ -161,7 +188,17 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/core@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/core
-          bun publish --tag "$CHANNEL" --access restricted
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
+
+      - name: Publish @clinebot/sdk
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          echo "Publishing @clinebot/sdk@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          cd packages/sdk
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
       - name: Create package tags for production publish
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
@@ -171,7 +208,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for PKG in shared llms agents core; do
+          for PKG in shared llms agents core sdk; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"
@@ -194,10 +231,12 @@ jobs:
           echo "  - @clinebot/llms@${VERSION}"
           echo "  - @clinebot/agents@${VERSION}"
           echo "  - @clinebot/core@${VERSION}"
+          echo "  - @clinebot/sdk@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
             echo "✅ Created git tags:"
             echo "  - sdk/shared/v${VERSION}"
             echo "  - sdk/llms/v${VERSION}"
             echo "  - sdk/agents/v${VERSION}"
             echo "  - sdk/core/v${VERSION}"
+            echo "  - sdk/sdk/v${VERSION}"
           fi

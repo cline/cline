@@ -2,6 +2,11 @@
 	"name": "@clinebot/sdk",
 	"description": "Cline SDK - user-facing alias for @clinebot/core",
 	"version": "0.0.36",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cline/sdk-wip.git",
+		"directory": "packages/sdk"
+	},
 	"type": "module",
 	"types": "./dist/index.d.ts",
 	"main": "./dist/index.js",

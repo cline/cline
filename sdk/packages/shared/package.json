@@ -2,6 +2,11 @@
 	"name": "@clinebot/shared",
 	"version": "0.0.37",
 	"description": "Shared utilities, types, and schemas for Cline packages",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cline/sdk-wip.git",
+		"directory": "packages/shared"
+	},
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",

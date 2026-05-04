@@ -2,6 +2,11 @@
 	"name": "@clinebot/llms",
 	"version": "0.0.37",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cline/sdk-wip.git",
+		"directory": "packages/llms"
+	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"engines": {
