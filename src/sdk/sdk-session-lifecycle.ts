@@ -1,10 +1,11 @@
-import type { CoreSessionEvent, SessionHost, StartSessionResult } from "@clinebot/core"
+import type { CoreSessionEvent, StartSessionResult } from "@clinebot/core"
 import { StateManager } from "@/core/storage/StateManager"
 import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
 import { buildToolPolicies } from "./sdk-tool-policies"
+import type { SdkSessionHost } from "./session-host"
 import { VscodeSessionHost } from "./vscode-session-host"
 
 export type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
@@ -44,7 +45,7 @@ export class SdkSessionLifecycle {
 
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
-	): Promise<{ startResult: StartSessionResult; sdkHost: SessionHost }> {
+	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
 		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
@@ -77,7 +78,7 @@ export class SdkSessionLifecycle {
 		| {
 				oldSessionId: string
 				startResult: StartSessionResult
-				sdkHost: SessionHost
+				sdkHost: SdkSessionHost
 		  }
 		| undefined
 	> {
@@ -102,7 +103,7 @@ export class SdkSessionLifecycle {
 	}
 
 	fireAndForgetSend(
-		sdkHost: SessionHost,
+		sdkHost: SdkSessionHost,
 		sessionId: string,
 		prompt: string,
 		images?: string[],

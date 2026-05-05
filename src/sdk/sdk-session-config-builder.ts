@@ -1,7 +1,7 @@
-import { createTool, type Tool } from "@clinebot/shared"
+import { type AgentTool, createTool } from "@clinebot/shared"
 import type { StateManager } from "@/core/storage/StateManager"
 import { buildSessionConfig, type SessionConfigInput } from "./cline-session-factory"
-import { buildAgentHooks, buildHookExtensions, type HookMessageEmitter } from "./hooks-adapter"
+import { buildAgentHooks, type HookMessageEmitter } from "./hooks-adapter"
 
 export interface SdkSessionConfigBuilderOptions {
 	stateManager: StateManager
@@ -18,22 +18,17 @@ export class SdkSessionConfigBuilder {
 		const baseHooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage)
 		config.hooks = {
 			...baseHooks,
-			onBeforeAgentStart: async (ctx) => {
-				const baseControl = await baseHooks.onBeforeAgentStart?.(ctx)
+			beforeModel: async (ctx) => {
+				const baseControl = await baseHooks.beforeModel?.(ctx)
 				if (this.options.shouldStopAfterModeSwitch?.()) {
 					return {
 						...baseControl,
-						cancel: true,
+						stop: true,
 					}
 				}
 				return baseControl
 			},
 		}
-		config.extensions = [
-			...(config.extensions ?? []),
-			...buildHookExtensions(this.options.stateManager, this.options.emitHookMessage),
-		]
-
 		if (input.mode === "plan") {
 			config.extraTools = [...(config.extraTools ?? [])]
 		}
@@ -41,7 +36,7 @@ export class SdkSessionConfigBuilder {
 		return config
 	}
 
-	private _createSwitchToActModeTool(): Tool {
+	private _createSwitchToActModeTool(): AgentTool {
 		return createTool({
 			name: "switch_to_act_mode",
 			description:

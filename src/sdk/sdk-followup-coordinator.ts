@@ -1,4 +1,3 @@
-import { SessionHost } from "@clinebot/core"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
@@ -10,6 +9,7 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
+import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -25,9 +25,9 @@ export interface SdkFollowupCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
-	createTempSessionHost: () => Promise<SessionHost>
+	createTempSessionHost: () => Promise<SdkSessionHost>
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (sessionHost: SessionHost, taskId: string) => Promise<unknown[] | undefined>
+	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
