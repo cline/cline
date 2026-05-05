@@ -1,7 +1,7 @@
 {
 	"name": "@clinebot/sdk",
 	"description": "Cline SDK - user-facing alias for @clinebot/core",
-	"version": "0.0.36",
+	"version": "0.0.38",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/sdk-wip",

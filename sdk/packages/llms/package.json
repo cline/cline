@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/llms",
-	"version": "0.0.37",
+	"version": "0.0.38",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",

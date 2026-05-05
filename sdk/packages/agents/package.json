@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/agents",
-	"version": "0.0.37",
+	"version": "0.0.38",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/sdk-wip",

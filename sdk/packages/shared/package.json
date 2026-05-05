@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/shared",
-	"version": "0.0.37",
+	"version": "0.0.38",
 	"description": "Shared utilities, types, and schemas for Cline packages",
 	"repository": {
 		"type": "git",
