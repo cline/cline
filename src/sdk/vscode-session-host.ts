@@ -17,18 +17,18 @@ import {
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
 	type SessionHistoryRecord,
-	type SessionHost,
 	type SessionPendingPrompt,
 	type SessionRecord,
 	type StartSessionInput,
 	type StartSessionResult,
 	type ToolExecutors,
 } from "@clinebot/core"
-import { type ToolApprovalRequest, type ToolApprovalResult, type ToolContext, type ToolPolicy } from "@clinebot/shared"
+import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@clinebot/shared"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 
 export interface VscodeSessionHostOptions {
@@ -43,7 +43,7 @@ export interface VscodeSessionHostOptions {
 		policy: { enabled: boolean; autoApprove: boolean }
 	}) => Promise<{ approved: boolean; reason?: string }>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
-	askQuestion?: (question: string, options: string[], context: ToolContext) => Promise<string>
+	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
 	/**
@@ -54,7 +54,7 @@ export interface VscodeSessionHostOptions {
 	getTerminalManager?: () => ITerminalManager
 }
 
-export class VscodeSessionHost implements SessionHost {
+export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
 
@@ -63,33 +63,34 @@ export class VscodeSessionHost implements SessionHost {
 		this.runtimeAddress = inner.runtimeAddress
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
-		this.inner.updateSessionModel?.(sessionId, modelId)
-		throw new Error("Method not implemented.")
+		return this.inner.updateSessionModel(sessionId, modelId)
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
-		// Build defaultToolExecutors from options — only include keys that are provided.
+		// Build tool executor capabilities from options — only include keys that are provided.
 		// When a terminal manager is available, suppress the SDK's built-in run_commands
 		// tool by setting bash to undefined. Our custom run_commands (provided via
 		// extraTools) replaces it with foreground/background terminal support.
-		const defaultToolExecutors: Partial<ToolExecutors> = {}
+		const toolExecutors: Partial<ToolExecutors> = {}
 		if (options.askQuestion) {
-			defaultToolExecutors.askQuestion = options.askQuestion
+			toolExecutors.askQuestion = options.askQuestion
 		}
 		if (options.getTerminalManager) {
 			// Setting bash to undefined suppresses the SDK's createBashTool():
 			// createDefaultTools() checks `enableBash && executors.bash` — falsy
 			// bash means no built-in run_commands tool is created.
-			;(defaultToolExecutors as Record<string, unknown>).bash = undefined
+			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
 		const inner = await ClineCore.create({
 			backendMode: "local",
-			requestToolApproval: options.requestToolApproval as
-				| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)
-				| undefined,
+			capabilities: {
+				requestToolApproval: options.requestToolApproval as
+					| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)
+					| undefined,
+				toolExecutors: Object.keys(toolExecutors).length > 0 ? toolExecutors : undefined,
+			},
 			toolPolicies: options.toolPolicies,
-			defaultToolExecutors: Object.keys(defaultToolExecutors).length > 0 ? defaultToolExecutors : undefined,
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
@@ -168,7 +169,7 @@ export class VscodeSessionHost implements SessionHost {
 		return this.inner.get(sessionId)
 	}
 
-	async list(limit?: number, options: Omit<ClineCoreListHistoryOptions, "limit"> = {}): Promise<SessionRecord[]> {
+	async list(limit?: number, options: Omit<ClineCoreListHistoryOptions, "limit"> = {}): Promise<SessionHistoryRecord[]> {
 		return this.inner.list(limit, options)
 	}
 
@@ -196,7 +197,7 @@ export class VscodeSessionHost implements SessionHost {
 	}
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {
-		return this.inner.handleHookEvent(payload)
+		return this.inner.ingestHookEvent(payload)
 	}
 
 	pendingPrompts(action: "list", input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>
@@ -204,7 +205,16 @@ export class VscodeSessionHost implements SessionHost {
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	pendingPrompts(action: any, input: any): any {
-		return this.inner.pendingPrompts(action, input)
+		switch (action) {
+			case "list":
+				return this.inner.pendingPrompts.list(input)
+			case "update":
+				return this.inner.pendingPrompts.update(input)
+			case "delete":
+				return this.inner.pendingPrompts.delete(input)
+			default:
+				throw new Error(`Unsupported pending prompt action: ${String(action)}`)
+		}
 	}
 
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {

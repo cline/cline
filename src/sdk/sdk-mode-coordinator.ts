@@ -1,4 +1,3 @@
-import type { SessionHost } from "@clinebot/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -7,6 +6,7 @@ import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -24,7 +24,7 @@ export interface SdkModeCoordinatorOptions {
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (sdkHost: SessionHost, sessionId: string) => Promise<unknown[]>
+	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<unknown[]>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
@@ -160,7 +160,7 @@ export class SdkModeCoordinator {
 		}
 	}
 
-	private async cancelRunningTurnForModeChange(oldManager: SessionHost, oldSessionId: string): Promise<void> {
+	private async cancelRunningTurnForModeChange(oldManager: SdkSessionHost, oldSessionId: string): Promise<void> {
 		this.options.interactions.clearPending("Mode changed")
 		this.options.messages.cancelPendingSave()
 		try {

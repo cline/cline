@@ -8,7 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type ClineCoreStartInput, type CoreSessionConfig, type SessionHost, type StartSessionResult } from "@clinebot/core"
+import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -22,6 +22,7 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { getProviderSettingsManager } from "./provider-migration"
+import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
 // Plan mode instructions
@@ -75,7 +76,7 @@ export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
 	/** The runtime host instance managing this session (VscodeSessionHost) */
-	sdkHost: SessionHost
+	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
 	unsubscribe: () => void
 	/** The start result from the session */
@@ -96,6 +97,13 @@ function createSdkLogger() {
 			Logger.error(message, metadata)
 		},
 	}
+}
+
+function resolveWorkspaceName(workspacePath: string): string {
+	const trimmed = workspacePath.trim()
+	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "")
+	const name = withoutTrailingSeparators.split(/[\\/]/).filter(Boolean).pop()?.trim()
+	return name || "workspace"
 }
 
 // ---------------------------------------------------------------------------
@@ -294,12 +302,11 @@ function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | 
  * StateManager.buildApiHandlerSettings) which both failed silently.
  */
 export async function buildSessionConfig(input: SessionConfigInput): Promise<CoreSessionConfig> {
-	let cwd = input.cwd
+	const cwd = input.cwd
 	if (!cwd) {
-		Logger.warn("[SessionFactory] No cwd provided, falling back to process.cwd() — this is likely wrong in VSCode")
-		cwd = process.cwd()
+		throw new Error("buildSessionConfig requires a cwd resolved by the host controller")
 	}
-	const workspaceRoot = input.workspaceRoot ?? cwd
+	const workspaceRoot = input.workspaceRoot?.trim() || cwd
 	const mode: Mode = input.mode ?? "act"
 	const sdkLogger = createSdkLogger()
 	const distinctId = getDistinctId()
@@ -365,11 +372,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// name, so we avoid duplicating core's richer workspace metadata pass here.
 	let systemPrompt = ""
 	try {
-		const { basename } = await import("path")
+		const workspaceName = resolveWorkspaceName(cwd)
 		systemPrompt = buildClineSystemPrompt({
 			ide: "VS Code",
 			workspaceRoot,
-			workspaceName: basename(cwd),
+			workspaceName,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
@@ -428,7 +435,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			workspace: {
 				rootPath: workspaceRoot,
 				cwd,
-				workspaceName: workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? workspaceRoot,
+				workspaceName: resolveWorkspaceName(workspaceRoot),
 				ide: "VS Code",
 				platform: process.platform,
 				mode: mode === "plan" ? "plan" : "act",
