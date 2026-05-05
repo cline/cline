@@ -4,6 +4,7 @@ import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
+import { isAbortError } from "./sdk-abort-error"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -137,11 +138,4 @@ export class SdkSessionLifecycle {
 				await this.options.onSendError(error, sessionId)
 			})
 	}
-}
-
-export function isAbortError(error: unknown): boolean {
-	if (error instanceof Error) {
-		return error.name === "AbortError" || error.message.toLowerCase().includes("aborted")
-	}
-	return false
 }

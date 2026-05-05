@@ -43,8 +43,27 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				let messageSent = false
+				const markMessageSent = () => {
+					if (messageSent) {
+						return
+					}
+
+					messageSent = true
+					setInputValue("")
+					setActiveQuote(null)
+					setSendingDisabled(true)
+					setSelectedImages([])
+					setSelectedFiles([])
+					setEnableButtons(false)
+
+					// Reset auto-scroll
+					if ("disableAutoScrollRef" in chatState) {
+						;(chatState as any).disableAutoScrollRef.current = false
+					}
+				}
 
 				if (messages.length === 0) {
+					markMessageSent()
 					await TaskServiceClient.newTask(
 						NewTaskRequest.create({
 							text: messageToSend,
@@ -52,11 +71,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							files,
 						}),
 					)
-					messageSent = true
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+						markMessageSent()
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -65,7 +84,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								files,
 							}),
 						)
-						messageSent = true
 					} else {
 						// All other ask types use messageResponse
 						switch (clineAsk) {
@@ -83,6 +101,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "new_task":
 							case "condense":
 							case "report_bug":
+								markMessageSent()
 								await TaskServiceClient.askResponse(
 									AskResponseRequest.create({
 										responseType: "messageResponse",
@@ -91,7 +110,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 										files,
 									}),
 								)
-								messageSent = true
 								break
 						}
 					}
@@ -104,6 +122,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 					if (isTaskRunning) {
 						// Task is running - send message as interruption/feedback
+						markMessageSent()
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
@@ -112,22 +131,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								files,
 							}),
 						)
-						messageSent = true
-					}
-				}
-
-				// Only clear input and disable UI if message was actually sent
-				if (messageSent) {
-					setInputValue("")
-					setActiveQuote(null)
-					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
-					setEnableButtons(false)
-
-					// Reset auto-scroll
-					if ("disableAutoScrollRef" in chatState) {
-						;(chatState as any).disableAutoScrollRef.current = false
 					}
 				}
 			}
@@ -258,12 +261,15 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSendingDisabled(true)
 					setEnableButtons(false)
 					try {
-						if (backgroundCommandRunning) {
-							await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({})).catch((err) =>
-								console.error("Failed to cancel background command:", err),
-							)
-						}
+						const backgroundCancel = backgroundCommandRunning
+							? TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({})).catch((err) =>
+									console.error("Failed to cancel background command:", err),
+								)
+							: undefined
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
+						if (backgroundCommandRunning) {
+							void backgroundCancel
+						}
 					} finally {
 						cancelInFlightRef.current = false
 						// Clear any pending state that might interfere with resume

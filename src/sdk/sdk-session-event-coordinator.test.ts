@@ -1,8 +1,9 @@
-import type { CoreSessionEvent } from "@clinebot/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"
 import { SdkSessionEventCoordinator, type SdkSessionEventCoordinatorOptions } from "./sdk-session-event-coordinator"
+
+type CoreSessionEvent = Parameters<SdkSessionEventCoordinator["handleSessionEvent"]>[0]
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -71,6 +72,25 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.mcpTools.checkDeferredRestart).toHaveBeenCalledOnce()
 		expect(options.mode.applyPendingModeChange).toHaveBeenCalledOnce()
+	})
+
+	it("emits completion ask on ended events when done was not observed", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: true,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ type: "ask", ask: "completion_result", text: "" })],
+			event,
+		)
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+		expect(options.postStateToWebview).toHaveBeenCalled()
 	})
 
 	it("updates task usage when the active session has a start result", () => {

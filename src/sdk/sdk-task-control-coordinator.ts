@@ -2,7 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 
@@ -30,19 +30,11 @@ export class SdkTaskControlCoordinator {
 			return
 		}
 
-		const { sdkHost, sessionId } = activeSession
-
-		try {
-			await sdkHost.abort(sessionId)
-		} catch (error) {
-			if (!isAbortError(error)) {
-				Logger.error("[SdkController] Failed to abort session:", error)
-			} else {
-				Logger.debug(`[SdkController] AbortError during cancelTask (expected): ${sessionId}`)
-			}
-		}
-
-		this.options.sessions.setRunning(false)
+		const { sdkHost, sessionId, unsubscribe } = activeSession
+		activeSession.isRunning = false
+		this.options.sessions.clearActiveSessionReference()
+		unsubscribe()
+		this.stopAndDisposeSessionInBackground(sdkHost, sessionId, "cancelTask")
 
 		const resumeMessage: ClineMessage = {
 			ts: Date.now(),
@@ -53,7 +45,9 @@ export class SdkTaskControlCoordinator {
 		}
 		this.options.messages.appendAndEmit([resumeMessage], { type: "status", payload: { sessionId, status: "cancelled" } })
 
-		await this.options.postStateToWebview()
+		this.options.postStateToWebview().catch((error) => {
+			Logger.error("[SdkController] Failed to post state after cancelTask:", error)
+		})
 		Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 	}
 
@@ -68,7 +62,7 @@ export class SdkTaskControlCoordinator {
 			// Do not block the webview on SDK shutdown. `stop()`/`dispose()` can take
 			// seconds (or hit their timeouts) while the UI only needs the active
 			// session reference and task proxy cleared synchronously.
-			this.stopAndDisposeSessionInBackground(sdkHost, sessionId)
+			this.stopAndDisposeSessionInBackground(sdkHost, sessionId, "clearTask")
 		}
 
 		const task = this.options.getTask()
@@ -86,6 +80,7 @@ export class SdkTaskControlCoordinator {
 	private stopAndDisposeSessionInBackground(
 		sdkHost: { stop(sessionId: string): Promise<unknown>; dispose(reason: string): Promise<unknown> },
 		sessionId: string,
+		disposeReason: string,
 	): void {
 		const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
 			Promise.race([promise, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))])
@@ -99,27 +94,30 @@ export class SdkTaskControlCoordinator {
 			}
 
 			try {
-				await withTimeout(sdkHost.dispose("clearTask"), 3000)
+				await withTimeout(sdkHost.dispose(disposeReason), 3000)
 			} catch (error) {
 				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
 			}
 
 			const elapsed = Date.now() - startedAt
 			if (elapsed > 250) {
-				Logger.log(`[SdkController] Background session cleanup after clearTask took ${elapsed}ms for ${sessionId}`)
+				Logger.log(`[SdkController] Background session cleanup after ${disposeReason} took ${elapsed}ms for ${sessionId}`)
 			}
 		})()
 	}
 
-	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
+	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<ClineMessage[]> {
 		try {
 			if (!options.skipHistoryLookup) {
 				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
 				if (!historyItem) {
-					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-					return
+					throw new Error(`Task not found in history: ${taskId}`)
 				}
 			}
+
+			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
+			let loadedMessages = messages
 
 			this.silentlyTearDownActiveSession()
 
@@ -137,11 +135,9 @@ export class SdkTaskControlCoordinator {
 			)
 			this.options.setTask(task)
 
-			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
-			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
-
 			if (messages.length > 0) {
 				const cleanedMessages = this.appendFreshResumeMessage(messages)
+				loadedMessages = cleanedMessages
 				this.options.messages.appendMessages(cleanedMessages)
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
 
@@ -155,8 +151,10 @@ export class SdkTaskControlCoordinator {
 
 			await this.options.postStateToWebview()
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
+			return loadedMessages
 		} catch (error) {
 			Logger.error("[SdkController] Failed to show task:", error)
+			throw error
 		}
 	}
 

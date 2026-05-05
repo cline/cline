@@ -119,6 +119,7 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: continue",
 			undefined,
 			undefined,
+			undefined,
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})

@@ -15,6 +15,7 @@ export default defineConfig({
 			"@shared": path.resolve(__dirname, "src/shared"),
 			"@utils": path.resolve(__dirname, "src/utils"),
 			"@packages": path.resolve(__dirname, "src/packages"),
+			"@clinebot/core": path.resolve(__dirname, "node_modules/@clinebot/core/dist/index.js"),
 		},
 	},
 })

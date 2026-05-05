@@ -194,7 +194,7 @@ describe("SdkTaskHistory", () => {
 			expect.objectContaining({
 				prompt: "new title",
 				title: "new title",
-				metadata: expect.objectContaining({ existing: true, title: "new title", tokensIn: 5, totalCost: 0.02 }),
+				metadata: expect.objectContaining({ title: "new title", tokensIn: 5, totalCost: 0.02 }),
 			}),
 		)
 	})

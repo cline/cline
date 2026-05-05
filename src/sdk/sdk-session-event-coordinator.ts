@@ -55,11 +55,22 @@ export class SdkSessionEventCoordinator {
 			await zeroCostPromise
 		}
 		const activeSession = this.options.sessions.getActiveSession()
+		const activeSessionWasRunning = activeSession?.isRunning === true
 
 		if (activeSession && !activeSession.isRunning && result.messages.length > 0) {
 			result.messages = result.messages.filter(
 				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
 			)
+		}
+
+		if (activeSessionWasRunning && result.sessionEnded && !result.messages.some((message) => message.type === "ask")) {
+			result.messages.push({
+				ts: this.options.messageTranslatorState.nextTs(),
+				type: "ask",
+				ask: "completion_result",
+				text: "",
+				partial: false,
+			})
 		}
 
 		// Track consecutive tool errors and emit mistake_limit_reached when threshold is met.
@@ -95,7 +106,7 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		if (result.messages.length > 0) {
+		if (result.messages.length > 0 || result.sessionEnded || result.turnComplete) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})

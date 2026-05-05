@@ -89,19 +89,28 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-function sdkHistoryRecordToTaskResponse(item: SessionHistoryRecord): TaskResponse {
-	const metadata = item.metadata
+function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 	return TaskResponse.create({
-		id: item.sessionId,
-		task: metadataString(metadata, "title") ?? item.prompt ?? "",
-		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
-		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
-		size: metadataNumber(metadata, "size") ?? 0,
-		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
-		tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
-		tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
-		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
-		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
+		id: item.id,
+		task: item.task,
+		ts: item.ts,
+		isFavorited: item.isFavorited ?? false,
+		size: item.size ?? 0,
+		totalCost: item.totalCost ?? 0,
+		tokensIn: item.tokensIn ?? 0,
+		tokensOut: item.tokensOut ?? 0,
+		cacheWrites: item.cacheWrites ?? 0,
+		cacheReads: item.cacheReads ?? 0,
+		modelId: item.modelId ?? "",
+	})
+}
+
+function clineMessagesToTaskResponse(taskId: string, messages: ClineMessage[]): TaskResponse {
+	const taskMessage = messages.find((message) => message.type === "say" && message.say === "task")
+	return TaskResponse.create({
+		id: taskId,
+		task: taskMessage?.text ?? "",
+		ts: taskMessage?.ts ?? Date.now(),
 	})
 }
 
@@ -149,6 +158,8 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
+	private cachedSdkTaskHistory: HistoryItem[] = []
+	private sdkTaskHistoryRefresh: Promise<void> | undefined
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
@@ -331,6 +342,7 @@ export class Controller {
 			buildStartSessionInput,
 			createHistoryItemFromSession,
 			clearTask: () => this.clearTask(),
+			getTask: () => this.task,
 			setTask: (task) => {
 				this.task = task
 			},
@@ -459,7 +471,7 @@ export class Controller {
 	 *
 	 * In VSCode this resolves to `vscode.workspace.workspaceFolders[0]` via
 	 * `HostProvider.workspace.getWorkspacePaths()`. Falls back to
-	 * `process.cwd()` only when no workspace folder is open (e.g. when the
+	 * the user's home directory when no workspace folder is open (e.g. when the
 	 * user opens VSCode without a folder).
 	 *
 	 * The classic extension used `vscode.workspace.workspaceFolders[0].uri.fsPath`
@@ -472,9 +484,9 @@ export class Controller {
 				return paths[0]
 			}
 		} catch (error) {
-			Logger.warn("[SdkController] Failed to get workspace paths, falling back to process.cwd():", error)
+			Logger.warn("[SdkController] Failed to get workspace paths, falling back to home directory:", error)
 		}
-		return process.cwd()
+		return os.homedir()
 	}
 
 	// ---- Session event subscription ----
@@ -618,18 +630,15 @@ export class Controller {
 	 * to the welcome screen (S6-6/S6-23 fix).
 	 *
 	 * Instead, we:
-	 * 1. Silently tear down the active session (unsubscribe + stop in background)
-	 * 2. Create the new task proxy with loaded messages BEFORE any state push
-	 * 3. Only then push state to the webview
+	 * 1. Load the selected task messages first
+	 * 2. Silently tear down the active session (unsubscribe + stop in background)
+	 * 3. Create the new task proxy with loaded messages BEFORE any state push
+	 * 4. Only then push state to the webview
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = (await this.taskHistory.listHistory()).find((item) => item.sessionId === taskId)
-		if (!historyItem) {
-			throw new Error(`Task not found in history: ${taskId}`)
-		}
-
-		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
-		return sdkHistoryRecordToTaskResponse(historyItem)
+		const historyItem = this.findCachedTaskHistoryItem(taskId)
+		const messages = await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
+		return historyItem ? historyItemToTaskResponse(historyItem) : clineMessagesToTaskResponse(taskId, messages)
 	}
 
 	// ---- Mode switching (Step 8) ----
@@ -716,8 +725,10 @@ export class Controller {
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
+		const offset = request.offset > 0 ? request.offset : 0
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false })
+		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false, limit: limit + 1, offset })
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -779,7 +790,8 @@ export class Controller {
 			}
 		})
 
-		const tasks = filteredTasks.map((item) => {
+		const hasMore = sessionHistory.length > limit
+		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
 				id: item.sessionId,
@@ -796,7 +808,7 @@ export class Controller {
 			}
 		})
 
-		return TaskHistoryArray.create({ tasks })
+		return TaskHistoryArray.create({ tasks, hasMore })
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
@@ -926,15 +938,10 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			const historyStartedAt = Date.now()
-			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
-				.map(sessionHistoryRecordToHistoryItem)
-				.filter((item) => item.ts && item.task)
-				.sort((a, b) => b.ts - a.ts)
-			const historyElapsed = Date.now() - historyStartedAt
-			if (historyElapsed > 250) {
-				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
+			if (!this.task) {
+				this.refreshSdkTaskHistoryCacheInBackground()
 			}
+			const sdkTaskHistory = this.cachedSdkTaskHistory
 			const classicTaskHistory = state.taskHistory ?? []
 			const mergedTaskHistoryById = new Map<string, HistoryItem>()
 
@@ -952,17 +959,71 @@ export class Controller {
 				.sort((a, b) => b.ts - a.ts)
 				.slice(0, 100)
 
+			const currentTaskItem = this.task?.taskId
+				? processedTaskHistory.find((item) => item.id === this.task?.taskId)
+				: undefined
+
 			return {
 				...state,
-				currentTaskItem: this.task?.taskId
-					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
-					: undefined,
+				currentTaskItem: currentTaskItem ?? this.createCurrentTaskHistoryFallback(),
 				taskHistory: processedTaskHistory,
 			}
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
 		}
+	}
+
+	private refreshSdkTaskHistoryCacheInBackground(): void {
+		if (this.sdkTaskHistoryRefresh) {
+			return
+		}
+
+		this.sdkTaskHistoryRefresh = (async () => {
+			const historyStartedAt = Date.now()
+			try {
+				this.cachedSdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
+					.map(sessionHistoryRecordToHistoryItem)
+					.filter((item) => item.ts && item.task)
+					.sort((a, b) => b.ts - a.ts)
+			} catch (error) {
+				Logger.warn("[SdkController] Failed to refresh SDK task history cache:", error)
+			} finally {
+				const historyElapsed = Date.now() - historyStartedAt
+				if (historyElapsed > 250) {
+					Logger.warn(`[SdkController] background listSdkTaskHistory took ${historyElapsed}ms`)
+				}
+				this.sdkTaskHistoryRefresh = undefined
+			}
+		})()
+	}
+
+	private createCurrentTaskHistoryFallback(): HistoryItem | undefined {
+		if (!this.task?.taskId) {
+			return undefined
+		}
+		const taskMessage = this.task.messageStateHandler
+			.getClineMessages()
+			.find((message) => message.type === "say" && message.say === "task")
+		const taskText = taskMessage?.text?.trim()
+		if (!taskText) {
+			return undefined
+		}
+		return {
+			id: this.task.taskId,
+			task: taskText,
+			ts: taskMessage?.ts ?? Date.now(),
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+		}
+	}
+
+	private findCachedTaskHistoryItem(taskId: string): HistoryItem | undefined {
+		return (
+			this.cachedSdkTaskHistory.find((item) => item.id === taskId) ??
+			this.stateManager.getGlobalStateKey("taskHistory")?.find((item) => item.id === taskId)
+		)
 	}
 
 	// ---- Terminal settings ----
