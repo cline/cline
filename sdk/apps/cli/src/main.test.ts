@@ -696,6 +696,58 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("uses persisted reasoning effort when --thinking is not provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			model: "openai/gpt-5",
+			reasoning: { enabled: true, effort: "high" },
+		});
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				thinking: true,
+				reasoningEffort: "high",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("prefers explicit --thinking over persisted reasoning effort", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			model: "openai/gpt-5",
+			reasoning: { enabled: true, effort: "high" },
+		});
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--thinking", "low", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				thinking: true,
+				reasoningEffort: "low",
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("enables compaction by default for prompt runs", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();

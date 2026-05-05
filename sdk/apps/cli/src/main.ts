@@ -707,7 +707,18 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
-		const effectiveReasoningEffort = args.reasoningEffort ?? "none";
+		const persistedReasoning = selectedProviderSettings?.reasoning;
+		const persistedReasoningEffort = persistedReasoning?.effort;
+		const reasoningEffortFromSettings =
+			persistedReasoning?.enabled === false
+				? "none"
+				: persistedReasoningEffort && persistedReasoningEffort !== "none"
+					? persistedReasoningEffort
+					: persistedReasoning?.enabled === true
+						? "medium"
+						: "none";
+		const effectiveReasoningEffort =
+			args.reasoningEffort ?? reasoningEffortFromSettings;
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
