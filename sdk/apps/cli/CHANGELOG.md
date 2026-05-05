@@ -1,5 +1,22 @@
 # Cline CLI Changelog
 
+## 0.0.10 (2026-05-04)
+
+- Improve local provider onboarding: setting up Ollama, LM Studio, or other local providers now prompts for the endpoint URL directly, supports typing a model ID manually when the provider returns no models, and correctly discovers models from your saved endpoint
+- Ctrl+C no longer cancels a running turn -- it now clears the input field or exits the CLI, matching standard terminal behavior. Use Escape to cancel a running turn instead
+- Thinking level chosen in the model picker now persists across CLI restarts instead of resetting to off
+- The context bar now shows visible progress as tokens are used, instead of appearing empty on some terminal themes
+- The status bar token count now shows actual context window usage instead of over-counting across multiple model calls in a turn
+- Resuming a saved session now correctly displays the accumulated cost
+- Sessions are now saved to disk after each assistant response, so conversation progress survives crashes or unexpected exits
+- Auto-compaction now runs inline during model requests, keeping long conversations within the context window automatically
+- The home screen robot now follows the cursor while you type
+- Hub websocket connections now automatically reconnect after going idle, so sessions no longer silently lose their connection to the hub daemon
+- MCP stdio servers on Windows no longer spawn visible console windows
+- Tool input schemas containing `allOf` clauses are now handled correctly instead of being rejected
+- Login now uses device auth exclusively
+- Fix chat input and chat view text losing its indent on wrapped lines
+
 ## 0.0.9 (2026-05-03)
 
 - Fix stray text appearing over the TUI when background operations (like hub restart messages) write directly to stdout/stderr during interactive sessions
