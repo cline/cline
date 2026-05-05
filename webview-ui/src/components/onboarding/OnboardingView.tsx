@@ -317,12 +317,15 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					actModeApiProvider: "cline",
 				})
 			}
+
+			await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
+			setShowWelcome(false)
 			hideAccount()
 			hideSettings()
 			const action = "onboarding_completed"
 			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
 		},
-		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels],
+		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, setShowWelcome],
 	)
 
 	const handleFooterAction = useCallback(
@@ -352,13 +355,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
-					await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
-					setShowWelcome(false)
 					await finishOnboarding(false, stepNumber)
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome],
+		[stepNumber, finishOnboarding],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
