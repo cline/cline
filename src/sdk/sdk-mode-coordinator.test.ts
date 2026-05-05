@@ -113,9 +113,7 @@ describe("SdkModeCoordinator", () => {
 		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
-		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }], {
-			save: false,
-		})
+		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 	})
 })
 

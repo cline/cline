@@ -37,6 +37,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	) => StartInput
 	createHistoryItemFromSession: (sessionId: string, prompt: string, modelId?: string, cwd?: string) => HistoryItem
 	clearTask: () => Promise<void>
+	getTask: () => TaskProxy | undefined
 	setTask: (task: TaskProxy | undefined) => void
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	onCancelTask: () => Promise<void>
@@ -62,6 +63,12 @@ export class SdkTaskStartCoordinator {
 		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
 		try {
 			await this.options.clearTask()
+			const provisionalSessionId = `pending-${Date.now()}`
+			this.createAndSetTask(provisionalSessionId)
+			this.emitInitialTaskMessage(provisionalSessionId, prompt ?? "")
+			this.options.postStateToWebview().catch((error) => {
+				Logger.error("[SdkController] Failed to post provisional task state:", error)
+			})
 
 			const cwd = await this.options.getWorkspaceRoot()
 			const mode = this.getCurrentMode()
@@ -97,7 +104,7 @@ export class SdkTaskStartCoordinator {
 			})
 
 			const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
-			this.createAndSetTask(startResult.sessionId)
+			this.updateOrCreateTask(startResult.sessionId)
 
 			const newHistoryItem = this.options.createHistoryItemFromSession(
 				startResult.sessionId,
@@ -105,16 +112,12 @@ export class SdkTaskStartCoordinator {
 				config.modelId,
 				cwd,
 			)
-			await this.options.taskHistory.updateTaskHistory(newHistoryItem)
-
-			this.emitInitialTaskMessage(startResult.sessionId, prompt ?? "")
-			await this.options.postStateToWebview()
 
 			if (prompt?.trim()) {
 				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
-				const resolvedTask = await this.options.resolveContextMentions(prompt)
-				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedTask, images, files)
+				this.resolveAndSendInitialPrompt(sdkHost, startResult.sessionId, prompt, images, files)
 			}
+			this.persistInitialTaskState(newHistoryItem)
 
 			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
 			return startResult.sessionId
@@ -174,6 +177,15 @@ export class SdkTaskStartCoordinator {
 		)
 	}
 
+	private updateOrCreateTask(sessionId: string): void {
+		const task = this.options.getTask()
+		if (task) {
+			task.taskId = sessionId
+			return
+		}
+		this.createAndSetTask(sessionId)
+	}
+
 	private emitInitialTaskMessage(sessionId: string, task: string): void {
 		const taskMessage: ClineMessage = {
 			ts: Date.now(),
@@ -186,6 +198,52 @@ export class SdkTaskStartCoordinator {
 			type: "status",
 			payload: { sessionId, status: "running" },
 		})
+	}
+
+	private resolveAndSendInitialPrompt(
+		sdkHost: SdkSessionHost,
+		sessionId: string,
+		prompt: string,
+		images?: string[],
+		files?: string[],
+	): void {
+		void (async () => {
+			const resolvedTask = await this.options.resolveContextMentions(prompt)
+			this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedTask, images, files)
+		})().catch((error) => {
+			Logger.error("[SdkController] Failed to resolve/send initial prompt:", error)
+			this.options.messages.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "error",
+						text: `Failed to submit task: ${error instanceof Error ? error.message : String(error)}`,
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId, status: "error" } },
+			)
+			this.options.postStateToWebview().catch((postError) => {
+				Logger.error("[SdkController] Failed to post state after initial prompt submission error:", postError)
+			})
+		})
+	}
+
+	private persistInitialTaskState(historyItem: HistoryItem): void {
+		void (async () => {
+			try {
+				await this.options.taskHistory.updateTaskHistory(historyItem)
+			} catch (error) {
+				Logger.error("[SdkController] Failed to persist initial task history:", error)
+			}
+
+			try {
+				await this.options.postStateToWebview()
+			} catch (error) {
+				Logger.error("[SdkController] Failed to post state after task initialization:", error)
+			}
+		})()
 	}
 
 	private handleInitError(error: unknown): void {

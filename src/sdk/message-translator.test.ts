@@ -139,7 +139,7 @@ describe("translateSessionEvent — chunk events", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event content_start", () => {
-	it("translates text content_start to partial text message", () => {
+	it("buffers text content_start without emitting partial text", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -154,13 +154,10 @@ describe("translateSessionEvent — agent_event content_start", () => {
 		}
 
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].say).toBe("text")
-		expect(result.messages[0].text).toBe("Hello")
-		expect(result.messages[0].partial).toBe(true)
+		expect(result.messages).toHaveLength(0)
 	})
 
-	it("translates reasoning content_start to partial reasoning message", () => {
+	it("buffers reasoning content_start without emitting partial reasoning", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -175,11 +172,7 @@ describe("translateSessionEvent — agent_event content_start", () => {
 		}
 
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].say).toBe("reasoning")
-		expect(result.messages[0].text).toBe("Let me think...")
-		expect(result.messages[0].reasoning).toBe("Let me think...")
-		expect(result.messages[0].partial).toBe(true)
+		expect(result.messages).toHaveLength(0)
 	})
 
 	it("translates tool content_start to partial tool message", () => {
@@ -737,9 +730,7 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(startResult.messages).toHaveLength(1)
-		expect(startResult.messages[0].partial).toBe(true)
-		expect(startResult.messages[0].text).toBe("Hello")
+		expect(startResult.messages).toHaveLength(0)
 
 		// 2. End streaming text
 		const endResult = translateSessionEvent(
@@ -788,7 +779,7 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(textStart.messages[0].say).toBe("text")
+		expect(textStart.messages).toHaveLength(0)
 
 		// 2. Text end
 		translateSessionEvent(
@@ -853,7 +844,7 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(text2Start.messages[0].say).toBe("text")
+		expect(text2Start.messages).toHaveLength(0)
 	})
 })
 
@@ -999,8 +990,8 @@ describe("historyItemToSessionFields", () => {
 	})
 })
 
-describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () => {
-	it("uses accumulated text for smooth streaming instead of delta", () => {
+describe("translateSessionEvent — buffered text streaming", () => {
+	it("buffers accumulated text chunks and emits only the final response", () => {
 		const state = new MessageTranslatorState()
 
 		// First chunk: text="Hello ", accumulated="Hello "
@@ -1019,10 +1010,7 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
-		expect(chunk1.messages).toHaveLength(1)
-		expect(chunk1.messages[0].text).toBe("Hello ")
-		expect(chunk1.messages[0].partial).toBe(true)
-		const streamingTs = chunk1.messages[0].ts
+		expect(chunk1.messages).toHaveLength(0)
 
 		// Second chunk: text="world" (delta), accumulated="Hello world" (full)
 		// The message should use accumulated, NOT text (delta)
@@ -1041,13 +1029,7 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
-		expect(chunk2.messages).toHaveLength(1)
-		// CRITICAL: Must be "Hello world" (accumulated), NOT "world" (delta)
-		// Using delta would cause "flip book" effect in the webview
-		expect(chunk2.messages[0].text).toBe("Hello world")
-		expect(chunk2.messages[0].partial).toBe(true)
-		// Same timestamp — webview updates in-place
-		expect(chunk2.messages[0].ts).toBe(streamingTs)
+		expect(chunk2.messages).toHaveLength(0)
 
 		// Third chunk: more text
 		const chunk3 = translateSessionEvent(
@@ -1065,9 +1047,7 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
-		expect(chunk3.messages).toHaveLength(1)
-		expect(chunk3.messages[0].text).toBe("Hello world!")
-		expect(chunk3.messages[0].ts).toBe(streamingTs)
+		expect(chunk3.messages).toHaveLength(0)
 
 		// content_end finalizes
 		const end = translateSessionEvent(
@@ -1087,10 +1067,9 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		expect(end.messages).toHaveLength(1)
 		expect(end.messages[0].text).toBe("Hello world!")
 		expect(end.messages[0].partial).toBe(false)
-		expect(end.messages[0].ts).toBe(streamingTs)
 	})
 
-	it("accumulates reasoning deltas into text for webview rendering", () => {
+	it("buffers reasoning deltas and emits only the final reasoning", () => {
 		const state = new MessageTranslatorState()
 
 		const chunk1 = translateSessionEvent(
@@ -1107,9 +1086,7 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
-		const streamingTs = chunk1.messages[0].ts
-		expect(chunk1.messages[0].text).toBe("Thinking ")
-		expect(chunk1.messages[0].reasoning).toBe("Thinking ")
+		expect(chunk1.messages).toHaveLength(0)
 
 		const chunk2 = translateSessionEvent(
 			{
@@ -1125,9 +1102,7 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
-		expect(chunk2.messages[0].ts).toBe(streamingTs)
-		expect(chunk2.messages[0].text).toBe("Thinking through it")
-		expect(chunk2.messages[0].reasoning).toBe("Thinking through it")
+		expect(chunk2.messages).toHaveLength(0)
 
 		const end = translateSessionEvent(
 			{
@@ -1143,16 +1118,14 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
-		expect(end.messages[0].ts).toBe(streamingTs)
 		expect(end.messages[0].text).toBe("Thinking through it")
 		expect(end.messages[0].partial).toBe(false)
 	})
 
-	it("falls back to text when accumulated is not provided", () => {
+	it("uses buffered text if content_end omits final text", () => {
 		const state = new MessageTranslatorState()
 
-		// Some SDK events may not have accumulated (e.g., first chunk)
-		const result = translateSessionEvent(
+		translateSessionEvent(
 			{
 				type: "agent_event",
 				payload: {
@@ -1166,13 +1139,64 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			},
 			state,
 		)
+
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "text",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
 		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].text).toBe("Hello")
 	})
 
-	it("all streaming chunks share the same timestamp for in-place updates", () => {
+	it("accumulates text deltas when content_start lacks accumulated text", () => {
 		const state = new MessageTranslatorState()
-		const timestamps: number[] = []
+
+		for (const text of ["Hello ", "world", "!"]) {
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "text",
+							text,
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+			expect(result.messages).toHaveLength(0)
+		}
+
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "text",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].text).toBe("Hello world!")
+	})
+
+	it("does not emit any text rows for streaming chunks", () => {
+		const state = new MessageTranslatorState()
 
 		for (let i = 0; i < 5; i++) {
 			const result = translateSessionEvent(
@@ -1190,11 +1214,8 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 				},
 				state,
 			)
-			timestamps.push(result.messages[0].ts)
+			expect(result.messages).toHaveLength(0)
 		}
-
-		// All timestamps should be identical
-		expect(new Set(timestamps).size).toBe(1)
 	})
 
 	// ---------------------------------------------------------------------------

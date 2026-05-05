@@ -33,15 +33,16 @@ describe("SdkTaskStartCoordinator", () => {
 			mode: "act",
 		})
 		expect(state.task?.taskId).toBe("session-123")
-		expect(options.taskHistory.updateTaskHistory).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "session-123", task: "hello @file", modelId: "model" }),
+		await vi.waitFor(() =>
+			expect(options.taskHistory.updateTaskHistory).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "session-123", task: "hello @file", modelId: "model" }),
+			),
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ type: "say", say: "task", text: "hello @file" })],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-			{ save: false },
+			expect.objectContaining({ type: "status", payload: expect.objectContaining({ status: "running" }) }),
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(2))
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.objectContaining({ send: expect.any(Function) }),
@@ -49,6 +50,23 @@ describe("SdkTaskStartCoordinator", () => {
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
+		)
+	})
+
+	it("does not fail task startup when initial history persistence fails", async () => {
+		const { coordinator, options } = makeCoordinator()
+		options.taskHistory.updateTaskHistory.mockRejectedValue(new Error("Hub command session.update failed"))
+
+		const sessionId = await coordinator.initTask("hello")
+
+		expect(sessionId).toBe("session-123")
+		await vi.waitFor(() => expect(options.sessions.fireAndForgetSend).toHaveBeenCalled())
+		await vi.waitFor(() => expect(options.taskHistory.updateTaskHistory).toHaveBeenCalled())
+		expect(options.messages.emitSessionEvents).not.toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({ say: "error", text: expect.stringContaining("Failed to start task") }),
+			]),
+			expect.anything(),
 		)
 	})
 
@@ -169,6 +187,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		onAskResponse: vi.fn().mockResolvedValue(undefined),
 		onCancelTask: vi.fn().mockResolvedValue(undefined),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
+		getTask: vi.fn(() => state.task),
 		createTempSessionHost: vi.fn().mockResolvedValue(tempHost),
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		resolveContextMentions: vi.fn(async (text: string) => `resolved: ${text}`),
@@ -192,6 +211,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		buildStartSessionInput: ReturnType<typeof vi.fn>
 		createHistoryItemFromSession: ReturnType<typeof vi.fn>
 		clearTask: ReturnType<typeof vi.fn>
+		getTask: ReturnType<typeof vi.fn>
 		createTempSessionHost: ReturnType<typeof vi.fn>
 		loadInitialMessages: ReturnType<typeof vi.fn>
 		resolveContextMentions: ReturnType<typeof vi.fn>

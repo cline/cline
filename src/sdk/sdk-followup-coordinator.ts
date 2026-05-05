@@ -50,7 +50,7 @@ export class SdkFollowupCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
-		if ((!activeSession || !activeSession.isRunning) && task) {
+		if (!activeSession && task) {
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
 			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
 			return
@@ -76,8 +76,7 @@ export class SdkFollowupCoordinator {
 			this.options.resetMessageTranslator()
 		}
 
-		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
+		this.resolveAndSendPrompt(sdkHost, sessionId, prompt, images, files, delivery)
 	}
 
 	private async tryResumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
@@ -161,8 +160,39 @@ export class SdkFollowupCoordinator {
 				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
 				: "[TASK RESUMPTION] Please continue where you left off.")
 
-		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
-		this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
+		this.resolveAndSendPrompt(sdkHost, startResult.sessionId, effectivePrompt, images, files)
+	}
+
+	private resolveAndSendPrompt(
+		sdkHost: SdkSessionHost,
+		sessionId: string,
+		prompt?: string,
+		images?: string[],
+		files?: string[],
+		delivery?: "queue" | "steer",
+	): void {
+		void (async () => {
+			const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+			this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, delivery)
+		})().catch((error) => {
+			Logger.error("[SdkController] Failed to resolve/send follow-up prompt:", error)
+			this.options.sessions.setRunning(false)
+			this.options.messages.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "error",
+						text: `Failed to submit message: ${error instanceof Error ? error.message : String(error)}`,
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId, status: "error" } },
+			)
+			this.options.postStateToWebview().catch((postError) => {
+				Logger.error("[SdkController] Failed to post state after prompt submission error:", postError)
+			})
+		})
 	}
 
 	private emitUserFeedback(sessionId: string, prompt?: string, images?: string[], files?: string[]): void {

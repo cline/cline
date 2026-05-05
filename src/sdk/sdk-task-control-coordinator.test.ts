@@ -28,13 +28,34 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.cancelTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cancelled")
-		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("session-123")
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+		expect(options.sessions.clearActiveSessionReference).toHaveBeenCalledOnce()
+		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
+		expect(activeSession.isRunning).toBe(false)
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
+		await vi.waitFor(() => expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("cancelTask"))
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ type: "ask", ask: "resume_task" })],
 			{ type: "status", payload: { sessionId: "session-123", status: "cancelled" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("does not wait for SDK stop or state rebuild during cancel", async () => {
+		const activeSession = makeActiveSession()
+		const never = new Promise<void>(() => {})
+		activeSession.sdkHost.stop.mockReturnValue(never)
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		options.postStateToWebview.mockReturnValue(never)
+
+		await expect(coordinator.cancelTask()).resolves.toBeUndefined()
+
+		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ type: "ask", ask: "resume_task" })],
+			{ type: "status", payload: { sessionId: "session-123", status: "cancelled" } },
+		)
 	})
 
 	it("clears the active session and task proxy without writing classic UI message persistence", async () => {
@@ -47,7 +68,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
 		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("clearTask")
+		await vi.waitFor(() => expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("clearTask"))
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
@@ -79,14 +100,11 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
 		expect(options.taskHistory.getClineMessages).toHaveBeenCalledWith("task-1")
-		expect(options.messages.appendMessages).toHaveBeenCalledWith(
-			[
-				{ ts: 1, type: "say", say: "task", text: "hello" },
-				{ ts: 2, type: "ask", ask: "completion_result", text: "" },
-				expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
-			],
-			{ save: false },
-		)
+		expect(options.messages.appendMessages).toHaveBeenCalledWith([
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
+		])
 		expect(pushMessageToWebview).toHaveBeenCalledTimes(3)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
@@ -94,7 +112,7 @@ describe("SdkTaskControlCoordinator", () => {
 	it("does not show a task that is missing from history", async () => {
 		const { coordinator, options } = makeCoordinator({ hasHistoryItem: false })
 
-		await coordinator.showTaskWithId("missing-task")
+		await expect(coordinator.showTaskWithId("missing-task")).rejects.toThrow("Task not found in history: missing-task")
 
 		expect(options.setTask).not.toHaveBeenCalled()
 		expect(options.taskHistory.getClineMessages).not.toHaveBeenCalled()

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { isAbortError, SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { isAbortError } from "./sdk-abort-error"
+import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 
 const mockCreateSessionHost = vi.hoisted(() => vi.fn())
 

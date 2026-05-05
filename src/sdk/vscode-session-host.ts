@@ -28,6 +28,7 @@ import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { getActivationHubConnection } from "./hub-daemon-manager"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 
@@ -82,8 +83,19 @@ export class VscodeSessionHost implements SdkSessionHost {
 			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
+		const hub = await getActivationHubConnection()
 		const inner = await ClineCore.create({
-			backendMode: "local",
+			backendMode: "auto",
+			...(hub
+				? {
+						hub: {
+							endpoint: hub.endpoint,
+							authToken: hub.authToken,
+							clientType: "vscode",
+							displayName: "VS Code",
+						},
+					}
+				: {}),
 			capabilities: {
 				requestToolApproval: options.requestToolApproval as
 					| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)
@@ -110,7 +122,11 @@ export class VscodeSessionHost implements SdkSessionHost {
 			}),
 		})
 
-		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
+		if (hub) {
+			Logger.log(`[VscodeSessionHost] Initialized with ClineCore hub runtime at ${hub.endpoint}`)
+		} else {
+			Logger.warn("[VscodeSessionHost] Hub runtime unavailable; initialized with ClineCore local fallback")
+		}
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}

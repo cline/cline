@@ -5,9 +5,8 @@
 // maps SDK CoreSessionEvent and AgentEvent types to that format.
 //
 // Key mappings:
-// - SDK "chunk" event (agent stream) → ClineMessage say="text" with partial=true
-// - SDK "agent_event" content_start (text) → ClineMessage say="text" with partial=true
-// - SDK "agent_event" content_start (reasoning) → ClineMessage say="reasoning" with partial=true
+// - SDK "chunk" event (agent stream) → ignored; raw model output is not displayable
+// - SDK "agent_event" content_start (text/reasoning) → buffered until content_end
 // - SDK "agent_event" content_start (tool) → ClineMessage say="tool" with partial=true
 //   IMPORTANT: The webview's ChatRow.tsx parses message.text as JSON when
 //   say==="tool", expecting ClineSayTool format: {tool, path, content, ...}.
@@ -110,6 +109,8 @@ function normalizeUsageEvent(usageEvent: {
 export class MessageTranslatorState {
 	/** Current streaming text message timestamp (used for dedup) */
 	private streamingTextTs: number | undefined
+	/** Latest complete streaming text seen before content_end */
+	private streamingText = ""
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
 	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
@@ -136,10 +137,21 @@ export class MessageTranslatorState {
 		return this.streamingTextTs
 	}
 
+	/** Store the latest accumulated text without emitting a partial row */
+	setStreamingText(text: string): void {
+		this.streamingText = text
+	}
+
+	/** Get the latest accumulated text */
+	getStreamingText(): string {
+		return this.streamingText
+	}
+
 	/** Clear streaming text (content ended) */
 	clearStreamingText(): number {
 		const ts = this.streamingTextTs ?? this.nextTs()
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		return ts
 	}
 
@@ -154,6 +166,11 @@ export class MessageTranslatorState {
 	/** Append a reasoning delta and return the accumulated reasoning text */
 	appendStreamingReasoning(reasoningDelta: string): string {
 		this.streamingReasoningText += reasoningDelta
+		return this.streamingReasoningText
+	}
+
+	/** Get accumulated reasoning text */
+	getStreamingReasoningText(): string {
 		return this.streamingReasoningText
 	}
 
@@ -312,7 +329,9 @@ export class MessageTranslatorState {
 	/** Reset all streaming state (new turn) */
 	reset(): void {
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
@@ -757,36 +776,18 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_start": {
 			switch (event.contentType) {
 				case "text": {
-					// The SDK emits MULTIPLE content_start events for streaming text.
-					// Each has `text` (the delta) and `accumulated` (full text so far).
-					// We use `accumulated` so the webview can update the message in-place
-					// with the growing text, giving smooth streaming. Using `text` (delta)
-					// would cause a "flip book" effect where each update replaces the
-					// previous content with just the new chunk.
-					const ts = state.getStreamingTextTs()
-					messages.push({
-						ts,
-						type: "say",
-						say: "text",
-						text: event.accumulated ?? event.text ?? "",
-						partial: true,
-					})
+					// Text content_start events are streaming deltas. Buffer the
+					// latest accumulated text, but wait for content_end before
+					// showing it so the webview does not flash partial responses.
+					state.getStreamingTextTs()
+					state.setStreamingText(event.accumulated ?? `${state.getStreamingText()}${event.text ?? ""}`)
 					break
 				}
 				case "reasoning": {
-					// SDK reasoning content_start events are deltas. The webview renders
-					// reasoning from `text`, so keep `text` and `reasoning` populated with
-					// the accumulated content for smooth in-place streaming.
-					const ts = state.getStreamingReasoningTs()
-					const reasoning = state.appendStreamingReasoning(event.reasoning ?? "")
-					messages.push({
-						ts,
-						type: "say",
-						say: "reasoning",
-						text: reasoning,
-						reasoning,
-						partial: true,
-					})
+					// Reasoning content_start events are deltas. Accumulate them for
+					// the final content_end row, but do not emit partial reasoning.
+					state.getStreamingReasoningTs()
+					state.appendStreamingReasoning(event.reasoning ?? "")
 					break
 				}
 				case "tool": {
@@ -931,19 +932,21 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_end": {
 			switch (event.contentType) {
 				case "text": {
+					const accumulatedText = state.getStreamingText()
 					const ts = state.clearStreamingText()
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.text ?? "",
+						text: event.text ?? accumulatedText,
 						partial: false,
 					})
 					break
 				}
 				case "reasoning": {
+					const accumulatedReasoning = state.getStreamingReasoningText()
 					const ts = state.clearStreamingReasoning()
-					const reasoning = event.reasoning ?? ""
+					const reasoning = event.reasoning ?? accumulatedReasoning
 					messages.push({
 						ts,
 						type: "say",
