@@ -89,7 +89,7 @@ function spawnAndCollect(
 				const killer = spawn(
 					"taskkill",
 					["/pid", String(childPid), "/T", "/F"],
-					{ stdio: "ignore", windowsHide: true },
+					{ stdio: "ignore", shell: true, windowsHide: true },
 				);
 				killer.unref();
 				return;
