@@ -60,11 +60,7 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 
 			if (!workspacePath) {
 				Logger.error("Error in searchFiles: No workspace path available")
-				telemetryService.captureMentionFailed(
-					"folder",
-					"workspace_unavailable",
-					"No workspace path available",
-				)
+				telemetryService.captureMentionFailed("folder", "workspace_unavailable", "No workspace path available")
 				return {
 					results: [],
 					mentionsRequestId: request.mentionsRequestId,

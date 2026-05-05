@@ -35,8 +35,15 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	const filteredOptions = useMemo(() => {
 		const options = getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults)
+		// While a search is in flight, don't tell the user "No results found" —
+		// the answer is "still searching", not "nothing matched". Suppress
+		// eagerly on `isLoading` (not just after the 500 ms spinner delay) so
+		// there's no NoResults flicker before the spinner appears.
+		if (isLoading && options.length === 1 && options[0].type === ContextMenuOptionType.NoResults) {
+			return []
+		}
 		return options
-	}, [searchQuery, selectedType, queryItems, dynamicSearchResults])
+	}, [searchQuery, selectedType, queryItems, dynamicSearchResults, isLoading])
 
 	// Effect to handle delayed loading indicator (show "Searching..." after 500ms of searching)
 	useEffect(() => {
@@ -45,13 +52,18 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			loadingTimeoutRef.current = null
 		}
 
-		if (isLoading && searchQuery) {
+		// Arm the timer whenever a search is in flight. Don't gate on
+		// `searchQuery`: the "Add File"/"Add Folder" flow runs ripgrep on an
+		// empty query, and the render site already guards with
+		// `filteredOptions.length === 0` so the spinner stays hidden when
+		// real options are showing.
+		if (isLoading) {
 			setShowDelayedLoading(false)
 			loadingTimeoutRef.current = setTimeout(() => {
 				if (isLoading) {
 					setShowDelayedLoading(true)
 				}
-			}, 500) // 500ms delay before showing "Searching..."
+			}, 500)
 		} else {
 			setShowDelayedLoading(false)
 		}
@@ -254,7 +266,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					overflowY: "auto",
 				}}>
 				{/* Can't use virtuoso since it requires fixed height and menu height is dynamic based on # of items */}
-				{showDelayedLoading && searchQuery && (
+				{showDelayedLoading && filteredOptions.length === 0 && (
 					<div
 						style={{
 							padding: "8px 12px",

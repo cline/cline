@@ -353,18 +353,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								searchType = FileSearchType.FOLDER
 							}
 
+							const myToken = ++latestSearchTokenRef.current
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
 									query: "",
-									mentionsRequestId: "",
+									mentionsRequestId: String(myToken),
 									selectedType: searchType,
 								}),
 							)
 								.then((results) => {
+									if (myToken !== latestSearchTokenRef.current) {
+										// Stale response — a newer search has been issued.
+										return
+									}
 									setFileSearchResults((results.results || []) as SearchResult[])
 									setSearchLoading(false)
 								})
 								.catch((error) => {
+									if (myToken !== latestSearchTokenRef.current) {
+										return
+									}
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
 									setSearchLoading(false)
@@ -698,7 +706,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-		const currentSearchQueryRef = useRef<string>("")
+		// Monotonic token; every searchFiles dispatch bumps it, and resolve
+		// handlers drop their result when the token they captured at fire time
+		// is no longer the latest. Prevents stale results from a cancelled or
+		// superseded picker (e.g. "Add File" still in flight when user picks
+		// "Add Folder") from clobbering fresh state.
+		const latestSearchTokenRef = useRef(0)
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -734,7 +747,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
-					currentSearchQueryRef.current = query
 
 					if (query.length > 0) {
 						setSelectedMenuIndex(0)
@@ -764,19 +776,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
+							const myToken = ++latestSearchTokenRef.current
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
 									query: searchQuery,
-									mentionsRequestId: query,
+									mentionsRequestId: String(myToken),
 									selectedType: searchType,
 									workspaceHint: workspaceHint,
 								}),
 							)
 								.then((results) => {
+									if (myToken !== latestSearchTokenRef.current) {
+										// Stale response — a newer search has been issued.
+										return
+									}
 									setFileSearchResults((results.results || []) as SearchResult[])
 									setSearchLoading(false)
 								})
 								.catch((error) => {
+									if (myToken !== latestSearchTokenRef.current) {
+										return
+									}
 									console.error("Error searching files:", error)
 									setFileSearchResults([])
 									setSearchLoading(false)
