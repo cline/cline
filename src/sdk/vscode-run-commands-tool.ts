@@ -15,7 +15,7 @@
  */
 
 import { createDefaultExecutors } from "@clinebot/core"
-import { createTool, type Tool, type ToolContext } from "@clinebot/shared"
+import { type AgentTool, type AgentToolContext, createTool } from "@clinebot/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
@@ -53,7 +53,7 @@ function createBackgroundExecutor(opts: {
 	timeoutMs: number
 	maxOutputBytes: number
 	shell: string
-}): (command: string, cwd: string, context: ToolContext) => Promise<string> {
+}): (command: string, cwd: string, context: AgentToolContext) => Promise<string> {
 	const executors = createDefaultExecutors({
 		bash: {
 			timeoutMs: opts.timeoutMs,
@@ -178,8 +178,8 @@ async function executeForeground(
 async function executeBackground(
 	command: string,
 	cwd: string,
-	executor: (command: string, cwd: string, context: ToolContext) => Promise<string>,
-	context: ToolContext,
+	executor: (command: string, cwd: string, context: AgentToolContext) => Promise<string>,
+	context: AgentToolContext,
 ): Promise<CommandResult> {
 	try {
 		const output = await executor(command, cwd, context)
@@ -211,11 +211,11 @@ async function executeBackground(
  * to dynamically switch between foreground (visible terminal) and background
  * (child_process.spawn) execution.
  */
-export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): Tool {
+export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): AgentTool {
 	const { cwd, getTerminalManager, backgroundTimeoutMs = 300_000, backgroundMaxOutputBytes = 1_000_000 } = options
 
 	// Lazy-init background executor — recreated when the user's shell profile changes.
-	let bgExecutor: ((command: string, cwd: string, context: ToolContext) => Promise<string>) | undefined
+	let bgExecutor: ((command: string, cwd: string, context: AgentToolContext) => Promise<string>) | undefined
 	let bgExecutorShell: string | undefined
 
 	// Lazy-init terminal manager reference
@@ -241,7 +241,7 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 		timeoutMs: 3_600_000, // 1 hour metadata hint; not enforced externally
 		retryable: false,
 		maxRetries: 0,
-		execute: async (input: unknown, context: ToolContext, onChange?: (update: unknown) => void) => {
+		execute: async (input: unknown, context: AgentToolContext, onChange?: (update: unknown) => void) => {
 			const commands = parseCommands(input)
 			if (commands.length === 0) {
 				return [{ query: "(empty)", result: "", error: "No commands provided", success: false }]
@@ -278,10 +278,10 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 			// Execute commands sequentially in foreground (terminal reuse)
 			const results: CommandResult[] = []
 			for (const cmd of commands) {
-				const result = await executeForeground(cmd, cwd, terminalManager, context.abortSignal, onChange)
+				const result = await executeForeground(cmd, cwd, terminalManager, context.signal, onChange)
 				results.push(result)
 				// If aborted, stop executing remaining commands
-				if (context.abortSignal?.aborted) {
+				if (context.signal?.aborted) {
 					break
 				}
 			}

@@ -1,6 +1,6 @@
-import { SessionHost } from "@clinebot/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
+import type { SdkSessionHost } from "./session-host"
 
 const getSavedApiConversationHistory = vi.fn().mockResolvedValue([])
 
@@ -30,7 +30,7 @@ describe("SdkSessionHistoryLoader", () => {
 					content: [{ type: "tool_use", id: "toolu_1", name: "read_file", input: { path: "a.ts" } }],
 				},
 			]),
-		} as unknown as SessionHost
+		} as unknown as SdkSessionHost
 
 		const result = await new SdkSessionHistoryLoader().loadInitialMessages(reader, "task-1")
 
@@ -48,7 +48,7 @@ describe("SdkSessionHistoryLoader", () => {
 	it("falls back to classic API history when SDK messages are empty", async () => {
 		const reader = {
 			readMessages: vi.fn().mockResolvedValue([]),
-		} as unknown as SessionHost
+		} as unknown as SdkSessionHost
 		getSavedApiConversationHistory.mockResolvedValue([{ role: "user", content: "hello" }])
 
 		const result = await new SdkSessionHistoryLoader().loadInitialMessages(reader, "task-1")
@@ -60,7 +60,7 @@ describe("SdkSessionHistoryLoader", () => {
 	it("falls back to classic API history when SDK reading fails", async () => {
 		const reader = {
 			readMessages: vi.fn().mockRejectedValue(new Error("boom")),
-		} as unknown as SessionHost
+		} as unknown as SdkSessionHost
 		getSavedApiConversationHistory.mockResolvedValue([{ role: "user", content: "classic" }])
 
 		const result = await new SdkSessionHistoryLoader().loadInitialMessages(reader, "task-1")
@@ -71,7 +71,7 @@ describe("SdkSessionHistoryLoader", () => {
 	it("returns undefined when no history exists", async () => {
 		const reader = {
 			readMessages: vi.fn().mockResolvedValue([]),
-		} as unknown as SessionHost
+		} as unknown as SdkSessionHost
 
 		const result = await new SdkSessionHistoryLoader().loadInitialMessages(reader, "task-1")
 

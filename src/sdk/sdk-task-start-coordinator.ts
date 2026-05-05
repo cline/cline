@@ -1,4 +1,3 @@
-import { SessionHost } from "@clinebot/core"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -10,6 +9,7 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
+import type { SdkSessionHost } from "./session-host"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -41,8 +41,8 @@ export interface SdkTaskStartCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	onCancelTask: () => Promise<void>
 	getWorkspaceRoot: () => Promise<string>
-	createTempSessionHost: () => Promise<SessionHost>
-	loadInitialMessages: (reader: SessionHost, taskId: string) => Promise<unknown[] | undefined>
+	createTempSessionHost: () => Promise<SdkSessionHost>
+	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
