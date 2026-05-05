@@ -218,6 +218,20 @@ export class RuntimeEventAdapter {
 				return this.translateToolFinished(event);
 			case "usage-updated":
 				return this.translateUsage(event.usage);
+			case "status-notice":
+				return [
+					{
+						type: "notice",
+						noticeType: "status",
+						displayRole: "status",
+						message: event.message,
+						reason:
+							event.metadata?.reason === "auto_compaction"
+								? "auto_compaction"
+								: undefined,
+						metadata: event.metadata,
+					},
+				];
 			case "run-finished":
 				return this.translateRunFinished(event.result);
 			case "run-failed":

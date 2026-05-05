@@ -243,10 +243,13 @@ class StdioMcpClient implements McpServerClient {
 		this.stderrBuffer = "";
 		this.protocolMode = protocolMode;
 
-		const platformOptions = process.platform === "win32" ? {
-			windowsHide: true,
-			shell: true,
-		} : {};
+		const platformOptions =
+			process.platform === "win32"
+				? {
+						windowsHide: true,
+						shell: true,
+					}
+				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
 			cwd: transport.cwd,
 			env: {

@@ -659,6 +659,8 @@ export class AgentRuntime {
 			options: this.config.modelOptions,
 		};
 
+		request = await this.prepareTurnForModelRequest(request);
+
 		for (const hook of this.hooks.beforeModel) {
 			const result = (await hook({
 				snapshot: this.snapshot(),
@@ -854,6 +856,51 @@ export class AgentRuntime {
 		}
 
 		return { message, finishReason };
+	}
+
+	private async prepareTurnForModelRequest(
+		request: AgentModelRequest,
+	): Promise<AgentModelRequest> {
+		if (!this.config.prepareTurn) {
+			return request;
+		}
+
+		const result = await this.config.prepareTurn({
+			agentId: this.state.agentId,
+			conversationId: this.config.conversationId,
+			parentAgentId: this.state.parentAgentId ?? null,
+			iteration: this.state.iteration,
+			messages: request.messages,
+			systemPrompt: request.systemPrompt,
+			tools: request.tools,
+			model: {
+				id: this.config.messageModelInfo?.id,
+				provider: this.config.messageModelInfo?.provider,
+			},
+			signal: request.signal,
+			emitStatusNotice: (message, metadata) => {
+				void this.emit({
+					type: "status-notice",
+					snapshot: this.snapshot(),
+					message,
+					metadata,
+				});
+			},
+		});
+		if (!result) {
+			return request;
+		}
+
+		let next = request;
+		if (result.messages) {
+			const preparedMessages = cloneMessages(result.messages);
+			this.state.messages = preparedMessages;
+			next = { ...next, messages: cloneMessages(preparedMessages) };
+		}
+		if (result.systemPrompt !== undefined) {
+			next = { ...next, systemPrompt: result.systemPrompt };
+		}
+		return next;
 	}
 
 	private async updateUsage(usage: Partial<AgentUsage>): Promise<void> {

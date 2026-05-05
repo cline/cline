@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createTool } from "./create";
-import { zodToJsonSchema } from "../parse/zod";
 import { z } from "zod";
+import { zodToJsonSchema } from "../parse/zod";
+import { createTool } from "./create";
 
 describe("createTool", () => {
 	it("adds a top-level object type for raw object-like JSON schemas", () => {
