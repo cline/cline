@@ -5,6 +5,7 @@
  *
  */
 
+import type { ModelInfo } from "./llms/model-info";
 import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -205,6 +206,31 @@ export interface AgentModelRequest {
 	tools: readonly AgentToolDefinition[];
 	signal?: AbortSignal;
 	options?: Record<string, unknown>;
+}
+
+export interface AgentRuntimePrepareTurnContext {
+	agentId: string;
+	conversationId?: string;
+	parentAgentId?: string | null;
+	iteration: number;
+	messages: readonly AgentMessage[];
+	systemPrompt?: string;
+	tools: readonly AgentToolDefinition[];
+	model: {
+		id?: string;
+		provider?: string;
+		info?: ModelInfo;
+	};
+	signal?: AbortSignal;
+	emitStatusNotice?: (
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => void;
+}
+
+export interface AgentRuntimePrepareTurnResult {
+	messages?: readonly AgentMessage[];
+	systemPrompt?: string;
 }
 
 export type AgentModelFinishReason =
@@ -421,6 +447,17 @@ export interface AgentRuntimeConfig {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
+	/**
+	 * Optional host-owned context pipeline that can rewrite the transcript
+	 * before each model request. When it returns messages, the runtime replaces
+	 * its in-memory transcript so compaction persists into the final run result.
+	 */
+	prepareTurn?: (
+		context: AgentRuntimePrepareTurnContext,
+	) =>
+		| Promise<AgentRuntimePrepareTurnResult | undefined>
+		| AgentRuntimePrepareTurnResult
+		| undefined;
 }
 
 // =============================================================================
@@ -495,6 +532,12 @@ export type AgentRuntimeEvent =
 			snapshot: AgentRuntimeStateSnapshot;
 			iteration: number;
 			toolCallCount: number;
+	  }
+	| {
+			type: "status-notice";
+			snapshot: AgentRuntimeStateSnapshot;
+			message: string;
+			metadata?: Record<string, unknown>;
 	  }
 	| {
 			type: "run-finished";

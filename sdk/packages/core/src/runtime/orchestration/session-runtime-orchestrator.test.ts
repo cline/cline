@@ -482,6 +482,99 @@ describe("SessionRuntime message preparation", () => {
 		);
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
+
+	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
+		const prepareTurn = vi.fn(() => ({
+			messages: [
+				{
+					role: "user" as const,
+					content: "compacted transcript",
+				},
+			],
+		}));
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				prepareTurn,
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						contextWindow: 200_000,
+					},
+				},
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		const runtimePrepareTurn = configs[0]?.prepareTurn;
+		expect(runtimePrepareTurn).toBeDefined();
+
+		const result = await runtimePrepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "<user_input>large context</user_input>",
+						},
+					],
+					createdAt: 1,
+				},
+			],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				messages: [
+					expect.objectContaining({
+						id: "m1",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "<user_input>large context</user_input>",
+							},
+						],
+						ts: 1,
+					}),
+				],
+				apiMessages: [
+					expect.objectContaining({
+						id: "m1",
+						role: "user",
+						content: [{ type: "text", text: "large context" }],
+						ts: 1,
+					}),
+				],
+				model: {
+					id: "claude-3-5-sonnet",
+					provider: "anthropic",
+					info: {
+						id: "claude-3-5-sonnet",
+						contextWindow: 200_000,
+					},
+				},
+			}),
+		);
+		expect(result?.messages).toHaveLength(1);
+		expect(result?.messages?.[0]?.content).toEqual([
+			{ type: "text", text: "compacted transcript" },
+		]);
+	});
 });
 
 // ---------------------------------------------------------------------------

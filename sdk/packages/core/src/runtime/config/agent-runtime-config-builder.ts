@@ -19,6 +19,8 @@ import type {
 	AgentRuntimeConfig,
 	AgentRuntimeHooks,
 	AgentRuntimePlugin,
+	AgentRuntimePrepareTurnContext,
+	AgentRuntimePrepareTurnResult,
 	AgentTelemetry,
 	AgentTool,
 	BasicLogger,
@@ -57,6 +59,13 @@ export interface CreateAgentRuntimeConfigInput {
 	readonly plugins?: readonly AgentRuntimePlugin[];
 	/** Runtime hooks supplied by the session/runtime builder. */
 	readonly hooks?: Partial<AgentRuntimeHooks>;
+	/** Host-owned context pipeline invoked before runtime model hooks. */
+	readonly prepareTurn?: (
+		context: AgentRuntimePrepareTurnContext,
+	) =>
+		| Promise<AgentRuntimePrepareTurnResult | undefined>
+		| AgentRuntimePrepareTurnResult
+		| undefined;
 	/** Seed messages (usually `session.conversation.getMessages()`). */
 	readonly initialMessages?: readonly AgentMessage[];
 	/**
@@ -93,6 +102,7 @@ export function createAgentRuntimeConfig(
 		modelOptions,
 		tools: input.tools,
 		hooks,
+		prepareTurn: input.prepareTurn,
 		plugins: input.plugins,
 		logger: input.logger ?? agentConfig.logger,
 		telemetry: input.telemetry ?? mapTelemetry(agentConfig.telemetry),

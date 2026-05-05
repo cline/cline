@@ -33,6 +33,7 @@ import {
 	type AgentRunResult,
 	type AgentRuntimeEvent,
 	type AgentRuntimeHooks,
+	type AgentRuntimePrepareTurnContext,
 	type AgentTool,
 	type BasicLogger,
 	type ContributionRegistry,
@@ -749,6 +750,7 @@ export class SessionRuntime {
 				...this.config.toolContextMetadata,
 			},
 			hooks: this.createRuntimeHooks(),
+			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
 			systemPrompt,
 		});
@@ -881,18 +883,73 @@ export class SessionRuntime {
 		};
 	}
 
+	private createRuntimePrepareTurn(
+		modelInfo: ModelInfo | undefined,
+		tools: AgentTool[],
+	):
+		| ((context: AgentRuntimePrepareTurnContext) => Promise<
+				| {
+						messages?: readonly AgentMessage[];
+						systemPrompt?: string;
+				  }
+				| undefined
+		  >)
+		| undefined {
+		const prepareTurn = this.config.prepareTurn;
+		if (!prepareTurn) {
+			return undefined;
+		}
+
+		return async (context) => {
+			const messages = agentMessagesToMessagesWithMetadata(context.messages);
+			const apiMessages = await this.prepareProviderMessagesForApi(messages);
+			const result = await prepareTurn({
+				agentId: context.agentId,
+				conversationId:
+					context.conversationId ?? this.conversation.getConversationId(),
+				parentAgentId: context.parentAgentId ?? null,
+				iteration: context.iteration,
+				messages,
+				apiMessages,
+				abortSignal: context.signal ?? new AbortController().signal,
+				systemPrompt: context.systemPrompt ?? "",
+				tools,
+				model: {
+					id: this.config.modelId,
+					provider: this.config.providerId,
+					info: modelInfo,
+				},
+				emitStatusNotice: context.emitStatusNotice,
+			});
+			if (!result) {
+				return undefined;
+			}
+			return {
+				messages: messagesToAgentMessages(result.messages),
+				systemPrompt: result.systemPrompt,
+			};
+		};
+	}
+
 	private async prepareMessagesForModelRequest(
 		messages: readonly AgentMessage[],
 	): Promise<AgentMessage[]> {
-		let providerMessages = agentMessagesToMessages(messages);
+		const providerMessages = await this.prepareProviderMessagesForApi(
+			agentMessagesToMessages(messages),
+		);
+		return messagesToAgentMessages(providerMessages);
+	}
+
+	private async prepareProviderMessagesForApi(
+		messages: MessageWithMetadata[],
+	): Promise<MessageWithMetadata[]> {
+		let providerMessages = messages;
 		const messageBuilders =
 			this.contributionRegistry.getRegistrySnapshot().messageBuilder;
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		return messagesToAgentMessages(
-			this.messageBuilder.buildForApi(providerMessages),
-		);
+		return this.messageBuilder.buildForApi(providerMessages);
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {

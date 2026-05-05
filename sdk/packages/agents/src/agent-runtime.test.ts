@@ -705,6 +705,64 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(0);
 	});
 
+	it("runs prepareTurn before beforeModel and persists rewritten messages", async () => {
+		const compactedMessage: AgentMessage = {
+			id: "msg_compacted",
+			role: "user",
+			content: [{ type: "text", text: "compacted context" }],
+			createdAt: 1,
+		};
+		const notices: string[] = [];
+		const prepareTurn = vi.fn((context) => {
+			expect(context.messages).toHaveLength(1);
+			expect(context.messages[0]?.content).toEqual([
+				{ type: "text", text: "large context" },
+			]);
+			context.emitStatusNotice?.("auto-compacting", {
+				reason: "auto_compaction",
+			});
+			return {
+				messages: [compactedMessage],
+				systemPrompt: "compacted system",
+			};
+		});
+		const beforeModel = vi.fn(({ request }) => {
+			expect(request.systemPrompt).toBe("compacted system");
+			expect(request.messages).toEqual([compactedMessage]);
+			return undefined;
+		});
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.systemPrompt).toBe("compacted system");
+				expect(request.messages).toEqual([compactedMessage]);
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			systemPrompt: "original system",
+			prepareTurn,
+			hooks: { beforeModel },
+		});
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				notices.push(event.message);
+			}
+		});
+
+		const result = await runtime.run("large context");
+
+		expect(prepareTurn).toHaveBeenCalledTimes(1);
+		expect(beforeModel).toHaveBeenCalledTimes(1);
+		expect(notices).toEqual(["auto-compacting"]);
+		expect(result.messages[0]).toEqual(compactedMessage);
+		expect(result.messages).toHaveLength(2);
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("can block a tool through beforeTool hooks", async () => {
 		const model = new ScriptedModel([
 			() => [
