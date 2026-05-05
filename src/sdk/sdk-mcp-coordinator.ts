@@ -1,4 +1,3 @@
-import type { SessionHost } from "@clinebot/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -6,6 +5,7 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionHost } from "./session-host"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
@@ -18,7 +18,7 @@ export interface SdkMcpCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (sdkHost: SessionHost, sessionId: string) => Promise<unknown[] | undefined>
+	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
 }

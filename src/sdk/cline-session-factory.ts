@@ -8,7 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type ClineCoreStartInput, type CoreSessionConfig, type SessionHost, type StartSessionResult } from "@clinebot/core"
+import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -22,6 +22,7 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { getProviderSettingsManager } from "./provider-migration"
+import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
 // Plan mode instructions
@@ -75,7 +76,7 @@ export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
 	/** The runtime host instance managing this session (VscodeSessionHost) */
-	sdkHost: SessionHost
+	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
 	unsubscribe: () => void
 	/** The start result from the session */
