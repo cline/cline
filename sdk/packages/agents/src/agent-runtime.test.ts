@@ -763,6 +763,34 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {
+		const compactedMessage: AgentMessage = {
+			id: "msg_compacted",
+			role: "user",
+			content: [{ type: "text", text: "compacted context" }],
+			createdAt: 1,
+		};
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.systemPrompt).toBe("original system");
+				expect(request.messages).toEqual([compactedMessage]);
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			systemPrompt: "original system",
+			prepareTurn: () => ({ messages: [compactedMessage] }),
+		});
+
+		await runtime.run("large context");
+
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("can block a tool through beforeTool hooks", async () => {
 		const model = new ScriptedModel([
 			() => [

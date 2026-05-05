@@ -574,6 +574,7 @@ describe("SessionRuntime message preparation", () => {
 		expect(result?.messages?.[0]?.content).toEqual([
 			{ type: "text", text: "compacted transcript" },
 		]);
+		expect(Object.hasOwn(result ?? {}, "systemPrompt")).toBe(false);
 	});
 
 	it("allows prepareTurn to return only a system prompt", async () => {

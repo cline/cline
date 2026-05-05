@@ -928,7 +928,9 @@ export class SessionRuntime {
 				...(result.messages
 					? { messages: messagesToAgentMessages(result.messages) }
 					: {}),
-				systemPrompt: result.systemPrompt,
+				...(result.systemPrompt !== undefined
+					? { systemPrompt: result.systemPrompt }
+					: {}),
 			};
 		};
 	}

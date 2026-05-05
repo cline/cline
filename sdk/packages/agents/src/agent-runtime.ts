@@ -897,7 +897,7 @@ export class AgentRuntime {
 			this.state.messages = preparedMessages;
 			next = { ...next, messages: cloneMessages(preparedMessages) };
 		}
-		if (Object.hasOwn(result, "systemPrompt")) {
+		if (result.systemPrompt !== undefined) {
 			next = { ...next, systemPrompt: result.systemPrompt };
 		}
 		return next;
