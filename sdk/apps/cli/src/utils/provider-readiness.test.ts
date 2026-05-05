@@ -43,6 +43,37 @@ describe("provider readiness", () => {
 		).toBe(true);
 	});
 
+	it("accepts keyless local providers with a resolved endpoint and model", () => {
+		expect(
+			isProviderSettingsUsable(
+				"ollama",
+				{
+					provider: "ollama",
+					model: "llama3.2",
+				} satisfies ProviderSettings,
+				{
+					baseUrl: "http://localhost:11434/v1",
+					modelId: "llama3.2",
+				},
+			),
+		).toBe(true);
+	});
+
+	it("rejects keyless local providers without a selected model", () => {
+		expect(
+			isProviderSettingsUsable(
+				"ollama",
+				{
+					provider: "ollama",
+				} satisfies ProviderSettings,
+				{
+					baseUrl: "http://localhost:11434/v1",
+					modelId: "",
+				},
+			),
+		).toBe(false);
+	});
+
 	it("accepts provider-specific cloud credentials", () => {
 		expect(
 			isProviderSettingsUsable("bedrock", {

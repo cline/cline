@@ -1,8 +1,8 @@
-import { test } from "@microsoft/tui-test";
+import { expect, test } from "@microsoft/tui-test";
 import { CLINE_BIN } from "./helpers/constants.js";
 import { clineEnv } from "./helpers/env.js";
 import { waitForChatReady } from "./helpers/page-objects/chat.js";
-import { expectVisible } from "./helpers/terminal.js";
+import { expectVisible, waitForTerminalExit } from "./helpers/terminal.js";
 
 test.describe("cline interactive basics", () => {
 	test.use({
@@ -24,5 +24,20 @@ test.describe("cline interactive basics", () => {
 		await expectVisible(terminal, ["/settings", "/mcp"], {
 			timeout: 10_000,
 		});
+	});
+});
+
+test.describe("cline interactive provider flag", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: ["-P", "cline"] },
+		rows: 50,
+		columns: 120,
+		env: clineEnv("default"),
+	});
+
+	test("exits idle TUI after one Ctrl+C", async ({ terminal }) => {
+		await waitForChatReady(terminal);
+		terminal.keyCtrlC();
+		await expect(waitForTerminalExit(terminal, 5_000)).resolves.toBe(0);
 	});
 });

@@ -90,6 +90,6 @@ test.describe("clite --json (headless yolo mode)", () => {
 		terminal,
 	}) => {
 		// Explicit yolo with --json should produce a JSON error line.
-		await expectVisible(terminal, /Missing API key/i);
+		await expectVisible(terminal, /Unauthorized|Missing API key/i);
 	});
 });

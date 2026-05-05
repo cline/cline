@@ -1,7 +1,9 @@
 import {
 	fetchClineRecommendedModels,
+	getProviderConfigFields,
 	Llms,
 	ProviderSettingsManager,
+	refreshProviderModelsFromSource,
 	resolveProviderConfig,
 } from "@clinebot/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -10,12 +12,13 @@ import { useCallback } from "react";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
+	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
 import {
-	ApiKeyInputContent,
 	type ExistingProviderAction,
 	OAuthLoginContent,
+	ProviderConfigInputContent,
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
 } from "../components/dialogs/provider-picker";
@@ -65,13 +68,9 @@ async function runProviderChange(
 	const displayName = await getProviderDisplayName(newProviderId);
 	const manager = new ProviderSettingsManager();
 	const existingSettings = manager.getProviderSettings(newProviderId);
-	const existingKey = getPersistedProviderApiKey(
-		newProviderId,
-		existingSettings,
-	);
 
 	let needsAuth = true;
-	if (existingKey) {
+	if (isProviderConfigured(newProviderId, existingSettings)) {
 		const action = await dialog.choice<ExistingProviderAction>({
 			style: { maxHeight: termHeight - 2 },
 			content: (ctx: ChoiceContext<ExistingProviderAction>) => (
@@ -97,20 +96,24 @@ async function runProviderChange(
 				),
 			});
 		} else {
+			const { fields } = getProviderConfigFields(newProviderId);
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
 				content: (ctx: ChoiceContext<boolean>) => (
-					<ApiKeyInputContent
+					<ProviderConfigInputContent
 						{...ctx}
 						providerId={newProviderId}
 						providerName={displayName}
+						fields={fields}
+						providerSettingsManager={manager}
 					/>
 				),
 			});
 		}
 		if (!saved) return false;
 	}
+	await refreshProviderModelsFromSource(manager, newProviderId).catch(() => {});
 	const newSettings = manager.getProviderSettings(newProviderId);
 	const newApiKey =
 		getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
@@ -126,11 +129,15 @@ async function runProviderChange(
 	config.providerId = newProviderId;
 	config.apiKey = newApiKey;
 
-	const resolved = await resolveProviderConfig(newProviderId, {
-		loadLatestOnInit: true,
-		loadPrivateOnAuth: true,
-		failOnError: false,
-	});
+	const resolved = await resolveProviderConfig(
+		newProviderId,
+		{
+			loadLatestOnInit: true,
+			loadPrivateOnAuth: true,
+			failOnError: false,
+		},
+		manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
+	);
 	config.knownModels = resolved?.knownModels;
 	const modelIds = Object.keys(resolved?.knownModels ?? {});
 	if (newSettings?.model) {

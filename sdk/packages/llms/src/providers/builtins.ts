@@ -46,6 +46,7 @@ export interface BuiltinSpec {
 	modelsFactory?: () => Record<string, ModelInfo>;
 	env?: readonly ("browser" | "node")[];
 	apiKeyEnv?: readonly string[];
+	modelsSourceUrl?: string;
 	docsUrl?: string;
 	defaults?: GatewayProviderSettings;
 	metadata?: GatewayProviderMetadata;
@@ -505,6 +506,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
 		defaults: { baseUrl: "http://localhost:11434/v1" },
+		modelsSourceUrl: "http://localhost:11434/api/tags",
 	},
 	{
 		id: "lmstudio",
@@ -515,6 +517,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["LMSTUDIO_API_KEY"],
 		modelsProviderId: "lmstudio",
 		defaults: { baseUrl: "http://localhost:1234/v1" },
+		modelsSourceUrl: "http://localhost:1234/v1/models",
 	},
 	{
 		id: "oca",
@@ -731,6 +734,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			description: spec.description,
 			protocol: spec.protocol ?? inferProtocol(spec),
 			baseUrl: spec.defaults?.baseUrl,
+			modelsSourceUrl: spec.modelsSourceUrl,
 			defaultModelId,
 			capabilities: spec.capabilities,
 			env: spec.apiKeyEnv ? [...spec.apiKeyEnv] : undefined,

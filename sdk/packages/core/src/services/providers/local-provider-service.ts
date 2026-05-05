@@ -1,11 +1,12 @@
 import * as LlmsModels from "@clinebot/llms";
-import type {
-	AddProviderActionRequest,
-	OAuthProviderId,
-	ProviderCapability,
-	ProviderListItem,
-	ProviderModel,
-	SaveProviderSettingsActionRequest,
+import {
+	type AddProviderActionRequest,
+	isOAuthProviderId,
+	type OAuthProviderId,
+	type ProviderCapability,
+	type ProviderListItem,
+	type ProviderModel,
+	type SaveProviderSettingsActionRequest,
 } from "@clinebot/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import { loginClineOAuth } from "../../auth/cline";
@@ -27,6 +28,10 @@ import {
 	toProviderModel,
 	writeModelsFile,
 } from "./local-provider-registry";
+import {
+	fetchModelIdsFromSource,
+	resolveModelsSourceUrl,
+} from "./model-source";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
@@ -101,73 +106,6 @@ function toSortedProviderModels(
 	return Object.entries(modelMap)
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([modelId, info]) => toProviderModel(modelId, info));
-}
-
-// --- Model ID parsing ---
-
-function parseModelIdList(input: unknown): string[] {
-	if (!Array.isArray(input)) return [];
-	return input
-		.map((item) => {
-			if (typeof item === "string") return item.trim();
-			if (item && typeof item === "object" && "id" in item) {
-				const id = (item as { id?: unknown }).id;
-				return typeof id === "string" ? id.trim() : "";
-			}
-			return "";
-		})
-		.filter((id) => id.length > 0);
-}
-
-function extractModelIdsFromPayload(
-	payload: unknown,
-	providerId: string,
-): string[] {
-	const rootArray = parseModelIdList(payload);
-	if (rootArray.length > 0) return rootArray;
-	if (!payload || typeof payload !== "object") return [];
-
-	const data = payload as {
-		data?: unknown;
-		models?: unknown;
-		providers?: Record<string, unknown>;
-	};
-
-	const direct = parseModelIdList(data.data ?? data.models);
-	if (direct.length > 0) return direct;
-
-	if (
-		data.models &&
-		typeof data.models === "object" &&
-		!Array.isArray(data.models)
-	) {
-		const keys = Object.keys(data.models).filter((k) => k.trim().length > 0);
-		if (keys.length > 0) return keys;
-	}
-
-	const scoped = data.providers?.[providerId];
-	if (scoped && typeof scoped === "object") {
-		const nested = scoped as { models?: unknown };
-		const list = parseModelIdList(nested.models ?? scoped);
-		if (list.length > 0) return list;
-	}
-
-	return [];
-}
-
-async function fetchModelIdsFromSource(
-	url: string,
-	providerId: string,
-): Promise<string[]> {
-	const response = await fetch(url, { method: "GET" });
-	if (!response.ok)
-		throw new Error(
-			`failed to fetch models from ${url}: HTTP ${response.status}`,
-		);
-	return extractModelIdsFromPayload(
-		(await response.json()) as unknown,
-		providerId,
-	);
 }
 
 async function resolveProviderModelMap(
@@ -396,9 +334,10 @@ export async function updateLocalProvider(
 			throw new Error(`provider "${providerId}" does not exist`);
 		}
 
+		const requestedSourceUrl = request.modelsSourceUrl?.trim();
 		const seedModelId =
 			uniqueTrimmed(request.models)[0] ?? existingSettings.model?.trim();
-		if (!seedModelId) {
+		if (!seedModelId && !requestedSourceUrl) {
 			throw new Error(
 				`provider "${providerId}" cannot be updated because no model is configured`,
 			);
@@ -415,7 +354,9 @@ export async function updateLocalProvider(
 				client: existingSettings.client,
 				capabilities: existingSettings.capabilities,
 			},
-			models: buildProviderModels([seedModelId], existingSettings.capabilities),
+			models: seedModelId
+				? buildProviderModels([seedModelId], existingSettings.capabilities)
+				: {},
 		};
 	}
 	if (!existingEntry.provider) {
@@ -683,6 +624,41 @@ export function saveLocalProviderSettings(
 	return { providerId, enabled: true, settingsPath: manager.getFilePath() };
 }
 
+export async function refreshProviderModelsFromSource(
+	manager: ProviderSettingsManager,
+	providerId: string,
+): Promise<{ providerId: string; refreshed: boolean; modelsCount?: number }> {
+	const id = providerId.trim();
+	const settings = manager.getProviderSettings(id);
+	const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id] as
+		| LlmsModels.ModelCollection
+		| undefined;
+	const provider = collection?.provider;
+	const baseUrl = settings?.baseUrl?.trim() || provider?.baseUrl?.trim();
+	const modelsSourceUrl = resolveModelsSourceUrl(
+		baseUrl,
+		provider?.baseUrl,
+		provider?.modelsSourceUrl,
+	);
+	if (!settings || !provider || !baseUrl || !modelsSourceUrl) {
+		return { providerId: id, refreshed: false };
+	}
+
+	const result = await updateLocalProvider(manager, {
+		providerId: id,
+		name: provider.name,
+		baseUrl,
+		apiKey: settings.apiKey,
+		headers: settings.headers ?? null,
+		timeoutMs: settings.timeout ?? null,
+		modelsSourceUrl,
+		protocol: settings.protocol ?? provider.protocol ?? null,
+		client: settings.client ?? provider.client ?? null,
+		capabilities: settings.capabilities ?? null,
+	});
+	return { providerId: id, refreshed: true, modelsCount: result.modelsCount };
+}
+
 export function normalizeOAuthProvider(provider: string): OAuthProviderId {
 	const normalized = provider.trim().toLowerCase();
 	if (normalized === "codex" || normalized === "openai-codex")
@@ -770,4 +746,72 @@ export function resolveLocalClineAuthToken(
 ): string | undefined {
 	const token = settings?.auth?.accessToken?.trim() || settings?.apiKey?.trim();
 	return token && token.length > 0 ? token : undefined;
+}
+
+// --- Provider configuration fields (UI projection) -------------------------
+
+export type ProviderConfigFieldKey = "apiKey" | "baseUrl";
+
+export interface ProviderConfigFieldRequirement {
+	defaultValue?: string;
+}
+
+export interface ProviderConfigFields {
+	providerId: string;
+	authMethod: "api-key" | "oauth";
+	fields: Partial<
+		Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
+	>;
+}
+
+const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
+	"ollama",
+	"lmstudio",
+	"litellm",
+]);
+
+function shouldExposeBaseUrlField(
+	providerId: string,
+	collection: LlmsModels.ModelCollection | undefined,
+): boolean {
+	if (!collection?.provider.baseUrl) return false;
+	if (collection.provider.source !== "system") return true;
+	return EDITABLE_BASE_URL_PROVIDER_IDS.has(providerId);
+}
+
+/**
+ * Project a provider into the inputs a configure-dialog should render.
+ *
+ * No fields are marked "required" — `llms` no longer pre-flights credentials,
+ * so a missing API key surfaces as the provider's own auth error rather than
+ * a synthetic SDK failure. UIs may still require fields client-side if they
+ * want, but the runtime does not.
+ *
+ * - OAuth providers (`cline`, `oca`, `openai-codex`) return `authMethod:
+ *   "oauth"` with no fields; the configure UI should route to the OAuth
+ *   login flow instead.
+ * - All other providers return `apiKey`. Built-in local/proxy-style providers
+ *   with user-supplied endpoints, plus user-added providers with saved
+ *   endpoints, also return a pre-filled `baseUrl` field.
+ *
+ * Returns the same fallback shape for unknown providers (single `apiKey`
+ * input, no default base URL) so callers can render a reasonable configure
+ * dialog without per-id branches.
+ */
+export function getProviderConfigFields(
+	providerId: string,
+): ProviderConfigFields {
+	const id = LlmsModels.normalizeProviderId(providerId);
+	if (isOAuthProviderId(id)) {
+		return { providerId: id, authMethod: "oauth", fields: {} };
+	}
+
+	const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
+	const defaultBaseUrl = collection?.provider.baseUrl;
+	const fields: ProviderConfigFields["fields"] = { apiKey: {} };
+	if (shouldExposeBaseUrlField(id, collection)) {
+		fields.baseUrl = { defaultValue: defaultBaseUrl };
+	}
+
+	return { providerId: id, authMethod: "api-key", fields };
 }

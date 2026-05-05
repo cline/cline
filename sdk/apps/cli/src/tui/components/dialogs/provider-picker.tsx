@@ -18,8 +18,7 @@ interface ProviderItem {
 	id: string;
 	name: string;
 	models: number | null;
-	hasApiKey: boolean;
-	hasOAuth: boolean;
+	isConfigured: boolean;
 	isOAuth: boolean;
 }
 
@@ -47,8 +46,10 @@ export function ProviderPickerContent(
 						id: p.id,
 						name: p.name,
 						models: p.models,
-						hasApiKey: Boolean(p.apiKey),
-						hasOAuth: p.oauthAccessTokenPresent === true,
+						// `enabled` is true whenever the provider has any persisted
+						// settings, so keyless local configs (e.g. Ollama saved with
+						// just a model id and base URL) still render as configured.
+						isConfigured: p.enabled === true,
 						isOAuth: isOAuthProvider(p.id),
 					})),
 				);
@@ -130,7 +131,10 @@ export function ProviderPickerContent(
 						const absIdx = start + i;
 						const isSel = absIdx === safeSelected;
 						const isCurrent = p.id === currentProviderId;
-						const authed = p.hasApiKey || p.hasOAuth;
+						// Configured = any persisted settings exist for this provider,
+						// which covers keyless local configs (Ollama / LM Studio with
+						// just a model id) as well as api-key and OAuth providers.
+						const authed = p.isConfigured;
 						return (
 							<box
 								key={p.id}
@@ -260,15 +264,84 @@ export function UseExistingOrReconfigureContent(
 	);
 }
 
-export function ApiKeyInputContent(
+type ProviderConfigFieldKey = "apiKey" | "baseUrl";
+
+const FIELD_LABELS: Record<ProviderConfigFieldKey, string> = {
+	apiKey: "API key",
+	baseUrl: "Base URL",
+};
+
+const FIELD_PLACEHOLDERS: Record<ProviderConfigFieldKey, string> = {
+	apiKey: "sk-...",
+	baseUrl: "",
+};
+
+export interface ProviderConfigInputFields {
+	apiKey?: { defaultValue?: string };
+	baseUrl?: { defaultValue?: string };
+}
+
+/**
+ * Single-purpose configure dialog: collects API key and (when applicable)
+ * base URL. Model selection happens separately in the standard model picker
+ * after this dialog resolves. No fields are required — the dialog accepts
+ * blanks. If credentials are missing or wrong the API call surfaces the
+ * provider's own error to the user.
+ */
+export function ProviderConfigInputContent(
 	props: ChoiceContext<boolean> & {
 		providerId: string;
 		providerName: string;
+		fields: ProviderConfigInputFields;
+		providerSettingsManager: ProviderSettingsManager;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerId, providerName } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerId,
+		providerName,
+		fields,
+		providerSettingsManager,
+	} = props;
+
+	// Render order: base URL first (when present) so local-server users land
+	// on the actionable input. Cloud providers see just `apiKey`.
+	const fieldKeys = useMemo<ProviderConfigFieldKey[]>(() => {
+		const order: ProviderConfigFieldKey[] = ["baseUrl", "apiKey"];
+		return order.filter((key) => fields[key] !== undefined);
+	}, [fields]);
+
 	const [apiKey, setApiKey] = useState("");
-	const [error, setError] = useState("");
+	const [baseUrl, setBaseUrl] = useState(
+		() =>
+			providerSettingsManager
+				.getProviderSettings(providerId)
+				?.baseUrl?.trim() ??
+			fields.baseUrl?.defaultValue ??
+			"",
+	);
+
+	const initialFocus = fieldKeys[0] ?? "apiKey";
+	const [focusedField, setFocusedField] =
+		useState<ProviderConfigFieldKey>(initialFocus);
+
+	const getValue = (key: ProviderConfigFieldKey): string =>
+		key === "apiKey" ? apiKey : baseUrl;
+	const setValue = (key: ProviderConfigFieldKey, value: string): void => {
+		if (key === "apiKey") setApiKey(value);
+		else setBaseUrl(value);
+	};
+
+	const submit = () => {
+		saveLocalProviderSettings(providerSettingsManager, {
+			providerId,
+			apiKey: fields.apiKey ? apiKey.trim() : undefined,
+			baseUrl: fields.baseUrl ? baseUrl.trim() : undefined,
+		});
+		resolve(true);
+	};
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -276,17 +349,16 @@ export function ApiKeyInputContent(
 			return;
 		}
 		if (key.name === "return") {
-			const trimmed = apiKey.trim();
-			if (!trimmed) {
-				setError("API key is required");
-				return;
-			}
-			const manager = new ProviderSettingsManager();
-			saveLocalProviderSettings(manager, {
-				providerId,
-				apiKey: trimmed,
-			});
-			resolve(true);
+			submit();
+			return;
+		}
+		if (key.name === "tab" && fieldKeys.length > 1) {
+			const idx = fieldKeys.indexOf(focusedField);
+			const nextIdx = key.shift
+				? (idx - 1 + fieldKeys.length) % fieldKeys.length
+				: (idx + 1) % fieldKeys.length;
+			const next = fieldKeys[nextIdx];
+			if (next) setFocusedField(next);
 		}
 	}, dialogId);
 
@@ -296,22 +368,40 @@ export function ApiKeyInputContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			<text fg="gray">Enter your API key</text>
-
-			<box border borderStyle="rounded" borderColor="gray" paddingX={1}>
-				<input
-					value={apiKey}
-					onInput={setApiKey}
-					placeholder="sk-..."
-					flexGrow={1}
-					focused
-				/>
-			</box>
-
-			{error && <text fg="red">{error}</text>}
+			{fieldKeys.map((key) => {
+				const requirement = fields[key];
+				if (!requirement) return null;
+				const placeholder =
+					key === "baseUrl" && requirement.defaultValue
+						? requirement.defaultValue
+						: FIELD_PLACEHOLDERS[key];
+				return (
+					<box key={key} flexDirection="column">
+						<text fg="gray">{FIELD_LABELS[key]}</text>
+						<box
+							border
+							borderStyle="rounded"
+							borderColor={focusedField === key ? palette.act : "gray"}
+							paddingX={1}
+						>
+							<input
+								value={getValue(key)}
+								onInput={(v: string) => setValue(key, v)}
+								placeholder={placeholder}
+								flexGrow={1}
+								focused={focusedField === key}
+							/>
+						</box>
+					</box>
+				);
+			})}
 
 			<text fg="gray">
-				<em>Enter to save, Esc to go back</em>
+				<em>
+					{fieldKeys.length > 1
+						? "Tab to switch fields, Enter to save, Esc to go back"
+						: "Enter to save, Esc to go back"}
+				</em>
 			</text>
 		</box>
 	);

@@ -8,5 +8,8 @@ export function isProviderConfigured(config: TuiProps["config"]): boolean {
 	}
 	const manager = new ProviderSettingsManager();
 	const settings = manager.getProviderSettings(config.providerId);
-	return isProviderSettingsUsable(config.providerId, settings);
+	const providerConfig = manager.getProviderConfig(config.providerId, {
+		includeKnownModels: false,
+	});
+	return isProviderSettingsUsable(config.providerId, settings, providerConfig);
 }

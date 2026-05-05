@@ -25,6 +25,11 @@ export interface SearchableListState {
 	selectedItem: SearchableItem | undefined;
 }
 
+export type CreateSearchableItem = (
+	search: string,
+	filteredItems: SearchableItem[],
+) => SearchableItem | undefined;
+
 function normalize(s: string): string {
 	return s.replace(/[^a-z0-9.]/g, "");
 }
@@ -59,19 +64,24 @@ function scoreItem(item: SearchableItem, query: string): number {
 
 export function useSearchableList(
 	items: SearchableItem[],
+	createItem?: CreateSearchableItem,
 ): SearchableListState {
 	const [search, setSearch] = useState("");
 	const [selected, setSelected] = useState(0);
 
 	const filtered = useMemo(() => {
-		if (!search) return items;
-		const q = search.toLowerCase();
-		const scored = items
-			.map((item) => ({ item, score: scoreItem(item, q) }))
-			.filter((r) => r.score > 0);
-		scored.sort((a, b) => b.score - a.score);
-		return scored.map((r) => r.item);
-	}, [items, search]);
+		const baseItems = (() => {
+			if (!search) return items;
+			const q = search.toLowerCase();
+			const scored = items
+				.map((item) => ({ item, score: scoreItem(item, q) }))
+				.filter((r) => r.score > 0);
+			scored.sort((a, b) => b.score - a.score);
+			return scored.map((r) => r.item);
+		})();
+		const created = createItem?.(search, baseItems);
+		return created ? [...baseItems, created] : baseItems;
+	}, [items, search, createItem]);
 
 	const safeSelected = Math.min(selected, Math.max(0, filtered.length - 1));
 
@@ -85,8 +95,14 @@ export function useSearchableList(
 		setSelected,
 		filtered,
 		safeSelected,
-		moveUp: () => setSelected((s) => (s <= 0 ? filtered.length - 1 : s - 1)),
-		moveDown: () => setSelected((s) => (s >= filtered.length - 1 ? 0 : s + 1)),
+		moveUp: () =>
+			setSelected((s) =>
+				filtered.length === 0 ? 0 : s <= 0 ? filtered.length - 1 : s - 1,
+			),
+		moveDown: () =>
+			setSelected((s) =>
+				filtered.length === 0 ? 0 : s >= filtered.length - 1 ? 0 : s + 1,
+			),
 		selectedItem: filtered[safeSelected],
 	};
 }
@@ -98,6 +114,7 @@ export function SearchableList(props: {
 	selected: number;
 	placeholder?: string;
 	onSearchChange: (v: string) => void;
+	onItemSelect?: (item: SearchableItem) => void;
 	emptyText?: string;
 	borderColor?: string;
 }) {
@@ -108,6 +125,7 @@ export function SearchableList(props: {
 		selected,
 		placeholder = "Type to search...",
 		onSearchChange,
+		onItemSelect,
 		emptyText = "No results",
 		borderColor = "gray",
 	} = props;
@@ -165,6 +183,7 @@ export function SearchableList(props: {
 								flexDirection="row"
 								gap={1}
 								backgroundColor={isSel ? palette.selection : undefined}
+								onMouseDown={() => onItemSelect?.(item)}
 								overflow="hidden"
 								height={1}
 							>

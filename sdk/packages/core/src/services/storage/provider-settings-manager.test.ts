@@ -44,6 +44,10 @@ describe("ProviderSettingsManager", () => {
 		expect(reloaded.getProviderConfig("anthropic")?.modelId).toBe(
 			"claude-sonnet-4-6",
 		);
+		expect(reloaded.getProviderConfig("anthropic")?.knownModels).toBeDefined();
+		expect(
+			reloaded.getProviderConfig("anthropic", { includeKnownModels: false }),
+		).not.toHaveProperty("knownModels");
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
 	});
 

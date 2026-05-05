@@ -209,17 +209,40 @@ export function OnboardingDeviceCodeScreen(props: {
 	);
 }
 
-export function OnboardingApiKeyScreen(props: {
+type ByoFieldKey = "apiKey" | "baseUrl";
+
+const BYO_FIELD_LABELS: Record<ByoFieldKey, string> = {
+	apiKey: "API key",
+	baseUrl: "Base URL",
+};
+
+const BYO_FIELD_PLACEHOLDERS: Record<ByoFieldKey, string> = {
+	apiKey: "Paste your API key here...",
+	baseUrl: "",
+};
+
+export function OnboardingProviderConfigScreen(props: {
 	activeProviderName: string;
-	apiKeyError: string;
 	apiKeyValue: string;
+	baseUrlValue: string;
 	compact: boolean;
 	contentWidth: number;
+	fields: {
+		apiKey?: { defaultValue?: string };
+		baseUrl?: { defaultValue?: string };
+	};
+	focusedField: ByoFieldKey;
 	mouse: MouseTrackerState;
 	onApiKeyInput: (value: string) => void;
+	onBaseUrlInput: (value: string) => void;
 	onSubmit: () => void;
 }) {
 	const defaultFg = useDefaultFg();
+	const fieldOrder: ByoFieldKey[] = ["baseUrl", "apiKey"];
+	const visibleFields = fieldOrder.filter(
+		(key) => props.fields[key] !== undefined,
+	);
+
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -227,32 +250,56 @@ export function OnboardingApiKeyScreen(props: {
 			mouse={props.mouse}
 		>
 			<box flexDirection="column" gap={1} alignItems="center">
-				<text fg={defaultFg}>{props.activeProviderName} API Key</text>
+				<text fg={defaultFg}>{props.activeProviderName}</text>
 
-				<box
-					border
-					borderStyle="rounded"
-					borderColor={palette.act}
-					paddingX={1}
-					width={props.contentWidth}
-				>
-					<input
-						value={props.apiKeyValue}
-						onInput={props.onApiKeyInput}
-						onSubmit={props.onSubmit}
-						placeholder="Paste your API key here..."
-						textColor={defaultFg}
-						focusedTextColor={defaultFg}
-						cursorColor={defaultFg}
-						focused
-						flexGrow={1}
-					/>
-				</box>
-
-				{props.apiKeyError && <text fg="red">{props.apiKeyError}</text>}
+				{visibleFields.map((key) => {
+					const requirement = props.fields[key];
+					if (!requirement) return null;
+					const placeholder =
+						key === "baseUrl" && requirement.defaultValue
+							? requirement.defaultValue
+							: BYO_FIELD_PLACEHOLDERS[key];
+					const value =
+						key === "apiKey" ? props.apiKeyValue : props.baseUrlValue;
+					const onInput =
+						key === "apiKey" ? props.onApiKeyInput : props.onBaseUrlInput;
+					const isFocused = props.focusedField === key;
+					return (
+						<box
+							key={key}
+							flexDirection="column"
+							gap={0}
+							width={props.contentWidth}
+						>
+							<text fg="gray">{BYO_FIELD_LABELS[key]}</text>
+							<box
+								border
+								borderStyle="rounded"
+								borderColor={isFocused ? palette.act : "gray"}
+								paddingX={1}
+							>
+								<input
+									value={value}
+									onInput={onInput}
+									onSubmit={props.onSubmit}
+									placeholder={placeholder}
+									textColor={defaultFg}
+									focusedTextColor={defaultFg}
+									cursorColor={defaultFg}
+									focused={isFocused}
+									flexGrow={1}
+								/>
+							</box>
+						</box>
+					);
+				})}
 
 				<text fg="gray">
-					<em>Enter to save, Esc to go back, Ctrl+C to exit</em>
+					<em>
+						{visibleFields.length > 1
+							? "Tab to switch fields, Enter to save, Esc to go back, Ctrl+C to exit"
+							: "Enter to save, Esc to go back, Ctrl+C to exit"}
+					</em>
 				</text>
 			</box>
 		</OnboardingFrame>
@@ -343,10 +390,10 @@ export function OnboardingModelPickerScreen(props: {
 	activeProviderName: string;
 	compact: boolean;
 	contentWidth: number;
-	modelItems: SearchableItem[];
 	modelList: SearchableListState;
 	modelsLoading: boolean;
 	mouse: MouseTrackerState;
+	onModelItemSelect: (item: SearchableItem) => void;
 }) {
 	const defaultFg = useDefaultFg();
 	return (
@@ -367,17 +414,14 @@ export function OnboardingModelPickerScreen(props: {
 					<spinner name="dots" color="gray" />
 					<text fg="gray">Loading models...</text>
 				</box>
-			) : props.modelItems.length === 0 ? (
-				<text fg="gray" paddingX={1}>
-					No models found for this provider
-				</text>
 			) : (
 				<SearchableList
 					items={props.modelList.filtered}
 					selected={props.modelList.safeSelected}
 					onSearchChange={props.modelList.setSearch}
+					onItemSelect={props.onModelItemSelect}
 					placeholder="Search models..."
-					emptyText="No models match"
+					emptyText="Create a custom model ID to enter one manually"
 				/>
 			)}
 
@@ -385,6 +429,62 @@ export function OnboardingModelPickerScreen(props: {
 				<em>
 					Type to search, ↑/↓ navigate, Enter to select, Esc to go back, Ctrl+C
 					to exit
+				</em>
+			</text>
+		</OnboardingFrame>
+	);
+}
+
+export function OnboardingCustomModelIdScreen(props: {
+	activeProviderName: string;
+	compact: boolean;
+	contentWidth: number;
+	error: string;
+	mouse: MouseTrackerState;
+	onInput: (value: string) => void;
+	onSubmit: () => void;
+	value: string;
+}) {
+	const defaultFg = useDefaultFg();
+	return (
+		<OnboardingFrame
+			compact={props.compact}
+			contentWidth={props.contentWidth}
+			mouse={props.mouse}
+		>
+			<text fg={defaultFg} paddingX={1}>
+				<strong>Create custom model ID</strong>
+			</text>
+			<text fg="gray" paddingX={1}>
+				{props.activeProviderName}
+			</text>
+
+			<box flexDirection="column" gap={0} paddingX={1}>
+				<text fg="gray">Model ID</text>
+				<box
+					border
+					borderStyle="rounded"
+					borderColor={props.error ? "red" : "gray"}
+					paddingX={1}
+				>
+					<input
+						value={props.value}
+						onInput={props.onInput}
+						onSubmit={props.onSubmit}
+						placeholder=""
+						textColor={defaultFg}
+						focusedTextColor={defaultFg}
+						cursorColor={defaultFg}
+						flexGrow={1}
+						focused
+					/>
+				</box>
+				{props.error && <text fg="red">{props.error}</text>}
+			</box>
+
+			<text fg="gray" paddingX={1}>
+				<em>
+					Enter to create, Esc to go back to model selection, Ctrl+C to exit
 				</em>
 			</text>
 		</OnboardingFrame>

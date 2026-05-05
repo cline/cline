@@ -5,6 +5,7 @@ import {
 	type ProviderProtocol,
 	type ProviderSettings,
 	ProviderSettingsSchema,
+	type ToProviderConfigOptions,
 	toProviderConfig,
 } from "../services/llms/provider-settings";
 
@@ -13,6 +14,7 @@ export type {
 	ProviderConfig,
 	ProviderProtocol,
 	ProviderSettings,
+	ToProviderConfigOptions,
 };
 export const ProviderSettingsSchemaTyped: z.ZodType<ProviderSettings> =
 	ProviderSettingsSchema;

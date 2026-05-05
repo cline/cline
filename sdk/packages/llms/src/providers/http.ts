@@ -1,8 +1,4 @@
-import type {
-	GatewayProviderSettings,
-	GatewayResolvedProviderConfig,
-} from "@clinebot/shared";
-import { normalizeProviderId } from "./ids";
+import type { GatewayProviderSettings } from "@clinebot/shared";
 
 export function ensureFetch(fetchImpl?: typeof fetch): typeof fetch {
 	const resolved = fetchImpl ?? globalThis.fetch;
@@ -36,52 +32,6 @@ export async function resolveApiKey(
 	}
 
 	return undefined;
-}
-
-/**
- * Error message for OpenAI-compatible and similar providers when no credential
- * can be resolved (matches legacy `OpenAIBaseHandler.ensureClient()` behavior).
- */
-export function getMissingApiKeyError(
-	providerId: string,
-	apiKeyEnv?: readonly string[],
-): string {
-	const normalized = normalizeProviderId(providerId);
-	const keys = apiKeyEnv?.filter((k) => k.trim().length > 0) ?? [];
-	const keysMessage =
-		keys.length > 0 ? keys.join(", ") : "provider-specific API key env var";
-	return `Missing API key for provider "${normalized}". Set apiKey explicitly or one of: ${keysMessage}.`;
-}
-
-export function hasAuthorizationHeader(
-	headers?: Record<string, string>,
-): boolean {
-	if (!headers) {
-		return false;
-	}
-	for (const [name, value] of Object.entries(headers)) {
-		if (name.toLowerCase() === "authorization" && String(value).trim()) {
-			return true;
-		}
-	}
-	return false;
-}
-
-/**
- * OpenAI-compatible local servers (LM Studio, Ollama) or explicit
- * Authorization headers may run without `apiKey` / env-based keys.
- */
-export function allowsMissingOpenAiCompatibleApiKey(
-	providerId: string,
-	config: GatewayResolvedProviderConfig,
-): boolean {
-	if (hasAuthorizationHeader(config.headers)) {
-		return true;
-	}
-	const normalizedProviderId = normalizeProviderId(providerId);
-	return (
-		normalizedProviderId === "lmstudio" || normalizedProviderId === "ollama"
-	);
 }
 
 export async function fetchJson(

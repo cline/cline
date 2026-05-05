@@ -8,6 +8,7 @@ export type OnboardingStep =
 	| "byo_apikey"
 	| "cline_model"
 	| "model_picker"
+	| "custom_model_id"
 	| "thinking_level"
 	| "done";
 
@@ -47,9 +48,9 @@ export const MAIN_MENU: MenuOption[] = [
 		icon: "\u2726",
 	},
 	{
-		label: "Use an API key",
+		label: "Bring your own provider",
 		value: "byo",
-		detail: "Anthropic, OpenAI, Google, and more",
+		detail: "API key or local server (e.g. Ollama)",
 		icon: "\u26b7",
 	},
 ];

@@ -1,6 +1,10 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: static */
 
 import * as Llms from "@clinebot/llms";
+import {
+	fetchModelIdsFromSource,
+	resolveModelsSourceUrl,
+} from "../providers/model-source";
 import type {
 	ModelCatalogConfig,
 	ModelInfo,
@@ -11,6 +15,7 @@ import type {
 export interface BuiltInProviderManifest {
 	id: string;
 	baseUrl: string;
+	modelsSourceUrl?: string;
 	modelId: string;
 	knownModels?: Record<string, ModelInfo>;
 	capabilities?: Llms.CatalogProviderCapability[];
@@ -49,6 +54,7 @@ const BUILTIN_PROVIDER_MANIFESTS: BuiltInProviderManifest[] = Object.values(
 ).map((collection) => ({
 	id: collection.provider.id,
 	baseUrl: collection.provider.baseUrl ?? "",
+	modelsSourceUrl: collection.provider.modelsSourceUrl,
 	modelId: collection.provider.defaultModelId,
 	knownModels: cloneKnownModels(collection.models),
 	capabilities: collection.provider.capabilities
@@ -140,6 +146,7 @@ async function mergeKnownModels(
 	defaultKnownModels: Record<string, ModelInfo> = {},
 	liveModels: Record<string, ModelInfo> = {},
 	privateModels: Record<string, ModelInfo> = {},
+	publicModels: Record<string, ModelInfo> = {},
 	userKnownModels: Record<string, ModelInfo> = {},
 ): Promise<Record<string, ModelInfo>> {
 	const generatedProviderModels = await loadGeneratedProviderModels();
@@ -150,11 +157,26 @@ async function mergeKnownModels(
 			(generatedKey) => generatedProviderModels[generatedKey] ?? {},
 		),
 	);
+	// For providers with a registered public model source (Ollama, LM Studio),
+	// the live response is the authoritative list of what the user has
+	// actually installed. Skip the bundled catalog so the picker doesn't
+	// show models that aren't downloaded.
+	const hasPublicModelSource = Boolean(
+		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.modelsSourceUrl,
+	);
+	const publicHasResults = Object.keys(publicModels).length > 0;
+	if (hasPublicModelSource && publicHasResults) {
+		return Llms.sortModelsByReleaseDate({
+			...publicModels,
+			...userKnownModels,
+		});
+	}
 	return Llms.sortModelsByReleaseDate({
 		...generated,
 		...defaultKnownModels,
 		...liveModels,
 		...privateModels,
+		...publicModels,
 		...userKnownModels,
 	});
 }
@@ -456,6 +478,78 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	litellm: fetchLiteLlmPrivateModels,
 };
 
+const PUBLIC_MODELS_CACHE = new Map<
+	string,
+	{ data: Record<string, ModelInfo>; expiresAt: number }
+>();
+const PUBLIC_MODELS_IN_FLIGHT = new Map<
+	string,
+	Promise<Record<string, ModelInfo>>
+>();
+
+function resolvePublicCacheKey(
+	providerId: string,
+	config: ProviderConfig,
+): string {
+	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}`;
+}
+
+async function getPublicProviderModels(
+	providerId: string,
+	modelCatalog: ModelCatalogConfig | undefined,
+	config: ProviderConfig,
+): Promise<Record<string, ModelInfo>> {
+	const collection = Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId];
+	const sourceUrl = resolveModelsSourceUrl(
+		config.baseUrl,
+		collection?.provider.baseUrl,
+		collection?.provider.modelsSourceUrl,
+	);
+	if (!sourceUrl) {
+		return {};
+	}
+	const cacheTtlMs =
+		modelCatalog?.cacheTtlMs ?? DEFAULT_PRIVATE_MODELS_CACHE_TTL_MS;
+	const cacheKey = resolvePublicCacheKey(providerId, config);
+	const now = Date.now();
+
+	const cached = PUBLIC_MODELS_CACHE.get(cacheKey);
+	if (cached && cached.expiresAt > now) {
+		return cached.data;
+	}
+
+	const inFlight = PUBLIC_MODELS_IN_FLIGHT.get(cacheKey);
+	if (inFlight) {
+		return inFlight;
+	}
+
+	const request = fetchModelIdsFromSource(sourceUrl, providerId)
+		.then((modelIds) => {
+			const data = Object.fromEntries(
+				modelIds.map((id) => [
+					id,
+					buildModelFromPrivateSource(id, { name: id }),
+				]),
+			);
+			PUBLIC_MODELS_CACHE.set(cacheKey, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
+			return data;
+		})
+		.finally(() => {
+			PUBLIC_MODELS_IN_FLIGHT.delete(cacheKey);
+		});
+
+	PUBLIC_MODELS_IN_FLIGHT.set(cacheKey, request);
+	return request;
+}
+
+export function clearPublicModelsCatalogCache(): void {
+	PUBLIC_MODELS_CACHE.clear();
+	PUBLIC_MODELS_IN_FLIGHT.clear();
+}
+
 async function fetchPrivateProviderModels(
 	providerId: string,
 	config: ProviderConfig,
@@ -632,11 +726,36 @@ export async function resolveProviderConfig(
 			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
 				? await getPrivateProviderModels(providerId, modelCatalog, config)
 				: {};
+		// Public (keyless) live model sources run whenever `modelsSourceUrl` is
+		// registered for the provider — even if the caller didn't pass a
+		// `config`. Falls back to the spec's default base URL so a fresh install
+		// still hits the default local model endpoint. Failures are swallowed
+		// below, so an unreachable server just leaves the picker on the bundled
+		// catalog.
+		const hasPublicModelSource = Boolean(
+			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider
+				.modelsSourceUrl,
+		);
+		const publicConfig: ProviderConfig | undefined = hasPublicModelSource
+			? (config ?? {
+					providerId: providerId as ProviderConfig["providerId"],
+					modelId: defaults.modelId,
+					baseUrl: defaults.baseUrl,
+				})
+			: config;
+		const publicModels = publicConfig
+			? await getPublicProviderModels(
+					providerId,
+					modelCatalog,
+					publicConfig,
+				).catch(() => ({}))
+			: {};
 		const knownModels = await mergeKnownModels(
 			providerId,
 			defaults.knownModels,
 			liveModels,
 			privateModels,
+			publicModels,
 			config?.knownModels,
 		);
 

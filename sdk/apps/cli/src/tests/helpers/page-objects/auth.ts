@@ -5,6 +5,6 @@ export async function waitForAuthScreen(terminal: Terminal): Promise<void> {
 	await expectVisible(terminal, [
 		"Sign in with Cline",
 		"Sign in with ChatGPT",
-		"Use an API key",
+		"Bring your own provider",
 	]);
 }

@@ -14,8 +14,10 @@ import {
 	addLocalProvider,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	getProviderConfigFields,
 	listLocalProviders,
 	normalizeOAuthProvider,
+	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderSettings,
 	updateLocalProvider,
@@ -198,6 +200,29 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("data-array-provider");
 		expect(models.map((m) => m.id).sort()).toEqual(["model-x", "model-y"]);
+	});
+
+	it("parses Ollama-style { models: [{ name }] } payloads", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					models: [{ name: "llama3.1" }, { model: "qwen3:8b" }],
+				}),
+			}),
+		);
+
+		await addLocalProvider(manager, {
+			providerId: "ollama-shaped-provider",
+			name: "Ollama Shaped",
+			baseUrl: "https://example.invalid/v1",
+			models: [],
+			modelsSourceUrl: "https://example.invalid/api/tags",
+		});
+
+		const { models } = await getLocalProviderModels("ollama-shaped-provider");
+		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
 	});
 
 	it("parses a { models: { id1: {}, id2: {} } } object-keyed payload", async () => {
@@ -1247,5 +1272,128 @@ describe("resolveLocalClineAuthToken", () => {
 		expect(
 			resolveLocalClineAuthToken({ provider: "cline" as never }),
 		).toBeUndefined();
+	});
+});
+
+describe("getProviderConfigFields", () => {
+	it("returns api-key auth with only apiKey for cloud providers", () => {
+		const result = getProviderConfigFields("anthropic");
+		expect(result.providerId).toBe("anthropic");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl).toBeUndefined();
+	});
+
+	it("returns api-key auth with apiKey + baseUrl for ollama", () => {
+		const result = getProviderConfigFields("ollama");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"http://localhost:11434/v1",
+		);
+	});
+
+	it("returns api-key auth with apiKey + baseUrl for LM Studio", () => {
+		const result = getProviderConfigFields("lmstudio");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"http://localhost:1234/v1",
+		);
+	});
+
+	it("returns api-key auth with apiKey + baseUrl for LiteLLM", () => {
+		const result = getProviderConfigFields("litellm");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"http://localhost:4000/v1",
+		);
+	});
+
+	it("returns api-key auth with apiKey + baseUrl for user-added providers", () => {
+		registerCustomProvider("internal-router", {
+			provider: {
+				name: "Internal Router",
+				baseUrl: "https://llm.internal.example/v1",
+				defaultModelId: "alpha",
+				protocol: "openai-responses",
+			},
+			models: {
+				alpha: { name: "Alpha" },
+			},
+		});
+
+		const result = getProviderConfigFields("internal-router");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"https://llm.internal.example/v1",
+		);
+	});
+
+	it("returns oauth auth with no fields for cline", () => {
+		const result = getProviderConfigFields("cline");
+		expect(result.authMethod).toBe("oauth");
+		expect(result.fields).toEqual({});
+	});
+
+	it("returns oauth auth with no fields for openai-codex", () => {
+		const result = getProviderConfigFields("openai-codex");
+		expect(result.authMethod).toBe("oauth");
+		expect(result.fields).toEqual({});
+	});
+
+	it("normalizes the openai alias to openai-native", () => {
+		const result = getProviderConfigFields("openai");
+		expect(result.providerId).toBe("openai-native");
+		expect(result.authMethod).toBe("api-key");
+	});
+
+	it("falls back to a single api-key field for unknown providers", () => {
+		const result = getProviderConfigFields("not-a-real-provider");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields).toEqual({ apiKey: {} });
+	});
+});
+
+describe("refreshProviderModelsFromSource", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+	});
+
+	afterEach(() => cleanup());
+
+	it("refreshes built-in Ollama models through modelsSourceUrl using the saved base URL", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ models: [{ name: "remote-llama" }] }),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://tailscale-host:11434/v1",
+		});
+
+		const result = await refreshProviderModelsFromSource(manager, "ollama");
+
+		expect(result).toMatchObject({ providerId: "ollama", refreshed: true });
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://tailscale-host:11434/api/tags",
+			{
+				method: "GET",
+			},
+		);
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		expect(modelsState.providers.ollama?.provider?.modelsSourceUrl).toBe(
+			"http://tailscale-host:11434/api/tags",
+		);
+		const { models } = await getLocalProviderModels("ollama");
+		expect(models.map((model) => model.id)).toContain("remote-llama");
 	});
 });

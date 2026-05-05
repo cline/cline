@@ -421,9 +421,14 @@ export {
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
+	getProviderConfigFields,
 	listLocalProviders,
 	loginLocalProvider,
 	normalizeOAuthProvider,
+	type ProviderConfigFieldKey,
+	type ProviderConfigFieldRequirement,
+	type ProviderConfigFields,
+	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
@@ -647,6 +652,7 @@ export type {
 	ProviderSettings,
 	ReasoningSettings,
 	SapSettings,
+	ToProviderConfigOptions,
 } from "./services/llms/provider-settings";
 export {
 	AuthSettingsSchema,

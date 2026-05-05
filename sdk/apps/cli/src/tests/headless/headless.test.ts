@@ -31,7 +31,7 @@ test.describe("clite -y (headless auth failure mode) - unauthenticated", () => {
 	});
 
 	test("prints Not authenticated and exits 1", async ({ terminal }) => {
-		await expectVisible(terminal, /Missing API key/i);
+		await expectVisible(terminal, /Unauthorized|Missing API key/i);
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });
@@ -54,7 +54,7 @@ test.describe("piped stdin | clite - unauthenticated", () => {
 	});
 
 	test("prints Not Authenticated for piped stdin", async ({ terminal }) => {
-		await expectVisible(terminal, /Missing API key/i);
+		await expectVisible(terminal, /Unauthorized|Missing API key/i);
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });
@@ -74,7 +74,7 @@ test.describe("clite -y --verbose - unauthenticated", () => {
 	});
 
 	test("shows verbose output or not-authenticated", async ({ terminal }) => {
-		await expectVisible(terminal, /Missing API key/i);
+		await expectVisible(terminal, /Unauthorized|Missing API key/i);
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });
@@ -92,7 +92,7 @@ test.describe("clite -y --json - unauthenticated", () => {
 
 	test("outputs JSON error for unauthenticated", async ({ terminal }) => {
 		await expectVisible(terminal, /"type":"error"/i);
-		await expectVisible(terminal, /Missing API key/i);
+		await expectVisible(terminal, /Unauthorized|Missing API key/i);
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });

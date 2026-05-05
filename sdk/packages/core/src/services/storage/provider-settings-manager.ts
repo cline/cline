@@ -16,6 +16,7 @@ import {
 	type ProviderTokenSource,
 	type StoredProviderSettings,
 	StoredProviderSettingsSchema,
+	type ToProviderConfigOptions,
 	toProviderConfig,
 } from "../../types/provider-settings";
 import {
@@ -162,20 +163,25 @@ export class ProviderSettingsManager {
 		return state.providers[providerId]?.settings;
 	}
 
-	getProviderConfig(providerId: string): ProviderConfig | undefined {
+	getProviderConfig(
+		providerId: string,
+		options?: ToProviderConfigOptions,
+	): ProviderConfig | undefined {
 		const settings = this.getProviderSettings(providerId);
 		if (!settings) {
 			return undefined;
 		}
-		return toProviderConfig(settings);
+		return toProviderConfig(settings, options);
 	}
 
-	getLastUsedProviderConfig(): ProviderConfig | undefined {
+	getLastUsedProviderConfig(
+		options?: ToProviderConfigOptions,
+	): ProviderConfig | undefined {
 		const settings = this.getLastUsedProviderSettings();
 		if (!settings) {
 			return undefined;
 		}
-		return toProviderConfig(settings);
+		return toProviderConfig(settings, options);
 	}
 
 	async refreshCatalog(): Promise<void> {

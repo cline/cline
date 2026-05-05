@@ -5,11 +5,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@clinebot/shared";
 import { wrapLanguageModel } from "ai";
-import {
-	allowsMissingOpenAiCompatibleApiKey,
-	getMissingApiKeyError,
-	resolveApiKey,
-} from "../http";
+import { resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -17,15 +13,11 @@ export async function createOpenAICompatibleProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
+	// Don't preflight-check for a missing API key. If credentials are
+	// missing or wrong, the provider's own response (e.g. 401) is the
+	// authoritative error and is surfaced to the user as-is. This keeps
+	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
-	if (
-		!apiKey &&
-		!allowsMissingOpenAiCompatibleApiKey(context.provider.id, config)
-	) {
-		throw new Error(
-			getMissingApiKeyError(context.provider.id, context.provider.apiKeyEnv),
-		);
-	}
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,

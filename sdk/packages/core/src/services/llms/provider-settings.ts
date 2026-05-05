@@ -172,6 +172,10 @@ export const ProviderSettingsSchema = z.object({
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>;
 
+export interface ToProviderConfigOptions {
+	includeKnownModels?: boolean;
+}
+
 export function parseSettings(input: unknown): ProviderSettings {
 	return ProviderSettingsSchema.parse(input);
 }
@@ -190,9 +194,13 @@ function shouldRouteThroughOpenAIResponses(
 	);
 }
 
-export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
+export function toProviderConfig(
+	settings: ProviderSettings,
+	options: ToProviderConfigOptions = {},
+): ProviderConfig {
 	const providerId = settings.provider as ProviderId;
 	const normalizedProviderId = normalizeProviderId(providerId);
+	const includeKnownModels = options.includeKnownModels !== false;
 	const unifiedReasoningLevel = settings.reasoning?.effort || "none";
 	const reasoningEffort =
 		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
@@ -222,6 +230,13 @@ export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
 			? BUILT_IN_PROVIDER.OPENAI_NATIVE
 			: undefined);
 
+	const knownModels = includeKnownModels
+		? (providerDefaults?.knownModels ??
+			(Object.keys(generatedKnownModels).length > 0
+				? generatedKnownModels
+				: undefined))
+		: undefined;
+
 	const config: ProviderConfig = {
 		providerId,
 		clientType: settings.client,
@@ -231,11 +246,7 @@ export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
 			providerDefaults?.modelId ??
 			generatedDefaultModelId ??
 			"default",
-		knownModels:
-			providerDefaults?.knownModels ??
-			(Object.keys(generatedKnownModels).length > 0
-				? generatedKnownModels
-				: undefined),
+		...(includeKnownModels ? { knownModels } : {}),
 		apiKey,
 		accessToken: settings.auth?.accessToken,
 		refreshToken: settings.auth?.refreshToken,

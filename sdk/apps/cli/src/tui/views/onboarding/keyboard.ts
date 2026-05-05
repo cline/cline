@@ -23,8 +23,10 @@ export function useOnboardingKeyboard(input: {
 	thinkingSelected: number;
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
-	setApiKeyValue: (value: string) => void;
-	setApiKeyError: (value: string) => void;
+	resetByoFields: () => void;
+	byoFields: { apiKey?: unknown; baseUrl?: unknown };
+	byoFocusedField: "apiKey" | "baseUrl";
+	setByoFocusedField: (field: "apiKey" | "baseUrl") => void;
 	setDeviceUserCode: (value: string) => void;
 	setDeviceVerifyUrl: (value: string) => void;
 	setDeviceError: (value: string) => void;
@@ -69,8 +71,7 @@ export function useOnboardingKeyboard(input: {
 				return;
 			}
 			if (input.step === "byo_apikey") {
-				input.setApiKeyValue("");
-				input.setApiKeyError("");
+				input.resetByoFields();
 				input.setStep("byo_provider");
 				return;
 			}
@@ -92,6 +93,10 @@ export function useOnboardingKeyboard(input: {
 					input.setStep("menu");
 					input.setMenuSelected(0);
 				}
+				return;
+			}
+			if (input.step === "custom_model_id") {
+				input.setStep("model_picker");
 				return;
 			}
 			if (input.step === "thinking_level") {
@@ -154,7 +159,22 @@ export function useOnboardingKeyboard(input: {
 			return;
 		}
 
-		if (input.step === "byo_apikey") return;
+		if (input.step === "byo_apikey") {
+			if (key.name === "tab") {
+				const visible = (["baseUrl", "apiKey"] as const).filter(
+					(k) => input.byoFields[k] !== undefined,
+				);
+				if (visible.length > 1) {
+					const idx = visible.indexOf(input.byoFocusedField);
+					const nextIdx = key.shift
+						? (idx - 1 + visible.length) % visible.length
+						: (idx + 1) % visible.length;
+					const next = visible[nextIdx];
+					if (next) input.setByoFocusedField(next);
+				}
+			}
+			return;
+		}
 
 		if (input.step === "cline_model") {
 			const total = input.clineEntries.length;

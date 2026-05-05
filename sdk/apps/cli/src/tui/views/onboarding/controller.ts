@@ -1,10 +1,16 @@
 import {
 	getLocalProviderModels,
+	getProviderConfigFields,
 	listLocalProviders,
+	type ProviderConfigFields,
 	ProviderSettingsManager,
+	refreshProviderModelsFromSource,
 	resolveProviderConfig,
 	saveLocalProviderSettings,
 } from "@clinebot/core";
+
+type ByoFieldKey = "apiKey" | "baseUrl";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import {
@@ -35,6 +41,8 @@ import {
 	toProviderEntry,
 } from "./model";
 
+const CUSTOM_MODEL_ID_ACTION = "__custom_model_id__";
+
 export interface OnboardingControllerProps {
 	onComplete: (result: OnboardingResult) => void;
 	onExit: () => void;
@@ -55,8 +63,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [authError, setAuthError] = useState("");
 	const [activeProviderId, setActiveProviderId] = useState("");
 	const [activeProviderName, setActiveProviderName] = useState("");
-	const [apiKeyValue, setApiKeyValue] = useState("");
-	const [apiKeyError, setApiKeyError] = useState("");
+	const [byoFields, setByoFields] = useState<ProviderConfigFields["fields"]>(
+		{},
+	);
+	const [byoApiKey, setByoApiKey] = useState("");
+	const [byoBaseUrl, setByoBaseUrl] = useState("");
+	const [byoFocusedField, setByoFocusedField] = useState<ByoFieldKey>("apiKey");
 	const authAbortRef = useRef(false);
 
 	// Device code flow
@@ -98,6 +110,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [modelEntries, setModelEntries] = useState<ModelEntry[]>([]);
 	const [modelsLoading, setModelsLoading] = useState(false);
 	const [modelsDefaultId, setModelsDefaultId] = useState("");
+	const [customModelId, setCustomModelId] = useState("");
+	const [customModelError, setCustomModelError] = useState("");
 
 	const modelItems: SearchableItem[] = useMemo(
 		() =>
@@ -111,7 +125,22 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		[modelEntries, modelsDefaultId],
 	);
 
-	const modelList = useSearchableList(modelItems);
+	const createCustomModelItem = useCallback(
+		(_search: string, filteredItems: SearchableItem[]) => {
+			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
+				return undefined;
+			}
+			return {
+				key: CUSTOM_MODEL_ID_ACTION,
+				label: "Create custom model ID",
+				detail: "manual entry",
+				searchText: "create custom model id manual entry",
+			} satisfies SearchableItem;
+		},
+		[],
+	);
+
+	const modelList = useSearchableList(modelItems, createCustomModelItem);
 
 	// Cline featured model picker
 	const recommended = useClineRecommendedModels();
@@ -153,16 +182,25 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		ReasoningEffort | undefined
 	>(undefined);
 
-	const loadModelsForProvider = useCallback((providerId: string) => {
-		setModelsLoading(true);
-		setModelEntries([]);
-		getLocalProviderModels(providerId)
-			.then(({ models }) => {
-				setModelEntries(models.map(toModelEntry));
-			})
-			.catch(() => {})
-			.finally(() => setModelsLoading(false));
-	}, []);
+	const loadModelsForProvider = useCallback(
+		(providerId: string) => {
+			setModelsLoading(true);
+			setModelEntries([]);
+			const providerConfig = providerSettingsManager.getProviderConfig(
+				providerId,
+				{ includeKnownModels: false },
+			);
+			refreshProviderModelsFromSource(providerSettingsManager, providerId)
+				.catch(() => {})
+				.then(() => getLocalProviderModels(providerId, providerConfig))
+				.then(({ models }) => {
+					setModelEntries(models.map(toModelEntry));
+				})
+				.catch(() => {})
+				.finally(() => setModelsLoading(false));
+		},
+		[providerSettingsManager],
+	);
 
 	const transitionToModelPicker = useCallback(
 		(providerId: string) => {
@@ -250,59 +288,94 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				if (isOnboardingOAuthProviderId(provider.id)) {
 					startOAuthFlow(provider.id);
 				}
-			} else {
-				setActiveProviderId(provider.id);
-				setActiveProviderName(provider.name);
-				setStep("byo_apikey");
-				setApiKeyValue("");
-				setApiKeyError("");
+				return;
 			}
+			const config = getProviderConfigFields(provider.id);
+			setActiveProviderId(provider.id);
+			setActiveProviderName(provider.name);
+			setByoFields(config.fields);
+			setByoApiKey("");
+			setByoBaseUrl(
+				providerSettingsManager
+					.getProviderSettings(provider.id)
+					?.baseUrl?.trim() ??
+					config.fields.baseUrl?.defaultValue ??
+					"",
+			);
+			// Focus base URL first when present (local-server users land on
+			// the actionable input). Cloud providers see only `apiKey`.
+			setByoFocusedField(config.fields.baseUrl ? "baseUrl" : "apiKey");
+			setStep("byo_apikey");
 		},
-		[providers, startOAuthFlow],
+		[providers, startOAuthFlow, providerSettingsManager],
 	);
 
-	const saveByoApiKey = useCallback(() => {
-		const trimmed = apiKeyValue.trim();
-		if (!trimmed) {
-			setApiKeyError("API key cannot be empty");
-			return;
-		}
+	const saveByoConfig = useCallback(() => {
+		// No required-field validation. If credentials are missing or wrong,
+		// the provider's own auth response is the authoritative error and is
+		// surfaced when the model picker / first turn runs.
 		saveLocalProviderSettings(providerSettingsManager, {
 			providerId: activeProviderId,
-			apiKey: trimmed,
+			apiKey: byoFields.apiKey ? byoApiKey.trim() : undefined,
+			baseUrl: byoFields.baseUrl ? byoBaseUrl.trim() : undefined,
 		});
 		transitionToModelPicker(activeProviderId);
 	}, [
-		apiKeyValue,
+		byoApiKey,
+		byoBaseUrl,
+		byoFields,
 		activeProviderId,
 		providerSettingsManager,
 		transitionToModelPicker,
 	]);
 
+	const completeModelSelection = useCallback(
+		(modelId: string) => {
+			const existing =
+				providerSettingsManager.getProviderSettings(activeProviderId);
+			providerSettingsManager.saveProviderSettings(
+				{ ...(existing ?? { provider: activeProviderId }), model: modelId },
+				{ setLastUsed: true },
+			);
+			setSelectedModelId(modelId);
+			const entry = modelEntries.find((m) => m.id === modelId);
+			if (entry?.supportsReasoning) {
+				setSelectedModelName(entry.name);
+				setThinkingSelected(0);
+				setStep("thinking_level");
+			} else {
+				setStep("done");
+			}
+		},
+		[activeProviderId, modelEntries, providerSettingsManager],
+	);
+
+	const selectModelItem = useCallback(
+		(item: SearchableItem | undefined) => {
+			if (!item) return;
+			if (item.key === CUSTOM_MODEL_ID_ACTION) {
+				setCustomModelId("");
+				setCustomModelError("");
+				setStep("custom_model_id");
+				return;
+			}
+			completeModelSelection(item.key);
+		},
+		[completeModelSelection],
+	);
+
 	const saveModelSelection = useCallback(() => {
-		const item = modelList.selectedItem;
-		if (!item) return;
-		const existing =
-			providerSettingsManager.getProviderSettings(activeProviderId);
-		providerSettingsManager.saveProviderSettings(
-			{ ...(existing ?? { provider: activeProviderId }), model: item.key },
-			{ setLastUsed: true },
-		);
-		setSelectedModelId(item.key);
-		const entry = modelEntries.find((m) => m.id === item.key);
-		if (entry?.supportsReasoning) {
-			setSelectedModelName(entry.name);
-			setThinkingSelected(0);
-			setStep("thinking_level");
-		} else {
-			setStep("done");
+		selectModelItem(modelList.selectedItem);
+	}, [modelList.selectedItem, selectModelItem]);
+
+	const saveCustomModelId = useCallback(() => {
+		const modelId = customModelId.trim();
+		if (!modelId) {
+			setCustomModelError("Enter a model ID");
+			return;
 		}
-	}, [
-		modelList.selectedItem,
-		activeProviderId,
-		modelEntries,
-		providerSettingsManager,
-	]);
+		completeModelSelection(modelId);
+	}, [customModelId, completeModelSelection]);
 
 	const saveClineModelSelection = useCallback(
 		(modelId: string, modelName: string) => {
@@ -388,8 +461,14 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		thinkingSelected,
 		setStep,
 		setMenuSelected,
-		setApiKeyValue,
-		setApiKeyError,
+		resetByoFields: () => {
+			setByoFields({});
+			setByoApiKey("");
+			setByoBaseUrl("");
+		},
+		byoFields,
+		byoFocusedField,
+		setByoFocusedField,
 		setDeviceUserCode,
 		setDeviceVerifyUrl,
 		setDeviceError,
@@ -414,11 +493,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	return {
 		activeProviderName,
-		apiKeyError,
-		apiKeyValue,
 		authError,
 		authStatus,
 		authUrl,
+		byoApiKey,
+		byoBaseUrl,
+		byoFields,
+		byoFocusedField,
 		clineEntries,
 		clineKnownModels,
 		clineModelSelected,
@@ -426,10 +507,15 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		deviceStatus,
 		deviceUserCode,
 		deviceVerifyUrl,
-		handleApiKeyInput: (value: string) => {
-			setApiKeyValue(value);
-			setApiKeyError("");
+		customModelError,
+		customModelId,
+		handleByoApiKeyInput: setByoApiKey,
+		handleByoBaseUrlInput: setByoBaseUrl,
+		handleCustomModelIdInput: (value: string) => {
+			setCustomModelId(value);
+			setCustomModelError("");
 		},
+		handleModelItemSelect: selectModelItem,
 		menuSelected,
 		modelItems,
 		modelList,
@@ -438,7 +524,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		providerList,
 		providersLoading,
 		recommendedLoading: recommended.loading,
-		saveByoApiKey,
+		saveByoConfig,
+		saveCustomModelId,
 		selectedModelName,
 		step,
 		thinkingSelected,

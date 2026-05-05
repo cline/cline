@@ -349,6 +349,7 @@ export function registerProviderSettingsProvider(
 			protocol,
 			client,
 			baseUrl,
+			modelsSourceUrl: existingCollection?.provider.modelsSourceUrl,
 			defaultModelId,
 			capabilities:
 				toProviderCapabilities(settings.capabilities) ??
@@ -419,6 +420,7 @@ export function registerCustomProvider(
 			protocol,
 			client,
 			baseUrl: entry.provider.baseUrl,
+			modelsSourceUrl: entry.provider.modelsSourceUrl,
 			defaultModelId,
 			capabilities: toProviderCapabilities(entry.provider.capabilities),
 			source: "file",

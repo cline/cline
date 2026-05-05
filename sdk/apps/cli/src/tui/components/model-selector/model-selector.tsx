@@ -78,6 +78,9 @@ export function ModelSelectorContent(
 		return idx >= 0 ? idx : 0;
 	});
 	const [onProvider, setOnProvider] = useState(false);
+	const [isCreatingCustomModel, setIsCreatingCustomModel] = useState(false);
+	const [customModelId, setCustomModelId] = useState("");
+	const [customModelError, setCustomModelError] = useState("");
 
 	const filtered = useMemo(() => {
 		if (!search) return models;
@@ -89,20 +92,35 @@ export function ModelSelectorContent(
 		return scored.map((r) => r.model);
 	}, [models, search]);
 
-	const safeSelected = Math.min(selected, Math.max(0, filtered.length - 1));
+	const optionCount = filtered.length + 1;
+	const safeSelected = Math.min(selected, Math.max(0, optionCount - 1));
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
+			if (isCreatingCustomModel) {
+				setIsCreatingCustomModel(false);
+				setCustomModelError("");
+				return;
+			}
 			dismiss();
 			return;
 		}
+		if (isCreatingCustomModel) return;
 		if (key.name === "return" || key.name === "enter") {
 			if (onProvider) {
 				resolve(CHANGE_PROVIDER_ACTION);
 				return;
 			}
 			const model = filtered[safeSelected];
-			if (model) resolve(model.key);
+			if (model) {
+				resolve(model.key);
+				return;
+			}
+			if (safeSelected === filtered.length) {
+				setIsCreatingCustomModel(true);
+				setCustomModelId("");
+				setCustomModelError("");
+			}
 			return;
 		}
 		if (key.name === "tab") {
@@ -115,17 +133,65 @@ export function ModelSelectorContent(
 		}
 		if (key.name === "up" || (key.ctrl && key.name === "p")) {
 			if (!onProvider) {
-				setSelected((s) => (s <= 0 ? filtered.length - 1 : s - 1));
+				setSelected((s) =>
+					optionCount === 0 ? 0 : s <= 0 ? optionCount - 1 : s - 1,
+				);
 			}
 			return;
 		}
 		if (key.name === "down" || (key.ctrl && key.name === "n")) {
 			if (!onProvider) {
-				setSelected((s) => (s >= filtered.length - 1 ? 0 : s + 1));
+				setSelected((s) =>
+					optionCount === 0 ? 0 : s >= optionCount - 1 ? 0 : s + 1,
+				);
 			}
 			return;
 		}
 	}, dialogId);
+
+	if (isCreatingCustomModel) {
+		return (
+			<box flexDirection="column" gap={1}>
+				<text>Create custom model ID</text>
+
+				<ProviderRow providerName={currentProviderName} focused={false} />
+
+				<box flexDirection="column" gap={0}>
+					<text fg="gray">Model ID</text>
+					<box
+						border
+						borderStyle="rounded"
+						borderColor={customModelError ? "red" : "gray"}
+						paddingX={1}
+					>
+						<input
+							value={customModelId}
+							onInput={(v: string) => {
+								setCustomModelId(v);
+								setCustomModelError("");
+							}}
+							onSubmit={() => {
+								const modelId = customModelId.trim();
+								if (!modelId) {
+									setCustomModelError("Enter a model ID");
+									return;
+								}
+								resolve(modelId);
+							}}
+							placeholder=""
+							flexGrow={1}
+							focused
+						/>
+					</box>
+					{customModelError && <text fg="red">{customModelError}</text>}
+				</box>
+
+				<text fg="gray">
+					Enter to create, Esc to go back to model selection
+				</text>
+			</box>
+		);
+	}
 
 	return (
 		<box flexDirection="column" gap={1}>
@@ -152,6 +218,11 @@ export function ModelSelectorContent(
 				dimmed={onProvider}
 				currentModel={currentModel}
 				onSelect={resolve}
+				onCreateCustomModel={() => {
+					setIsCreatingCustomModel(true);
+					setCustomModelId("");
+					setCustomModelError("");
+				}}
 			/>
 
 			<text fg="gray">
@@ -265,49 +336,62 @@ function ModelList(props: {
 	dimmed?: boolean;
 	currentModel: string;
 	onSelect: (key: string) => void;
+	onCreateCustomModel: () => void;
 }) {
-	const { items, selected, dimmed, currentModel, onSelect } = props;
+	const {
+		items,
+		selected,
+		dimmed,
+		currentModel,
+		onSelect,
+		onCreateCustomModel,
+	} = props;
+	const rows: ({ type: "model"; model: ModelOption } | { type: "custom" })[] = [
+		...items.map((model) => ({ type: "model" as const, model })),
+		{ type: "custom" as const },
+	];
 
-	if (items.length === 0) {
-		return (
-			<text fg="gray" paddingX={1}>
-				No models match
-			</text>
-		);
-	}
-
-	if (items.length <= MAX_VISIBLE) {
+	if (rows.length <= MAX_VISIBLE) {
 		return (
 			<box flexDirection="column">
-				{items.map((m, i) => (
-					<ModelRow
-						key={m.key}
-						model={m}
-						isSelected={i === selected}
-						dimmed={dimmed}
-						isCurrent={m.key === currentModel}
-						onSelect={onSelect}
-					/>
-				))}
+				{rows.map((row, i) =>
+					row.type === "model" ? (
+						<ModelRow
+							key={row.model.key}
+							model={row.model}
+							isSelected={i === selected}
+							dimmed={dimmed}
+							isCurrent={row.model.key === currentModel}
+							onSelect={onSelect}
+						/>
+					) : (
+						<CreateCustomModelRow
+							key="create-custom-model"
+							isSelected={i === selected}
+							dimmed={dimmed}
+							onSelect={onCreateCustomModel}
+						/>
+					),
+				)}
 			</box>
 		);
 	}
 
 	const halfWindow = Math.floor(MAX_VISIBLE / 2);
 	let start = Math.max(0, selected - halfWindow);
-	if (start + MAX_VISIBLE > items.length) {
-		start = items.length - MAX_VISIBLE;
+	if (start + MAX_VISIBLE > rows.length) {
+		start = rows.length - MAX_VISIBLE;
 	}
 
 	const showAbove = start > 0;
-	const showBelow = start + MAX_VISIBLE < items.length;
+	const showBelow = start + MAX_VISIBLE < rows.length;
 
 	const itemSlots = MAX_VISIBLE - (showAbove ? 1 : 0) - (showBelow ? 1 : 0);
 	const itemStart = showAbove ? start + 1 : start;
-	const visible = items.slice(itemStart, itemStart + itemSlots);
+	const visible = rows.slice(itemStart, itemStart + itemSlots);
 
 	const aboveCount = itemStart;
-	const belowCount = items.length - (itemStart + itemSlots);
+	const belowCount = rows.length - (itemStart + itemSlots);
 
 	return (
 		<box flexDirection="column">
@@ -318,16 +402,25 @@ function ModelList(props: {
 					</text>
 				</box>
 			)}
-			{visible.map((m, i) => (
-				<ModelRow
-					key={m.key}
-					model={m}
-					isSelected={itemStart + i === selected}
-					dimmed={dimmed}
-					isCurrent={m.key === currentModel}
-					onSelect={onSelect}
-				/>
-			))}
+			{visible.map((row, i) =>
+				row.type === "model" ? (
+					<ModelRow
+						key={row.model.key}
+						model={row.model}
+						isSelected={itemStart + i === selected}
+						dimmed={dimmed}
+						isCurrent={row.model.key === currentModel}
+						onSelect={onSelect}
+					/>
+				) : (
+					<CreateCustomModelRow
+						key="create-custom-model"
+						isSelected={itemStart + i === selected}
+						dimmed={dimmed}
+						onSelect={onCreateCustomModel}
+					/>
+				),
+			)}
 			{showBelow && (
 				<box paddingX={1} justifyContent="center">
 					<text fg="gray">
@@ -335,6 +428,41 @@ function ModelList(props: {
 					</text>
 				</box>
 			)}
+		</box>
+	);
+}
+
+function CreateCustomModelRow(props: {
+	isSelected: boolean;
+	dimmed?: boolean;
+	onSelect: () => void;
+}) {
+	const { isSelected, dimmed, onSelect } = props;
+	const active = isSelected && !dimmed;
+	const bg = active
+		? palette.selection
+		: isSelected && dimmed
+			? "gray"
+			: undefined;
+	return (
+		<box
+			paddingX={1}
+			flexDirection="row"
+			gap={1}
+			backgroundColor={bg}
+			onMouseDown={onSelect}
+			overflow="hidden"
+			height={1}
+		>
+			<text fg={isSelected ? palette.textOnSelection : "gray"} flexShrink={0}>
+				{isSelected ? "\u276f" : " "}
+			</text>
+			<text fg={isSelected ? palette.textOnSelection : undefined}>
+				Create custom model ID
+			</text>
+			<text fg={isSelected ? palette.textOnSelection : "gray"} flexShrink={0}>
+				manual entry
+			</text>
 		</box>
 	);
 }

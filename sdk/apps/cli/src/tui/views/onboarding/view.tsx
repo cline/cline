@@ -5,13 +5,14 @@ import { HOME_VIEW_MAX_WIDTH } from "../../types";
 import { useOnboardingController } from "./controller";
 import { getOAuthProviderLabel, type OnboardingResult } from "./model";
 import {
-	OnboardingApiKeyScreen,
 	OnboardingClineModelScreen,
+	OnboardingCustomModelIdScreen,
 	OnboardingDeviceCodeScreen,
 	OnboardingDoneScreen,
 	OnboardingMainMenuScreen,
 	OnboardingModelPickerScreen,
 	OnboardingOAuthPendingScreen,
+	OnboardingProviderConfigScreen,
 	OnboardingProviderPickerScreen,
 	OnboardingThinkingLevelScreen,
 } from "./screens";
@@ -65,15 +66,18 @@ export function OnboardingView(props: OnboardingViewProps) {
 
 	if (state.step === "byo_apikey") {
 		return (
-			<OnboardingApiKeyScreen
+			<OnboardingProviderConfigScreen
 				activeProviderName={state.activeProviderName}
-				apiKeyError={state.apiKeyError}
-				apiKeyValue={state.apiKeyValue}
+				apiKeyValue={state.byoApiKey}
+				baseUrlValue={state.byoBaseUrl}
 				compact={compact}
 				contentWidth={contentWidth}
+				fields={state.byoFields}
+				focusedField={state.byoFocusedField}
 				mouse={mouse}
-				onApiKeyInput={state.handleApiKeyInput}
-				onSubmit={state.saveByoApiKey}
+				onApiKeyInput={state.handleByoApiKeyInput}
+				onBaseUrlInput={state.handleByoBaseUrlInput}
+				onSubmit={state.saveByoConfig}
 			/>
 		);
 	}
@@ -110,10 +114,25 @@ export function OnboardingView(props: OnboardingViewProps) {
 				activeProviderName={state.activeProviderName}
 				compact={compact}
 				contentWidth={contentWidth}
-				modelItems={state.modelItems}
 				modelList={state.modelList}
 				modelsLoading={state.modelsLoading}
 				mouse={mouse}
+				onModelItemSelect={state.handleModelItemSelect}
+			/>
+		);
+	}
+
+	if (state.step === "custom_model_id") {
+		return (
+			<OnboardingCustomModelIdScreen
+				activeProviderName={state.activeProviderName}
+				compact={compact}
+				contentWidth={contentWidth}
+				error={state.customModelError}
+				mouse={mouse}
+				onInput={state.handleCustomModelIdInput}
+				onSubmit={state.saveCustomModelId}
+				value={state.customModelId}
 			/>
 		);
 	}

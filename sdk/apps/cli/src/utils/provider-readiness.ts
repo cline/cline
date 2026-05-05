@@ -1,4 +1,8 @@
-import type { ProviderSettings } from "@clinebot/core";
+import {
+	getProviderConfigFields,
+	type ProviderConfig,
+	type ProviderSettings,
+} from "@clinebot/core";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -44,6 +48,7 @@ function hasSapCredentials(settings: ProviderSettings): boolean {
 export function isProviderSettingsUsable(
 	providerId: string,
 	settings: ProviderSettings | undefined,
+	config?: Pick<ProviderConfig, "baseUrl" | "modelId">,
 ): boolean {
 	if (!settings) {
 		return false;
@@ -70,5 +75,12 @@ export function isProviderSettingsUsable(
 	if (normalizedProviderId === "sapaicore") {
 		return hasSapCredentials(settings);
 	}
-	return false;
+	const fields = getProviderConfigFields(normalizedProviderId).fields;
+	if (!fields.baseUrl) {
+		return false;
+	}
+	return (
+		hasText(config?.baseUrl ?? settings.baseUrl) &&
+		hasText(config?.modelId ?? settings.model)
+	);
 }
