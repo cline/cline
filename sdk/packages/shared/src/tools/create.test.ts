@@ -112,6 +112,77 @@ describe("createTool", () => {
 		).toThrow(/top level/i);
 	});
 
+	it("infers type:object for allOf when at least one branch has type:object", () => {
+		// The canonical allOf case: one branch sets type + properties, another
+		// adds required without repeating type: "object".  The current input is
+		// still unambiguously object-shaped.
+		const tool = createTool({
+			name: "allof_tool",
+			description: "Tool with an allOf schema",
+			inputSchema: {
+				allOf: [
+					{ type: "object", properties: { commands: { type: "array" } } },
+					{ required: ["commands"] },
+				],
+			},
+			execute: async () => ({ ok: true }),
+		});
+
+		expect(tool.inputSchema).toEqual({
+			type: "object",
+			allOf: [
+				{ type: "object", properties: { commands: { type: "array" } } },
+				{ required: ["commands"] },
+			],
+		});
+	});
+
+	it("merges multiple required-only allOf branches without hoisting them", () => {
+		// Multiple branches each contribute required constraints.  None of them
+		// should be flattened — the allOf composition stays intact, only the
+		// top-level type: "object" is added.
+		const tool = createTool({
+			name: "allof_multi_required_tool",
+			description: "Tool with multiple required-only allOf branches",
+			inputSchema: {
+				allOf: [
+					{ type: "object" },
+					{ required: ["commands"] },
+					{ required: ["foo", "commands"] },
+				],
+			},
+			execute: async () => ({ ok: true }),
+		});
+
+		expect(tool.inputSchema).toEqual({
+			type: "object",
+			allOf: [
+				{ type: "object" },
+				{ required: ["commands"] },
+				{ required: ["foo", "commands"] },
+			],
+		});
+	});
+
+	it("throws when allOf has no branch with type:object", () => {
+		// We cannot verify the schema is object-shaped without at least one
+		// branch asserting type: "object". Fail loudly rather than forward an
+		// ambiguous schema to a provider that may reject it at inference time.
+		expect(() =>
+			createTool({
+				name: "allof_no_type_tool",
+				description: "Tool with allOf but no typed branch",
+				inputSchema: {
+					allOf: [
+						{ required: ["commands"] },
+						{ minProperties: 1 },
+					],
+				},
+				execute: async () => ({ ok: true }),
+			}),
+		).toThrow(/top level/i);
+	});
+
 	it("throws when a Zod union schema with non-object branches is passed as inputSchema", () => {
 		// The concrete regression: passing a coercion/union schema (e.g.
 		// StructuredCommandsInputUnionSchema) directly as inputSchema must fail

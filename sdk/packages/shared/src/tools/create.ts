@@ -28,6 +28,37 @@ function normalizeToolInputSchema(
 		if (!Array.isArray(branches) || branches.length === 0) {
 			continue;
 		}
+
+		if (key === "allOf") {
+			// allOf means the input must satisfy ALL branches simultaneously.
+			// A single branch explicitly typed as an object is sufficient to
+			// constrain the top-level shape — other branches are free to add
+			// required, minProperties, etc. without repeating type: "object".
+			// If no branch asserts type: "object" we cannot verify the schema
+			// is object-shaped, so fail loudly just as we do for anyOf/oneOf —
+			// the developer should make the object constraint explicit.
+			const hasObjectBranch = branches.some(
+				(branch) =>
+					branch &&
+					typeof branch === "object" &&
+					(branch as Record<string, unknown>).type === "object",
+			);
+			if (hasObjectBranch) {
+				return { type: "object", ...schema };
+			}
+			throw new Error(
+				`Tool inputSchema must describe an object at the top level, but ` +
+					`the schema has a top-level "allOf" with no branch that asserts ` +
+					`type: "object". Add type: "object" to at least one allOf branch ` +
+					`to make the object constraint explicit.`,
+			);
+		}
+
+		// oneOf / anyOf: the input matches ONE (or at least one) branch.
+		// Every branch must be object-shaped — a single non-object branch means
+		// the top-level input can be a string, array, etc., which providers
+		// reject.  Fail loudly at registration time so the bug surfaces
+		// immediately rather than at inference time.
 		const allObjectBranches = branches.every(
 			(branch) =>
 				branch &&
@@ -35,17 +66,8 @@ function normalizeToolInputSchema(
 				(branch as Record<string, unknown>).type === "object",
 		);
 		if (allObjectBranches) {
-			return {
-				type: "object",
-				...schema,
-			};
+			return { type: "object", ...schema };
 		}
-		// Mixed-type union: branches include non-object types (strings, arrays,
-		// etc.).  LLM tool APIs require input_schema to describe an object — tool
-		// inputs are always key-value maps.  A schema whose top-level branches
-		// admit non-object values is almost certainly a mistake (e.g. a
-		// coercion/union schema was passed instead of the canonical object
-		// schema).  Fail loudly so the bug is caught at registration time.
 		throw new Error(
 			`Tool inputSchema must describe an object at the top level, but ` +
 				`the schema has a top-level "${key}" whose branches include ` +
