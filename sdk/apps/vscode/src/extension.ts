@@ -16,6 +16,7 @@ import {
 	probeHubServer,
 	type RuntimeCapabilities,
 	readHubDiscovery,
+	rememberRecoverableLocalHubUrl,
 	resolveSharedHubOwnerContext,
 	type ToolPolicy,
 } from "@clinebot/core";
@@ -702,7 +703,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 		if (this.hubUrl) {
 			const healthy = await probeHubServer(this.hubUrl);
 			if (healthy?.url) {
-				return { url: healthy.url, authToken: this.hubAuthToken };
+				return {
+					url: rememberRecoverableLocalHubUrl(healthy.url, this.hubAuthToken),
+					authToken: this.hubAuthToken,
+				};
 			}
 		}
 
@@ -731,7 +735,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 		if (!discovery?.url) return undefined;
 		const healthy = await probeHubServer(discovery.url);
 		return healthy?.url
-			? { url: healthy.url, authToken: discovery.authToken }
+			? {
+					url: rememberRecoverableLocalHubUrl(healthy.url, discovery.authToken),
+					authToken: discovery.authToken,
+				}
 			: undefined;
 	}
 

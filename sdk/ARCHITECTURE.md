@@ -180,6 +180,14 @@ the `Sec-WebSocket-Protocol` header and shutdown requests use an
 public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
+Local hub rediscovery is limited to managed shared-daemon endpoints obtained
+through discovery or `ensure*HubServer(...)` startup paths. Explicit endpoints,
+including loopback URLs such as `ws://127.0.0.1:<port>/hub`, are sticky exact
+targets: reconnects may retry the same socket URL, but command recovery and
+startup-deadlock recovery must not replace them with the workspace-discovered
+hub. This keeps custom local hubs and remote hubs from silently drifting to a
+different process.
+
 ### Interactive CLI Startup
 
 1. `apps/cli` owns OpenTUI startup and must render the first frame without waiting for detached hub startup.

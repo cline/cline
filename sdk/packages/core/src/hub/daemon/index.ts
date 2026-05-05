@@ -7,7 +7,11 @@ import {
 	isHubDaemonProcess,
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
-import { requestHubShutdown, verifyHubConnection } from "../client";
+import {
+	rememberRecoverableLocalHubUrl,
+	requestHubShutdown,
+	verifyHubConnection,
+} from "../client";
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
@@ -217,6 +221,11 @@ export async function ensureDetachedHubServer(
 	endpointOverrides: HubEndpointOverrides = {},
 ): Promise<DetachedHubResolution> {
 	const owner = resolveSharedHubOwnerContext();
+	const hasExplicitEndpoint =
+		endpointOverrides.host !== undefined ||
+		endpointOverrides.port !== undefined ||
+		endpointOverrides.pathname !== undefined ||
+		!!process.env.CLINE_HUB_PORT?.trim();
 	const hasExplicitPort =
 		endpointOverrides.port !== undefined ||
 		!!process.env.CLINE_HUB_PORT?.trim();
@@ -226,6 +235,14 @@ export async function ensureDetachedHubServer(
 		endpoint.port,
 		endpoint.pathname,
 	);
+	const rememberIfManaged = (
+		result: DetachedHubResolution,
+	): DetachedHubResolution => {
+		if (!hasExplicitEndpoint) {
+			rememberRecoverableLocalHubUrl(result.url, result.authToken);
+		}
+		return result;
+	};
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	if (discovered?.url) {
 		const healthy = await probeHubServer(discovered.url);
@@ -236,7 +253,10 @@ export async function ensureDetachedHubServer(
 				authToken: discovered.authToken,
 			}))
 		) {
-			return { url: healthy.url, authToken: discovered.authToken };
+			return rememberIfManaged({
+				url: healthy.url,
+				authToken: discovered.authToken,
+			});
 		}
 		if (healthy?.url) {
 			await retireIncompatibleHub(
@@ -268,7 +288,10 @@ export async function ensureDetachedHubServer(
 					authToken: nextDiscovery.authToken,
 				}))
 			) {
-				return { url: healthy.url, authToken: nextDiscovery.authToken };
+				return rememberIfManaged({
+					url: healthy.url,
+					authToken: nextDiscovery.authToken,
+				});
 			}
 		}
 		const nextExpected = await probeHubServer(expectedUrl);

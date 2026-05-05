@@ -3,7 +3,7 @@ import http from "node:http";
 import net from "node:net";
 import { URL } from "node:url";
 import { WebSocketServer } from "ws";
-import { verifyHubConnection } from "../client";
+import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
 import {
 	clearHubDiscovery,
 	createHubAuthToken,
@@ -40,7 +40,14 @@ type NodeWebSocketLike = {
 	send(data: string): void;
 	on(event: "message", listener: (data: unknown) => void): void;
 	on(event: "close", listener: () => void): void;
+	on(event: "pong", listener: () => void): void;
 	once(event: "close", listener: () => void): void;
+	ping?(): void;
+	terminate?(): void;
+};
+
+type TrackedNodeWebSocket = NodeWebSocketLike & {
+	isAlive?: boolean;
 };
 
 type NodeUpgradeSocketLike = {
@@ -190,6 +197,7 @@ function isAddressInUseError(error: unknown): boolean {
 
 const SHARED_SERVERS = new Map<string, Promise<HubWebSocketServer>>();
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
+const HUB_SOCKET_HEARTBEAT_INTERVAL_MS = 30_000;
 
 function parseHeaderValue(value: string | string[] | undefined): string {
 	return Array.isArray(value) ? value.join(",") : (value ?? "");
@@ -239,6 +247,8 @@ export async function startHubWebSocketServer(
 		pid: process.pid,
 		startedAt,
 	} as const;
+	const sockets = new Set<TrackedNodeWebSocket>();
+	let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 	let closePromise: Promise<void> | undefined;
 
 	const closeServer = async (): Promise<void> => {
@@ -246,6 +256,14 @@ export async function startHubWebSocketServer(
 			return closePromise;
 		}
 		closePromise = (async () => {
+			if (heartbeatTimer) {
+				clearInterval(heartbeatTimer);
+				heartbeatTimer = undefined;
+			}
+			for (const websocket of sockets) {
+				websocket.terminate?.();
+			}
+			sockets.clear();
 			for (const detach of cleanup) {
 				detach();
 			}
@@ -323,6 +341,30 @@ export async function startHubWebSocketServer(
 		res.end("Not found");
 	});
 	const wss = new WebSocketServer({ noServer: true });
+	heartbeatTimer = setInterval(() => {
+		for (const websocket of sockets) {
+			if (websocket.isAlive === false) {
+				try {
+					websocket.terminate?.();
+				} catch {
+					// The socket is already unhealthy; cleanup below is sufficient.
+				}
+				sockets.delete(websocket);
+				continue;
+			}
+			websocket.isAlive = false;
+			try {
+				websocket.ping?.();
+			} catch {
+				try {
+					websocket.terminate?.();
+				} catch {
+					// best-effort termination
+				}
+				sockets.delete(websocket);
+			}
+		}
+	}, HUB_SOCKET_HEARTBEAT_INTERVAL_MS);
 
 	server.on("upgrade", (request, socket, head) => {
 		const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
@@ -345,9 +387,16 @@ export async function startHubWebSocketServer(
 				socket,
 				head,
 				(websocket: NodeWebSocketLike) => {
+					const tracked = websocket as TrackedNodeWebSocket;
+					tracked.isAlive = true;
+					tracked.on("pong", () => {
+						tracked.isAlive = true;
+					});
+					sockets.add(tracked);
 					const detach = adapter.attach(wrapWsSocket(websocket));
 					cleanup.add(detach);
 					websocket.once("close", () => {
+						sockets.delete(tracked);
 						detach();
 						cleanup.delete(detach);
 					});
@@ -358,33 +407,42 @@ export async function startHubWebSocketServer(
 		}
 	});
 
-	await new Promise<void>((resolve, reject) => {
-		server.once("error", (error) => {
-			reject(
-				formatHubStartupError(error, {
-					host,
-					port: requestedPort,
-					pathname,
-				}),
-			);
-		});
-		server.listen(requestedPort, host, () => {
-			const address = server.address();
-			if (!address || typeof address === "string") {
+	try {
+		await new Promise<void>((resolve, reject) => {
+			server.once("error", (error) => {
 				reject(
-					formatHubStartupError(new Error("Failed to resolve hub port"), {
+					formatHubStartupError(error, {
 						host,
 						port: requestedPort,
 						pathname,
 					}),
 				);
-				return;
-			}
-			port = address.port;
-			url = createHubServerUrl(host, port, pathname);
-			resolve();
+			});
+			server.listen(requestedPort, host, () => {
+				const address = server.address();
+				if (!address || typeof address === "string") {
+					reject(
+						formatHubStartupError(new Error("Failed to resolve hub port"), {
+							host,
+							port: requestedPort,
+							pathname,
+						}),
+					);
+					return;
+				}
+				port = address.port;
+				url = createHubServerUrl(host, port, pathname);
+				resolve();
+			});
 		});
-	});
+	} catch (error) {
+		if (heartbeatTimer) {
+			clearInterval(heartbeatTimer);
+			heartbeatTimer = undefined;
+		}
+		await transport.stop().catch(() => undefined);
+		throw error;
+	}
 
 	await writeHubDiscovery(owner.discoveryPath, {
 		hubId: transport.getHubId(),
@@ -412,21 +470,34 @@ export async function ensureHubWebSocketServer(
 	options: EnsureHubWebSocketServerOptions,
 ): Promise<EnsuredHubWebSocketServerResult> {
 	const owner = options.owner ?? resolveHubOwnerContext();
+	const hasExplicitEndpoint =
+		options.host !== undefined ||
+		options.port !== undefined ||
+		options.pathname !== undefined ||
+		!!process.env.CLINE_HUB_PORT?.trim();
 	const host = options.host ?? "127.0.0.1";
 	const port = options.port ?? resolveDefaultHubPort();
 	const pathname = options.pathname ?? "/hub";
 	const expectedUrl = createHubServerUrl(host, port, pathname);
 	const sharedKey = owner.discoveryPath;
+	const rememberIfManaged = <T extends EnsuredHubWebSocketServerResult>(
+		result: T,
+	): T => {
+		if (!hasExplicitEndpoint) {
+			rememberRecoverableLocalHubUrl(result.url, result.authToken);
+		}
+		return result;
+	};
 	const existing = SHARED_SERVERS.get(sharedKey);
 	if (existing) {
 		const server = await existing;
 		if (server.url === expectedUrl) {
-			return {
+			return rememberIfManaged({
 				server,
 				url: server.url,
 				authToken: server.authToken,
 				action: "reuse",
-			};
+			});
 		}
 	}
 
@@ -443,11 +514,11 @@ export async function ensureHubWebSocketServer(
 					authToken: discovered.authToken,
 				}))
 			) {
-				return {
+				return rememberIfManaged({
 					url: healthy.url,
 					authToken: discovered.authToken,
 					action: "reuse",
-				};
+				});
 			}
 		}
 
@@ -463,12 +534,12 @@ export async function ensureHubWebSocketServer(
 			SHARED_SERVERS.set(sharedKey, serverPromise);
 			try {
 				const server = await serverPromise;
-				return {
+				return rememberIfManaged({
 					server,
 					url: server.url,
 					authToken: server.authToken,
 					action: "started",
-				};
+				});
 			} catch (error) {
 				SHARED_SERVERS.delete(sharedKey);
 				throw error;

@@ -4,12 +4,13 @@ import type {
 	HubReplyEnvelope,
 	HubTransportFrame,
 } from "@clinebot/shared";
-import { safeJsonParse } from "@clinebot/shared";
+import {
+	HUB_COMMAND_SLOW_LOG_MS,
+	resolveHubCommandTimeoutMs,
+	safeJsonParse,
+} from "@clinebot/shared";
 import type { HubCommandTransport } from "./command-transport";
 import { logHubMessage } from "./hub-server-logging";
-
-const HUB_SERVER_COMMAND_TIMEOUT_MS = 25_000;
-const HUB_SERVER_COMMAND_SLOW_MS = 5_000;
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
@@ -90,7 +91,7 @@ export class BrowserWebSocketHubAdapter {
 								...context,
 								elapsedMs: Math.round(performance.now() - startedAt),
 							});
-						}, HUB_SERVER_COMMAND_SLOW_MS);
+						}, HUB_COMMAND_SLOW_LOG_MS);
 						const commandPromise = this.transport.command(frame.envelope);
 						commandPromise.then(
 							(lateReply) => {
@@ -119,22 +120,29 @@ export class BrowserWebSocketHubAdapter {
 						let timedOut = false;
 						let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
 						let reply: HubReplyEnvelope;
+						const timeoutMs = resolveHubCommandTimeoutMs(
+							frame.envelope.command,
+							frame.envelope.timeoutMs,
+						);
 						try {
-							reply = await Promise.race([
-								commandPromise,
-								new Promise<HubReplyEnvelope>((resolve) => {
-									timeoutTimer = setTimeout(() => {
-										timedOut = true;
-										resolve(
-											commandErrorReply(
-												frame,
-												"hub_command_timeout",
-												`Hub command ${frame.envelope.command} did not complete within ${HUB_SERVER_COMMAND_TIMEOUT_MS}ms. Check hub-daemon.log for command.start/command.slow logs with requestId ${frame.envelope.requestId}.`,
-											),
-										);
-									}, HUB_SERVER_COMMAND_TIMEOUT_MS);
-								}),
-							]);
+							reply =
+								timeoutMs === null
+									? await commandPromise
+									: await Promise.race([
+											commandPromise,
+											new Promise<HubReplyEnvelope>((resolve) => {
+												timeoutTimer = setTimeout(() => {
+													timedOut = true;
+													resolve(
+														commandErrorReply(
+															frame,
+															"hub_command_timeout",
+															`Hub command ${frame.envelope.command} did not complete within ${timeoutMs}ms. Check hub-daemon.log for command.start/command.slow logs with requestId ${frame.envelope.requestId}.`,
+														),
+													);
+												}, timeoutMs);
+											}),
+										]);
 						} catch (error) {
 							clearTimeout(slowTimer);
 							if (timeoutTimer) clearTimeout(timeoutTimer);
@@ -148,7 +156,7 @@ export class BrowserWebSocketHubAdapter {
 							logHubMessage("error", "command.timeout", {
 								...context,
 								durationMs,
-								timeoutMs: HUB_SERVER_COMMAND_TIMEOUT_MS,
+								timeoutMs,
 							});
 						} else {
 							logHubMessage(reply.ok ? "info" : "warn", "command.end", {

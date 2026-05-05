@@ -415,7 +415,6 @@ export interface HubRuntimeHostOptions {
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
-	allowLocalHubRediscovery?: boolean;
 }
 
 function mapStatus(
@@ -615,7 +614,6 @@ export class HubRuntimeHost implements RuntimeHost {
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
 			cwd: clientContext?.cwd,
-			allowLocalHubRediscovery: options.allowLocalHubRediscovery ?? true,
 		};
 		this.defaultCapabilities =
 			normalizeRuntimeCapabilities(options.capabilities) ?? {};
@@ -973,6 +971,7 @@ export class HubRuntimeHost implements RuntimeHost {
 							}
 						: undefined,
 				delivery: input.delivery,
+				timeoutMs: input.timeoutMs,
 			},
 			input.sessionId,
 			{ timeoutMs: null },

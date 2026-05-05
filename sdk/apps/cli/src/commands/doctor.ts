@@ -661,7 +661,7 @@ export function createDoctorCommand(
 
 	doctor
 		.command("fix")
-		.description("Kill stale local processes")
+		.description("Kill all running processes")
 		.option("--cwd <path>", "Workspace root", process.cwd())
 		.option("--json", "Output as JSON")
 		.option("-v, --verbose", "Show additional diagnostic details")

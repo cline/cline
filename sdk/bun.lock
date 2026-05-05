@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@clinebot/cli",
-      "version": "0.0.7",
+      "version": "0.0.9",
       "bin": {
         "clite": "src/index.ts",
       },
@@ -141,15 +141,6 @@
       },
       "peerDependencies": {
         "typescript": "^5",
-      },
-    },
-    "apps/examples/plugin-examples/subagent-plugin": {
-      "name": "cline-sdk-portable-agents",
-      "version": "0.1.0",
-      "dependencies": {
-        "@clinebot/core": "workspace:*",
-        "yaml": "^2.8.1",
-        "zod": "^4.1.5",
       },
     },
     "apps/examples/slack-bot": {
@@ -1720,8 +1711,6 @@
     "cli-width": ["cli-width@4.1.0", "", {}, "sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ=="],
 
     "client-only": ["client-only@0.0.1", "", {}, "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA=="],
-
-    "cline-sdk-portable-agents": ["cline-sdk-portable-agents@workspace:apps/examples/plugin-examples/subagent-plugin"],
 
     "cline-sdk-slack-bot-example": ["cline-sdk-slack-bot-example@workspace:apps/examples/slack-bot"],
 

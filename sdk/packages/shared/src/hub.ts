@@ -350,12 +350,37 @@ export type HubCommandName =
 	| "ui.notify"
 	| "ui.show_window";
 
+export const HUB_DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+export const HUB_COMMAND_SLOW_LOG_MS = 5_000;
+
+export function getDefaultHubCommandTimeoutMs(
+	command: HubCommandName,
+): number | null {
+	switch (command) {
+		case "run.start":
+		case "session.send_input":
+			return null;
+		default:
+			return HUB_DEFAULT_COMMAND_TIMEOUT_MS;
+	}
+}
+
+export function resolveHubCommandTimeoutMs(
+	command: HubCommandName,
+	timeoutMs?: number | null,
+): number | null {
+	return timeoutMs === undefined
+		? getDefaultHubCommandTimeoutMs(command)
+		: timeoutMs;
+}
+
 export interface HubCommandEnvelope {
 	version: HubProtocolVersion;
 	command: HubCommandName;
 	requestId?: string;
 	clientId?: string;
 	sessionId?: string;
+	timeoutMs?: number | null;
 	payload?: Record<string, unknown>;
 }
 
@@ -382,6 +407,7 @@ export type HubEventName =
 	| "session.pending_prompts"
 	| "session.pending_prompt_submitted"
 	| "run.started"
+	| "run.heartbeat"
 	| "run.aborted"
 	| "run.completed"
 	| "run.failed"
@@ -556,6 +582,7 @@ export interface HubSessionRuntimeOptions {
 	mode?: "act" | "plan" | "yolo";
 	systemPrompt?: string;
 	maxIterations?: number;
+	timeoutSeconds?: number;
 	thinking?: boolean;
 	reasoningEffort?: ReasoningEffort;
 	checkpointEnabled?: boolean;

@@ -5,6 +5,7 @@ const {
 	closeSync,
 	mkdirSync,
 	openSync,
+	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
@@ -21,6 +22,7 @@ const {
 	closeSync: vi.fn(),
 	mkdirSync: vi.fn(),
 	openSync: vi.fn(() => 17),
+	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
 	resolveSharedHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
@@ -62,6 +64,7 @@ vi.mock("@clinebot/shared", () => ({
 }));
 
 vi.mock("../client", () => ({
+	rememberRecoverableLocalHubUrl,
 	requestHubShutdown,
 	verifyHubConnection,
 }));

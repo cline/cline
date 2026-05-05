@@ -162,6 +162,7 @@ export interface SendSessionInput {
 	userImages?: string[];
 	userFiles?: string[];
 	delivery?: "queue" | "steer";
+	timeoutMs?: number;
 }
 
 export interface SessionAccumulatedUsage {

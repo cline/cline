@@ -180,6 +180,35 @@ describe("NodeHubClient", () => {
 			});
 		});
 
+		it("reconnects and re-subscribes active listeners after an idle close", async () => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			try {
+				const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+				await client.connect();
+				client.subscribe(() => {});
+
+				const firstSocket = MockWebSocket.instances[0];
+				firstSocket.emit("close", { code: 1006, reason: "Connection ended" });
+
+				await vi.advanceTimersByTimeAsync(251);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				const secondSocket = MockWebSocket.instances[1];
+				expect(secondSocket).toBeDefined();
+				expect(secondSocket.sentFrames).toContainEqual({
+					kind: "stream.subscribe",
+					clientId: client.getClientId(),
+				});
+
+				await client.dispose();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
 		it("unregisters before closing when disposed", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 
@@ -537,10 +566,11 @@ describe("NodeHubClient", () => {
 		});
 
 		try {
-			const { NodeHubClient: DynamicClient } = await import(".");
+			const { NodeHubClient: DynamicClient, rememberRecoverableLocalHubUrl } =
+				await import(".");
+			rememberRecoverableLocalHubUrl("ws://127.0.0.1:25463/hub");
 			const client = new DynamicClient({
 				url: "ws://127.0.0.1:25463/hub",
-				allowLocalHubRediscovery: true,
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 			});
@@ -550,6 +580,155 @@ describe("NodeHubClient", () => {
 				payload: { clients: [] },
 			});
 			expect(client.getUrl()).toBe(recoveredUrl);
+			await client.dispose();
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			vi.resetModules();
+		}
+	});
+
+	it("does not rediscover explicit local hub endpoints", async () => {
+		vi.resetModules();
+		const originalWebSocket = globalThis.WebSocket;
+		const originalUrl = "ws://127.0.0.1:25463/hub";
+		const recoveredUrl = "ws://127.0.0.1:25464/hub";
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25464,
+			url: recoveredUrl,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		class ExplicitEndpointWebSocket {
+			readyState = 0;
+			private readonly listeners = new Map<string, Set<GenericListener>>();
+
+			constructor(
+				private readonly url: string,
+				_protocols?: string | string[],
+			) {
+				queueMicrotask(() => {
+					this.readyState = 1;
+					this.emit("open");
+				});
+			}
+
+			addEventListener(type: string, listener: GenericListener): void {
+				const current = this.listeners.get(type) ?? new Set<GenericListener>();
+				current.add(listener);
+				this.listeners.set(type, current);
+			}
+
+			send(data: string): void {
+				const frame = JSON.parse(data) as {
+					kind?: string;
+					envelope?: { requestId?: string; command?: string };
+				};
+				if (frame.kind !== "command" || !frame.envelope?.requestId) {
+					return;
+				}
+				if (frame.envelope.command === "client.register") {
+					queueMicrotask(() => {
+						this.emit("message", {
+							data: JSON.stringify({
+								kind: "reply",
+								envelope: {
+									version: "v1",
+									requestId: frame.envelope?.requestId,
+									ok: true,
+									payload: {},
+								},
+							}),
+						});
+					});
+					return;
+				}
+				if (this.url === originalUrl) {
+					queueMicrotask(() => {
+						this.readyState = 3;
+						this.emit("close", { code: 1006, reason: "" });
+					});
+					return;
+				}
+				queueMicrotask(() => {
+					this.emit("message", {
+						data: JSON.stringify({
+							kind: "reply",
+							envelope: {
+								version: "v1",
+								requestId: frame.envelope?.requestId,
+								ok: true,
+								payload: { clients: [] },
+							},
+						}),
+					});
+				});
+			}
+
+			close(): void {
+				this.readyState = 3;
+				this.emit("close", { code: 1000, reason: "" });
+			}
+
+			private emit(type: string, payload?: unknown): void {
+				for (const listener of this.listeners.get(type) ?? []) {
+					if (type === "message") {
+						(listener as MessageListener)(payload as { data: string });
+						continue;
+					}
+					listener(payload);
+				}
+			}
+		}
+
+		(
+			globalThis as unknown as { WebSocket?: typeof ExplicitEndpointWebSocket }
+		).WebSocket = ExplicitEndpointWebSocket;
+		vi.doMock("../daemon", () => ({
+			spawnDetachedHubServer: vi.fn(),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery-explicit.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: vi.fn(async () => record),
+				probeHubServer: vi.fn(async (url: string) =>
+					url.includes(":25464/") ? record : undefined,
+				),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		try {
+			const { NodeHubClient: DynamicClient } = await import(".");
+			const client = new DynamicClient({
+				url: originalUrl,
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			});
+
+			await expect(client.command("client.list")).rejects.toMatchObject({
+				name: "HubTransportError",
+				code: "hub_connection_closed",
+			});
+			expect(client.getUrl()).toBe(originalUrl);
 			await client.dispose();
 		} finally {
 			if (originalWebSocket) {
@@ -711,5 +890,47 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
 			"/tmp/hub-discovery.json",
 		);
+	});
+
+	it("does not restart explicit local endpoints after startup timeout", async () => {
+		const readHubDiscoveryMock = vi.fn(async () => ({
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25463,
+			url: "ws://127.0.0.1:25463/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../daemon", () => ({
+			spawnDetachedHubServer: vi.fn(),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				readHubDiscovery: readHubDiscoveryMock,
+			};
+		});
+
+		const { restartLocalHubIfIdleAfterStartupTimeout } = await import(".");
+
+		await expect(
+			restartLocalHubIfIdleAfterStartupTimeout({
+				url: "ws://127.0.0.1:25463/hub",
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			}),
+		).resolves.toBeUndefined();
+		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 });

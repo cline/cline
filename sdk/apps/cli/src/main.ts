@@ -294,7 +294,7 @@ export async function runCli(): Promise<void> {
 		.passThroughOptions()
 		.addHelpText(
 			"after",
-			"\nCommands:\n  fix  Kill stale local processes\n  log  Open the CLI log file\n",
+			"\nCommands:\n  fix  Kill all running processes\n  log  Open the CLI log file\n",
 		)
 		.action(async (_opts: unknown, cmd: Command) => {
 			const doctorCmd = await createDoctorRuntimeCommand();

@@ -169,7 +169,6 @@ export async function createRuntimeHost(
 				clientType: options.hub?.clientType,
 				displayName: options.hub?.displayName,
 				capabilities: options.capabilities,
-				allowLocalHubRediscovery: !explicitEndpoint,
 			},
 			{
 				workspaceRoot: options.hub?.workspaceRoot,
@@ -195,7 +194,6 @@ export async function createRuntimeHost(
 					clientType: options.hub?.clientType,
 					displayName: options.hub?.displayName,
 					capabilities: options.capabilities,
-					allowLocalHubRediscovery: !options.hub?.endpoint?.trim(),
 				},
 				{
 					workspaceRoot: options.hub?.workspaceRoot,

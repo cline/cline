@@ -5,6 +5,7 @@ import {
 	type HubEventEnvelope,
 	type HubReplyEnvelope,
 	type HubTransportFrame,
+	resolveHubCommandTimeoutMs,
 } from "@clinebot/shared";
 import { spawnDetachedHubServer } from "../daemon";
 import {
@@ -85,6 +86,21 @@ function decodeCloseReason(reason: unknown): string {
 	return "";
 }
 
+function createHubCloseError(event: unknown): HubTransportError {
+	const closeEvent = event as { code?: number; reason?: unknown };
+	const reasonText = decodeCloseReason(closeEvent.reason);
+	return new HubTransportError(
+		"hub_connection_closed",
+		closeEvent.code || reasonText
+			? `Hub connection closed (code=${closeEvent.code ?? 0}${reasonText ? `, reason=${reasonText}` : ""})`
+			: DEFAULT_HUB_CLOSED_MESSAGE,
+		{
+			closeCode: closeEvent.code,
+			closeReason: reasonText || undefined,
+		},
+	);
+}
+
 function normalizeWebSocketConnectError(
 	error: unknown,
 	url: URL,
@@ -139,7 +155,6 @@ export interface HubClientOptions {
 	workspaceRoot?: string;
 	cwd?: string;
 	authToken?: string;
-	allowLocalHubRediscovery?: boolean;
 }
 
 export interface LocalHubResolutionOptions {
@@ -153,13 +168,16 @@ const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
 const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
-const HUB_COMMAND_TIMEOUT_MS = 30_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
+const RECOVERABLE_LOCAL_HUB_URLS = new Set<string>();
 const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 3_000;
 const HUB_RECOVERY_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RECOVERY_RETIRE_POLL_MS = 100;
 const DEFAULT_HUB_CLOSED_MESSAGE = "Hub connection closed";
+const HUB_RECONNECT_INITIAL_DELAY_MS = 250;
+const HUB_RECONNECT_MAX_DELAY_MS = 5_000;
+const HUB_RECONNECT_JITTER_RATIO = 0.5;
 
 export type HubTransportErrorCode =
 	| "hub_connect_timeout"
@@ -206,21 +224,55 @@ export function isHubCommandTimeoutError(
 	);
 }
 
-function rememberLocalHubAuthToken(url: string, authToken: string): string {
-	const parsed = new URL(url);
-	parsed.search = "";
-	parsed.hash = "";
-	LOCAL_HUB_AUTH_TOKENS.set(parsed.toString(), authToken);
-	return url;
-}
-
 function resolveLocalHubAuthToken(url: URL): string | undefined {
 	const queryToken = url.searchParams.get("authToken")?.trim();
 	url.searchParams.delete("authToken");
 	if (queryToken) {
 		return queryToken;
 	}
-	return LOCAL_HUB_AUTH_TOKENS.get(url.toString());
+	const key = localHubUrlKey(url.toString());
+	return key ? LOCAL_HUB_AUTH_TOKENS.get(key) : undefined;
+}
+
+function isLocalHubUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url);
+		const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+		return (
+			hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+		);
+	} catch {
+		return false;
+	}
+}
+
+function localHubUrlKey(url: string): string | undefined {
+	if (!isLocalHubUrl(url)) {
+		return undefined;
+	}
+	const parsed = new URL(normalizeHubWebSocketUrl(url));
+	parsed.search = "";
+	parsed.hash = "";
+	return parsed.toString();
+}
+
+function isRecoverableLocalHubUrl(url: string): boolean {
+	const key = localHubUrlKey(url);
+	return !!key && RECOVERABLE_LOCAL_HUB_URLS.has(key);
+}
+
+export function rememberRecoverableLocalHubUrl(
+	url: string,
+	authToken?: string,
+): string {
+	const key = localHubUrlKey(url);
+	if (key) {
+		RECOVERABLE_LOCAL_HUB_URLS.add(key);
+		if (authToken?.trim()) {
+			LOCAL_HUB_AUTH_TOKENS.set(key, authToken);
+		}
+	}
+	return url;
 }
 
 export class NodeHubClient {
@@ -228,11 +280,13 @@ export class NodeHubClient {
 	private connectPromise: Promise<void> | undefined;
 	private readonly clientId: string;
 	private currentUrl: string;
-	private readonly allowLocalHubRediscovery: boolean;
 	private recoveryPromise: Promise<boolean> | undefined;
 	private readonly pendingReplies = new Map<string, PendingReply>();
 	private readonly listeners = new Set<SubscriptionEntry>();
 	private readonly subscriptionCounts = new Map<string, number>();
+	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+	private reconnectAttempt = 0;
+	private closedByClient = false;
 	private lastCloseError = new HubTransportError(
 		"hub_connection_closed",
 		DEFAULT_HUB_CLOSED_MESSAGE,
@@ -245,7 +299,6 @@ export class NodeHubClient {
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 		this.currentUrl = options.url;
-		this.allowLocalHubRediscovery = options.allowLocalHubRediscovery === true;
 	}
 
 	getClientId(): string {
@@ -263,6 +316,8 @@ export class NodeHubClient {
 		) {
 			return this.connectPromise ?? Promise.resolve();
 		}
+		this.closedByClient = false;
+		this.clearReconnectTimer();
 
 		const url = new URL(this.currentUrl);
 		const authToken =
@@ -318,6 +373,20 @@ export class NodeHubClient {
 				this.socket = undefined;
 				reject(this.lastCloseError);
 			});
+			socket.addEventListener("close", (event: unknown) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				clearTimeout(timeout);
+				if (!suppressCloseMessage) {
+					this.lastCloseError = createHubCloseError(event);
+					this.sawSocketClose = true;
+				}
+				this.connectPromise = undefined;
+				this.socket = undefined;
+				reject(this.lastCloseError);
+			});
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
@@ -327,27 +396,20 @@ export class NodeHubClient {
 			if (this.socket !== socket) {
 				return;
 			}
-			const closeEvent = event as { code?: number; reason?: unknown };
-			const reasonText = decodeCloseReason(closeEvent.reason);
 			if (!suppressCloseMessage) {
-				this.lastCloseError = new HubTransportError(
-					"hub_connection_closed",
-					closeEvent.code || reasonText
-						? `Hub connection closed (code=${closeEvent.code ?? 0}${reasonText ? `, reason=${reasonText}` : ""})`
-						: DEFAULT_HUB_CLOSED_MESSAGE,
-					{
-						closeCode: closeEvent.code,
-						closeReason: reasonText || undefined,
-					},
-				);
+				this.lastCloseError = createHubCloseError(event);
 				this.sawSocketClose = true;
 			}
+			this.registered = false;
 			for (const pending of this.pendingReplies.values()) {
 				pending.reject(this.lastCloseError);
 			}
 			this.pendingReplies.clear();
 			this.connectPromise = undefined;
 			this.socket = undefined;
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
+			}
 		});
 
 		await this.connectPromise;
@@ -369,6 +431,7 @@ export class NodeHubClient {
 				this.subscriptionSessionIdFromKey(key),
 			);
 		}
+		this.reconnectAttempt = 0;
 	}
 
 	subscribe(
@@ -420,11 +483,13 @@ export class NodeHubClient {
 	): Promise<HubReplyEnvelope> {
 		await this.connect();
 		const requestId = createSessionId("hubreq_");
+		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
+			command,
+			options?.timeoutMs,
+		);
 		const reply = new Promise<HubReplyEnvelope>((resolve, reject) => {
-			const timeoutMs = options?.timeoutMs;
-			const effectiveTimeoutMs = timeoutMs ?? HUB_COMMAND_TIMEOUT_MS;
 			const timeout =
-				timeoutMs === null
+				effectiveTimeoutMs === null
 					? undefined
 					: setTimeout(() => {
 							if (!this.pendingReplies.delete(requestId)) {
@@ -434,7 +499,7 @@ export class NodeHubClient {
 								new HubCommandError(
 									command,
 									"hub_command_timeout",
-									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run with CLINE_SESSION_BACKEND_MODE=local to bypass the hub.`,
+									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run 'cline doctor fix' to restart the hub.`,
 								),
 							);
 						}, effectiveTimeoutMs);
@@ -462,6 +527,7 @@ export class NodeHubClient {
 					requestId,
 					clientId: this.clientId,
 					sessionId,
+					timeoutMs: effectiveTimeoutMs,
 					payload,
 				},
 			});
@@ -482,7 +548,7 @@ export class NodeHubClient {
 
 	private async recoverLocalHubTransport(error: unknown): Promise<boolean> {
 		if (
-			!this.allowLocalHubRediscovery ||
+			!isRecoverableLocalHubUrl(this.currentUrl) ||
 			!isHubReconnectableTransportError(error)
 		) {
 			return false;
@@ -507,8 +573,76 @@ export class NodeHubClient {
 		return await this.recoveryPromise;
 	}
 
+	private hasActiveSubscriptions(): boolean {
+		return this.subscriptionCounts.size > 0;
+	}
+
+	private clearReconnectTimer(): void {
+		if (!this.reconnectTimer) {
+			return;
+		}
+		clearTimeout(this.reconnectTimer);
+		this.reconnectTimer = undefined;
+	}
+
+	private scheduleReconnect(): void {
+		if (
+			this.reconnectTimer ||
+			this.closedByClient ||
+			!this.hasActiveSubscriptions()
+		) {
+			return;
+		}
+		const delayMs = Math.min(
+			HUB_RECONNECT_INITIAL_DELAY_MS * 2 ** this.reconnectAttempt,
+			HUB_RECONNECT_MAX_DELAY_MS,
+		);
+		const jitteredDelayMs = Math.round(
+			delayMs * (1 - HUB_RECONNECT_JITTER_RATIO) +
+				Math.random() * delayMs * HUB_RECONNECT_JITTER_RATIO,
+		);
+		this.reconnectTimer = setTimeout(() => {
+			this.reconnectTimer = undefined;
+			void this.reconnectSubscribedTransport();
+		}, jitteredDelayMs);
+	}
+
+	private async reconnectSubscribedTransport(): Promise<void> {
+		if (this.closedByClient || !this.hasActiveSubscriptions()) {
+			return;
+		}
+		try {
+			await this.connect();
+			this.reconnectAttempt = 0;
+		} catch {
+			if (!isRecoverableLocalHubUrl(this.currentUrl)) {
+				this.reconnectAttempt += 1;
+				this.scheduleReconnect();
+				return;
+			}
+			try {
+				const recoveredUrl = await ensureCompatibleLocalHubUrl({
+					workspaceRoot: this.options.workspaceRoot,
+					cwd: this.options.cwd,
+				});
+				if (recoveredUrl) {
+					this.currentUrl = recoveredUrl;
+					await this.connect();
+					this.reconnectAttempt = 0;
+					return;
+				}
+			} catch {
+				// fall through to retry below
+			}
+			this.reconnectAttempt += 1;
+			this.scheduleReconnect();
+		}
+	}
+
 	close(): void {
 		const socket = this.socket;
+		this.closedByClient = true;
+		this.clearReconnectTimer();
 		this.registered = false;
 		if (!socket) {
 			return;
@@ -581,6 +715,9 @@ export class NodeHubClient {
 		const next = (this.subscriptionCounts.get(key) ?? 0) + delta;
 		if (next <= 0) {
 			this.subscriptionCounts.delete(key);
+			if (!this.hasActiveSubscriptions()) {
+				this.clearReconnectTimer();
+			}
 			if (delta < 0 && this.socket?.readyState === 1) {
 				this.sendSubscriptionFrame("stream.unsubscribe", sessionId);
 			}
@@ -732,7 +869,7 @@ async function waitForCompatibleHubUrl(
 				authToken: record.authToken,
 			});
 			if (compatible.status === "compatible") {
-				return rememberLocalHubAuthToken(compatible.url, record.authToken);
+				return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
 			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
@@ -827,7 +964,7 @@ export async function resolveCompatibleLocalHubUrl(
 	}
 	const compatible = await probeCompatibleHubUrl(record.url);
 	if (compatible.status === "compatible") {
-		return rememberLocalHubAuthToken(compatible.url, record.authToken);
+		return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
 	}
 	if (compatible.status === "build_mismatch") {
 		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
@@ -904,6 +1041,9 @@ export async function restartLocalHubIfIdleAfterStartupTimeout(options: {
 	workspaceRoot?: string;
 	cwd?: string;
 }): Promise<string | undefined> {
+	if (!isRecoverableLocalHubUrl(options.url)) {
+		return undefined;
+	}
 	const owner = resolveSharedHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url || !sameNormalizedHubUrl(discovery.url, options.url)) {

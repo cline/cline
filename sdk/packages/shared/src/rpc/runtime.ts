@@ -17,6 +17,7 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	autoApproveTools?: boolean;
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
+	timeoutSeconds?: number;
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
 	toolExecutors?: HubToolExecutorName[];
 	configExtensions?: RuntimeConfigExtensionKind[];
