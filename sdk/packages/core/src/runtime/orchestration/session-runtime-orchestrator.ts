@@ -925,7 +925,9 @@ export class SessionRuntime {
 				return undefined;
 			}
 			return {
-				messages: messagesToAgentMessages(result.messages),
+				...(result.messages
+					? { messages: messagesToAgentMessages(result.messages) }
+					: {}),
 				systemPrompt: result.systemPrompt,
 			};
 		};

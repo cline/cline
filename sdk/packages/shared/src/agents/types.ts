@@ -586,7 +586,7 @@ export interface AgentPrepareTurnContext {
 }
 
 export interface AgentPrepareTurnResult {
-	messages: MessageWithMetadata[];
+	messages?: MessageWithMetadata[];
 	systemPrompt?: string;
 }
 

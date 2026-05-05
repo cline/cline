@@ -575,6 +575,40 @@ describe("SessionRuntime message preparation", () => {
 			{ type: "text", text: "compacted transcript" },
 		]);
 	});
+
+	it("allows prepareTurn to return only a system prompt", async () => {
+		const prepareTurn = vi.fn(() => ({
+			systemPrompt: "rewritten system prompt",
+		}));
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig({ prepareTurn }), deps);
+
+		await session.run("go");
+		const runtimePrepareTurn = configs[0]?.prepareTurn;
+		expect(runtimePrepareTurn).toBeDefined();
+
+		const result = await runtimePrepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "keep me" }],
+					createdAt: 1,
+				},
+			],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+
+		expect(result).toEqual({
+			systemPrompt: "rewritten system prompt",
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------
