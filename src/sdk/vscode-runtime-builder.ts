@@ -1,5 +1,5 @@
 import { createDefaultExecutors, createMcpTools } from "@clinebot/core"
-import { createTool, type Tool, type ToolContext } from "@clinebot/shared"
+import { type AgentTool, type AgentToolContext, createTool } from "@clinebot/shared"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -36,7 +36,7 @@ class McpHubToolProvider {
 		serverName: string
 		toolName: string
 		arguments?: Record<string, unknown>
-		context?: ToolContext
+		context?: AgentToolContext
 	}): Promise<unknown> {
 		const ulid = `sdk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid)
@@ -64,7 +64,7 @@ const getCompletionCommandExecutor = (() => {
 	}
 })()
 
-function createAttemptCompletionTool(options: { cwd?: string } = {}): Tool {
+function createAttemptCompletionTool(options: { cwd?: string } = {}): AgentTool {
 	return createTool({
 		name: "attempt_completion",
 		description:
@@ -86,7 +86,7 @@ function createAttemptCompletionTool(options: { cwd?: string } = {}): Tool {
 			},
 			required: ["result"],
 		},
-		execute: async (input: unknown, context: ToolContext) => {
+		execute: async (input: unknown, context: AgentToolContext) => {
 			const parsedInput = input && typeof input === "object" ? (input as Record<string, unknown>) : {}
 			const resultText = typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."
 			const command = typeof parsedInput.command === "string" ? parsedInput.command.trim() : undefined
@@ -127,7 +127,7 @@ export interface VscodeExtraToolsOptions {
 	getTerminalManager?: () => ITerminalManager
 }
 
-export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<Tool[]> {
+export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
 	const provider = new McpHubToolProvider(mcpHub)
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
@@ -147,11 +147,11 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 		}),
 	)
 
-	const tools: Tool[] = [createAttemptCompletionTool({ cwd: options?.cwd }), ...mcpTools.flat()]
+	const tools: AgentTool[] = [createAttemptCompletionTool({ cwd: options?.cwd }), ...mcpTools.flat()]
 
 	// Add the custom run_commands tool when a terminal manager is available.
-	// This replaces the SDK's built-in run_commands (which is suppressed via
-	// defaultToolExecutors: { bash: undefined } in VscodeSessionHost).
+	// This replaces the SDK's built-in run_commands, which is suppressed via
+	// tool executor capabilities in VscodeSessionHost.
 	if (options?.getTerminalManager) {
 		tools.push(
 			createVscodeRunCommandsTool({
