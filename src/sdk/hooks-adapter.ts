@@ -1,28 +1,22 @@
-// Bridges Cline's file-based hook scripts into the SDK's AgentHooks interface
-// and AgentExtension (plugin) interface.
+// Bridges Cline's file-based hook scripts into the SDK's runtime hooks.
 //
-// AgentHooks (config.hooks) — maps 4 Cline hooks to SDK lifecycle callbacks:
-//   TaskStart    → onSessionStart
-//   PreToolUse   → onToolCallStart
-//   PostToolUse  → onToolCallEnd
-//   TaskComplete → onRunEnd (gated on finishReason === 'completed')
+// Runtime hooks use typed in-process lifecycle callbacks:
+//   TaskStart        -> beforeRun
+//   UserPromptSubmit -> beforeRun with the latest submitted user message
+//   PreToolUse       -> beforeTool
+//   PostToolUse      -> afterTool
+//   TaskComplete     -> afterRun when completed
+//   TaskCancel       -> afterRun when aborted
 //
-// AgentExtension (config.extensions) — maps 2 additional hooks via the plugin system:
-//   UserPromptSubmit → onInput (fires before the prompt enters the agent loop)
-//   TaskCancel       → onSessionShutdown (fires with reason === 'session_stop')
-//
-// Deferred hooks (NOT wired here): TaskResume, PreCompact, Notification.
+// Deferred hooks (NOT wired here): TaskResume, TaskError, SessionShutdown,
+// PreCompact, Notification.
 
 import type {
-	AgentExtension,
-	AgentExtensionInputContext,
-	AgentExtensionSessionShutdownContext,
-	AgentHookControl,
-	AgentHookRunEndContext,
-	AgentHookSessionStartContext,
+	AgentAfterToolContext,
+	AgentBeforeToolContext,
 	AgentHooks,
-	AgentHookToolCallEndContext,
-	AgentHookToolCallStartContext,
+	AgentRunLifecycleContext,
+	AgentStopControl,
 } from "@clinebot/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
@@ -30,22 +24,8 @@ import { HookFactory } from "@/core/hooks/hook-factory"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
 import type { StateManager } from "@/core/storage/StateManager"
 
-/**
- * Callback type for emitting hook_status ClineMessages to the webview.
- *
- * The SDK invokes AgentHooks callbacks inline (not through onEvent), so
- * the message-translator's `case 'hook':` handler never fires for our
- * adapter hooks. This emitter lets the hooks-adapter push hook_status
- * messages directly to the webview via the SdkController.
- */
 export type HookMessageEmitter = (message: ClineMessage) => void
 
-/**
- * Safely coerce an `unknown` SDK tool input into `Record<string, string>`.
- *
- * Hook scripts expect string-valued parameter maps. If the input is already
- * a plain object we stringify each value; otherwise we return an empty map.
- */
 function toStringRecord(input: unknown): Record<string, string> {
 	if (input == null || typeof input !== "object" || Array.isArray(input)) {
 		return {}
@@ -57,29 +37,37 @@ function toStringRecord(input: unknown): Record<string, string> {
 	return result
 }
 
-/**
- * Map a Cline HookOutput to SDK AgentHookControl (or undefined when no-op).
- */
-function mapHookResult(hookOutput: { cancel: boolean; contextModification: string }): AgentHookControl | undefined {
-	const hasCancel = hookOutput.cancel
-	const hasContext = hookOutput.contextModification && hookOutput.contextModification.length > 0
-
-	if (!hasCancel && !hasContext) {
+function mapStopControl(hookOutput: { cancel?: boolean; errorMessage?: string }): AgentStopControl | undefined {
+	if (!hookOutput.cancel) {
 		return undefined
 	}
-
 	return {
-		cancel: hasCancel || undefined,
-		context: hasContext ? hookOutput.contextModification : undefined,
+		stop: true,
+		reason: hookOutput.errorMessage || undefined,
 	}
 }
 
-/**
- * Build a hook_status ClineMessage for the webview's HookMessage component.
- *
- * The `text` field is JSON matching the HookMetadata interface expected by
- * `webview-ui/src/components/chat/HookMessage.tsx`.
- */
+function taskIdFromSnapshot(snapshot: AgentRunLifecycleContext["snapshot"]): string {
+	return snapshot.conversationId ?? snapshot.runId ?? snapshot.agentId
+}
+
+function textFromMessageContent(content: readonly { type: string; text?: string }[]): string {
+	return content
+		.filter((part) => part.type === "text" && typeof part.text === "string")
+		.map((part) => part.text)
+		.join("")
+}
+
+function latestUserPrompt(ctx: AgentRunLifecycleContext): string {
+	for (let index = ctx.snapshot.messages.length - 1; index >= 0; index -= 1) {
+		const message = ctx.snapshot.messages[index]
+		if (message?.role === "user") {
+			return textFromMessageContent(message.content)
+		}
+	}
+	return ""
+}
+
 function buildHookStatusMessage(opts: {
 	hookName: string
 	status: "running" | "completed" | "failed" | "cancelled"
@@ -99,333 +87,274 @@ function buildHookStatusMessage(opts: {
 	}
 }
 
-/**
- * Build an `AgentHooks` object that bridges Cline's file-based hook scripts
- * into SDK lifecycle callbacks.
- *
- * Each callback dynamically checks `hooksEnabled` so toggling mid-session
- * takes effect immediately.
- *
- * @param stateManager The StateManager instance for reading hook settings.
- * @param emitHookMessage Optional callback to emit hook_status ClineMessages
- *   to the webview. When provided, hook executions become visible in the chat.
- */
 export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: HookMessageEmitter): AgentHooks {
+	const hooksEnabled = () => getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
+
 	return {
-		// ---------------------------------------------------------------
-		// TaskStart → onSessionStart
-		// ---------------------------------------------------------------
-		async onSessionStart(ctx: AgentHookSessionStartContext): Promise<AgentHookControl | undefined> {
-			let runningTs: number | undefined
-			try {
-				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-				if (!enabled) {
-					return undefined
-				}
-
-				const factory = new HookFactory()
-				const hasHook = await factory.hasHook("TaskStart")
-				if (!hasHook) {
-					return undefined
-				}
-
-				const runningMsg = buildHookStatusMessage({ hookName: "TaskStart", status: "running" })
-				runningTs = runningMsg.ts
-				emitHookMessage?.(runningMsg)
-
-				const runner = await factory.create("TaskStart")
-				const result = await runner.run({
-					taskId: ctx.conversationId,
-					taskStart: {
-						taskMetadata: {
-							taskId: ctx.conversationId,
-							ulid: "",
-							initialTask: "",
-						},
-					},
-				})
-
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "completed", ts: runningTs }))
-				return mapHookResult(result)
-			} catch (error) {
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed", ts: runningTs }))
-				Logger.error("[HooksAdapter] onSessionStart hook failed:", error)
-				return undefined
+		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentStopControl | undefined> {
+			const taskStartControl = await runTaskStart(ctx, hooksEnabled, emitHookMessage)
+			if (taskStartControl) {
+				return taskStartControl
 			}
+			return runUserPromptSubmit(ctx, hooksEnabled, emitHookMessage)
 		},
 
-		// ---------------------------------------------------------------
-		// PreToolUse → onToolCallStart
-		// ---------------------------------------------------------------
-		async onToolCallStart(ctx: AgentHookToolCallStartContext): Promise<AgentHookControl | undefined> {
+		async beforeTool(ctx: AgentBeforeToolContext): Promise<{ stop?: boolean; reason?: string } | undefined> {
 			let runningTs: number | undefined
 			try {
-				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-				if (!enabled) {
+				if (!hooksEnabled()) {
 					return undefined
 				}
 
 				const factory = new HookFactory()
-				const hasHook = await factory.hasHook("PreToolUse")
-				if (!hasHook) {
+				if (!(await factory.hasHook("PreToolUse"))) {
 					return undefined
 				}
 
-				const toolName = ctx.call.name
+				const toolName = ctx.toolCall.toolName
 				const runningMsg = buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
 				const runner = await factory.create("PreToolUse")
 				const result = await runner.run({
-					taskId: ctx.conversationId,
+					taskId: taskIdFromSnapshot(ctx.snapshot),
 					preToolUse: {
 						toolName,
-						parameters: toStringRecord(ctx.call.input),
+						parameters: toStringRecord(ctx.input),
 					},
 				})
 
-				const finalStatus = result.cancel ? "cancelled" : "completed"
 				emitHookMessage?.(
-					buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: finalStatus, ts: runningTs }),
+					buildHookStatusMessage({
+						hookName: "PreToolUse",
+						toolName,
+						status: result.cancel ? "cancelled" : "completed",
+						ts: runningTs,
+					}),
 				)
-				return mapHookResult(result)
+				return mapStopControl(result)
 			} catch (error) {
 				emitHookMessage?.(
-					buildHookStatusMessage({ hookName: "PreToolUse", toolName: ctx.call.name, status: "failed", ts: runningTs }),
+					buildHookStatusMessage({
+						hookName: "PreToolUse",
+						toolName: ctx.toolCall.toolName,
+						status: "failed",
+						ts: runningTs,
+					}),
 				)
-				Logger.error("[HooksAdapter] onToolCallStart hook failed:", error)
+				Logger.error("[HooksAdapter] beforeTool hook failed:", error)
 				return undefined
 			}
 		},
 
-		// ---------------------------------------------------------------
-		// PostToolUse → onToolCallEnd
-		// ---------------------------------------------------------------
-		async onToolCallEnd(ctx: AgentHookToolCallEndContext): Promise<AgentHookControl | undefined> {
+		async afterTool(ctx: AgentAfterToolContext): Promise<undefined> {
 			let runningTs: number | undefined
 			try {
-				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-				if (!enabled) {
+				if (!hooksEnabled()) {
 					return undefined
 				}
 
 				const factory = new HookFactory()
-				const hasHook = await factory.hasHook("PostToolUse")
-				if (!hasHook) {
+				if (!(await factory.hasHook("PostToolUse"))) {
 					return undefined
 				}
 
-				const toolName = ctx.record.name
+				const toolName = ctx.toolCall.toolName
 				const runningMsg = buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
 				const runner = await factory.create("PostToolUse")
 				const result = await runner.run({
-					taskId: ctx.conversationId,
+					taskId: taskIdFromSnapshot(ctx.snapshot),
 					postToolUse: {
 						toolName,
-						parameters: toStringRecord(ctx.record.input),
-						result: String(ctx.record.output ?? ctx.record.error ?? ""),
-						success: !ctx.record.error,
-						executionTimeMs: ctx.record.durationMs,
+						parameters: toStringRecord(ctx.input),
+						result: String(ctx.result.output ?? ""),
+						success: !ctx.result.isError,
+						executionTimeMs: ctx.durationMs,
 					},
 				})
 
-				const finalStatus = result.cancel ? "cancelled" : "completed"
 				emitHookMessage?.(
-					buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: finalStatus, ts: runningTs }),
+					buildHookStatusMessage({
+						hookName: "PostToolUse",
+						toolName,
+						status: result.cancel ? "cancelled" : "completed",
+						ts: runningTs,
+					}),
 				)
-				return mapHookResult(result)
+				return undefined
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
 						hookName: "PostToolUse",
-						toolName: ctx.record.name,
+						toolName: ctx.toolCall.toolName,
 						status: "failed",
 						ts: runningTs,
 					}),
 				)
-				Logger.error("[HooksAdapter] onToolCallEnd hook failed:", error)
+				Logger.error("[HooksAdapter] afterTool hook failed:", error)
 				return undefined
 			}
 		},
 
-		// ---------------------------------------------------------------
-		// TaskComplete → onRunEnd (only when finishReason === 'completed')
-		// ---------------------------------------------------------------
-		async onRunEnd(ctx: AgentHookRunEndContext): Promise<void> {
+		async afterRun(ctx): Promise<void> {
+			let hookName: "TaskComplete" | "TaskCancel" | undefined
 			let runningTs: number | undefined
 			try {
-				if (ctx.result.finishReason !== "completed") {
+				if (!hooksEnabled()) {
 					return
 				}
 
-				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-				if (!enabled) {
+				hookName =
+					ctx.result.status === "completed"
+						? "TaskComplete"
+						: ctx.result.status === "aborted"
+							? "TaskCancel"
+							: undefined
+				if (!hookName) {
 					return
 				}
 
 				const factory = new HookFactory()
-				const hasHook = await factory.hasHook("TaskComplete")
-				if (!hasHook) {
+				if (!(await factory.hasHook(hookName))) {
 					return
 				}
 
-				const runningMsg = buildHookStatusMessage({ hookName: "TaskComplete", status: "running" })
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
+				const runningMsg = buildHookStatusMessage({ hookName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
-				const runner = await factory.create("TaskComplete")
-				await runner.run({
-					taskId: ctx.conversationId,
-					taskComplete: {
-						taskMetadata: {
-							taskId: ctx.conversationId,
-							ulid: "",
-							initialTask: "",
+				if (hookName === "TaskComplete") {
+					const runner = await factory.create("TaskComplete")
+					await runner.run({
+						taskId,
+						taskComplete: {
+							taskMetadata: {
+								taskId,
+								ulid: "",
+								initialTask: "",
+								result: ctx.result.outputText,
+							},
 						},
-					},
-				})
+					})
+				} else {
+					const runner = await factory.create("TaskCancel")
+					await runner.run({
+						taskId,
+						taskCancel: {
+							taskMetadata: {
+								taskId,
+								ulid: "",
+								initialTask: "",
+								completionStatus: "cancelled",
+							},
+						},
+					})
+				}
 
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "completed", ts: runningTs }))
+				emitHookMessage?.(buildHookStatusMessage({ hookName, status: "completed", ts: runningTs }))
 			} catch (error) {
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "failed", ts: runningTs }))
-				Logger.error("[HooksAdapter] onRunEnd hook failed:", error)
+				emitHookMessage?.(
+					buildHookStatusMessage({ hookName: hookName ?? "TaskComplete", status: "failed", ts: runningTs }),
+				)
+				Logger.error("[HooksAdapter] afterRun hook failed:", error)
 			}
 		},
 	}
 }
 
-// ---------------------------------------------------------------------------
-// AgentExtension-based hooks (config.extensions)
-// ---------------------------------------------------------------------------
+async function runTaskStart(
+	ctx: AgentRunLifecycleContext,
+	hooksEnabled: () => boolean,
+	emitHookMessage?: HookMessageEmitter,
+): Promise<AgentStopControl | undefined> {
+	let runningTs: number | undefined
+	try {
+		if (!hooksEnabled()) {
+			return undefined
+		}
 
-/**
- * Build an array of `AgentExtension` objects that bridge Cline's file-based
- * hook scripts into SDK extension/plugin lifecycle callbacks.
- *
- * These use the AgentExtension (plugin) interface rather than AgentHooks
- * because AgentHooks doesn't expose the right hook points for:
- *   - UserPromptSubmit → `onInput` (fires before prompt enters the agent loop)
- *   - TaskCancel → `onSessionShutdown` (fires with `reason === 'session_stop'`)
- *
- * Each callback dynamically checks `hooksEnabled` so toggling mid-session
- * takes effect immediately.
- *
- * @param stateManager The StateManager instance for reading hook settings.
- * @param emitHookMessage Optional callback to emit hook_status ClineMessages
- *   to the webview. When provided, hook executions become visible in the chat.
- */
-export function buildHookExtensions(stateManager: StateManager, emitHookMessage?: HookMessageEmitter): AgentExtension[] {
-	return [
-		{
-			name: "cline-lifecycle-hooks",
-			manifest: {
-				capabilities: ["hooks"],
-				hookStages: ["input", "session_shutdown"],
+		const factory = new HookFactory()
+		if (!(await factory.hasHook("TaskStart"))) {
+			return undefined
+		}
+
+		const runningMsg = buildHookStatusMessage({ hookName: "TaskStart", status: "running" })
+		runningTs = runningMsg.ts
+		emitHookMessage?.(runningMsg)
+
+		const taskId = taskIdFromSnapshot(ctx.snapshot)
+		const runner = await factory.create("TaskStart")
+		const result = await runner.run({
+			taskId,
+			taskStart: {
+				taskMetadata: {
+					taskId,
+					ulid: "",
+					initialTask: latestUserPrompt(ctx),
+				},
 			},
+		})
 
-			// ---------------------------------------------------------------
-			// UserPromptSubmit → onInput
-			// ---------------------------------------------------------------
-			async onInput(ctx: AgentExtensionInputContext): Promise<AgentHookControl | undefined> {
-				let runningTs: number | undefined
-				try {
-					const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-					if (!enabled) {
-						return undefined
-					}
+		emitHookMessage?.(
+			buildHookStatusMessage({
+				hookName: "TaskStart",
+				status: result.cancel ? "cancelled" : "completed",
+				ts: runningTs,
+			}),
+		)
+		return mapStopControl(result)
+	} catch (error) {
+		emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed", ts: runningTs }))
+		Logger.error("[HooksAdapter] beforeRun (TaskStart) hook failed:", error)
+		return undefined
+	}
+}
 
-					const factory = new HookFactory()
-					const hasHook = await factory.hasHook("UserPromptSubmit")
-					if (!hasHook) {
-						return undefined
-					}
+async function runUserPromptSubmit(
+	ctx: AgentRunLifecycleContext,
+	hooksEnabled: () => boolean,
+	emitHookMessage?: HookMessageEmitter,
+): Promise<AgentStopControl | undefined> {
+	let runningTs: number | undefined
+	try {
+		if (!hooksEnabled()) {
+			return undefined
+		}
 
-					const runningMsg = buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "running" })
-					runningTs = runningMsg.ts
-					emitHookMessage?.(runningMsg)
+		const factory = new HookFactory()
+		if (!(await factory.hasHook("UserPromptSubmit"))) {
+			return undefined
+		}
 
-					const runner = await factory.create("UserPromptSubmit")
-					const result = await runner.run({
-						taskId: ctx.conversationId,
-						userPromptSubmit: {
-							prompt: ctx.input,
-							attachments: [],
-						},
-					})
+		const runningMsg = buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "running" })
+		runningTs = runningMsg.ts
+		emitHookMessage?.(runningMsg)
 
-					const finalStatus = result.cancel ? "cancelled" : "completed"
-					emitHookMessage?.(
-						buildHookStatusMessage({ hookName: "UserPromptSubmit", status: finalStatus, ts: runningTs }),
-					)
-
-					if (result.cancel) {
-						return { cancel: true }
-					}
-
-					// Map contextModification to context (SDK injects it into the conversation).
-					// Note: overrideInput could be used for prompt modification, but
-					// classic UserPromptSubmit only supports contextModification, not prompt rewriting.
-					return {
-						context: result.contextModification || undefined,
-					}
-				} catch (error) {
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed", ts: runningTs }))
-					Logger.error("[HooksAdapter] onInput (UserPromptSubmit) hook failed:", error)
-					return undefined
-				}
+		const runner = await factory.create("UserPromptSubmit")
+		const result = await runner.run({
+			taskId: taskIdFromSnapshot(ctx.snapshot),
+			userPromptSubmit: {
+				prompt: latestUserPrompt(ctx),
+				attachments: [],
 			},
+		})
 
-			// ---------------------------------------------------------------
-			// TaskCancel → onSessionShutdown
-			// ---------------------------------------------------------------
-			async onSessionShutdown(ctx: AgentExtensionSessionShutdownContext): Promise<AgentHookControl | undefined> {
-				// Only fire on user-initiated cancellation, not on completion or error
-				if (ctx.reason !== "session_stop") {
-					return undefined
-				}
-
-				let runningTs: number | undefined
-				try {
-					const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-					if (!enabled) {
-						return undefined
-					}
-
-					const factory = new HookFactory()
-					const hasHook = await factory.hasHook("TaskCancel")
-					if (!hasHook) {
-						return undefined
-					}
-
-					const runningMsg = buildHookStatusMessage({ hookName: "TaskCancel", status: "running" })
-					runningTs = runningMsg.ts
-					emitHookMessage?.(runningMsg)
-
-					const runner = await factory.create("TaskCancel")
-					await runner.run({
-						taskId: ctx.conversationId,
-						taskCancel: {
-							taskMetadata: {
-								taskId: ctx.conversationId,
-								ulid: "",
-								initialTask: "",
-							},
-						},
-					})
-
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "completed", ts: runningTs }))
-
-					return undefined // TaskCancel is fire-and-forget, don't block shutdown
-				} catch (error) {
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "failed", ts: runningTs }))
-					Logger.error("[HooksAdapter] onSessionShutdown (TaskCancel) hook failed:", error)
-					return undefined
-				}
-			},
-		},
-	]
+		emitHookMessage?.(
+			buildHookStatusMessage({
+				hookName: "UserPromptSubmit",
+				status: result.cancel ? "cancelled" : "completed",
+				ts: runningTs,
+			}),
+		)
+		return mapStopControl(result)
+	} catch (error) {
+		emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed", ts: runningTs }))
+		Logger.error("[HooksAdapter] beforeRun (UserPromptSubmit) hook failed:", error)
+		return undefined
+	}
 }
