@@ -8,6 +8,8 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
+import os from "node:os"
+import path from "node:path"
 import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
@@ -97,6 +99,31 @@ function createSdkLogger() {
 			Logger.error(message, metadata)
 		},
 	}
+}
+
+function resolveWorkspaceName(workspacePath: string): string {
+	const trimmed = workspacePath.trim()
+	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "")
+	const name = withoutTrailingSeparators.split(/[\\/]/).filter(Boolean).pop()?.trim()
+	return name || "workspace"
+}
+
+function isFilesystemRoot(workspacePath: string): boolean {
+	const trimmed = workspacePath.trim()
+	return trimmed.length > 0 && path.resolve(trimmed) === path.parse(trimmed).root
+}
+
+function resolveSdkWorkspaceRoot(workspaceRoot: string, cwd: string): string {
+	const trimmedWorkspaceRoot = workspaceRoot.trim()
+	if (!trimmedWorkspaceRoot) {
+		return cwd
+	}
+
+	if (!isFilesystemRoot(trimmedWorkspaceRoot)) {
+		return trimmedWorkspaceRoot
+	}
+
+	return os.homedir()
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +327,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		Logger.warn("[SessionFactory] No cwd provided, falling back to process.cwd() — this is likely wrong in VSCode")
 		cwd = process.cwd()
 	}
-	const workspaceRoot = input.workspaceRoot ?? cwd
+	const workspaceRoot = resolveSdkWorkspaceRoot(input.workspaceRoot ?? cwd, cwd)
 	const mode: Mode = input.mode ?? "act"
 	const sdkLogger = createSdkLogger()
 	const distinctId = getDistinctId()
@@ -366,11 +393,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// name, so we avoid duplicating core's richer workspace metadata pass here.
 	let systemPrompt = ""
 	try {
-		const { basename } = await import("path")
+		const workspaceName = resolveWorkspaceName(cwd)
 		systemPrompt = buildClineSystemPrompt({
 			ide: "VS Code",
 			workspaceRoot,
-			workspaceName: basename(cwd),
+			workspaceName,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
@@ -429,7 +456,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			workspace: {
 				rootPath: workspaceRoot,
 				cwd,
-				workspaceName: workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? workspaceRoot,
+				workspaceName: resolveWorkspaceName(workspaceRoot),
 				ide: "VS Code",
 				platform: process.platform,
 				mode: mode === "plan" ? "plan" : "act",
