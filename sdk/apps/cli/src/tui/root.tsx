@@ -491,6 +491,7 @@ function App(props: TuiProps) {
 		selectRef: promptInput.selectRef,
 		submitRef: promptInput.submitRef,
 		syncInputFromTextarea: promptInput.syncInputFromTextarea,
+		getCurrentInputText: promptInput.getCurrentInputText,
 		setInputKey: promptInput.setInputKey,
 		setInputValue: promptInput.setInputValue,
 		onAbort: props.onAbort,

@@ -37,7 +37,7 @@ const HELP_ROWS: HelpRow[] = [
 		kind: "entry",
 		id: "k-ctrl-c",
 		key: "Ctrl+C",
-		desc: "Abort running agent / Exit",
+		desc: "Clear input / Exit",
 	},
 	{
 		kind: "entry",
@@ -61,7 +61,7 @@ const HELP_ROWS: HelpRow[] = [
 		kind: "entry",
 		id: "k-escape",
 		key: "Escape",
-		desc: "Close menu / Abort / Exit",
+		desc: "Close menu / Abort running agent",
 	},
 	{
 		kind: "entry",

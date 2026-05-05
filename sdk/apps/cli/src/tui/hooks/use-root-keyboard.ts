@@ -15,6 +15,7 @@ export function useRootKeyboard(input: {
 	selectRef: { current: (option: AutocompleteOption) => void };
 	submitRef: { current: (delivery?: "queue" | "steer") => void };
 	syncInputFromTextarea: () => void;
+	getCurrentInputText: () => string;
 	setInputKey: Dispatch<SetStateAction<number>>;
 	setInputValue: Dispatch<SetStateAction<string>>;
 	onAbort: () => boolean;
@@ -28,6 +29,7 @@ export function useRootKeyboard(input: {
 
 	useKeyboard((key) => {
 		if (session.isExitRequested) return;
+		const hasInputText = input.getCurrentInputText().trim().length > 0;
 
 		const mayEditTextarea =
 			!key.ctrl &&
@@ -45,13 +47,7 @@ export function useRootKeyboard(input: {
 		}
 
 		if (key.ctrl && key.name === "c") {
-			if (session.isRunning) {
-				if (!session.abortRequested && input.onAbort()) {
-					session.setAbortRequested(true);
-				} else {
-					input.onExit();
-				}
-			} else if (!input.isDialogOpen && input.inputValueRef.current) {
+			if (!input.isDialogOpen && hasInputText) {
 				input.setInputKey((k) => k + 1);
 				input.setInputValue("");
 			} else {
@@ -134,7 +130,7 @@ export function useRootKeyboard(input: {
 		}
 
 		if (key.ctrl && key.name === "d") {
-			if (!session.isRunning && !input.inputValueRef.current) {
+			if (!session.isRunning && !hasInputText) {
 				input.onExit();
 			}
 			return;

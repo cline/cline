@@ -365,6 +365,10 @@ export function usePromptInputController(input: {
 		prunePastedTextSnippets,
 	]);
 
+	const getCurrentInputText = useCallback(() => {
+		return textareaRef.current?.plainText ?? inputValueRef.current;
+	}, []);
+
 	return {
 		inputKey,
 		inputValue,
@@ -384,5 +388,6 @@ export function usePromptInputController(input: {
 		handleSubmit,
 		handleContentChange,
 		syncInputFromTextarea,
+		getCurrentInputText,
 	};
 }
