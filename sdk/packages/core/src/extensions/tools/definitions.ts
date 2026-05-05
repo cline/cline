@@ -41,7 +41,7 @@ import {
 	type SkillsInput,
 	SkillsInputSchema,
 	type StructuredCommandInput,
-	StructuredCommandsInputUnionSchema,
+	StructuredCommandsInputSchema,
 	type SubmitInput,
 	SubmitInputSchema,
 } from "./schemas";
@@ -278,7 +278,7 @@ export function createWindowsShellTool(
 			"Run shell commands from the root of the workspacein Windows environment. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
 			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped.",
-		inputSchema: zodToJsonSchema(StructuredCommandsInputUnionSchema),
+		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
