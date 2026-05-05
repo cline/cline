@@ -184,7 +184,10 @@ Use this skill.`,
 			JSON.parse(
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
-		).toEqual({ disabledTools: ["plugin-tool"] });
+		).toEqual({
+			disabledTools: ["plugin-tool"],
+			telemetryOptOut: false,
+		});
 
 		await service.toggle({ type: "tools", name: "plugin-tool", enabled: true });
 
@@ -192,6 +195,6 @@ Use this skill.`,
 			JSON.parse(
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
-		).toEqual({});
+		).toEqual({ telemetryOptOut: false });
 	});
 });

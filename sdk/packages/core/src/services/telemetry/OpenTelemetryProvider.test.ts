@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { BasicLogger } from "@clinebot/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeGlobalSettings } from "../global-settings";
 import {
 	createConfiguredTelemetryService,
 	createOpenTelemetryTelemetryService,
@@ -8,7 +12,23 @@ import {
 import { TelemetryService } from "./TelemetryService";
 
 describe("createOpenTelemetryTelemetryService", () => {
+	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	let tempRoot: string | undefined;
+
+	beforeEach(() => {
+		tempRoot = mkdtempSync(join(tmpdir(), "core-telemetry-settings-"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+	});
+
 	afterEach(() => {
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		if (tempRoot) {
+			rmSync(tempRoot, { recursive: true, force: true });
+			tempRoot = undefined;
+		}
 		vi.restoreAllMocks();
 	});
 
@@ -96,6 +116,61 @@ describe("createOpenTelemetryTelemetryService", () => {
 		expect(provider).toBeUndefined();
 		expect(providerSpy).not.toHaveBeenCalled();
 		expect(telemetry).toBeInstanceOf(TelemetryService);
+	});
+
+	it("does not create configured telemetry when globally opted out", () => {
+		writeGlobalSettings({ telemetryOptOut: true });
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const providerSpy = vi.spyOn(
+			OpenTelemetryProvider.prototype,
+			"createTelemetryService",
+		);
+
+		const { telemetry, provider } = createConfiguredTelemetryService({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			commonProperties: {
+				organization_id: "org-1",
+			},
+			distinctId: "distinct-1",
+			enabled: true,
+			logsExporter: "console",
+			logger,
+		});
+		telemetry.updateMetadata({ cline_type: "cli-updated" });
+		telemetry.updateCommonProperties({ member_id: "member-1" });
+
+		telemetry.capture({
+			event: "session.started",
+			properties: { sessionId: "session-1" },
+		});
+
+		expect(provider).toBeUndefined();
+		expect(providerSpy).not.toHaveBeenCalled();
+		expect(telemetry.isEnabled()).toBe(false);
+		expect(Reflect.get(telemetry, "addAdapter")).toBeUndefined();
+		expect(Reflect.get(telemetry, "distinctId")).toBe("distinct-1");
+		expect(Reflect.get(telemetry, "metadata")).toEqual(
+			expect.objectContaining({
+				cline_type: "cli-updated",
+				platform: "terminal",
+			}),
+		);
+		expect(Reflect.get(telemetry, "commonProperties")).toEqual({
+			organization_id: "org-1",
+			member_id: "member-1",
+		});
+		expect(logger.log).not.toHaveBeenCalled();
 	});
 
 	it("preserves metadata when disabled", () => {

@@ -2,6 +2,7 @@ import type { ITelemetryService } from "@clinebot/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
 	captureExtensionActivated,
+	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -55,6 +56,18 @@ describe("captureExtensionActivated", () => {
 
 	test("no-ops when telemetry is undefined", () => {
 		expect(() => captureExtensionActivated(undefined)).not.toThrow();
+	});
+});
+
+describe("captureTelemetryOptOut", () => {
+	test("emits user.opt_out as a required event", () => {
+		const stub = createTelemetryStub();
+		captureTelemetryOptOut(stub.telemetry);
+		expect(stub.capture).not.toHaveBeenCalled();
+		expect(stub.captureRequired).toHaveBeenCalledWith(
+			"user.opt_out",
+			undefined,
+		);
 	});
 });
 

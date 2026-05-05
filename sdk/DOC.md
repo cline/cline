@@ -390,6 +390,24 @@ prepare-turn pipeline.
 
 `ClineCore.settings` and `CoreSettingsService` expose settings listing and
 mutation.
+
+User global settings are persisted at `settings/global-settings.json` under the
+Cline data directory, or at `CLINE_GLOBAL_SETTINGS_PATH` when that override is
+set. `@clinebot/core` exports `GlobalSettingsSchema` as the Zod source of truth
+for this file. Unknown fields are ignored on read/write so newer settings files
+do not invalidate known privacy or tool settings. The current schema contains:
+
+- `telemetryOptOut: boolean` (defaults to `false`)
+- `disabledTools?: string[]`
+- `disabledPlugins?: string[]`
+
+The schema trims, deduplicates, sorts, and omits empty lists. When
+`telemetryOptOut` is `true`, core returns an inert telemetry service and does
+not start the configured telemetry provider. Hosts that change this setting
+should call `setTelemetryOptOutGlobally(true, { telemetry })` with the current
+telemetry service so core records the required `user.opt_out` confirmation event
+before future telemetry is disabled.
+
 **Event catalog.** Structured product events are named in `packages/core/src/services/telemetry/core-events.ts` (`CORE_TELEMETRY_EVENTS` and the `capture*` helpers). Use that module as the source of truth for event strings and typical properties.
 
 **`task.completed` semantics.** `task.completed` marks the moment the

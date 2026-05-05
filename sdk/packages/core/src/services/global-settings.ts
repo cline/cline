@@ -1,66 +1,113 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, AgentTool } from "@clinebot/shared";
+import type {
+	AgentConfig,
+	AgentTool,
+	ITelemetryService,
+} from "@clinebot/shared";
 import { resolveGlobalSettingsPath } from "@clinebot/shared/storage";
+import { z } from "zod";
+import { captureTelemetryOptOut } from "./telemetry/core-events";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
 
-export interface GlobalSettings {
-	disabledTools?: string[];
-	disabledPlugins?: string[];
+const GlobalSettingsStringListSchema = z
+	.preprocess(
+		(value) =>
+			Array.isArray(value)
+				? value
+						.filter((entry): entry is string => typeof entry === "string")
+						.map((entry) => entry.trim())
+						.filter(Boolean)
+				: undefined,
+		z.array(z.string()).optional(),
+	)
+	.transform((entries) => {
+		if (!entries) {
+			return undefined;
+		}
+		const normalized = [...new Set(entries)].sort((left, right) =>
+			left.localeCompare(right),
+		);
+		return normalized.length > 0 ? normalized : undefined;
+	});
+
+export const GlobalSettingsSchema = z
+	.object({
+		telemetryOptOut: z.boolean().default(false).catch(false),
+		disabledTools: GlobalSettingsStringListSchema.optional(),
+		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+	})
+	.strip()
+	.transform((settings) => {
+		const normalized: {
+			telemetryOptOut: boolean;
+			disabledTools?: string[];
+			disabledPlugins?: string[];
+		} = {
+			telemetryOptOut: settings.telemetryOptOut,
+		};
+		if (settings.disabledTools?.length) {
+			normalized.disabledTools = settings.disabledTools;
+		}
+		if (settings.disabledPlugins?.length) {
+			normalized.disabledPlugins = settings.disabledPlugins;
+		}
+		return normalized;
+	});
+
+export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>;
+
+export interface WriteGlobalSettingsOptions {
+	telemetry?: ITelemetryService;
 }
 
-function normalizeStringList(value: unknown): string[] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-
-	const normalized = [
-		...new Set(
-			value
-				.filter((entry): entry is string => typeof entry === "string")
-				.map((entry) => entry.trim())
-				.filter(Boolean),
-		),
-	].sort((left, right) => left.localeCompare(right));
-
-	return normalized.length > 0 ? normalized : undefined;
+function defaultGlobalSettings(): GlobalSettings {
+	return GlobalSettingsSchema.parse({});
 }
-
-const normalizeDisabledTools = normalizeStringList;
-const normalizeDisabledPlugins = normalizeStringList;
 
 export function readGlobalSettings(): GlobalSettings {
 	const filePath = resolveGlobalSettingsPath();
+	let parsed: unknown;
 	try {
-		const parsed = JSON.parse(readFileSync(filePath, "utf8")) as GlobalSettings;
-		return {
-			disabledTools: normalizeDisabledTools(parsed.disabledTools),
-			disabledPlugins: normalizeDisabledPlugins(parsed.disabledPlugins),
-		};
+		parsed = JSON.parse(readFileSync(filePath, "utf8"));
 	} catch {
-		return {};
+		return defaultGlobalSettings();
 	}
+	const result = GlobalSettingsSchema.safeParse(parsed);
+	return result.success ? result.data : defaultGlobalSettings();
 }
 
-export function writeGlobalSettings(settings: GlobalSettings): void {
+export function writeGlobalSettings(
+	settings: z.input<typeof GlobalSettingsSchema>,
+	options: WriteGlobalSettingsOptions = {},
+): void {
 	const filePath = resolveGlobalSettingsPath();
+	const previous = readGlobalSettings();
 	mkdirSync(dirname(filePath), { recursive: true });
-	const normalizedDisabledTools = normalizeDisabledTools(
-		settings.disabledTools,
-	);
-	const normalizedDisabledPlugins = normalizeDisabledPlugins(
-		settings.disabledPlugins,
-	);
-	const normalized: GlobalSettings = {};
-	if (normalizedDisabledTools) {
-		normalized.disabledTools = normalizedDisabledTools;
-	}
-	if (normalizedDisabledPlugins) {
-		normalized.disabledPlugins = normalizedDisabledPlugins;
+	const normalized = GlobalSettingsSchema.parse(settings);
+	if (!previous.telemetryOptOut && normalized.telemetryOptOut) {
+		captureTelemetryOptOut(options.telemetry);
 	}
 	writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+}
+
+export function isTelemetryOptedOutGlobally(): boolean {
+	return readGlobalSettings().telemetryOptOut;
+}
+
+export function setTelemetryOptOutGlobally(
+	telemetryOptOut: boolean,
+	options: WriteGlobalSettingsOptions = {},
+): void {
+	writeGlobalSettings(
+		{
+			...readGlobalSettings(),
+			telemetryOptOut,
+		},
+		options,
+	);
 }
 
 export function resolveDisabledToolNames(

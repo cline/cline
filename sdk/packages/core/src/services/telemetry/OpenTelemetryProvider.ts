@@ -3,6 +3,7 @@ import type {
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	TelemetryMetadata,
+	TelemetryProperties,
 } from "@clinebot/shared";
 import { metrics, type Tracer, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
@@ -33,6 +34,7 @@ import {
 	ATTR_SERVICE_NAME,
 	ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
+import { isTelemetryOptedOutGlobally } from "../global-settings";
 import { resolveCoreDistinctId } from "./distinct-id";
 import {
 	OpenTelemetryAdapter,
@@ -42,6 +44,71 @@ import { TelemetryService } from "./TelemetryService";
 
 type OpenTelemetryExporterKind = "console" | "otlp";
 type OpenTelemetryProtocol = "http/json";
+
+class OptedOutTelemetryService implements ITelemetryService {
+	private distinctId?: string;
+	private metadata: Partial<TelemetryMetadata>;
+	private commonProperties: TelemetryProperties;
+
+	constructor(
+		options: {
+			metadata?: Partial<TelemetryMetadata>;
+			distinctId?: string;
+			commonProperties?: TelemetryProperties;
+		} = {},
+	) {
+		this.distinctId = options.distinctId;
+		this.metadata = { ...(options.metadata ?? {}) };
+		this.commonProperties = { ...(options.commonProperties ?? {}) };
+	}
+
+	setDistinctId(distinctId?: string): void {
+		this.distinctId = distinctId;
+	}
+	setMetadata(metadata: Partial<TelemetryMetadata>): void {
+		this.metadata = { ...metadata };
+	}
+	updateMetadata(metadata: Partial<TelemetryMetadata>): void {
+		this.metadata = {
+			...this.metadata,
+			...metadata,
+		};
+	}
+	setCommonProperties(properties: TelemetryProperties): void {
+		this.commonProperties = { ...properties };
+	}
+	updateCommonProperties(properties: TelemetryProperties): void {
+		this.commonProperties = {
+			...this.commonProperties,
+			...properties,
+		};
+	}
+	isEnabled(): boolean {
+		return false;
+	}
+	capture(input: { properties?: TelemetryProperties }): void {
+		this.resolveProperties(input.properties);
+	}
+	captureRequired(_event: string, properties?: TelemetryProperties): void {
+		this.resolveProperties(properties);
+	}
+	recordCounter(): void {}
+	recordHistogram(): void {}
+	recordGauge(): void {}
+	async flush(): Promise<void> {}
+	async dispose(): Promise<void> {}
+
+	private resolveProperties(
+		properties?: TelemetryProperties,
+	): TelemetryProperties {
+		return {
+			...this.commonProperties,
+			...properties,
+			...this.metadata,
+			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+		};
+	}
+}
 
 export interface OpenTelemetryProviderOptions
 	extends Omit<
@@ -295,6 +362,12 @@ export function createConfiguredTelemetryService(
 	provider?: OpenTelemetryProvider;
 	telemetry: ITelemetryService;
 } {
+	if (isTelemetryOptedOutGlobally()) {
+		return {
+			telemetry: new OptedOutTelemetryService(options),
+		};
+	}
+
 	if (options.enabled !== true) {
 		return {
 			telemetry: new TelemetryService({
@@ -319,8 +392,8 @@ export interface ConfiguredTelemetryHandle {
 	readonly telemetry: ITelemetryService;
 	/**
 	 * The underlying OpenTelemetry provider, when telemetry is enabled.
-	 * `undefined` when telemetry is opted out so callers can detect
-	 * the disabled case without inspecting `enabled` themselves.
+	 * `undefined` when telemetry is disabled or opted out so callers can
+	 * detect the inactive case without inspecting `enabled` themselves.
 	 */
 	readonly provider?: OpenTelemetryProvider;
 	/**

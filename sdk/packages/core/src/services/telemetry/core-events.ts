@@ -34,6 +34,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_SUCCEEDED: "user.auth_succeeded",
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
+		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
 	TASK: {
 		CREATED: "task.created",
@@ -209,6 +210,16 @@ export function captureAuthLoggedOut(
 		provider,
 		reason,
 	});
+}
+
+export function captureTelemetryOptOut(
+	telemetry: ITelemetryService | undefined,
+	properties?: TelemetryProperties,
+): void {
+	telemetry?.captureRequired(
+		CORE_TELEMETRY_EVENTS.USER.TELEMETRY_OPT_OUT,
+		properties,
+	);
 }
 
 export function identifyAccount(
