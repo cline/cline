@@ -1,4 +1,3 @@
-import { summarizeUsageFromMessages } from "@clinebot/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialog } from "@opentui-ui/dialog/react";
@@ -60,7 +59,8 @@ export function useLocalCommandActions(input: {
 		});
 		if (sessionId) {
 			try {
-				const messages = await onResumeSession(sessionId);
+				const result = await onResumeSession(sessionId);
+				const { messages } = result;
 				const entries = hydrateSessionMessages(messages);
 				if (entries.length === 0) {
 					session.appendEntry({
@@ -72,9 +72,12 @@ export function useLocalCommandActions(input: {
 					for (const entry of entries) {
 						session.appendEntry(entry);
 					}
-					const usage = summarizeUsageFromMessages(messages);
-					session.setLastTotalTokens(usage.inputTokens + usage.outputTokens);
-					session.setLastTotalCost(usage.totalCost);
+					if (typeof result.currentContextSize === "number") {
+						session.setLastTotalTokens(result.currentContextSize);
+					}
+					if (typeof result.totalCost === "number") {
+						session.setLastTotalCost(result.totalCost);
+					}
 					session.setHasSubmitted(true);
 					setAppView("chat");
 				}

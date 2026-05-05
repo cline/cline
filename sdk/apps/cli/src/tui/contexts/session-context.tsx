@@ -54,8 +54,7 @@ export function SessionProvider(props: {
 	config: TuiProps["config"];
 	initialEntries?: ChatEntry[];
 	initialUsage?: {
-		inputTokens: number;
-		outputTokens: number;
+		totalTokens: number;
 		totalCost: number;
 	};
 	onRunningChange: TuiProps["onRunningChange"];
@@ -90,7 +89,7 @@ export function SessionProvider(props: {
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);
 	const [lastTotalTokens, setLastTotalTokens] = useState(
-		() => (initialUsage?.inputTokens ?? 0) + (initialUsage?.outputTokens ?? 0),
+		() => initialUsage?.totalTokens ?? 0,
 	);
 	const [lastTotalCost, setLastTotalCost] = useState(
 		() => initialUsage?.totalCost ?? 0,

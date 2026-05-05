@@ -250,8 +250,9 @@ export function usePromptInputController(input: {
 					});
 				}
 				if (result.queued) return;
-				const tokens = result.usage.inputTokens + result.usage.outputTokens;
-				session.setLastTotalTokens(tokens);
+				if (typeof result.currentContextSize === "number") {
+					session.setLastTotalTokens(result.currentContextSize);
+				}
 				if (typeof result.usage.totalCost === "number") {
 					session.setLastTotalCost(result.usage.totalCost);
 				}
@@ -259,7 +260,7 @@ export function usePromptInputController(input: {
 					const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
 					session.appendEntry({
 						kind: "done",
-						tokens,
+						tokens: result.currentContextSize ?? session.lastTotalTokens,
 						cost:
 							typeof result.usage.totalCost === "number"
 								? result.usage.totalCost

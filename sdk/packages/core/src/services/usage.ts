@@ -55,3 +55,23 @@ export function summarizeUsageFromMessages(
 	}
 	return usage;
 }
+
+/**
+ * Current model context-window usage, derived from the latest assistant LLM
+ * call. Provider usage is normalized so `inputTokens` is already the full
+ * prompt size, including any cache-read/cache-write portions. Do not add cache
+ * fields back on top.
+ */
+export function getCurrentContextSize(
+	messages: readonly LlmsProviders.Message[],
+): number | undefined {
+	for (let i = messages.length - 1; i >= 0; i -= 1) {
+		const message = messages[i] as
+			| LlmsProviders.MessageWithMetadata
+			| undefined;
+		if (message?.role !== "assistant") continue;
+		const inputTokens = asNumber(message.metrics?.inputTokens);
+		return inputTokens > 0 ? inputTokens : undefined;
+	}
+	return undefined;
+}

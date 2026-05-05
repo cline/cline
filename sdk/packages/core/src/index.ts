@@ -491,6 +491,7 @@ export {
 export {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
+	getCurrentContextSize,
 	summarizeUsageFromMessages,
 } from "./services/usage";
 export type {

@@ -1,4 +1,7 @@
-import { summarizeUsageFromMessages } from "@clinebot/core";
+import {
+	getCurrentContextSize,
+	summarizeUsageFromMessages,
+} from "@clinebot/core";
 import type { Message } from "@clinebot/shared";
 import { formatDisplayUserInput, truncateStr } from "@clinebot/shared";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
@@ -375,7 +378,8 @@ function App(props: TuiProps) {
 		}
 		let cancelled = false;
 		loadDeferredInitialMessages()
-			.then((messages) => {
+			.then((result) => {
+				const { messages } = result;
 				if (cancelled || messages.length === 0) {
 					return;
 				}
@@ -384,9 +388,12 @@ function App(props: TuiProps) {
 					return;
 				}
 				replaceSessionEntries(hydrateSessionMessages(messages));
-				const usage = summarizeUsageFromMessages(messages);
-				session.setLastTotalTokens(usage.inputTokens + usage.outputTokens);
-				session.setLastTotalCost(usage.totalCost);
+				if (typeof result.currentContextSize === "number") {
+					session.setLastTotalTokens(result.currentContextSize);
+				}
+				if (typeof result.totalCost === "number") {
+					session.setLastTotalCost(result.totalCost);
+				}
 				setSessionHasSubmitted(true);
 				setAppView("chat");
 			})
@@ -596,10 +603,14 @@ export function Root(
 		() => hydrateSessionMessages(props.initialMessages ?? []),
 		[props.initialMessages],
 	);
-	const initialUsage = useMemo(
-		() => summarizeUsageFromMessages(props.initialMessages ?? []),
-		[props.initialMessages],
-	);
+	const initialUsage = useMemo(() => {
+		const messages = props.initialMessages ?? [];
+		const usage = summarizeUsageFromMessages(messages);
+		return {
+			totalTokens: getCurrentContextSize(messages) ?? 0,
+			totalCost: usage.totalCost,
+		};
+	}, [props.initialMessages]);
 	const terminalColors = useMemo(
 		() => ({
 			background: props.terminalBackground ?? null,

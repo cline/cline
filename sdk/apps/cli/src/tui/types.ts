@@ -57,10 +57,21 @@ export interface InteractiveTurnResult {
 		outputTokens: number;
 		totalCost?: number;
 	};
+	/**
+	 * Tokens occupying the model's context window after this turn: the
+	 * normalized input tokens of the latest assistant LLM call.
+	 */
+	currentContextSize?: number;
 	iterations: number;
 	finishReason?: string;
 	commandOutput?: string;
 	queued?: boolean;
+}
+
+export interface ResumedSessionResult {
+	messages: Message[];
+	totalCost?: number;
+	currentContextSize?: number;
 }
 
 export interface InteractiveCompactionResult {
@@ -86,7 +97,7 @@ export interface TuiProps {
 	initialView?: "chat" | "config";
 	initialPrompt?: string;
 	initialMessages?: Message[];
-	loadDeferredInitialMessages?: () => Promise<Message[]>;
+	loadDeferredInitialMessages?: () => Promise<ResumedSessionResult>;
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
@@ -118,7 +129,7 @@ export interface TuiProps {
 	onModeChange: (mode: AgentMode) => Promise<void>;
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
-	onResumeSession: (sessionId: string) => Promise<Message[]>;
+	onResumeSession: (sessionId: string) => Promise<ResumedSessionResult>;
 	onCompact: () => Promise<InteractiveCompactionResult>;
 	onFork: () => Promise<
 		{ forkedFromSessionId: string; newSessionId: string } | undefined

@@ -1,10 +1,10 @@
 import {
+	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
 	prewarmFileIndex,
 	type UserInstructionConfigService,
 } from "@clinebot/core";
-import type { Message } from "@clinebot/shared";
 import { logCliError } from "../logging/errors";
 import {
 	loadClineAccountSnapshot,
@@ -250,10 +250,19 @@ export async function runInteractive(
 	});
 	let startupErrorReported = false;
 	const loadDeferredInitialMessages = resumeSessionId?.trim()
-		? async (): Promise<Message[]> => {
+		? async () => {
 				try {
 					await sessionRuntime.ensureReady();
-					return await sessionRuntime.readCurrentMessages();
+					const messages = await sessionRuntime.readCurrentMessages();
+					const usage = await sessionRuntime.getAccumulatedUsage({
+						inputTokens: 0,
+						outputTokens: 0,
+					});
+					return {
+						messages,
+						totalCost: usage.totalCost,
+						currentContextSize: getCurrentContextSize(messages),
+					};
 				} catch (error) {
 					startupErrorReported = true;
 					logCliError(config.logger, "Interactive startup failed", { error });
@@ -370,6 +379,7 @@ export async function runInteractive(
 					if (result.finishReason === "aborted" || isAbortInProgress()) {
 						return {
 							usage: result.usage,
+							currentContextSize: getCurrentContextSize(result.messages),
 							iterations: result.iterations,
 							finishReason: "aborted",
 						};
@@ -382,6 +392,7 @@ export async function runInteractive(
 				const usage = await sessionRuntime.getAccumulatedUsage(result.usage);
 				return {
 					usage,
+					currentContextSize: getCurrentContextSize(result.messages),
 					iterations: result.iterations,
 					finishReason: result.finishReason,
 				};
@@ -456,7 +467,16 @@ export async function runInteractive(
 		},
 		onResumeSession: async (sessionId: string) => {
 			await sessionRuntime.ensureReady();
-			return await sessionRuntime.resumeSession(sessionId);
+			const messages = await sessionRuntime.resumeSession(sessionId);
+			const usage = await sessionRuntime.getAccumulatedUsage({
+				inputTokens: 0,
+				outputTokens: 0,
+			});
+			return {
+				messages,
+				totalCost: usage.totalCost,
+				currentContextSize: getCurrentContextSize(messages),
+			};
 		},
 		onCompact: async () => {
 			await sessionRuntime.ensureReady();
