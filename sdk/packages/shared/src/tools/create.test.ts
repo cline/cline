@@ -173,10 +173,7 @@ describe("createTool", () => {
 				name: "allof_no_type_tool",
 				description: "Tool with allOf but no typed branch",
 				inputSchema: {
-					allOf: [
-						{ required: ["commands"] },
-						{ minProperties: 1 },
-					],
+					allOf: [{ required: ["commands"] }, { minProperties: 1 }],
 				},
 				execute: async () => ({ ok: true }),
 			}),

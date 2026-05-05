@@ -26,7 +26,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "claude-code",
 	},
 	{ modelsDevKey: "google", generatedProviderId: "gemini" },
-	{ modelsDevKey: "deepseek", generatedProviderId: "deepseek" },
+	{
+		modelsDevKey: "deepseek",
+		generatedProviderId: "deepseek",
+		runtimeProviderId: "deepseek",
+	},
 	{ modelsDevKey: "xai", generatedProviderId: "xai" },
 	{
 		modelsDevKey: "togetherai",
@@ -74,7 +78,6 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		modelsDevKey: "openrouter",
 		generatedProviderId: "openrouter",
 	},
-	{ modelsDevKey: "ollama-cloud", generatedProviderId: "ollama" },
 	{
 		modelsDevKey: "vercel",
 		generatedProviderId: "vercel-ai-gateway",

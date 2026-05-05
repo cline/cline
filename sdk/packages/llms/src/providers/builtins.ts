@@ -209,7 +209,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Advanced AI models with reasoning capabilities",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "deepseek-chat",
+		defaultModelId: "deepseek-v4-flash",
 		apiKeyEnv: ["DEEPSEEK_API_KEY"],
 		defaults: { baseUrl: "https://api.deepseek.com/v1" },
 	},
