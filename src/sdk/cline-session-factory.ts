@@ -8,8 +8,6 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import os from "node:os"
-import path from "node:path"
 import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
@@ -106,24 +104,6 @@ function resolveWorkspaceName(workspacePath: string): string {
 	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "")
 	const name = withoutTrailingSeparators.split(/[\\/]/).filter(Boolean).pop()?.trim()
 	return name || "workspace"
-}
-
-function isFilesystemRoot(workspacePath: string): boolean {
-	const trimmed = workspacePath.trim()
-	return trimmed.length > 0 && path.resolve(trimmed) === path.parse(trimmed).root
-}
-
-function resolveSdkWorkspaceRoot(workspaceRoot: string, cwd: string): string {
-	const trimmedWorkspaceRoot = workspaceRoot.trim()
-	if (!trimmedWorkspaceRoot) {
-		return cwd
-	}
-
-	if (!isFilesystemRoot(trimmedWorkspaceRoot)) {
-		return trimmedWorkspaceRoot
-	}
-
-	return os.homedir()
 }
 
 // ---------------------------------------------------------------------------
@@ -322,12 +302,11 @@ function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | 
  * StateManager.buildApiHandlerSettings) which both failed silently.
  */
 export async function buildSessionConfig(input: SessionConfigInput): Promise<CoreSessionConfig> {
-	let cwd = input.cwd
+	const cwd = input.cwd
 	if (!cwd) {
-		Logger.warn("[SessionFactory] No cwd provided, falling back to process.cwd() — this is likely wrong in VSCode")
-		cwd = process.cwd()
+		throw new Error("buildSessionConfig requires a cwd resolved by the host controller")
 	}
-	const workspaceRoot = resolveSdkWorkspaceRoot(input.workspaceRoot ?? cwd, cwd)
+	const workspaceRoot = input.workspaceRoot?.trim() || cwd
 	const mode: Mode = input.mode ?? "act"
 	const sdkLogger = createSdkLogger()
 	const distinctId = getDistinctId()
