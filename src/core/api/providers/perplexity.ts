@@ -63,7 +63,7 @@ export class PerplexityHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			temperature: 0,
+			...(!(modelId.includes("reasoning")) && { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
