@@ -271,7 +271,9 @@ export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 					paddingRight={2}
 					paddingY={1}
 				>
-					<text fg={accent}>{">"} </text>
+					<box width={2}>
+						<text fg={accent}>{">"}</text>
+					</box>
 					<text fg={defaultFg} selectable>
 						{entry.text}
 					</text>
@@ -288,7 +290,9 @@ export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 					paddingRight={2}
 					paddingY={1}
 				>
-					<text fg={accent}>{">"} </text>
+					<box width={2}>
+						<text fg={accent}>{">"}</text>
+					</box>
 					{entry.delivery === "steer" && <text fg="yellow">[steer] </text>}
 					{entry.delivery === "queue" && <text fg="gray">[queued] </text>}
 					<text fg={defaultFg} selectable>
