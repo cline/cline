@@ -102,7 +102,7 @@ Use this skill.`,
 		expect(written).toContain("disabled: true");
 		expect(data?.skills[0]?.enabled).toBe(false);
 		expect(calls).toContain("refreshType:skill");
-		expect(calls.indexOf("listRecords:skill")).toBeGreaterThan(
+		expect(calls.lastIndexOf("listRecords:skill")).toBeGreaterThan(
 			calls.indexOf("refreshType:skill"),
 		);
 	});

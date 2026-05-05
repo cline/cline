@@ -20,7 +20,7 @@ describe("CoreSettingsService", () => {
 		tempRoots.length = 0;
 	});
 
-	it("toggles skill frontmatter and refreshes the skill watcher before returning a snapshot", async () => {
+	it("toggles skill frontmatter and refreshes the skill service before returning a snapshot", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
 		tempRoots.push(tempRoot);
 		const skillPath = join(tempRoot, "SKILL.md");
@@ -108,13 +108,56 @@ Use this skill.`,
 		tempRoots.push(tempRoot);
 		const skillPath = join(tempRoot, "SKILL.md");
 		await writeFile(skillPath, "Use this skill.");
+		const userInstructionService = {
+			async refreshType() {},
+			listRecords(type: string) {
+				if (type !== "skill") {
+					return [];
+				}
+				return [
+					{
+						id: "skill-one",
+						type: "skill",
+						filePath: skillPath,
+						item: {
+							name: "skill-one",
+							description: "Skill one",
+							instructions: "Use this skill.",
+							frontmatter: {},
+						},
+					},
+				];
+			},
+		} as unknown as UserInstructionConfigService;
 
 		await expect(
 			new CoreSettingsService().toggle({
 				type: "skills",
+				id: "skill-one",
 				path: skillPath,
+				userInstructionService,
 			}),
 		).rejects.toThrow("Cannot determine toggle state");
+	});
+
+	it("rejects path-based skill toggles outside the resolved watcher snapshot", async () => {
+		const workspaceRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
+		const outsideRoot = await mkdtemp(join(tmpdir(), "core-settings-outside-"));
+		tempRoots.push(workspaceRoot, outsideRoot);
+		const outsidePath = join(outsideRoot, "SKILL.md");
+		const outsideContent = "Outside file.";
+		await writeFile(outsidePath, outsideContent);
+
+		await expect(
+			new CoreSettingsService().toggle({
+				type: "skills",
+				path: outsidePath,
+				enabled: false,
+				workspaceRoot,
+				cwd: workspaceRoot,
+			}),
+		).rejects.toThrow("Unable to resolve skill setting");
+		expect(await readFile(outsidePath, "utf8")).toBe(outsideContent);
 	});
 
 	it("honors explicit enabled values for plugin tool settings", async () => {

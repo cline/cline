@@ -199,11 +199,8 @@ export class CoreSettingsService {
 	): Promise<CoreSettingsMutationResult> {
 		if (input.type === "skills") {
 			return await withUserInstructionService(input, async (service) => {
-				const record =
-					input.path?.trim() && input.enabled !== undefined
-						? undefined
-						: findSkillRecord(service, input);
-				const filePath = input.path?.trim() || record?.filePath;
+				const record = findSkillRecord(service, input);
+				const filePath = record?.filePath;
 				if (!filePath) {
 					throw new Error(
 						`Unable to resolve skill setting '${input.id ?? input.name ?? basename(input.path ?? "")}'.`,
