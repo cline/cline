@@ -899,6 +899,13 @@ export class SessionRuntime {
 		// Track tool-call records before translation so the timing data
 		// is available to observers via `AgentResult.toolCalls`.
 		switch (event.type) {
+			case "message-added":
+			case "assistant-message": {
+				this.syncConversationFromRuntimeMessage(event.snapshot.messages, [
+					event.message,
+				]);
+				break;
+			}
 			case "turn-started": {
 				// Reset per-turn tool-outcome counters used by the
 				// MistakeTracker wiring. Parity with pre-Step-9
@@ -1017,6 +1024,33 @@ export class SessionRuntime {
 		for (const legacy of this.eventAdapter.translate(event)) {
 			this.emitLegacyEvent(legacy);
 		}
+	}
+
+	private syncConversationFromRuntimeMessage(
+		snapshotMessages: readonly AgentMessage[],
+		fallbackMessages: readonly AgentMessage[],
+	): void {
+		if (snapshotMessages.length > 0) {
+			this.conversation.replaceMessages(
+				agentMessagesToMessagesWithMetadata(snapshotMessages),
+			);
+			return;
+		}
+		if (fallbackMessages.length === 0) return;
+		const existingIds = new Set(
+			this.conversation
+				.getMessages()
+				.map((message) => message.id)
+				.filter((id): id is string => typeof id === "string"),
+		);
+		const newMessages = agentMessagesToMessagesWithMetadata(
+			fallbackMessages,
+		).filter((message) => !message.id || !existingIds.has(message.id));
+		if (newMessages.length === 0) return;
+		this.conversation.replaceMessages([
+			...this.conversation.getMessages(),
+			...newMessages,
+		]);
 	}
 
 	private emitLegacyEvent(event: AgentEvent): void {

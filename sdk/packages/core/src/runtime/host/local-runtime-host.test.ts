@@ -6,6 +6,7 @@ import type { MessageWithMetadata } from "@clinebot/llms";
 import type {
 	AgentExtensionAutomationContext,
 	AgentResult,
+	AgentRuntimeEvent,
 	BasicLogger,
 } from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
@@ -944,6 +945,145 @@ describe("LocalRuntimeHost", () => {
 		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
 		expect(writeSessionManifest).toHaveBeenCalledTimes(1);
 		expect(shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not fail the run when assistant-response disk flush fails", async () => {
+		const sessionId = "sess-assistant-flush";
+		const manifest = createManifest(sessionId);
+		const createRootSessionWithArtifacts = vi.fn().mockResolvedValue({
+			manifestPath: "/tmp/manifest-assistant-flush.json",
+			messagesPath: "/tmp/messages-assistant-flush.json",
+			manifest,
+		});
+		const order: string[] = [];
+		const persistError = new Error("disk full");
+		let persistCallCount = 0;
+		const persistSessionMessages = vi.fn().mockImplementation(() => {
+			order.push("persist");
+			persistCallCount += 1;
+			if (persistCallCount === 1) {
+				return Promise.reject(persistError);
+			}
+			return Promise.resolve();
+		});
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts,
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const messages = [
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "hello" }],
+			},
+			{
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "ready on disk" }],
+			},
+		];
+		const run = vi.fn(
+			async (
+				_prompt: string,
+				_userImages?: string[],
+				_userFiles?: string[],
+			) => {
+				const assistantEvent: AgentRuntimeEvent = {
+					type: "assistant-message",
+					iteration: 1,
+					finishReason: "stop",
+					message: {
+						id: "msg_assistant",
+						role: "assistant",
+						content: [{ type: "text", text: "ready on disk" }],
+						createdAt: Date.now(),
+					},
+					snapshot: {
+						agentId: "agent-root-1",
+						runId: "run-1",
+						status: "running",
+						iteration: 1,
+						messages: [],
+						pendingToolCalls: [],
+						usage: {
+							inputTokens: 0,
+							outputTokens: 0,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost: 0,
+						},
+					},
+				};
+				await capturedConfig?.hooks?.onEvent?.(assistantEvent);
+				order.push("run-return");
+				return createResult({ messages });
+			},
+		);
+		let capturedConfig:
+			| {
+					hooks?: {
+						onEvent?: (event: AgentRuntimeEvent) => void | Promise<void>;
+					};
+			  }
+			| undefined;
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: (config) => {
+				capturedConfig = config;
+				return {
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi
+						.fn()
+						.mockReturnValueOnce([])
+						.mockReturnValue(messages),
+					messages: [],
+				} as never;
+			},
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, logger }),
+				prompt: "hello",
+				interactive: false,
+			}),
+		);
+
+		expect(persistSessionMessages).toHaveBeenCalledTimes(2);
+		expect(persistSessionMessages).toHaveBeenNthCalledWith(
+			1,
+			sessionId,
+			messages,
+			"You are a test agent",
+		);
+		expect(order).toEqual(["persist", "run-return", "persist"]);
+		expect(logger.error).toHaveBeenCalledWith(
+			"Failed to persist session messages after assistant response",
+			{ sessionId, error: persistError },
+		);
 	});
 
 	it("does not fail a completed run when shutdown cleanup throws", async () => {

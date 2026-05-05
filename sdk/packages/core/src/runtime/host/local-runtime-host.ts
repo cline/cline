@@ -389,6 +389,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 					event,
 				),
 		} as AgentConfig;
+		agentConfig.hooks = {
+			...agentConfig.hooks,
+			onEvent: async (event) => {
+				await bootstrap.hooks?.onEvent?.(event);
+				if (event.type !== "assistant-message") return;
+				const liveSession = this.sessions.get(sessionId);
+				if (!liveSession) return;
+				const messages = liveSession.agent.getMessages();
+				try {
+					await this.invoke<void>(
+						"persistSessionMessages",
+						sessionId,
+						messages,
+						configWithProvider.systemPrompt,
+					);
+				} catch (error) {
+					configWithProvider.logger?.error?.(
+						"Failed to persist session messages after assistant response",
+						{ sessionId, error },
+					);
+				}
+			},
+		};
 		const agent = this.createAgentInstance(agentConfig);
 		if (agentConfig.onEvent) {
 			agent.subscribeEvents(agentConfig.onEvent);

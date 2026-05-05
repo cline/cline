@@ -163,6 +163,19 @@ function makeSnapshot() {
 	};
 }
 
+function makeAgentMessage(
+	id: string,
+	role: AgentMessage["role"],
+	text: string,
+): AgentMessage {
+	return {
+		id,
+		role,
+		content: [{ type: "text", text }],
+		createdAt: Date.now(),
+	};
+}
+
 /** Convenience to stitch a fake runtime into SessionRuntime deps. */
 function withFakeRuntime(script: FakeAgentRuntimeScript = {}): {
 	deps: SessionRuntimeOrchestratorDeps;
@@ -1015,6 +1028,101 @@ describe("SessionRuntime.shutdown", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.subscribeEvents", () => {
+	it("makes assistant messages visible to getMessages as soon as the runtime emits them", async () => {
+		const userMessage = makeAgentMessage("msg_user", "user", "go");
+		const assistantMessage = makeAgentMessage(
+			"msg_assistant",
+			"assistant",
+			"saved before run end",
+		);
+		const snapshot = {
+			...makeSnapshot(),
+			messages: [userMessage, assistantMessage],
+		};
+		const { deps } = withFakeRuntime({
+			events: [
+				{
+					type: "message-added",
+					snapshot,
+					message: assistantMessage,
+				},
+				{
+					type: "assistant-message",
+					snapshot,
+					iteration: 1,
+					message: assistantMessage,
+					finishReason: "stop",
+				},
+			],
+		});
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+
+		await session.run("go");
+
+		expect(session.getMessages()).toMatchObject([
+			{ role: "user", content: [{ type: "text", text: "go" }] },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "saved before run end" }],
+			},
+		]);
+	});
+
+	it("appends fallback event messages instead of replacing history when the runtime snapshot is empty", async () => {
+		const assistantMessage = makeAgentMessage(
+			"msg_assistant",
+			"assistant",
+			"new answer",
+		);
+		const { deps } = withFakeRuntime({
+			events: [
+				{
+					type: "assistant-message",
+					snapshot: makeSnapshot(),
+					iteration: 1,
+					message: assistantMessage,
+					finishReason: "stop",
+				},
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				initialMessages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "prior question" }],
+					},
+					{
+						role: "assistant",
+						content: [{ type: "text", text: "prior answer" }],
+					},
+				],
+			}),
+			deps,
+		);
+
+		await session.continue("next question");
+
+		expect(session.getMessages()).toMatchObject([
+			{
+				role: "user",
+				content: [{ type: "text", text: "prior question" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "prior answer" }],
+			},
+			{
+				role: "user",
+				content: "next question",
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "new answer" }],
+			},
+		]);
+	});
+
 	it("unsubscribes cleanly", async () => {
 		const { deps } = withFakeRuntime({
 			events: [
