@@ -38,6 +38,7 @@ const c = {
 type CoreOAuthApi = {
 	loginClineOAuth: (input: {
 		apiBaseUrl: string;
+		useWorkOSDeviceAuth?: boolean;
 		callbacks: {
 			onAuth: (info: { url: string; instructions?: string }) => void;
 			onPrompt: (prompt: {
@@ -280,6 +281,7 @@ async function loginWithOAuthProvider(
 	if (providerId === "cline") {
 		return oauthApi.loginClineOAuth({
 			apiBaseUrl: existing?.baseUrl?.trim() || "https://api.cline.bot",
+			useWorkOSDeviceAuth: true,
 			callbacks,
 		});
 	}

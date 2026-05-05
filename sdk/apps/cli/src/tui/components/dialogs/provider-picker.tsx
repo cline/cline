@@ -10,7 +10,7 @@ import {
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import open from "open";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
 
@@ -324,7 +324,9 @@ export function OAuthLoginContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, providerId, providerName } = props;
-	const [mode, setMode] = useState<"browser" | "device">("browser");
+	const [mode, setMode] = useState<"browser" | "device">(
+		providerId === "cline" ? "device" : "browser",
+	);
 	const [status, setStatus] = useState("Opening browser...");
 	const [authUrl, setAuthUrl] = useState("");
 	const [error, setError] = useState("");
@@ -333,68 +335,25 @@ export function OAuthLoginContent(
 	const [deviceError, setDeviceError] = useState("");
 	const activeAuthAttemptRef = useRef<AuthAttempt | undefined>(undefined);
 
-	const startAuthAttempt = () => {
+	const startAuthAttempt = useCallback(() => {
 		const attempt: AuthAttempt = { cancelled: false };
 		activeAuthAttemptRef.current = attempt;
 		return attempt;
-	};
+	}, []);
 
-	const cancelAuthAttempt = () => {
+	const cancelAuthAttempt = useCallback(() => {
 		const attempt = activeAuthAttemptRef.current;
 		if (attempt) {
 			attempt.cancelled = true;
 		}
 		activeAuthAttemptRef.current = undefined;
-	};
-
-	const isActiveAuthAttempt = (attempt: AuthAttempt) =>
-		activeAuthAttemptRef.current === attempt && !attempt.cancelled;
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
-	useEffect(() => {
-		const attempt = startAuthAttempt();
-		const manager = new ProviderSettingsManager();
-		const existing = manager.getProviderSettings(providerId);
-
-		loginLocalProvider(
-			providerId as "cline" | "oca" | "openai-codex",
-			existing,
-			(url: string) => {
-				setAuthUrl(url);
-				setStatus("Waiting for authentication in browser...");
-				try {
-					void open(url, { wait: false }).catch(() => {
-						setStatus(
-							"Could not open browser automatically. Open the URL below.",
-						);
-					});
-				} catch {
-					setStatus(
-						"Could not open browser automatically. Open the URL below.",
-					);
-				}
-			},
-		)
-			.then((credentials) => {
-				if (!isActiveAuthAttempt(attempt)) return;
-				saveLocalProviderOAuthCredentials(
-					manager,
-					providerId as "cline" | "oca" | "openai-codex",
-					existing,
-					credentials,
-				);
-				resolve(true);
-			})
-			.catch((err: unknown) => {
-				if (!isActiveAuthAttempt(attempt)) return;
-				const msg = err instanceof Error ? err.message : String(err);
-				setError(msg);
-				setStatus("Authentication failed");
-			});
-		return cancelAuthAttempt;
 	}, []);
 
-	const switchToDeviceCode = () => {
+	const isActiveAuthAttempt = useCallback((attempt: AuthAttempt) => {
+		return activeAuthAttemptRef.current === attempt && !attempt.cancelled;
+	}, []);
+
+	const startDeviceAuthCodeFlow = useCallback(() => {
 		cancelAuthAttempt();
 		const attempt = startAuthAttempt();
 		setMode("device");
@@ -441,21 +400,67 @@ export function OAuthLoginContent(
 				if (!isActiveAuthAttempt(attempt)) return;
 				setDeviceError(err instanceof Error ? err.message : String(err));
 			});
-	};
+	}, [
+		providerId,
+		resolve,
+		startAuthAttempt,
+		isActiveAuthAttempt,
+		cancelAuthAttempt,
+	]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+	useEffect(() => {
+		if (providerId === "cline") {
+			startDeviceAuthCodeFlow();
+			return cancelAuthAttempt;
+		}
+
+		const attempt = startAuthAttempt();
+		const manager = new ProviderSettingsManager();
+		const existing = manager.getProviderSettings(providerId);
+
+		loginLocalProvider(
+			providerId as "cline" | "oca" | "openai-codex",
+			existing,
+			(url: string) => {
+				setAuthUrl(url);
+				setStatus("Waiting for authentication in browser...");
+				try {
+					void open(url, { wait: false }).catch(() => {
+						setStatus(
+							"Could not open browser automatically. Open the URL below.",
+						);
+					});
+				} catch {
+					setStatus(
+						"Could not open browser automatically. Open the URL below.",
+					);
+				}
+			},
+		)
+			.then((credentials) => {
+				if (!isActiveAuthAttempt(attempt)) return;
+				saveLocalProviderOAuthCredentials(
+					manager,
+					providerId as "cline" | "oca" | "openai-codex",
+					existing,
+					credentials,
+				);
+				resolve(true);
+			})
+			.catch((err: unknown) => {
+				if (!isActiveAuthAttempt(attempt)) return;
+				const msg = err instanceof Error ? err.message : String(err);
+				setError(msg);
+				setStatus("Authentication failed");
+			});
+		return cancelAuthAttempt;
+	}, []);
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
 			cancelAuthAttempt();
 			dismiss();
-			return;
-		}
-		if (
-			key.name === "d" &&
-			mode === "browser" &&
-			providerId === "cline" &&
-			!error
-		) {
-			switchToDeviceCode();
 		}
 	}, dialogId);
 
@@ -507,12 +512,6 @@ export function OAuthLoginContent(
 			)}
 
 			{error && <text fg="red">{error}</text>}
-
-			{providerId === "cline" && !error && (
-				<text fg="gray">
-					Can't open a browser? <em>Press d to use a device code</em>
-				</text>
-			)}
 
 			<text fg="gray">
 				<em>Esc to cancel</em>

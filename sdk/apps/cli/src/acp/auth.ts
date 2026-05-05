@@ -39,6 +39,7 @@ async function performOAuthLogin(
 			import("open"),
 			import("@clinebot/core").then((m) => ({
 				loginClineOAuth: m.loginClineOAuth as (input: {
+					useWorkOSDeviceAuth?: boolean;
 					apiBaseUrl: string;
 					callbacks: {
 						onAuth: (info: { url: string; instructions?: string }) => void;
@@ -84,6 +85,7 @@ async function performOAuthLogin(
 		return coreOAuth.loginClineOAuth({
 			apiBaseUrl: existingSettings?.baseUrl?.trim() || "https://api.cline.bot",
 			callbacks,
+			useWorkOSDeviceAuth: true,
 		});
 	}
 

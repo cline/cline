@@ -127,12 +127,6 @@ export function OnboardingOAuthPendingScreen(props: {
 					</box>
 				)}
 
-				{props.oauthProvider === "cline" && !props.authError && (
-					<text fg="gray">
-						Can't open a browser? <em>Press d to use a device code instead</em>
-					</text>
-				)}
-
 				<text fg="gray">
 					<em>Esc to cancel, Ctrl+C to exit</em>
 				</text>

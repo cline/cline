@@ -80,10 +80,6 @@ export interface ClineOAuthProviderOptions {
 	headers?: HeaderInput;
 	requestTimeoutMs?: number;
 	telemetry?: ITelemetryService;
-	/**
-	 * Feature flag for WorkOS Device Authorization.
-	 * Defaults to false to preserve legacy callback-based OAuth behavior.
-	 */
 	useWorkOSDeviceAuth?: boolean;
 	callbackPath?: string;
 	callbackPorts?: number[];
@@ -447,7 +443,7 @@ export async function loginClineOAuth(
 	},
 ): Promise<ClineOAuthCredentials> {
 	captureAuthStarted(options.telemetry, options.provider ?? "cline");
-	const useWorkOSDeviceAuth = options.useWorkOSDeviceAuth;
+	const useWorkOSDeviceAuth = options.useWorkOSDeviceAuth ?? true;
 	const callbackPorts = options.callbackPorts?.length
 		? options.callbackPorts
 		: DEFAULT_CALLBACK_PORTS;
@@ -710,7 +706,7 @@ export function createClineOAuthProvider(
 	return {
 		id: "cline",
 		name: "Cline Account",
-		usesCallbackServer: !options.useWorkOSDeviceAuth,
+		usesCallbackServer: !(options.useWorkOSDeviceAuth ?? true),
 		async login(callbacks) {
 			return loginClineOAuth({ ...options, callbacks });
 		},

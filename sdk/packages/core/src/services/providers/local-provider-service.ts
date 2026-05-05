@@ -726,6 +726,7 @@ export async function loginLocalProvider(
 	if (providerId === "cline") {
 		return loginClineOAuth({
 			apiBaseUrl: existing?.baseUrl?.trim() || "https://api.cline.bot",
+			useWorkOSDeviceAuth: true,
 			callbacks,
 		});
 	}

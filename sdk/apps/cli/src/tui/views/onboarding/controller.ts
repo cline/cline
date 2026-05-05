@@ -188,26 +188,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		authAbortRef.current = false;
 	}, []);
 
-	const startOAuthFlow = useCallback(
-		(providerId: OnboardingOAuthProviderId) => {
-			resetAuth();
-			setOauthProvider(providerId);
-			setStep("oauth_pending");
-			setAuthStatus("Opening browser...");
-
-			runOAuthAuthFlow({
-				providerId,
-				providerSettingsManager,
-				isAborted: () => authAbortRef.current,
-				setStatus: setAuthStatus,
-				setAuthUrl,
-				setError: setAuthError,
-				onComplete: transitionToModelPicker,
-			});
-		},
-		[providerSettingsManager, resetAuth, transitionToModelPicker],
-	);
-
 	const startDeviceCodeFlow = useCallback(
 		(providerId: OnboardingOAuthProviderId) => {
 			deviceAbortRef.current = false;
@@ -230,6 +210,36 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			});
 		},
 		[providerSettingsManager, transitionToModelPicker],
+	);
+
+	const startOAuthFlow = useCallback(
+		(providerId: OnboardingOAuthProviderId) => {
+			if (providerId === "cline") {
+				startDeviceCodeFlow(providerId);
+				return;
+			}
+
+			resetAuth();
+			setOauthProvider(providerId);
+			setStep("oauth_pending");
+			setAuthStatus("Opening browser...");
+
+			runOAuthAuthFlow({
+				providerId,
+				providerSettingsManager,
+				isAborted: () => authAbortRef.current,
+				setStatus: setAuthStatus,
+				setAuthUrl,
+				setError: setAuthError,
+				onComplete: transitionToModelPicker,
+			});
+		},
+		[
+			providerSettingsManager,
+			resetAuth,
+			transitionToModelPicker,
+			startDeviceCodeFlow,
+		],
 	);
 
 	const selectProvider = useCallback(
