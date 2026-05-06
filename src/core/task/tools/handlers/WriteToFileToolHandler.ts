@@ -122,7 +122,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return formatResponse.toolError(formatResponse.replaceInFileMissingDiffError(relPath))
 		}
 
-		if (block.name === "write_to_file" && !rawContent) {
+		if (block.name === "write_to_file" && rawContent == null) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
 
@@ -555,8 +555,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 				return
 			}
-		} else if (content) {
-			// Handle write_to_file with direct content
+		} else if (content != null) {
+			// Handle write_to_file with direct content (empty string is valid)
 			newContent = content
 
 			// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
