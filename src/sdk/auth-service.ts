@@ -547,6 +547,9 @@ export class AuthService {
 				accountId: authInfo.userInfo.id,
 			})
 
+			// This is technically duplicated with the onboarding, but it's a way of making sure it happens faster in E2E tests
+			StateManager.get().setGlobalState("welcomeViewCompleted", true)
+
 			await this.sendAuthStatusUpdate()
 
 			BannerService.onAuthUpdate(authInfo.userInfo.id || null).catch((error) => {
