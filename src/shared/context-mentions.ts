@@ -2,7 +2,7 @@
 Mention regex:
 - **Purpose**: 
   - To identify and highlight specific mentions in text that start with '@'. 
- *   - These mentions can be file paths, URLs, or exact keywords like 'problems' and 'git-changes'.
+  - These mentions can be file paths, URLs, or the exact word 'problems'.
   - Ensures that trailing punctuation marks (like commas, periods, etc.) are not included in the match, allowing punctuation to follow the mention without being part of it.
 
 - **Regex Breakdown**:
@@ -25,6 +25,10 @@ Mention regex:
 	- `problems\b`: 
       - **Exact Word ('problems')**: Matches the exact word 'problems'.
       - **Word Boundary (`\b`)**: Ensures that 'problems' is matched as a whole word and not as part of another word (e.g., 'problematic').
+    - `terminal\b`:
+      - **Exact Word ('terminal')**: Matches the exact word 'terminal'.
+      - **Word Boundary (`\b`)**: Ensures that 'terminal' is matched as a whole word and not as part of another word (e.g., 'terminals').
+
   - `(?=[.,;:!?()]*(?=[\s\r\n]|$))`:
 	- **Positive Lookahead (`(?=...)`)**: Ensures that the match is followed by specific patterns without including them in the match.
 	- `[.,;:!?()]*`: 
@@ -36,7 +40,8 @@ Mention regex:
   - The regex effectively matches:
 	- Mentions that are file or folder paths starting with '/' and containing any non-whitespace characters (including periods within the path).
 	- URLs that start with a protocol (like 'http://') followed by any non-whitespace characters (including query parameters).
-  - The exact word 'problems'.
+	- The exact word 'problems'.
+  - The exact word 'terminal'.
 	- The exact word 'git-changes'.
   - It ensures that any trailing punctuation marks (such as ',', '.', '!', etc.) are not included in the matched mention, allowing the punctuation to follow the mention naturally in the text.
 
@@ -53,6 +58,7 @@ export const mentionRegex = new RegExp(
 		`|(?:\\w+:\\/\\/)[^\\s]+?` + // URLs
 		`|[a-f0-9]{7,40}\\b` + // Git commit hashes
 		`|problems\\b` + // Exact word 'problems'
+		`|terminal\\b` + // Exact word 'terminal'
 		`|git-changes\\b` + // Exact word 'git-changes'
 		`)` +
 		`(?=[.,;:!?()]*(?=[\\s\\r\\n]|$))`, // Lookahead for trailing punctuation (multiple allowed)

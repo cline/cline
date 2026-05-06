@@ -51,3 +51,15 @@ jobs:
                 });
               }
             }
+
+            // Check if beta version checkbox is checked
+            if (body.includes('- [X] I am using a beta version of Cline') || body.includes('- [x] I am using a beta version of Cline')) {
+              if (!labels.includes('beta')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: ['beta']
+                });
+              }
+            }

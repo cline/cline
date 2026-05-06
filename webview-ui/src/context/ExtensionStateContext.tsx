@@ -7,7 +7,7 @@ import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { OnboardingModelGroup } from "@shared/proto/cline/state"
+import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
@@ -47,6 +47,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	totalTasksSize: number | null
 	lastDismissedCliBannerVersion: number
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
+
+	availableTerminalProfiles: TerminalProfile[]
 
 	// View state
 	showMcp: boolean
@@ -248,7 +250,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		localAgentsRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
+		shellIntegrationTimeout: 4000,
+		terminalReuseEnabled: true,
+		vscodeTerminalExecutionMode: "vscodeTerminal",
+		terminalOutputLineLimit: 500,
 		maxConsecutiveMistakes: 3,
+		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
 		onboardingModels: undefined,
@@ -298,6 +305,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
 	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
+	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
+
 	const [openAiModels, _setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
@@ -596,6 +605,15 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		// Fetch available terminal profiles on launch
+		StateServiceClient.getAvailableTerminalProfiles(EmptyRequest.create({}))
+			.then((response) => {
+				setAvailableTerminalProfiles(response.profiles)
+			})
+			.catch((error) => {
+				console.error("Failed to fetch available terminal profiles:", error)
+			})
+
 		// Subscribe to relinquish control events
 		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
 			onResponse: () => {
@@ -783,6 +801,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpServers,
 		mcpMarketplaceCatalog,
 		totalTasksSize,
+		availableTerminalProfiles,
 		showMcp,
 		mcpTab,
 		showSettings,
