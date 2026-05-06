@@ -1,3 +1,5 @@
+import fs from "fs/promises"
+import * as path from "path"
 import { resolveWorkspacePath } from "@core/workspace"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { ClineDefaultTool } from "@shared/tools"
@@ -116,6 +118,46 @@ export class AutoApprove {
 		return false
 	}
 
+	/**
+	 * Check if a path is accessed via a symlink that exists within the workspace.
+	 * This walks up the path tree to find any symlinks and verifies they are in the workspace.
+	 */
+	private async isPathViaWorkspaceSymlink(filePath: string): Promise<boolean> {
+		try {
+			const { workspacePaths } = await this.getWorkspaceInfo()
+
+			// Normalize the path
+			const normalizedPath = path.normalize(filePath)
+			const parts = normalizedPath.split(path.sep)
+
+			// Check each directory in the path (from root to leaf)
+			let currentPath = ""
+			for (const part of parts) {
+				currentPath = currentPath ? path.join(currentPath, part) : part
+				if (!currentPath || currentPath === path.sep) continue
+
+				try {
+					const stats = await fs.lstat(currentPath)
+					if (stats.isSymbolicLink()) {
+						// Found a symlink - check if it's in any workspace
+						for (const wsPath of workspacePaths.paths) {
+							if (currentPath.startsWith(wsPath + path.sep) || currentPath === wsPath) {
+								// The symlink is within a workspace folder - allow it
+								return true
+							}
+						}
+					}
+				} catch {
+					// Path component doesn't exist or can't be accessed, skip
+					continue
+				}
+			}
+			return false
+		} catch {
+			return false
+		}
+	}
+
 	// Check if the tool should be auto-approved based on the settings
 	// and the path of the action. Returns true if the tool should be auto-approved
 	// based on the user's settings and the path of the action.
@@ -130,14 +172,14 @@ export class AutoApprove {
 			return true
 		}
 
-		let isLocalRead = false
+		let isLocalPath = false
 		if (autoApproveActionpath) {
 			// Use cached workspace info instead of fetching every time
 			const { isMultiRootScenario } = await this.getWorkspaceInfo()
 
 			if (isMultiRootScenario) {
 				// Multi-root: check if file is in ANY workspace
-				isLocalRead = await isLocatedInWorkspace(autoApproveActionpath)
+				isLocalPath = await isLocatedInWorkspace(autoApproveActionpath)
 			} else {
 				// Single-root: use existing logic
 				const cwd = await getCwd(getDesktopDir())
@@ -147,11 +189,20 @@ export class AutoApprove {
 					autoApproveActionpath,
 					"AutoApprove.shouldAutoApproveToolWithPath",
 				) as string
-				isLocalRead = isLocatedInPath(cwd, absolutePath)
+				isLocalPath = isLocatedInPath(cwd, absolutePath)
+			}
+
+			// If not local, check if accessed via a workspace symlink and setting is enabled
+			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+			if (!isLocalPath && autoApprovalSettings.actions.editSymlinkedFiles) {
+				const isViaSymlink = await this.isPathViaWorkspaceSymlink(autoApproveActionpath)
+				if (isViaSymlink) {
+					isLocalPath = true
+				}
 			}
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
-			isLocalRead = false
+			isLocalPath = false
 		}
 
 		// Get auto-approve settings for local and external edits
@@ -160,7 +211,7 @@ export class AutoApprove {
 			? autoApproveResult
 			: [autoApproveResult, false]
 
-		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
+		if ((isLocalPath && autoApproveLocal) || (!isLocalPath && autoApproveLocal && autoApproveExternal)) {
 			return true
 		}
 		return false

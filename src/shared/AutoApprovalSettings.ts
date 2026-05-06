@@ -16,6 +16,7 @@ export interface AutoApprovalSettings {
 		readFilesExternally?: boolean // Read files and directories outside of the working directory
 		editFiles: boolean // Edit files in the working directory
 		editFilesExternally?: boolean // Edit files outside of the working directory
+		editSymlinkedFiles?: boolean // Edit files accessed via symlinks within the workspace
 		executeSafeCommands?: boolean // Execute safe commands
 		executeAllCommands?: boolean // Execute all commands
 		useBrowser: boolean // Use browser
@@ -35,6 +36,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		readFilesExternally: false,
 		editFiles: false,
 		editFilesExternally: false,
+		editSymlinkedFiles: false,
 		executeSafeCommands: true,
 		executeAllCommands: false,
 		useBrowser: false,

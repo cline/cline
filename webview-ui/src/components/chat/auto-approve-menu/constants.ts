@@ -26,6 +26,13 @@ export const ACTION_METADATA: ActionMetadata[] = [
 			icon: "codicon-files",
 			parentActionId: "editFiles",
 		},
+		additionalSubAction: {
+			id: "editSymlinkedFiles",
+			label: "Edit symlinked files",
+			shortName: "Symlinks",
+			icon: "codicon-link",
+			parentActionId: "editFiles",
+		},
 	},
 	{
 		id: "executeSafeCommands",

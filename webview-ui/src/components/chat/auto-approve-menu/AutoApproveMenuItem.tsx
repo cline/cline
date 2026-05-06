@@ -54,6 +54,11 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 					<AutoApproveMenuItem action={action.subAction} isChecked={isChecked} onToggle={onToggle} />
 				</SubOptionAnimateIn>
 			)}
+			{action.additionalSubAction && (
+				<SubOptionAnimateIn inert={!checked ? "" : undefined} show={checked}>
+					<AutoApproveMenuItem action={action.additionalSubAction} isChecked={isChecked} onToggle={onToggle} />
+				</SubOptionAnimateIn>
+			)}
 		</div>
 	)
 

@@ -6,6 +6,7 @@ export interface ActionMetadata {
 	shortName: string
 	icon: string
 	subAction?: ActionMetadata
+	additionalSubAction?: ActionMetadata
 	sub?: boolean
 	parentActionId?: string
 }
