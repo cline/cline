@@ -171,11 +171,19 @@ describe("AgentRuntime", () => {
 		).toBe(true);
 	});
 
-	it("injects pending user messages before prepareTurn rewrites the transcript", async () => {
-		const consumePendingUserMessage = vi.fn(() => "steer before prepare");
+	it("injects pending user messages after prepareTurn rewrites the transcript", async () => {
+		const consumePendingUserMessage = vi.fn(() => "steer after prepare");
+		const compactedMessage: AgentMessage = {
+			id: "msg_compacted",
+			role: "user",
+			content: [{ type: "text", text: "compacted context" }],
+			createdAt: 1,
+		};
 		const prepareTurn = vi.fn(
 			(context: { messages: readonly AgentMessage[] }) => ({
-				messages: context.messages.slice(),
+				messages: context.messages.some((message) => message.role === "tool")
+					? [compactedMessage]
+					: context.messages.slice(),
 			}),
 		);
 		const model = new ScriptedModel([
@@ -189,10 +197,19 @@ describe("AgentRuntime", () => {
 				{ type: "finish", reason: "tool-calls" },
 			],
 			(request) => {
-				expect(request.messages.at(-1)).toMatchObject({
+				expect(request.messages).toHaveLength(2);
+				expect(request.messages[0]).toMatchObject(compactedMessage);
+				expect(request.messages[1]).toMatchObject({
 					role: "user",
-					content: [{ type: "text", text: "steer before prepare" }],
+					content: [{ type: "text", text: "steer after prepare" }],
 				});
+				expect(
+					request.messages.some((message) =>
+						message.content.some(
+							(part) => part.type === "text" && part.text === "Start",
+						),
+					),
+				).toBe(false);
 				return [
 					{ type: "text-delta", text: "done" },
 					{ type: "finish", reason: "stop" },
@@ -219,24 +236,18 @@ describe("AgentRuntime", () => {
 			"assistant",
 		]);
 		const secondPrepareMessages = prepareTurn.mock.calls[1]?.[0].messages;
-		expect(secondPrepareMessages.at(-1)).toMatchObject({
-			role: "user",
-			content: [{ type: "text", text: "steer before prepare" }],
-		});
+		expect(secondPrepareMessages.at(-1)).toMatchObject({ role: "tool" });
+		expect(JSON.stringify(secondPrepareMessages)).not.toContain(
+			"steer after prepare",
+		);
 	});
 
-	it("lets prepareTurn compact tool results after pending user input is added", async () => {
+	it("appends pending user input after prepareTurn compacts tool results", async () => {
 		const consumePendingUserMessage = vi.fn(() => "latest steering");
 		const hugeToolOutput = "x".repeat(100_000);
 		const prepareTurn = vi.fn(
 			(context: { messages: readonly AgentMessage[] }) => {
-				const latest = context.messages.at(-1);
-				if (
-					latest?.role === "user" &&
-					latest.content.some(
-						(part) => part.type === "text" && part.text === "latest steering",
-					)
-				) {
+				if (context.messages.some((message) => message.role === "tool")) {
 					return {
 						messages: context.messages.filter(
 							(message) => message.role !== "tool",
@@ -289,10 +300,9 @@ describe("AgentRuntime", () => {
 		expect(prepareTurn).toHaveBeenCalledTimes(2);
 		const secondPrepareMessages = prepareTurn.mock.calls[1]?.[0].messages;
 		expect(JSON.stringify(secondPrepareMessages)).toContain(hugeToolOutput);
-		expect(secondPrepareMessages.at(-1)).toMatchObject({
-			role: "user",
-			content: [{ type: "text", text: "latest steering" }],
-		});
+		expect(JSON.stringify(secondPrepareMessages)).not.toContain(
+			"latest steering",
+		);
 	});
 
 	it("continues when completionGuard rejects a no-tool response", async () => {
@@ -902,7 +912,7 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(0);
 	});
 
-	it("runs prepareTurn before beforeModel and persists rewritten messages", async () => {
+	it("runs prepareTurn before beforeModel without replacing canonical messages", async () => {
 		const compactedMessage: AgentMessage = {
 			id: "msg_compacted",
 			role: "user",
@@ -955,7 +965,10 @@ describe("AgentRuntime", () => {
 		expect(prepareTurn).toHaveBeenCalledTimes(1);
 		expect(beforeModel).toHaveBeenCalledTimes(1);
 		expect(notices).toEqual(["auto-compacting"]);
-		expect(result.messages[0]).toEqual(compactedMessage);
+		expect(result.messages[0]).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "large context" }],
+		});
 		expect(result.messages).toHaveLength(2);
 		expect(model.requests).toHaveLength(1);
 	});

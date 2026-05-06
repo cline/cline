@@ -1,10 +1,13 @@
 import {
 	type AgentEvent,
 	type CheckpointEntry,
+	createSessionCompactionState,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
+	projectSessionCompactionState,
 	readSessionCheckpointHistory,
+	type SessionCompactionState,
 	SessionSource,
 	type TeamEvent,
 	type ToolApprovalRequest,
@@ -79,6 +82,7 @@ export function createInteractiveSessionRuntime(input: {
 	// A reset can happen while an earlier manager.start() is still in flight.
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
+	let manualCompactionAbortController: AbortController | undefined;
 
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
@@ -164,6 +168,7 @@ export function createInteractiveSessionRuntime(input: {
 	const startFreshSession = async (
 		initial: Message[] = [],
 		sessionMetadata?: Record<string, unknown>,
+		initialCompactionState?: SessionCompactionState,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
@@ -173,6 +178,7 @@ export function createInteractiveSessionRuntime(input: {
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
 			initialMessages: initial,
+			...(initialCompactionState ? { initialCompactionState } : {}),
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
 				onTeamRestored: () => {},
@@ -281,6 +287,17 @@ export function createInteractiveSessionRuntime(input: {
 		return await missingSessionRecoveryPromise;
 	};
 
+	const readCurrentCompactionState = async (): Promise<
+		SessionCompactionState | undefined
+	> => {
+		if (!sessionManager || !activeSessionId) {
+			return undefined;
+		}
+		return await sessionManager
+			.readSessionCompactionState(activeSessionId)
+			.catch(() => undefined);
+	};
+
 	const stopCurrentSession = async (): Promise<void> => {
 		const sessionId = activeSessionId;
 		if (sessionManager && sessionId) {
@@ -318,6 +335,7 @@ export function createInteractiveSessionRuntime(input: {
 	const restartWithMessages = async (
 		messages: Message[],
 		sessionMetadata?: Record<string, unknown>,
+		initialCompactionState?: SessionCompactionState,
 	): Promise<void> => {
 		sessionStartGeneration += 1;
 		pendingResumeSessionId = undefined;
@@ -325,12 +343,25 @@ export function createInteractiveSessionRuntime(input: {
 		startupError = undefined;
 		await stopCurrentSession();
 		clearActiveSession();
-		await startFreshSession(messages, sessionMetadata);
+		await startFreshSession(messages, sessionMetadata, initialCompactionState);
 	};
 
 	const restartWithCurrentMessages = async (): Promise<void> => {
-		const messages = await readCurrentMessages();
-		await restartWithMessages(messages);
+		const [messages, compactionState] = await Promise.all([
+			readCurrentMessages(),
+			readCurrentCompactionState(),
+		]);
+		const projectedMessages = compactionState
+			? projectSessionCompactionState(compactionState, messages)
+			: undefined;
+		const reanchoredCompactionState = projectedMessages
+			? createSessionCompactionState({
+					sourceMessages: messages,
+					compactedMessages: projectedMessages,
+					systemPrompt: compactionState?.system_prompt,
+				})
+			: undefined;
+		await restartWithMessages(messages, undefined, reanchoredCompactionState);
 	};
 
 	const restartEmpty = async (): Promise<void> => {
@@ -473,22 +504,41 @@ export function createInteractiveSessionRuntime(input: {
 	const compactCurrentSession = async (): Promise<{
 		messagesBefore: number;
 		messagesAfter: number;
+		workingContextMessagesAfter?: number;
 		compacted: boolean;
 	}> => {
-		if (!sessionManager) {
+		const manager = sessionManager;
+		const sourceSessionId = activeSessionId;
+		if (!manager || !sourceSessionId) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const messages = await readCurrentMessages();
+		const sessionRecord = await manager.get(sourceSessionId);
+		if (sessionRecord?.status === "running") {
+			throw new Error(
+				"Cannot compact while the current turn is running. Wait for it to finish or abort it first.",
+			);
+		}
+		const messages = (await manager.readMessages(sourceSessionId)) ?? [];
 		const messagesBefore = messages.length;
 		if (messagesBefore === 0) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const result = await compactInteractiveMessages({
-			config: input.config,
-			providerSettingsManager: input.providerSettingsManager,
-			sessionId: activeSessionId,
-			messages,
-		});
+		let result: Awaited<ReturnType<typeof compactInteractiveMessages>>;
+		const abortController = new AbortController();
+		manualCompactionAbortController = abortController;
+		try {
+			result = await compactInteractiveMessages({
+				config: input.config,
+				providerSettingsManager: input.providerSettingsManager,
+				sessionId: sourceSessionId,
+				messages,
+				abortSignal: abortController.signal,
+			});
+		} finally {
+			if (manualCompactionAbortController === abortController) {
+				manualCompactionAbortController = undefined;
+			}
+		}
 		if (!result.compacted) {
 			return {
 				messagesBefore,
@@ -496,10 +546,26 @@ export function createInteractiveSessionRuntime(input: {
 				compacted: false,
 			};
 		}
-		await restartWithMessages(result.messages);
+		if (!result.compactionState) {
+			return {
+				messagesBefore,
+				messagesAfter: messagesBefore,
+				compacted: false,
+			};
+		}
+		const updated = await manager.updateSessionCompactionState(
+			sourceSessionId,
+			result.compactionState,
+		);
+		if (!updated.updated) {
+			throw new Error(
+				`Failed to update compaction state for ${sourceSessionId}.`,
+			);
+		}
 		return {
 			messagesBefore,
 			messagesAfter: result.messages.length,
+			workingContextMessagesAfter: result.compactionState?.messages.length,
 			compacted: true,
 		};
 	};
@@ -586,6 +652,9 @@ export function createInteractiveSessionRuntime(input: {
 		}
 		abortRequested = true;
 		markAbortInProgress();
+		manualCompactionAbortController?.abort(
+			new Error("Interactive runtime abort requested"),
+		);
 		sessionManager
 			.abort(activeSessionId, new Error("Interactive runtime abort requested"))
 			.catch(() => {});

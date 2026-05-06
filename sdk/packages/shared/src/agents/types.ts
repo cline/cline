@@ -800,7 +800,7 @@ export interface AgentConfig {
 	 */
 	logger?: BasicLogger;
 	/**
-	 * Optional callback that can rewrite the turn input before each model call.
+	 * Optional callback that can project the turn input before each model call.
 	 * This is the primary seam for host-owned context pipelines.
 	 */
 	prepareTurn?: (

@@ -6,6 +6,7 @@ import type {
 } from "@cline/shared";
 import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
 import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
+import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
 	SessionVersioningService,
@@ -77,6 +78,9 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
+	const initialCompactionState = parseSessionCompactionState(
+		payload.initialCompactionState,
+	);
 	if (typeof sessionConfig?.mode === "string") {
 		metadata.mode = sessionConfig.mode;
 	} else if (typeof runtimeOptions.mode === "string") {
@@ -175,6 +179,7 @@ export async function handleSessionCreate(
 		initialMessages: Array.isArray(payload.initialMessages)
 			? (payload.initialMessages as never[])
 			: undefined,
+		initialCompactionState,
 		localRuntime: {
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
@@ -352,6 +357,9 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
+		const initialCompactionState = parseSessionCompactionState(
+			payload.initialCompactionState,
+		);
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
 				? JSON.parse(JSON.stringify(payload.metadata))
@@ -439,6 +447,7 @@ export async function handleSessionRestore(
 						restoredCheckpointRunCount: checkpointRunCount,
 					},
 					initialMessages: context.initialMessages,
+					initialCompactionState,
 					localRuntime: {
 						modelCatalogDefaults: {
 							loadLatestOnInit: true,
@@ -702,6 +711,30 @@ export async function handleSessionMessages(
 	return okReply(envelope, { sessionId, messages });
 }
 
+export async function handleSessionCompactionGet(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"session.compaction.get requires a session id",
+		);
+	}
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	const state = await ctx.sessionHost.readSessionCompactionState(sessionId);
+	return okReply(envelope, { sessionId, state });
+}
+
 export async function handleSessionList(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -744,6 +777,84 @@ export async function handleSessionUpdate(
 		payload: {
 			updated: updated.updated,
 			session,
+			...(snapshot ? { snapshot } : {}),
+		},
+	};
+}
+
+export async function handleSessionCompactionUpdate(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"session.compaction.update requires a session id",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	const ownerClientId =
+		getCapabilityOwnerClientId(
+			session.metadata as Record<string, unknown> | undefined,
+		) ?? ctx.sessionState.get(sessionId)?.createdByClientId;
+	if (ownerClientId && ownerClientId !== clientId) {
+		return errorReply(
+			envelope,
+			"session_wrong_client",
+			`Session ${sessionId} is owned by ${ownerClientId}`,
+		);
+	}
+	const payload =
+		envelope.payload && typeof envelope.payload === "object"
+			? envelope.payload
+			: {};
+	const state = parseSessionCompactionState(payload.state);
+	if (!state) {
+		return errorReply(
+			envelope,
+			"invalid_compaction_state",
+			"session.compaction.update requires a valid compaction state",
+		);
+	}
+	const updated = await ctx.sessionHost.updateSessionCompactionState(
+		sessionId,
+		state,
+	);
+	const [updatedSession, snapshot] = updated.updated
+		? await Promise.all([
+				readHubSessionRecord(ctx, sessionId),
+				readCoreSessionSnapshot(ctx, sessionId),
+			])
+		: [session, undefined];
+	if (updated.updated) {
+		ctx.publish(
+			ctx.buildEvent(
+				"session.updated",
+				{
+					session: updatedSession ?? session,
+					...(snapshot ? { snapshot } : {}),
+				},
+				sessionId,
+			),
+		);
+	}
+	return {
+		version: envelope.version,
+		requestId: envelope.requestId,
+		ok: updated.updated,
+		payload: {
+			updated: updated.updated,
+			session: updatedSession ?? session,
 			...(snapshot ? { snapshot } : {}),
 		},
 	};

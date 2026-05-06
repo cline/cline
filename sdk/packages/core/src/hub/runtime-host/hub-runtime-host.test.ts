@@ -1,5 +1,6 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
 
 const commandMock = vi.hoisted(() => vi.fn());
@@ -177,6 +178,111 @@ describe("HubRuntimeHost", () => {
 			cwd: "/tmp/project",
 		});
 		expect(disposeMock).toHaveBeenCalledOnce();
+	});
+
+	it("forwards explicit compaction state during session creation", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-compacted",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const sourceMessages = [
+			{ id: "u1", role: "user" as const, content: "original" },
+		];
+		const compactionState = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			initialMessages: sourceMessages,
+			initialCompactionState: compactionState,
+		});
+
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.create",
+			expect.objectContaining({
+				initialMessages: sourceMessages,
+				initialCompactionState: compactionState,
+			}),
+		);
+	});
+
+	it("forwards active session compaction state updates", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { updated: true } });
+		const sourceMessages = [
+			{ id: "u1", role: "user" as const, content: "original" },
+		];
+		const compactionState = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		const updated = await host.updateSessionCompactionState(
+			" sess-compacted ",
+			compactionState,
+		);
+
+		expect(updated).toEqual({ updated: true });
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.compaction.update",
+			{
+				sessionId: "sess-compacted",
+				state: compactionState,
+			},
+			"sess-compacted",
+		);
+	});
+
+	it("reads active session compaction state through the hub", async () => {
+		const sourceMessages = [
+			{ id: "u1", role: "user" as const, content: "original" },
+		];
+		const compactionState = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		commandMock.mockResolvedValue({
+			ok: true,
+			payload: { state: compactionState },
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		const state = await host.readSessionCompactionState(" sess-compacted ");
+
+		expect(state).toEqual(compactionState);
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.compaction.get",
+			{ sessionId: "sess-compacted" },
+			"sess-compacted",
+		);
 	});
 
 	it("starts runs only through send", async () => {

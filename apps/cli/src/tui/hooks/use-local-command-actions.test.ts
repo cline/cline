@@ -164,6 +164,19 @@ describe("formatCompactionStatus", () => {
 		).toBe("Compacted context; message count stayed at 300.");
 	});
 
+	it("reports compacted working context separately from canonical history", () => {
+		expect(
+			formatCompactionStatus({
+				messagesBefore: 300,
+				messagesAfter: 300,
+				workingContextMessagesAfter: 12,
+				compacted: true,
+			}),
+		).toBe(
+			"Compacted working context to 12 messages; canonical history remains 300 messages.",
+		);
+	});
+
 	it("reports empty sessions separately", () => {
 		expect(
 			formatCompactionStatus({
