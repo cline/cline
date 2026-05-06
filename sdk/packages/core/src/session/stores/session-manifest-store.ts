@@ -1,8 +1,14 @@
+import { randomUUID } from "node:crypto";
 import {
 	appendFileSync,
+	closeSync,
 	existsSync,
+	fsyncSync,
 	mkdirSync,
+	openSync,
 	readFileSync,
+	renameSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -21,9 +27,57 @@ import type {
 	StoredMessageWithMetadata,
 } from "../../types/session";
 import {
+	parseSessionCompactionState,
+	type SessionCompactionState,
+	SessionCompactionStateSchema,
+} from "../models/session-compaction";
+import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../models/session-manifest";
+
+function fsyncBestEffort(path: string): void {
+	let fd: number | undefined;
+	try {
+		fd = openSync(path, "r");
+		fsyncSync(fd);
+	} catch {
+		// Directory fsync is not available on all platforms/filesystems.
+	} finally {
+		if (fd !== undefined) {
+			try {
+				closeSync(fd);
+			} catch {
+				// Best-effort durability only.
+			}
+		}
+	}
+}
+
+function writeFileAtomicSync(path: string, contents: string): void {
+	mkdirSync(dirname(path), { recursive: true });
+	const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+	let fd: number | undefined;
+	try {
+		fd = openSync(tempPath, "w");
+		writeFileSync(fd, contents, "utf8");
+		fsyncSync(fd);
+		closeSync(fd);
+		fd = undefined;
+		renameSync(tempPath, path);
+		fsyncBestEffort(dirname(path));
+	} catch (error) {
+		if (fd !== undefined) {
+			try {
+				closeSync(fd);
+			} catch {
+				// Preserve the original write error.
+			}
+		}
+		rmSync(tempPath, { force: true });
+		throw error;
+	}
+}
 
 export class SessionManifestStore {
 	readonly artifacts: SessionArtifacts;
@@ -53,11 +107,9 @@ export class SessionManifestStore {
 	}
 
 	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {
-		mkdirSync(dirname(manifestPath), { recursive: true });
-		writeFileSync(
+		writeFileAtomicSync(
 			manifestPath,
 			`${JSON.stringify(SessionManifestSchema.parse(manifest), null, 2)}\n`,
-			"utf8",
 		);
 	}
 
@@ -114,8 +166,7 @@ export class SessionManifestStore {
 			systemPrompt,
 		});
 		const contents = `${JSON.stringify(payload, null, 2)}\n`;
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, contents, "utf8");
+		writeFileAtomicSync(path, contents);
 		if (!this.messagesArtifactUploader) {
 			return;
 		}
@@ -133,6 +184,43 @@ export class SessionManifestStore {
 				error,
 			});
 		}
+	}
+
+	private resolveCompactionPath(sessionId: string): string {
+		const { manifest } = this.readManifestFile(sessionId);
+		return (
+			manifest?.compaction_path?.trim() ||
+			this.artifacts.sessionCompactionPath(sessionId)
+		);
+	}
+
+	readSessionCompactionState(
+		sessionId: string,
+	): SessionCompactionState | undefined {
+		const path = this.resolveCompactionPath(sessionId);
+		if (!existsSync(path)) {
+			return undefined;
+		}
+		try {
+			return parseSessionCompactionState(
+				JSON.parse(readFileSync(path, "utf8")) as unknown,
+			);
+		} catch {
+			return undefined;
+		}
+	}
+
+	persistSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): void {
+		const path = this.resolveCompactionPath(sessionId);
+		const payload = SessionCompactionStateSchema.parse(state);
+		writeFileAtomicSync(path, `${JSON.stringify(payload, null, 2)}\n`);
+	}
+
+	deleteSessionCompactionState(sessionId: string): void {
+		rmSync(this.resolveCompactionPath(sessionId), { force: true });
 	}
 
 	appendStaleSessionHookLog(

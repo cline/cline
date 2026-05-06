@@ -7,6 +7,7 @@ import type {
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
+import type { SessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
@@ -75,6 +76,7 @@ export interface StartSessionInput {
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
 	initialMessages?: LlmsProviders.Message[];
+	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
 	/**
@@ -279,6 +281,13 @@ export interface RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }>;
+	updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }>;
+	readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
