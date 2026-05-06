@@ -16,6 +16,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from 
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -266,6 +267,10 @@ function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration
  * Resolve the base URL for a given provider from the ApiConfiguration.
  */
 function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
+	if (providerId === "cline") {
+		return `${ClineEnv.config().apiBaseUrl.replace(/\/+$/, "")}/api/v1`
+	}
+
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",
