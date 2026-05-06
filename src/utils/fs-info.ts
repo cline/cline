@@ -1,8 +1,8 @@
-import { exec } from "node:child_process"
+import { execFile } from "node:child_process"
 import { realpath } from "node:fs/promises"
 import { promisify } from "node:util"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 /**
  * Coarse bucket for dashboards. The picker walks the whole tree on every
@@ -44,6 +44,7 @@ const NETWORK_FS_TYPES = new Set([
 	"fuse",
 	"fuseblk",
 	"macfuse",
+	"virtiofs",
 ])
 
 const LOCAL_FS_TYPES = new Set([
@@ -114,7 +115,7 @@ async function detect(path: string): Promise<FsInfo> {
 		if (process.platform === "linux") {
 			// GNU stat: `-f` selects filesystem mode, `-c %T` prints the FS type
 			// as a string ("ext2/ext3", "btrfs", "nfs", "fuseblk", ...).
-			const { stdout } = await execAsync(`stat -f -c %T -- ${shellEscape(resolved)}`, {
+			const { stdout } = await execFileAsync("stat", ["-f", "-c", "%T", "--", resolved], {
 				timeout: 2000,
 			})
 			return classify(stdout)
@@ -140,7 +141,7 @@ async function detect(path: string): Promise<FsInfo> {
  *   user@host:/repo on /Volumes/repo (macfuse, nodev, nosuid, ...)
  */
 async function detectMacOS(resolvedPath: string): Promise<FsInfo> {
-	const { stdout } = await execAsync("mount", { timeout: 2000 })
+	const { stdout } = await execFileAsync("mount", [], { timeout: 2000 })
 	let bestMountpoint = ""
 	let bestFsType = ""
 	for (const line of stdout.split("\n")) {
@@ -176,11 +177,6 @@ function classify(rawFsType: string): FsInfo {
 
 function normalize(raw: string): string {
 	return raw.trim().replace(/\s+/g, "").toLowerCase()
-}
-
-function shellEscape(p: string): string {
-	// POSIX single-quote escape: 'foo'\''bar' for a path containing a quote.
-	return `'${p.replace(/'/g, "'\\''")}'`
 }
 
 /** Test-only. Resets the per-process cache. */
