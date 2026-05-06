@@ -380,10 +380,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			switch (action) {
 				case "signup":
 					setStepNumber(stepNumber + 1)
-					loginAndFinishOnboarding(true, stepNumber + 1)
+					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
-					loginAndFinishOnboarding(true, stepNumber + 1)
+					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "next":
 					StateServiceClient.captureOnboardingProgress({ step: stepNumber + 1 })
