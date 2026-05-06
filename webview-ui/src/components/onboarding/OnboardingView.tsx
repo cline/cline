@@ -1,7 +1,7 @@
 import type { ModelInfo } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -268,6 +268,8 @@ const OnboardingStepContent = ({
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const loginAttemptIdRef = useRef(0)
+	const loginLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
@@ -285,6 +287,14 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		const userGroupInitModel = modelGroup.models[0]
 		setSelectedModelId(userGroupInitModel.id)
 	}, [userType, models])
+
+	useEffect(() => {
+		return () => {
+			if (loginLoadingTimeoutRef.current) {
+				clearTimeout(loginLoadingTimeoutRef.current)
+			}
+		}
+	}, [])
 
 	const onUserTypeClick = useCallback((userType: NEW_USER_TYPE) => {
 		setUserType(userType)
@@ -317,12 +327,52 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					actModeApiProvider: "cline",
 				})
 			}
+
+			await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
+			setShowWelcome(false)
 			hideAccount()
 			hideSettings()
 			const action = "onboarding_completed"
 			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
 		},
-		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels],
+		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, setShowWelcome],
+	)
+
+	const loginAndFinishOnboarding = useCallback(
+		async (updateModelId: boolean, step: number) => {
+			const loginAttemptId = loginAttemptIdRef.current + 1
+			loginAttemptIdRef.current = loginAttemptId
+
+			if (loginLoadingTimeoutRef.current) {
+				clearTimeout(loginLoadingTimeoutRef.current)
+			}
+
+			setIsActionLoading(true)
+			// Allow the user to re-attempt after 10s
+			loginLoadingTimeoutRef.current = setTimeout(() => {
+				if (loginAttemptIdRef.current === loginAttemptId) {
+					setIsActionLoading(false)
+				}
+			}, 10_000)
+
+			await AccountServiceClient.accountLoginClicked({})
+				.catch((error) => {
+					console.error("Failed to log in during onboarding:", error)
+				})
+				.finally(() => {
+					if (loginAttemptIdRef.current !== loginAttemptId) {
+						return
+					}
+					if (loginLoadingTimeoutRef.current) {
+						clearTimeout(loginLoadingTimeoutRef.current)
+						loginLoadingTimeoutRef.current = null
+					}
+				})
+
+			await finishOnboarding(updateModelId, step)
+			setIsActionLoading(false)
+		},
+		[finishOnboarding],
 	)
 
 	const handleFooterAction = useCallback(
@@ -330,18 +380,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			switch (action) {
 				case "signup":
 					setStepNumber(stepNumber + 1)
-					setIsActionLoading(true)
-					await AccountServiceClient.accountLoginClicked({})
-						.catch(() => {})
-						.finally(() => setIsActionLoading(false))
-					await finishOnboarding(true, stepNumber + 1)
+					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
-					setIsActionLoading(true)
-					await AccountServiceClient.accountLoginClicked({})
-						.catch(() => {})
-						.finally(() => setIsActionLoading(false))
-					await finishOnboarding(true, stepNumber + 1)
+					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "next":
 					StateServiceClient.captureOnboardingProgress({ step: stepNumber + 1 })
@@ -352,13 +394,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
-					await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
-					setShowWelcome(false)
 					await finishOnboarding(false, stepNumber)
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome],
+		[stepNumber, finishOnboarding, loginAndFinishOnboarding],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
@@ -398,16 +438,27 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				</div>
 
 				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden flex-shrink-0">
-					{stepDisplayInfo.buttons.map((btn) => (
-						<Button
-							className={`w-full rounded-xs ${isActionLoading ? "animate-pulse" : ""}`}
-							disabled={isActionLoading}
-							key={btn.text}
-							onClick={() => handleFooterAction(btn.action)}
-							variant={btn.variant}>
-							{btn.text}
-						</Button>
-					))}
+					{stepDisplayInfo.buttons.map((btn) => {
+						const isLoginAction = btn.action === "signin" || btn.action === "signup"
+						const showSpinner = isActionLoading && isLoginAction
+						return (
+							<Button
+								className={`w-full rounded-xs ${isActionLoading ? "animate-pulse" : ""}`}
+								disabled={isActionLoading}
+								key={btn.text}
+								onClick={() => handleFooterAction(btn.action)}
+								variant={btn.variant}>
+								{showSpinner && <LoaderCircleIcon className="mr-2 size-4 animate-spin" />}
+								{showSpinner ? "Waiting for sign in..." : btn.text}
+							</Button>
+						)
+					})}
+
+					{isActionLoading && stepNumber !== 2 && (
+						<div className="items-center justify-center flex text-sm text-foreground/70 text-pretty text-center">
+							Complete sign in in your browser. We'll continue automatically once you're done.
+						</div>
+					)}
 
 					{stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
