@@ -460,6 +460,10 @@ export class AuthService {
 			return ProtoString.create({ value: "Already authenticated" })
 		}
 
+		if (process.env.E2E_TEST === "true") {
+			return this.createE2EAuthRequest()
+		}
+
 		try {
 			const apiBaseUrl = ClineEnv.config().apiBaseUrl
 
@@ -502,6 +506,57 @@ export class AuthService {
 			return ProtoString.create({ value: "Authenticated" })
 		} catch (error) {
 			Logger.error("[SdkAuthService] Cline OAuth login failed:", error)
+			throw error
+		}
+	}
+
+	/**
+	 * E2E tests use ClineApiServerMock and historically relied on
+	 * AuthServiceMock to sign in immediately without opening a browser.
+	 * The SDK OAuth flow owns the browser/local-callback round-trip, so in
+	 * E2E mode we preserve the old semantics by seeding mock credentials
+	 * directly and emitting the same auth/status updates as a real login.
+	 */
+	private async createE2EAuthRequest(): Promise<String> {
+		try {
+			const accessToken = process.env.CLINE_E2E_AUTH_TOKEN || "test-personal-token"
+			const refreshToken = `${accessToken}_refresh`
+			const userInfo = await this.fetchUserInfoFromApi(accessToken)
+
+			const authInfo: ClineAuthInfo = {
+				idToken: accessToken,
+				refreshToken,
+				expiresAt: Date.now() / 1000 + 60 * 60,
+				userInfo: userInfo ?? {
+					id: "test-member-789",
+					email: "personal@example.com",
+					displayName: "Personal User",
+					organizations: [],
+				},
+				provider: "cline",
+				startedAt: Date.now(),
+			}
+
+			this._clineAuthInfo = authInfo
+			this._authenticated = true
+
+			writeClineCredentials({
+				accessToken,
+				refreshToken,
+				expiresAt: Date.now() + 60 * 60 * 1000,
+				accountId: authInfo.userInfo.id,
+			})
+
+			await this.sendAuthStatusUpdate()
+
+			BannerService.onAuthUpdate(authInfo.userInfo.id || null).catch((error) => {
+				Logger.error("[SdkAuthService] Banner update failed after E2E login", error)
+			})
+
+			const { String: ProtoString } = await import("@shared/proto/cline/common")
+			return ProtoString.create({ value: "Authenticated" })
+		} catch (error) {
+			Logger.error("[SdkAuthService] E2E login failed:", error)
 			throw error
 		}
 	}
