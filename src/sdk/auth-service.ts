@@ -475,6 +475,8 @@ export class AuthService {
 
 			const credentials = await loginClineOAuth({
 				apiBaseUrl,
+				// Fetch login URLs via redirect to support production/staging/local environments.
+				useWorkOSDeviceAuth: false,
 				callbacks,
 			})
 
