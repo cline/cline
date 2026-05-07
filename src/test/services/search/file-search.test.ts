@@ -174,13 +174,14 @@ describe("File Search", () => {
 			// Directly stub the searchWorkspaceFiles function for this test
 			// This avoids issues with the executeRipgrepForFiles function
 			const searchStub = sandbox.stub(fileSearch, "searchWorkspaceFiles")
-			searchStub.withArgs("", "/workspace", 2).resolves(mockItems.slice(0, 2))
+			searchStub.withArgs("", "/workspace", 2).resolves({ items: mockItems.slice(0, 2), source: "ripgrep" })
 
 			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
 
-			should(result).be.an.Array()
-			should(result).have.length(2)
-			should(result).deepEqual(mockItems.slice(0, 2))
+			should(result.items).be.an.Array()
+			should(result.items).have.length(2)
+			should(result.items).deepEqual(mockItems.slice(0, 2))
+			should(result.source).equal("ripgrep")
 		})
 
 		it("should apply fuzzy matching for non-empty query", async () => {
@@ -204,18 +205,17 @@ describe("File Search", () => {
 			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
 			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, _workspacePath, limit) => {
 				if (!query.trim()) {
-					return mockItems.slice(0, limit)
+					return { items: mockItems.slice(0, limit), source: "ripgrep" }
 				}
-
 				// Simulate the fuzzy search behavior
-				return [mockItems[1]]
+				return { items: [mockItems[1]], source: "ripgrep" }
 			})
 
 			const result = await fileSearch.searchWorkspaceFiles("imp", "/workspace", 2)
 
-			should(result).be.an.Array()
-			should(result).have.length(1)
-			should(result[0]).have.properties({
+			should(result.items).be.an.Array()
+			should(result.items).have.length(1)
+			should(result.items[0]).have.properties({
 				path: "folder1/important.js",
 				type: "file",
 				label: "important.js",

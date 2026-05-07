@@ -369,6 +369,12 @@ class ACPWorkspaceServiceClient implements WorkspaceServiceClientInterface {
 		Logger.debug("[ACPWorkspaceServiceClient] openFolder called (stub)", { path: request.path })
 		return proto.host.OpenFolderResponse.create({ success: true })
 	}
+
+	async searchWorkspaceItems(
+		_request: proto.host.SearchWorkspaceItemsRequest,
+	): Promise<proto.host.SearchWorkspaceItemsResponse> {
+		throw new Error("searchWorkspaceItems is not implemented on the ACP host")
+	}
 }
 
 /**

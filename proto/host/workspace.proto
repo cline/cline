@@ -38,6 +38,11 @@ service WorkspaceService {
 
   // Opens a folder/workspace in the IDE
   rpc openFolder(OpenFolderRequest) returns (OpenFolderResponse);
+
+  // Searches workspace files/folders by name using the host's native index
+  // (e.g. IntelliJ FilenameIndex). Hosts that lack a fast index should leave
+  // this UNIMPLEMENTED so the caller can fall back to ripgrep.
+  rpc searchWorkspaceItems(SearchWorkspaceItemsRequest) returns (SearchWorkspaceItemsResponse);
 }
 
 message GetWorkspacePathsRequest {
