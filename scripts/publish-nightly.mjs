@@ -330,6 +330,21 @@ class NightlyPublisher {
 		const newVersion = this.generateVersion(currentVersion)
 		log.info(`New version: ${newVersion}`)
 
+		// When running under GitHub Actions, surface the generated version
+		// via $GITHUB_OUTPUT so the workflow can tag the build commit with
+		// the same version that ends up on the marketplace. Tagging in the
+		// workflow (rather than here) keeps git side-effects out of this
+		// script's local-dev path.
+		const githubOutputPath = process.env.GITHUB_OUTPUT
+		if (githubOutputPath) {
+			try {
+				fs.appendFileSync(githubOutputPath, `version=${newVersion}\n`)
+				log.info(`Wrote version to GITHUB_OUTPUT: ${githubOutputPath}`)
+			} catch (error) {
+				log.warn(`Failed to write version to GITHUB_OUTPUT: ${error.message}`)
+			}
+		}
+
 		// Update package.json fields
 		pkg.version = newVersion
 		pkg.name = config.nightlyName

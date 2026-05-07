@@ -59,6 +59,7 @@ jobs:
                   done
 
             - name: Publish Nightly Extension
+              id: publish
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -73,3 +74,33 @@ jobs:
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
               run: npm run publish:marketplace:nightly
+
+            # Tag the commit that was actually built and shipped, so we can
+            # later answer "what was in nightly version X.Y.<timestamp>?".
+            # The version comes from scripts/publish-nightly.mjs, which writes
+            # `version=<the-new-version>` to $GITHUB_OUTPUT. Tag namespace is
+            # `vscode-nightly-v<version>` to distinguish from the plain `vX.Y.Z`
+            # tags used for stable VS Code releases.
+            - name: Tag and push nightly build
+              if: success() && steps.publish.outputs.version != ''
+              env:
+                  NIGHTLY_VERSION: ${{ steps.publish.outputs.version }}
+              run: |
+                  TAG="vscode-nightly-v${NIGHTLY_VERSION}"
+                  TAG_REF="refs/tags/${TAG}"
+                  BUILD_SHA=$(git rev-parse HEAD)
+
+                  if git ls-remote --exit-code --tags origin "${TAG_REF}" >/dev/null 2>&1; then
+                    echo "Tag ${TAG} already exists on origin; skipping push."
+                    exit 0
+                  fi
+
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git tag -a "${TAG}" "${BUILD_SHA}" \
+                    -m "Cline (Nightly) VS Code extension ${NIGHTLY_VERSION}" \
+                    -m "Built and published by ${GITHUB_WORKFLOW} run ${GITHUB_RUN_ID}." \
+                    -m "Workflow file: .github/workflows/publish-nightly.yml" \
+                    -m "Source ref: ${GITHUB_REF}"
+                  git push origin "${TAG_REF}"
+                  echo "Tagged build commit ${BUILD_SHA} as ${TAG} and pushed to origin."
