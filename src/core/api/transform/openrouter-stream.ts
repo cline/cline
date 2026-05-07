@@ -23,6 +23,21 @@ import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format
 import { convertToR1Format } from "./r1-format"
 import { getOpenAIToolParams } from "./tool-call-processor"
 
+const openRouterExplicitCacheControlModelIds = new Set([
+	"deepseek/deepseek-v3.2",
+	"qwen/qwen-plus",
+	"qwen/qwen3-max",
+	"qwen/qwen3.6-plus",
+	"qwen/qwen3-coder-plus",
+	"qwen/qwen3-coder-flash",
+])
+
+function needsExplicitCacheControl(modelId: string): boolean {
+	return (
+		modelId.startsWith("anthropic/") || modelId.startsWith("minimax/") || openRouterExplicitCacheControlModelIds.has(modelId)
+	)
+}
+
 export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
@@ -55,9 +70,9 @@ export async function createOpenRouterStream(
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
-	// Anthropic and MiniMax models require explicit cache_control blocks to enable prompt caching on OpenRouter.
+	// Some OpenRouter models require cache_control blocks instead of automatic provider caching.
 	// Other providers (OpenAI, Google) handle caching automatically without cache_control blocks.
-	const needsCacheControl = model.id.startsWith("anthropic/") || model.id.startsWith("minimax/")
+	const needsCacheControl = needsExplicitCacheControl(model.id)
 
 	if (needsCacheControl) {
 		openAiMessages[0] = {
