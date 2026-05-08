@@ -6,6 +6,8 @@ import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
+import { HostProvider } from "@/hosts/host-provider"
+import { SearchWorkspaceItemsRequest_SearchItemType, SearchWorkspaceItemsResponse } from "@/shared/proto/host/workspace"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("File Search", () => {
@@ -182,6 +184,30 @@ describe("File Search", () => {
 			should(result.items).have.length(2)
 			should(result.items).deepEqual(mockItems.slice(0, 2))
 			should(result.source).equal("ripgrep")
+		})
+
+		it("should not duplicate a folder when the host returns it as both an explicit folder and a parent of a file", async () => {
+			// Repro for CLINE-2092 review feedback: with `selectedType=undefined`, the
+			// host-index path returned `src/` as an explicit folder *and* `src/main.ts`
+			// as a file, then the parent-walk re-added `src` as an inferred dir, so the
+			// picker showed `src` twice.
+			const hostResponse = SearchWorkspaceItemsResponse.create({
+				items: [
+					{ path: "src", type: SearchWorkspaceItemsRequest_SearchItemType.FOLDER, label: "src" },
+					{ path: "src/main.ts", type: SearchWorkspaceItemsRequest_SearchItemType.FILE, label: "main.ts" },
+				],
+			})
+			const searchItemsStub = sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").resolves(hostResponse)
+			sandbox.stub(HostProvider.window, "getOpenTabs").resolves({ paths: [] } as any)
+
+			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
+
+			should(searchItemsStub.calledOnce).be.true()
+			should(result.source).equal("host_index")
+
+			const srcEntries = result.items.filter((item) => item.path === "src")
+			should(srcEntries).have.length(1)
+			should(srcEntries[0]).have.properties({ path: "src", type: "folder" })
 		})
 
 		it("should apply fuzzy matching for non-empty query", async () => {

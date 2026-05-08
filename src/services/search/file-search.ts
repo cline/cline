@@ -182,6 +182,15 @@ async function executeHostIndexForFiles(
 		})
 		const resp = await HostProvider.workspace.searchWorkspaceItems(req)
 
+		// Pre-pass: collect host-provided folder paths so the parent-walk below
+		// doesn't re-add them as inferred parents and double-list them.
+		const folderPaths = new Set<string>()
+		for (const item of resp.items) {
+			if (item.type === SearchWorkspaceItemsRequest_SearchItemType.FOLDER) {
+				folderPaths.add(item.path)
+			}
+		}
+
 		const fileResults: { path: string; type: "file" | "folder"; label?: string }[] = []
 		const dirSet = new Set<string>()
 		for (const item of resp.items) {
@@ -194,7 +203,9 @@ async function executeHostIndexForFiles(
 			if (!isFolder) {
 				let dirPath = path.dirname(item.path)
 				while (dirPath && dirPath !== "." && dirPath !== "/") {
-					dirSet.add(dirPath)
+					if (!folderPaths.has(dirPath)) {
+						dirSet.add(dirPath)
+					}
 					dirPath = path.dirname(dirPath)
 				}
 			}
