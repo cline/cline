@@ -364,6 +364,8 @@ function translateSayMessage(
 			break
 
 		case "info":
+		case "shell_integration_warning":
+		case "shell_integration_warning_with_suggestion":
 		case "checkpoint_created":
 		case "load_mcp_documentation":
 		case "mcp_notification":

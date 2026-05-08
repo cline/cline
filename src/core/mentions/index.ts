@@ -11,6 +11,7 @@ import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
@@ -39,6 +40,8 @@ export async function openMention(mention?: string): Promise<void> {
 		}
 	} else if (mention === "problems") {
 		await HostProvider.workspace.openProblemsPanel({})
+	} else if (mention === "terminal") {
+		await HostProvider.workspace.openTerminalPanel({})
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}
@@ -81,6 +84,9 @@ export async function parseMentions(
 		}
 		if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
+		}
+		if (mention === "terminal") {
+			return `Terminal Output (see below for output)`
 		}
 		if (mention === "git-changes") {
 			return `Working directory changes (see below for details)`
@@ -278,6 +284,17 @@ export async function parseMentions(
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
 				// Track failed problems mention
 				telemetryService.captureMentionFailed("problems", "unknown", error.message)
+			}
+		} else if (mention === "terminal") {
+			try {
+				const terminalOutput = await getLatestTerminalOutput()
+				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+				// Track successful terminal mention
+				telemetryService.captureMentionUsed("terminal", terminalOutput.length)
+			} catch (error) {
+				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+				// Track failed terminal mention
+				telemetryService.captureMentionFailed("terminal", "unknown", error.message)
 			}
 		} else if (mention === "git-changes") {
 			try {

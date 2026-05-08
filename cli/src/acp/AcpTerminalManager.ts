@@ -639,6 +639,38 @@ export class AcpTerminalManager implements ITerminalManager {
 	}
 
 	/**
+	 * Set the timeout for waiting for shell integration.
+	 * @param timeout Timeout in milliseconds
+	 */
+	setShellIntegrationTimeout(_timeout: number): void {
+		// no-op
+	}
+
+	/**
+	 * Enable or disable terminal reuse.
+	 * @param enabled Whether to enable terminal reuse
+	 */
+	setTerminalReuseEnabled(enabled: boolean): void {
+		this.terminalReuseEnabled = enabled
+	}
+
+	/**
+	 * Set the maximum number of output lines to keep.
+	 * @param limit Maximum number of lines
+	 */
+	setTerminalOutputLineLimit(limit: number): void {
+		this.terminalOutputLineLimit = limit
+	}
+
+	/**
+	 * Set the default terminal profile.
+	 * @param profile The profile identifier
+	 */
+	setDefaultTerminalProfile(_profile: string): void {
+		// no-op
+	}
+
+	/**
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override

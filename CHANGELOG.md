@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.82.0]
+
+### Added
+
+- Restore VS Code foreground terminal support and settings.
+- Add latest OpenAI, SAP AI Core, and Z AI models.
+
+### Fixed
+
+- Fix hook template JSON escaping.
+- Improve ripgrep file search error handling.
+
+### Changed
+
+- Remove hardcoded model lists from docs.
+
 ## [3.81.0]
 
 ### Added

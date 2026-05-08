@@ -783,6 +783,65 @@ export const ResumeCompletedTask = quickStory(
 	"Shows Start New Task option for resume completed task.",
 )
 
+export const ShellIntegrationWarningWithSuggestion: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "integrated",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning with suggestion to enable Background Terminal mode.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarningBackgroundEnabled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "backgroundExec",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning when Background Terminal mode is already enabled.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarning: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning", ""),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration unavailable warning with instructions to update VSCode and select a supported shell.",
+			},
+		},
+	},
+}
+
 export const ErrorRetryInProgress: Story = {
 	decorators: [
 		createStoryDecorator({

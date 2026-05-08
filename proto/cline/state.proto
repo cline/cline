@@ -11,6 +11,9 @@ option java_package = "bot.cline.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
+  rpc updateTerminalConnectionTimeout(UpdateTerminalConnectionTimeoutRequest) returns (UpdateTerminalConnectionTimeoutResponse);
+  rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
+  rpc getAvailableTerminalProfiles(EmptyRequest) returns (TerminalProfiles);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
@@ -243,6 +246,9 @@ message Settings {
   optional string telemetry_setting = 133;
   optional bool plan_act_separate_models_setting = 134;
   optional bool enable_checkpoints_setting = 135;
+  optional int32 shell_integration_timeout = 136;
+  optional string default_terminal_profile = 137;
+  optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
   optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
@@ -285,6 +291,23 @@ message Settings {
 
 message State {
   string state_json = 1;
+}
+
+message TerminalProfiles {
+  repeated TerminalProfile profiles = 1;
+}
+
+message TerminalProfile {
+  string id = 1;
+  string name = 2;
+  optional string path = 3;
+  optional string description = 4;
+}
+
+message TerminalProfileUpdateResponse {
+  int32 closed_count = 1;
+  int32 busy_terminals_count = 2;
+  bool has_busy_terminals = 3;
 }
 
 message TogglePlanActModeRequest {
@@ -368,10 +391,6 @@ message UpdateSettingsRequest {
   reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 23; // was dictation_settings (dictation removed)
   reserved 38; // was skills_enabled (removed - now always enabled)
-  reserved 8; // was shell_integration_timeout
-  reserved 9; // was terminal_reuse_enabled
-  reserved 12; // was terminal_output_line_limit
-  reserved 21; // was default_terminal_profile
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -379,8 +398,11 @@ message UpdateSettingsRequest {
   optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
   optional bool mcp_marketplace_enabled = 6;
+  optional int32 shell_integration_timeout = 8;
+  optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional McpDisplayMode mcp_display_mode = 11;
+  optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   optional bool strict_plan_mode_enabled = 16;
@@ -388,6 +410,7 @@ message UpdateSettingsRequest {
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;
   optional BrowserSettingsUpdate browser_settings = 20;
+  optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
@@ -407,6 +430,10 @@ message UpdateSettingsRequest {
   optional bool double_check_completion_enabled = 41;
   optional bool show_feature_tips = 42;
   optional bool lazy_teammate_mode_enabled = 43;
+}
+
+message UpdateTerminalConnectionTimeoutRequest {
+  optional int32 timeout_ms = 1;
 }
 
 message FocusChainSettings {
