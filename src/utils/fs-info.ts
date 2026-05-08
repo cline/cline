@@ -78,13 +78,19 @@ const LOCAL_FS_TYPES = new Set([
 
 const cache = new Map<string, FsInfo>()
 
+// Whole-operation budget covering realpath + mount/stat. The exec child has
+// its own 2s, but realpath has none — a stale network mount can hang it
+// indefinitely. Race the whole detection against this so callers (telemetry)
+// never block forever.
+const DETECT_TIMEOUT_MS = 3000
+
 /**
  * Returns coarse + specific filesystem info for `path`, cached per path for
  * the lifetime of the process. FS doesn't change at runtime so a cache hit
  * is cheap and correct; a cache miss runs `stat -f` once (~ms).
  *
- * Falls back to {@link UNKNOWN} on any error or unsupported platform — the
- * caller never has to handle exceptions.
+ * Falls back to {@link UNKNOWN} on any error, timeout, or unsupported
+ * platform — the caller never has to handle exceptions.
  */
 export async function getFsInfo(path: string | undefined | null): Promise<FsInfo> {
 	if (!path) {
@@ -94,9 +100,23 @@ export async function getFsInfo(path: string | undefined | null): Promise<FsInfo
 	if (cached) {
 		return cached
 	}
-	const info = await detect(path)
+	const info = await detectWithTimeout(path)
 	cache.set(path, info)
 	return info
+}
+
+async function detectWithTimeout(path: string): Promise<FsInfo> {
+	let timer: NodeJS.Timeout | undefined
+	const timeout = new Promise<FsInfo>((resolve) => {
+		timer = setTimeout(() => resolve(UNKNOWN), DETECT_TIMEOUT_MS)
+	})
+	try {
+		return await Promise.race([detect(path), timeout])
+	} finally {
+		if (timer) {
+			clearTimeout(timer)
+		}
+	}
 }
 
 async function detect(path: string): Promise<FsInfo> {

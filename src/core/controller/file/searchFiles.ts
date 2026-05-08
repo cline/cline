@@ -2,7 +2,7 @@ import { RipgrepError, searchWorkspaceFiles, searchWorkspaceFilesMultiroot } fro
 import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
-import { getFsInfo } from "@utils/fs-info"
+import { type FsInfo, getFsInfo } from "@utils/fs-info"
 import { getWorkspacePath } from "@utils/path"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -22,6 +22,16 @@ function classifyError(error: unknown): { errorReason: string; errorMessage: str
 		}
 	}
 	return { errorReason: ERROR_REASON_UNKNOWN, errorMessage }
+}
+
+// Fire-and-forget the FS-class lookup + telemetry capture. The picker awaits
+// the searchFiles response, so we must not block it on a slow/hung mount —
+// `getFsInfo` does a `realpath` and a `mount`/`stat -f` that, even with the
+// outer timeout in fs-info, can still cost seconds on a stale network FS.
+function captureWithFsContext(fsContextPath: string | undefined, capture: (fsContext: FsInfo) => void | Promise<void>): void {
+	getFsInfo(fsContextPath)
+		.then(capture)
+		.catch((err) => Logger.warn(`searchFiles: telemetry capture failed: ${err}`))
 }
 
 /**
@@ -98,14 +108,14 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 			searchType = "folder"
 		}
 
-		const fsContext = await getFsInfo(fsContextPath)
-
-		await telemetryService.captureMentionSearchResults(
-			request.query || "",
-			protoResults.length,
-			searchType,
-			protoResults.length === 0,
-			fsContext,
+		captureWithFsContext(fsContextPath, (fsContext) =>
+			telemetryService.captureMentionSearchResults(
+				request.query || "",
+				protoResults.length,
+				searchType,
+				protoResults.length === 0,
+				fsContext,
+			),
 		)
 
 		// Return successful results
@@ -130,8 +140,9 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 
 		// fsContextPath may be unset if we threw before resolving the workspace;
 		// getFsInfo handles undefined and returns the unknown sentinel.
-		const fsContext = await getFsInfo(fsContextPath)
-		await telemetryService.captureMentionFailed(mentionType, errorType, errorMessage, fsContext)
+		captureWithFsContext(fsContextPath, (fsContext) =>
+			telemetryService.captureMentionFailed(mentionType, errorType, errorMessage, fsContext),
+		)
 
 		return {
 			results: [],
