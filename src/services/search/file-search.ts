@@ -153,6 +153,11 @@ async function getActiveFiles(): Promise<Set<string>> {
 // ranked by fzf in core, so we want a comfortably wider net than `limit`.
 const HOST_INDEX_CANDIDATE_LIMIT = 5000
 
+// gRPC status code 12 — the standalone host returns this when the RPC isn't
+// registered (the in-process VS Code stub throws a plain Error, matched on
+// message instead). Treat both as silent steady-state, not failure.
+const GRPC_STATUS_UNIMPLEMENTED = 12
+
 /**
  * Returns candidates from the host's native index, or `null` when the host
  * doesn't implement the RPC / the index is unavailable. Returning `[]` is
@@ -200,9 +205,20 @@ async function executeHostIndexForFiles(
 			label: path.basename(dirPath),
 		}))
 		return [...fileResults, ...dirResults]
-	} catch {
-		// Steady state on VS Code/CLI/ACP where the RPC is unimplemented;
-		// the JetBrains side logs real failures server-side.
+	} catch (err) {
+		// "Unimplemented" is the steady state on VS Code/CLI/ACP — every
+		// keystroke trips it — so log at debug to keep the noise floor flat.
+		// Anything else (UNAVAILABLE during indexing, INTERNAL, transport
+		// errors) is a real degradation we want visible to operators, since
+		// the caller is about to silently fall back to a much slower path.
+		const code = (err as { code?: unknown } | null)?.code
+		const msg = (err as { message?: string } | null)?.message ?? ""
+		const isUnimplemented = code === GRPC_STATUS_UNIMPLEMENTED || /not implemented/i.test(msg)
+		if (isUnimplemented) {
+			Logger.debug("[file-search] host index unimplemented, using ripgrep")
+		} else {
+			Logger.warn(`[file-search] host index call failed (code=${String(code)}), falling back to ripgrep: ${msg}`)
+		}
 		return null
 	}
 }
