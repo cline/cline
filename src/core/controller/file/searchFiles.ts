@@ -2,6 +2,7 @@ import { RipgrepError, searchWorkspaceFiles, searchWorkspaceFilesMultiroot } fro
 import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
+import { type FsInfo, getFsInfo } from "@utils/fs-info"
 import { getWorkspacePath } from "@utils/path"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -23,6 +24,16 @@ function classifyError(error: unknown): { errorReason: string; errorMessage: str
 	return { errorReason: ERROR_REASON_UNKNOWN, errorMessage }
 }
 
+// Fire-and-forget the FS-class lookup + telemetry capture. The picker awaits
+// the searchFiles response, so we must not block it on a slow/hung mount —
+// `getFsInfo` does a `realpath` and a `mount`/`stat -f` that, even with the
+// outer timeout in fs-info, can still cost seconds on a stale network FS.
+function captureWithFsContext(fsContextPath: string | undefined, capture: (fsContext: FsInfo) => void | Promise<void>): void {
+	getFsInfo(fsContextPath)
+		.then(capture)
+		.catch((err) => Logger.warn(`searchFiles: telemetry capture failed: ${err}`))
+}
+
 /**
  * Searches for files in the workspace with fuzzy matching
  * @param controller The controller instance
@@ -30,6 +41,13 @@ function classifyError(error: unknown): { errorReason: string; errorMessage: str
  * @returns Results containing matching files/folders
  */
 export async function searchFiles(controller: Controller, request: FileSearchRequest): Promise<FileSearchResults> {
+	// Best-effort path used for FS-class telemetry. Declared in the function
+	// scope so the catch block can also reference it. When the request carries
+	// a workspaceHint we tag against the matched root; for cross-root searches
+	// (no hint) we fall back to the primary root, since attributing one event
+	// to "the root that mattered" is impossible without per-root events.
+	let fsContextPath: string | undefined
+
 	try {
 		// Map enum to string for the search service
 		let selectedTypeString: "file" | "folder" | undefined
@@ -47,6 +65,15 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		let searchResults: Array<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }>
 
 		if (hasMultirootSupport) {
+			// Tag the actually-searched root, not always the primary —
+			// otherwise an SSHFS secondary root looks like a fast primary
+			// in dashboards. searchWorkspaceFilesMultiroot resolves the hint
+			// the same way (by name).
+			const hintedRoot = workspaceHint
+				? (workspaceManager.getRootByName(workspaceHint) ??
+					workspaceManager.getRoots().find((r) => r.path === workspaceHint))
+				: undefined
+			fsContextPath = hintedRoot?.path ?? workspaceManager.getRoots()[0]?.path
 			searchResults = await searchWorkspaceFilesMultiroot(
 				request.query || "",
 				workspaceManager,
@@ -69,6 +96,7 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 				}
 			}
 
+			fsContextPath = workspacePath
 			// Call file search service with query from request
 			searchResults = await searchWorkspaceFiles(
 				request.query || "",
@@ -90,11 +118,14 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 			searchType = "folder"
 		}
 
-		await telemetryService.captureMentionSearchResults(
-			request.query || "",
-			protoResults.length,
-			searchType,
-			protoResults.length === 0,
+		captureWithFsContext(fsContextPath, (fsContext) =>
+			telemetryService.captureMentionSearchResults(
+				request.query || "",
+				protoResults.length,
+				searchType,
+				protoResults.length === 0,
+				fsContext,
+			),
 		)
 
 		// Return successful results
@@ -117,7 +148,11 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 					? "permission_denied"
 					: "unknown"
 
-		await telemetryService.captureMentionFailed(mentionType, errorType, errorMessage)
+		// fsContextPath may be unset if we threw before resolving the workspace;
+		// getFsInfo handles undefined and returns the unknown sentinel.
+		captureWithFsContext(fsContextPath, (fsContext) =>
+			telemetryService.captureMentionFailed(mentionType, errorType, errorMessage, fsContext),
+		)
 
 		return {
 			results: [],
