@@ -85,12 +85,10 @@ const cache = new Map<string, FsInfo>()
 const DETECT_TIMEOUT_MS = 3000
 
 /**
- * Returns coarse + specific filesystem info for `path`, cached per path for
- * the lifetime of the process. FS doesn't change at runtime so a cache hit
- * is cheap and correct; a cache miss runs `stat -f` once (~ms).
- *
- * Falls back to {@link UNKNOWN} on any error, timeout, or unsupported
- * platform — the caller never has to handle exceptions.
+ * Returns coarse + specific filesystem info for `path`. Successful results
+ * are cached for the process lifetime; failures (timeout, error, unsupported
+ * platform) return the shared {@link UNKNOWN} sentinel and are not cached.
+ * The caller never has to handle exceptions.
  */
 export async function getFsInfo(path: string | undefined | null): Promise<FsInfo> {
 	if (!path) {
@@ -101,7 +99,13 @@ export async function getFsInfo(path: string | undefined | null): Promise<FsInfo
 		return cached
 	}
 	const info = await detectWithTimeout(path)
-	cache.set(path, info)
+	// Skip caching the shared UNKNOWN sentinel so transient failures
+	// (timeout, hung mount) don't permanently misclassify the path.
+	// Successful detect() with an unrecognised fsType returns a fresh
+	// object and is cached normally.
+	if (info !== UNKNOWN) {
+		cache.set(path, info)
+	}
 	return info
 }
 
@@ -202,4 +206,9 @@ function normalize(raw: string): string {
 /** Test-only. Resets the per-process cache. */
 export function _resetFsInfoCacheForTests(): void {
 	cache.clear()
+}
+
+/** Test-only. Returns the current cache entry count. */
+export function _getFsInfoCacheSizeForTests(): number {
+	return cache.size
 }

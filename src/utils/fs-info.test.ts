@@ -1,7 +1,7 @@
 import * as os from "node:os"
 import { describe, it } from "mocha"
 import "should"
-import { _resetFsInfoCacheForTests, getFsInfo } from "./fs-info"
+import { _getFsInfoCacheSizeForTests, _resetFsInfoCacheForTests, getFsInfo } from "./fs-info"
 
 describe("getFsInfo", () => {
 	beforeEach(() => {
@@ -50,6 +50,17 @@ describe("getFsInfo", () => {
 			// Same reference proves the Map cache is being hit, not just
 			// equal-by-value.
 			a.should.equal(b)
+		})
+
+		it("caches successful results exactly once and skips the UNKNOWN sentinel", async () => {
+			// undefined/empty short-circuit and do not touch the cache.
+			await getFsInfo(undefined)
+			await getFsInfo("")
+			_getFsInfoCacheSizeForTests().should.equal(0)
+
+			// A real path goes through detect() and stores one entry.
+			await getFsInfo(os.tmpdir())
+			_getFsInfoCacheSizeForTests().should.equal(1)
 		})
 	}
 })

@@ -42,10 +42,12 @@ function captureWithFsContext(fsContextPath: string | undefined, capture: (fsCon
  */
 export async function searchFiles(controller: Controller, request: FileSearchRequest): Promise<FileSearchResults> {
 	// Best-effort path used for FS-class telemetry. Declared in the function
-	// scope so the catch block can also reference it. For multi-root we tag
-	// against the primary root; tagging per-root would mean per-root events,
-	// which we'd rather defer until we see signal.
+	// scope so the catch block can also reference it. When the request carries
+	// a workspaceHint we tag against the matched root; for cross-root searches
+	// (no hint) we fall back to the primary root, since attributing one event
+	// to "the root that mattered" is impossible without per-root events.
 	let fsContextPath: string | undefined
+
 	try {
 		// Map enum to string for the search service
 		let selectedTypeString: "file" | "folder" | undefined
@@ -63,7 +65,15 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		let searchResults: Array<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }>
 
 		if (hasMultirootSupport) {
-			fsContextPath = workspaceManager.getRoots()[0]?.path
+			// Tag the actually-searched root, not always the primary —
+			// otherwise an SSHFS secondary root looks like a fast primary
+			// in dashboards. searchWorkspaceFilesMultiroot resolves the hint
+			// the same way (by name).
+			const hintedRoot = workspaceHint
+				? (workspaceManager.getRootByName(workspaceHint) ??
+					workspaceManager.getRoots().find((r) => r.path === workspaceHint))
+				: undefined
+			fsContextPath = hintedRoot?.path ?? workspaceManager.getRoots()[0]?.path
 			searchResults = await searchWorkspaceFilesMultiroot(
 				request.query || "",
 				workspaceManager,
