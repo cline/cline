@@ -37,9 +37,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
-		// Early return if we don't have enough data yet
-		if (!rawRelPath || (!rawContent && !rawDiff)) {
-			// Wait until we have the path and either content or diff
+		// Wait for path + the param this tool needs. Use `== null` for content so empty-string
+		// writes still stream into the editor (mirrors execute()'s validation).
+		const hasContent = block.name === "replace_in_file" ? !!rawDiff : rawContent != null
+		if (!rawRelPath || !hasContent) {
 			return
 		}
 
