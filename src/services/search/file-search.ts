@@ -160,11 +160,13 @@ const HOST_INDEX_CANDIDATE_LIMIT = 5000
  */
 async function executeHostIndexForFiles(
 	query: string,
+	workspacePath: string,
 	selectedType?: "file" | "folder",
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[] | null> {
 	try {
 		const req = SearchWorkspaceItemsRequest.create({
 			query,
+			workspacePath,
 			limit: HOST_INDEX_CANDIDATE_LIMIT,
 			selectedType:
 				selectedType === "file"
@@ -234,7 +236,7 @@ export async function searchWorkspaceFiles(
 			}
 		}
 
-		const hostItems = await executeHostIndexForFiles(query, selectedType)
+		const hostItems = await executeHostIndexForFiles(query, workspacePath, selectedType)
 
 		const allItems = hostItems ?? (await executeRipgrepForFiles(workspacePath, 5000))
 		const source: FileSearchSource = hostItems ? "host_index" : "ripgrep"

@@ -134,7 +134,7 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 				searchType,
 				protoResults.length === 0,
 				fsContext,
-                searchSource,
+				searchSource,
 			),
 		)
 

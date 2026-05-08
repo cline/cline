@@ -84,6 +84,11 @@ message SearchWorkspaceItemsRequest {
     FOLDER = 1;
   }
   optional SearchItemType selected_type = 3;
+  // Absolute path of the workspace/content root to scope the search to. In
+  // multi-root projects the caller invokes the RPC once per root and sets
+  // this so the host returns only files under that root and relativizes
+  // paths against it. Hosts that can't honor it should ignore it.
+  optional string workspace_path = 4;
 }
 
 // Response for host-side workspace search
