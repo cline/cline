@@ -171,21 +171,12 @@ cat payload.json | clite hook
 
 ### `plugin`
 
-Manage Cline plugins. Install plugins from npm, git repositories, or local paths.
+Manage Cline plugins. Install plugins from npm, git repositories, or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
 
 ```bash
-clite plugin                  # Show plugin subcommands
-clite plugin install <source> # Install a plugin
-clite plugin i <source>       # Shorthand alias
+clite plugin install <source>  # Install a plugin
+clite plugin i <source>        # Shorthand alias
 ```
-
-Subcommands:
-
-| Subcommand | Description |
-|------------|-------------|
-| `install` (alias `i`) | Install a plugin from npm, git, or a local path |
-
-Install options:
 
 | Option | Description |
 |--------|-------------|
@@ -195,28 +186,7 @@ Install options:
 | `--json` | Output result as JSON |
 | `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory |
 
-The source type is auto-detected from the input:
-
-```bash
-# Local path (starts with . / ~ or absolute path)
-clite plugin install ./my-plugin
-clite plugin install ~/plugins/my-tool
-
-# Git repository (URL or git: prefix)
-clite plugin install https://github.com/owner/repo.git
-clite plugin install git@github.com:owner/repo.git
-
-# npm package (npm: prefix or --npm flag)
-clite plugin install npm:@scope/plugin
-clite plugin install --npm my-plugin
-
-# Force a specific source type
-clite plugin install --git github.com/owner/repo
-```
-
-Installed plugins are stored in `~/.cline/plugins/_installed/` and are automatically discovered by the runtime. See [Plugins](/customization/plugins) for the plugin manifest format.
-
-Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescript-lsp-plugin), which adds a `goto_definition` tool:
+Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescript-lsp-plugin):
 
 ```bash
 clite plugin install https://github.com/cline/typescript-lsp-plugin.git
