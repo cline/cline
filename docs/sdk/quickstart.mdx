@@ -147,6 +147,63 @@ await cline.dispose()
 
 ClineCore can enable built-in tools such as `read_files`, `search_codebase`, `run_commands`, `fetch_web_content`, `apply_patch`, `editor`, `skills`, `ask_question`, and `submit_and_exit`.
 
+## Common Patterns
+
+### Streaming CLI Output with Agent
+
+Subscribe to `assistant-text-delta` events when you want to print model output as it streams:
+
+```typescript
+import { Agent } from "@clinebot/agents"
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a concise coding assistant.",
+  tools: [],
+})
+
+agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text)
+  }
+})
+
+await agent.run("Explain this repository structure")
+```
+
+### Persistent Session with ClineCore
+
+Use `ClineCore` when you need a session ID that can receive follow-up prompts:
+
+```typescript
+import { ClineCore } from "@clinebot/core"
+
+const cline = await ClineCore.create({ clientName: "example" })
+
+const session = await cline.start({
+  prompt: "Summarize this codebase",
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt: "You are a helpful coding assistant.",
+    cwd: process.cwd(),
+    enableTools: true,
+    enableSpawnAgent: false,
+    enableAgentTeams: false,
+  },
+})
+
+await cline.send({
+  sessionId: session.sessionId,
+  prompt: "Now identify risky files",
+})
+
+await cline.dispose()
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>
@@ -159,7 +216,7 @@ ClineCore can enable built-in tools such as `read_files`, `search_codebase`, `ru
   <Card title="Events" icon="wave-pulse" href="/sdk/events">
     Build UIs and monitoring with event callbacks.
   </Card>
-  <Card title="Guides" icon="flask" href="/sdk/guides/overview">
-    Browse tutorials and implementation patterns.
+  <Card title="Building an Agent" icon="flask" href="/sdk/guides/building-an-agent">
+    Build a complete SDK agent from a tutorial.
   </Card>
 </CardGroup>
