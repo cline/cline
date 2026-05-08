@@ -186,6 +186,7 @@
 						"group": "Concepts",
 						"pages": [
 							"sdk/runtime",
+							"sdk/model-providers",
 							{
 								"group": "Tools",
 								"pages": [
@@ -202,7 +203,6 @@
 									"sdk/guides/writing-plugins"
 								]
 							},
-							"sdk/model-providers",
 							"sdk/guides/scheduled-agents",
 							"sdk/guides/connectors"
 						]
@@ -217,7 +217,6 @@
 					{
 						"group": "Guides",
 						"pages": [
-							"sdk/guides/overview",
 							"sdk/guides/building-an-agent",
 							"sdk/guides/permission-handling",
 							"sdk/guides/multi-agent-teams",
@@ -783,7 +782,7 @@
 		},
 		{
 			"source": "/cline-sdk/examples",
-			"destination": "/sdk/guides/overview"
+			"destination": "/sdk/guides/building-an-agent"
 		},
 		{
 			"source": "/cline-sdk/agents",
@@ -935,7 +934,7 @@
 		},
 		{
 			"source": "/sdk/examples",
-			"destination": "/sdk/guides/overview"
+			"destination": "/sdk/guides/building-an-agent"
 		}
 	],
 	"search": {

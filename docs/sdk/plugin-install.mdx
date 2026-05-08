@@ -1,0 +1,139 @@
+---
+title: "Installing Plugins"
+sidebarTitle: "Installing Plugins"
+description: "Install plugins from npm, git, or local sources using the CLI or programmatically."
+---
+
+The Cline CLI provides a `plugin install` command to install plugins from various sources. You can also load plugins programmatically via session config.
+
+## CLI Installation
+
+Use the `clite plugin install` command to install plugins from npm, git repositories, or local paths.
+
+```sh
+clite plugin install <source> [options]
+```
+
+The shorthand `clite plugin i` works as well.
+
+### Install from npm
+
+```sh
+clite plugin install --npm @scope/plugin-name
+```
+
+Installs the package from the npm registry into the Cline plugin directory.
+
+### Install from Git
+
+```sh
+clite plugin install --git https://github.com/owner/repo.git
+clite plugin install --git github.com/owner/repo
+```
+
+Clones the repository (shallow, with blobless filter for speed) and installs its dependencies. The `.git` directory is excluded from the final install.
+
+### Install from Local Source
+
+```sh
+clite plugin install ./path/to/plugin.ts     # Single file
+clite plugin install /absolute/path/to/dir   # Directory with package.json
+```
+
+Supports both files and directories. Local installs copy the source, filter out `.git` and `node_modules`, and run `npm install` to resolve dependencies.
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--npm` | Treat the source as an npm package name |
+| `--git` | Treat the source as a git repository URL |
+| `--force` | Overwrite an existing plugin at the same path |
+| `--json` | Output results as JSON (useful for scripting) |
+| `--cwd` | Working directory for relative paths |
+
+### Examples
+
+```sh
+# Install a local plugin directory
+clite plugin install ./my-custom-plugin
+
+# Install an npm package as a plugin
+clite plugin install --npm @cline/plugin-sql
+
+# Install from a GitHub repo
+clite plugin install --git https://github.com/my-org/my-plugin.git
+
+# Force reinstall an existing plugin
+clite plugin install --force --npm @scope/plugin-name
+
+# Use shorthand
+clite plugin i --git github.com/owner/repo
+```
+
+### Listing Installed Plugins
+
+Installed plugins appear in the `plugins` section of your CLI config:
+
+```sh
+clite config
+```
+
+## Programmatic Installation
+
+### Using `pluginPaths` (ClineCore)
+
+In SDK code, load plugins from file paths using the `pluginPaths` session config option:
+
+```typescript
+import { ClineCore } from "@cline/core"
+
+const cline = await ClineCore.create({ clientName: "my-app" })
+
+await cline.start({
+  config: {
+    systemPrompt: "Analyze this project",
+    // ...model/runtime config
+    pluginPaths: ["/absolute/path/to/plugin.ts"],
+  },
+})
+```
+
+Plugin files must export an `AgentExtension` as the default export.
+
+### Using `plugins` (Agent Runtime)
+
+When using the `Agent` or `AgentRuntime` directly, pass plugin instances in the `plugins` array:
+
+```typescript
+import { Agent } from "@cline/agents"
+import { myPlugin } from "./my-plugin"
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  plugins: [myPlugin],
+})
+```
+
+### Using `extensions` (ClineCore)
+
+With `ClineCore`, use the `extensions` config array instead:
+
+```typescript
+import { ClineCore } from "@cline/core"
+
+const cline = await ClineCore.create({ clientName: "my-app" })
+
+await cline.start({
+  config: {
+    systemPrompt: "Analyze customer records",
+    extensions: [myPlugin],
+  },
+})
+```
+
+## Next Steps
+
+- **Learn about [Plugins](/sdk/plugins)** — Understand what plugins are and their benefits.
+- **Follow the [Writing Plugins](/sdk/guides/writing-plugins) guide** — Build and distribute your own plugin.
