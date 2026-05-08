@@ -1,7 +1,135 @@
 ---
 title: "Plugins"
 sidebarTitle: "Plugins"
-description: "Plugins documentation lives in the SDK docs."
+description: "Install and manage plugins that extend Cline with custom tools, hooks, and capabilities."
 ---
 
-Plugins are documented in the SDK section. Please use [SDK Plugins](/sdk/plugins).
+Plugins extend Cline with custom tools, lifecycle hooks, slash commands, and more. They can be installed globally (available in all sessions) or per-project.
+
+## Installing Plugins via CLI
+
+The `clite plugin install` command installs plugins from three source types:
+
+<Tabs>
+  <Tab title="Git Repository">
+    ```bash
+    clite plugin install https://github.com/owner/repo.git
+    clite plugin install git@github.com:owner/repo.git
+    ```
+
+    The installer clones the repository, installs production dependencies, and registers the plugin entry files.
+
+    To install a specific branch or tag, append `@ref`:
+
+    ```bash
+    clite plugin install https://github.com/owner/repo.git@v1.2.0
+    clite plugin install https://github.com/owner/repo.git@main
+    ```
+  </Tab>
+  <Tab title="npm Package">
+    ```bash
+    clite plugin install npm:@scope/my-plugin
+    clite plugin install --npm my-plugin
+    ```
+  </Tab>
+  <Tab title="Local Path">
+    ```bash
+    clite plugin install ./my-plugin
+    clite plugin install ~/plugins/my-tool
+    clite plugin install /absolute/path/to/plugin.ts
+    ```
+
+    Local installs copy the file or directory into the plugin store. Both single `.ts`/`.js` files and directories with a `package.json` are supported.
+  </Tab>
+</Tabs>
+
+Additional flags:
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Replace an existing install for the same source |
+| `--json` | Output the result as JSON (useful for scripting) |
+| `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory |
+
+After installation, confirm the plugin is loaded by running `clite config` and checking the plugin tab.
+
+### Example: TypeScript Navigation Plugin
+
+The [typescript-lsp-plugin](https://github.com/cline/typescript-lsp-plugin) is a good reference for how plugins work. It adds a `goto_definition` tool that uses the TypeScript Language Service API to resolve symbol definitions through imports, re-exports, and type aliases.
+
+Install it with:
+
+```bash
+clite plugin install https://github.com/cline/typescript-lsp-plugin.git
+```
+
+Once installed, Cline can call `goto_definition` with a file path and line number to find where symbols are defined, which is much more precise than text search.
+
+## Plugin Manifest Format
+
+For a repository or npm package to be installable as a Cline plugin, its `package.json` should include a `cline` field that declares plugin entry points:
+
+```json
+{
+  "name": "my-cline-plugin",
+  "version": "1.0.0",
+  "cline": {
+    "plugins": [
+      {
+        "paths": ["./index.ts"],
+        "capabilities": ["tools", "hooks"]
+      }
+    ]
+  }
+}
+```
+
+The `cline.plugins` array accepts:
+
+| Format | Example |
+|--------|---------|
+| Object with `paths` array | `{ "paths": ["./src/plugin.ts"], "capabilities": ["tools"] }` |
+| Plain string | `"./index.ts"` |
+
+Each path should point to a `.ts` or `.js` file that exports an `AgentExtension` (either as the default export or a named export).
+
+If no `cline.plugins` field is present, the installer falls back to auto-discovery: it looks for standard entry points, then recursively scans for `.ts` and `.js` files (skipping `node_modules` and `.git`).
+
+### Host-Provided Dependencies
+
+Dependencies under the `@cline/` scope (like `@cline/core`, `@cline/shared`) are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so you should declare them as `peerDependencies`:
+
+```json
+{
+  "peerDependencies": {
+    "@cline/core": "*"
+  },
+  "peerDependenciesMeta": {
+    "@cline/core": {
+      "optional": true
+    }
+  }
+}
+```
+
+## Plugin Directory Structure
+
+Plugins are stored in the `plugins` directory at two levels:
+
+```
+~/.cline/
+  plugins/                     # Global plugins
+    _installed/                # Managed by `clite plugin install`
+      npm/                     # npm-sourced plugins
+      git/                     # git-sourced plugins
+      local/                   # local-sourced plugins
+
+.cline/                        # Project root
+  plugins/                     # Project-scoped plugins
+```
+
+Global plugins (`~/.cline/plugins/`) are available across all sessions. Project plugins (`.cline/plugins/` in your repo) are available only when working in that project.
+
+## Writing Plugins
+
+For a guide on building plugins with the SDK, see [Writing Plugins](/sdk/guides/writing-plugins). For the plugin API reference, see [SDK Plugins](/sdk/plugins).
