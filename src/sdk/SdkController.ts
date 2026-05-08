@@ -37,7 +37,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { arePathsEqual } from "@/utils/path"
+import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
@@ -58,6 +58,7 @@ import { isToolAutoApproved } from "./sdk-tool-policies"
 import type { TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
+import { resolveWorkspaceRootPath } from "./workspace-root"
 
 /**
  * Log a stub warning and return undefined.
@@ -460,23 +461,20 @@ export class Controller {
 	 * Get the user's workspace root directory.
 	 *
 	 * In VSCode this resolves to `vscode.workspace.workspaceFolders[0]` via
-	 * `HostProvider.workspace.getWorkspacePaths()`. Falls back to
-	 * `process.cwd()` only when no workspace folder is open (e.g. when the
-	 * user opens VSCode without a folder).
-	 *
-	 * The classic extension used `vscode.workspace.workspaceFolders[0].uri.fsPath`
-	 * directly; using HostProvider keeps this host-agnostic.
+	 * `HostProvider.workspace.getWorkspacePaths()`. If no workspace folder is
+	 * open, it falls back to Desktop.
+	 * This avoids using the VS Code extension host's `process.cwd()` (often `/`),
+	 * which produces invalid SDK workspace metadata with an empty hint.
 	 */
 	private async getWorkspaceRoot(): Promise<string> {
+		const noWorkspaceFallback = getDesktopDir()
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			if (paths.length > 0 && paths[0]) {
-				return paths[0]
-			}
+			return resolveWorkspaceRootPath(paths, noWorkspaceFallback)
 		} catch (error) {
-			Logger.warn("[SdkController] Failed to get workspace paths, falling back to process.cwd():", error)
+			Logger.warn("[SdkController] Failed to get workspace paths, falling back to Desktop:", error)
 		}
-		return process.cwd()
+		return noWorkspaceFallback
 	}
 
 	// ---- Session event subscription ----
