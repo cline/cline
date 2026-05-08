@@ -97,6 +97,37 @@ await cline.start({
 
 Plugin files export an `AgentExtension`.
 
+## Installing Plugins via CLI
+
+The `clite plugin install` command installs plugins from npm packages, git repositories, or local paths into the Cline plugin directory. Installed plugins are automatically discovered by the runtime.
+
+```bash
+clite plugin install ./my-plugin                        # local directory
+clite plugin install https://github.com/owner/repo.git  # git repository
+clite plugin install npm:@scope/my-plugin               # npm package
+```
+
+Use `--force` to replace an existing install and `--cwd <path>` to install into a project-specific plugin directory instead of the global one.
+
+To be installable, a plugin's `package.json` should declare entry points in a `cline` field:
+
+```json
+{
+  "cline": {
+    "plugins": [
+      {
+        "paths": ["./index.ts"],
+        "capabilities": ["tools", "hooks"]
+      }
+    ]
+  }
+}
+```
+
+If `cline.plugins` is absent, the installer auto-discovers `.ts` and `.js` entry files.
+
+See [Plugins (Customization)](/customization/plugins) for the full manifest format and directory layout.
+
 ## Hook Stages
 
 Hook stages include:

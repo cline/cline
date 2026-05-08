@@ -244,6 +244,58 @@ await cline.start({
 })
 ```
 
+## Distributing via CLI Install
+
+To make your plugin installable with `clite plugin install`, add a `cline` field to your `package.json`:
+
+```json
+{
+  "name": "cline-github-plugin",
+  "version": "1.0.0",
+  "type": "module",
+  "cline": {
+    "plugins": [
+      {
+        "paths": ["./github-plugin.ts"],
+        "capabilities": ["tools", "hooks"]
+      }
+    ]
+  },
+  "peerDependencies": {
+    "@cline/core": "*"
+  },
+  "peerDependenciesMeta": {
+    "@cline/core": {
+      "optional": true
+    }
+  }
+}
+```
+
+The `cline.plugins` array tells the installer which files are plugin entry points. Each entry can be:
+
+- An object with `paths` (array of `.ts`/`.js` files) and optional `capabilities`
+- A plain string path like `"./index.ts"`
+
+Dependencies under the `@cline/` scope are provided by the host runtime and are stripped automatically during install, so declare them as peer dependencies.
+
+Users install your plugin with:
+
+```bash
+# From a git repository
+clite plugin install https://github.com/your-org/cline-github-plugin.git
+
+# From npm
+clite plugin install npm:cline-github-plugin
+
+# From a local checkout
+clite plugin install ./cline-github-plugin
+```
+
+After installation, the plugin is automatically available in all sessions. Users can verify it appears in `clite config` under the plugin tab.
+
+If your `package.json` omits the `cline` field, the installer falls back to auto-discovering `.ts` and `.js` files in the package root (excluding `node_modules` and `.git`). Declaring explicit paths is recommended for clarity.
+
 ## Plugin Design Guidelines
 
 1. Use factory functions (like `createGitHubPlugin`) when the plugin needs configuration. Export the plugin object directly when it doesn't.

@@ -56,6 +56,7 @@ Commands:
   doctor                       Diagnose and fix configuration issues
   history|h [options]          List session history or manage saved sessions
   hook                         Handle a hook payload from stdin
+  plugin                       Manage Cline Plugins
   schedule                     Manage scheduled tasks
   hub                          Manage the local hub daemon
   update [options]             Check for updates and install if available
@@ -168,6 +169,59 @@ Handle a hook payload from stdin.
 cat payload.json | clite hook
 ```
 
+### `plugin`
+
+Manage Cline plugins. Install plugins from npm, git repositories, or local paths.
+
+```bash
+clite plugin                  # Show plugin subcommands
+clite plugin install <source> # Install a plugin
+clite plugin i <source>       # Shorthand alias
+```
+
+Subcommands:
+
+| Subcommand | Description |
+|------------|-------------|
+| `install` (alias `i`) | Install a plugin from npm, git, or a local path |
+
+Install options:
+
+| Option | Description |
+|--------|-------------|
+| `--npm` | Treat source as an npm package |
+| `--git` | Treat source as a git repository |
+| `--force` | Replace an existing install for the same source |
+| `--json` | Output result as JSON |
+| `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory |
+
+The source type is auto-detected from the input:
+
+```bash
+# Local path (starts with . / ~ or absolute path)
+clite plugin install ./my-plugin
+clite plugin install ~/plugins/my-tool
+
+# Git repository (URL or git: prefix)
+clite plugin install https://github.com/owner/repo.git
+clite plugin install git@github.com:owner/repo.git
+
+# npm package (npm: prefix or --npm flag)
+clite plugin install npm:@scope/plugin
+clite plugin install --npm my-plugin
+
+# Force a specific source type
+clite plugin install --git github.com/owner/repo
+```
+
+Installed plugins are stored in `~/.cline/plugins/_installed/` and are automatically discovered by the runtime. See [Plugins](/customization/plugins) for the plugin manifest format.
+
+Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescript-lsp-plugin), which adds a `goto_definition` tool:
+
+```bash
+clite plugin install https://github.com/cline/typescript-lsp-plugin.git
+```
+
 ### `schedule`
 
 Manage scheduled agents. See [Scheduling](/cli/scheduling).
@@ -269,6 +323,7 @@ When using `--json`, each message is a JSON object on its own line:
     logs/
       hub-daemon.log             # Hub logs
   plugins/                       # Global plugins
+    _installed/                  # Managed by `clite plugin install`
 
 .cline/                          # Project root
   rules/                         # Project rules
