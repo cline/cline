@@ -17,8 +17,8 @@ A GitHub integration plugin that:
 
 ```typescript
 // github-plugin.ts
-import { type AgentExtension, type AgentResult } from "@clinebot/core"
-import { createTool } from "@clinebot/agents"
+import { type AgentExtension } from "@cline/core"
+import { createTool } from "@cline/agents"
 
 interface GitHubConfig {
   token: string
@@ -33,27 +33,29 @@ export function createGitHubPlugin(config: GitHubConfig): AgentExtension {
     name: "github-integration",
     manifest: {
       capabilities: ["tools", "hooks"],
-      hookStages: ["run_start", "tool_call_before", "run_end"],
     },
 
-    setup(api) {
+    setup(api, ctx) {
       // Register tools in the setup phase
       api.registerTool(createListIssuesTool(config))
       api.registerTool(createCreateIssueTool(config))
       api.registerTool(createPostCommentTool(config))
     },
 
-    onRunStart({ userMessage }) {
-      console.log(`[github] Run started: "${userMessage.slice(0, 60)}..."`)
-    },
+    hooks: {
+      beforeRun() {
+        console.log(`[github] Run started`)
+      },
 
-    onToolCall({ call }) {
-      console.log(`[github] Tool: ${call.name}(${JSON.stringify(call.input).slice(0, 100)})`)
-    },
+      beforeTool(context) {
+        console.log(`[github] Tool: ${context.toolCall.name}(${JSON.stringify(context.input).slice(0, 100)})`)
+      },
 
-    onRunEnd({ result }) {
-      totalTokens += result.usage.inputTokens + result.usage.outputTokens
-      console.log(`[github] Run complete. Session tokens so far: ${totalTokens}`)
+      afterRun(context) {
+        const usage = context.result.usage
+        totalTokens += (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0)
+        console.log(`[github] Run complete. Session tokens so far: ${totalTokens}`)
+      },
     },
   }
 }
@@ -187,7 +189,7 @@ function createPostCommentTool(config: GitHubConfig) {
 ## Step 3: Use the Plugin
 
 ```typescript
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@cline/agents"
 import { createGitHubPlugin } from "./github-plugin"
 
 const agent = new Agent({
@@ -195,7 +197,6 @@ const agent = new Agent({
   modelId: "claude-sonnet-4-6",
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a project manager assistant with access to GitHub.",
-  tools: [],
   plugins: [
     createGitHubPlugin({
       token: process.env.GITHUB_TOKEN,
@@ -214,12 +215,12 @@ To load this plugin from a file in ClineCore, pass its path in `pluginPaths`:
 
 ```typescript
 // /absolute/path/to/github.ts
-import { type AgentExtension, createTool } from "@clinebot/core"
+import { type AgentExtension, createTool } from "@cline/core"
 
 const plugin: AgentExtension = {
   name: "github",
   manifest: { capabilities: ["tools"] },
-  setup(api) {
+  setup(api, ctx) {
     api.registerTool(
       createTool({
         name: "list_github_issues",
@@ -235,9 +236,13 @@ export default plugin
 Then include it in session config:
 
 ```typescript
+import { ClineCore } from "@cline/core"
+
+const cline = await ClineCore.create({ clientName: "my-app" })
+
 await cline.start({
-  prompt: "Use the GitHub plugin",
   config: {
+    systemPrompt: "Use the GitHub plugin",
     // ...model/runtime config
     pluginPaths: ["/absolute/path/to/github.ts"],
   },
@@ -274,6 +279,6 @@ See [Plugins](/customization/plugins) for the full manifest format, directory la
 
 3. Register all tools in `setup()`, not in lifecycle hooks. Tools must be available before the first iteration.
 
-4. Use lifecycle hooks for observation (logging, metrics, auditing), not for modifying agent behavior. If you need to modify behavior, consider using the `before_agent_start` hook to adjust the system prompt.
+4. Use lifecycle hooks for observation (logging, metrics, auditing), not for modifying agent behavior. If you need to modify behavior, consider using the `beforeRun` or `beforeModel` hooks to adjust the system prompt or context.
 
-5. Handle errors gracefully in hooks. A thrown error in `onToolCall` will count as a tool failure. If your hook is purely observational, catch errors internally.
+5. Handle errors gracefully in hooks. A thrown error in `beforeTool` will count as a tool failure. If your hook is purely observational, catch errors internally.

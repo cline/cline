@@ -1,73 +1,90 @@
 ---
-title: "Plugins"
+title: "Plugins Overview"
 sidebarTitle: "Plugins"
-description: "Use tools, plugins, and hooks to extend agent behavior."
+description: "Learn what plugins are, their benefits, and how they extend agent behavior."
 ---
 
-The SDK uses the `AgentExtension` interface for plugins. `AgentPlugin` is a public alias exported by `@clinebot/core`.
+Plugins are packages of reusable agent capabilities. They let you bundle tools, lifecycle hooks, commands, and configuration into a single module that can be shared across projects or published for others to use.
 
-Plugin extension points:
+## What is a Plugin?
 
-| Extension point | Use when you want to... |
-|-----------------|--------------------------|
-| Tool | Let the model call an action |
-| Plugin | Package tools, commands, message builders, providers, automation events, and hooks |
-| Hook | Run lifecycle logic or policy checks |
-
-## Tools vs Plugins vs Hooks
-
-| Need | Use |
-|------|-----|
-| Query a database, call an API, run a domain action | Tool |
-| Bundle several tools into a reusable module | Plugin |
-| Log runs, collect metrics, enforce policy | Hook handler |
-| Block dangerous tool calls | Hook or approval policy |
-| Register slash commands or providers | Plugin |
-
-For tool definitions, see [Tools](/sdk/tools).
-
-## Extension Example
+A plugin is an `AgentExtension` — an object that implements the SDK's extension interface. It can register tools, hook into agent lifecycle events, and provide configuration defaults.
 
 ```typescript
-import { createTool, type AgentExtension } from "@clinebot/core"
+import { type AgentExtension } from "@cline/core"
 
-const databasePlugin: AgentExtension = {
-  name: "database-tools",
-  manifest: { capabilities: ["tools", "hooks"], hookStages: ["tool_call_before"] },
-
-  setup(api, ctx) {
-    api.registerTool(
-      createTool({
-        name: "query_database",
-        description: "Run a read-only SQL query against the application database.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            sql: { type: "string", description: "SQL SELECT query to execute" },
-          },
-          required: ["sql"],
-        },
-        execute: async (input) => db.query(input.sql),
-      })
-    )
+const myPlugin: AgentExtension = {
+  name: "my-plugin",
+  manifest: {
+    capabilities: ["tools", "hooks"],
   },
-
-  onToolCall(context) {
-    console.log("tool call", context)
+  setup(api, ctx) {
+    // Register tools, commands, providers via api.registerTool(), etc.
+  },
+  hooks: {
+    beforeTool(context) {
+      // Observe or audit tool calls before they execute
+    },
+    afterRun(context) {
+      // Log metrics, cleanup, notify after a run completes
+    },
   },
 }
 ```
 
-Register with `Agent` runtime plugins:
+Hooks are defined inside the `hooks` object, not directly on the extension. The available lifecycle hooks are `beforeRun`, `afterRun`, `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, and `onEvent`.
 
-```typescript
-const agent = new Agent({
-  // ...config
-  plugins: [databasePlugin],
-})
+## Benefits of Plugins
+
+| Benefit | Description |
+|---------|-------------|
+| **Modularity** | Encapsulate related tools and hooks in a single unit. No more scattered logic. |
+| **Reusability** | Share plugins across agents, projects, or teams. Publish to npm or distribute via git. |
+| **Packaging** | Bundle tools, hooks, commands, message builders, and providers together. |
+| **Observability** | Hook into every stage of the agent lifecycle — run start/end, model calls, tool calls, errors. |
+| **Composability** | Combine multiple plugins in a single agent. Each plugin handles its own domain. |
+
+
+## Tools vs Plugins vs Hooks
+
+| Extension point | What it does |
+|-----------------|--------------|
+| **Tool** | Lets the model call an action (query a DB, call an API, etc.) |
+| **Plugin** | Packages tools, hooks, commands, providers, and automation events together |
+| **Hook** | Runs lifecycle logic or policy checks at specific stages |
+
+
+| If you need to... | Use a... |
+|-------------------|----------|
+| Query a database, call an API, run a domain action | **Tool** |
+| Bundle several tools into a reusable module | **Plugin** |
+| Log runs, collect metrics, enforce policy | **Hook** handler |
+| Block dangerous tool calls | **Hook** or approval policy |
+| Register slash commands or providers | **Plugin** |
+
+For tool definitions, see [Tools](/sdk/tools).
+
+## SDK Examples
+
+The [SDK repository](https://github.com/cline/sdk) includes ready-to-run plugin examples under [`examples/plugins/`](https://github.com/cline/sdk/tree/main/examples/plugins):
+
+| Example | Description |
+|---------|-------------|
+| [`weather-plugin.example.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/weather-plugin.example.ts) | Registers a weather lookup tool and tracks token usage via lifecycle hooks |
+| [`mac-notify.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/mac-notify.ts) | Sends a macOS Notification Center alert when a run completes successfully |
+| [`automation-events.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/automation-events.ts) | Demonstrates how plugins can emit normalized automation events |
+| [`custom-compaction.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/custom-compaction.ts) | Custom summary-based message compaction using the `messageBuilders` API |
+| [`background-terminal.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/background-terminal.ts) | Detached background shell jobs with persisted logs and optional session steering |
+
+To run an example locally:
+
+```sh
+mkdir -p .cline/plugins
+cp path/to/sdk/examples/plugins/weather-plugin.example.ts .cline/plugins/
+cline -i "What's the weather like in Tokyo?"
 ```
 
-Use `plugins` with `Agent` / `AgentRuntime`. Use `extensions` with `ClineCore` session config.
+## Next Steps
 
 Register with `ClineCore`:
 

@@ -152,17 +152,20 @@
 							"core-workflows/using-commands",
 							"core-workflows/checkpoints",
 							"cli/agent-teams",
-							"features/subagents",
+							"features/subagents"
+						]
+					},
+					{
+						"group": "IDE Specific Features",
+						"pages": [
 							"features/auto-approve",
-							"features/multiroot-workspace",
 							"features/jupyter-notebooks",
-							"features/web-tools"
+							"features/multiroot-workspace"
 						]
 					},
 					{
 						"group": "Troubleshooting",
 						"pages": [
-							"troubleshooting/terminal-quick-fixes",
 							"troubleshooting/networking-and-proxies"
 						]
 					}
@@ -183,10 +186,25 @@
 						"group": "Concepts",
 						"pages": [
 							"sdk/runtime",
-							"sdk/tools",
+							{
+								"group": "Tools",
+								"pages": [
+									"sdk/tools",
+									"sdk/guides/creating-custom-tools"
+								]
+							},
 							"sdk/events",
-							"sdk/plugins",
-							"sdk/model-providers"
+							{
+								"group": "Plugins",
+								"pages": [
+									"sdk/plugins",
+									"sdk/plugin-install",
+									"sdk/guides/writing-plugins"
+								]
+							},
+							"sdk/model-providers",
+							"sdk/guides/scheduled-agents",
+							"sdk/guides/connectors"
 						]
 					},
 					{
@@ -201,12 +219,8 @@
 						"pages": [
 							"sdk/guides/overview",
 							"sdk/guides/building-an-agent",
-							"sdk/guides/creating-custom-tools",
-							"sdk/guides/writing-plugins",
 							"sdk/guides/permission-handling",
-							"sdk/guides/scheduled-agents",
 							"sdk/guides/multi-agent-teams",
-							"sdk/guides/connectors",
 							"sdk/guides/going-to-production"
 						]
 					},
