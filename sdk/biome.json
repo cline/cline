@@ -1,0 +1,139 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": true
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"suspicious": {
+				"noConfusingVoidType": "info",
+				"noExplicitAny": "info",
+				"noAssignInExpressions": "info",
+				"noArrayIndexKey": "info",
+				"noUnknownAtRules": {
+					"level": "info",
+					"options": {
+						"ignore": [
+							"tailwind",
+							"layer",
+							"apply",
+							"responsive",
+							"screen",
+							"variants"
+						]
+					}
+				}
+			},
+			"style": {
+				"noNonNullAssertion": "info",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"patterns": [
+							{
+								"group": [
+									"@clinebot/llms/*",
+									"@clinebot/agents/*",
+									"@clinebot/core/*",
+									"@clinebot/shared/*",
+									"**/llms/src/**",
+									"**/agents/src/**",
+									"**/core/src/**",
+									"**/shared/src/**",
+									"**/rpc/src/**",
+									"**/scheduler/src/**",
+									"!@clinebot/llms/node",
+									"!@clinebot/llms/browser",
+									"!@clinebot/llms/runtime",
+									"!@clinebot/llms/runtime/*",
+									"!@clinebot/llms/models",
+									"!@clinebot/llms/models/*",
+									"!@clinebot/llms/providers",
+									"!@clinebot/llms/providers/*",
+									"!@clinebot/agents/node",
+									"!@clinebot/agents/browser",
+									"!@clinebot/core/hub",
+									"!@clinebot/core/telemetry",
+									"!@clinebot/core/rpc",
+									"!@clinebot/shared/browser",
+									"!@clinebot/shared/types",
+									"!@clinebot/shared/storage",
+									"!@clinebot/shared/db"
+								],
+								"message": "Use package entrypoints for cross-package imports. Do not import from another package's internal files."
+							}
+						]
+					}
+				}
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"assist": {
+		"enabled": true,
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"json": {
+		"formatter": {
+			"enabled": true
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["docs/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noStaticElementInteractions": "off",
+						"useKeyWithClickEvents": "off",
+						"noSvgWithoutTitle": "off",
+						"useFocusableInteractive": "off",
+						"useSemanticElements": "off",
+						"useAriaPropsForRole": "off"
+					},
+					"security": {
+						"noDangerouslySetInnerHtml": "off"
+					},
+					"suspicious": {
+						"noDocumentCookie": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/cli/src/tui/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noStaticElementInteractions": "off",
+						"useKeyWithClickEvents": "off"
+					}
+				}
+			}
+		}
+	]
+}

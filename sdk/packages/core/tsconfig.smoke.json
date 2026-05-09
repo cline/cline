@@ -1,0 +1,18 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"rootDir": "..",
+		"noEmit": true,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"paths": {
+			"@clinebot/agents": ["../agents/src/index.ts"],
+			"@clinebot/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
+			"@clinebot/llms": ["../llms/src/index.ts"],
+			"@clinebot/shared": ["../shared/src/index.ts"],
+			"@clinebot/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+		}
+	},
+	"include": ["scripts/**/*", "src/**/*"]
+}

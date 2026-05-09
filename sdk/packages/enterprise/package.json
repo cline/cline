@@ -1,0 +1,33 @@
+{
+	"name": "@clinebot/enterprise",
+	"version": "0.0.0",
+	"internal": true,
+	"description": "[INTERNAL] Enterprise composition layer for the Cline SDK",
+	"type": "module",
+	"main": "./dist/index.js",
+	"exports": {
+		".": {
+			"development": "./src/index.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"build": "rm -rf dist && bun bun.mts",
+		"clean": "rm -rf dist node_modules",
+		"typecheck": "bunx tsc -p tsconfig.json --noEmit",
+		"test": "bunx vitest run --config vitest.config.ts",
+		"test:watch": "bunx vitest --config vitest.config.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@clinebot/core": "workspace:*",
+		"@clinebot/shared": "workspace:*",
+		"aws4fetch": "^1.0.20"
+	}
+}

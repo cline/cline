@@ -1,0 +1,65 @@
+{
+	"name": "@clinebot/shared",
+	"version": "0.0.38",
+	"description": "Shared utilities, types, and schemas for Cline packages",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/sdk-wip",
+		"directory": "packages/shared"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"browser": "./dist/index.browser.js",
+			"development": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./browser": {
+			"development": "./src/index.browser.ts",
+			"types": "./dist/index.browser.d.ts",
+			"import": "./dist/index.browser.js"
+		},
+		"./types": {
+			"development": "./src/types/index.ts",
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/types/index.js"
+		},
+		"./storage": {
+			"development": "./src/storage/index.ts",
+			"types": "./dist/storage/index.d.ts",
+			"import": "./dist/storage/index.js"
+		},
+		"./db": {
+			"development": "./src/db/index.ts",
+			"types": "./dist/db/index.d.ts",
+			"import": "./dist/db/index.js"
+		},
+		"./automation": {
+			"development": "./src/automation/index.ts",
+			"types": "./dist/automation/index.d.ts",
+			"import": "./dist/automation/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "BUILD_MODE=package bun bun.mts",
+		"clean": "rm -rf dist node_modules",
+		"typecheck": "bun tsc --noEmit",
+		"test": "bun run test:unit",
+		"test:unit": "vitest run --config vitest.config.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"jsonrepair": "^3.13.2",
+		"zod": "^4.3.6",
+		"zod-to-json-schema": "^3.25.1"
+	}
+}

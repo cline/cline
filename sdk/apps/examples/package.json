@@ -1,0 +1,15 @@
+{
+	"name": "examples",
+	"description": "Example apps for the Cline SDK",
+	"type": "module",
+	"private": true,
+	"devDependencies": {
+		"@types/bun": "^1.3.10"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@clinebot/core": "workspace:*"
+	}
+}

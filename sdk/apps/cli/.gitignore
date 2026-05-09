@@ -1,0 +1,5 @@
+# Cached binary created by postinstall
+bin/.clite
+
+# Bun compile temp files
+*.bun-build

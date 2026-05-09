@@ -1,0 +1,9 @@
+{
+	"shortcuts": [
+		{
+			"label": "Build & Link CLI",
+			"command": "bun -F @clinebot/cli build && bun -F @clinebot/cli link",
+			"icon": "play"
+		}
+	]
+}

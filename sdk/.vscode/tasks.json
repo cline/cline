@@ -1,0 +1,88 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build-sdk",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": ["$tsc"],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "build-vscode-extension",
+			"type": "shell",
+			"command": "bun run build",
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"dependsOn": ["build-sdk"],
+			"problemMatcher": ["$tsc"],
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
+			}
+		},
+		{
+			"label": "watch-vscode-extension",
+			"type": "shell",
+			"command": "bun run watch",
+			"isBackground": true,
+			"dependsOn": ["build-sdk"],
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^.*$",
+					"file": 0,
+					"location": 0,
+					"message": 0
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^Bundled",
+					"endsPattern": "^\\s*extension\\.js"
+				}
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
+			}
+		},
+		{
+			"label": "dev-vscode-webview",
+			"type": "shell",
+			"command": "cd src/webview && bun run dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^.*$",
+					"file": 0,
+					"location": 0,
+					"message": 0
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "VITE",
+					"endsPattern": "Local:"
+				}
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
+			}
+		},
+		{
+			"label": "dev-all-vscode",
+			"dependsOn": ["watch-vscode-extension", "dev-vscode-webview"],
+			"dependsOrder": "parallel",
+			"problemMatcher": []
+		},
+		{
+			"label": "kill-vscode-dev",
+			"type": "shell",
+			"command": "kill $(lsof -ti:5173) 2>/dev/null; exit 0",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent"
+			}
+		}
+	]
+}
