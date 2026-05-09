@@ -251,7 +251,7 @@ await cline.start({
 
 ## Distributing via CLI Install
 
-To make your plugin installable with `clite plugin install`, add a `cline` field to your `package.json` that declares entry points and list `@cline/` imports as peer dependencies (the host runtime provides them):
+To make your plugin installable with `cline plugin install`, add a `cline` field to your `package.json` that declares entry points and list `@cline/` imports as peer dependencies (the host runtime provides them):
 
 ```json
 {
@@ -266,7 +266,7 @@ To make your plugin installable with `clite plugin install`, add a `cline` field
 Users can then install from git, npm, or a local path:
 
 ```bash
-clite plugin install https://github.com/your-org/cline-github-plugin.git
+cline plugin install https://github.com/your-org/cline-github-plugin.git
 ```
 
 See [Plugins](/customization/plugins) for the full manifest format, directory layout, and the [typescript-lsp-plugin](https://github.com/cline/typescript-lsp-plugin) for a complete working example.

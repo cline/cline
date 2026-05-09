@@ -20,13 +20,13 @@ Use it to build:
 Install the package that matches the runtime you need:
 
 ```bash
-npm install @clinebot/agents @clinebot/shared
+npm install @cline/agents @cline/shared
 ```
 
 For sessions and built-in tools:
 
 ```bash
-npm install @clinebot/core
+npm install @cline/core
 ```
 
 Requires Node.js 22 or later.
@@ -34,7 +34,7 @@ Requires Node.js 22 or later.
 ## Minimal Agent
 
 ```typescript
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@cline/agents"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -67,10 +67,10 @@ See [Agent vs ClineCore](/sdk/runtime).
 
 | Package | Purpose |
 |---------|---------|
-| `@clinebot/shared` | Types, schemas, tool helpers, hooks, storage helpers |
-| `@clinebot/llms` | Provider gateway and model catalogs |
-| `@clinebot/agents` | Browser-safe stateless agent execution loop |
-| `@clinebot/core` | Node runtime for sessions, built-in tools, persistence, hub support, automation |
+| `@cline/shared` | Types, schemas, tool helpers, hooks, storage helpers |
+| `@cline/llms` | Provider gateway and model catalogs |
+| `@cline/agents` | Browser-safe stateless agent execution loop |
+| `@cline/core` | Node runtime for sessions, built-in tools, persistence, hub support, automation |
 
 See [Packages](/sdk/architecture/overview) for package boundaries and exports.
 

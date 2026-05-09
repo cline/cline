@@ -4,7 +4,7 @@ sidebarTitle: "Types"
 description: "Common SDK type surfaces."
 ---
 
-Most common types are exported from `@clinebot/shared`; runtime entry-point packages re-export selected helpers.
+Most common types are exported from `@cline/shared`; runtime entry-point packages re-export selected helpers.
 
 ## AgentRuntime Types
 
@@ -16,7 +16,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeStateSnapshot,
   AgentUsage,
-} from "@clinebot/shared"
+} from "@cline/shared"
 ```
 
 `AgentRunResult` is returned by direct `AgentRuntime` / `Agent` runs:
@@ -46,7 +46,7 @@ import type {
   Tool,
   ToolContext,
   ToolPolicy,
-} from "@clinebot/shared"
+} from "@cline/shared"
 ```
 
 `AgentResult` is the host/core-facing result shape:
@@ -74,7 +74,7 @@ import type {
   ClineCoreStartInput,
   CoreSessionConfig,
   SessionRecord,
-} from "@clinebot/core"
+} from "@cline/core"
 ```
 
 ## Tool Types

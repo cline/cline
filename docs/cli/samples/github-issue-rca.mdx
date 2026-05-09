@@ -6,7 +6,7 @@ description: "Automated GitHub issue analysis using Cline CLI to identify root c
 Automated GitHub issue analysis using Cline CLI. This script uses Cline's autonomous AI capabilities to fetch, analyze, and identify root causes of GitHub issues, outputting clean, parseable results that can be easily integrated into your development workflows.
 
 <Note>
-**New to Cline CLI?** This sample assumes you have already completed the [Installation Guide](https://docs.cline.bot/getting-started/installing-cline) and authenticated with `clite auth`. If you haven't set up Cline CLI yet, please start there first.
+**New to Cline CLI?** This sample assumes you have already completed the [Installation Guide](https://docs.cline.bot/getting-started/installing-cline) and authenticated with `cline auth`. If you haven't set up Cline CLI yet, please start there first.
 </Note>
 
 <Frame>
@@ -90,7 +90,7 @@ fi
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
 # Ask Cline for its analysis, showing only the summary
-clite --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
+cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
     jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
     sed 's/\\n/\n/g'
 ```
@@ -174,15 +174,15 @@ This is where the magic happens:
 
 ```bash
 # Ask Cline for its analysis, showing only the summary
-clite --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
+cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
     jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
     sed 's/\\n/\n/g'
 ```
 
 <Accordion title="Pipeline Breakdown: Understanding Each Component">
 
-**1. `clite --auto-approve true --json "$PROMPT: $ISSUE_URL"`**
-   - `clite` is the Cline CLI binary
+**1. `cline --auto-approve true --json "$PROMPT: $ISSUE_URL"`**
+   - `cline` is the Cline CLI binary
    - Act mode is the default for prompt runs
    - `--auto-approve true` allows tool use without interactive prompts
    - `--json` emits newline-delimited JSON for parsing

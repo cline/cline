@@ -7,19 +7,19 @@ description: "Use Cline CLI for interactive terminal sessions and automated head
 ## Prerequisites
 
 - Cline CLI installed ([Install Guide](/getting-started/installing-cline))
-- Provider authenticated (`clite auth`) ([Authorization Guide](/getting-started/authorizing-with-cline#cli-setup))
+- Provider authenticated (`cline auth`) ([Authorization Guide](/getting-started/authorizing-with-cline#cli-setup))
 
 ## Quick Start
 
 ```bash
 # Interactive session
-clite
+cline
 
 # Run one task immediately
-clite "refactor this module to use async/await"
+cline "refactor this module to use async/await"
 
 # Structured output for scripts
-clite --json "list TODO comments"
+cline --json "list TODO comments"
 ```
 
 ## Headless mode
@@ -32,16 +32,16 @@ Headless is triggered when using flags like `--json`, when stdin is piped, or wh
 
 | Invocation | Reason |
 |---|---|
-| `clite --json "task"` | JSON output mode |
-| `cat file \| clite "task"` | stdin is piped |
-| `clite "task" > output.txt` | stdout is redirected |
+| `cline --json "task"` | JSON output mode |
+| `cat file \| cline "task"` | stdin is piped |
+| `cline "task" > output.txt` | stdout is redirected |
 
 ```bash
 # CI/script style execution
-git diff | clite "review these changes"
+git diff | cline "review these changes"
 
 # JSON for parsing
-clite --json "summarize this changelog" | jq -r '.text'
+cline --json "summarize this changelog" | jq -r '.text'
 ```
 
 See: [Headless Mode](#headless-mode)
@@ -51,17 +51,17 @@ See: [Headless Mode](#headless-mode)
 For fully unattended runs, use auto-approval:
 
 ```bash
-clite --auto-approve true "run tests and fix failures"
+cline --auto-approve true "run tests and fix failures"
 ```
 
 Mode selection also works in headless runs:
 
 ```bash
 # plan-first
-clite -p "design migration plan"
+cline -p "design migration plan"
 
 # act immediately (default)
-clite "apply migration"
+cline "apply migration"
 ```
 
 <Warning>
@@ -71,21 +71,21 @@ Autonomous execution can modify files and run commands without further prompts. 
 ## High-Value Commands
 
 ```bash
-clite --help
-clite <command> --help
+cline --help
+cline <command> --help
 ```
 
 | Command | Purpose |
 |---|---|
-| `clite` | Start interactive mode or run a prompt |
-| `clite auth` | Authenticate and set provider/model |
-| `clite config` | Open the interactive config view |
-| `clite mcp` | Manage MCP servers |
-| `clite doctor` | Diagnose/fix configuration issues |
-| `clite history` | Show and manage task history |
-| `clite schedule` | Manage scheduled tasks |
-| `clite hub` | Manage local hub daemon |
-| `clite kanban` | Launch Kanban app |
+| `cline` | Start interactive mode or run a prompt |
+| `cline auth` | Authenticate and set provider/model |
+| `cline config` | Open the interactive config view |
+| `cline mcp` | Manage MCP servers |
+| `cline doctor` | Diagnose/fix configuration issues |
+| `cline history` | Show and manage task history |
+| `cline schedule` | Manage scheduled tasks |
+| `cline hub` | Manage local hub daemon |
+| `cline kanban` | Launch Kanban app |
 
 ## Most-Used Global Flags
 
@@ -109,14 +109,14 @@ Source of truth: [CLI Reference](/cli/cli-reference)
 ### Pipe context in
 
 ```bash
-cat README.md | clite "summarize key setup steps"
-git diff | clite "review for potential regressions"
+cat README.md | cline "summarize key setup steps"
+git diff | cline "review for potential regressions"
 ```
 
 ### Chain tasks
 
 ```bash
-git diff | clite "explain these changes" | clite "write a commit message"
+git diff | cline "explain these changes" | cline "write a commit message"
 ```
 
 ### Restrict command execution
@@ -128,16 +128,16 @@ export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf
 ### Include images in tasks
 
 ```bash
-clite -i "fix the layout issue shown in @./screenshot.png"
+cline -i "fix the layout issue shown in @./screenshot.png"
 
 # or reference inline
-clite "fix the UI shown in @./design-mockup.png"
+cline "fix the UI shown in @./design-mockup.png"
 ```
 
 ### Set execution timeout
 
 ```bash
-clite --timeout 600 "run full test suite"
+cline --timeout 600 "run full test suite"
 ```
 
 ## JSON Output Schema

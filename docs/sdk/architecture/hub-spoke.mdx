@@ -24,7 +24,7 @@ The hub-spoke model solves all of these by separating coordination from executio
     Singleton daemon per machine. Coordinates sessions, routes events and approvals, manages schedules, brokers capabilities between clients. Does not run the agent loop.
   </Card>
   <Card title="Spoke" icon="gear">
-    Worker process running `@clinebot/core`. Executes the agent loop, calls tools, streams output. Reports events back to the hub. Owned by the daemon, not by any client.
+    Worker process running `@cline/core`. Executes the agent loop, calls tools, streams output. Reports events back to the hub. Owned by the daemon, not by any client.
   </Card>
   <Card title="Client" icon="display">
     CLI, VS Code, JetBrains, or any custom app. Discovers the hub, registers over WebSocket, attaches to sessions, sends user input, receives streamed events.

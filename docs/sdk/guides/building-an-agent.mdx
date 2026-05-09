@@ -25,7 +25,7 @@ A code review agent that:
 ```bash
 mkdir code-reviewer && cd code-reviewer
 npm init -y
-npm install @clinebot/agents @clinebot/shared
+npm install @cline/agents @cline/shared
 npm install -D typescript tsx
 ```
 
@@ -35,7 +35,7 @@ The agent needs two tools: one to fetch PR data and one to read file contents.
 
 ```typescript
 // tools.ts
-import type { AgentTool } from "@clinebot/shared"
+import type { AgentTool } from "@cline/shared"
 
 export const getPullRequest: AgentTool<
   { owner: string; repo: string; number: number },
@@ -144,7 +144,7 @@ Track metrics about the review process:
 
 ```typescript
 // metrics-plugin.ts
-import type { AgentRuntimePlugin } from "@clinebot/shared"
+import type { AgentRuntimePlugin } from "@cline/shared"
 
 export const reviewMetrics: AgentRuntimePlugin = {
   name: "review-metrics",
@@ -175,7 +175,7 @@ export const reviewMetrics: AgentRuntimePlugin = {
 
 ```typescript
 // review.ts
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@cline/agents"
 import { getPullRequest, readFileFromRepo } from "./tools"
 import { reviewMetrics } from "./metrics-plugin"
 

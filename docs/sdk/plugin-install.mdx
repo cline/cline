@@ -8,18 +8,18 @@ The Cline CLI provides a `plugin install` command to install plugins from variou
 
 ## CLI Installation
 
-Use the `clite plugin install` command to install plugins from npm, git repositories, or local paths.
+Use the `cline plugin install` command to install plugins from npm, git repositories, or local paths.
 
 ```sh
-clite plugin install <source> [options]
+cline plugin install <source> [options]
 ```
 
-The shorthand `clite plugin i` works as well.
+The shorthand `cline plugin i` works as well.
 
 ### Install from npm
 
 ```sh
-clite plugin install --npm @scope/plugin-name
+cline plugin install --npm @scope/plugin-name
 ```
 
 Installs the package from the npm registry into the Cline plugin directory.
@@ -27,8 +27,8 @@ Installs the package from the npm registry into the Cline plugin directory.
 ### Install from Git
 
 ```sh
-clite plugin install --git https://github.com/owner/repo.git
-clite plugin install --git github.com/owner/repo
+cline plugin install --git https://github.com/owner/repo.git
+cline plugin install --git github.com/owner/repo
 ```
 
 Clones the repository (shallow, with blobless filter for speed) and installs its dependencies. The `.git` directory is excluded from the final install.
@@ -36,8 +36,8 @@ Clones the repository (shallow, with blobless filter for speed) and installs its
 ### Install from Local Source
 
 ```sh
-clite plugin install ./path/to/plugin.ts     # Single file
-clite plugin install /absolute/path/to/dir   # Directory with package.json
+cline plugin install ./path/to/plugin.ts     # Single file
+cline plugin install /absolute/path/to/dir   # Directory with package.json
 ```
 
 Supports both files and directories. Local installs copy the source, filter out `.git` and `node_modules`, and run `npm install` to resolve dependencies.
@@ -56,19 +56,19 @@ Supports both files and directories. Local installs copy the source, filter out 
 
 ```sh
 # Install a local plugin directory
-clite plugin install ./my-custom-plugin
+cline plugin install ./my-custom-plugin
 
 # Install an npm package as a plugin
-clite plugin install --npm @cline/plugin-sql
+cline plugin install --npm @cline/plugin-sql
 
 # Install from a GitHub repo
-clite plugin install --git https://github.com/my-org/my-plugin.git
+cline plugin install --git https://github.com/my-org/my-plugin.git
 
 # Force reinstall an existing plugin
-clite plugin install --force --npm @scope/plugin-name
+cline plugin install --force --npm @scope/plugin-name
 
 # Use shorthand
-clite plugin i --git github.com/owner/repo
+cline plugin i --git github.com/owner/repo
 ```
 
 ### Listing Installed Plugins
@@ -76,7 +76,7 @@ clite plugin i --git github.com/owner/repo
 Installed plugins appear in the `plugins` section of your CLI config:
 
 ```sh
-clite config
+cline config
 ```
 
 ## Programmatic Installation
