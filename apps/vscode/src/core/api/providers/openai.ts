@@ -1,5 +1,11 @@
 import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
-import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import {
+	azureOpenAiDefaultApiVersion,
+	ModelInfo,
+	moonshotModels,
+	OpenAiCompatibleModelInfo,
+	openAiModelInfoSaneDefaults,
+} from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -102,12 +108,21 @@ export class OpenAiHandler implements ApiHandler {
 		const isReasoningModelFamily =
 			["o1", "o3", "o4", "gpt-5"].some((prefix) => modelId.includes(prefix)) && !modelId.includes("chat")
 
+		// Moonshot kimi-k2.6 enforces a fixed temperature on the server side and
+		// rejects any other value (including undefined). The enforced value is
+		// sourced from `moonshotModels` so `api.ts` remains the single source of
+		// truth. See GitHub issue #10544.
+		const kimiK26EnforcedTemperature: number | undefined =
+			modelId === "kimi-k2.6" ? moonshotModels["kimi-k2.6"].temperature : undefined
+
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 		let temperature: number | undefined
-		if (this.options.openAiModelInfo?.temperature !== undefined) {
+		if (kimiK26EnforcedTemperature !== undefined) {
+			temperature = kimiK26EnforcedTemperature
+		} else if (this.options.openAiModelInfo?.temperature !== undefined) {
 			const tempValue = Number(this.options.openAiModelInfo.temperature)
 			temperature = tempValue === 0 ? undefined : tempValue
 		} else {
