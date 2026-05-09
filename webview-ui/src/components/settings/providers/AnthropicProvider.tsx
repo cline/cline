@@ -52,7 +52,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 
 	// Helper function for model switching
 	const handleModelChange = (modelId: string) => {
-		handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
+		handleModeFieldChange("modelId", modelId, currentMode)
 	}
 
 	return (
@@ -81,11 +81,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						label="Model"
 						models={anthropicModels}
 						onChange={(e) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

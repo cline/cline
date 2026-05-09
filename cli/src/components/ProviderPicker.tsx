@@ -94,19 +94,19 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 		case "openai":
 			return !!(
 				(config.openAiBaseUrl && config.openAiApiKey) ||
-				config.planModeOpenAiModelId ||
-				config.actModeOpenAiModelId
+				config.planConfig?.modelId ||
+				config.actConfig?.modelId
 			)
 		case "ollama":
-			return !!(config.ollamaBaseUrl || config.planModeOllamaModelId || config.actModeOllamaModelId)
+			return !!(config.ollamaBaseUrl || config.planConfig?.modelId || config.actConfig?.modelId)
 		case "lmstudio":
-			return !!(config.lmStudioBaseUrl || config.planModeLmStudioModelId || config.actModeLmStudioModelId)
+			return !!(config.lmStudioBaseUrl || config.planConfig?.modelId || config.actConfig?.modelId)
 		case "litellm":
 			return !!(
 				config.liteLlmBaseUrl ||
 				config.liteLlmApiKey ||
-				config.planModeLiteLlmModelId ||
-				config.actModeLiteLlmModelId
+				config.planConfig?.modelId ||
+				config.actConfig?.modelId
 			)
 		case "claude-code":
 			return !!config.claudeCodePath

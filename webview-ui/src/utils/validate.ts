@@ -1,18 +1,12 @@
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
-		const {
-			apiProvider,
-			openAiModelId,
-			requestyModelId,
-			togetherModelId,
-			ollamaModelId,
-			lmStudioModelId,
-			vsCodeLmModelSelector,
-		} = getModeSpecificFields(apiConfiguration, currentMode)
+		const modeConfig = currentMode === "plan" ? apiConfiguration.planConfig : apiConfiguration.actConfig
+		const apiProvider = modeConfig?.apiProvider
+		const modelId = modeConfig?.modelId
+		const vsCodeLmModelSelector = modeConfig?.vsCodeLmModelSelector
 
 		switch (apiProvider) {
 			case "anthropic":
@@ -73,14 +67,12 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			case "cline":
 				break
 			case "openai-codex":
-				// Authentication is handled via OAuth, not API key
-				// Validation happens at runtime in the handler
 				break
 			case "openai":
 				if (
 					!apiConfiguration.openAiBaseUrl ||
 					(!apiConfiguration.openAiApiKey && !apiConfiguration.azureIdentity) ||
-					!openAiModelId
+					!modelId
 				) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
@@ -96,17 +88,17 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				break
 			case "together":
-				if (!apiConfiguration.togetherApiKey || !togetherModelId) {
+				if (!apiConfiguration.togetherApiKey || !modelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "ollama":
-				if (!ollamaModelId) {
+				if (!modelId) {
 					return "You must provide a valid model ID."
 				}
 				break
 			case "lmstudio":
-				if (!lmStudioModelId) {
+				if (!modelId) {
 					return "You must provide a valid model ID."
 				}
 				break
@@ -189,20 +181,21 @@ export function validateModelId(
 	clineModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
-		const { apiProvider, openRouterModelId, clineModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+		const modeConfig = currentMode === "plan" ? apiConfiguration.planConfig : apiConfiguration.actConfig
+		const apiProvider = modeConfig?.apiProvider
+		const modelId = modeConfig?.modelId
 		switch (apiProvider) {
 			case "openrouter":
-				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
-				if (!modelId) {
+				const resolvedModelId = modelId || openRouterDefaultModelId
+				if (!resolvedModelId) {
 					return "You must provide a model ID."
 				}
-				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
-					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
+				if (openRouterModels && !Object.keys(openRouterModels).includes(resolvedModelId)) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
 			case "cline":
-				const clineResolvedModelId = clineModelId || openRouterDefaultModelId
+				const clineResolvedModelId = modelId || openRouterDefaultModelId
 				if (!clineResolvedModelId) {
 					return "You must provide a model ID."
 				}

@@ -51,10 +51,10 @@ export interface OpenRouterModelPickerProps {
 }
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
-	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(modeFields?.modelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -62,21 +62,16 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
-		// could be setting invalid model id/undefined info but validation will catch it
-
 		setSearchTerm(newModelId)
 
-		handleModeFieldsChange(
-			{
-				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
-				openRouterModelInfo: { plan: "planModeOpenRouterModelInfo", act: "actModeOpenRouterModelInfo" },
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo: openRouterModels[newModelId],
 			},
-			{
-				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
-			},
-			currentMode,
-		)
+		} as any)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -90,9 +85,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
+		const currentModelId = modeFields.modelId || openRouterDefaultModelId
 		setSearchTerm(currentModelId)
-	}, [modeFields.openRouterModelId])
+	}, [modeFields.modelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {

@@ -43,11 +43,7 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 						label="Model"
 						models={openAiNativeModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

@@ -29,11 +29,11 @@ export interface HicapModelPickerProps {
 }
 
 const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, hicapModels, refreshHicapModels } = useExtensionState()
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.hicapModelId || "")
+	const [searchTerm, setSearchTerm] = useState(modeFields.modelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -43,26 +43,23 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 	const handleModelChange = (newModelId: string) => {
 		setSearchTerm(newModelId)
 
-		handleModeFieldsChange(
-			{
-				hicapModelId: { plan: "planModeHicapModelId", act: "actModeHicapModelId" },
-				hicapModelInfo: { plan: "planModeHicapModelInfo", act: "actModeHicapModelInfo" },
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo: {},
 			},
-			{
-				hicapModelId: newModelId,
-				hicapModelInfo: {},
-			},
-			currentMode,
-		)
+		} as any)
 	}
 
 	useMount(refreshHicapModels)
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.hicapModelId || ""
+		const currentModelId = modeFields.modelId || ""
 		setSearchTerm(currentModelId)
-	}, [modeFields.hicapModelId])
+	}, [modeFields.modelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {

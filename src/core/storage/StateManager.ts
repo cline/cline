@@ -1,4 +1,4 @@
-import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { ApiConfigProfile, ApiConfiguration, ModelInfo } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
 	type GlobalState,
@@ -12,6 +12,7 @@ import {
 	type SecretKey,
 	SecretKeys,
 	type Secrets,
+	SETTINGS_DEFAULTS,
 	type Settings,
 	type SettingsKey,
 } from "@shared/storage/state-keys"
@@ -636,6 +637,94 @@ export class StateManager {
 		if (Object.keys(secretsUpdates).length > 0) {
 			this.setSecretsBatch(secretsUpdates)
 		}
+	}
+
+	/**
+	 * Get all API config profiles
+	 */
+	getApiConfigProfiles(): ApiConfigProfile[] {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return this.globalStateCache["apiConfigProfiles"] ?? []
+	}
+
+	/**
+	 * Add a new API config profile
+	 */
+	addApiConfigProfile(profile: ApiConfigProfile): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		const profiles = this.getApiConfigProfiles()
+		profiles.push(profile)
+		this.setGlobalState("apiConfigProfiles", profiles)
+	}
+
+	/**
+	 * Update an existing API config profile
+	 */
+	updateApiConfigProfile(profileId: string, updates: Partial<Pick<ApiConfigProfile, "displayName">>): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		const profiles = this.getApiConfigProfiles()
+		const index = profiles.findIndex((p) => p.id === profileId)
+		if (index === -1) {
+			return
+		}
+		if (updates.displayName !== undefined) {
+			profiles[index].displayName = updates.displayName
+		}
+
+		this.setGlobalState("apiConfigProfiles", profiles)
+	}
+
+	/**
+	 * Delete an API config profile
+	 */
+	deleteApiConfigProfile(profileId: string): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		const profiles = this.getApiConfigProfiles().filter((p) => p.id !== profileId)
+		this.setGlobalState("apiConfigProfiles", profiles)
+		if (this.globalStateCache["lastAppliedProfileIdByMode"]?.act === profileId || this.globalStateCache["lastAppliedProfileIdByMode"]?.plan === profileId) {
+			this.setGlobalState("lastAppliedProfileIdByMode", { plan: undefined, act: undefined })
+		}
+	}
+
+	/**
+	 * Apply an API config profile to the current configuration.
+	 * Uses "reset then apply" strategy to avoid stale fields.
+	 * Writes the same config to both plan and act mode fields.
+	 */
+	applyApiConfigProfile(profileId: string, mode?: string): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		const profiles = this.getApiConfigProfiles()
+		const profile = profiles.find((p) => p.id === profileId)
+		if (!profile) {
+			return
+		}
+
+		const applyEntries: Partial<Settings> = {}
+		for (const [key, value] of Object.entries(profile)) {
+			if (key === "id" || key === "displayName" || key === "globalConfig") {
+				continue
+			}
+			applyEntries[key as SettingsKey] = value as any
+		}
+		if (profile.globalConfig) {
+			Object.assign(applyEntries, profile.globalConfig)
+		}
+
+		this.setGlobalStateBatch(applyEntries)
+		this.setGlobalState("lastAppliedProfileIdByMode" as any, {
+			...(this.globalStateCache.lastAppliedProfileIdByMode ?? { plan: undefined, act: undefined }),
+			[mode ?? "plan"]: profileId,
+		})
 	}
 
 	/**

@@ -5,7 +5,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon } from "lucide-react"
+import { AtSignIcon, PlusIcon, Settings } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -14,9 +14,10 @@ import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import Thumbnails from "@/components/common/Thumbnails"
-import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+
 import { usePlatform } from "@/context/PlatformContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
@@ -223,9 +224,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			remoteConfigSettings,
 			navigateToSettingsModelPicker,
 			mcpServers,
+			apiConfigProfiles,
+			lastAppliedProfileIdByMode,
+			handleApplyProfile,
+			showSettings,
+			showHistory,
+			showAccount,
+			showWorktrees,
+			showMcp,
 		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
+		const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false)
+
+		useEffect(() => {
+			if (showSettings || showHistory || showAccount || showWorktrees || showMcp) {
+				setIsModelPopoverOpen(false)
+			}
+		}, [showSettings, showHistory, showAccount, showWorktrees, showMcp])
+
+		useEffect(() => {
+			if (!isModelPopoverOpen) return
+			const handleClickOutside = (e: MouseEvent) => {
+				const target = e.target as Node
+				const modelContainer = document.querySelector('[data-model-container]')
+				if (modelContainer && !modelContainer.contains(target)) {
+					setIsModelPopoverOpen(false)
+				}
+			}
+			setTimeout(() => document.addEventListener("click", handleClickOutside), 0)
+			return () => document.removeEventListener("click", handleClickOutside)
+		}, [isModelPopoverOpen])
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
@@ -583,7 +612,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
-					if (!sendingDisabled) {
+					if (!sendingDisabled && apiConfigProfiles.length > 0) {
 						setIsTextAreaFocused(false)
 						onSend()
 					}
@@ -1082,52 +1111,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, handleInputChange, updateHighlights])
 
-		const handleModelButtonClick = () => {
-			navigateToSettingsModelPicker({ targetSection: "api-config" })
-		}
-
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
+			if (!apiConfiguration) return "unknown"
+			if (apiConfigProfiles.length === 0) return "Configure"
 			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
-			const {
-				vsCodeLmModelSelector,
-				togetherModelId,
-				lmStudioModelId,
-				ollamaModelId,
-				liteLlmModelId,
-				requestyModelId,
-				vercelAiGatewayModelId,
-			} = getModeSpecificFields(apiConfiguration, mode)
-			const unknownModel = "unknown"
-
-			if (!apiConfiguration) {
-				return unknownModel
-			}
-			switch (selectedProvider) {
-				case "cline":
-					return `${selectedProvider}:${selectedModelId}`
-				case "openai":
-					return `openai-compat:${selectedModelId}`
-				case "vscode-lm":
-					return `vscode-lm:${vsCodeLmModelSelector ? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
-				case "together":
-					return `${selectedProvider}:${togetherModelId}`
-				case "lmstudio":
-					return `${selectedProvider}:${lmStudioModelId}`
-				case "ollama":
-					return `${selectedProvider}:${ollamaModelId}`
-				case "litellm":
-					return `${selectedProvider}:${liteLlmModelId}`
-				case "requesty":
-					return `${selectedProvider}:${requestyModelId}`
-				case "vercel-ai-gateway":
-					return `${selectedProvider}:${vercelAiGatewayModelId || selectedModelId}`
-				case "anthropic":
-				case "openrouter":
-				default:
-					return `${selectedProvider}:${selectedModelId}`
-			}
-		}, [apiConfiguration, mode])
+			if (!selectedModelId) return `${selectedProvider}`
+			return `${selectedProvider}:${selectedModelId}`
+		}, [apiConfiguration, mode, apiConfigProfiles.length])
 
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
@@ -1537,10 +1528,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{ height: textAreaBaseHeight }}>
 						<div className="flex flex-row items-center">
 							<div
-								className={cn("input-icon-button", { disabled: sendingDisabled }, "codicon codicon-send text-sm")}
+								className={cn("input-icon-button", { disabled: sendingDisabled || apiConfigProfiles.length === 0 }, "codicon codicon-send text-sm")}
 								data-testid="send-button"
 								onClick={() => {
-									if (!sendingDisabled) {
+									if (!sendingDisabled && apiConfigProfiles.length > 0) {
 										setIsTextAreaFocused(false)
 										onSend()
 									}
@@ -1595,17 +1586,64 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 							<ClineRulesToggleModal />
 
-							<ModelContainer>
-								<ModelButtonWrapper>
-									<ModelDisplayButton
-										disabled={false}
-										onClick={handleModelButtonClick}
-										role="button"
-										tabIndex={0}
-										title="Open API Settings">
-										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
-									</ModelDisplayButton>
-								</ModelButtonWrapper>
+							<ModelContainer data-model-container>
+								<Tooltip>
+									{!isModelPopoverOpen && <TooltipContent>{apiConfigProfiles.length === 0 ? "Configure Configurations" : "Switch configuration"}</TooltipContent>}
+									<TooltipTrigger style={{ display: "flex", minWidth: 0 }}>
+										<ModelButtonWrapper>
+											<ModelDisplayButton
+												disabled={false}
+												onClick={() => {
+													if (apiConfigProfiles.length === 0) {
+														navigateToSettingsModelPicker({ targetSection: "api-config" })
+													} else {
+														setIsModelPopoverOpen((v) => !v)
+													}
+												}}
+												role="button"
+												tabIndex={0}>
+												<ModelButtonContent className="text-xs" style={{ color: apiConfigProfiles.length === 0 ? (mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR) : undefined }} title={modelDisplayName}>{modelDisplayName}</ModelButtonContent>
+											</ModelDisplayButton>
+										</ModelButtonWrapper>
+									</TooltipTrigger>
+								</Tooltip>
+								{isModelPopoverOpen && apiConfigProfiles.length > 0 && (
+									<div className="absolute bottom-full left-0 mb-1 z-[999] rounded-xs bg-(--vscode-dropdown-background) shadow-lg overflow-hidden whitespace-nowrap w-[50vw]" style={{ border: `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR}` }}>
+										{apiConfigProfiles.map((profile) => {
+												const byMode = lastAppliedProfileIdByMode ?? { plan: undefined, act: undefined }
+												const isApplied = profile.id === byMode[mode]
+												const configMatch =
+													!isApplied &&
+													profile.provider === apiConfiguration?.[mode === "plan" ? "planConfig" : "actConfig"]?.apiProvider &&
+													profile.modelId === apiConfiguration?.[mode === "plan" ? "planConfig" : "actConfig"]?.modelId
+												const isActive = isApplied || configMatch
+												return (
+												<button
+													key={profile.id}
+													className={`flex items-center gap-1.5 w-full px-3 py-1.5 text-xs text-left bg-transparent border-none cursor-pointer truncate ${isActive ? "text-(--vscode-foreground) bg-(--vscode-list-activeSelectionBackground)" : "text-(--vscode-descriptionForeground) hover:bg-(--vscode-list-hoverBackground)"}`}
+													onClick={() => {
+														setIsModelPopoverOpen(false)
+														handleApplyProfile(profile.id, mode)
+													}}>
+														 <span className="text-sm shrink-0" style={{ opacity: isActive ? 1 : 0, color: mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR }}>●
+    </span>
+													<span className="truncate min-w-0" title={profile.modelId ? `${profile.provider}:${profile.modelId}` : profile.provider}>
+														{profile.modelId ? `${profile.provider}:${profile.modelId}` : profile.provider}
+													</span>
+												</button>
+											)})}
+										<div className="border-t border-(--vscode-panel-border) mx-2" />
+										<button
+											className="flex items-center w-full px-3 py-1.5 text-xs bg-transparent border-none cursor-pointer  hover:bg-(--vscode-list-hoverBackground)"
+											onClick={() => {
+												setIsModelPopoverOpen(false)
+												navigateToSettingsModelPicker({ targetSection: "api-config" })
+											}}>
+											<Settings className="size-2 shrink-0" />
+											<span className="flex-1 text-right">API Configuration</span>
+										</button>
+									</div>
+								)}
 							</ModelContainer>
 						</ButtonGroup>
 					</div>

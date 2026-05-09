@@ -72,11 +72,7 @@ export const MinimaxProvider = ({ showModelOptions, isPopup, currentMode }: Mini
 						label="Model"
 						models={minimaxModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

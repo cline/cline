@@ -62,7 +62,8 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Extract provider using the proven pattern from ReportBugHandler
 		const apiConfig = config.services.stateManager.getApiConfiguration()
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const modeConfig = currentMode === "plan" ? apiConfig?.planConfig : apiConfig?.actConfig
+		const provider = modeConfig?.apiProvider ?? "anthropic"
 
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")

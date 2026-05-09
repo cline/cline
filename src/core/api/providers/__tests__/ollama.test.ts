@@ -26,7 +26,7 @@ describe("OllamaHandler", () => {
 
 	beforeEach(() => {
 		options = {
-			actModeOllamaModelId: "llama2",
+			actConfig: { modelId: "llama2", apiProvider: "ollama" },
 			ollamaBaseUrl: "http://localhost:11434",
 		}
 		handler = new OllamaHandler(options)

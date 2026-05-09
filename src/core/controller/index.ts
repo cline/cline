@@ -188,8 +188,8 @@ export class Controller {
 			const apiConfiguration = this.stateManager.getApiConfiguration()
 			const updatedConfig = {
 				...apiConfiguration,
-				planModeApiProvider: "openrouter" as ApiProvider,
-				actModeApiProvider: "openrouter" as ApiProvider,
+				planConfig: { ...apiConfiguration.planConfig, apiProvider: "openrouter" as ApiProvider },
+				actConfig: { ...apiConfiguration.actConfig, apiProvider: "openrouter" as ApiProvider },
 			}
 			this.stateManager.setApiConfiguration(updatedConfig)
 
@@ -516,26 +516,25 @@ export class Controller {
 			const clineProvider: ApiProvider = "cline"
 
 			// Get current settings to determine how to update providers
-			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
+			const planActSeparateModelsSetting =
+				currentApiConfiguration.planConfig?.apiProvider !== currentApiConfiguration.actConfig?.apiProvider
 
 			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-
-			// Get current API configuration from cache
-			const currentApiConfiguration = this.stateManager.getApiConfiguration()
 
 			const updatedConfig = { ...currentApiConfiguration }
 
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
 				if (currentMode === "plan") {
-					updatedConfig.planModeApiProvider = clineProvider
+					updatedConfig.planConfig = { ...updatedConfig.planConfig, apiProvider: clineProvider }
 				} else {
-					updatedConfig.actModeApiProvider = clineProvider
+					updatedConfig.actConfig = { ...updatedConfig.actConfig, apiProvider: clineProvider }
 				}
 			} else {
 				// Update both modes to keep them in sync
-				updatedConfig.planModeApiProvider = clineProvider
-				updatedConfig.actModeApiProvider = clineProvider
+				updatedConfig.planConfig = { ...updatedConfig.planConfig, apiProvider: clineProvider }
+				updatedConfig.actConfig = { ...updatedConfig.actConfig, apiProvider: clineProvider }
 			}
 
 			// Update the API configuration through cache service
@@ -569,26 +568,25 @@ export class Controller {
 			const ocaProvider: ApiProvider = "oca"
 
 			// Get current settings to determine how to update providers
-			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
+			const planActSeparateModelsSetting =
+				currentApiConfiguration.planConfig?.apiProvider !== currentApiConfiguration.actConfig?.apiProvider
 
 			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-
-			// Get current API configuration from cache
-			const currentApiConfiguration = this.stateManager.getApiConfiguration()
 
 			const updatedConfig = { ...currentApiConfiguration }
 
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
 				if (currentMode === "plan") {
-					updatedConfig.planModeApiProvider = ocaProvider
+					updatedConfig.planConfig = { ...updatedConfig.planConfig, apiProvider: ocaProvider }
 				} else {
-					updatedConfig.actModeApiProvider = ocaProvider
+					updatedConfig.actConfig = { ...updatedConfig.actConfig, apiProvider: ocaProvider }
 				}
 			} else {
 				// Update both modes to keep them in sync
-				updatedConfig.planModeApiProvider = ocaProvider
-				updatedConfig.actModeApiProvider = ocaProvider
+				updatedConfig.planConfig = { ...updatedConfig.planConfig, apiProvider: ocaProvider }
+				updatedConfig.actConfig = { ...updatedConfig.actConfig, apiProvider: ocaProvider }
 			}
 
 			// Update the API configuration through cache service
@@ -708,8 +706,8 @@ export class Controller {
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
-			planModeApiProvider: openrouter,
-			actModeApiProvider: openrouter,
+			planConfig: { ...currentApiConfiguration.planConfig, apiProvider: openrouter },
+			actConfig: { ...currentApiConfiguration.actConfig, apiProvider: openrouter },
 			openRouterApiKey: apiKey,
 		}
 		this.stateManager.setApiConfiguration(updatedConfig)
@@ -729,8 +727,8 @@ export class Controller {
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
-			planModeApiProvider: requesty,
-			actModeApiProvider: requesty,
+			planConfig: { ...currentApiConfiguration.planConfig, apiProvider: requesty },
+			actConfig: { ...currentApiConfiguration.actConfig, apiProvider: requesty },
 			requestyApiKey: code,
 		}
 		this.stateManager.setApiConfiguration(updatedConfig)
@@ -767,8 +765,8 @@ export class Controller {
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
-			planModeApiProvider: hicap,
-			actModeApiProvider: hicap,
+			planConfig: { ...currentApiConfiguration.planConfig, apiProvider: hicap },
+			actConfig: { ...currentApiConfiguration.actConfig, apiProvider: hicap },
 			hicapApiKey: apiKey,
 		}
 		this.stateManager.setApiConfiguration(updatedConfig)
@@ -861,7 +859,7 @@ export class Controller {
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
 		const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
-		const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+		const planActSeparateModelsSetting = apiConfiguration.planConfig?.apiProvider !== apiConfiguration.actConfig?.apiProvider
 		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
@@ -915,6 +913,9 @@ export class Controller {
 		const environment = clineConfig.environment
 		const banners = BannerService.get().getActiveBanners() ?? []
 		const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
+		const apiConfigProfiles = this.stateManager.getGlobalStateKey("apiConfigProfiles")
+		const lastAppliedProfileIdByMode = this.stateManager.getGlobalStateKey("lastAppliedProfileIdByMode")
+		const lastAppliedProfileId = lastAppliedProfileIdByMode?.[mode]
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
@@ -1004,6 +1005,8 @@ export class Controller {
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,
+			apiConfigProfiles: apiConfigProfiles ?? [],
+			lastAppliedProfileId,
 		}
 	}
 

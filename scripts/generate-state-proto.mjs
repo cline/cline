@@ -27,7 +27,7 @@ function toProtoFieldName(str) {
 }
 
 // Fields that should use int64 instead of int32
-const INT64_FIELDS = new Set(["planModeThinkingBudgetTokens", "actModeThinkingBudgetTokens"])
+const INT64_FIELDS = new Set(["thinkingBudgetTokens"])
 
 // Fields that should use double instead of int32
 const DOUBLE_FIELDS = new Set()
@@ -62,6 +62,11 @@ function inferProtoType(typeText, fieldName) {
 		return "int32"
 	}
 
+	// Store modelInfo as JSON string (unified field replaces per-provider model info fields)
+	if (fieldName === "modelInfo") {
+		return "string"
+	}
+
 	// Handle Record<string, string> as map<string, string>
 	if (/Record\s*<\s*string\s*,\s*string\s*>/.test(cleanType)) {
 		return "map<string, string>"
@@ -73,6 +78,8 @@ function inferProtoType(typeText, fieldName) {
 	// Check known types BEFORE string literals, since types like `"act" as Mode`
 	// contain quotes but should map to proto enums
 	const knownTypes = [
+		// Mode config message type
+		["ModeConfigSettings", "ModeConfig"],
 		// Specific model info types first
 		["OpenAiCompatibleModelInfo", "OpenAiCompatibleModelInfo"],
 		["LiteLLMModelInfo", "LiteLLMModelInfo"],
@@ -304,14 +311,16 @@ async function loadFieldNumbersFromProto() {
 		const protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")
 		const secrets = parseProtoMessageFieldNumbers(protoContent, "Secrets")
 		const settings = parseProtoMessageFieldNumbers(protoContent, "Settings")
+		const modeConfig = parseProtoMessageFieldNumbers(protoContent, "ModeConfig")
 
 		console.log(`  Found ${Object.keys(secrets).length} existing Secrets fields`)
 		console.log(`  Found ${Object.keys(settings).length} existing Settings fields`)
+		console.log(`  Found ${Object.keys(modeConfig).length} existing ModeConfig fields`)
 
-		return { Secrets: secrets, Settings: settings }
+		return { Secrets: secrets, Settings: settings, ModeConfig: modeConfig }
 	} catch {
 		// Proto file doesn't exist, start fresh
-		return { Secrets: {}, Settings: {} }
+		return { Secrets: {}, Settings: {}, ModeConfig: {} }
 	}
 }
 
@@ -406,7 +415,7 @@ function replaceMessage(protoContent, messageName, newMessageContent) {
 	}
 	// Message doesn't exist, append before the first message or at end
 	console.warn(`Warning: ${messageName} message not found in proto file, appending`)
-	return protoContent + "\n\n" + newMessageContent
+	return `${protoContent}\n\n${newMessageContent}`
 }
 
 async function main() {
@@ -427,6 +436,9 @@ async function main() {
 	const settingsFields = [...apiHandlerFields, ...userSettingsFields]
 	console.log(`Found ${settingsFields.length} settings fields`)
 
+	const modeConfigFields = parseFieldDefinitions(sourceFile, "MODE_CONFIG_FIELDS")
+	console.log(`Found ${modeConfigFields.length} ModeConfig fields`)
+
 	// Load existing field numbers from proto file
 	const existingFieldNumbers = await loadFieldNumbersFromProto()
 
@@ -437,10 +449,12 @@ async function main() {
 		1,
 	)
 	const settingsFieldNumbers = assignFieldNumbers(settingsFields, existingFieldNumbers.Settings, 1)
+	const modeConfigFieldNumbers = assignFieldNumbers(modeConfigFields, existingFieldNumbers.ModeConfig, 1)
 
 	// Generate messages
 	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers)
 	const settingsMessage = generateProtoMessage("Settings", settingsFields, settingsFieldNumbers)
+	const modeConfigMessage = generateProtoMessage("ModeConfig", modeConfigFields, modeConfigFieldNumbers)
 
 	// Read existing proto file
 	let protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")
@@ -448,6 +462,7 @@ async function main() {
 	// Replace messages
 	protoContent = replaceMessage(protoContent, "Secrets", secretsMessage)
 	protoContent = replaceMessage(protoContent, "Settings", settingsMessage)
+	protoContent = replaceMessage(protoContent, "ModeConfig", modeConfigMessage)
 
 	// Write updated proto file
 	await fs.writeFile(STATE_PROTO_PATH, protoContent)

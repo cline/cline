@@ -8,6 +8,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the MoonshotProvider component
@@ -23,6 +24,7 @@ interface MoonshotProviderProps {
  */
 export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: MoonshotProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
+	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -85,22 +87,9 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 					<ModelSelector
 						label="Model"
 						models={moonshotModels}
-						onChange={async (e: any) => {
+						onChange={(e: any) => {
 							const value = e.target.value
-
-							await ModelsServiceClient.updateApiConfiguration(
-								UpdateApiConfigurationRequestNew.create(
-									currentMode === "plan"
-										? {
-												updates: { options: { planModeApiModelId: value } },
-												updateMask: ["options.planModeApiModelId"],
-											}
-										: {
-												updates: { options: { actModeApiModelId: value } },
-												updateMask: ["options.actModeApiModelId"],
-											},
-								),
-							)
+							handleModeFieldChange("modelId", value, currentMode)
 						}}
 						selectedModelId={selectedModelId}
 					/>

@@ -16,9 +16,9 @@ export interface BasetenModelPickerProps {
 
 const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { apiConfiguration, basetenModels: dynamicBasetenModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.basetenModelId || basetenDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(modeFields.modelId || basetenDefaultModelId)
 	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -27,21 +27,18 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
-		// Use dynamic models if available, otherwise fall back to static models
 		const modelInfo = dynamicBasetenModels?.[newModelId] || basetenModels[newModelId as keyof typeof basetenModels]
 
-		handleModeFieldsChange(
-			{
-				basetenModelId: { plan: "planModeBasetenModelId", act: "actModeBasetenModelId" },
-				basetenModelInfo: { plan: "planModeBasetenModelInfo", act: "actModeBasetenModelInfo" },
-			},
-			{
-				basetenModelId: newModelId,
-				basetenModelInfo: modelInfo,
-			},
-			currentMode,
-		)
 		setSearchTerm(newModelId)
+
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo,
+			},
+		} as any)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -52,9 +49,9 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	// NOTE: Model list is refreshed automatically on mount or when the API key is set,
 	// no need to refresh here in this component again on mount.
 	useEffect(() => {
-		const currentModelId = modeFields.basetenModelId || basetenDefaultModelId
+		const currentModelId = modeFields.modelId || basetenDefaultModelId
 		setSearchTerm(currentModelId)
-	}, [modeFields.basetenModelId])
+	}, [modeFields.modelId])
 
 	// Debounce search term to reduce re-renders
 	useEffect(() => {

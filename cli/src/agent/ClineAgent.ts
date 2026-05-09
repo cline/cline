@@ -38,7 +38,6 @@ import {
 } from "@shared/api"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
@@ -344,12 +343,10 @@ export class ClineAgent implements acp.Agent {
 		const stateManager = StateManager.get()
 
 		// Get current provider and model for the mode
-		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as ApiProvider | undefined
-
-		// Use provider-specific model ID key (e.g., cline uses actModeOpenRouterModelId)
-		const modelKey = currentProvider ? getProviderModelIdKey(currentProvider, mode) : null
-		const currentModelId = modelKey ? stateManager.getGlobalSettingsKey(modelKey) : undefined
+		const configKey = mode === "act" ? "actConfig" : "planConfig"
+		const currentConfig = stateManager.getGlobalSettingsKey(configKey) as Record<string, unknown> | undefined
+		const currentProvider = currentConfig?.apiProvider as ApiProvider | undefined
+		const currentModelId = currentConfig?.modelId as string | undefined
 
 		// Build the current model ID in provider/model format
 		const currentFullModelId =
@@ -411,19 +408,9 @@ export class ClineAgent implements acp.Agent {
 
 		const stateManager = StateManager.get()
 
-		// Update provider for both modes
-		stateManager.setGlobalState("actModeApiProvider", provider)
-		stateManager.setGlobalState("planModeApiProvider", provider)
-
-		// Update model ID using provider-specific keys (e.g., cline uses actModeOpenRouterModelId)
-		const actProviderModelKey = getProviderModelIdKey(provider, "act")
-		if (actProviderModelKey) {
-			stateManager.setGlobalState(actProviderModelKey, modelId)
-		}
-		const planProviderModelKey = getProviderModelIdKey(provider, "plan")
-		if (planProviderModelKey) {
-			stateManager.setGlobalState(planProviderModelKey, modelId)
-		}
+		// Update provider and model for both modes
+		stateManager.setGlobalState("actConfig", { ...(stateManager.getGlobalSettingsKey("actConfig") || {}), apiProvider: provider, modelId })
+		stateManager.setGlobalState("planConfig", { ...(stateManager.getGlobalSettingsKey("planConfig") || {}), apiProvider: provider, modelId })
 
 		// Store the model override in the session for both modes
 		session.actModeModelId = params.modelId
@@ -1033,8 +1020,8 @@ export class ClineAgent implements acp.Agent {
 					Logger.debug("[ClineAgent] Authentication successful")
 
 					// Set up the provider configuration for cline
-					stateManager.setGlobalState("actModeApiProvider", "cline")
-					stateManager.setGlobalState("planModeApiProvider", "cline")
+					stateManager.setGlobalState("actConfig", { ...(stateManager.getGlobalSettingsKey("actConfig") || {}), apiProvider: "cline" })
+					stateManager.setGlobalState("planConfig", { ...(stateManager.getGlobalSettingsKey("planConfig") || {}), apiProvider: "cline" })
 					await stateManager.flushPendingState()
 
 					return {}
@@ -1191,13 +1178,8 @@ export class ClineAgent implements acp.Agent {
 
 			// Success - configure the provider
 			const stateManager = StateManager.get()
-			stateManager.setGlobalState("actModeApiProvider", "openai-codex")
-			stateManager.setGlobalState("planModeApiProvider", "openai-codex")
-			// Use provider-specific model ID keys for consistency
-			const actModelKey = getProviderModelIdKey("openai-codex", "act")
-			const planModelKey = getProviderModelIdKey("openai-codex", "plan")
-			if (actModelKey) stateManager.setGlobalState(actModelKey, openAiCodexDefaultModelId)
-			if (planModelKey) stateManager.setGlobalState(planModelKey, openAiCodexDefaultModelId)
+			stateManager.setGlobalState("actConfig", { ...(stateManager.getGlobalSettingsKey("actConfig") || {}), apiProvider: "openai-codex", modelId: openAiCodexDefaultModelId })
+			stateManager.setGlobalState("planConfig", { ...(stateManager.getGlobalSettingsKey("planConfig") || {}), apiProvider: "openai-codex", modelId: openAiCodexDefaultModelId })
 			await stateManager.flushPendingState()
 
 			return {}

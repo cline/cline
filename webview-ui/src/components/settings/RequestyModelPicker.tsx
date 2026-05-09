@@ -23,9 +23,9 @@ export interface RequestyModelPickerProps {
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(modeFields.modelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -36,26 +36,16 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 	const requestyModelListUrl = resolvedUrl != null ? new URL("models", resolvedUrl) : undefined
 
 	const handleModelChange = (newModelId: string) => {
-		// could be setting invalid model id/undefined info but validation will catch it
-
-		handleModeFieldsChange(
-			{
-				requestyModelId: {
-					plan: "planModeRequestyModelId",
-					act: "actModeRequestyModelId",
-				},
-				requestyModelInfo: {
-					plan: "planModeRequestyModelInfo",
-					act: "actModeRequestyModelInfo",
-				},
-			},
-			{
-				requestyModelId: newModelId,
-				requestyModelInfo: requestyModels[newModelId],
-			},
-			currentMode,
-		)
 		setSearchTerm(newModelId)
+
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo: requestyModels[newModelId],
+			},
+		} as any)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {

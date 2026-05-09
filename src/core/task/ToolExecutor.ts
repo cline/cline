@@ -281,7 +281,7 @@ export class ToolExecutor {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const providerId = (mode === "plan" ? apiConfig.planConfig?.apiProvider : apiConfig.actConfig?.apiProvider) as string
 		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
 	}
 

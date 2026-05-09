@@ -14,7 +14,8 @@ import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
+import { DEFAULT_API_PROVIDER } from "@shared/api"
+import { GlobalStateAndSettings, ModeConfigSettings } from "@/shared/storage/state-keys"
 import { Controller } from ".."
 
 /**
@@ -99,17 +100,12 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 
 			// Fetch current config to determine existing model selections
 			const apiConfiguration = controller.stateManager.getApiConfiguration()
-			const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+			const planConfig = apiConfiguration.planConfig ?? ({} as ModeConfigSettings)
+			const actConfig = apiConfiguration.actConfig ?? ({} as ModeConfigSettings)
 
 			const planModeSelectedModelId =
-				apiConfiguration?.planModeOcaModelId && models[apiConfiguration.planModeOcaModelId]
-					? apiConfiguration.planModeOcaModelId
-					: defaultModelId!
-			const actModeSelectedModelId =
-				apiConfiguration?.actModeOcaModelId && models[apiConfiguration.actModeOcaModelId]
-					? apiConfiguration.actModeOcaModelId
-					: defaultModelId!
+				planConfig.modelId && models[planConfig.modelId] ? planConfig.modelId : defaultModelId!
+			const actModeSelectedModelId = actConfig.modelId && models[actConfig.modelId] ? actConfig.modelId : defaultModelId!
 
 			let planModeOcaReasoningEffort
 			let actModeOcaReasoningEffort
@@ -117,39 +113,33 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				models[planModeSelectedModelId].supportsReasoning &&
 				models[planModeSelectedModelId].reasoningEffortOptions.length > 0
 			) {
-				planModeOcaReasoningEffort = apiConfiguration.planModeOcaReasoningEffort
-					? apiConfiguration.planModeOcaReasoningEffort
-					: models[planModeSelectedModelId].reasoningEffortOptions[0]
+				planModeOcaReasoningEffort =
+					planConfig.ocaReasoningEffort ?? models[planModeSelectedModelId].reasoningEffortOptions[0]
 			}
 			if (
 				models[actModeSelectedModelId].supportsReasoning &&
 				models[actModeSelectedModelId].reasoningEffortOptions.length > 0
 			) {
-				actModeOcaReasoningEffort = apiConfiguration.actModeOcaReasoningEffort
-					? apiConfiguration.actModeOcaReasoningEffort
-					: models[actModeSelectedModelId].reasoningEffortOptions[0]
+				actModeOcaReasoningEffort =
+					actConfig.ocaReasoningEffort ?? models[actModeSelectedModelId].reasoningEffortOptions[0]
 			}
 
-			// Build updates object based on plan/act mode setting
-			const updates: Partial<GlobalStateAndSettings> = {}
-
-			if (planActSeparateModelsSetting) {
-				if (currentMode === "plan") {
-					updates.planModeOcaModelId = planModeSelectedModelId
-					updates.planModeOcaModelInfo = models[planModeSelectedModelId]
-					updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
-				} else {
-					updates.actModeOcaModelId = actModeSelectedModelId
-					updates.actModeOcaModelInfo = models[actModeSelectedModelId]
-					updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
-				}
-			} else {
-				updates.planModeOcaModelId = planModeSelectedModelId
-				updates.planModeOcaModelInfo = models[planModeSelectedModelId]
-				updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
-				updates.actModeOcaModelId = actModeSelectedModelId
-				updates.actModeOcaModelInfo = models[actModeSelectedModelId]
-				updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
+			// Build updates - always update both plan and act configs
+			const updates: Partial<GlobalStateAndSettings> = {
+				planConfig: {
+					...planConfig,
+					apiProvider: planConfig.apiProvider ?? DEFAULT_API_PROVIDER,
+					modelId: planModeSelectedModelId,
+					modelInfo: models[planModeSelectedModelId],
+					...(planModeOcaReasoningEffort !== undefined && { ocaReasoningEffort: planModeOcaReasoningEffort }),
+				} as ModeConfigSettings,
+				actConfig: {
+					...actConfig,
+					apiProvider: actConfig.apiProvider ?? DEFAULT_API_PROVIDER,
+					modelId: actModeSelectedModelId,
+					modelInfo: models[actModeSelectedModelId],
+					...(actModeOcaReasoningEffort !== undefined && { ocaReasoningEffort: actModeOcaReasoningEffort }),
+				} as ModeConfigSettings,
 			}
 
 			// Update state directly using batch method

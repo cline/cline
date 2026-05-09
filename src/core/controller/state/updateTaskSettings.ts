@@ -34,12 +34,10 @@ export async function updateTaskSettings(controller: Controller, request: Update
 			const {
 				// Fields requiring conversion
 				autoApprovalSettings,
-				planModeReasoningEffort,
-				actModeReasoningEffort,
+				planConfig,
+				actConfig,
 				mode,
 				customPrompt,
-				planModeApiProvider,
-				actModeApiProvider,
 				// Fields requiring special logic
 				browserSettings,
 				...simpleSettings
@@ -72,14 +70,24 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				controller.stateManager.setTaskSettings(taskId, "autoApprovalSettings", mergedSettings)
 			}
 
-			if (planModeReasoningEffort !== undefined) {
-				const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)
-				controller.stateManager.setTaskSettings(taskId, "planModeReasoningEffort", converted)
+			if (planConfig?.reasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(planConfig.reasoningEffort)
+				const currentPlanConfig = controller.stateManager.getApiConfiguration().planConfig ?? {}
+				controller.stateManager.setTaskSettings(taskId, "planConfig", {
+					apiProvider: "openrouter" as const,
+					...currentPlanConfig,
+					reasoningEffort: converted,
+				})
 			}
 
-			if (actModeReasoningEffort !== undefined) {
-				const converted = normalizeOpenaiReasoningEffort(actModeReasoningEffort)
-				controller.stateManager.setTaskSettings(taskId, "actModeReasoningEffort", converted)
+			if (actConfig?.reasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(actConfig.reasoningEffort)
+				const currentActConfig = controller.stateManager.getApiConfiguration().actConfig ?? {}
+				controller.stateManager.setTaskSettings(taskId, "actConfig", {
+					apiProvider: "openrouter" as const,
+					...currentActConfig,
+					reasoningEffort: converted,
+				})
 			}
 
 			if (mode !== undefined) {
@@ -91,14 +99,16 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				controller.stateManager.setTaskSettings(taskId, "customPrompt", "compact")
 			}
 
-			if (planModeApiProvider !== undefined) {
-				const converted = convertProtoToApiProvider(planModeApiProvider)
-				controller.stateManager.setTaskSettings(taskId, "planModeApiProvider", converted)
+			if (planConfig?.apiProvider !== undefined) {
+				const converted = convertProtoToApiProvider(planConfig.apiProvider) as import("@shared/api").ApiProvider
+				const currentPlanConfig = controller.stateManager.getApiConfiguration().planConfig ?? {}
+				controller.stateManager.setTaskSettings(taskId, "planConfig", { ...currentPlanConfig, apiProvider: converted })
 			}
 
-			if (actModeApiProvider !== undefined) {
-				const converted = convertProtoToApiProvider(actModeApiProvider)
-				controller.stateManager.setTaskSettings(taskId, "actModeApiProvider", converted)
+			if (actConfig?.apiProvider !== undefined) {
+				const converted = convertProtoToApiProvider(actConfig.apiProvider) as import("@shared/api").ApiProvider
+				const currentActConfig = controller.stateManager.getApiConfiguration().actConfig ?? {}
+				controller.stateManager.setTaskSettings(taskId, "actConfig", { ...currentActConfig, apiProvider: converted })
 			}
 
 			// Update browser settings (requires careful merging to avoid protobuf defaults)

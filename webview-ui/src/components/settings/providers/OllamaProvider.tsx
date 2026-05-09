@@ -29,7 +29,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+	const { modelId: ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -82,7 +82,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
 				onModelChange={(modelId) => {
-					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
+					handleModeFieldChange("modelId", modelId, currentMode)
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
 				selectedModelId={ollamaModelId || ""}

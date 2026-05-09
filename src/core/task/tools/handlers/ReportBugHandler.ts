@@ -80,7 +80,8 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		const host = await HostProvider.env.getHostVersion({})
 		const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
 		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		const modeConfig = currentMode === "plan" ? apiConfig?.planConfig : apiConfig?.actConfig
+		const apiProvider = modeConfig?.apiProvider ?? "anthropic"
 		const providerAndModel = `${apiProvider} / ${config.api.getModel().id}`
 
 		// Ask user for confirmation

@@ -3,8 +3,9 @@
  * Used by both AuthView (onboarding) and SettingsPanelContent (settings)
  */
 
-import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
+import type { ApiConfiguration, ApiProvider } from "@shared/api"
+import { ProviderToApiKeyMap } from "@shared/storage"
+import { type ModeConfigSettings } from "@shared/storage"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
@@ -27,20 +28,16 @@ export interface ApplyProviderConfigOptions {
 export async function applyProviderConfig(options: ApplyProviderConfigOptions): Promise<void> {
 	const { providerId, apiKey, modelId, baseUrl, controller } = options
 	const stateManager = StateManager.get()
+	const provider = providerId as ApiProvider
 
-	const config: Record<string, string> = {
-		actModeApiProvider: providerId,
-		planModeApiProvider: providerId,
-	}
+	const planConfig: ModeConfigSettings = { apiProvider: provider }
+	const actConfig: ModeConfigSettings = { apiProvider: provider }
 
 	// Add model ID (use provided or fall back to default)
-	// Use provider-specific model ID keys (e.g., actModeOpenRouterModelId for cline/openrouter)
 	const finalModelId = modelId || getDefaultModelId(providerId)
 	if (finalModelId) {
-		const actModelKey = getProviderModelIdKey(providerId as ApiProvider, "act")
-		const planModelKey = getProviderModelIdKey(providerId as ApiProvider, "plan")
-		if (actModelKey) config[actModelKey] = finalModelId
-		if (planModelKey) config[planModelKey] = finalModelId
+		planConfig.modelId = finalModelId
+		actConfig.modelId = finalModelId
 
 		// Fetch model info from the provider API (not just disk cache) so headless
 		// CLI auth gets correct maxTokens, thinkingConfig, etc.
@@ -48,17 +45,23 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 			const openRouterModels = await refreshOpenRouterModels(controller)
 			const modelInfo = openRouterModels?.[finalModelId]
 			if (modelInfo) {
-				stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
-				stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+				planConfig.modelInfo = modelInfo
+				actConfig.modelInfo = modelInfo
 			}
 		} else if (providerId === "vercel-ai-gateway" && controller) {
 			const vercelModels = await refreshVercelAiGatewayModels(controller)
 			const modelInfo = vercelModels?.[finalModelId]
 			if (modelInfo) {
-				stateManager.setGlobalState("actModeVercelAiGatewayModelInfo", modelInfo)
-				stateManager.setGlobalState("planModeVercelAiGatewayModelInfo", modelInfo)
+				planConfig.modelInfo = modelInfo
+				actConfig.modelInfo = modelInfo
 			}
 		}
+	}
+
+	// Build API configuration with nested mode configs
+	const apiConfig: Partial<ApiConfiguration> = {
+		planConfig,
+		actConfig,
 	}
 
 	// Add API key if provided (maps to provider-specific field like anthropicApiKey, openAiApiKey, etc.)
@@ -66,24 +69,24 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 		const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
 		if (keyField) {
 			const fields = Array.isArray(keyField) ? keyField : [keyField]
-			config[fields[0]] = apiKey
+			;(apiConfig as Record<string, unknown>)[fields[0]] = apiKey
 		}
 	}
 
 	// Add base URL if provided (for OpenAI-compatible providers)
 	if (baseUrl) {
-		config.openAiBaseUrl = baseUrl
+		apiConfig.openAiBaseUrl = baseUrl
 	}
 
 	// Save via StateManager
-	stateManager.setApiConfiguration(config)
+	stateManager.setApiConfiguration(apiConfig as ApiConfiguration)
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
 	if (controller?.task) {
 		const currentMode = stateManager.getGlobalSettingsKey("mode")
-		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+		const config = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...config, ulid: controller.task.ulid }, currentMode)
 	}
 }
 
@@ -104,49 +107,51 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 	const { bedrockConfig, modelId, customModelBaseId, controller } = options
 	const stateManager = StateManager.get()
 
-	const config: Record<string, unknown> = {
-		actModeApiProvider: "bedrock",
-		planModeApiProvider: "bedrock",
+	const planConfig: ModeConfigSettings = { apiProvider: "bedrock" }
+	const actConfig: ModeConfigSettings = { apiProvider: "bedrock" }
+
+	// Add model ID
+	const finalModelId = modelId || getDefaultModelId("bedrock")
+	if (finalModelId) {
+		planConfig.modelId = finalModelId
+		actConfig.modelId = finalModelId
+	}
+
+	// Handle custom model (Application Inference Profile ARN)
+	if (customModelBaseId) {
+		planConfig.awsBedrockCustomSelected = true
+		actConfig.awsBedrockCustomSelected = true
+		planConfig.awsBedrockCustomModelBaseId = customModelBaseId
+		actConfig.awsBedrockCustomModelBaseId = customModelBaseId
+	} else {
+		// Ensure custom flags are cleared when using a standard model
+		planConfig.awsBedrockCustomSelected = false
+		actConfig.awsBedrockCustomSelected = false
+	}
+
+	// Build API configuration with nested mode configs
+	const apiConfig: Record<string, unknown> = {
+		planConfig,
+		actConfig,
 		awsAuthentication: bedrockConfig.awsAuthentication,
 		awsRegion: bedrockConfig.awsRegion,
 		awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
 	}
 
-	// Add model ID
-	const finalModelId = modelId || getDefaultModelId("bedrock")
-	if (finalModelId) {
-		const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
-		const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
-		if (actModelKey) config[actModelKey] = finalModelId
-		if (planModelKey) config[planModelKey] = finalModelId
-	}
-
-	// Handle custom model (Application Inference Profile ARN)
-	if (customModelBaseId) {
-		config.actModeAwsBedrockCustomSelected = true
-		config.planModeAwsBedrockCustomSelected = true
-		config.actModeAwsBedrockCustomModelBaseId = customModelBaseId
-		config.planModeAwsBedrockCustomModelBaseId = customModelBaseId
-	} else {
-		// Ensure custom flags are cleared when using a standard model
-		config.actModeAwsBedrockCustomSelected = false
-		config.planModeAwsBedrockCustomSelected = false
-	}
-
 	// Add optional AWS credentials
-	if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
-	if (bedrockConfig.awsAccessKey) config.awsAccessKey = bedrockConfig.awsAccessKey
-	if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
-	if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
+	if (bedrockConfig.awsProfile !== undefined) apiConfig.awsProfile = bedrockConfig.awsProfile
+	if (bedrockConfig.awsAccessKey) apiConfig.awsAccessKey = bedrockConfig.awsAccessKey
+	if (bedrockConfig.awsSecretKey) apiConfig.awsSecretKey = bedrockConfig.awsSecretKey
+	if (bedrockConfig.awsSessionToken) apiConfig.awsSessionToken = bedrockConfig.awsSessionToken
 
 	// Save via StateManager
-	stateManager.setApiConfiguration(config as Record<string, string>)
+	stateManager.setApiConfiguration(apiConfig as ApiConfiguration)
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
 	if (controller?.task) {
 		const currentMode = stateManager.getGlobalSettingsKey("mode")
-		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+		const config = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...config, ulid: controller.task.ulid }, currentMode)
 	}
 }

@@ -6,7 +6,7 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider, ModelInfo } from "@shared/api"
-import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
+import { isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
@@ -196,22 +196,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		return initial as Record<FeatureKey, boolean>
 	})
 
-	// API tab state
-	const [separateModels, setSeparateModels] = useState<boolean>(
-		() => stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false,
-	)
 	// Thinking is enabled if budget > 0
 	const [actThinkingEnabled, setActThinkingEnabled] = useState<boolean>(
-		() => (stateManager.getGlobalSettingsKey("actModeThinkingBudgetTokens") ?? 0) > 0,
+		() => (stateManager.getGlobalSettingsKey("actConfig")?.thinkingBudgetTokens ?? 0) > 0,
 	)
 	const [planThinkingEnabled, setPlanThinkingEnabled] = useState<boolean>(
-		() => (stateManager.getGlobalSettingsKey("planModeThinkingBudgetTokens") ?? 0) > 0,
+		() => (stateManager.getGlobalSettingsKey("planConfig")?.thinkingBudgetTokens ?? 0) > 0,
 	)
 	const [actReasoningEffort, setActReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
-		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort")),
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actConfig")?.reasoningEffort),
 	)
 	const [planReasoningEffort, setPlanReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
-		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("planModeReasoningEffort")),
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("planConfig")?.reasoningEffort),
 	)
 
 	// Auto-approve settings (complex nested object)
@@ -240,8 +236,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Get current provider and model info
 	const [provider, setProvider] = useState<string>(
 		() =>
-			stateManager.getApiConfiguration().actModeApiProvider ||
-			stateManager.getApiConfiguration().planModeApiProvider ||
+			stateManager.getApiConfiguration().actConfig?.apiProvider ||
+			stateManager.getApiConfiguration().planConfig?.apiProvider ||
 			"not configured",
 	)
 	// Refresh trigger to force re-reading model IDs from state
@@ -251,7 +247,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// OCA auth hook
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
-		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		// Fetch OCA models from the API - this sets actConfig/planConfig in state
 		await refreshOcaModels(controller!, StringRequest.create({ value: "" }))
 		setProvider("oca")
 		refreshModelIds()
@@ -269,17 +265,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	// Read model IDs from state (re-reads when refreshKey changes)
 	const { actModelId, planModelId } = useMemo(() => {
-		const apiConfig = stateManager.getApiConfiguration()
-		const actProvider = apiConfig.actModeApiProvider
-		const planProvider = apiConfig.planModeApiProvider || actProvider
-		if (!actProvider && !planProvider) {
-			return { actModelId: "", planModelId: "" }
-		}
-		const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
-		const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
+		const actConfig = stateManager.getGlobalSettingsKey("actConfig") as Record<string, unknown> | undefined
+		const planConfig = stateManager.getGlobalSettingsKey("planConfig") as Record<string, unknown> | undefined
 		return {
-			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey) as string) || "" : "",
-			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey) as string) || "" : "",
+			actModelId: (actConfig?.modelId as string) || "",
+			planModelId: (planConfig?.modelId as string) || "",
 		}
 	}, [modelRefreshKey, stateManager])
 
@@ -464,99 +454,62 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					...(provider === "cline"
 						? [{ key: "viewAccount", label: "View account", type: "action" as const, value: "" }]
 						: []),
-					...(separateModels
-						? [
-								{ key: "spacer0", label: "", type: "spacer" as const, value: "" },
-								{ key: "actHeader", label: "Act Mode", type: "header" as const, value: "" },
-								{
-									key: "actModelId",
-									label: "Model ID",
-									type: "editable" as const,
-									value: actModelId || "not set",
-								},
-								...(showActThinkingOption
-									? [
-											{
-												key: "actThinkingEnabled",
-												label: "Enable thinking",
-												type: "checkbox" as const,
-												value: actThinkingEnabled,
-											},
-										]
-									: []),
-								...(showActReasoningEffort
-									? [
-											{
-												key: "actReasoningEffort",
-												label: "Reasoning effort",
-												type: "cycle" as const,
-												value: actReasoningEffort,
-											},
-										]
-									: []),
-								{ key: "planHeader", label: "Plan Mode", type: "header" as const, value: "" },
-								{
-									key: "planModelId",
-									label: "Model ID",
-									type: "editable" as const,
-									value: planModelId || "not set",
-								},
-								...(showPlanThinkingOption
-									? [
-											{
-												key: "planThinkingEnabled",
-												label: "Enable thinking",
-												type: "checkbox" as const,
-												value: planThinkingEnabled,
-											},
-										]
-									: []),
-								...(showPlanReasoningEffort
-									? [
-											{
-												key: "planReasoningEffort",
-												label: "Reasoning effort",
-												type: "cycle" as const,
-												value: planReasoningEffort,
-											},
-										]
-									: []),
-								{ key: "spacer1", label: "", type: "spacer" as const, value: "" },
-							]
-						: [
-								{
-									key: "actModelId",
-									label: "Model ID",
-									type: "editable" as const,
-									value: actModelId || "not set",
-								},
-								...(showActThinkingOption
-									? [
-											{
-												key: "actThinkingEnabled",
-												label: "Enable thinking",
-												type: "checkbox" as const,
-												value: actThinkingEnabled,
-											},
-										]
-									: []),
-								...(showActReasoningEffort
-									? [
-											{
-												key: "actReasoningEffort",
-												label: "Reasoning effort",
-												type: "cycle" as const,
-												value: actReasoningEffort,
-											},
-										]
-									: []),
-							]),
+					{ key: "spacer0", label: "", type: "spacer" as const, value: "" },
+					{ key: "actHeader", label: "Act Mode", type: "header" as const, value: "" },
 					{
-						key: "separateModels",
-						label: "Use separate models for Plan and Act",
-						type: "checkbox",
-						value: separateModels,
+						key: "actModelId",
+						label: "Model ID",
+						type: "editable" as const,
+						value: actModelId || "not set",
 					},
+					...(showActThinkingOption
+						? [
+								{
+									key: "actThinkingEnabled",
+									label: "Enable thinking",
+									type: "checkbox" as const,
+									value: actThinkingEnabled,
+								},
+							]
+						: []),
+					...(showActReasoningEffort
+						? [
+								{
+									key: "actReasoningEffort",
+									label: "Reasoning effort",
+									type: "cycle" as const,
+									value: actReasoningEffort,
+								},
+							]
+						: []),
+					{ key: "planHeader", label: "Plan Mode", type: "header" as const, value: "" },
+					{
+						key: "planModelId",
+						label: "Model ID",
+						type: "editable" as const,
+						value: planModelId || "not set",
+					},
+					...(showPlanThinkingOption
+						? [
+								{
+									key: "planThinkingEnabled",
+									label: "Enable thinking",
+									type: "checkbox" as const,
+									value: planThinkingEnabled,
+								},
+							]
+						: []),
+					...(showPlanReasoningEffort
+						? [
+								{
+									key: "planReasoningEffort",
+									label: "Reasoning effort",
+									type: "cycle" as const,
+									value: planReasoningEffort,
+								},
+							]
+						: []),
+					{ key: "spacer1", label: "", type: "spacer" as const, value: "" },
 				]
 
 			case "auto-approve": {
@@ -709,7 +662,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		provider,
 		actModelId,
 		planModelId,
-		separateModels,
 		actThinkingEnabled,
 		planThinkingEnabled,
 		actReasoningEffort,
@@ -760,18 +712,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		(mode: "act" | "plan", effort: OpenaiReasoningEffort) => {
 			if (mode === "act") {
 				setActReasoningEffort(effort)
-				stateManager.setGlobalState("actModeReasoningEffort", effort)
-				if (!separateModels) {
-					setPlanReasoningEffort(effort)
-					stateManager.setGlobalState("planModeReasoningEffort", effort)
-				}
+				stateManager.setGlobalState("actConfig", { ...stateManager.getGlobalSettingsKey("actConfig"), reasoningEffort: effort })
+				setPlanReasoningEffort(effort)
+				stateManager.setGlobalState("planConfig", { ...stateManager.getGlobalSettingsKey("planConfig"), reasoningEffort: effort })
 			} else {
 				setPlanReasoningEffort(effort)
-				stateManager.setGlobalState("planModeReasoningEffort", effort)
+				stateManager.setGlobalState("planConfig", { ...stateManager.getGlobalSettingsKey("planConfig"), reasoningEffort: effort })
 			}
 			rebuildTaskApi()
 		},
-		[separateModels, rebuildTaskApi, stateManager],
+		[rebuildTaskApi, stateManager],
 	)
 
 	// Handle toggle/edit for selected item
@@ -848,50 +798,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			return
 		}
 
-		// API tab
-		if (item.key === "separateModels") {
-			setSeparateModels(newValue)
-			stateManager.setGlobalState("planActSeparateModelsSetting", newValue)
-			// When disabling separate models, sync plan model to act model
-			if (!newValue) {
-				const apiConfig = stateManager.getApiConfiguration()
-				const actProvider = apiConfig.actModeApiProvider
-				const planProvider = apiConfig.planModeApiProvider || actProvider
-				if (actProvider) {
-					const actKey = getProviderModelIdKey(actProvider, "act")
-					const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
-					const actModel = stateManager.getGlobalSettingsKey(actKey)
-					if (planKey) stateManager.setGlobalState(planKey, actModel)
-				}
-				const actThinkingBudget = stateManager.getGlobalSettingsKey("actModeThinkingBudgetTokens") ?? 0
-				stateManager.setGlobalState("planModeThinkingBudgetTokens", actThinkingBudget)
-				setPlanThinkingEnabled(actThinkingBudget > 0)
-
-				const actEffort = normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort"))
-				stateManager.setGlobalState("planModeReasoningEffort", actEffort)
-				setPlanReasoningEffort(actEffort)
-			}
-
-			rebuildTaskApi()
-			return
-		}
-
 		// Thinking toggles - set budget to 1024 when enabled, 0 when disabled
 		if (item.key === "actThinkingEnabled") {
 			setActThinkingEnabled(newValue)
-			stateManager.setGlobalState("actModeThinkingBudgetTokens", newValue ? 1024 : 0)
-			if (!separateModels) {
-				setPlanThinkingEnabled(newValue)
-				stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
-			}
-			// Rebuild API handler to apply thinking budget change
+			stateManager.setGlobalState("actConfig", { ...stateManager.getGlobalSettingsKey("actConfig"), thinkingBudgetTokens: newValue ? 1024 : 0 })
+			setPlanThinkingEnabled(newValue)
+			stateManager.setGlobalState("planConfig", { ...stateManager.getGlobalSettingsKey("planConfig"), thinkingBudgetTokens: newValue ? 1024 : 0 })
 			rebuildTaskApi()
 			return
 		}
 		if (item.key === "planThinkingEnabled") {
 			setPlanThinkingEnabled(newValue)
-			stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
-			// Rebuild API handler to apply thinking budget change
+			stateManager.setGlobalState("planConfig", { ...stateManager.getGlobalSettingsKey("planConfig"), thinkingBudgetTokens: newValue ? 1024 : 0 })
 			rebuildTaskApi()
 			return
 		}
@@ -949,7 +867,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		handleClineLogin,
 		handleClineLogout,
 		accountOrganizations,
-		separateModels,
 		actReasoningEffort,
 		planReasoningEffort,
 		rebuildTaskApi,
@@ -1007,17 +924,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			}
 
 			const apiConfig = stateManager.getApiConfiguration()
-			const actProvider = apiConfig.actModeApiProvider
-			const planProvider = apiConfig.planModeApiProvider || actProvider
-			const providerForSelection = separateModels
-				? pickingModelKey === "actModelId"
-					? actProvider
-					: planProvider
-				: actProvider || planProvider
+			const actProvider = apiConfig.actConfig?.apiProvider
+			const planProvider = apiConfig.planConfig?.apiProvider || actProvider
+			const providerForSelection = pickingModelKey === "actModelId" ? actProvider : planProvider
 			if (!providerForSelection) return
-			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-			const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
-			const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 			// For cline/openrouter providers, also set model info (like webview does)
 			let modelInfo: ModelInfo | undefined
@@ -1026,25 +936,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				modelInfo = openRouterModels?.[modelId]
 			}
 
-			if (separateModels) {
-				// Only update the selected mode's model
-				const stateKey = pickingModelKey === "actModelId" ? actKey : planKey
-				if (stateKey) stateManager.setGlobalState(stateKey, modelId)
-				// Set model info for the selected mode
-				if (modelInfo) {
-					const infoKey =
-						pickingModelKey === "actModelId" ? "actModeOpenRouterModelInfo" : "planModeOpenRouterModelInfo"
-					stateManager.setGlobalState(infoKey, modelInfo)
-				}
+			// Update the selected mode's model directly in config
+			if (pickingModelKey === "actModelId") {
+				stateManager.setGlobalState("actConfig", { ...(stateManager.getGlobalSettingsKey("actConfig") || {}), modelId, ...(modelInfo ? { modelInfo } : {}) })
 			} else {
-				// Update both modes to keep them in sync
-				if (actKey) stateManager.setGlobalState(actKey, modelId)
-				if (planKey) stateManager.setGlobalState(planKey, modelId)
-				// Set model info for both modes
-				if (modelInfo) {
-					stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
-					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
-				}
+				stateManager.setGlobalState("planConfig", { ...(stateManager.getGlobalSettingsKey("planConfig") || {}), modelId, ...(modelInfo ? { modelInfo } : {}) })
 			}
 
 			// Flush pending state to ensure model ID is persisted
@@ -1066,7 +962,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				onClose()
 			}
 		},
-		[pickingModelKey, separateModels, stateManager, controller, provider, refreshModelIds, initialMode, onClose],
+		[pickingModelKey, stateManager, controller, provider, refreshModelIds, initialMode, onClose],
 	)
 
 	// Handle language selection from picker
@@ -1219,23 +1115,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		switch (item.key) {
 			case "actModelId":
 			case "planModelId": {
-				// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-				const apiConfig = stateManager.getApiConfiguration()
-				const actProvider = apiConfig.actModeApiProvider
-				const planProvider = apiConfig.planModeApiProvider || actProvider
-				if (!actProvider && !planProvider) break
-				const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
-				const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
-
-				if (separateModels) {
-					// Only update the selected mode's model
-					const stateKey = item.key === "actModelId" ? actKey : planKey
-					if (stateKey) stateManager.setGlobalState(stateKey, editValue || undefined)
-				} else {
-					// Update both modes to keep them in sync
-					if (actKey) stateManager.setGlobalState(actKey, editValue || undefined)
-					if (planKey) stateManager.setGlobalState(planKey, editValue || undefined)
-				}
+				const configKey = item.key === "actModelId" ? "actConfig" : "planConfig"
+				stateManager.setGlobalState(configKey, { ...(stateManager.getGlobalSettingsKey(configKey) || {}), modelId: editValue || undefined })
 				break
 			}
 			case "language":
@@ -1244,7 +1125,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				break
 		}
 		setIsEditing(false)
-	}, [items, selectedIndex, editValue, separateModels, stateManager])
+	}, [items, selectedIndex, editValue, stateManager])
 
 	// Navigate to next/prev item, skipping non-interactive items
 	const navigateItems = useCallback(

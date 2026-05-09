@@ -73,11 +73,7 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 						label="Model"
 						models={openAiCodexModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

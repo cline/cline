@@ -24,7 +24,7 @@ interface AIhubmixProviderProps {
  */
 export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIhubmixProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleFieldsChange } = useApiConfigurationHandlers()
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const [models, setModels] = useState<Record<string, ModelInfo>>({})
@@ -96,22 +96,14 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 						onChange={(e) => {
 							const newModelId = e.target.value
 							const newModelInfo = models[newModelId] as ModelInfo | undefined
-							if (newModelInfo) {
-								handleModeFieldsChange(
-									{
-										id: { plan: "planModeAihubmixModelId", act: "actModeAihubmixModelId" },
-										info: { plan: "planModeAihubmixModelInfo", act: "actModeAihubmixModelInfo" },
-									},
-									{ id: newModelId, info: newModelInfo },
-									currentMode,
-								)
-							} else {
-								handleModeFieldChange(
-									{ plan: "planModeAihubmixModelId", act: "actModeAihubmixModelId" },
-									newModelId,
-									currentMode,
-								)
-							}
+							const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+							handleFieldsChange({
+								[modeKey]: {
+									...(apiConfiguration as any)?.[modeKey],
+									modelId: newModelId,
+									...(newModelInfo ? { modelInfo: newModelInfo } : {}),
+								},
+							} as any)
 						}}
 						selectedModelId={selectedModelId}
 					/>

@@ -15,7 +15,7 @@ interface HuaweiCloudMaasProviderProps {
 
 export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode }: HuaweiCloudMaasProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleFieldsChange } = useApiConfigurationHandlers()
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
@@ -35,25 +35,14 @@ export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode
 						onChange={(e: any) => {
 							const modelId = e.target.value
 							const modelInfo = huaweiCloudMaasModels[modelId as keyof typeof huaweiCloudMaasModels]
-							handleModeFieldsChange(
-								{
-									apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-									huaweiCloudMaaSModelId: {
-										plan: "planModeHuaweiCloudMaasModelId",
-										act: "actModeHuaweiCloudMaasModelId",
-									},
-									huaweiCloudMaaSModelInfo: {
-										plan: "planModeHuaweiCloudMaasModelInfo",
-										act: "actModeHuaweiCloudMaasModelInfo",
-									},
+							const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+							handleFieldsChange({
+								[modeKey]: {
+									...(apiConfiguration as any)?.[modeKey],
+									modelId,
+									modelInfo,
 								},
-								{
-									apiModelId: modelId,
-									huaweiCloudMaaSModelId: modelId,
-									huaweiCloudMaaSModelInfo: modelInfo,
-								},
-								currentMode,
-							)
+							} as any)
 						}}
 						selectedModelId={selectedModelId}
 					/>

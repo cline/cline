@@ -78,11 +78,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 						label="Model"
 						models={zaiModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

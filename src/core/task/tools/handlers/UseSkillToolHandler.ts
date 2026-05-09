@@ -54,7 +54,8 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 
 		const apiConfig = config.services.stateManager.getApiConfiguration()
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		const modeConfig = currentMode === "plan" ? apiConfig?.planConfig : apiConfig?.actConfig
+		const provider = modeConfig?.apiProvider ?? "anthropic"
 
 		// Show tool message
 		const message = JSON.stringify({ tool: "useSkill", path: skillName })

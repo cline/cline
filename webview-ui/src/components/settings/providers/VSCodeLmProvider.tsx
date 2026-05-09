@@ -56,11 +56,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							}
 							const [vendor, family] = value.split("/")
 
-							handleModeFieldChange(
-								{ plan: "planModeVsCodeLmModelSelector", act: "actModeVsCodeLmModelSelector" },
-								{ vendor, family },
-								currentMode,
-							)
+							handleModeFieldChange("vsCodeLmModelSelector", { vendor, family }, currentMode)
 						}}
 						style={{ width: "100%" }}
 						value={

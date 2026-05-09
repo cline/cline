@@ -1,5 +1,6 @@
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, ModelInfo, type OcaModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { type ModeConfigSettings } from "@shared/storage"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { ClineTool } from "@/shared/tools"
@@ -78,33 +79,33 @@ function createHandlerForProvider(
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
 ): ApiHandler {
+	const modeConfig = options[mode === "plan" ? "planConfig" : "actConfig"]
+
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				apiModelId: modeConfig?.modelId,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "openrouter":
 			return new OpenRouterHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				openRouterApiKey: options.openRouterApiKey,
-				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
-				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
+				openRouterModelId: modeConfig?.modelId,
+				openRouterModelInfo: modeConfig?.modelInfo,
 				openRouterProviderSorting: options.openRouterProviderSorting,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 				enableParallelToolCalling: options.enableParallelToolCalling,
 			})
 		case "bedrock":
 			return new AwsBedrockHandler({
 				onRetryAttempt: options.onRetryAttempt,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 				awsAccessKey: options.awsAccessKey,
 				awsSecretKey: options.awsSecretKey,
 				awsSessionToken: options.awsSessionToken,
@@ -117,25 +118,21 @@ function createHandlerForProvider(
 				awsUseProfile: options.awsUseProfile,
 				awsProfile: options.awsProfile,
 				awsBedrockEndpoint: options.awsBedrockEndpoint,
-				awsBedrockCustomSelected:
-					mode === "plan" ? options.planModeAwsBedrockCustomSelected : options.actModeAwsBedrockCustomSelected,
-				awsBedrockCustomModelBaseId:
-					mode === "plan" ? options.planModeAwsBedrockCustomModelBaseId : options.actModeAwsBedrockCustomModelBaseId,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				awsBedrockCustomSelected: modeConfig?.awsBedrockCustomSelected,
+				awsBedrockCustomModelBaseId: modeConfig?.awsBedrockCustomModelBaseId,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "vertex":
 			return new VertexHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				vertexProjectId: options.vertexProjectId,
 				vertexRegion: options.vertexRegion,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				apiModelId: modeConfig?.modelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				reasoningEffort: modeConfig?.reasoningEffort,
 				ulid: options.ulid,
 			})
 		case "openai":
@@ -146,16 +143,16 @@ function createHandlerForProvider(
 				azureApiVersion: options.azureApiVersion,
 				azureIdentity: options.azureIdentity,
 				openAiHeaders: options.openAiHeaders,
-				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
-				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				openAiModelId: modeConfig?.modelId,
+				openAiModelInfo: modeConfig?.modelInfo,
+				reasoningEffort: modeConfig?.reasoningEffort,
 			})
 		case "ollama":
 			return new OllamaHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				ollamaBaseUrl: options.ollamaBaseUrl,
 				ollamaApiKey: options.ollamaApiKey,
-				ollamaModelId: mode === "plan" ? options.planModeOllamaModelId : options.actModeOllamaModelId,
+				ollamaModelId: modeConfig?.modelId,
 				ollamaApiOptionsCtxNum: options.ollamaApiOptionsCtxNum,
 				requestTimeoutMs: options.requestTimeoutMs,
 			})
@@ -163,7 +160,7 @@ function createHandlerForProvider(
 			return new LmStudioHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				lmStudioBaseUrl: options.lmStudioBaseUrl,
-				lmStudioModelId: mode === "plan" ? options.planModeLmStudioModelId : options.actModeLmStudioModelId,
+				lmStudioModelId: modeConfig?.modelId,
 				lmStudioMaxTokens: options.lmStudioMaxTokens,
 			})
 		case "gemini":
@@ -173,55 +170,52 @@ function createHandlerForProvider(
 				vertexRegion: options.vertexRegion,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				apiModelId: modeConfig?.modelId,
 				ulid: options.ulid,
 			})
 		case "openai-native":
 			return new OpenAiNativeHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				openAiNativeApiKey: options.openAiNativeApiKey,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				apiModelId: modeConfig?.modelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "openai-codex":
 			return new OpenAiCodexHandler({
 				onRetryAttempt: options.onRetryAttempt,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "deepseek":
 			return new DeepSeekHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				deepSeekApiKey: options.deepSeekApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "requesty":
 			return new RequestyHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				requestyBaseUrl: options.requestyBaseUrl,
 				requestyApiKey: options.requestyApiKey,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
-				requestyModelId: mode === "plan" ? options.planModeRequestyModelId : options.actModeRequestyModelId,
-				requestyModelInfo: mode === "plan" ? options.planModeRequestyModelInfo : options.actModeRequestyModelInfo,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
+				requestyModelId: modeConfig?.modelId,
+				requestyModelInfo: modeConfig?.modelInfo,
 			})
 		case "fireworks":
 			return new FireworksHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				fireworksApiKey: options.fireworksApiKey,
-				fireworksModelId: mode === "plan" ? options.planModeFireworksModelId : options.actModeFireworksModelId,
+				fireworksModelId: modeConfig?.modelId,
 			})
 		case "together":
 			return new TogetherHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				togetherApiKey: options.togetherApiKey,
-				togetherModelId: mode === "plan" ? options.planModeTogetherModelId : options.actModeTogetherModelId,
+				togetherModelId: modeConfig?.modelId,
 			})
 		case "qwen":
 			return new QwenHandler({
@@ -229,52 +223,43 @@ function createHandlerForProvider(
 				qwenApiKey: options.qwenApiKey,
 				qwenApiLine:
 					options.qwenApiLine === QwenApiRegions.INTERNATIONAL ? QwenApiRegions.INTERNATIONAL : QwenApiRegions.CHINA,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				apiModelId: modeConfig?.modelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "qwen-code":
 			return new QwenCodeHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				qwenCodeOauthPath: options.qwenCodeOauthPath,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "doubao":
 			return new DoubaoHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				doubaoApiKey: options.doubaoApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "mistral":
 			return new MistralHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				mistralApiKey: options.mistralApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "vscode-lm":
 			return new VsCodeLmHandler({
 				onRetryAttempt: options.onRetryAttempt,
-				vsCodeLmModelSelector:
-					mode === "plan" ? options.planModeVsCodeLmModelSelector : options.actModeVsCodeLmModelSelector,
+				vsCodeLmModelSelector: modeConfig?.vsCodeLmModelSelector,
 			})
 		case "cline": {
-			const clineModelId =
-				(mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId) ||
-				(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
-			const clineModelInfo =
-				(mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo) ||
-				(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				clineAccountId: options.clineAccountId,
 				clineApiKey: options.clineApiKey,
 				ulid: options.ulid,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 				openRouterProviderSorting: options.openRouterProviderSorting,
-				openRouterModelId: clineModelId,
-				openRouterModelInfo: clineModelInfo,
+				openRouterModelId: modeConfig?.modelId,
+				openRouterModelInfo: modeConfig?.modelInfo,
 				enableParallelToolCalling: options.enableParallelToolCalling,
 			})
 		}
@@ -283,11 +268,10 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				liteLlmApiKey: options.liteLlmApiKey,
 				liteLlmBaseUrl: options.liteLlmBaseUrl,
-				liteLlmModelId: mode === "plan" ? options.planModeLiteLlmModelId : options.actModeLiteLlmModelId,
-				liteLlmModelInfo: mode === "plan" ? options.planModeLiteLlmModelInfo : options.actModeLiteLlmModelInfo,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				liteLlmModelId: modeConfig?.modelId,
+				liteLlmModelInfo: modeConfig?.modelInfo,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 				liteLlmUsePromptCache: options.liteLlmUsePromptCache,
 				ulid: options.ulid,
 			})
@@ -296,63 +280,62 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				moonshotApiKey: options.moonshotApiKey,
 				moonshotApiLine: options.moonshotApiLine,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "huggingface":
 			return new HuggingFaceHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				huggingFaceApiKey: options.huggingFaceApiKey,
-				huggingFaceModelId: mode === "plan" ? options.planModeHuggingFaceModelId : options.actModeHuggingFaceModelId,
-				huggingFaceModelInfo:
-					mode === "plan" ? options.planModeHuggingFaceModelInfo : options.actModeHuggingFaceModelInfo,
+				huggingFaceModelId: modeConfig?.modelId,
+				huggingFaceModelInfo: modeConfig?.modelInfo,
 			})
 		case "nebius":
 			return new NebiusHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				nebiusApiKey: options.nebiusApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "asksage":
 			return new AskSageHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				asksageApiKey: options.asksageApiKey,
 				asksageApiUrl: options.asksageApiUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "xai":
 			return new XAIHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				xaiApiKey: options.xaiApiKey,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "sambanova":
 			return new SambanovaHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				sambanovaApiKey: options.sambanovaApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "cerebras":
 			return new CerebrasHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				cerebrasApiKey: options.cerebrasApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "groq":
 			return new GroqHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				groqApiKey: options.groqApiKey,
-				groqModelId: mode === "plan" ? options.planModeGroqModelId : options.actModeGroqModelId,
-				groqModelInfo: mode === "plan" ? options.planModeGroqModelInfo : options.actModeGroqModelInfo,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				groqModelId: modeConfig?.modelId,
+				groqModelInfo: modeConfig?.modelInfo,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "baseten":
 			return new BasetenHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				basetenApiKey: options.basetenApiKey,
-				basetenModelId: mode === "plan" ? options.planModeBasetenModelId : options.actModeBasetenModelId,
-				basetenModelInfo: mode === "plan" ? options.planModeBasetenModelInfo : options.actModeBasetenModelInfo,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				basetenModelId: modeConfig?.modelId,
+				basetenModelInfo: modeConfig?.modelInfo,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "sapaicore":
 			return new SapAiCoreHandler({
@@ -362,29 +345,25 @@ function createHandlerForProvider(
 				sapAiCoreTokenUrl: options.sapAiCoreTokenUrl,
 				sapAiResourceGroup: options.sapAiResourceGroup,
 				sapAiCoreBaseUrl: options.sapAiCoreBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				deploymentId: mode === "plan" ? options.planModeSapAiCoreDeploymentId : options.actModeSapAiCoreDeploymentId,
+				apiModelId: modeConfig?.modelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				deploymentId: modeConfig?.sapAiCoreDeploymentId,
 				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
 			return new ClaudeCodeHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				claudeCodePath: options.claudeCodePath,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				apiModelId: modeConfig?.modelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "huawei-cloud-maas":
 			return new HuaweiCloudMaaSHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				huaweiCloudMaasApiKey: options.huaweiCloudMaasApiKey,
-				huaweiCloudMaasModelId:
-					mode === "plan" ? options.planModeHuaweiCloudMaasModelId : options.actModeHuaweiCloudMaasModelId,
-				huaweiCloudMaasModelInfo:
-					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
+				huaweiCloudMaasModelId: modeConfig?.modelId,
+				huaweiCloudMaasModelInfo: modeConfig?.modelInfo,
 			})
 		case "dify": // Add Dify.ai handler
 			return new DifyHandler({
@@ -395,34 +374,27 @@ function createHandlerForProvider(
 			return new VercelAIGatewayHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
-				openRouterModelId:
-					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
-				openRouterModelInfo:
-					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				openRouterModelId: modeConfig?.modelId,
+				openRouterModelInfo: modeConfig?.modelInfo,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "zai":
 			return new ZAiHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				zaiApiLine: options.zaiApiLine,
 				zaiApiKey: options.zaiApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "oca":
 			return new OcaHandler({
 				ocaMode: options.ocaMode || "internal",
 				ocaBaseUrl: options.ocaBaseUrl,
-				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
-				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,
-				ocaReasoningEffort: mode === "plan" ? options.planModeOcaReasoningEffort : options.actModeOcaReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
-				ocaUsePromptCache:
-					mode === "plan"
-						? options.planModeOcaModelInfo?.supportsPromptCache
-						: options.actModeOcaModelInfo?.supportsPromptCache,
+				ocaModelId: modeConfig?.modelId,
+				ocaModelInfo: modeConfig?.modelInfo as OcaModelInfo | undefined,
+				ocaReasoningEffort: modeConfig?.ocaReasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
+				ocaUsePromptCache: modeConfig?.modelInfo?.supportsPromptCache,
 				taskId: options.ulid,
 			})
 		case "aihubmix":
@@ -431,69 +403,65 @@ function createHandlerForProvider(
 				apiKey: options.aihubmixApiKey,
 				baseURL: options.aihubmixBaseUrl,
 				appCode: options.aihubmixAppCode,
-				modelId: mode === "plan" ? (options as any).planModeAihubmixModelId : (options as any).actModeAihubmixModelId,
-				modelInfo:
-					mode === "plan" ? (options as any).planModeAihubmixModelInfo : (options as any).actModeAihubmixModelInfo,
+				modelId: modeConfig?.modelId,
+				modelInfo: modeConfig?.modelInfo,
 			})
 		case "minimax":
 			return new MinimaxHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				minimaxApiKey: options.minimaxApiKey,
 				minimaxApiLine: options.minimaxApiLine,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				apiModelId: modeConfig?.modelId,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 		case "hicap":
 			return new HicapHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				hicapApiKey: options.hicapApiKey,
-				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
+				hicapModelId: modeConfig?.modelId,
 			})
 		case "nousResearch":
 			return new NousResearchHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
-				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		case "wandb":
 			return new WandbHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				wandbApiKey: options.wandbApiKey,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modeConfig?.modelId,
 			})
 		default:
 			return new AnthropicHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
-				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
-				thinkingBudgetTokens:
-					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				apiModelId: modeConfig?.modelId,
+				reasoningEffort: modeConfig?.reasoningEffort,
+				thinkingBudgetTokens: modeConfig?.thinkingBudgetTokens,
 			})
 	}
 }
 
 export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
-	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
-
-	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
+	const apiProvider = configuration[mode === "plan" ? "planConfig" : "actConfig"]?.apiProvider
 
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors
 	// wrapped in a try-catch for safety, but this should never throw
 	try {
-		const thinkingBudgetTokens = mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens
+		const config = configuration[mode === "plan" ? "planConfig" : "actConfig"]
+		const thinkingBudgetTokens = config?.thinkingBudgetTokens
 		if (thinkingBudgetTokens && thinkingBudgetTokens > 0) {
-			const handler = createHandlerForProvider(apiProvider, options, mode)
+			const handler = createHandlerForProvider(apiProvider, configuration, mode)
 
 			const modelInfo = handler.getModel().info
 			if (modelInfo?.maxTokens && modelInfo.maxTokens > 0 && thinkingBudgetTokens > modelInfo.maxTokens) {
 				const clippedValue = modelInfo.maxTokens - 1
 				if (mode === "plan") {
-					options.planModeThinkingBudgetTokens = clippedValue
+					configuration.planConfig = { ...configuration.planConfig, thinkingBudgetTokens: clippedValue } as ModeConfigSettings
 				} else {
-					options.actModeThinkingBudgetTokens = clippedValue
+					configuration.actConfig = { ...configuration.actConfig, thinkingBudgetTokens: clippedValue } as ModeConfigSettings
 				}
 			} else {
 				return handler // don't rebuild unless its necessary
@@ -503,5 +471,5 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 		Logger.error("buildApiHandler error:", error)
 	}
 
-	return createHandlerForProvider(apiProvider, options, mode)
+	return createHandlerForProvider(apiProvider, configuration, mode)
 }

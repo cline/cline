@@ -126,8 +126,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	// Map OpenAiCompatible provider settings
 	const openAiSettings = remoteConfig.providerSettings?.OpenAiCompatible
 	if (openAiSettings) {
-		transformed.planModeApiProvider = "openai"
-		transformed.actModeApiProvider = "openai"
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: "openai" }
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: "openai" }
 		providers.push("openai")
 
 		if (openAiSettings.openAiBaseUrl !== undefined) {
@@ -147,8 +147,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	// Map AwsBedrock provider settings
 	const awsBedrockSettings = remoteConfig.providerSettings?.AwsBedrock
 	if (awsBedrockSettings) {
-		transformed.planModeApiProvider = "bedrock"
-		transformed.actModeApiProvider = "bedrock"
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: "bedrock" }
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: "bedrock" }
 		providers.push("bedrock")
 
 		if (awsBedrockSettings.awsRegion !== undefined) {
@@ -170,16 +170,16 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	const clineSettings = remoteConfig.providerSettings?.Cline
 	if (clineSettings) {
-		transformed.planModeApiProvider = "cline"
-		transformed.actModeApiProvider = "cline"
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: "cline" }
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: "cline" }
 		providers.push("cline")
 	}
 
 	// Map LiteLLM provider settings
 	const liteLlmSettings = remoteConfig.providerSettings?.LiteLLM
 	if (liteLlmSettings) {
-		transformed.planModeApiProvider = "litellm"
-		transformed.actModeApiProvider = "litellm"
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: "litellm" }
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: "litellm" }
 		providers.push("litellm")
 
 		if (liteLlmSettings.baseUrl !== undefined) {
@@ -190,8 +190,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	// Map Vertex provider settings
 	const vertexSettings = remoteConfig.providerSettings?.Vertex
 	if (vertexSettings) {
-		transformed.planModeApiProvider = "vertex"
-		transformed.actModeApiProvider = "vertex"
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: "vertex" }
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: "vertex" }
 		providers.push("vertex")
 
 		if (vertexSettings.vertexProjectId !== undefined) {
@@ -204,8 +204,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	const anthropicSettings = remoteConfig.providerSettings?.Anthropic
 	if (anthropicSettings) {
-		transformed.planModeApiProvider = "anthropic"
-		transformed.actModeApiProvider = "anthropic"
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: "anthropic" }
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: "anthropic" }
 		providers.push("anthropic")
 
 		if (anthropicSettings.baseUrl) {
@@ -348,11 +348,11 @@ export async function applyRemoteConfig(
 
 	// If the existing configured provider is valid, don't update it
 	const apiConfiguration = stateManager.getApiConfiguration()
-	if (isProviderValid(apiConfiguration.actModeApiProvider, transformed)) {
-		transformed.actModeApiProvider = apiConfiguration.actModeApiProvider
+	if (isProviderValid(apiConfiguration.actConfig?.apiProvider, transformed)) {
+		transformed.actConfig = { ...transformed.actConfig, apiProvider: apiConfiguration.actConfig!.apiProvider }
 	}
-	if (isProviderValid(apiConfiguration.planModeApiProvider, transformed)) {
-		transformed.planModeApiProvider = apiConfiguration.planModeApiProvider
+	if (isProviderValid(apiConfiguration.planConfig?.apiProvider, transformed)) {
+		transformed.planConfig = { ...transformed.planConfig, apiProvider: apiConfiguration.planConfig!.apiProvider }
 	}
 
 	// Build the full new cache and swap atomically to avoid a window where
@@ -399,14 +399,14 @@ const isProviderValid = (provider?: ApiProvider, remoteConfig?: Partial<RemoteCo
 export function filterAllowedRemoteConfigFields(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
 	const updatedFields: Partial<GlobalStateAndSettings> = {}
 
-	const actModeApiProvider = config.actModeApiProvider
+	const actModeApiProvider = config.actConfig?.apiProvider
 	if (isProviderValid(actModeApiProvider)) {
-		updatedFields.actModeApiProvider = actModeApiProvider
+		updatedFields.actConfig = { ...config.actConfig, apiProvider: actModeApiProvider! }
 	}
 
-	const planModeApiProvider = config.planModeApiProvider
+	const planModeApiProvider = config.planConfig?.apiProvider
 	if (isProviderValid(planModeApiProvider)) {
-		updatedFields.planModeApiProvider = planModeApiProvider
+		updatedFields.planConfig = { ...config.planConfig, apiProvider: planModeApiProvider! }
 	}
 
 	return updatedFields

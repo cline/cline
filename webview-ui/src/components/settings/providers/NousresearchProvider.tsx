@@ -40,11 +40,7 @@ export const NousResearchProvider = ({ showModelOptions, isPopup, currentMode }:
 						label="Model"
 						models={nousResearchModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeNousResearchModelId", act: "actModeNousResearchModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

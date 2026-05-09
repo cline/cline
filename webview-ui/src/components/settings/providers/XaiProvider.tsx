@@ -59,11 +59,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						label="Model"
 						models={xaiModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>
@@ -76,11 +72,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 									const isChecked = e.target.checked === true
 									setReasoningEffortSelected(isChecked)
 									if (!isChecked) {
-										handleModeFieldChange(
-											{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
-											"",
-											currentMode,
-										)
+										handleModeFieldChange("reasoningEffort", "", currentMode)
 									}
 								}}
 								style={{ marginTop: 0 }}>
@@ -96,11 +88,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 										<VSCodeDropdown
 											id="reasoning-effort-dropdown"
 											onChange={(e: any) => {
-												handleModeFieldChange(
-													{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
-													e.target.value,
-													currentMode,
-												)
+												handleModeFieldChange("reasoningEffort", e.target.value, currentMode)
 											}}
 											style={{ width: "100%", marginTop: 3 }}
 											value={modeFields.reasoningEffort || "high"}>
