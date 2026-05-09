@@ -1,0 +1,810 @@
+/**
+ * LayerPanel — layer manager content.
+ *
+ *  Compact icon-toolbar per layer (hover for label), inspired by QGIS/ArcGIS layer panel:
+ *    👁 visibility · swatch symbology · 🔍 zoom · 📊 attributes · 💾 export · ↑↓ reorder · ✕ remove
+ *
+ *  Features:
+ *  • Drag-handle reorder: grab the ⠿ gripper and drag a layer row up/down
+ *  • Per-row "show all metadata" toggle and global "ⓘ" toggle
+ *  • Per-layer symbology editor
+ *  • Source badges: 📁 workspace · 🐍 tool · 📥 loaded · 📤 pushed
+ *  • Panel state persisted via mapWorkspace localStorage
+ *
+ * Positioning is the parent's responsibility (see MapToolRibbon).
+ */
+
+import type { MapLayer } from "@shared/proto/cline/map"
+import { RemoveMapLayerRequest } from "@shared/proto/cline/map"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useMapContext } from "../../context/MapContext"
+import { MapServiceClient } from "../../services/grpc-client"
+import { ACCEPTED_EXTENSIONS, loadAndPushFiles } from "./formats"
+import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
+import { SymbologyEditor } from "./SymbologyEditor"
+
+interface LayerPanelContentProps {
+	onZoomToLayer?: (layer: MapLayer) => void
+	onVisibilityChange: (layerId: string, visible: boolean) => void
+	visibleLayerIds: Set<string>
+	mapStyle?: string
+	layerOrder: string[]
+	onReorder: (newOrder: string[]) => void
+}
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+const layerTypeIcon = (t?: string): string => {
+	switch ((t || "").toLowerCase()) {
+		case "point":
+			return "●"
+		case "line":
+			return "〰"
+		case "polygon":
+			return "⬡"
+		case "raster":
+			return "▦"
+		default:
+			return "◈"
+	}
+}
+
+const sourceBadge = (layer: MapLayer): { icon: string; title: string } => {
+	const s = layer.metadata?.source
+	if (s === "workspace") return { icon: "📁", title: "Workspace file" }
+	if (s === "user") return { icon: "📥", title: "Loaded by you" }
+	if (layer.metadata?._run_id || layer.metadata?.tool) return { icon: "🐍", title: "Tool output" }
+	return { icon: "📤", title: "Pushed layer" }
+}
+
+const HIDDEN_KEYS = new Set([
+	"__operation",
+	"source",
+	"path",
+	"lastModified",
+	"originalFormat",
+	"formatIcon",
+	"raster_data_url",
+	"raster_bounds",
+	"raster_opacity",
+	"raster_path",
+	"raster_colormap",
+	"raster_cached",
+	"addedAt",
+])
+
+const niceMetadata = (layer: MapLayer): Array<[string, string]> => {
+	const out: Array<[string, string]> = []
+	const meta = layer.metadata ?? {}
+	if (layer.layerType !== "raster" && layer.geojson) {
+		try {
+			const p = JSON.parse(layer.geojson)
+			if (p?.type === "FeatureCollection" && Array.isArray(p.features)) out.push(["features", String(p.features.length)])
+		} catch {
+			/* ignore */
+		}
+	}
+	const PRIORITY = ["format", "crs", "reprojected", "units", "variable", "tool", "_run_id", "rows"]
+	for (const k of PRIORITY) {
+		if (meta[k]) out.push([k, meta[k]])
+	}
+	return out
+}
+
+const allMetadata = (layer: MapLayer): Array<[string, string]> =>
+	Object.entries(layer.metadata ?? {}).filter(([k]) => !HIDDEN_KEYS.has(k) && !k.startsWith("__"))
+
+const colorSwatch = (layer: MapLayer): string => {
+	if (layer.layerType === "raster") {
+		const cmap = layer.metadata?.raster_colormap ?? "viridis"
+		const gradients: Record<string, string> = {
+			viridis: "linear-gradient(to right, #440154, #31688e, #35b779, #fde725)",
+			viridis_r: "linear-gradient(to right, #fde725, #35b779, #31688e, #440154)",
+			YlOrRd: "linear-gradient(to right, #ffffb2, #fecc5c, #fd8d3c, #e31a1c)",
+			Blues: "linear-gradient(to right, #f7fbff, #6baed6, #2171b5, #084594)",
+			RdYlGn: "linear-gradient(to right, #d73027, #fee08b, #1a9850)",
+			plasma: "linear-gradient(to right, #0d0887, #cc4778, #f0f921)",
+			magma: "linear-gradient(to right, #000004, #b73779, #fcfdbf)",
+			cividis: "linear-gradient(to right, #00224e, #7c7b78, #fde737)",
+		}
+		return gradients[cmap] ?? "linear-gradient(to right, #440154, #fde725)"
+	}
+	return layer.style?.fillColor || layer.style?.color || "#0066CC"
+}
+
+const buildDisplayNames = (layers: MapLayer[]): Map<string, string> => {
+	const counts = new Map<string, number>()
+	for (const l of layers) {
+		const n = l.name || l.id
+		counts.set(n, (counts.get(n) ?? 0) + 1)
+	}
+	const out = new Map<string, string>()
+	for (const l of layers) {
+		const base = l.name || l.id
+		if ((counts.get(base) ?? 0) <= 1) {
+			out.set(l.id, base)
+			continue
+		}
+		const folder = (l.metadata?.path ?? "").replace(/\\/g, "/").split("/").slice(0, -1).join("/")
+		out.set(l.id, folder ? `${base} — ${folder}` : base)
+	}
+	return out
+}
+
+/** Download a layer's content as a file. */
+const exportLayer = (layer: MapLayer, displayName: string) => {
+	if (layer.layerType === "raster") return // raster export not yet supported
+	if (!layer.geojson) return
+	const blob = new Blob([layer.geojson], { type: "application/json" })
+	const url = URL.createObjectURL(blob)
+	const a = document.createElement("a")
+	a.href = url
+	a.download = `${displayName.replace(/[^a-zA-Z0-9_-]/g, "_")}.geojson`
+	a.click()
+	URL.revokeObjectURL(url)
+}
+
+// ─── component ──────────────────────────────────────────────────────────────
+
+export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
+	onZoomToLayer,
+	onVisibilityChange,
+	visibleLayerIds,
+	mapStyle = "dark",
+	layerOrder,
+	onReorder,
+}) => {
+	const { layers } = useMapContext()
+	const persisted = useMemo(() => loadMapWorkspace(), [])
+	const [showDetails, setShowDetails] = useState<boolean>(persisted.layerPanel?.showDetails ?? false)
+	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+	const [attrTableFor, setAttrTableFor] = useState<string | null>(null)
+	const [symbologyFor, setSymbologyFor] = useState<string | null>(null)
+	const [confirmingClear, setConfirmingClear] = useState(false)
+	const [loadStatus, setLoadStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
+
+	// Drag-to-reorder rows
+	const rowDragRef = useRef<{ dragId: string; overIndex: number } | null>(null)
+	const fileInputRef = useRef<HTMLInputElement>(null)
+
+	useEffect(() => {
+		saveMapWorkspace({ layerPanel: { showDetails } })
+	}, [showDetails])
+
+	const isDark = mapStyle === "dark"
+	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
+	const border = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"
+	const subtle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"
+	const danger = "#dc3545"
+
+	const displayNames = useMemo(() => buildDisplayNames(layers), [layers])
+
+	// Sorted layer list respects the custom order maintained in MapView
+	const orderedLayers = useMemo(() => {
+		if (layerOrder.length === 0) return layers
+		const byId = new Map(layers.map((l) => [l.id, l]))
+		const sorted = layerOrder.map((id) => byId.get(id)).filter(Boolean) as MapLayer[]
+		// Append any layers not yet in the order list
+		const inOrder = new Set(layerOrder)
+		for (const l of layers) if (!inOrder.has(l.id)) sorted.push(l)
+		return sorted
+	}, [layers, layerOrder])
+
+	const toggleRowDetails = (id: string) =>
+		setExpandedRows((prev) => {
+			const next = new Set(prev)
+			next.has(id) ? next.delete(id) : next.add(id)
+			return next
+		})
+
+	const handleRemove = async (id: string) => {
+		try {
+			await MapServiceClient.removeMapLayer(RemoveMapLayerRequest.create({ layerId: id }))
+		} catch (err) {
+			console.error("Failed to remove layer:", err)
+		}
+	}
+
+	const handleClearAll = async () => {
+		try {
+			await MapServiceClient.clearMapLayers({})
+		} catch (err) {
+			console.error("Failed to clear layers:", err)
+		} finally {
+			setConfirmingClear(false)
+		}
+	}
+
+	// ── row drag-to-reorder ───────────────────────────────────────────────
+	const onRowDragStart = useCallback((e: React.DragEvent, id: string) => {
+		e.dataTransfer.effectAllowed = "move"
+		e.dataTransfer.setData("text/plain", id)
+		rowDragRef.current = { dragId: id, overIndex: -1 }
+	}, [])
+
+	const onRowDragOver = useCallback((e: React.DragEvent, overIndex: number) => {
+		e.preventDefault()
+		e.dataTransfer.dropEffect = "move"
+		if (rowDragRef.current) rowDragRef.current.overIndex = overIndex
+	}, [])
+
+	const onRowDrop = useCallback(
+		(e: React.DragEvent, dropIndex: number) => {
+			e.preventDefault()
+			const dragId = e.dataTransfer.getData("text/plain")
+			if (!dragId) return
+			const currentOrder = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
+			const fromIndex = currentOrder.indexOf(dragId)
+			if (fromIndex === -1 || fromIndex === dropIndex) return
+			const next = [...currentOrder]
+			next.splice(fromIndex, 1)
+			next.splice(dropIndex, 0, dragId)
+			onReorder(next)
+		},
+		[layerOrder, orderedLayers, onReorder],
+	)
+
+	// ── file picker ───────────────────────────────────────────────────────
+	const onPickFiles = () => fileInputRef.current?.click()
+
+	const onFilesPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const files = e.target.files
+		if (!files || files.length === 0) return
+		setLoadStatus({ kind: "idle", msg: `Loading…` })
+		const result = await loadAndPushFiles(files)
+		if (result.loaded > 0 && result.errors.length === 0)
+			setLoadStatus({ kind: "ok", msg: `Loaded ${result.loaded} layer${result.loaded > 1 ? "s" : ""}.` })
+		else if (result.loaded > 0)
+			setLoadStatus({
+				kind: "ok",
+				msg: `Loaded ${result.loaded}, ${result.errors.length} error${result.errors.length > 1 ? "s" : ""}.`,
+			})
+		else setLoadStatus({ kind: "err", msg: result.errors[0] ?? "No files loaded." })
+		if (fileInputRef.current) fileInputRef.current.value = ""
+		window.setTimeout(() => setLoadStatus({ kind: "idle", msg: "" }), 5000)
+	}
+
+	return (
+		<div
+			style={{
+				flex: 1,
+				display: "flex",
+				flexDirection: "column",
+				overflow: "hidden",
+				minHeight: 0,
+				color: fg,
+				fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
+			}}>
+			<input
+				accept={ACCEPTED_EXTENSIONS}
+				multiple
+				onChange={onFilesPicked}
+				ref={fileInputRef}
+				style={{ display: "none" }}
+				type="file"
+			/>
+
+			{/* "Show all details" toggle row — sits above the Add Layer bar */}
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					padding: "4px 8px",
+					borderBottom: `1px solid ${border}`,
+					background: subtle,
+					gap: 4,
+				}}>
+				<span style={{ fontSize: 11, opacity: 0.7, flex: 1 }}>
+					{layers.length === 0 ? "Empty" : `${layers.length} layer${layers.length === 1 ? "" : "s"}`}
+				</span>
+				<IconBtn
+					active={showDetails}
+					border={border}
+					fg={fg}
+					onClick={() => setShowDetails((v) => !v)}
+					title={showDetails ? "Hide all details" : "Show all details"}>
+					ⓘ
+				</IconBtn>
+			</div>
+
+			{/* Add Layer bar */}
+			<div style={{ padding: "6px 8px", borderBottom: `1px solid ${border}` }}>
+				<button
+					onClick={onPickFiles}
+					style={{
+						width: "100%",
+						padding: "6px 8px",
+						fontSize: 12,
+						fontWeight: 500,
+						background: "var(--vscode-button-background, #0e639c)",
+						color: "var(--vscode-button-foreground, #fff)",
+						border: "none",
+						borderRadius: 3,
+						cursor: "pointer",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						gap: 6,
+					}}
+					title="Add layer from file (GeoJSON, KML, KMZ, GPX, Shapefile.zip, GeoTIFF, CSV)"
+					type="button">
+					<span>＋</span>
+					<span>Add Layer…</span>
+				</button>
+				{loadStatus.msg && (
+					<div
+						style={{
+							marginTop: 4,
+							fontSize: 11,
+							color: loadStatus.kind === "err" ? danger : "var(--vscode-descriptionForeground, #999)",
+						}}>
+						{loadStatus.msg}
+					</div>
+				)}
+			</div>
+
+			{/* Layer list */}
+			<div style={{ flex: 1, overflowY: "auto", padding: 6, minHeight: 0 }}>
+				{orderedLayers.length === 0 ? (
+					<div style={{ padding: 16, textAlign: "center", fontSize: 12, opacity: 0.75, lineHeight: 1.6 }}>
+						<div style={{ fontSize: 32, marginBottom: 8 }}>🗺️</div>
+						<div style={{ fontWeight: 600, marginBottom: 4 }}>No layers yet</div>
+						<div>
+							Click <strong>＋ Add Layer</strong> above,
+							<br />
+							or right-click a file in the
+							<br />
+							VS Code Explorer →
+							<br />
+							<strong>Add to AI-Hydro Map</strong>
+						</div>
+						<div style={{ fontSize: 10, marginTop: 10, opacity: 0.7 }}>
+							GeoJSON · KML · KMZ · GPX
+							<br />
+							Shapefile (.zip) · GeoTIFF · CSV
+						</div>
+					</div>
+				) : (
+					orderedLayers.map((layer, idx) => {
+						const isVisible = visibleLayerIds.has(layer.id)
+						const swatch = colorSwatch(layer)
+						const badge = sourceBadge(layer)
+						const niceMeta = niceMetadata(layer)
+						const expanded = expandedRows.has(layer.id)
+						const detailsOn = allMetadata(layer).length > 0
+						const editing = symbologyFor === layer.id
+						const attrOpen = attrTableFor === layer.id
+						const displayName = displayNames.get(layer.id) ?? layer.name ?? layer.id
+						const isRaster = layer.layerType === "raster"
+						const hasGeojson = !!layer.geojson && !isRaster
+
+						return (
+							<div
+								draggable
+								key={layer.id}
+								onDragOver={(e) => onRowDragOver(e, idx)}
+								onDragStart={(e) => onRowDragStart(e, layer.id)}
+								onDrop={(e) => onRowDrop(e, idx)}
+								style={{
+									padding: "6px 8px",
+									marginBottom: 4,
+									background: subtle,
+									borderRadius: 4,
+									border: `1px solid ${border}`,
+									opacity: isVisible ? 1 : 0.55,
+									cursor: "default",
+								}}>
+								{/* ── Row: visibility + swatch + icons + name ── */}
+								<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+									{/* Gripper */}
+									<span
+										style={{ fontSize: 13, opacity: 0.35, cursor: "grab", userSelect: "none", flexShrink: 0 }}
+										title="Drag to reorder">
+										⠿
+									</span>
+
+									{/* Visibility checkbox */}
+									<input
+										checked={isVisible}
+										onChange={() => onVisibilityChange(layer.id, !isVisible)}
+										style={{
+											cursor: "pointer",
+											accentColor: "var(--vscode-button-background)",
+											flexShrink: 0,
+										}}
+										title={isVisible ? "Hide layer" : "Show layer"}
+										type="checkbox"
+									/>
+
+									{/* Color swatch / symbology trigger */}
+									<button
+										onClick={() => setSymbologyFor(editing ? null : layer.id)}
+										style={{
+											width: isRaster ? 26 : 14,
+											height: 14,
+											padding: 0,
+											borderRadius: 2,
+											background: swatch,
+											border: editing
+												? "1px solid var(--vscode-focusBorder, #0e639c)"
+												: "1px solid rgba(255,255,255,0.25)",
+											flexShrink: 0,
+											cursor: "pointer",
+										}}
+										title="Edit symbology"
+										type="button"
+									/>
+
+									{/* Layer type + source badges */}
+									<span style={{ fontSize: 10, opacity: 0.6, flexShrink: 0 }} title={layer.layerType ?? ""}>
+										{layerTypeIcon(layer.layerType)}
+									</span>
+									<span style={{ fontSize: 11, flexShrink: 0 }} title={badge.title}>
+										{badge.icon}
+									</span>
+
+									{/* Name */}
+									<span
+										style={{
+											fontSize: 12,
+											fontWeight: 500,
+											flex: 1,
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+										}}
+										title={displayName}>
+										{displayName}
+									</span>
+								</div>
+
+								{/* ── Compact metadata line ── */}
+								{niceMeta.length > 0 && (
+									<div
+										style={{
+											fontSize: 10,
+											opacity: 0.7,
+											marginTop: 3,
+											marginLeft: 58,
+											display: "flex",
+											flexWrap: "wrap",
+											gap: "1px 6px",
+										}}>
+										{niceMeta.map(([k, v]) => (
+											<span key={k}>
+												<span style={{ opacity: 0.6 }}>{k}:</span> {v}
+											</span>
+										))}
+									</div>
+								)}
+
+								{/* ── Icon toolbar ── */}
+								<div style={{ display: "flex", gap: 3, marginTop: 5, marginLeft: 50, alignItems: "center" }}>
+									<IconBtn
+										border={border}
+										fg={fg}
+										onClick={() => onZoomToLayer?.(layer)}
+										title="Zoom to extent">
+										🔍
+									</IconBtn>
+									<IconBtn
+										active={editing}
+										border={border}
+										fg={fg}
+										onClick={() => setSymbologyFor(editing ? null : layer.id)}
+										title="Symbology">
+										🎨
+									</IconBtn>
+									{hasGeojson && (
+										<IconBtn
+											active={attrOpen}
+											border={border}
+											fg={fg}
+											onClick={() => setAttrTableFor(attrOpen ? null : layer.id)}
+											title="Attribute table">
+											📊
+										</IconBtn>
+									)}
+									{!isRaster && layer.metadata?.source !== "workspace" && (
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => exportLayer(layer, displayName)}
+											title="Export as GeoJSON">
+											💾
+										</IconBtn>
+									)}
+									{detailsOn && (
+										<IconBtn
+											active={expanded}
+											border={border}
+											fg={fg}
+											onClick={() => toggleRowDetails(layer.id)}
+											title={expanded ? "Hide details" : "Show details"}>
+											{expanded ? "▴" : "▾"}
+										</IconBtn>
+									)}
+									{/* Move up / down */}
+									<IconBtn
+										border={border}
+										fg={fg}
+										onClick={() => {
+											if (idx === 0) return
+											const order = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
+											const next = [...order]
+											const i = next.indexOf(layer.id)
+											if (i > 0) {
+												;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+												onReorder(next)
+											}
+										}}
+										style={{ opacity: idx === 0 ? 0.25 : 1 }}
+										title="Move layer up (renders on top)">
+										↑
+									</IconBtn>
+									<IconBtn
+										border={border}
+										fg={fg}
+										onClick={() => {
+											if (idx === orderedLayers.length - 1) return
+											const order = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
+											const next = [...order]
+											const i = next.indexOf(layer.id)
+											if (i < next.length - 1) {
+												;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+												onReorder(next)
+											}
+										}}
+										style={{ opacity: idx === orderedLayers.length - 1 ? 0.25 : 1 }}
+										title="Move layer down (renders below)">
+										↓
+									</IconBtn>
+									<div style={{ flex: 1 }} />
+									<IconBtn
+										border={border}
+										fg={fg}
+										onClick={() => handleRemove(layer.id)}
+										style={{
+											color: danger,
+											borderColor: "rgba(220,53,69,0.35)",
+											background: "rgba(220,53,69,0.08)",
+										}}
+										title="Remove layer">
+										✕
+									</IconBtn>
+								</div>
+
+								{/* ── Attribute table ── */}
+								{attrOpen && hasGeojson && <AttributeTable border={border} fg={fg} layer={layer} />}
+
+								{/* ── Symbology editor ── */}
+								{editing && (
+									<SymbologyEditor layer={layer} mapStyle={mapStyle} onClose={() => setSymbologyFor(null)} />
+								)}
+
+								{/* ── Full metadata details ── */}
+								{(expanded || showDetails) && detailsOn && (
+									<div
+										style={{
+											marginTop: 8,
+											paddingTop: 6,
+											borderTop: `1px dashed ${border}`,
+											fontSize: 10,
+											fontFamily: "var(--vscode-editor-font-family, ui-monospace, monospace)",
+											opacity: 0.85,
+											display: "grid",
+											gridTemplateColumns: "auto 1fr",
+											gap: "2px 8px",
+											wordBreak: "break-word",
+										}}>
+										{allMetadata(layer).map(([k, v]) => (
+											<React.Fragment key={k}>
+												<span style={{ opacity: 0.6 }}>{k}</span>
+												<span>{v}</span>
+											</React.Fragment>
+										))}
+									</div>
+								)}
+							</div>
+						)
+					})
+				)}
+			</div>
+
+			{/* Footer — clear all */}
+			{layers.length > 1 && (
+				<div style={{ padding: 6, borderTop: `1px solid ${border}`, background: subtle }}>
+					{confirmingClear ? (
+						<div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+							<span style={{ fontSize: 11, flex: 1, color: danger }}>Remove all {layers.length}?</span>
+							<button
+								onClick={handleClearAll}
+								style={{ ...smallBtn(fg, border), background: danger, color: "#fff", borderColor: danger }}
+								type="button">
+								Yes
+							</button>
+							<button onClick={() => setConfirmingClear(false)} style={smallBtn(fg, border)} type="button">
+								No
+							</button>
+						</div>
+					) : (
+						<button
+							onClick={() => setConfirmingClear(true)}
+							style={{
+								width: "100%",
+								padding: "5px 8px",
+								fontSize: 11,
+								background: "rgba(220,53,69,0.08)",
+								border: "1px solid rgba(220,53,69,0.28)",
+								borderRadius: 3,
+								color: danger,
+								cursor: "pointer",
+								fontWeight: 500,
+							}}
+							type="button">
+							Clear all layers
+						</button>
+					)}
+				</div>
+			)}
+		</div>
+	)
+}
+
+// ─── Attribute Table ─────────────────────────────────────────────────────────
+
+const AttributeTable: React.FC<{ layer: MapLayer; border: string; fg: string }> = ({ layer, border, fg }) => {
+	const [page, setPage] = useState(0)
+	const PAGE_SIZE = 10
+
+	const { features, headers } = useMemo(() => {
+		try {
+			const parsed = JSON.parse(layer.geojson)
+			const feats = parsed?.type === "FeatureCollection" ? parsed.features : parsed?.type === "Feature" ? [parsed] : []
+			const keys = new Set<string>()
+			for (const f of feats.slice(0, 100)) {
+				for (const k of Object.keys(f.properties ?? {})) {
+					if (!k.startsWith("_")) keys.add(k)
+				}
+			}
+			return { features: feats, headers: Array.from(keys).slice(0, 12) }
+		} catch {
+			return { features: [], headers: [] }
+		}
+	}, [layer.geojson])
+
+	const pageFeats = features.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+	const totalPages = Math.ceil(features.length / PAGE_SIZE)
+
+	if (features.length === 0 || headers.length === 0) {
+		return (
+			<div
+				style={{
+					marginTop: 8,
+					padding: "6px 8px",
+					fontSize: 10,
+					opacity: 0.65,
+					borderTop: `1px dashed ${border}`,
+					color: fg,
+				}}>
+				{features.length === 0 ? "No features in this layer." : "Features have no attribute columns."}
+			</div>
+		)
+	}
+
+	return (
+		<div
+			style={{
+				marginTop: 8,
+				overflow: "auto",
+				maxHeight: 180,
+				fontSize: 10,
+				fontFamily: "var(--vscode-editor-font-family, ui-monospace, monospace)",
+				borderTop: `1px dashed ${border}`,
+			}}>
+			<table style={{ width: "100%", borderCollapse: "collapse" }}>
+				<thead>
+					<tr style={{ background: "rgba(255,255,255,0.05)" }}>
+						{headers.map((h) => (
+							<th
+								key={h}
+								style={{
+									padding: "2px 5px",
+									textAlign: "left",
+									opacity: 0.75,
+									borderBottom: `1px solid ${border}`,
+									whiteSpace: "nowrap",
+								}}>
+								{h}
+							</th>
+						))}
+					</tr>
+				</thead>
+				<tbody>
+					{pageFeats.map((f: any, i: number) => (
+						<tr key={i} style={{ borderBottom: `1px solid ${border}` }}>
+							{headers.map((h) => (
+								<td
+									key={h}
+									style={{
+										padding: "2px 5px",
+										maxWidth: 120,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+										color: fg,
+									}}
+									title={String(f.properties?.[h] ?? "")}>
+									{String(f.properties?.[h] ?? "")}
+								</td>
+							))}
+						</tr>
+					))}
+				</tbody>
+			</table>
+			{totalPages > 1 && (
+				<div style={{ display: "flex", gap: 6, justifyContent: "center", padding: 4, opacity: 0.7 }}>
+					<button
+						disabled={page === 0}
+						onClick={() => setPage((p) => Math.max(0, p - 1))}
+						style={{ fontSize: 10, cursor: "pointer", background: "transparent", border: "none", color: fg }}>
+						‹ Prev
+					</button>
+					<span style={{ fontSize: 10 }}>
+						{page + 1} / {totalPages} ({features.length} features)
+					</span>
+					<button
+						disabled={page === totalPages - 1}
+						onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+						style={{ fontSize: 10, cursor: "pointer", background: "transparent", border: "none", color: fg }}>
+						Next ›
+					</button>
+				</div>
+			)}
+		</div>
+	)
+}
+
+// ─── Style helpers ───────────────────────────────────────────────────────────
+
+const IconBtn: React.FC<{
+	onClick: () => void
+	title: string
+	children: React.ReactNode
+	fg: string
+	border: string
+	active?: boolean
+	style?: React.CSSProperties
+}> = ({ onClick, title, children, fg, border, active, style }) => (
+	<button
+		onClick={onClick}
+		style={{
+			background: active ? "rgba(255,255,255,0.12)" : "transparent",
+			color: fg,
+			border: `1px solid ${active ? border : "transparent"}`,
+			borderRadius: 3,
+			padding: "2px 5px",
+			cursor: "pointer",
+			fontSize: 12,
+			lineHeight: 1,
+			fontFamily: "inherit",
+			...style,
+		}}
+		title={title}
+		type="button">
+		{children}
+	</button>
+)
+
+const smallBtn = (fg: string, border: string): React.CSSProperties => ({
+	padding: "3px 8px",
+	fontSize: 11,
+	background: "transparent",
+	border: `1px solid ${border}`,
+	borderRadius: 3,
+	color: fg,
+	cursor: "pointer",
+	fontFamily: "inherit",
+})
+
+export default LayerPanelContent

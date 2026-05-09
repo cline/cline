@@ -1,0 +1,73 @@
+/**
+ * Push a normalized LayerSpec through the MapService gRPC channel.
+ *
+ * Vector layers travel as MapLayer { geojson, style, ... }.
+ * Raster layers reuse the same MapLayer message but encode bounds/data-url/opacity
+ * in the metadata map (the existing MapEventWatcher contract).
+ */
+
+import { AddMapLayerRequest, MapLayer, MapLayerStyle } from "@shared/proto/cline/map"
+import { MapServiceClient } from "../../../services/grpc-client"
+import { dataUrlToImage, rasterCache } from "./rasterCache"
+import type { LayerSpec } from "./types"
+
+export async function pushLayerSpec(spec: LayerSpec): Promise<void> {
+	if (spec.kind === "vector") {
+		const style = MapLayerStyle.create({
+			fillColor: spec.style?.fillColor ?? "#0066CC",
+			fillOpacity: spec.style?.fillOpacity ?? 0.4,
+			strokeColor: spec.style?.strokeColor ?? "#003399",
+			color: spec.style?.strokeColor ?? "#003399",
+			strokeWidth: spec.style?.strokeWidth ?? 2,
+			weight: spec.style?.strokeWidth ?? 2,
+			opacity: 1,
+		})
+		const layer = MapLayer.create({
+			id: spec.id,
+			name: spec.name,
+			geojson: spec.geojson,
+			layerType: "polygon",
+			style,
+			visible: true,
+			metadata: {
+				...(spec.metadata ?? {}),
+				source: "user",
+				addedAt: new Date().toISOString(),
+			},
+		})
+		await MapServiceClient.addMapLayer(AddMapLayerRequest.create({ layer }))
+		return
+	}
+
+	// Raster — the image is several MB and the VS Code webview CSP forbids
+	// `data:` in `connect-src`, which breaks deck.gl's fetch-based loader.
+	// Pre-decode the data URL into an HTMLImageElement so BitmapLayer gets a
+	// ready-to-use texture source. Held in rasterCache (module singleton);
+	// only a tiny sentinel travels through gRPC.
+	const image = await dataUrlToImage(spec.dataUrl)
+	rasterCache.set(spec.id, {
+		image,
+		bounds: spec.bounds as [number, number, number, number],
+		colormap: spec.colormap ?? "viridis",
+		rawPixels: spec.rawPixels,
+	})
+
+	const layer = MapLayer.create({
+		id: spec.id,
+		name: spec.name,
+		geojson: "",
+		layerType: "raster",
+		visible: true,
+		metadata: {
+			...(spec.metadata ?? {}),
+			source: "user",
+			addedAt: new Date().toISOString(),
+			raster_bounds: JSON.stringify(spec.bounds),
+			raster_opacity: String(spec.opacity ?? 0.85),
+			raster_colormap: spec.colormap ?? "viridis",
+			// sentinel — renderer checks rasterCache first when this is set
+			raster_cached: "1",
+		},
+	})
+	await MapServiceClient.addMapLayer(AddMapLayerRequest.create({ layer }))
+}
