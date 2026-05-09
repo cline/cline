@@ -510,7 +510,7 @@
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
 		"@aws-sdk/credential-providers": "^3.922.0",
-		"@azure/identity": "^4.13.0",
+		"@azure/identity": "^4.13.1",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
@@ -548,7 +548,7 @@
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
 		"aws4fetch": "^1.0.20",
-		"axios": "1.15.0",
+		"axios": "1.15.2",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
@@ -589,7 +589,7 @@
 		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"shell-quote": "^1.8.3",
-		"simple-git": "^3.27.0",
+		"simple-git": "^3.36.0",
 		"strip-ansi": "^7.1.2",
 		"tailwindcss": "^4.1.14",
 		"tree-sitter-wasms": "^0.1.11",
@@ -597,10 +597,10 @@
 		"turndown": "^7.2.0",
 		"ulid": "^2.4.0",
 		"undici": "^7.16.0",
-		"uuid": "^11.1.0",
+		"uuid": "^11.1.1",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.24.2"
+		"zod": "^4.4.3"
 	},
 	"overrides": {
 		"tar-fs": ">=3.1.1",
@@ -611,7 +611,8 @@
 		"protobufjs": "7.5.5",
 		"mocha": {
 			"diff": ">=8.0.3"
-		}
+		},
+		"brace-expansion@<=2.0.3": "2.0.3"
 	},
 	"c8": {
 		"reporter": [
