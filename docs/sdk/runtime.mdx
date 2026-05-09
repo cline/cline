@@ -41,7 +41,7 @@ import { Agent } from "@cline/sdk"
 
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-20250514",
+  modelId: "claude-sonnet-4-6",
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a helpful coding assistant.",
   tools: [myTool],
@@ -104,7 +104,7 @@ const session = await cline.start({
   prompt: "Set up GitHub Actions for this repo",
   config: {
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-20250514",
+    modelId: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: "/path/to/project",
@@ -169,7 +169,7 @@ await cline.start({
   prompt: "Audit this repo",
   config: {
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-20250514",
+    modelId: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: process.cwd(),

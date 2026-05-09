@@ -30,7 +30,7 @@ This guide gets you from zero to a running agent. By the end, you'll have an age
 
     const agent = new Agent({
       providerId: "anthropic",
-      modelId: "claude-sonnet-4-20250514",
+      modelId: "claude-sonnet-4-6",
       apiKey: process.env.ANTHROPIC_API_KEY,
       maxIterations: 1,
     })
@@ -68,7 +68,7 @@ import { z } from "zod"
 
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-20250514",
+  modelId: "claude-sonnet-4-6",
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a helpful assistant. Use tools when needed.",
   tools: [
@@ -111,7 +111,7 @@ const session = await cline.start({
   prompt: "Create a README.md for this project",
   config: {
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-20250514",
+    modelId: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: process.cwd(),

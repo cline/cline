@@ -11,7 +11,7 @@ The `@cline/llms` package provides provider registries, model catalogs, handlers
 ```typescript
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-20250514",
+  modelId: "claude-sonnet-4-6",
   apiKey: process.env.ANTHROPIC_API_KEY,
   // ...
 })
@@ -49,7 +49,7 @@ Bedrock uses AWS credentials from the standard environment/SDK chain and provide
 ```typescript
 const agent = new Agent({
   providerId: "bedrock",
-  modelId: "anthropic.claude-sonnet-4-20250514",
+  modelId: "anthropic.claude-sonnet-4-6",
   providerConfig: {
     awsRegion: "us-east-1",
   },
@@ -68,7 +68,7 @@ const gateway = new DefaultGateway()
 const providers = gateway.listProviders()
 const model = gateway.createAgentModel({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-20250514",
+  modelId: "claude-sonnet-4-6",
 })
 ```
 
