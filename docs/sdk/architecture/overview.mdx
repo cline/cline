@@ -12,22 +12,22 @@ The SDK is split into layered packages. Dependencies flow downward: `core` depen
 Your application / CLI / VS Code / JetBrains
           │
           ▼
-@clinebot/core
+@cline/core
 Sessions, storage, built-in tools, hub, automation, telemetry
           │
-          ├── @clinebot/agents
+          ├── @cline/agents
           │   Browser-safe AgentRuntime / Agent loop
           │
-          ├── @clinebot/llms
+          ├── @cline/llms
           │   Provider handlers, gateway, model catalogs
           │
-          └── @clinebot/shared
+          └── @cline/shared
               Types, schemas, tools, hooks, extension contracts
 ```
 
 ## Packages
 
-### @clinebot/shared
+### @cline/shared
 
 Foundation package for shared contracts and utilities.
 
@@ -46,7 +46,7 @@ Key exports include:
 
 No higher-layer dependencies.
 
-### @clinebot/llms
+### @cline/llms
 
 Provider and model layer.
 
@@ -60,9 +60,9 @@ Key exports include:
 | `registerProvider`, `registerModel` | Runtime registry extension |
 | `ModelInfo`, `ProviderInfo` | Provider/model metadata |
 
-Depends on: `@clinebot/shared`.
+Depends on: `@cline/shared`.
 
-### @clinebot/agents
+### @cline/agents
 
 Browser-safe agent execution loop.
 
@@ -75,13 +75,13 @@ Key exports include:
 | `createAgentRuntime`, `createAgent` | Factory functions |
 | `AgentRuntimeConfig` | Constructor config union |
 | `AgentRunInput`, `AgentEventListener` | Runtime helper types |
-| `createTool` | Re-export from `@clinebot/shared` |
+| `createTool` | Re-export from `@cline/shared` |
 
 Methods on `AgentRuntime` include `run`, `continue`, `abort`, `subscribe`, `restore`, and `snapshot`.
 
-Depends on: `@clinebot/shared`, `@clinebot/llms`.
+Depends on: `@cline/shared`, `@cline/llms`.
 
-### @clinebot/core
+### @cline/core
 
 Node runtime/orchestration layer.
 
@@ -108,18 +108,18 @@ Capabilities include:
 - plugin/extension loading
 - team/sub-agent tools
 
-Depends on: `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`.
+Depends on: `@cline/shared`, `@cline/llms`, `@cline/agents`.
 
 ## Install
 
 ```bash
-npm install @clinebot/shared
-npm install @clinebot/llms
-npm install @clinebot/agents
-npm install @clinebot/core
+npm install @cline/shared
+npm install @cline/llms
+npm install @cline/agents
+npm install @cline/core
 ```
 
-There is currently no separate `@clinebot/sdk` meta package in the checked repo.
+There is currently no separate `@cline/sdk` meta package in the checked repo.
 
 ## Design Principles
 
@@ -129,8 +129,8 @@ Dependencies flow downward only. Lower layers stay embeddable without pulling in
 
 ### Browser-safe agent loop
 
-`@clinebot/agents` exposes a browser-safe runtime. It does not own session storage, built-in file/shell tools, hub transports, or Node-specific orchestration.
+`@cline/agents` exposes a browser-safe runtime. It does not own session storage, built-in file/shell tools, hub transports, or Node-specific orchestration.
 
 ### Core as orchestration layer
 
-`@clinebot/core` owns Node runtime integration: session persistence, built-in tools, automation, hub/remote transports, telemetry, and extension loading.
+`@cline/core` owns Node runtime integration: session persistence, built-in tools, automation, hub/remote transports, telemetry, and extension loading.

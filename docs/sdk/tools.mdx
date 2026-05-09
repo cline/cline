@@ -27,7 +27,7 @@ Tools are functions the model can call during execution. The SDK sends tool sche
 ## Custom Tool Shape
 
 ```typescript
-import type { AgentTool } from "@clinebot/shared"
+import type { AgentTool } from "@cline/shared"
 
 const searchDatabase: AgentTool<
   { query: string; limit?: number },
@@ -52,7 +52,7 @@ const searchDatabase: AgentTool<
 }
 ```
 
-For `Agent` / `AgentRuntime`, define tools as `AgentTool` objects. For core/extensions, use `createTool(...)` from `@clinebot/shared`, `@clinebot/agents`, or `@clinebot/core` when you want the legacy/core `Tool` shape.
+For `Agent` / `AgentRuntime`, define tools as `AgentTool` objects. For core/extensions, use `createTool(...)` from `@cline/shared`, `@cline/agents`, or `@cline/core` when you want the legacy/core `Tool` shape.
 
 For a full tutorial, see [Creating Custom Tools](/sdk/guides/creating-custom-tools). For exact types, see [Tools API](/sdk/reference/tools-api).
 

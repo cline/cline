@@ -6,15 +6,15 @@ description: "Subscribe to runtime and session events for UIs, logs, monitoring,
 
 The SDK exposes two related event surfaces:
 
-- `AgentRuntimeEvent` from `@clinebot/agents`, delivered through `agent.subscribe(listener)`.
-- `AgentEvent` / `CoreSessionEvent` from `@clinebot/core`, delivered through core session adapters and `cline.subscribe(listener)`.
+- `AgentRuntimeEvent` from `@cline/agents`, delivered through `agent.subscribe(listener)`.
+- `AgentEvent` / `CoreSessionEvent` from `@cline/core`, delivered through core session adapters and `cline.subscribe(listener)`.
 
 Use this page for event handling patterns. For event shapes, see [Events reference](/sdk/reference/events).
 
 ## AgentRuntime Events
 
 ```typescript
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@cline/agents"
 
 const agent = new Agent({
   // ...config
@@ -34,7 +34,7 @@ unsubscribe()
 
 ## Core / Host-Facing Agent Events
 
-`AgentEvent` is the host-facing event shape used by `@clinebot/core` session orchestration. For direct `Agent` usage, prefer `agent.subscribe(...)` and `AgentRuntimeEvent`.
+`AgentEvent` is the host-facing event shape used by `@cline/core` session orchestration. For direct `Agent` usage, prefer `agent.subscribe(...)` and `AgentRuntimeEvent`.
 
 Common host-facing event categories:
 

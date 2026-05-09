@@ -4,7 +4,7 @@ sidebarTitle: "Model Providers"
 description: "Configure provider credentials, model IDs, and the LLM gateway."
 ---
 
-The `@clinebot/llms` package provides provider registries, model catalogs, handlers, and a gateway. `@clinebot/agents` and `@clinebot/core` use this layer internally.
+The `@cline/llms` package provides provider registries, model catalogs, handlers, and a gateway. `@cline/agents` and `@cline/core` use this layer internally.
 
 ## Configure a Provider
 
@@ -61,7 +61,7 @@ const agent = new Agent({
 Use `DefaultGateway` or `createGateway` when you need direct provider/model access:
 
 ```typescript
-import { DefaultGateway } from "@clinebot/llms"
+import { DefaultGateway } from "@cline/llms"
 
 const gateway = new DefaultGateway()
 

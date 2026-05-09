@@ -18,7 +18,7 @@ This guide creates a minimal `Agent`, adds one custom tool, and shows when to sw
     ```bash
     mkdir my-agent && cd my-agent
     npm init -y
-    npm install @clinebot/agents @clinebot/shared tsx
+    npm install @cline/agents @cline/shared tsx
     ```
   </Step>
 
@@ -26,7 +26,7 @@ This guide creates a minimal `Agent`, adds one custom tool, and shows when to sw
     Create `agent.ts`:
 
     ```typescript
-    import { Agent } from "@clinebot/agents"
+    import { Agent } from "@cline/agents"
 
     const agent = new Agent({
       providerId: "anthropic",
@@ -59,8 +59,8 @@ This guide creates a minimal `Agent`, adds one custom tool, and shows when to sw
 ## Add a Custom Tool
 
 ```typescript
-import { Agent } from "@clinebot/agents"
-import type { AgentTool } from "@clinebot/shared"
+import { Agent } from "@cline/agents"
+import type { AgentTool } from "@cline/shared"
 
 const weatherTool: AgentTool<{ city: string }, { temperature: number; condition: string; city: string }> = {
   name: "get_weather",
@@ -114,13 +114,13 @@ console.log(result.outputText)
 Install core:
 
 ```bash
-npm install @clinebot/core
+npm install @cline/core
 ```
 
 Then create a session:
 
 ```typescript
-import { ClineCore } from "@clinebot/core"
+import { ClineCore } from "@cline/core"
 
 const cline = await ClineCore.create({ clientName: "my-app" })
 
@@ -154,7 +154,7 @@ ClineCore can enable built-in tools such as `read_files`, `search_codebase`, `ru
 Subscribe to `assistant-text-delta` events when you want to print model output as it streams:
 
 ```typescript
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@cline/agents"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -178,7 +178,7 @@ await agent.run("Explain this repository structure")
 Use `ClineCore` when you need a session ID that can receive follow-up prompts:
 
 ```typescript
-import { ClineCore } from "@clinebot/core"
+import { ClineCore } from "@cline/core"
 
 const cline = await ClineCore.create({ clientName: "example" })
 

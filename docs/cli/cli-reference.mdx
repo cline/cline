@@ -4,20 +4,20 @@ description: "Complete command reference for Cline CLI including all commands, f
 ---
 
 ```bash
-clite --help           # Show all commands
-clite <command> --help # Show help for a specific command
+cline --help           # Show all commands
+cline <command> --help # Show help for a specific command
 ```
 
 ## Synopsis
 
 ```bash
-clite [options] [command] [prompt]
+cline [options] [command] [prompt]
 ```
 
 ## Help Menu (Source of Truth)
 
 ```text
-Usage: clite [options] [command] [prompt]
+Usage: cline [options] [command] [prompt]
 
 Cline CLI - AI coding assistant in your terminal
 
@@ -92,15 +92,15 @@ Commands:
 
 ## Commands
 
-### `clite` (default)
+### `cline` (default)
 
 Start a task or enter interactive mode.
 
 ```bash
-clite
-clite "your prompt here"
-clite "Run tests and fix failures"
-echo "prompt" | clite
+cline
+cline "your prompt here"
+cline "Run tests and fix failures"
+echo "prompt" | cline
 ```
 
 ### `auth [options] [provider]`
@@ -108,7 +108,7 @@ echo "prompt" | clite
 Configure authentication with an AI provider.
 
 ```bash
-clite auth
+cline auth
 ```
 
 ### `config [options]`
@@ -116,7 +116,7 @@ clite auth
 Show current configuration.
 
 ```bash
-clite config
+cline config
 ```
 
 ### `connect [options] [adapter]`
@@ -124,8 +124,8 @@ clite config
 Connect to messaging platforms. See [Connectors](/cli/connectors).
 
 ```bash
-clite connect
-clite connect [adapter]
+cline connect
+cline connect [adapter]
 ```
 
 ### `mcp`
@@ -133,7 +133,7 @@ clite connect [adapter]
 Manage MCP servers. See [MCP](/mcp/mcp-overview).
 
 ```bash
-clite mcp
+cline mcp
 ```
 
 ### `dev`
@@ -141,7 +141,7 @@ clite mcp
 Developer tools and utilities.
 
 ```bash
-clite dev
+cline dev
 ```
 
 ### `doctor`
@@ -149,7 +149,7 @@ clite dev
 Diagnose and fix configuration issues.
 
 ```bash
-clite doctor
+cline doctor
 ```
 
 ### `history|h [options]`
@@ -157,8 +157,8 @@ clite doctor
 List session history or manage saved sessions.
 
 ```bash
-clite history
-clite h
+cline history
+cline h
 ```
 
 ### `hook`
@@ -166,7 +166,7 @@ clite h
 Handle a hook payload from stdin.
 
 ```bash
-cat payload.json | clite hook
+cat payload.json | cline hook
 ```
 
 ### `plugin`
@@ -174,8 +174,8 @@ cat payload.json | clite hook
 Manage Cline plugins. Install plugins from npm, git repositories, or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
 
 ```bash
-clite plugin install <source>  # Install a plugin
-clite plugin i <source>        # Shorthand alias
+cline plugin install <source>  # Install a plugin
+cline plugin i <source>        # Shorthand alias
 ```
 
 | Option | Description |
@@ -189,7 +189,7 @@ clite plugin i <source>        # Shorthand alias
 Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescript-lsp-plugin):
 
 ```bash
-clite plugin install https://github.com/cline/typescript-lsp-plugin.git
+cline plugin install https://github.com/cline/typescript-lsp-plugin.git
 ```
 
 ### `schedule`
@@ -197,7 +197,7 @@ clite plugin install https://github.com/cline/typescript-lsp-plugin.git
 Manage scheduled agents. See [Scheduling](/cli/scheduling).
 
 ```bash
-clite schedule
+cline schedule
 ```
 
 ### `hub`
@@ -205,7 +205,7 @@ clite schedule
 Manage the local hub daemon.
 
 ```bash
-clite hub
+cline hub
 ```
 
 ### `update [options]`
@@ -213,7 +213,7 @@ clite hub
 Check for updates and install if available.
 
 ```bash
-clite update
+cline update
 ```
 
 ### `version`
@@ -221,8 +221,8 @@ clite update
 Show Cline CLI version number.
 
 ```bash
-clite version
-clite -V
+cline version
+cline -V
 ```
 
 ### `kanban`
@@ -230,7 +230,7 @@ clite -V
 Launch the kanban app and exit.
 
 ```bash
-clite kanban
+cline kanban
 ```
 
 ## Environment Variables
@@ -293,7 +293,7 @@ When using `--json`, each message is a JSON object on its own line:
     logs/
       hub-daemon.log             # Hub logs
   plugins/                       # Global plugins
-    _installed/                  # Managed by `clite plugin install`
+    _installed/                  # Managed by `cline plugin install`
 
 .cline/                          # Project root
   rules/                         # Project rules

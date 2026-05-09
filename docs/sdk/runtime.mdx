@@ -6,8 +6,8 @@ description: "Choose between the stateless AgentRuntime loop and the full ClineC
 
 The SDK has two main runtime entry points:
 
-- `Agent` / `AgentRuntime` from `@clinebot/agents`: browser-safe, stateless, in-process execution. You provide tools, persistence, and lifecycle management.
-- `ClineCore` from `@clinebot/core`: Node runtime with sessions, persistence, built-in tools, approvals, automation, and hub support.
+- `Agent` / `AgentRuntime` from `@cline/agents`: browser-safe, stateless, in-process execution. You provide tools, persistence, and lifecycle management.
+- `ClineCore` from `@cline/core`: Node runtime with sessions, persistence, built-in tools, approvals, automation, and hub support.
 
 `Agent` is an alias for `AgentRuntime`. Use `Agent` when constructing from provider/model IDs. Use `AgentRuntime` when supplying a pre-built `AgentModel`.
 
@@ -37,7 +37,7 @@ run() or continue()
 ```
 
 ```typescript
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@cline/agents"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -93,7 +93,7 @@ If you persist messages externally, restore them with `restore(messages)` before
 - optional plugin paths and extensions
 
 ```typescript
-import { ClineCore } from "@clinebot/core"
+import { ClineCore } from "@cline/core"
 
 const cline = await ClineCore.create({
   clientName: "my-app",
