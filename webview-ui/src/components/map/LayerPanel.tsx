@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { MapServiceClient } from "../../services/grpc-client"
 import { ACCEPTED_EXTENSIONS, loadAndPushFiles } from "./formats"
+import GraduatedSymbologyEditor from "./GraduatedSymbologyEditor"
 import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
 import { SymbologyEditor } from "./SymbologyEditor"
 
@@ -160,6 +161,7 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 	const [attrTableFor, setAttrTableFor] = useState<string | null>(null)
 	const [symbologyFor, setSymbologyFor] = useState<string | null>(null)
+	const [symbologyMode, setSymbologyMode] = useState<"basic" | "graduated">("basic")
 	const [confirmingClear, setConfirmingClear] = useState(false)
 	const [loadStatus, setLoadStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
 
@@ -579,7 +581,69 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 
 								{/* ── Symbology editor ── */}
 								{editing && (
-									<SymbologyEditor layer={layer} mapStyle={mapStyle} onClose={() => setSymbologyFor(null)} />
+									<>
+										{!isRaster && (
+											<div
+												style={{
+													marginTop: 6,
+													padding: 8,
+													background: subtle,
+													borderRadius: 4,
+													display: "flex",
+													gap: 6,
+												}}>
+												<button
+													onClick={() => setSymbologyMode("basic")}
+													style={{
+														flex: 1,
+														padding: "4px 8px",
+														fontSize: 10,
+														background:
+															symbologyMode === "basic"
+																? "var(--vscode-button-background, #0e639c)"
+																: "transparent",
+														color: fg,
+														border: `1px solid ${border}`,
+														borderRadius: 3,
+														cursor: "pointer",
+													}}
+													type="button">
+													Basic
+												</button>
+												<button
+													onClick={() => setSymbologyMode("graduated")}
+													style={{
+														flex: 1,
+														padding: "4px 8px",
+														fontSize: 10,
+														background:
+															symbologyMode === "graduated"
+																? "var(--vscode-button-background, #0e639c)"
+																: "transparent",
+														color: fg,
+														border: `1px solid ${border}`,
+														borderRadius: 3,
+														cursor: "pointer",
+													}}
+													type="button">
+													By Attribute
+												</button>
+											</div>
+										)}
+										{symbologyMode === "basic" ? (
+											<SymbologyEditor
+												layer={layer}
+												mapStyle={mapStyle}
+												onClose={() => setSymbologyFor(null)}
+											/>
+										) : (
+											<GraduatedSymbologyEditor
+												layer={layer}
+												mapStyle={mapStyle}
+												onClose={() => setSymbologyFor(null)}
+											/>
+										)}
+									</>
 								)}
 
 								{/* ── Full metadata details ── */}

@@ -707,6 +707,37 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						const strokeColor = hexToRgb(strokeRaw)
 						const fillOpacity = style?.fillOpacity !== undefined ? style.fillOpacity * 255 : 153
 						const strokeWidth = style?.strokeWidth ?? style?.weight ?? 2
+
+						// Check for graduated symbology
+						const graduatedAttr = layer.metadata?.graduated_attr
+						const graduatedBreaks = layer.metadata?.graduated_breaks
+							? JSON.parse(layer.metadata.graduated_breaks)
+							: null
+						const graduatedColors = layer.metadata?.graduated_colors
+							? JSON.parse(layer.metadata.graduated_colors)
+							: null
+
+						const getColorFunction =
+							graduatedAttr && graduatedBreaks && graduatedColors
+								? (feature: any) => {
+										const value = feature.properties?.[graduatedAttr]
+										if (typeof value !== "number")
+											return [fillColor[0], fillColor[1], fillColor[2], fillOpacity]
+										// Find which class this value falls into
+										for (let i = 0; i < graduatedBreaks.length; i++) {
+											if (value <= graduatedBreaks[i]) {
+												const colorHex = graduatedColors[i]
+												const rgb = hexToRgb(colorHex)
+												return [rgb[0], rgb[1], rgb[2], 230]
+											}
+										}
+										// Fallback: use last color if value exceeds all breaks
+										const lastColorHex = graduatedColors[graduatedColors.length - 1]
+										const lastRgb = hexToRgb(lastColorHex)
+										return [lastRgb[0], lastRgb[1], lastRgb[2], 230]
+									}
+								: [fillColor[0], fillColor[1], fillColor[2], fillOpacity]
+
 						return new GeoJsonLayer({
 							id: layer.id,
 							data: geojson,
@@ -718,7 +749,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 							lineWidthMinPixels: 1,
 							lineWidthMaxPixels: 20,
 							getLineWidth: strokeWidth,
-							getFillColor: [fillColor[0], fillColor[1], fillColor[2], fillOpacity],
+							getFillColor: getColorFunction,
 							getLineColor: [strokeColor[0], strokeColor[1], strokeColor[2], 255],
 							pointRadiusUnits: "pixels" as const,
 							pointRadiusMinPixels: 3,
