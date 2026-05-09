@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ai-hydro-sdk"
+version = "0.1.0"
+description = "Agent-Native Hydrological & Earth Sciences SDK"
+authors = [{name = "Mohammad Galib", email = "mohammad.galib@purdue.edu"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "geopandas>=0.14",
+    "xarray>=2023.0",
+    "rioxarray>=0.12",
+    "shapely>=2.0",
+    "pystac-client>=0.7",
+    "planetary-computer>=1.10",
+    "pysheds>=0.3",
+    "netcdf4>=1.6",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+dev = ["pytest>=7.0", "black", "pylint"]
+hydro = ["neuralhydrology>=0.4", "hydrobench>=0.1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ai_hydro*"]

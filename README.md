@@ -158,6 +158,17 @@ A pure-PyTorch differentiable HBV-light is built in:
 - Automatic CAMELS streamflow via `pygeohydro` for 671 CONUS gauges
 - Typical performance: NSE 0.55-0.80
 
+### Interactive Map Panel
+
+Every analysis result appears on a live map inside VS Code — no external GIS tool needed.
+
+- **Auto-push from tools** — `delineate_watershed` pushes the catchment polygon and gauge point automatically; `compute_twi` and `create_cn_grid` push colour-mapped raster tiles
+- **8 file formats** — drag any GeoJSON, KML, KMZ, GPX, Shapefile (.zip), GeoTIFF, TopoJSON, or CSV onto the map to load it instantly
+- **Drag-and-drop** — drop files directly on the map; a drop zone appears with result toast
+- **Symbology editor** — per-layer fill/stroke/opacity and colormap controls inline in the layer panel
+- **13 free basemaps** — USGS Imagery, USGS Topo, Esri Hillshade, Esri Ocean, Carto, Stadia, and more; no API token required
+- **Persistent workspace** — basemap, view state, and layer visibility are saved across VS Code sessions
+
 ### Model Context Protocol (MCP)
 
 All tools communicate via the [Model Context Protocol](https://modelcontextprotocol.io/) — an open standard for connecting AI models to external capabilities. This means AI-Hydro tools work with any MCP-compatible client, not just the bundled extension.
@@ -175,15 +186,6 @@ All tools communicate via the [Model Context Protocol](https://modelcontextproto
 ---
 
 ## Installation
-
-### Prerequisites
-
-- VS Code 1.84+
-- Python 3.10+ (Miniconda or system)
-- An API key for at least one AI provider
-
-### Step 1 — Install the Python Tools
-
 ```bash
 pip install aihydro-tools[all]
 ```
@@ -241,165 +243,3 @@ The extension auto-registers the MCP server on startup. If you need manual regis
 python setup_mcp.py --ide vscode
 python setup_mcp.py --ide claude-code   # for Claude Code CLI
 ```
-
-See the [Installation Guide](https://ai-hydro.github.io/AI-Hydro/getting-started/installation/) for detailed platform-specific instructions.
-
----
-
-## Quick Start
-
-Once installed, open the AI-Hydro chat panel and try:
-
-```
-Start a research session for USGS gauge 01031500 and delineate its watershed.
-```
-
-Then continue naturally:
-
-```
-Fetch 10 years of GridMET forcing data and extract hydrological signatures.
-```
-
-```
-Train a differentiable HBV model and show me the performance metrics.
-```
-
-```
-Export the full session methods paragraph for my paper.
-```
-
-See the [Quick Start guide](https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/) for a complete walkthrough.
-
----
-
-## Architecture
-
-```
-+------------------------------------------------------+
-|  VS Code Extension  (TypeScript / React)              |
-|   Chat · Settings · Map · File editing · Terminal      |
-+---------------------------+--------------------------+
-                            |
-              Model Context Protocol (stdio)
-                            |
-              +-------------+-------------+
-              |                           |
-              v                           v
-+---------------------------+  +---------------------+
-| Built-in MCP Tools        |  | Standalone Scripts   |
-| aihydro-tools on PyPI     |  | AI writes & executes |
-| + Community plugin tools  |  | full Python ecosystem |
-+-------+--------+----+----+  +---------------------+
-        |        |    |
-   USGS NWIS  GridMET  pygeohydro
-   NHDPlus    3DEP     CAMELS
-   NLDI       MODIS    PyTorch HBV
-```
-
-The extension acts as an MCP **client**: when the AI decides to call `delineate_watershed`, it sends a JSON-RPC request to the Python server, which fetches real data from USGS/GridMET/etc. and returns structured results. When no tool exists for the task, the AI writes a standalone Python script and executes it through the integrated terminal — combining the reliability of structured tools with the flexibility of general-purpose programming.
-
-Full architecture details: [Architecture](https://ai-hydro.github.io/AI-Hydro/architecture/)
-
----
-
-## Documentation
-
-| Document                                          | Description                            |
-| ------------------------------------------------- | -------------------------------------- |
-| [Installation Guide](https://ai-hydro.github.io/AI-Hydro/getting-started/installation/) | Platform-specific install guide |
-| [Quick Start](https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/) | First research session walkthrough |
-| [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools/) | All tools with parameters and examples |
-| [Architecture](https://ai-hydro.github.io/AI-Hydro/architecture/) | System design and data flow |
-| [Contributing](https://ai-hydro.github.io/AI-Hydro/contributing/) | How to contribute |
-
----
-
-## Contributing Tools
-
-We welcome contributions from the hydrology and geospatial sciences community. There are three practical contribution tracks, grouped into two implementation routes:
-
-**Path A: Standalone MCP Server** — Build an independent MCP server for a full sub-domain toolkit (flood frequency analysis, hydraulic modelling, etc.). Your server runs as its own process with its own dependencies and gets registered alongside the core `ai-hydro` server. Best for complex toolkits or when you need full dependency isolation.
-
-**Paths B/C: Entry-Point & Knowledge Plugins** — Extend the existing `aihydro-tools` server by registering Python entry points. Path B adds executable tool functions with full HydroSession access; Path C adds knowledge/reference cards that help agents use external scientific libraries correctly. Best for single tools, lightweight extensions, and library-specific guidance.
-
-```toml
-# Path B — just add this to your pyproject.toml
-[project.entry-points."aihydro.tools"]
-my_tool = "my_package.tools:my_tool_function"
-```
-
-Install, restart the server, and your tool is immediately available to every AI model.
-
-See **[Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/)** for complete walkthroughs of all three plugin paths, including the data contract, session integration, and testing.
-
-### Priority Contribution Areas
-
-We are especially interested in contributions that fit the current platform architecture cleanly and can be exposed as reliable, reproducible tools:
-
-- Flood frequency analysis and extreme event statistics
-- Groundwater modelling, well analysis, and recharge estimation
-- Water quality and nutrient cycling
-- Snow hydrology and glaciology
-- Hydraulic modelling and 2D flood mapping
-- Remote sensing-derived hydrology workflows
-
-Knowledge-plugin contributions are also highly valuable for libraries such as `swmmio`, `hecras`, `nlmod`, `oggm`, `snowpack`, and `pywr`.
-
-See the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) for the step-by-step tool and knowledge-plugin workflow, or open an [issue](https://github.com/AI-Hydro/AI-Hydro/issues) if you want to discuss a contribution idea before implementing it.
-
----
-
-## Citation
-
-If you use AI-Hydro in your research, please cite:
-
-- Extension DOI: [10.5281/zenodo.19597664](https://doi.org/10.5281/zenodo.19597664)
-- Python MCP server DOI: [10.5281/zenodo.19597589](https://doi.org/10.5281/zenodo.19597589)
-
-```bibtex
-@software{aihydro_extension_2026,
-  title   = {AI-Hydro: An Open Platform for Autonomous Hydrological and
-             Earth Science Research},
-  author  = {Galib, Mohammad and Merwade, Venkatesh},
-  year    = {2026},
-  version = {0.1.4},
-  doi     = {10.5281/zenodo.19597664},
-  url     = {https://doi.org/10.5281/zenodo.19597664}
-}
-```
-
-For the Python MCP server package, cite:
-
-```bibtex
-@software{aihydro_tools_2026,
-  title   = {aihydro-tools: An Open Python MCP Server for Autonomous
-             Hydrological Research},
-  author  = {Galib, Mohammad and Merwade, Venkatesh},
-  year    = {2026},
-  version = {1.2.1},
-  doi     = {10.5281/zenodo.19597589},
-  url     = {https://doi.org/10.5281/zenodo.19597589}
-}
-```
-
----
-
-## Built on Open Source
-
-AI-Hydro is a domain-specific fork of [Cline](https://github.com/cline/cline) (Apache 2.0). We are grateful to the Cline team for building the agentic VS Code framework that made this possible.
-
-The Python backend builds on the broader scientific Python ecosystem — federal data APIs, geospatial libraries, and deep learning frameworks — all open source and properly cited in the tool provenance metadata.
-
----
-
-## License
-
-[Apache 2.0](./LICENSE) &copy; 2026 Mohammad Galib
-
----
-
-## Support
-
-- **Bugs / questions**: [GitHub Issues](https://github.com/AI-Hydro/AI-Hydro/issues)
-- **Ideas**: [GitHub Discussions](https://github.com/AI-Hydro/AI-Hydro/discussions)
-- **Email**: mgalib@purdue.edu

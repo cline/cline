@@ -24,7 +24,7 @@ import * as os from "os"
 import * as path from "path"
 
 const MAP_EVENTS_DIR = path.join(os.homedir(), ".aihydro", "map_events")
-const POLL_INTERVAL_MS = 600
+const POLL_INTERVAL_MS = 200
 
 interface RasterPayload {
 	path: string
@@ -152,11 +152,24 @@ export class MapEventWatcher {
 		this.controller.addMapLayer(layer)
 
 		if (event.openMap) {
+			// Try standalone side-panel first; fall back to in-chat map tab
+			let panelOpened = false
 			try {
 				const { VscodeMapPanelProvider } = await import("@/hosts/vscode/VscodeMapPanelProvider")
 				await VscodeMapPanelProvider.createOrShow()
+				panelOpened = true
 			} catch {
 				// Not in VS Code environment (tests / desktop) — skip silently
+			}
+
+			if (!panelOpened) {
+				// Fall back to in-chat map tab via the button-clicked event
+				try {
+					const { sendMapButtonClickedEvent } = await import("@/core/controller/ui/subscribeToMapButtonClicked")
+					await sendMapButtonClickedEvent()
+				} catch {
+					// Nothing more we can do
+				}
 			}
 		}
 	}

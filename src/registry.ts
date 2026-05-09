@@ -25,6 +25,7 @@ const AiHydroCommands = {
 	AbortCommit: prefix + ".abortGitCommitMessage",
 	ReconstructTaskHistory: prefix + ".reconstructTaskHistory",
 	LoadGeojsonToMap: prefix + ".loadGeojsonToMap",
+	AddFileToMap: prefix + ".addFileToMap",
 }
 
 /**

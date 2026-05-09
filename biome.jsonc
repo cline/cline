@@ -124,7 +124,8 @@
 			"!**/webview-ui/build/**",
 			"!**/generated/**",
 			"!**/proto/**",
-			"!**/tests/specs/**"
+			"!**/tests/specs/**",
+			"!**/.claude/**"
 		]
 	},
 	"plugins": [

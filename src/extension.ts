@@ -125,6 +125,122 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register "Add to AI-Hydro Map" explorer context menu command.
+	// Accepts one or more URIs (VS Code passes selected items as args when multi-select).
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.AddFileToMap, async (...args: unknown[]) => {
+			// VS Code passes selected URIs as rest args when invoked from explorer/context.
+			// First arg is the right-clicked file; remaining args are additional selections.
+			const uris: vscode.Uri[] = args.flat().filter((a): a is vscode.Uri => a instanceof vscode.Uri)
+			if (uris.length === 0) {
+				return
+			}
+			const MAX_BYTES = 200 * 1024 * 1024 // 200 MB guard
+			const files: Array<{ name: string; data: Uint8Array }> = []
+			for (const uri of uris) {
+				try {
+					const bytes = await vscode.workspace.fs.readFile(uri)
+					if (bytes.byteLength > MAX_BYTES) {
+						vscode.window.showWarningMessage(
+							`AI-Hydro Map: ${path.basename(uri.fsPath)} is too large (>${MAX_BYTES / 1024 / 1024} MB). Use the + Add Layer button inside the map panel instead.`,
+						)
+						continue
+					}
+					files.push({ name: path.basename(uri.fsPath), data: bytes })
+				} catch (err) {
+					vscode.window.showErrorMessage(
+						`AI-Hydro Map: Failed to read ${path.basename(uri.fsPath)}: ${err instanceof Error ? err.message : String(err)}`,
+					)
+				}
+			}
+			if (files.length > 0) {
+				await VscodeMapPanelProvider.sendFilesToMap(files)
+			}
+		}),
+	)
+
+	// Graceful drag-and-drop: when a geospatial file is dragged onto the VS Code window
+	// VS Code opens it in the editor. We intercept this and offer to add it to the map instead.
+	const GEO_EXTS_TEXT = new Set([".geojson", ".topojson", ".kml", ".gpx", ".csv"])
+	const GEO_EXTS_BINARY = new Set([".tif", ".tiff", ".kmz", ".zip"])
+	const ALL_GEO_EXTS = new Set([...GEO_EXTS_TEXT, ...GEO_EXTS_BINARY])
+
+	// Track URIs we've already prompted for so we don't repeat the prompt when
+	// the user moves between tabs (tab change events fire on focus too).
+	const promptedUris = new Set<string>()
+
+	const promptAddToMap = async (uri: vscode.Uri) => {
+		const key = uri.toString()
+		if (promptedUris.has(key)) return
+		promptedUris.add(key)
+		// Only offer when the map panel is already open (don't force-open the map for every geospatial file).
+		if (!VscodeMapPanelProvider.isOpen()) return
+		const ext = path.extname(uri.fsPath).toLowerCase()
+		if (!ALL_GEO_EXTS.has(ext)) return
+		const action = await vscode.window.showInformationMessage(
+			`"${path.basename(uri.fsPath)}" is a geospatial file. Add it to the AI-Hydro Map?`,
+			"Add to Map",
+			"Keep in Editor",
+		)
+		if (action === "Add to Map") {
+			try {
+				const bytes = await vscode.workspace.fs.readFile(uri)
+				await VscodeMapPanelProvider.sendFilesToMap([{ name: path.basename(uri.fsPath), data: bytes }])
+				// Best-effort: close the editor tab now that we've added it to the map.
+				try {
+					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
+				} catch {
+					/* ignore */
+				}
+			} catch (err) {
+				vscode.window.showErrorMessage(`AI-Hydro Map: ${err instanceof Error ? err.message : String(err)}`)
+			}
+		}
+	}
+
+	// Text-based formats fire onDidOpenTextDocument.
+	context.subscriptions.push(
+		vscode.workspace.onDidOpenTextDocument((doc) => {
+			if (doc.uri.scheme !== "file") return
+			const ext = path.extname(doc.uri.fsPath).toLowerCase()
+			if (!GEO_EXTS_TEXT.has(ext)) return
+			void promptAddToMap(doc.uri)
+		}),
+	)
+
+	// Binary formats (.tif, .kmz, .zip) don't fire onDidOpenTextDocument because
+	// VS Code's text-document pipeline never sees them. They surface as tabs
+	// instead — TabInputText (the "binary not displayed" view) or TabInputCustom
+	// (when a third-party extension claims the extension). Watch tab changes.
+	context.subscriptions.push(
+		vscode.window.tabGroups.onDidChangeTabs((event) => {
+			for (const tab of event.opened) {
+				const input = tab.input
+				let uri: vscode.Uri | undefined
+				if (input instanceof vscode.TabInputText) uri = input.uri
+				else if (input instanceof vscode.TabInputCustom) uri = input.uri
+				if (!uri || uri.scheme !== "file") continue
+				const ext = path.extname(uri.fsPath).toLowerCase()
+				if (!GEO_EXTS_BINARY.has(ext)) continue
+				void promptAddToMap(uri)
+			}
+		}),
+	)
+
+	// Reset the prompt-once cache when a tab is closed so re-opening the same
+	// file gets a fresh prompt.
+	context.subscriptions.push(
+		vscode.window.tabGroups.onDidChangeTabs((event) => {
+			for (const tab of event.closed) {
+				const input = tab.input
+				let uri: vscode.Uri | undefined
+				if (input instanceof vscode.TabInputText) uri = input.uri
+				else if (input instanceof vscode.TabInputCustom) uri = input.uri
+				if (uri) promptedUris.delete(uri.toString())
+			}
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a
 	virtual document for the original content. This makes it readonly so users know to edit the right

@@ -13,6 +13,124 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.1.8] — 2026-05-09
+
+### Map — Multi-format file loading, drag-and-drop, symbology editor
+
+#### Format adapters
+- **GeoJSON / TopoJSON** — client-side parsing; TopoJSON converted via `topojson-client`
+- **KML / KMZ** — converted via `@tmcw/togeojson`; KMZ ZIP extracted via `jszip`
+- **GPX** — converted via `@tmcw/togeojson`
+- **Shapefile (.zip)** — zipped `.shp + .dbf + .shx + .prj` bundle via `shpjs`
+- **GeoTIFF** — read via `geotiff.js`; rendered with viridis ramp to base64 PNG; rejects non-WGS84 with helpful error
+- **CSV** — auto-detects `lon`/`lat`/`longitude`/`latitude`/`x`/`y` columns; handles quoted fields
+
+#### Drag-and-drop
+- Drop any supported file directly onto the map — blue dashed drop zone appears while dragging
+- `dragDepthRef` counter prevents false `dragLeave` events from child elements
+- Result toast (bottom-centre) reports `n loaded, n skipped` with error details
+
+#### Layer panel additions
+- **`+ Add Layer…` button** — opens native file picker filtered to supported extensions
+- **Empty state** — when no layers are present, a `🗺️` placeholder lists supported formats
+- **Source badges** — 📁 workspace file, 🐍 Python tool output, 📥 user-loaded file, 📤 manually pushed
+- **Layer name disambiguation** — `buildDisplayNames()` appends parent folder when two layers share the same basename (e.g. two `watershed.geojson` files)
+
+#### Symbology editor
+- Per-layer inline editor (click swatch or 🎨 icon to open):
+  - **Vector**: fill colour + opacity, stroke colour + width
+  - **Raster**: colormap selector (8 options: viridis, plasma, inferno, magma, cividis, Greens, YlOrRd, RdBu) + opacity
+- Changes applied immediately via `MapServiceClient.addMapLayer`
+
+#### Dependencies added
+- `shpjs ^6.2.0`, `@tmcw/togeojson ^7.1.2`, `geotiff ^3.0.5`, `jszip`, `topojson-client`, `@types/geojson`, `@deck.gl/widgets ~9.2.0`
+
+#### Dependencies removed
+- `mapbox-gl`, `react-map-gl`, `kepler.gl` (were unused)
+
+---
+
+## [0.1.7] — 2026-05-08
+
+### Map — Panel redesign, status bar, basemap overhaul, persistence
+
+#### Resize fix
+- **ResizeObserver** on the map container div replaces `window.addEventListener("resize")` — map now resizes correctly when VS Code panels are resized or split, not just on window resize
+
+#### Layer panel
+- Panel is always visible — collapsed state shows a `📑 +` icon button so layers can always be added even after clearing all layers
+- Drag-resize handle on left edge (220–480 px range)
+- Collapsible details section for per-layer metadata
+- Panel state (dock, width, expanded) persisted to `localStorage`
+
+#### Map status bar
+- Scale bar using Mercator ground-resolution formula: `156543 × cos(lat) / 2^zoom` m/px
+- Coordinate readout from `onHover` (`45.4981°N, 69.6018°W` format)
+- Styled with VS Code CSS variables for theme consistency
+
+#### Basemap overhaul (13 free basemaps, no token needed)
+- **Hydrology-focused** (top of list): USGS Imagery, USGS Topo, USGS Shaded Relief, Esri Hillshade, Esri Ocean
+- **General purpose**: Carto Voyager, Carto Dark, Carto Light, Stadia Terrain, Esri World Topo, Esri Satellite, Humanitarian (HOT)
+- **OSM direct** — demoted to last slot with ⚠️ warning (volunteer servers; disallows embedded app traffic)
+- Removed Mapbox dependency entirely
+
+#### Workspace persistence
+- `mapWorkspace.ts` — `localStorage` key `aihydro.map.workspace.v1` saves: active basemap, view state (center + zoom), visible layer IDs, panel layout
+
+---
+
+## [0.1.6] — 2026-05-05
+
+### Map — Python ↔ VS Code layer bridge
+
+- **`MapEventWatcher`** — TypeScript class polls `~/.aihydro/map_events/` every 600 ms and forwards layer events to the map panel via `controller.addMapLayer()`. Starts on extension activation; stops on dispose
+- **`delineate_watershed` auto-push** — watershed boundary polygon and gauge station point pushed automatically after every successful delineation; map panel opens side-by-side if closed
+- **`show_on_map` MCP tool** — explicit tool for pushing any GeoJSON to the map. Accepts style presets (`watershed`, `flowlines`, `gauge`, `default`) and per-key overrides (`fill_color`, `stroke_color`, `fill_opacity`)
+- **`compute_twi` auto-push** — pushes `viridis_r` raster tile as layer `twi_<session_id>` after TWI computation
+- **`create_cn_grid` auto-push** — pushes `YlOrRd` tile as layer `cn_<session_id>` after CN grid generation
+- **`BitmapLayer`** — raster layers routed through deck.gl `BitmapLayer`; vector layers through `GeoJsonLayer`
+- **`plot_raster_tile()`** in `analysis/plots.py` — renders numpy array as decoration-free PNG with NaN-transparent cells; percentile clipping (P2–P98) prevents outlier wash-out
+- **`_bounds_to_wgs84()`** — reprojects raster bounds from any CRS to EPSG:4326 via pyproj; falls back silently if pyproj is unavailable
+
+---
+
+## [0.1.5] — 2026-04-18
+
+### Added
+- **Three-tier citation system** — every tool call automatically accumulates BibTeX citations.
+  `sync_research_context` writes `citations.bib`; `export_session` embeds citations in every format.
+- **LLM interpretation layer** — `research.md` gains a science-prose section written by the model via `sync_research_context` (two-phase: Phase 1 returns raw data; Phase 2 accepts prose).
+- **PNG diagnostic outputs** — watershed map, daily hydrograph, and log-scale FDC saved to workspace automatically.
+- **`analysis/plots.py`** — headless matplotlib plots via Agg backend.
+- **Lean session JSON** — watershed GeoJSON stored separately at `~/.aihydro/sessions/<gauge_id>.geojson` (was embedded inline, 200–800 KB per gauge).
+
+### Fixed
+- `.aihydrorules/research.md` path corrected (was `.clinerules/research.md`)
+- Shadow `ai_hydro/session.py` deleted — was silently writing to wrong path
+- `fetch_streamflow_data` positional-arg error corrected to use `start_date=`/`end_date=` kwargs
+
+---
+
+## [0.1.4] — 2026-04-15
+
+### Added
+- **Python env context in `start_session`** — response includes `mcp_python`, `mcp_pip`, `available_packages`
+- **`list_available_tools` tool** — runtime tool registry with schemas; includes plugin tools
+- **`get_library_reference` tool** — reference cards for 8 core hydrological libraries
+- **`aihydro.knowledge` entry point** — community plugins can contribute additional library cards
+
+---
+
+## [0.1.3] — 2026-04-11
+
+### Fixed
+- **Security**: Path traversal in `ProjectSession` — `project_name` validated against `^[a-zA-Z0-9_-]{1,64}$`
+- **Critical**: `fetch_streamflow_data` broken on pandas 3.0 — replaced `hydrofunctions` with `dataretrieval` (official USGS Python client)
+- Geomorphic outlet elevation NaN silently coerced to 0.0 — fixed with nearest-pixel fallback
+- `research.md` / `tools.md` written to `.clinerules/` instead of `.aihydrorules/` — agent context was not being injected
+
+---
+
 ## [0.1.2] — 2026-04-10
 
 ### Added
@@ -81,7 +199,13 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
-[Unreleased]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.7...v0.1.8
+[0.1.7]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.6...v0.1.7
+[0.1.6]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/AI-Hydro/AI-Hydro/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AI-Hydro/AI-Hydro/releases/tag/v0.1.0

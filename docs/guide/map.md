@@ -1,18 +1,105 @@
 ---
-description: The AI-Hydro map panel — visualize watershed boundaries, gauge points, and custom GeoJSON layers directly inside VS Code.
+description: The AI-Hydro map panel — visualize watershed boundaries, raster grids, and any geospatial file directly inside VS Code with full symbology control.
 ---
 
 # Map Panel
 
-The AI-Hydro map panel is a side-by-side webview that renders geospatial analysis outputs as interactive layers. Watershed boundaries, gauge locations, and any GeoJSON geometry you pass to `show_on_map` appear here automatically — no copy-pasting coordinates into an external tool.
+The AI-Hydro map panel is a side-by-side webview that renders geospatial analysis outputs as interactive layers. Watershed boundaries, TWI grids, gauge locations, and any file you drop on the map appear here automatically — no copy-pasting coordinates into an external tool.
 
 ---
 
 ## Opening the Map
 
-Click the **Map** button in the AI-Hydro sidebar toolbar, or run the command palette entry `AI-Hydro: Open Map`. The panel opens in VS Code's editor column 2 (side-by-side with chat).
+Click the **Map** button in the AI-Hydro sidebar toolbar, or run `AI-Hydro: Open Map` from the command palette. The panel opens in VS Code's editor column 2 (side-by-side with chat).
 
-When the map opens, all `*.geojson`, `*.kml`, `*.gpx`, `*.topojson`, and `*.shp` files in your workspace are loaded as **hidden** layers. Toggle them on from the Layers panel on the left.
+On open, all `*.geojson`, `*.kml`, `*.gpx`, `*.topojson`, and `*.shp` files in your workspace are loaded as hidden layers. Toggle them on from the Layers panel.
+
+---
+
+## Loading Files
+
+### Drag-and-drop
+
+Drop any supported file directly onto the map. A blue dashed drop zone appears while dragging. A toast at the bottom of the map reports how many files loaded and any errors.
+
+### + Add Layer button
+
+Click **+ Add Layer…** in the Layers panel (always visible, even when no layers are loaded) to open a native file picker filtered to supported extensions.
+
+### Workspace auto-scan
+
+Files matching `*.geojson`, `*.topojson`, `*.kml`, `*.gpx` in the VS Code workspace are scanned automatically when the map opens and added as hidden layers (📁 badge).
+
+---
+
+## Supported Formats
+
+| Format | Extension(s) | Notes |
+|---|---|---|
+| GeoJSON | `.geojson`, `.json` | FeatureCollection, Feature, or bare Geometry |
+| TopoJSON | `.topojson`, `.json` | Converted to GeoJSON via `topojson-client` |
+| KML | `.kml` | Converted via `@tmcw/togeojson` |
+| KMZ | `.kmz` | ZIP extracted, then KML converted |
+| GPX | `.gpx` | Track points and routes converted to GeoJSON |
+| Shapefile | `.zip` | Zipped `.shp + .dbf + .shx + .prj` bundle |
+| GeoTIFF | `.tif`, `.tiff` | Single-band; rendered with viridis ramp; must be EPSG:4326 |
+| CSV | `.csv` | Auto-detects `lon`/`lat`/`longitude`/`latitude`/`x`/`y` columns |
+
+> **GeoTIFF note**: GeoTIFFs in projected CRSs (anything other than EPSG:4326 / 4269) are rejected with a clear error. Reproject to WGS84 first using QGIS, GDAL (`gdalwarp`), or any online reprojector.
+
+---
+
+## Layers Panel
+
+The panel on the left of the map lists all active layers.
+
+### Per-layer controls
+
+| Control | Action |
+|---|---|
+| Checkbox | Toggle visibility |
+| Colour swatch / 🎨 | Open symbology editor |
+| 🔍 | Zoom map to the layer's bounding box |
+| ✕ | Remove layer (does not delete the source file) |
+
+### Source badges
+
+Each layer row shows a badge indicating where the layer came from:
+
+| Badge | Source |
+|---|---|
+| 📁 | Workspace file (auto-scanned) |
+| 🐍 | Python tool output (`show_on_map`, `delineate_watershed`, etc.) |
+| 📥 | User-loaded file (drag-and-drop or file picker) |
+| 📤 | Manually pushed via extension API |
+
+### Panel layout
+
+- **Collapse/expand** — click the `📑` icon; the panel stays visible even when collapsed so you can always add layers
+- **Resize** — drag the left edge to any width between 220 and 480 px
+- **Panel state persisted** — dock position, width, and section expand state are saved in `localStorage` and restored on next open
+
+---
+
+## Symbology Editor
+
+Click a layer's colour swatch or the 🎨 icon to open the inline symbology editor. Changes apply immediately.
+
+**Vector layers**
+
+| Control | Effect |
+|---|---|
+| Fill colour | Feature fill (HTML colour picker) |
+| Fill opacity | 0 – 1 slider |
+| Stroke colour | Feature outline |
+| Stroke width | Outline thickness in pixels |
+
+**Raster layers**
+
+| Control | Effect |
+|---|---|
+| Colormap | viridis · plasma · inferno · magma · cividis · Greens · YlOrRd · RdBu |
+| Opacity | 0 – 1 slider |
 
 ---
 
@@ -27,7 +114,7 @@ Once you have AI-Hydro's Python backend installed, analysis tools push layers au
 | `create_cn_grid` | Curve Number grid (`YlOrRd` colourmap, 70% opacity) | Raster |
 | `show_on_map` | Any GeoJSON you pass explicitly | Vector |
 
-The map panel opens automatically when the first layer arrives (controlled by `open_map=True` inside the event, which is the default).
+The map panel opens automatically when the first layer arrives.
 
 ---
 
@@ -36,7 +123,6 @@ The map panel opens automatically when the first layer arrives (controlled by `o
 Use this to visualise any geometry your analysis produces:
 
 ```python
-# Inside an agent session
 show_on_map(
     geojson=my_geojson_string,   # FeatureCollection / Feature / Geometry
     name="Study Area",
@@ -55,7 +141,7 @@ show_on_map(
 | `gauge` | Orange (#e05c00) | Station point markers |
 | `default` | Mid-blue (#0066CC) | General purpose |
 
-You can override any style key individually:
+Per-key overrides:
 
 ```python
 show_on_map(
@@ -71,53 +157,61 @@ show_on_map(
 
 ## Basemaps
 
-Use the dropdown in the top-right corner to switch between 9 free basemaps plus optional Mapbox styles (requires a Mapbox token in extension settings).
+Click the dropdown in the top-right corner to switch basemap. All 13 options are free — no API token needed.
 
-**Hydrology-focused basemaps (no token needed)**
+**Hydrology-focused**
 
-| Name | Best for |
+| Basemap | Best for |
 |---|---|
-| USGS Topo | Watershed context, road networks |
 | USGS Imagery | Aerial / satellite verification |
+| USGS Topo | Watershed context, road networks |
 | USGS Shaded Relief | Terrain and slope visualisation |
-| Terrain (Stadia) | Elevation relief |
+| Esri Hillshade | High-resolution DEM shading |
+| Esri Ocean | Bathymetry + coastal work |
 
-**General basemaps**: Dark (Carto), Light (Carto), OpenStreetMap, Esri Satellite, Humanitarian (HOT).
+**General purpose**
 
----
+Carto Voyager (default), Carto Dark, Carto Light, Stadia Terrain, Esri World Topo, Esri Satellite, Humanitarian (HOT).
 
-## Layers Panel
+**Personal use only**
 
-The panel on the left of the map lists all active layers. Per layer you can:
-
-- **Toggle visibility** — checkbox
-- **Zoom to extent** — 🔍 button fits the map to the layer's bounding box
-- **Remove** — ✕ removes the layer from the map (does not delete the source file)
-- **Clear all** — footer button removes all layers (with inline confirmation)
-
-Workspace files (auto-loaded from disk) show a 📁 badge and can be shown/hidden in bulk via the **Show All / Hide All** workspace controls.
+⚠️ OpenStreetMap direct — tile.openstreetmap.org is run by volunteers and disallows embedded-app traffic. Use Carto or HOT basemaps (both OSM-derived) for any deployed workflow.
 
 ---
 
-## Loading a File Manually
+## Map Status Bar
 
-Run `AI-Hydro: Load GeoJSON to Map` from the command palette to pick any geo data file with a system dialog. Supported formats: **GeoJSON, KML, GPX, TopoJSON, FlatGeobuf, Shapefile (.shp + .dbf + .prj)**.
+The status bar at the bottom of the map shows:
+
+- **Scale bar** — physical distance per pixel at the current zoom and latitude
+- **Coordinates** — latitude/longitude of the pointer position (`45.4981°N, 69.6018°W` format)
 
 ---
 
 ## How the Python ↔ Map Bridge Works
 
-When a Python tool calls `show_on_map` (or `push_layer` from `ai_hydro.mcp.map_events`), it writes a small JSON event file to `~/.aihydro/map_events/`. The VS Code extension polls that directory every ~600 ms, reads each file, calls `controller.addMapLayer()`, and deletes the file. The map panel receives the layer via gRPC streaming and renders it immediately.
+When a Python tool calls `show_on_map` (or uses `ai_hydro.mcp.map_events` directly), it writes a small JSON event file to `~/.aihydro/map_events/`. The VS Code extension polls that directory every ~600 ms, reads each file, calls `controller.addMapLayer()`, and deletes the file.
 
-This means the map works even if the map panel was closed when the tool ran — the layer will appear the next time you open the panel (it is held in the Controller's in-memory layer store until VS Code restarts).
+This means layers pushed while the map panel was closed will appear the next time you open the panel — they are held in the Controller's in-memory store until VS Code restarts.
+
+---
+
+## Workspace Persistence
+
+The map saves its state to `localStorage` (key `aihydro.map.workspace.v1`) on every change:
+
+- Active basemap
+- View state (centre coordinates + zoom level)
+- Visible layer IDs
+- Layers panel width and dock position
+
+State is restored automatically the next time the panel opens.
 
 ---
 
 ## Roadmap
 
-Coming in future releases:
-
-- **Raster layer support** — render GeoTIFF DEMs, TWI grids, and CN grids as colour-mapped bitmap layers
-- **Draw tools** — sketch a custom AOI polygon and pass it directly to watershed delineation
-- **Layer persistence** — save the active layer set to `HydroSession` so layers survive VS Code restarts
+- **Draw tools** — sketch a custom AOI polygon and pass it directly to `delineate_watershed`
 - **Attribute-driven styling** — colour features by any property (stream order, soil class, CN value) with an auto-legend
+- **Multi-band GeoTIFF** — band selector and multi-band RGB composites
+- **In-browser reprojection** — accept GeoTIFFs in any CRS and reproject on the fly via `proj4js`

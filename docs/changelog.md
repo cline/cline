@@ -12,21 +12,91 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ## [Unreleased]
 
-### Map — Raster layer support
-- **`plot_raster_tile()`** — new function in `analysis/plots.py` that renders a 2D numpy array as a clean, decoration-free PNG (no axes, no title) with NaN cells transparent. Returns `(path, bounds)` ready for `push_raster_layer()`. Colourmap percentile-clipping (P2–P98) prevents outlier wash-out.
-- **`push_raster_layer()`** in `map_events.py` — writes a raster event file containing the tile PNG path and WGS84 bounds. The TypeScript watcher reads the PNG, base64-encodes it into a data URL, and passes it to deck.gl `BitmapLayer`.
-- **`_bounds_to_wgs84()`** — helper that reprojects raster bounds from any CRS to EPSG:4326 via pyproj; falls back silently if pyproj is unavailable.
-- **`compute_twi` auto-push** — after successful TWI computation, pushes `viridis_r` tile to map as layer `twi_<session_id>`.
-- **`create_cn_grid` auto-push** — pushes `YlOrRd` CN tile as layer `cn_<session_id>`.
-- **`BitmapLayer` in `MapView.tsx`** — raster layers routed through deck.gl `BitmapLayer`; vector layers through `GeoJsonLayer` as before.
-- **Gradient colour swatches** in `LayerList.tsx` — raster layers show a wider gradient swatch matching their colourmap instead of a solid-colour square.
-- **5 new tests** in `TestRasterMapEvents` covering `push_raster_layer`, error handling, tile PNG generation, and `_bounds_to_wgs84`.
+---
+
+## [0.1.8] — 2026-05-09
+
+### Map — Multi-format loading, drag-and-drop, symbology editor
+
+The map panel now supports **8 geospatial file formats** that can be loaded by dragging files onto the map, clicking **+ Add Layer**, or dropping into a file picker. Each format is handled by a lazy-loaded adapter so the bundle stays small for users who never use that format.
+
+#### Supported formats
+
+| Format | Extension(s) | Notes |
+|---|---|---|
+| GeoJSON | `.geojson`, `.json` | Native; also accepts raw Geometry types |
+| TopoJSON | `.topojson`, `.json` | Converted via `topojson-client` |
+| KML | `.kml` | Converted via `@tmcw/togeojson` |
+| KMZ | `.kmz` | ZIP extracted via `jszip`, then KML converted |
+| GPX | `.gpx` | Converted via `@tmcw/togeojson` |
+| Shapefile | `.zip` | Zipped `.shp + .dbf + .shx + .prj` via `shpjs` |
+| GeoTIFF | `.tif`, `.tiff` | Read via `geotiff.js`; rendered with viridis ramp; rejects non-WGS84 |
+| CSV | `.csv` | Auto-detects `lon`/`lat`/`longitude`/`latitude`/`x`/`y` columns |
+
+#### Drag-and-drop
+- Drop any supported file directly onto the map — a blue dashed drop zone appears while dragging
+- A `dragDepthRef` counter prevents false `dragLeave` events from child elements
+- A result toast (bottom-centre) reports how many files loaded and any errors
+
+#### Layer panel additions
+- **`+ Add Layer…` button** — opens a native file picker filtered to supported extensions; always visible, even when the panel is collapsed
+- **Empty state** — when no layers are present, a `🗺️` placeholder lists supported formats so first-time users know what to do
+- **Source badges** — every layer row shows one of: 📁 workspace file · 🐍 Python tool output · 📥 user-loaded file · 📤 manually pushed
+- **Layer name disambiguation** — when two layers share the same filename (e.g. two `watershed.geojson` files from different folders), the parent folder name is appended to distinguish them
+
+#### Symbology editor
+- Click a layer's colour swatch or the 🎨 icon to open an inline editor:
+  - **Vector layers**: fill colour + opacity slider, stroke colour + width slider
+  - **Raster layers**: colormap selector (viridis, plasma, inferno, magma, cividis, Greens, YlOrRd, RdBu) + opacity slider
+- Changes applied immediately
+
+---
+
+## [0.1.7] — 2026-05-08
+
+### Map — Panel redesign, status bar, basemap overhaul, workspace persistence
+
+#### Resize fix
+- **ResizeObserver** on the map container replaces `window.addEventListener("resize")` — the map now reflows correctly when VS Code splits or resizes panels, not only on browser-window resize
+
+#### Layer panel
+- Always visible in collapsed state — a `📑 +` icon button lets you add layers even after clearing everything
+- Drag-resize handle on the left edge; width clamped to 220–480 px
+- Panel state (dock, width, section expand) persisted to `localStorage`
+
+#### Map status bar
+- **Scale bar** using the Mercator formula: `156 543 × cos(lat) / 2^zoom` m/px, displayed in km or m with a clean tick mark
+- **Coordinate readout** from pointer position (`45.4981°N, 69.6018°W` format)
+- Styled with VS Code CSS variables (`--vscode-foreground`, `--vscode-editor-background`) for full theme awareness
+
+#### Basemap overhaul — 13 free basemaps, no API token
+
+| Group | Basemaps |
+|---|---|
+| Hydrology-focused | USGS Imagery, USGS Topo, USGS Shaded Relief, Esri Hillshade, Esri Ocean |
+| General purpose | Carto Voyager, Carto Dark, Carto Light, Stadia Terrain, Esri World Topo, Esri Satellite, Humanitarian (HOT) |
+| Personal use only | ⚠️ OpenStreetMap (volunteer servers; disallows embedded app traffic) |
+
+Mapbox dependency completely removed.
+
+#### Workspace persistence
+`mapWorkspace.ts` — `localStorage` key `aihydro.map.workspace.v1` saves:
+active basemap, view state (centre + zoom), visible layer IDs, and panel layout.
+
+---
+
+## [0.1.6] — 2026-05-05
 
 ### Map — Python ↔ VS Code layer bridge
-- **`MapEventWatcher`** — new TypeScript class polls `~/.aihydro/map_events/` every 600 ms and forwards layer events to the map panel via `controller.addMapLayer()`. Starts on extension activation; stops on dispose. No Mapbox token or internet required.
-- **`delineate_watershed` auto-push** — watershed boundary polygon and gauge station point are pushed to the map automatically after every successful delineation. Map panel opens side-by-side if closed.
-- **`show_on_map` MCP tool** — explicit tool for pushing any GeoJSON geometry to the map. Accepts style presets (`watershed`, `flowlines`, `gauge`, `default`) and per-key overrides (`fill_color`, `stroke_color`, `fill_opacity`). Returns `ok`, `layer_id`, and a status message.
-- **`docs/guide/map.md`** — new documentation page covering basemaps, layer management, the `show_on_map` tool, format support, and the Python↔map bridge architecture.
+
+- **`MapEventWatcher`** — TypeScript class polls `~/.aihydro/map_events/` every 600 ms; forwards events to the map panel via `controller.addMapLayer()`. Starts on extension activation; stops on dispose
+- **`delineate_watershed` auto-push** — watershed boundary polygon + gauge station point pushed automatically after each delineation; map panel opens side-by-side if closed
+- **`show_on_map` MCP tool** — push any GeoJSON to the map; accepts style presets (`watershed`, `flowlines`, `gauge`, `default`) and per-key overrides (`fill_color`, `stroke_color`, `fill_opacity`)
+- **`compute_twi` auto-push** — pushes `viridis_r` raster tile as `twi_<session_id>` after TWI computation
+- **`create_cn_grid` auto-push** — pushes `YlOrRd` tile as `cn_<session_id>` after CN grid generation
+- **`BitmapLayer`** in `MapView.tsx` — raster layers routed through deck.gl `BitmapLayer`; vector layers through `GeoJsonLayer`
+- **`plot_raster_tile()`** in `analysis/plots.py` — renders a 2-D numpy array as a decoration-free PNG; NaN cells transparent; percentile clipping (P2–P98) prevents outlier wash-out
+- **`_bounds_to_wgs84()`** — reprojects raster bounds from any CRS to EPSG:4326 via pyproj; falls back silently
 
 ---
 

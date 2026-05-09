@@ -12,7 +12,40 @@ export class VscodeMapPanelProvider {
 		VscodeMapPanelProvider.controller = controller
 	}
 
+	/** Returns true if the map panel is currently open (even if not visible). */
+	public static isOpen(): boolean {
+		return VscodeMapPanelProvider.currentPanel !== undefined
+	}
+
+	/**
+	 * Send raw file bytes to the map webview for client-side parsing.
+	 * Opens the panel first if it's not already visible.
+	 * Called by the "Add to AI-Hydro Map" explorer context menu command.
+	 */
+	public static async sendFilesToMap(files: Array<{ name: string; data: Uint8Array }>): Promise<void> {
+		await VscodeMapPanelProvider.createOrShow()
+		const panel = VscodeMapPanelProvider.currentPanel
+		if (!panel) {
+			return
+		}
+		// Small delay to let the webview finish mounting before we push data
+		await new Promise((resolve) => setTimeout(resolve, 400))
+		for (const file of files) {
+			await panel.webview.postMessage({
+				type: "aihydro-load-file",
+				name: file.name,
+				// Transfer as plain number array so JSON serialization works
+				data: Array.from(file.data),
+			})
+		}
+	}
+
 	public static async createOrShow() {
+		if (!VscodeMapPanelProvider.context) {
+			console.warn("[VscodeMapPanelProvider] Not yet initialized — cannot open map panel")
+			return
+		}
+
 		const column = vscode.ViewColumn.Two
 
 		// If we already have a panel, show it
@@ -112,12 +145,13 @@ export class VscodeMapPanelProvider {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; 
-		style-src ${webview.cspSource} 'unsafe-inline'; 
-		script-src 'nonce-${nonce}'; 
-		img-src ${webview.cspSource} https: data:;
-		font-src ${webview.cspSource};
-		connect-src https:;">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none';
+		style-src ${webview.cspSource} 'unsafe-inline';
+		script-src 'nonce-${nonce}';
+		img-src ${webview.cspSource} https: data: blob:;
+		font-src ${webview.cspSource} https: data:;
+		connect-src https: ${webview.cspSource};
+		worker-src blob:;">
 	<link href="${styleUri}" rel="stylesheet">
 	<title>AI-Hydro Map</title>
 	<style>

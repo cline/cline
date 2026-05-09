@@ -6,6 +6,7 @@ import type { MapLayer } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { BASE_MAP_STYLES } from "./BaseMapSelector"
+import FeatureIdentifier, { type ClickedFeature } from "./FeatureIdentifier"
 import { loadAndPushFiles } from "./formats"
 import { applyColormap, dataUrlToImage, rasterCache, rasterRecolorInFlight } from "./formats/rasterCache"
 import { MapStatusBar } from "./MapStatusBar"
@@ -153,6 +154,98 @@ const fitViewStateToBounds = (
 	}
 }
 
+/**
+ * Ray-casting point-in-polygon test. Returns true if a point is inside or on the
+ * boundary of a polygon. Handles holes and multi-ring polygons.
+ */
+const pointInPolygon = (point: [number, number], polygon: number[][][]): boolean => {
+	const [lon, lat] = point
+	for (let i = 0; i < polygon.length; i++) {
+		const ring = polygon[i]
+		let inside = false
+		for (let j = 0, k = ring.length - 1; j < ring.length; k = j++) {
+			const [x1, y1] = ring[k]
+			const [x2, y2] = ring[j]
+			const intersect = y1 > lat !== y2 > lat && lon < ((x2 - x1) * (lat - y1)) / (y2 - y1) + x1
+			if (intersect) inside = !inside
+		}
+		if (i === 0 && !inside) return false // outside outer ring
+		if (i > 0 && inside) return false // inside a hole
+	}
+	return true
+}
+
+/**
+ * Test if a GeoJSON feature geometry contains a point.
+ */
+const featureContainsPoint = (feature: any, lon: number, lat: number): boolean => {
+	const point: [number, number] = [lon, lat]
+	const geometry = feature?.geometry
+
+	if (!geometry) return false
+
+	const type = geometry.type
+	const coords = geometry.coordinates
+
+	if (type === "Point") {
+		// Exact point match (with small tolerance for floating point)
+		return Math.abs(coords[0] - lon) < 0.0001 && Math.abs(coords[1] - lat) < 0.0001
+	}
+
+	if (type === "LineString") {
+		// Proximity to line (within ~111 meters at equator = 0.001 degrees)
+		const tolerance = 0.001
+		for (let i = 0; i < coords.length - 1; i++) {
+			const [x1, y1] = coords[i]
+			const [x2, y2] = coords[i + 1]
+			const dx = x2 - x1
+			const dy = y2 - y1
+			const len2 = dx * dx + dy * dy
+			let t = ((lon - x1) * dx + (lat - y1) * dy) / len2
+			t = Math.max(0, Math.min(1, t))
+			const closestLon = x1 + t * dx
+			const closestLat = y1 + t * dy
+			const dist2 = (lon - closestLon) ** 2 + (lat - closestLat) ** 2
+			if (dist2 < tolerance * tolerance) return true
+		}
+		return false
+	}
+
+	if (type === "Polygon") {
+		return pointInPolygon(point, coords)
+	}
+
+	if (type === "MultiPoint") {
+		return coords.some((c: number[]) => Math.abs(c[0] - lon) < 0.0001 && Math.abs(c[1] - lat) < 0.0001)
+	}
+
+	if (type === "MultiLineString") {
+		const tolerance = 0.001
+		return coords.some((line: number[][]) => {
+			for (let i = 0; i < line.length - 1; i++) {
+				const [x1, y1] = line[i]
+				const [x2, y2] = line[i + 1]
+				const dx = x2 - x1
+				const dy = y2 - y1
+				const len2 = dx * dx + dy * dy
+				let t = ((lon - x1) * dx + (lat - y1) * dy) / len2
+				t = Math.max(0, Math.min(1, t))
+				const closestLon = x1 + t * dx
+				const closestLat = y1 + t * dy
+				const dist2 = (lon - closestLon) ** 2 + (lat - closestLat) ** 2
+				if (dist2 < tolerance * tolerance) return true
+			}
+			return false
+		})
+	}
+
+	if (type === "MultiPolygon") {
+		return coords.some((poly: number[][][]) => pointInPolygon(point, poly))
+	}
+
+	return false
+}
+
 const DEFAULT_VIEW: MapViewState = {
 	longitude: -95,
 	latitude: 40,
@@ -213,6 +306,9 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	const [isDragOver, setIsDragOver] = useState(false)
 	const [dropStatus, setDropStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null)
 	const dragDepthRef = useRef(0) // dragenter/leave fire for child elements; track depth
+
+	// Feature identifier — stores clicked vector features at a point
+	const [clickedFeatures, setClickedFeatures] = useState<ClickedFeature[]>([])
 
 	const onDragEnter = useCallback((e: React.DragEvent) => {
 		// Only react if files are being dragged (not text/HTML from inside the editor)
@@ -514,6 +610,50 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		return sorted
 	}, [layers, layerOrder])
 
+	const handleMapClick = useCallback(
+		(info: any) => {
+			// Collect all vector features under the click point, grouped by layer.
+			const clicked: ClickedFeature[] = []
+			const clickLon = info.coordinate?.[0]
+			const clickLat = info.coordinate?.[1]
+
+			if (typeof clickLon !== "number" || typeof clickLat !== "number") {
+				return
+			}
+
+			// Sort visible layers by render order (last = on top)
+			const visibleLayers = sortedLayers.filter((l) => visibleLayerIds.has(l.id) && l.layerType === "vector")
+
+			for (const layer of visibleLayers) {
+				try {
+					const geojson = JSON.parse(layer.geojson)
+					if (geojson.type === "FeatureCollection" && Array.isArray(geojson.features)) {
+						for (const feature of geojson.features) {
+							if (featureContainsPoint(feature, clickLon, clickLat)) {
+								clicked.push({
+									layerId: layer.id,
+									layerName: layer.name,
+									properties: feature.properties || {},
+								})
+							}
+						}
+					} else if (geojson.type === "Feature" && featureContainsPoint(geojson, clickLon, clickLat)) {
+						clicked.push({
+							layerId: layer.id,
+							layerName: layer.name,
+							properties: geojson.properties || {},
+						})
+					}
+				} catch (err) {
+					console.error(`[FeatureIdentifier] Error parsing layer ${layer.id}:`, err)
+				}
+			}
+
+			setClickedFeatures(clicked)
+		},
+		[sortedLayers, visibleLayerIds],
+	)
+
 	const dataLayers = useMemo(
 		() =>
 			sortedLayers
@@ -620,6 +760,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				controller={true}
 				getTooltip={layers.length > 0 ? getTooltip : undefined}
 				layers={allLayers}
+				onClick={handleMapClick}
 				onHover={({ coordinate }: any) => {
 					if (coordinate && Array.isArray(coordinate) && coordinate.length >= 2) {
 						setCursorCoord({ lon: coordinate[0], lat: coordinate[1] })
@@ -671,6 +812,8 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				mapStyle={mapStyle}
 				visibleLayerIds={visibleLayerIds}
 			/>
+
+			<FeatureIdentifier features={clickedFeatures} mapStyle={mapStyle} onClose={() => setClickedFeatures([])} />
 
 			<MapStatusBar cursorCoord={cursorCoord} mapStyle={mapStyle} viewState={viewState} />
 
