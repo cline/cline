@@ -65,7 +65,10 @@ export async function pushLayerSpec(spec: LayerSpec): Promise<void> {
 			raster_bounds: JSON.stringify(spec.bounds),
 			raster_opacity: String(spec.opacity ?? 0.85),
 			raster_colormap: spec.colormap ?? "viridis",
-			// sentinel — renderer checks rasterCache first when this is set
+			// Store the data URL so the raster survives extension reloads.
+			// Python-pushed rasters use the same field (MapEventWatcher sets it);
+			// the preload useEffect in MapView decodes whichever is present.
+			raster_data_url: spec.dataUrl,
 			raster_cached: "1",
 		},
 	})
