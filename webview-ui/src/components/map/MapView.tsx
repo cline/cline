@@ -50,6 +50,43 @@ const getRasterBoundsFromLayer = (
 	return undefined
 }
 
+interface CursorRasterReading {
+	layerId: string
+	layerName: string
+	value: number
+	min: number
+	max: number
+	colormap: string
+	units?: string
+}
+
+/**
+ * Sample a raster's underlying pixel value at a WGS84 lon/lat. Returns null if
+ * the layer has no rawPixels (e.g. Python-pushed PNG without numeric backing),
+ * the cursor is outside the bounds, or the sampled pixel is nodata.
+ */
+const sampleRasterAtCursor = (layer: MapLayer, lon: number, lat: number): CursorRasterReading | null => {
+	const cached = rasterCache.get(layer.id)
+	if (!cached?.rawPixels) return null
+	const { data, width, height, min, max } = cached.rawPixels
+	const [minLon, minLat, maxLon, maxLat] = cached.bounds
+	if (lon < minLon || lon > maxLon || lat < minLat || lat > maxLat) return null
+	const px = Math.floor(((lon - minLon) / (maxLon - minLon)) * width)
+	const py = Math.floor(((maxLat - lat) / (maxLat - minLat)) * height)
+	if (px < 0 || px >= width || py < 0 || py >= height) return null
+	const value = data[py * width + px]
+	if (!Number.isFinite(value)) return null
+	return {
+		layerId: layer.id,
+		layerName: layer.name,
+		value,
+		min,
+		max,
+		colormap: layer.metadata?.raster_colormap ?? "viridis",
+		units: layer.metadata?.units,
+	}
+}
+
 const getBoundsFromGeojsonString = (geojsonString: string): BoundingBox | undefined => {
 	if (!geojsonString) {
 		return undefined
@@ -445,6 +482,28 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		return parsedHex ? [parseInt(parsedHex[1], 16), parseInt(parsedHex[2], 16), parseInt(parsedHex[3], 16)] : [0, 102, 204]
 	}
 
+	// Live raster pixel value at cursor — drives the legend's "current value" tick.
+	// Always reads the topmost visible raster (last in sortedLayers); returns null
+	// if cursor is outside any raster, or the layer has no rawPixels (Python-pushed).
+	const cursorRasterReading = useMemo<CursorRasterReading | null>(() => {
+		if (!cursorCoord) return null
+		const visibleRasters = layers.filter((l) => l.layerType === "raster" && visibleLayerIds.has(l.id))
+		if (visibleRasters.length === 0) return null
+		// Apply current sort order so the "topmost" matches what the user sees rendered
+		const ordered =
+			layerOrder.length > 0
+				? (layerOrder.map((id) => visibleRasters.find((l) => l.id === id)).filter(Boolean) as MapLayer[])
+				: visibleRasters
+		const ordered2 = ordered.length > 0 ? ordered : visibleRasters
+		// Search top-to-bottom; pick the first raster whose bounds contain the cursor
+		for (let i = ordered2.length - 1; i >= 0; i--) {
+			const reading = sampleRasterAtCursor(ordered2[i], cursorCoord.lon, cursorCoord.lat)
+			if (reading) return reading
+		}
+		return null
+		// rasterReadyTick included so the reading refreshes after async colormap/preload updates
+	}, [cursorCoord, layers, visibleLayerIds, layerOrder, rasterReadyTick])
+
 	// Sort layers by custom order for deck.gl (last = on top)
 	const sortedLayers = useMemo(() => {
 		if (layerOrder.length === 0) return layers
@@ -606,7 +665,12 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				visibleLayerIds={visibleLayerIds}
 			/>
 
-			<RasterLegend layers={sortedLayers} mapStyle={mapStyle} visibleLayerIds={visibleLayerIds} />
+			<RasterLegend
+				cursorReading={cursorRasterReading}
+				layers={sortedLayers}
+				mapStyle={mapStyle}
+				visibleLayerIds={visibleLayerIds}
+			/>
 
 			<MapStatusBar cursorCoord={cursorCoord} mapStyle={mapStyle} viewState={viewState} />
 
@@ -681,23 +745,44 @@ interface RasterLegendProps {
 	layers: MapLayer[]
 	visibleLayerIds: Set<string>
 	mapStyle: string
+	cursorReading: CursorRasterReading | null
 }
 
-const RasterLegend: React.FC<RasterLegendProps> = ({ layers, visibleLayerIds, mapStyle }) => {
+/** Format a numeric raster value with adaptive precision. */
+const fmtRasterValue = (v: number): string => {
+	if (!Number.isFinite(v)) return "—"
+	const abs = Math.abs(v)
+	if (abs === 0) return "0"
+	if (abs >= 1000) return v.toFixed(0)
+	if (abs >= 10) return v.toFixed(2)
+	if (abs >= 1) return v.toFixed(3)
+	return v.toPrecision(3)
+}
+
+const RasterLegend: React.FC<RasterLegendProps> = ({ layers, visibleLayerIds, mapStyle, cursorReading }) => {
 	const visibleRasters = layers.filter((l) => l.layerType === "raster" && visibleLayerIds.has(l.id))
 	if (visibleRasters.length === 0) return null
 
-	// Show legend for the topmost visible raster (last in render order)
-	const layer = visibleRasters[visibleRasters.length - 1]
+	// Show legend for the topmost visible raster (last in render order).
+	// If the cursor is over a different visible raster, the reading wins so the
+	// legend always describes whatever pixel the user is actually pointing at.
+	const layer = cursorReading
+		? (visibleRasters.find((l) => l.id === cursorReading.layerId) ?? visibleRasters[visibleRasters.length - 1])
+		: visibleRasters[visibleRasters.length - 1]
 	const colormap = layer.metadata?.raster_colormap ?? "viridis"
-	const minVal = layer.metadata?.min ? parseFloat(layer.metadata.min).toPrecision(4) : "—"
-	const maxVal = layer.metadata?.max ? parseFloat(layer.metadata.max).toPrecision(4) : "—"
+	const minRaw = layer.metadata?.min ? parseFloat(layer.metadata.min) : NaN
+	const maxRaw = layer.metadata?.max ? parseFloat(layer.metadata.max) : NaN
 	const gradient = LEGEND_GRADIENTS[colormap] ?? LEGEND_GRADIENTS["viridis"]
 
 	const isDark = mapStyle === "dark"
 	const bg = isDark ? "rgba(18,18,26,0.88)" : "rgba(252,252,252,0.90)"
 	const fg = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)"
 	const bdClr = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)"
+	const tickColor = isDark ? "#ffffff" : "#000000"
+
+	// Live tick: position of cursor value on the gradient bar [0, 1]
+	const showTick = cursorReading && Number.isFinite(minRaw) && Number.isFinite(maxRaw) && maxRaw > minRaw
+	const tickPct = showTick ? Math.max(0, Math.min(1, (cursorReading.value - minRaw) / (maxRaw - minRaw))) : 0
 
 	return (
 		<div
@@ -714,8 +799,8 @@ const RasterLegend: React.FC<RasterLegendProps> = ({ layers, visibleLayerIds, ma
 				fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
 				fontSize: 10,
 				color: fg,
-				minWidth: 150,
-				maxWidth: 200,
+				minWidth: 170,
+				maxWidth: 220,
 				pointerEvents: "none",
 			}}>
 			{/* Layer name */}
@@ -730,12 +815,70 @@ const RasterLegend: React.FC<RasterLegendProps> = ({ layers, visibleLayerIds, ma
 				}}>
 				{layer.name}
 			</div>
-			{/* Gradient bar */}
-			<div style={{ height: 10, background: gradient, borderRadius: 2, border: `1px solid ${bdClr}`, marginBottom: 3 }} />
+			{/* Gradient bar with live cursor tick */}
+			<div style={{ position: "relative", marginBottom: 3 }}>
+				<div style={{ height: 10, background: gradient, borderRadius: 2, border: `1px solid ${bdClr}` }} />
+				{showTick && (
+					<>
+						{/* Vertical tick marker */}
+						<div
+							style={{
+								position: "absolute",
+								top: -2,
+								left: `calc(${(tickPct * 100).toFixed(2)}% - 1px)`,
+								width: 2,
+								height: 14,
+								background: tickColor,
+								boxShadow: "0 0 0 1px rgba(0,0,0,0.55), 0 0 4px rgba(255,255,255,0.45)",
+								borderRadius: 1,
+							}}
+						/>
+						{/* Caret above the tick */}
+						<div
+							style={{
+								position: "absolute",
+								top: -7,
+								left: `calc(${(tickPct * 100).toFixed(2)}% - 4px)`,
+								width: 0,
+								height: 0,
+								borderLeft: "4px solid transparent",
+								borderRight: "4px solid transparent",
+								borderTop: `5px solid ${tickColor}`,
+								filter: "drop-shadow(0 0 1px rgba(0,0,0,0.6))",
+							}}
+						/>
+					</>
+				)}
+			</div>
 			{/* Min / max labels */}
-			<div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, opacity: 0.78 }}>
-				<span>{minVal}</span>
-				<span>{maxVal}</span>
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					fontSize: 9,
+					opacity: 0.78,
+					fontVariantNumeric: "tabular-nums",
+				}}>
+				<span>{Number.isFinite(minRaw) ? fmtRasterValue(minRaw) : "—"}</span>
+				<span>{Number.isFinite(maxRaw) ? fmtRasterValue(maxRaw) : "—"}</span>
+			</div>
+			{/* Live cursor value */}
+			<div
+				style={{
+					marginTop: 4,
+					paddingTop: 4,
+					borderTop: `1px dashed ${bdClr}`,
+					display: "flex",
+					alignItems: "baseline",
+					gap: 6,
+					fontVariantNumeric: "tabular-nums",
+					minHeight: 14,
+				}}>
+				<span style={{ fontSize: 9, opacity: 0.65 }}>cursor</span>
+				<span style={{ fontSize: 12, fontWeight: 600, opacity: cursorReading ? 1 : 0.3 }}>
+					{cursorReading ? fmtRasterValue(cursorReading.value) : "—"}
+				</span>
+				{cursorReading?.units && <span style={{ fontSize: 9, opacity: 0.6 }}>{cursorReading.units}</span>}
 			</div>
 		</div>
 	)
