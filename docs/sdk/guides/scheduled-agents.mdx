@@ -29,7 +29,7 @@ cline schedule create "PR summary" \
   --cron "0 9 * * MON-FRI" \
   --prompt "List all open PRs, their review status, and any that have been open more than 3 days" \
   --workspace /path/to/repo \
-  --model anthropic/claude-sonnet-4-6
+  --model anthropic/claude-sonnet-4-20250514
 
 # Every 6 hours
 cline schedule create "Health check" \
@@ -68,7 +68,7 @@ cline schedule executions <schedule-id>
 ## Creating Schedules Programmatically
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({
   clientName: "scheduler",

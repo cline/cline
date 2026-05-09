@@ -17,8 +17,8 @@ A GitHub integration plugin that:
 
 ```typescript
 // github-plugin.ts
-import { type AgentExtension } from "@cline/core"
-import { createTool } from "@cline/agents"
+import { type AgentExtension } from "@cline/sdk"
+import { createTool } from "@cline/sdk"
 
 interface GitHubConfig {
   token: string
@@ -189,12 +189,12 @@ function createPostCommentTool(config: GitHubConfig) {
 ## Step 3: Use the Plugin
 
 ```typescript
-import { Agent } from "@cline/agents"
+import { Agent } from "@cline/sdk"
 import { createGitHubPlugin } from "./github-plugin"
 
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-sonnet-4-20250514",
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a project manager assistant with access to GitHub.",
   plugins: [
@@ -215,7 +215,7 @@ To load this plugin from a file in ClineCore, pass its path in `pluginPaths`:
 
 ```typescript
 // /absolute/path/to/github.ts
-import { type AgentExtension, createTool } from "@cline/core"
+import { type AgentExtension, createTool } from "@cline/sdk"
 
 const plugin: AgentExtension = {
   name: "github",
@@ -236,7 +236,7 @@ export default plugin
 Then include it in session config:
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({ clientName: "my-app" })
 

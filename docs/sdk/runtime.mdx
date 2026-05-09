@@ -37,11 +37,11 @@ run() or continue()
 ```
 
 ```typescript
-import { Agent } from "@cline/agents"
+import { Agent } from "@cline/sdk"
 
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-sonnet-4-20250514",
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a helpful coding assistant.",
   tools: [myTool],
@@ -93,7 +93,7 @@ If you persist messages externally, restore them with `restore(messages)` before
 - optional plugin paths and extensions
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({
   clientName: "my-app",
@@ -104,7 +104,7 @@ const session = await cline.start({
   prompt: "Set up GitHub Actions for this repo",
   config: {
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
+    modelId: "claude-sonnet-4-20250514",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: "/path/to/project",
@@ -169,7 +169,7 @@ await cline.start({
   prompt: "Audit this repo",
   config: {
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
+    modelId: "claude-sonnet-4-20250514",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: process.cwd(),

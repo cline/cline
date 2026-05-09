@@ -14,12 +14,6 @@ Use this page for event handling patterns. For event shapes, see [Events referen
 ## AgentRuntime Events
 
 ```typescript
-import { Agent } from "@cline/agents"
-
-const agent = new Agent({
-  // ...config
-})
-
 const unsubscribe = agent.subscribe((event) => {
   if (event.type === "assistant-text-delta") {
     process.stdout.write(event.text)
@@ -67,12 +61,10 @@ const unsubscribe = cline.subscribe(listener, { sessionId })
 
 ## Streaming UI Pattern
 
-```typescript
-const agent = new Agent({
-  // ...config
-})
+Subscribe to events to build real-time UIs:
 
-const unsubscribe = agent.subscribe((event) => {
+```typescript
+agent.subscribe((event) => {
   switch (event.type) {
     case "assistant-text-delta":
       onUpdate({ type: "text", content: event.text })
@@ -90,14 +82,12 @@ const unsubscribe = agent.subscribe((event) => {
 })
 ```
 
+For a complete working example of streaming agent events to a browser via SSE, see the [multi-agent example](https://github.com/cline/sdk/tree/main/apps/examples/multi-agent). It spawns multiple agents in parallel and streams each agent's events to separate UI cards.
+
 ## Usage Tracking Pattern
 
 ```typescript
 let totalTokens = 0
-
-const agent = new Agent({
-  // ...config
-})
 
 agent.subscribe((event) => {
   if (event.type === "usage-updated") {
@@ -108,7 +98,7 @@ agent.subscribe((event) => {
 
 ## Runtime State Snapshots
 
-For direct `AgentRuntime` usage, call `snapshot()` when you need the current state:
+Call `snapshot()` when you need the current state:
 
 ```typescript
 const snapshot = agent.snapshot()

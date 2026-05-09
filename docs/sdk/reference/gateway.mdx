@@ -69,7 +69,7 @@ Returns model metadata.
 ```typescript
 const model = gateway.createAgentModel({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-sonnet-4-20250514",
 })
 ```
 
@@ -80,7 +80,7 @@ Returns an `AgentModel` that can be passed to `AgentRuntime`.
 ```typescript
 const stream = await gateway.stream({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-sonnet-4-20250514",
   messages,
   tools: [],
 })

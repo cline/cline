@@ -5,7 +5,7 @@ description: "API reference for ClineCore from @cline/core."
 ---
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 ```
 
 ## `ClineCore.create(options)`
@@ -38,7 +38,7 @@ const session = await cline.start({
   prompt: "Summarize this repo",
   config: {
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
+    modelId: "claude-sonnet-4-20250514",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: process.cwd(),

@@ -178,7 +178,7 @@ const lookupAgent = new Agent({
 // Complex work: use a more capable model
 const workAgent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-sonnet-4-20250514",
   // ...
 })
 ```
@@ -261,7 +261,7 @@ For request/response workflows (API endpoints, webhook handlers):
 async function handleRequest(prompt: string): Promise<string> {
   const agent = new Agent({
     providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
+    modelId: "claude-sonnet-4-20250514",
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful assistant.",
     tools: [myTool],

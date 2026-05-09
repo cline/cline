@@ -11,7 +11,7 @@ Plugins are packages of reusable agent capabilities. They let you bundle tools, 
 A plugin is an `AgentExtension` — an object that implements the SDK's extension interface. It can register tools, hook into agent lifecycle events, and provide configuration defaults.
 
 ```typescript
-import { type AgentExtension } from "@cline/core"
+import { type AgentExtension } from "@cline/sdk"
 
 const myPlugin: AgentExtension = {
   name: "my-plugin",

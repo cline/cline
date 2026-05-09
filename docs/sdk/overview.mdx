@@ -17,31 +17,24 @@ Use it to build:
 
 ## Install
 
-Install the package that matches the runtime you need:
-
 ```bash
-npm install @cline/agents @cline/shared
+npm install @cline/sdk
 ```
 
-For sessions and built-in tools:
-
-```bash
-npm install @cline/core
-```
+`@cline/sdk` re-exports everything from `@cline/core`. You only need `@cline/agents` or `@cline/llms` if you want lower-level control over the agent runtime or model gateway directly.
 
 Requires Node.js 22 or later.
 
 ## Minimal Agent
 
 ```typescript
-import { Agent } from "@cline/agents"
+import { Agent } from "@cline/sdk"
 
 const agent = new Agent({
   providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
+  modelId: "claude-sonnet-4-20250514",
   apiKey: process.env.ANTHROPIC_API_KEY,
-  systemPrompt: "You are a helpful coding assistant.",
-  tools: [],
+  maxIterations: 1,
 })
 
 agent.subscribe((event) => {
@@ -50,9 +43,12 @@ agent.subscribe((event) => {
   }
 })
 
-const result = await agent.run("Create a hello world Express server")
-console.log(result.outputText)
+const result = await agent.run("Explain what an SDK is in two sentences.")
 ```
+
+<Note>
+  This is the complete [quickstart example](https://github.com/cline/sdk/tree/main/apps/examples/quickstart). Clone it and run `bun dev` to try it.
+</Note>
 
 ## Runtime Choices
 
@@ -67,12 +63,25 @@ See [Agent vs ClineCore](/sdk/runtime).
 
 | Package | Purpose |
 |---------|---------|
+| `@cline/sdk` | Public SDK surface (re-exports `@cline/core`) |
 | `@cline/shared` | Types, schemas, tool helpers, hooks, storage helpers |
 | `@cline/llms` | Provider gateway and model catalogs |
 | `@cline/agents` | Browser-safe stateless agent execution loop |
 | `@cline/core` | Node runtime for sessions, built-in tools, persistence, hub support, automation |
 
 See [Packages](/sdk/architecture/overview) for package boundaries and exports.
+
+## Examples
+
+Working examples are available in the [SDK repository](https://github.com/cline/sdk/tree/main/apps/examples), organized by difficulty:
+
+| Example | Description |
+|---------|-------------|
+| [quickstart](https://github.com/cline/sdk/tree/main/apps/examples/quickstart) | Send one prompt, stream the response (~15 lines) |
+| [cli-agent](https://github.com/cline/sdk/tree/main/apps/examples/cli-agent) | Interactive terminal chat with a shell tool |
+| [code-review-bot](https://github.com/cline/sdk/tree/main/apps/examples/code-review-bot) | AI code reviewer with custom tools and structured output |
+| [multi-agent](https://github.com/cline/sdk/tree/main/apps/examples/multi-agent) | Parallel agents with streaming web UI |
+| [desktop-app](https://github.com/cline/sdk/tree/main/apps/examples/desktop-app) | Full Tauri + Next.js desktop app |
 
 ## Next Steps
 
