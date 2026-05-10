@@ -415,6 +415,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				)
 			} catch (error) {
 				// Full original behavior - comprehensive error handling even for partial blocks
+				config.taskState.consecutiveMistakeCount++
 				await config.callbacks.say("diff_error", relPath)
 
 				// Extract error type from error message if possible
