@@ -1,3 +1,4 @@
+import { MAX_API_CONFIGURATION_PROFILES } from "@shared/api-configuration-profiles"
 import { StringRequest } from "@shared/proto/cline/common"
 import { SaveApiConfigurationProfileRequest } from "@shared/proto/cline/models"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
@@ -45,6 +46,17 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 		const name = profileName.trim()
 		if (!name) {
 			setProfileError("Profile name is required.")
+			return
+		}
+		const matchingProfile = apiConfigurationProfiles.find(
+			(profile) => profile.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
+		)
+		if (matchingProfile && (saveAsNew || matchingProfile.id !== activeApiConfigurationProfileId)) {
+			setProfileError("A profile with this name already exists.")
+			return
+		}
+		if (saveAsNew && apiConfigurationProfiles.length >= MAX_API_CONFIGURATION_PROFILES) {
+			setProfileError(`You can save up to ${MAX_API_CONFIGURATION_PROFILES} profiles.`)
 			return
 		}
 
@@ -181,7 +193,7 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 						})}
 						{renderProfileButton({
 							Icon: Plus,
-							disabled: isProfileBusy,
+							disabled: isProfileBusy || apiConfigurationProfiles.length >= MAX_API_CONFIGURATION_PROFILES,
 							label: "Save as New",
 							minWidth: 132,
 							onClick: () => saveProfile(true),

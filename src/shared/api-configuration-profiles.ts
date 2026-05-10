@@ -1,5 +1,7 @@
 import type { ApiConfiguration, ApiProvider } from "./api"
 
+export const MAX_API_CONFIGURATION_PROFILES = 20
+
 export interface ApiConfigurationProfile {
 	id: string
 	name: string
@@ -9,7 +11,9 @@ export interface ApiConfigurationProfile {
 }
 
 export interface StoredApiConfigurationProfile extends ApiConfigurationProfile {
-	apiConfiguration: ApiConfiguration
+	apiConfigurationSecretKey?: string
+	/** @deprecated Legacy profile payload stored inline before profiles were split across per-profile secrets. */
+	apiConfiguration?: ApiConfiguration
 }
 
 export interface ApiConfigurationProfilesState {
@@ -17,4 +21,6 @@ export interface ApiConfigurationProfilesState {
 	profiles: StoredApiConfigurationProfile[]
 }
 
-export const API_CONFIGURATION_PROFILES_SECRET_KEY = "apiConfigurationProfiles"
+export const API_CONFIGURATION_PROFILES_STATE_KEY = "apiConfigurationProfiles"
+export const LEGACY_API_CONFIGURATION_PROFILES_SECRET_KEY = "apiConfigurationProfiles"
+export const getApiConfigurationProfileSecretKey = (profileId: string) => `apiConfigurationProfile.${profileId}`
