@@ -49,8 +49,14 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 	}
 
+	private static readonly MAX_LINES_DEFAULT = 1000
+
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		const relPath: string | undefined = block.params.path
+		const rawStartLine: string | undefined = block.params.start_line
+		const rawEndLine: string | undefined = block.params.end_line
+		const hasExplicitRange = !!(rawStartLine || rawEndLine)
+		const startLine = rawStartLine ? Math.max(1, parseInt(rawStartLine, 10) || 1) : 1
 
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
@@ -182,11 +188,15 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 			await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
-			if (validCached.readCount >= 3) {
-				return `[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.\n\n${cachedFileContent.text}`
+			// For explicit-range reads, skip dedup warnings (model is intentionally reading a chunk)
+			if (!hasExplicitRange) {
+				if (validCached.readCount >= 3) {
+					return `[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.\n\n${ReadFileToolHandler.applyLineRange(cachedFileContent.text, startLine, rawEndLine)}`
+				}
+				return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:\n${ReadFileToolHandler.applyLineRange(cachedFileContent.text, startLine, rawEndLine)}`
 			}
 
-			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:\n${cachedFileContent.text}`
+			return ReadFileToolHandler.applyLineRange(cachedFileContent.text, startLine, rawEndLine)
 		}
 
 		// Execute the actual file read operation
@@ -216,6 +226,37 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
 		}
 
-		return fileContent.text
+		return ReadFileToolHandler.applyLineRange(fileContent.text, startLine, rawEndLine)
+	}
+
+	private static applyLineRange(text: string, startLine: number, rawEndLine?: string): string {
+		const lines = text.split("\n")
+		const totalLines = lines.length
+
+		// For single-line files or empty content, skip line-number formatting
+		if (totalLines === 0) return text
+
+		const endLine = rawEndLine
+			? Math.min(Math.max(1, parseInt(rawEndLine, 10) || totalLines), totalLines)
+			: Math.min(startLine + ReadFileToolHandler.MAX_LINES_DEFAULT - 1, totalLines)
+
+		// Clamp start to valid range
+		const clampedStart = Math.min(startLine, totalLines)
+
+		const selectedLines = lines.slice(clampedStart - 1, endLine)
+		const lineWidth = String(endLine).length
+
+		const numberedContent = selectedLines
+			.map((line, i) => `${String(clampedStart + i).padStart(lineWidth, " ")} | ${line}`)
+			.join("\n")
+
+		if (endLine < totalLines) {
+			return (
+				numberedContent +
+				`\n\n[File truncated: showing lines ${clampedStart}-${endLine} of ${totalLines} total lines. Use start_line=${endLine + 1} to read more.]`
+			)
+		}
+
+		return numberedContent
 	}
 }
