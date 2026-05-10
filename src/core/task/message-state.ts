@@ -106,12 +106,20 @@ export class MessageStateHandler {
 
 	async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		try {
+			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		} catch (error) {
+			console.error("Failed to serialize/save API conversation history:", error)
+		}
 	}
 
 	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]): Promise<void> {
 		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		try {
+			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		} catch (error) {
+			console.error("Failed to serialize/save API conversation history:", error)
+		}
 	}
 
 	async addToAiHydroMessages(message: AiHydroMessage) {

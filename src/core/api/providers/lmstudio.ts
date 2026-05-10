@@ -52,7 +52,7 @@ export class LmStudioHandler implements ApiHandler {
 				max_completion_tokens: this.options.lmStudioMaxTokens ? Number(this.options.lmStudioMaxTokens) : undefined,
 			})
 			for await (const chunk of stream) {
-				const choice = chunk.choices[0]
+				const choice = chunk.choices?.[0]
 				const delta = choice?.delta
 				if (delta?.content) {
 					yield {
