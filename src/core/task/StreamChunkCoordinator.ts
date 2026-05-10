@@ -16,8 +16,22 @@ Without this split, usage updates can be delayed behind awaited UI/tool work.
 */
 export type NonUsageApiStreamChunk = Exclude<ApiStreamChunk, { type: "usage" }>
 
+/**
+ * Thrown by the pump when no chunk is received from the underlying stream
+ * within `idleTimeoutMs`. Treated as a generic recoverable error so it flows
+ * through the existing retry path in `attemptApiRequest()` (3x exponential
+ * backoff) rather than being classified as an auth/balance/quota failure.
+ */
+export class StreamIdleTimeoutError extends Error {
+	constructor(idleMs: number) {
+		super(`Stream idle timeout: no data received for ${idleMs}ms`)
+		this.name = "StreamIdleTimeoutError"
+	}
+}
+
 type StreamChunkCoordinatorOptions = {
 	onUsageChunk: (chunk: ApiStreamUsageChunk) => void
+	idleTimeoutMs?: number
 }
 
 export class StreamChunkCoordinator {
@@ -64,11 +78,40 @@ export class StreamChunkCoordinator {
 		}
 	}
 
+	/**
+	 * Races `promise` against a per-call idle timeout. Used by the pump to
+	 * detect TCP "half-open" situations where the connection is still alive
+	 * but no data is being delivered (e.g. upstream LLM service freezes).
+	 *
+	 * Implementation notes:
+	 * - Uses `Promise.race` to avoid wrapping the iterator itself; the timer is
+	 *   armed fresh for every chunk so a slow-but-steady stream never trips it.
+	 * - `clearTimeout` runs in `finally` so that both success and failure paths
+	 *   release the pending timer immediately, preventing node event-loop leaks
+	 *   and keeping `stop()` able to return promptly.
+	 */
+	private async withIdleTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			timeoutId = setTimeout(() => reject(new StreamIdleTimeoutError(timeoutMs)), timeoutMs)
+		})
+		try {
+			return await Promise.race([promise, timeoutPromise])
+		} finally {
+			if (timeoutId !== undefined) {
+				clearTimeout(timeoutId)
+			}
+		}
+	}
+
 	private startPump(): Promise<void> {
 		return (async () => {
 			try {
 				while (!this.stopRequested) {
-					const { value: chunk, done } = await this.iterator.next()
+					const nextResult = this.options.idleTimeoutMs
+						? await this.withIdleTimeout(this.iterator.next(), this.options.idleTimeoutMs)
+						: await this.iterator.next()
+					const { value: chunk, done } = nextResult
 					if (done || !chunk) {
 						break
 					}

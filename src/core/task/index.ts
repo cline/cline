@@ -2851,6 +2851,13 @@ export class Task {
 							totalCost: chunk.totalCost,
 						})
 					},
+					// Abort the request if no chunk arrives within 60s. This covers TCP
+					// half-open / upstream stalls that would otherwise hang indefinitely.
+					// A StreamIdleTimeoutError is surfaced as a generic retryable error and
+					// flows through the existing 3x exponential-backoff retry path. The
+					// value is intentionally loose enough to tolerate long reasoning pauses
+					// (Claude/DeepSeek) while remaining far shorter than OS keepalive.
+					idleTimeoutMs: 60_000,
 				})
 
 				let shouldInterruptStream = false
