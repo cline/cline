@@ -846,6 +846,8 @@ export class Controller {
 		// Get API configuration from cache for immediate access
 		const onboardingModels = getClineOnboardingModels()
 		const apiConfiguration = this.stateManager.getApiConfiguration()
+		const apiConfigurationProfiles = this.stateManager.getApiConfigurationProfiles()
+		const activeApiConfigurationProfileId = this.stateManager.getActiveApiConfigurationProfileId()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -923,6 +925,8 @@ export class Controller {
 		return {
 			version,
 			apiConfiguration,
+			apiConfigurationProfiles,
+			activeApiConfigurationProfileId,
 			currentTaskItem,
 			clineMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
