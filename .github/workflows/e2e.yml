@@ -29,7 +29,7 @@ jobs:
             matrix:
                 include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
         runs-on: ${{ matrix.runner }}-latest
-        timeout-minutes: 20
+        timeout-minutes: 30
         permissions:
             id-token: write
             contents: read

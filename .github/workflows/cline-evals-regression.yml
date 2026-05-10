@@ -30,6 +30,8 @@ jobs:
     name: Smoke Tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,8 +53,7 @@ jobs:
         run: cline --version
 
       - name: Run smoke tests
-        env:
-          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+        if: env.CLINE_API_KEY != ''
         run: |
           cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
           max_attempts=3
@@ -72,9 +73,18 @@ jobs:
           echo "::error::Smoke tests failed after $max_attempts attempts"
           exit 1
 
+      - name: Skip smoke tests without API key
+        if: env.CLINE_API_KEY == ''
+        run: echo "::notice::Skipping smoke tests because CLINE_API_KEY is unavailable for this workflow run."
+
       - name: Generate summary
         if: always()
-        run: cat evals/smoke-tests/results/latest/summary.md >> $GITHUB_STEP_SUMMARY
+        run: |
+          if [ -f evals/smoke-tests/results/latest/summary.md ]; then
+            cat evals/smoke-tests/results/latest/summary.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Smoke tests did not produce a summary." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload results
         uses: actions/upload-artifact@v4
