@@ -77,8 +77,10 @@ jobs:
 
             - name: Validate Tag
               id: validate_tag
+              env:
+                  INPUT_TAG: ${{ github.event.inputs.tag }}
               run: |
-                  TAG="${{ github.event.inputs.tag }}"
+                  TAG="$INPUT_TAG"
                   echo "tag=$TAG" >> $GITHUB_OUTPUT
                   echo "Using existing tag: $TAG"
 
@@ -92,6 +94,7 @@ jobs:
 
             - name: Package and Publish Extension
               env:
+                  INPUT_RELEASE_TYPE: ${{ github.event.inputs.release-type }}
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
                   CLINE_ENVIRONMENT: production
@@ -109,7 +112,7 @@ jobs:
                   # Required to generate the .vsix
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
-                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
+                  if [ "$INPUT_RELEASE_TYPE" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else

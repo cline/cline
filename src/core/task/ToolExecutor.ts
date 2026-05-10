@@ -18,6 +18,7 @@ import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
+import { checkRepeatedToolCall, LOOP_DETECTION_SOFT_THRESHOLD, toolCallSignature } from "./loop-detection"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
@@ -452,6 +453,27 @@ export class ToolExecutor {
 				return
 			}
 		}
+
+		// --- Repeated tool call loop detection ---
+		// Must run BEFORE updating lastToolName/lastToolParams so we compare
+		// against the previous call's values, not the current one.
+		const currentSignature = toolCallSignature(block.params)
+		const loopCheck = checkRepeatedToolCall(this.taskState, block.name, currentSignature)
+
+		if (loopCheck.softWarning) {
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: formatResponse.repeatedToolCall(block.name, LOOP_DETECTION_SOFT_THRESHOLD),
+			})
+		}
+
+		if (loopCheck.hardEscalation) {
+			this.taskState.consecutiveMistakeCount = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+		}
+
+		// Update state AFTER comparison
+		this.taskState.lastToolName = block.name
+		this.taskState.lastToolParams = currentSignature
 
 		const executionStartTime = Date.now()
 		try {

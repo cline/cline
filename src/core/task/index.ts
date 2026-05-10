@@ -2082,6 +2082,10 @@ export class Task {
 			}
 			this.taskState.consecutiveMistakeCount = 0
 			this.taskState.autoRetryAttempts = 0 // need to reset this if the user chooses to manually retry after the mistake limit is reached
+			// Reset loop detection state so it can re-arm if the model continues looping
+			this.taskState.consecutiveIdenticalToolCount = 0
+			this.taskState.lastToolName = ""
+			this.taskState.lastToolParams = ""
 		}
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")

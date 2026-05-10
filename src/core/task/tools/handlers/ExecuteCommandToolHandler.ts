@@ -213,6 +213,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		if (userRejected) {
 			config.taskState.didRejectTool = true
+		} else {
+			// Invalidate the entire file read cache after any command execution.
+			// Bash commands can modify files in ways we can't predict (sed, npm install, git checkout, mv, etc.),
+			// so we must clear the cache to prevent stale reads.
+			config.taskState.fileReadCache.clear()
 		}
 
 		return result

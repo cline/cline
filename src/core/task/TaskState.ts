@@ -42,6 +42,11 @@ export class TaskState {
 
 	// Error tracking
 	consecutiveMistakeCount: number = 0
+	lastToolName = "" // Name of the last executed tool
+	lastToolParams = "" // Canonical signature of last tool's params (via toolCallSignature)
+	consecutiveIdenticalToolCount = 0 // Consecutive calls with identical tool name + params
+	// File read deduplication cache — prevents the model from endlessly reading the same files
+	fileReadCache: Map<string, { readCount: number; mtime: number; imageBlock?: Anthropic.ImageBlockParam }> = new Map()
 	didAutomaticallyRetryFailedApiRequest = false
 	checkpointManagerErrorMessage?: string
 

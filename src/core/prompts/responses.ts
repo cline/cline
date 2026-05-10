@@ -29,6 +29,9 @@ export const formatResponse = {
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 
+	repeatedToolCall: (toolName: string, count: number) =>
+		`Tool [${toolName}] has been called ${count} times consecutively with identical arguments. This is not making progress. Please use a different tool or different arguments instead of repeating the same call.`,
+
 	aihydroIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .aihydroignore file settings. You must try to continue in the task without using this file, or ask the user to update the .aihydroignore file.`,
 
