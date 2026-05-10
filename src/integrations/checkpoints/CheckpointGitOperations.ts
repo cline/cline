@@ -1,4 +1,5 @@
 import { fileExistsAtPath } from "@utils/fs"
+import { retryWithBackoff } from "@utils/retry"
 import fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
@@ -143,7 +144,7 @@ export class GitOperations {
 		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
 			cwd: this.cwd,
 			onlyDirectories: true,
-			ignore: [".git"], // Ignore root level .git
+			ignore: [".git", "**/node_modules/**"], // Ignore root level .git and node_modules (can contain recursive .git dirs that cause 10s+ scans)
 			dot: true,
 			markDirectories: false,
 			suppressErrors: true,
@@ -163,7 +164,11 @@ export class GitOperations {
 				await fs.rename(fullPath, newPath)
 				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
-				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				throw new Error(
+					`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
 			}
 		}
 	}
@@ -208,7 +213,18 @@ export class GitOperations {
 		} catch (_error) {
 			return { success: false }
 		} finally {
-			await this.renameNestedGitRepos(false)
+			await retryWithBackoff(() => this.renameNestedGitRepos(false), {
+				operationName: "CheckpointTracker re-enable nested git repos",
+				maxAttempts: 3,
+				baseDelayMs: 50,
+				onRetry: (_error, attempt, maxAttempts, delayMs) => {
+					console.warn(
+						`CheckpointTracker re-enable nested git repos failed on attempt ${attempt}/${maxAttempts}. Retrying in ${delayMs}ms`,
+					)
+				},
+			}).catch((error) => {
+				console.error("CheckpointTracker failed to re-enable nested git repos after retries:", error)
+			})
 		}
 	}
 }
