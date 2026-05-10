@@ -187,6 +187,9 @@ export interface AiHydroSayTool {
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+	startLine?: number
+	endLine?: number
+	totalLines?: number
 }
 
 // must keep in sync with system prompt

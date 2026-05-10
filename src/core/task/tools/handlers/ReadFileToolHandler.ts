@@ -94,6 +94,8 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			path: getReadablePath(config.cwd, displayPath),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
+			...(hasExplicitRange && { startLine }),
+			...(rawEndLine && { endLine: Math.max(1, parseInt(rawEndLine, 10) || 1) }),
 		} satisfies AiHydroSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
