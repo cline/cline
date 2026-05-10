@@ -25,6 +25,25 @@ interface ApiMetrics {
  * const { totalTokensIn, totalTokensOut, totalCost } = getApiMetrics(messages);
  * // Result: { totalTokensIn: 10, totalTokensOut: 20, totalCost: 0.005 }
  */
+/**
+ * Returns the total token count (in + out) for the most recent API request.
+ * Used for context window budget awareness when generating error guidance.
+ */
+export function getLastApiReqTotalTokens(messages: AiHydroMessage[]): number {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i]
+		if (msg.type === "say" && msg.say === "api_req_started" && msg.text) {
+			try {
+				const { tokensIn = 0, tokensOut = 0 } = JSON.parse(msg.text)
+				return (typeof tokensIn === "number" ? tokensIn : 0) + (typeof tokensOut === "number" ? tokensOut : 0)
+			} catch {
+				return 0
+			}
+		}
+	}
+	return 0
+}
+
 export function getApiMetrics(messages: AiHydroMessage[]): ApiMetrics {
 	const result: ApiMetrics = {
 		totalTokensIn: 0,

@@ -6,6 +6,7 @@ import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { AiHydroSayTool } from "@shared/ExtensionMessage"
+import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
@@ -105,7 +106,26 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (block.name === "write_to_file" && !rawContent) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
+
+			// Use progressive error with token budget awareness
+			const relPath = rawRelPath || "unknown"
+			const contextWindow = config.api.getModel().info.contextWindow ?? 128_000
+			const lastApiReqTotalTokens = getLastApiReqTotalTokens(config.messageState.getAiHydroMessages())
+			const contextUsagePercent = contextWindow > 0 ? Math.round((lastApiReqTotalTokens / contextWindow) * 100) : undefined
+			const errorMessage = formatResponse.writeToFileMissingContentError(
+				relPath,
+				config.taskState.consecutiveMistakeCount,
+				contextUsagePercent,
+			)
+			await config.callbacks.say(
+				"error",
+				`AI-Hydro tried to use write_to_file for '${relPath}' without value for required parameter 'content'. ${
+					config.taskState.consecutiveMistakeCount >= 2
+						? "This has happened multiple times — AI-Hydro will try a different approach."
+						: "Retrying..."
+				}`,
+			)
+			return formatResponse.toolError(errorMessage)
 		}
 
 		if (block.name === "new_rule" && !rawContent) {
@@ -114,7 +134,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
+		// NOTE: Do NOT reset consecutiveMistakeCount here — it should only be reset after successful completion
+		// to properly track consecutive failures and prevent infinite retry loops.
 
 		try {
 			const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
@@ -263,6 +284,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await config.services.diffViewProvider.saveChanges()
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+			// Reset consecutive mistake counter on successful file operation
+			config.taskState.consecutiveMistakeCount = 0
 
 			// Invalidate file read cache for this file so re-reads get fresh content
 			config.taskState.fileReadCache.delete(absolutePath.toLowerCase())
@@ -295,6 +318,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 			}
 		} catch (error) {
+			// Increment mistake counter so tooManyMistakes check can trigger after repeated failures
+			config.taskState.consecutiveMistakeCount++
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()
 			await config.services.diffViewProvider.reset()
