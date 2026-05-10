@@ -35,6 +35,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
+import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
@@ -301,15 +302,15 @@ export class McpHub {
 							headers: config.headers,
 						},
 					})
-					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
-						const connection = this.findConnection(name, source)
-						if (connection) {
-							connection.server.status = "disconnected"
-							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
-						}
-						await this.notifyWebviewOfServerChanges()
-					}
+					const reconnectHandler = new StreamableHttpReconnectHandler(name, {
+						findConnection: () => this.findConnection(name, source),
+						deleteConnection: () => this.deleteConnection(name),
+						connectToServer: () => this.connectToServer(name, config, source),
+						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
+						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
+						delay: (ms) => setTimeoutPromise(ms),
+					})
+					transport.onerror = (error) => reconnectHandler.handleError(error)
 					break
 				}
 				default:
