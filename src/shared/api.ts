@@ -265,6 +265,16 @@ export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-6"
 export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
+	"claude-opus-4-7": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
 	"claude-opus-4-6": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
@@ -445,6 +455,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-opus-4-7": {
+		...anthropicModels["claude-opus-4-7"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-opus-4-6": {
 		...anthropicModels["claude-opus-4-6"],
 		supportsImages: false,
@@ -492,6 +507,16 @@ export const claudeCodeModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-6"
 export const bedrockModels = {
+	"anthropic.claude-opus-4-7-v1": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
 	"anthropic.claude-opus-4-6-v1": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
@@ -779,6 +804,16 @@ export const aihydroCodeSupernovaModelInfo: ModelInfo = {
 export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4-6"
 export const vertexModels = {
+	"claude-opus-4-7": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
 	"claude-opus-4-6": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
