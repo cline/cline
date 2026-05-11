@@ -643,10 +643,23 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		const perplexityModels = ["sonar-pro", "sonar"]
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-image", "gemini-2.5-pro"]
+		const novaModels = ["amazon--nova-pro", "amazon--nova-lite", "amazon--nova-micro"]
+		const converseStreamModels = [
+			"anthropic--claude-4.7-opus",
+			"anthropic--claude-4.6-opus",
+			"anthropic--claude-4.5-opus",
+			"anthropic--claude-4.6-sonnet",
+			"anthropic--claude-4.5-sonnet",
+			"anthropic--claude-4.5-haiku",
+			"anthropic--claude-4-sonnet",
+			"anthropic--claude-4-opus",
+			"anthropic--claude-3.7-sonnet",
+			...novaModels,
+		]
 
 		let url: string
 		let payload: any
-		if (anthropicModels.includes(model.id)) {
+		if (anthropicModels.includes(model.id) || novaModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
 			// Format messages for Converse API. Note that the Invoke API has
@@ -663,29 +676,15 @@ export class SapAiCoreHandler implements ApiHandler {
 			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
-			if (
-				model.id === "anthropic--claude-4.7-opus" ||
-				model.id === "anthropic--claude-4.6-opus" ||
-				model.id === "anthropic--claude-4.5-opus" ||
-				model.id === "anthropic--claude-4.6-sonnet" ||
-				model.id === "anthropic--claude-4.5-sonnet" ||
-				model.id === "anthropic--claude-4.5-haiku" ||
-				model.id === "anthropic--claude-4-sonnet" ||
-				model.id === "anthropic--claude-4-opus" ||
-				model.id === "anthropic--claude-3.7-sonnet"
-			) {
-				// Use converse-stream endpoint with caching support
+			if (converseStreamModels.includes(model.id)) {
+				// Use converse-stream endpoint with optional caching support
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
 
-				// Apply caching controls to messages (enabled by default)
-				const messagesWithCache = Bedrock.applyCacheControlToMessages(
-					formattedMessages,
-					lastUserMsgIndex,
-					secondLastMsgUserIndex,
-				)
-
-				// Prepare system message with caching support (enabled by default)
-				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, true)
+				const enableCaching = model.info.supportsPromptCache === true
+				const messagesForPayload = enableCaching
+					? Bedrock.applyCacheControlToMessages(formattedMessages, lastUserMsgIndex, secondLastMsgUserIndex)
+					: formattedMessages
+				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, enableCaching)
 
 				payload = {
 					inferenceConfig: {
@@ -693,7 +692,7 @@ export class SapAiCoreHandler implements ApiHandler {
 						temperature: 0.0,
 					},
 					system: systemMessages,
-					messages: messagesWithCache,
+					messages: messagesForPayload,
 				}
 			} else {
 				// Use invoke-with-response-stream endpoint
@@ -811,17 +810,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			} else if (openAIModels.includes(model.id) || perplexityModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
-			} else if (
-				model.id === "anthropic--claude-4.7-opus" ||
-				model.id === "anthropic--claude-4.6-opus" ||
-				model.id === "anthropic--claude-4.5-opus" ||
-				model.id === "anthropic--claude-4.6-sonnet" ||
-				model.id === "anthropic--claude-4.5-sonnet" ||
-				model.id === "anthropic--claude-4.5-haiku" ||
-				model.id === "anthropic--claude-4-sonnet" ||
-				model.id === "anthropic--claude-4-opus" ||
-				model.id === "anthropic--claude-3.7-sonnet"
-			) {
+			} else if (converseStreamModels.includes(model.id)) {
 				yield* this.streamCompletionSonnet37(response.data, model)
 			} else if (geminiModels.includes(model.id)) {
 				yield* this.streamCompletionGemini(response.data, model)

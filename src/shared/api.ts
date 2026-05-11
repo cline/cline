@@ -4234,6 +4234,27 @@ export const sapAiCoreModels = {
 		supportsPromptCache: false,
 		description: sapAiCoreModelDescription,
 	},
+	"amazon--nova-pro": {
+		maxTokens: 10_000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"amazon--nova-lite": {
+		maxTokens: 10_000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"amazon--nova-micro": {
+		maxTokens: 10_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
