@@ -4254,6 +4254,23 @@ export const sapAiCoreModels = {
 		},
 		description: sapAiCoreModelDescription,
 	},
+	"gemini-2.5-flash-lite": {
+		maxTokens: 65535,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		thinkingConfig: {
+			maxBudget: 24576,
+		},
+		description: sapAiCoreModelDescription,
+	},
+	"gemini-2.5-flash-image": {
+		maxTokens: 32_768,
+		contextWindow: 32_768,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"gpt-4": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
