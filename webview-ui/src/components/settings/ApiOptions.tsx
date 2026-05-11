@@ -1,5 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import PROVIDERS from "@shared/providers/providers.json"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { ProviderListItem, UpdateSdkProviderSelectionRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -12,49 +12,23 @@ import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import { AIhubmixProvider } from "./providers/AihubmixProvider"
-import { AnthropicProvider } from "./providers/AnthropicProvider"
-import { AskSageProvider } from "./providers/AskSageProvider"
-import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
-import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClineProvider } from "./providers/ClineProvider"
-import { DeepSeekProvider } from "./providers/DeepSeekProvider"
-import { DifyProvider } from "./providers/DifyProvider"
-import { DoubaoProvider } from "./providers/DoubaoProvider"
-import { FireworksProvider } from "./providers/FireworksProvider"
-import { GeminiProvider } from "./providers/GeminiProvider"
-import { GroqProvider } from "./providers/GroqProvider"
-import { HicapProvider } from "./providers/HicapProvider"
-import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
-import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
+import { GenericSdkProvider } from "./providers/GenericSdkProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
-import { MinimaxProvider } from "./providers/MiniMaxProvider"
-import { MistralProvider } from "./providers/MistralProvider"
-import { MoonshotProvider } from "./providers/MoonshotProvider"
-import { NebiusProvider } from "./providers/NebiusProvider"
-import { NousResearchProvider } from "./providers/NousresearchProvider"
 import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
-import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
-import { SambanovaProvider } from "./providers/SambanovaProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { TogetherProvider } from "./providers/TogetherProvider"
-import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
-import { WandbProvider } from "./providers/WandbProvider"
-import { XaiProvider } from "./providers/XaiProvider"
-import { ZAiProvider } from "./providers/ZAiProvider"
-import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -89,6 +63,34 @@ declare module "vscode" {
 	}
 }
 
+interface ProviderOption {
+	value: string
+	label: string
+	provider: ProviderListItem
+}
+
+// Providers that still need custom legacy settings forms because their setup is
+// more than the generic SDK shape of API key + base URL + model selection.
+// Everything else is rendered by GenericSdkProvider.
+const CUSTOM_SETTINGS_PROVIDER_IDS = new Set([
+	"bedrock",
+	"claude-code",
+	"cline",
+	"litellm",
+	"lmstudio",
+	"oca",
+	"ollama",
+	"openai",
+	"openai-codex",
+	"openrouter",
+	"qwen",
+	"qwen-code",
+	"requesty",
+	"sapaicore",
+	"vertex",
+	"vscode-lm",
+])
+
 const ApiOptions = ({
 	showModelOptions,
 	apiErrorMessage,
@@ -100,11 +102,44 @@ const ApiOptions = ({
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedProvider: stateSelectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const [pendingSelectedProvider, setPendingSelectedProvider] = useState<string | undefined>(undefined)
+	const selectedProvider = pendingSelectedProvider || stateSelectedProvider
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	useEffect(() => {
+		if (pendingSelectedProvider && stateSelectedProvider === pendingSelectedProvider) {
+			setPendingSelectedProvider(undefined)
+		}
+	}, [pendingSelectedProvider, stateSelectedProvider])
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [sdkProviderOptions, setSdkProviderOptions] = useState<ProviderOption[]>([])
+
+	useEffect(() => {
+		let cancelled = false
+
+		ModelsServiceClient.listSdkProviders(EmptyRequest.create({}))
+			.then((response) => {
+				if (cancelled) {
+					return
+				}
+
+				setSdkProviderOptions(
+					response.providers.map((provider) => ({
+						value: provider.id,
+						label: provider.name || provider.id,
+						provider,
+					})),
+				)
+			})
+			.catch((error) => {
+				console.error("Failed to fetch SDK providers:", error)
+			})
+
+		return () => {
+			cancelled = true
+		}
+	}, [])
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -140,7 +175,7 @@ const ApiOptions = ({
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const providerOptions = useMemo(() => {
-		let providers = PROVIDERS.list
+		let providers = sdkProviderOptions
 		// Filter by platform
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
@@ -154,7 +189,7 @@ const ApiOptions = ({
 		}
 
 		return providers
-	}, [remoteConfigSettings])
+	}, [remoteConfigSettings, sdkProviderOptions])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -190,8 +225,38 @@ const ApiOptions = ({
 		return searchTerm && searchTerm !== currentProviderLabel ? fuse.search(searchTerm)?.map((r) => r.item) : searchableItems
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
+	const selectedSdkProvider = useMemo(() => {
+		const provider = providerOptions.find((option) => option.value === selectedProvider)?.provider
+		if (provider) {
+			return provider
+		}
+		if (CUSTOM_SETTINGS_PROVIDER_IDS.has(selectedProvider)) {
+			return undefined
+		}
+		return {
+			id: selectedProvider,
+			name: selectedProvider,
+			models: undefined,
+			enabled: false,
+			authDescription: "This provider uses API keys for authentication.",
+			baseUrlDescription: "The base endpoint to use for provider requests.",
+			modelList: [],
+		}
+	}, [providerOptions, selectedProvider])
+
 	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+		const provider = sdkProviderOptions.find((option) => option.value === newProvider)?.provider
+		setPendingSelectedProvider(newProvider)
+		ModelsServiceClient.updateSdkProviderSelection(
+			UpdateSdkProviderSelectionRequest.create({
+				providerId: newProvider,
+				mode: currentMode,
+				modelId: provider?.defaultModelId || provider?.modelList[0]?.id || undefined,
+			}),
+		).catch((error) => {
+			setPendingSelectedProvider(undefined)
+			console.error("Failed to update SDK provider selection:", error)
+		})
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}
@@ -223,6 +288,46 @@ const ApiOptions = ({
 				break
 		}
 	}
+
+	const customProviderRenderers: Record<string, () => JSX.Element> = {
+		bedrock: () => <BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		"claude-code": () => (
+			<ClaudeCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+		),
+		cline: () => (
+			<ClineProvider
+				currentMode={currentMode}
+				initialModelTab={initialModelTab}
+				isPopup={isPopup}
+				showModelOptions={showModelOptions}
+			/>
+		),
+		litellm: () => <LiteLlmProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		lmstudio: () => <LMStudioProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		oca: () => <OcaProvider currentMode={currentMode} isPopup={isPopup} />,
+		ollama: () => <OllamaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		openai: () => (
+			<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+		),
+		"openai-codex": () => (
+			<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+		),
+		openrouter: () => (
+			<OpenRouterProvider
+				currentMode={currentMode}
+				isPopup={isPopup}
+				provider={selectedSdkProvider}
+				showModelOptions={showModelOptions}
+			/>
+		),
+		qwen: () => <QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		"qwen-code": () => <QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		requesty: () => <RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		sapaicore: () => <SapAiCoreProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		vertex: () => <VertexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />,
+		"vscode-lm": () => <VSCodeLmProvider currentMode={currentMode} />,
+	}
+	const renderCustomProvider = customProviderRenderers[selectedProvider]
 
 	// Close dropdown when clicking outside
 	useEffect(() => {
@@ -355,171 +460,15 @@ const ApiOptions = ({
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
 
-			{apiConfiguration && selectedProvider === "hicap" && (
-				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
+			{apiConfiguration && renderCustomProvider?.()}
 
-			{apiConfiguration && selectedProvider === "cline" && (
-				<ClineProvider
+			{apiConfiguration && selectedSdkProvider && !renderCustomProvider && (
+				<GenericSdkProvider
 					currentMode={currentMode}
-					initialModelTab={initialModelTab}
-					isPopup={isPopup}
+					provider={selectedSdkProvider}
+					selectedModelId={selectedModelId}
 					showModelOptions={showModelOptions}
 				/>
-			)}
-
-			{apiConfiguration && selectedProvider === "asksage" && (
-				<AskSageProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "claude-code" && (
-				<ClaudeCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai-native" && (
-				<OpenAINativeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai-codex" && (
-				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "qwen" && (
-				<QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "qwen-code" && (
-				<QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "doubao" && (
-				<DoubaoProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "mistral" && (
-				<MistralProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "deepseek" && (
-				<DeepSeekProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "together" && (
-				<TogetherProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
-				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "bedrock" && (
-				<BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vertex" && (
-				<VertexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "gemini" && (
-				<GeminiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "requesty" && (
-				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "fireworks" && (
-				<FireworksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
-
-			{apiConfiguration && selectedProvider === "groq" && (
-				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-			{apiConfiguration && selectedProvider === "baseten" && (
-				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-			{apiConfiguration && selectedProvider === "litellm" && (
-				<LiteLlmProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "lmstudio" && (
-				<LMStudioProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "ollama" && (
-				<OllamaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "moonshot" && (
-				<MoonshotProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "huggingface" && (
-				<HuggingFaceProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "nebius" && (
-				<NebiusProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "wandb" && (
-				<WandbProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "xai" && (
-				<XaiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "cerebras" && (
-				<CerebrasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sapaicore" && (
-				<SapAiCoreProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
-				<HuaweiCloudMaasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "dify" && (
-				<DifyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "zai" && (
-				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "minimax" && (
-				<MinimaxProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "nousResearch" && (
-				<NousResearchProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
-
-			{apiConfiguration && selectedProvider === "aihubmix" && (
-				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiErrorMessage && (

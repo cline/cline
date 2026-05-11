@@ -10,7 +10,6 @@
 
 import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
-import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
@@ -20,8 +19,8 @@ import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { buildAgentHooks } from "./hooks-adapter"
-import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
-import { getProviderSettingsManager } from "./provider-migration"
+import { readTaskHistory } from "./legacy-state-reader"
+import { resolveSessionProviderConfig } from "./sdk-provider-settings-service"
 import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
@@ -107,187 +106,6 @@ function resolveWorkspaceName(workspacePath: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Provider → API key field mapping
-// ---------------------------------------------------------------------------
-
-/**
- * Maps a provider ID to the corresponding API key field name in ApiConfiguration.
- * This covers all 30+ providers supported by the classic extension.
- */
-const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
-	anthropic: "apiKey",
-	openrouter: "openRouterApiKey",
-	openai: "openAiApiKey",
-	"openai-native": "openAiNativeApiKey",
-	"openai-codex": "openAiNativeApiKey", // Codex uses the same key
-	bedrock: "awsBedrockApiKey",
-	vertex: "geminiApiKey",
-	gemini: "geminiApiKey",
-	deepseek: "deepSeekApiKey",
-	ollama: "ollamaApiKey",
-	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
-	requesty: "requestyApiKey",
-	together: "togetherApiKey",
-	fireworks: "fireworksApiKey",
-	qwen: "qwenApiKey",
-	doubao: "doubaoApiKey",
-	mistral: "mistralApiKey",
-	litellm: "liteLlmApiKey",
-	asksage: "asksageApiKey",
-	xai: "xaiApiKey",
-	moonshot: "moonshotApiKey",
-	zai: "zaiApiKey",
-	huggingface: "huggingFaceApiKey",
-	nebius: "nebiusApiKey",
-	sambanova: "sambanovaApiKey",
-	cerebras: "cerebrasApiKey",
-	groq: "groqApiKey",
-	baseten: "basetenApiKey",
-	"huawei-cloud-maas": "huaweiCloudMaasApiKey",
-	dify: "difyApiKey",
-	minimax: "minimaxApiKey",
-	hicap: "hicapApiKey",
-	aihubmix: "aihubmixApiKey",
-	nousResearch: "nousResearchApiKey",
-	"vercel-ai-gateway": "vercelAiGatewayApiKey",
-	sapaicore: "sapAiCoreClientId", // SAP uses client ID + secret
-	claude_code: "apiKey", // Claude Code uses anthropic key
-	wandb: "wandbApiKey",
-	"qwen-code": "qwenApiKey",
-	oca: "ocaApiKey",
-	// "cline" is handled specially — see resolveApiKey()
-}
-
-/**
- * Maps a provider ID to the mode-specific model ID field name in ApiConfiguration.
- * For providers that have dedicated model ID fields per mode.
- */
-const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }> = {
-	anthropic: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	openrouter: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
-	openai: { plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
-	"openai-native": { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	"openai-codex": { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	ollama: { plan: "planModeOllamaModelId", act: "actModeOllamaModelId" },
-	lmstudio: { plan: "planModeLmStudioModelId", act: "actModeLmStudioModelId" },
-	gemini: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	bedrock: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	vertex: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	deepseek: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-	cline: { plan: "planModeClineModelId", act: "actModeClineModelId" },
-	litellm: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
-	requesty: { plan: "planModeRequestyModelId", act: "actModeRequestyModelId" },
-	together: { plan: "planModeTogetherModelId", act: "actModeTogetherModelId" },
-	fireworks: { plan: "planModeFireworksModelId", act: "actModeFireworksModelId" },
-	groq: { plan: "planModeGroqModelId", act: "actModeGroqModelId" },
-	baseten: { plan: "planModeBasetenModelId", act: "actModeBasetenModelId" },
-	huggingface: { plan: "planModeHuggingFaceModelId", act: "actModeHuggingFaceModelId" },
-	"huawei-cloud-maas": { plan: "planModeHuaweiCloudMaasModelId", act: "actModeHuaweiCloudMaasModelId" },
-	oca: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-	aihubmix: { plan: "planModeAihubmixModelId", act: "actModeAihubmixModelId" },
-	hicap: { plan: "planModeHicapModelId", act: "actModeHicapModelId" },
-	nousResearch: { plan: "planModeNousResearchModelId", act: "actModeNousResearchModelId" },
-	"vercel-ai-gateway": { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-	sapaicore: { plan: "planModeSapAiCoreModelId", act: "actModeSapAiCoreModelId" },
-}
-
-// ---------------------------------------------------------------------------
-// API key resolution
-// ---------------------------------------------------------------------------
-
-/**
- * Resolve the API key for a given provider from the ApiConfiguration.
- *
- * For the "cline" provider, reads the OAuth token from providers.json
- * via ProviderSettingsManager (the single source of truth for credentials).
- */
-function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
-	// For "cline" provider — read from providers.json
-	if (providerId === "cline") {
-		// First check if clineApiKey is set directly (e.g. from env var)
-		if (config.clineApiKey) {
-			return config.clineApiKey
-		}
-
-		// Read from providers.json via the shared ProviderSettingsManager
-		try {
-			const manager = getProviderSettingsManager()
-			const settings = manager.getProviderSettings("cline")
-			const accessToken = settings?.auth?.accessToken?.trim()
-			if (accessToken) {
-				// providers.json stores the token with workos: prefix already
-				return accessToken.toLowerCase().startsWith("workos:") ? accessToken : `workos:${accessToken}`
-			}
-		} catch {
-			Logger.warn("[SessionFactory] Failed to read cline credentials from providers.json")
-		}
-
-		return undefined
-	}
-
-	// For all other providers, look up the API key field name
-	const keyField = PROVIDER_API_KEY_MAP[providerId]
-	if (keyField) {
-		const apiKey = config[keyField] as string | undefined
-		if (apiKey) {
-			return apiKey
-		}
-	}
-
-	return undefined
-}
-
-/**
- * Resolve the model ID for a given provider and mode from the ApiConfiguration.
- * Uses mode-specific model ID fields when available, falls back to generic fields.
- */
-function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
-	// Check provider-specific mode model ID fields
-	const modelFields = PROVIDER_MODEL_ID_MAP[providerId]
-	if (modelFields) {
-		const field = mode === "plan" ? modelFields.plan : modelFields.act
-		const modelId = config[field] as string | undefined
-		if (modelId) {
-			return modelId
-		}
-	}
-
-	// Fallback to generic mode model ID fields
-	const genericField = mode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
-	const genericModelId = config[genericField] as string | undefined
-	if (genericModelId) {
-		return genericModelId
-	}
-
-	return undefined
-}
-
-/**
- * Resolve the base URL for a given provider from the ApiConfiguration.
- */
-function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
-	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
-		anthropic: "anthropicBaseUrl",
-		openai: "openAiBaseUrl",
-		ollama: "ollamaBaseUrl",
-		lmstudio: "lmStudioBaseUrl",
-		gemini: "geminiBaseUrl",
-		requesty: "requestyBaseUrl",
-		litellm: "liteLlmBaseUrl",
-		oca: "ocaBaseUrl",
-		aihubmix: "aihubmixBaseUrl",
-		dify: "difyBaseUrl",
-	}
-
-	const field = baseUrlMap[providerId]
-	if (field) {
-		return config[field] as string | undefined
-	}
-
-	return undefined
-}
-
-// ---------------------------------------------------------------------------
 // Session config builder
 // ---------------------------------------------------------------------------
 
@@ -311,60 +129,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const sdkLogger = createSdkLogger()
 	const distinctId = getDistinctId()
 
-	let providerId: string | undefined
-	let modelId: string | undefined
-	let apiKey: string | undefined
-	let baseUrl: string | undefined
-
-	try {
-		const stateManager = StateManager.get()
-		const apiConfig = stateManager.getApiConfiguration()
-
-		// Resolve the provider for the current mode
-		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		providerId = modeProvider
-
-		if (providerId) {
-			// Resolve API key
-			apiKey = resolveApiKey(providerId, apiConfig)
-
-			// Resolve model ID
-			modelId = resolveModelId(providerId, mode, apiConfig)
-
-			// Resolve base URL
-			baseUrl = resolveBaseUrl(providerId, apiConfig)
-
-			Logger.log(
-				`[SessionFactory] Resolved from StateManager: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`,
-			)
-		}
-	} catch (error) {
-		Logger.warn("[SessionFactory] StateManager credential resolution failed:", error)
-	}
-
-	// Fallback: try SDK's ProviderSettingsManager if StateManager didn't yield results
-	if (!providerId || !apiKey) {
-		try {
-			const dataDir = resolveDataDir()
-			const manager = getProviderSettingsManager(dataDir)
-			const lastUsed = manager.getLastUsedProviderSettings()
-
-			if (lastUsed?.provider && lastUsed?.apiKey) {
-				providerId = lastUsed.provider
-				modelId = lastUsed.model
-				apiKey = lastUsed.apiKey
-				baseUrl = lastUsed.baseUrl
-				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
-			}
-		} catch (error) {
-			Logger.warn("[SessionFactory] SDK ProviderSettingsManager fallback failed:", error)
-		}
-	}
-
-	// Final defaults
-	providerId = providerId ?? "cline"
-	modelId = modelId ?? "openai/gpt-5.4"
-	apiKey = apiKey ?? ""
+	const resolvedProvider = resolveSessionProviderConfig(StateManager.get(), mode)
+	const providerId = resolvedProvider.providerId || "cline"
+	const modelId = resolvedProvider.modelId || "openai/gpt-5.4"
+	const apiKey = resolvedProvider.apiKey || ""
+	const baseUrl = resolvedProvider.baseUrl
+	Logger.log(`[SessionFactory] Resolved provider config: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`)
 
 	// Build the system prompt using the shared prompt builder. Core still
 	// expects callers to provide a concrete systemPrompt, but the prompt builder
@@ -423,7 +193,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableAgentTeams: false,
 		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",
-		thinking: false,
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {

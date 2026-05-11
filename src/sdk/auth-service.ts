@@ -147,7 +147,8 @@ function writeClineCredentials(credentials: {
 				provider: "cline",
 				auth: auth as { accessToken?: string; refreshToken?: string; accountId?: string },
 			},
-			{ tokenSource: "oauth", setLastUsed: true },
+			// Updating account credentials should not change the user's selected inference provider.
+			{ tokenSource: "oauth", setLastUsed: false },
 		)
 	} catch (error) {
 		Logger.error("[SdkAuthService] Failed to write credentials to providers.json:", error)
@@ -909,6 +910,19 @@ export class AuthService {
 			[apiKeyField]: apiKey,
 		}
 		stateManager.setApiConfiguration(updatedConfig)
+
+		void import("./sdk-provider-settings-service")
+			.then(({ saveSdkProviderSettings }) => {
+				saveSdkProviderSettings(stateManager, {
+					providerId: provider,
+					mode: "act",
+					apiKey,
+					enabled: true,
+				})
+			})
+			.catch((error) => {
+				Logger.warn(`[SdkAuthService] Failed to sync ${provider} API key to SDK provider settings:`, error)
+			})
 	}
 
 	/**

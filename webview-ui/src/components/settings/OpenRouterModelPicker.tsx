@@ -1,5 +1,6 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
+import { UpdateSdkProviderSettingsRequest } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -9,7 +10,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
+import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
@@ -77,6 +78,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			},
 			currentMode,
 		)
+
+		ModelsServiceClient.updateSdkProviderSettings(
+			UpdateSdkProviderSettingsRequest.create({
+				providerId: "openrouter",
+				mode: currentMode,
+				modelId: newModelId || undefined,
+				enabled: true,
+			}),
+		).catch((error) => {
+			console.error("Failed to update OpenRouter SDK model setting:", error)
+		})
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {

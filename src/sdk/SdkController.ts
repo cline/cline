@@ -47,6 +47,7 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
+import { overlaySdkApiConfiguration, syncStateManagerToLastUsedSdkProvider } from "./sdk-provider-settings-service"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
@@ -157,6 +158,7 @@ export class Controller {
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
+		syncStateManagerToLastUsedSdkProvider(this.stateManager)
 
 		// MCP hub — using classic McpHub for now (Step 7).
 		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
@@ -976,13 +978,14 @@ export class Controller {
 		// For now, we import the classic getStateToPostToWebview logic.
 		try {
 			const { getStateToPostToWebview: classicGetState } = await import("@core/controller/state/getStateToPostToWebview")
-			const state = await classicGetState({
+			const classicState = await classicGetState({
 				task: this.task,
 				stateManager: this.stateManager,
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
+			const state = overlaySdkApiConfiguration(classicState)
 			const historyStartedAt = Date.now()
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)

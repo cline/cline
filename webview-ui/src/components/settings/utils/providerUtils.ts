@@ -174,6 +174,37 @@ export interface NormalizedApiConfig {
 	selectedModelInfo: ModelInfo
 }
 
+// Providers rendered by GenericSdkProvider. Their SDK settings flow stores the
+// selected model in the generic planModeApiModelId/actModeApiModelId fields.
+const SDK_GENERIC_PROVIDER_IDS = new Set<ApiProvider>([
+	"anthropic",
+	"asksage",
+	"openai-native",
+	"deepseek",
+	"doubao",
+	"mistral",
+	"together",
+	"gemini",
+	"vercel-ai-gateway",
+	"sambanova",
+	"fireworks",
+	"groq",
+	"baseten",
+	"moonshot",
+	"huggingface",
+	"nebius",
+	"wandb",
+	"xai",
+	"cerebras",
+	"huawei-cloud-maas",
+	"dify",
+	"zai",
+	"minimax",
+	"nousResearch",
+	"hicap",
+	"aihubmix",
+])
+
 /**
  * Normalizes API configuration to ensure consistent values
  */
@@ -185,6 +216,14 @@ export function normalizeApiConfiguration(
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
 
 	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
+
+	if (SDK_GENERIC_PROVIDER_IDS.has(provider)) {
+		return {
+			selectedProvider: provider,
+			selectedModelId: modelId || "",
+			selectedModelInfo: openAiModelInfoSaneDefaults,
+		}
+	}
 
 	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
 		let selectedModelId: string
@@ -578,14 +617,25 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		(mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo) ||
 		openRouterModelInfo
 
+	const apiProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+	const apiModelId = mode === "plan" ? apiConfiguration.planModeApiModelId : apiConfiguration.actModeApiModelId
+	const useGenericSdkModelId = (provider: ApiProvider, legacyModelId?: string) =>
+		apiProvider === provider && SDK_GENERIC_PROVIDER_IDS.has(provider) ? apiModelId : legacyModelId
+
 	return {
 		// Core fields
-		apiProvider: mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider,
-		apiModelId: mode === "plan" ? apiConfiguration.planModeApiModelId : apiConfiguration.actModeApiModelId,
+		apiProvider,
+		apiModelId,
 
 		// Provider-specific model IDs
-		togetherModelId: mode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
-		fireworksModelId: mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
+		togetherModelId: useGenericSdkModelId(
+			"together",
+			mode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
+		),
+		fireworksModelId: useGenericSdkModelId(
+			"fireworks",
+			mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
+		),
 		lmStudioModelId: mode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
 		ollamaModelId: mode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
 		liteLlmModelId: mode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
@@ -593,19 +643,39 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId,
 		clineModelId,
-		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
-		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
-		huggingFaceModelId:
+		groqModelId: useGenericSdkModelId(
+			"groq",
+			mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
+		),
+		basetenModelId: useGenericSdkModelId(
+			"baseten",
+			mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
+		),
+		huggingFaceModelId: useGenericSdkModelId(
+			"huggingface",
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
-		huaweiCloudMaasModelId:
+		),
+		huaweiCloudMaasModelId: useGenericSdkModelId(
+			"huawei-cloud-maas",
 			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
+		),
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
-		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
-		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
-		nousResearchModelId:
+		hicapModelId: useGenericSdkModelId(
+			"hicap",
+			mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
+		),
+		aihubmixModelId: useGenericSdkModelId(
+			"aihubmix",
+			mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
+		),
+		nousResearchModelId: useGenericSdkModelId(
+			"nousResearch",
 			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
-		vercelAiGatewayModelId:
+		),
+		vercelAiGatewayModelId: useGenericSdkModelId(
+			"vercel-ai-gateway",
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
+		),
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -682,6 +752,13 @@ export async function syncModeConfigurations(
 		actModeThinkingBudgetTokens: sourceFields.thinkingBudgetTokens,
 		planModeReasoningEffort: sourceFields.reasoningEffort,
 		actModeReasoningEffort: sourceFields.reasoningEffort,
+	}
+
+	if (SDK_GENERIC_PROVIDER_IDS.has(apiProvider)) {
+		updates.planModeApiModelId = sourceFields.apiModelId
+		updates.actModeApiModelId = sourceFields.apiModelId
+		await handleFieldsChange(updates)
+		return
 	}
 
 	// Handle provider-specific fields

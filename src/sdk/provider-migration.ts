@@ -102,11 +102,22 @@ let _cachedDataDir: string | null = null
  */
 export function getProviderSettingsManager(dataDir?: string): ProviderSettingsManager {
 	const resolvedDataDir = dataDir ?? resolveDataDir()
-	if (_cachedManager && _cachedDataDir === resolvedDataDir) {
+	const cacheKey = dataDir ? resolvedDataDir : `${resolvedDataDir}:${process.env.CLINE_PROVIDER_SETTINGS_PATH ?? ""}`
+	if (_cachedManager && _cachedDataDir === cacheKey) {
 		return _cachedManager
 	}
-	const filePath = path.join(resolvedDataDir, "settings", "providers.json")
-	_cachedManager = new ProviderSettingsManager({ filePath, dataDir: resolvedDataDir })
-	_cachedDataDir = resolvedDataDir
+
+	// When no explicit dataDir is supplied, let the SDK's ProviderSettingsManager
+	// resolve its own persisted settings path. This honors CLINE_PROVIDER_SETTINGS_PATH
+	// and keeps provider settings reads/writes aligned with the SDK/providerManager
+	// source of truth. Tests and explicit migrations can still pass dataDir to force
+	// an isolated providers.json under that directory.
+	_cachedManager = dataDir
+		? new ProviderSettingsManager({
+				filePath: path.join(resolvedDataDir, "settings", "providers.json"),
+				dataDir: resolvedDataDir,
+			})
+		: new ProviderSettingsManager({ dataDir: resolvedDataDir })
+	_cachedDataDir = cacheKey
 	return _cachedManager
 }

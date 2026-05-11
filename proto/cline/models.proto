@@ -55,6 +55,62 @@ service ModelsService {
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Vercel AI Gateway models
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Lists providers available from the SDK provider catalog
+  rpc listSdkProviders(EmptyRequest) returns (ProviderCatalogResponse);
+  // Updates the active SDK provider selection without requiring legacy ApiProvider enum conversion
+  rpc updateSdkProviderSelection(UpdateSdkProviderSelectionRequest) returns (Empty);
+  // Saves generic SDK provider settings and updates the active selection/model
+  rpc updateSdkProviderSettings(UpdateSdkProviderSettingsRequest) returns (Empty);
+}
+
+// Request for selecting an SDK provider by arbitrary provider ID
+message UpdateSdkProviderSelectionRequest {
+  string provider_id = 1;
+  string mode = 2;
+  optional string model_id = 3;
+}
+
+// Request for saving generic SDK provider settings
+message UpdateSdkProviderSettingsRequest {
+  string provider_id = 1;
+  string mode = 2;
+  optional string model_id = 3;
+  optional string api_key = 4;
+  optional string base_url = 5;
+  optional bool enabled = 6;
+}
+
+// Provider catalog returned by the SDK provider registry
+message ProviderCatalogResponse {
+  repeated ProviderListItem providers = 1;
+  string settings_path = 2;
+}
+
+// Provider entry returned by the SDK provider registry
+message ProviderListItem {
+  string id = 1;
+  string name = 2;
+  optional int64 models = 3;
+  bool enabled = 4;
+  optional string api_key = 5;
+  optional bool oauth_access_token_present = 6;
+  optional string base_url = 7;
+  optional string default_model_id = 8;
+  optional string protocol = 9;
+  optional string client = 10;
+  string auth_description = 11;
+  string base_url_description = 12;
+  repeated ProviderModel model_list = 13;
+  optional string family = 14;
+}
+
+// Model entry returned as part of the SDK provider catalog
+message ProviderModel {
+  string id = 1;
+  string name = 2;
+  optional bool supports_attachments = 3;
+  optional bool supports_vision = 4;
+  optional bool supports_reasoning = 5;
 }
 
 // List of VS Code LM models
