@@ -691,6 +691,8 @@ export class SapAiCoreHandler implements ApiHandler {
 					temperature: 0.0,
 				}
 				if (model.id === "anthropic--claude-4.7-opus") {
+					// temperature not supported for 4.7 opus
+					// https://platform.claude.com/docs/en/about-claude/models/migration-guide
 					delete inferenceConfig.temperature
 				}
 
