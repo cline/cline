@@ -151,7 +151,6 @@
 							"core-workflows/working-with-files",
 							"core-workflows/using-commands",
 							"core-workflows/checkpoints",
-							"features/connectors",
 							"cli/agent-teams",
 							"features/subagents"
 						]
@@ -843,11 +842,11 @@
 		},
 		{
 			"source": "/cline-sdk/guides/connectors",
-			"destination": "/features/connectors"
+			"destination": "/cli/connectors"
 		},
 		{
 			"source": "/sdk/guides/connectors",
-			"destination": "/features/connectors"
+			"destination": "/cli/connectors"
 		},
 		{
 			"source": "/cline-sdk/guides/going-to-production",
