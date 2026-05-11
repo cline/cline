@@ -11,6 +11,7 @@ import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
@@ -39,6 +40,8 @@ export async function openMention(mention?: string): Promise<void> {
 		}
 	} else if (mention === "problems") {
 		await HostProvider.workspace.openProblemsPanel({})
+	} else if (mention === "terminal") {
+		await HostProvider.workspace.openTerminalPanel({})
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}
@@ -65,8 +68,7 @@ export async function parseMentions(
 		mentions.add(mention)
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
-		}
-		if (isFileMention(mention)) {
+		} else if (isFileMention(mention)) {
 			const mentionPath = getFilePathFromMention(mention)
 			const workspaceHint = getWorkspaceHintFromMention(mention)
 			// For workspace-prefixed mentions, include the workspace name in the same format the model uses for tool calls
@@ -78,14 +80,13 @@ export async function parseMentions(
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
-		}
-		if (mention === "problems") {
+		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
-		}
-		if (mention === "git-changes") {
+		} else if (mention === "terminal") {
+			return `Terminal Output (see below for output)`
+		} else if (mention === "git-changes") {
 			return `Working directory changes (see below for details)`
-		}
-		if (/^[a-f0-9]{7,40}$/.test(mention)) {
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
 			return `Git commit '${mention}' (see below for commit info)`
 		}
 		return match
@@ -279,6 +280,17 @@ export async function parseMentions(
 				// Track failed problems mention
 				telemetryService.captureMentionFailed("problems", "unknown", error.message)
 			}
+		} else if (mention === "terminal") {
+			try {
+				const terminalOutput = await getLatestTerminalOutput()
+				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+				// Track successful terminal mention
+				telemetryService.captureMentionUsed("terminal", terminalOutput.length)
+			} catch (error) {
+				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+				// Track failed terminal mention
+				telemetryService.captureMentionFailed("terminal", "unknown", error.message)
+			}
 		} else if (mention === "git-changes") {
 			try {
 				const workingState = await getWorkingState(cwd)
@@ -328,8 +340,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			}
 			const content = await extractTextFromFile(absPath)
 			return content
-		}
-		if (stats.isDirectory()) {
+		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
 			let folderContent = ""
 			const fileContentPromises: Promise<string | undefined>[] = []
@@ -364,8 +375,9 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			})
 			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)
 			return `${folderContent}\n${fileContents.join("\n\n")}`.trim()
+		} else {
+			return `(Failed to read contents of ${mentionPath})`
 		}
-		return `(Failed to read contents of ${mentionPath})`
 	} catch (error) {
 		throw new Error(`Failed to access path "${mentionPath}": ${error.message}`)
 	}

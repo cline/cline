@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { insertMention, insertMentionDirectly, shouldShowContextMenu } from "../context-mentions"
+import { insertMention, insertMentionDirectly } from "../context-mentions"
 
 describe("context-mentions", () => {
 	describe("insertMention", () => {
@@ -25,14 +25,14 @@ describe("context-mentions", () => {
 			expect(result.mentionIndex).toBe(6)
 		})
 
-		it("should not add quotes to special mentions", () => {
+		it("should not add quotes to non-file mentions", () => {
 			const text = "Check @"
 			const position = 7
-			const value = "problems"
+			const value = "terminal"
 
 			const result = insertMention(text, position, value)
 
-			expect(result.newValue).toBe("Check @problems ")
+			expect(result.newValue).toBe("Check @terminal ")
 			expect(result.mentionIndex).toBe(6)
 		})
 
@@ -102,16 +102,6 @@ describe("context-mentions", () => {
 
 			expect(result.newValue).toBe("Check @git-changes ")
 			expect(result.mentionIndex).toBe(6)
-		})
-	})
-
-	describe("shouldShowContextMenu", () => {
-		it("keeps suggestions visible for partial @term queries", () => {
-			expect(shouldShowContextMenu("Check @term", 11)).toBe(true)
-		})
-
-		it("hides suggestions for @problems", () => {
-			expect(shouldShowContextMenu("Check @problems", 15)).toBe(false)
 		})
 	})
 })

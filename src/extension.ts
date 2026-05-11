@@ -20,11 +20,13 @@ import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
 import { createStorageContext } from "@/shared/storage/storage-context"
+import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
 import { addToCline } from "./core/controller/commands/addToCline"
 import { explainWithCline } from "./core/controller/commands/explainWithCline"
 import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
+import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import {
@@ -36,17 +38,17 @@ import {
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
-import { findMatchingNotebookCell, getContextForCommand } from "./hosts/vscode/commandUtils"
+import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
+import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
-import { StandaloneTerminalManager } from "./integrations/terminal/standalone/StandaloneTerminalManager"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
@@ -192,6 +194,48 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.log("[Cline Dev] Failed to register dev commands: " + error)
 			})
 	}
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.TerminalOutput, async () => {
+			const terminal = vscode.window.activeTerminal
+			if (!terminal) {
+				return
+			}
+
+			// Save current clipboard content
+			const tempCopyBuffer = await readTextFromClipboard()
+
+			try {
+				// Copy the *existing* terminal selection (without selecting all)
+				await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
+
+				// Get copied content
+				const terminalContents = (await readTextFromClipboard()).trim()
+
+				// Restore original clipboard content
+				await writeTextToClipboard(tempCopyBuffer)
+
+				if (!terminalContents) {
+					// No terminal content was copied (either nothing selected or some error)
+					return
+				}
+				// Ensure the sidebar view is visible but preserve editor focus
+				await showWebview(true)
+
+				await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${terminalContents}\n\`\`\``)
+
+				Logger.log("addSelectedTerminalOutputToChat", terminalContents, terminal.name)
+			} catch (error) {
+				// Ensure clipboard is restored even if an error occurs
+				await writeTextToClipboard(tempCopyBuffer)
+				Logger.error("Error getting terminal contents:", error)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to get terminal contents",
+				})
+			}
+		}),
+	)
 
 	// Register code action provider
 	context.subscriptions.push(
@@ -556,7 +600,7 @@ function setupHostProvider(context: ExtensionContext) {
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createCommentReview = () => getVscodeCommentReviewController()
-	const createTerminalManager = () => new StandaloneTerminalManager()
+	const createTerminalManager = () => new VscodeTerminalManager()
 
 	const getCallbackUrl = async (path: string, _preferredPort?: number) => {
 		const scheme = vscode.env.uriScheme || "vscode"

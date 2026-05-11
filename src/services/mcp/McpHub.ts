@@ -1272,7 +1272,7 @@ export class McpHub {
 					method: "tools/call",
 					params: {
 						name: toolName,
-						arguments: toolArguments,
+						arguments: toolArguments ?? {},
 					},
 				},
 				CallToolResultSchema,
