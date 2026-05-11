@@ -113,13 +113,10 @@ Depends on: `@cline/shared`, `@cline/llms`, `@cline/agents`.
 ## Install
 
 ```bash
-npm install @cline/shared
-npm install @cline/llms
-npm install @cline/agents
-npm install @cline/core
+npm install @cline/sdk
 ```
 
-There is currently no separate `@cline/sdk` meta package in the checked repo.
+`@cline/sdk` re-exports everything from `@cline/core`. Install `@cline/agents` or `@cline/llms` directly only if you need lower-level control.
 
 ## Design Principles
 

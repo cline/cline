@@ -68,7 +68,7 @@ cline schedule executions <schedule-id>
 ## Creating Schedules Programmatically
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({
   clientName: "scheduler",
@@ -130,7 +130,7 @@ The scheduler enforces limits to prevent resource exhaustion:
 
 ## Routing Results
 
-Combine scheduled agents with [connectors](/sdk/guides/connectors) to route results to messaging platforms:
+Combine scheduled agents with [connectors](/cli/connectors) to route results to messaging platforms:
 
 ```bash
 # Start a Telegram connector

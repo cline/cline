@@ -24,17 +24,34 @@ Tools are functions the model can call during execution. The SDK sends tool sche
 
 `Agent` does not include built-in tools. Pass tools explicitly when constructing the agent.
 
-## Custom Tool Shape
+## Custom Tools with createTool
+
+Use `createTool` with a zod schema for type-safe tools:
 
 ```typescript
-import type { AgentTool } from "@cline/shared"
+import { createTool } from "@cline/sdk"
+import { z } from "zod"
 
-const searchDatabase: AgentTool<
-  { query: string; limit?: number },
-  { results: unknown[]; count: number }
-> = {
+const searchDatabase = createTool({
   name: "search_database",
   description: "Search the application database. Returns matching records as JSON.",
+  inputSchema: z.object({
+    query: z.string().describe("Search query"),
+    limit: z.number().optional().describe("Maximum results to return"),
+  }),
+  async execute(input) {
+    const results = await db.search(input.query, input.limit ?? 10)
+    return { results, count: results.length }
+  },
+})
+```
+
+`createTool` also accepts raw JSON Schema if you prefer:
+
+```typescript
+const searchDatabase = createTool({
+  name: "search_database",
+  description: "Search the application database.",
   inputSchema: {
     type: "object",
     properties: {
@@ -43,16 +60,13 @@ const searchDatabase: AgentTool<
     },
     required: ["query"],
   },
-  execute: async (input, context) => {
-    const results = await db.search(input.query, input.limit ?? 10)
-    return {
-      output: { results, count: results.length },
-    }
+  async execute(input) {
+    return await db.search(input.query, input.limit ?? 10)
   },
-}
+})
 ```
 
-For `Agent` / `AgentRuntime`, define tools as `AgentTool` objects. For core/extensions, use `createTool(...)` from `@cline/shared`, `@cline/agents`, or `@cline/core` when you want the legacy/core `Tool` shape.
+For complete examples of tools in action, see the [cli-agent](https://github.com/cline/sdk/tree/main/apps/examples/cli-agent) (shell tool) and [code-review-bot](https://github.com/cline/sdk/tree/main/apps/examples/code-review-bot) (multiple tools with completion lifecycle).
 
 For a full tutorial, see [Creating Custom Tools](/sdk/guides/creating-custom-tools). For exact types, see [Tools API](/sdk/reference/tools-api).
 
@@ -62,8 +76,8 @@ With `Agent`:
 
 ```typescript
 const agent = new Agent({
-  // ...config
-  tools: [searchDatabase],
+  tools: [searchDatabase, myOtherTool],
+  // ...
 })
 ```
 
@@ -73,14 +87,7 @@ With `ClineCore`, custom tools are passed as `extraTools` in session config:
 await cline.start({
   prompt: "Analyze customer records",
   config: {
-    providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    systemPrompt: "You are a helpful coding assistant.",
-    cwd: process.cwd(),
-    enableTools: true,
-    enableSpawnAgent: false,
-    enableAgentTeams: false,
+    // ...
     extraTools: [searchDatabase],
   },
 })
@@ -106,13 +113,13 @@ Policies control whether a tool is visible and whether it requires approval.
 
 ```typescript
 const agent = new Agent({
-  // ...config
   tools: [readTool, writeTool, deleteTool],
   toolPolicies: {
     read_data: { autoApprove: true },
     write_data: { autoApprove: false },
     delete_data: { enabled: false },
   },
+  // ...
 })
 ```
 

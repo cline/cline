@@ -1,235 +1,144 @@
 ---
 title: "Building an Agent"
 sidebarTitle: "Building an Agent"
-description: "End-to-end tutorial: build a code review bot that reads PRs, analyzes diffs, and posts structured feedback."
+description: "Walk through a complete code review bot that reads diffs, analyzes code, and produces structured feedback."
 ---
 
-This tutorial walks through building a complete code review agent. By the end, you'll have a bot that reads a GitHub pull request, analyzes the diff, and produces structured feedback with file-specific comments.
+This tutorial walks through the [code-review-bot example](https://github.com/cline/sdk/tree/main/apps/examples/code-review-bot) from the SDK repository. By the end, you'll understand how to combine custom tools, system prompts, completion lifecycle, and event streaming into a real application.
 
-## What You'll Build
+## What It Builds
 
 A code review agent that:
-1. Fetches a PR diff from GitHub
-2. Reads relevant source files for context
-3. Produces structured review feedback
-4. Tracks review metrics
+1. Reads a git diff from the local repo
+2. Optionally reads full file contents for context
+3. Produces structured review comments with severity levels
+4. Ends the run with a summary and approve/reject decision
 
 ## Prerequisites
 
 - Node.js 22+
 - An Anthropic API key
-- A GitHub personal access token (for reading PRs)
+- A git repository with at least one commit
 
-## Step 1: Set Up the Project
+## Get the Code
 
 ```bash
-mkdir code-reviewer && cd code-reviewer
-npm init -y
-npm install @cline/agents @cline/shared
-npm install -D typescript tsx
+git clone https://github.com/cline/sdk.git
+cd sdk/apps/examples/code-review-bot
+bun install
 ```
 
-## Step 2: Create the Tools
+Or read along with the [source on GitHub](https://github.com/cline/sdk/blob/main/apps/examples/code-review-bot/src/index.ts).
 
-The agent needs two tools: one to fetch PR data and one to read file contents.
+## How It Works
+
+### Defining Tools with Zod Schemas
+
+The bot uses `createTool` with zod schemas for type-safe tool definitions. Here's the review comment tool:
 
 ```typescript
-// tools.ts
-import type { AgentTool } from "@cline/shared"
-
-export const getPullRequest: AgentTool<
-  { owner: string; repo: string; number: number },
-  {
-    title: string
-    description: string
-    author: string
-    changedFiles: number
-    additions: number
-    deletions: number
-    diff: string
-  }
-> = {
-  name: "get_pull_request",
-  description:
-    "Fetch a GitHub pull request's metadata and diff. Returns the title, description, changed files, and unified diff.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      owner: { type: "string", description: "Repository owner (e.g., 'facebook')" },
-      repo: { type: "string", description: "Repository name (e.g., 'react')" },
-      number: { type: "number", description: "PR number" },
-    },
-    required: ["owner", "repo", "number"],
+createTool({
+  name: "add_review_comment",
+  description: "Add a review comment on a specific file and line.",
+  inputSchema: z.object({
+    file: z.string().describe("File path"),
+    line: z.number().describe("Line number (approximate is fine)"),
+    severity: z.enum(["critical", "warning", "suggestion"]),
+    comment: z.string().describe("The review comment"),
+  }),
+  async execute(input) {
+    reviews.push(input)
+    return `Comment added (${reviews.length} total)`
   },
-  execute: async (input) => {
-    const headers = {
-      Authorization: `token ${process.env.GITHUB_TOKEN}`,
-      Accept: "application/vnd.github.v3+json",
-    }
-
-    const [prResponse, diffResponse] = await Promise.all([
-      fetch(
-        `https://api.github.com/repos/${input.owner}/${input.repo}/pulls/${input.number}`,
-        { headers }
-      ),
-      fetch(
-        `https://api.github.com/repos/${input.owner}/${input.repo}/pulls/${input.number}`,
-        { headers: { ...headers, Accept: "application/vnd.github.v3.diff" } }
-      ),
-    ])
-
-    const pr = await prResponse.json()
-    const diff = await diffResponse.text()
-
-    return {
-      output: {
-        title: pr.title,
-        description: pr.body,
-        author: pr.user.login,
-        changedFiles: pr.changed_files,
-        additions: pr.additions,
-        deletions: pr.deletions,
-        diff,
-      },
-    }
-  },
-}
-
-export const readFileFromRepo: AgentTool<
-  { owner: string; repo: string; path: string; ref: string },
-  { path?: string; content?: string; error?: string }
-> = {
-  name: "read_file_from_repo",
-  description:
-    "Read a file from the repository at a specific ref (branch, tag, or commit SHA). Use this to get full context on files that appear in the PR diff.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      owner: { type: "string", description: "Repository owner" },
-      repo: { type: "string", description: "Repository name" },
-      path: { type: "string", description: "File path relative to repo root" },
-      ref: { type: "string", description: "Git ref (branch name, tag, or SHA)" },
-    },
-    required: ["owner", "repo", "path", "ref"],
-  },
-  execute: async (input) => {
-    const response = await fetch(
-      `https://api.github.com/repos/${input.owner}/${input.repo}/contents/${input.path}?ref=${input.ref}`,
-      {
-        headers: {
-          Authorization: `token ${process.env.GITHUB_TOKEN}`,
-          Accept: "application/vnd.github.v3.raw",
-        },
-      }
-    )
-
-    if (!response.ok) {
-      return {
-        output: { error: `File not found: ${input.path} at ref ${input.ref}` },
-        isError: true,
-      }
-    }
-
-    const content = await response.text()
-    return {
-      output: { path: input.path, content },
-    }
-  },
-}
+})
 ```
 
-## Step 3: Create the Review Plugin
+Key points:
+- `z.enum` constrains severity to valid values, which improves model accuracy
+- `.describe()` on each field tells the model what to provide
+- The tool accumulates results in an array for post-run processing
 
-Track metrics about the review process:
+### Completion Tools
+
+The `submit_review` tool uses `lifecycle: { completesRun: true }` to signal that the agent's work is done:
 
 ```typescript
-// metrics-plugin.ts
-import type { AgentRuntimePlugin } from "@cline/shared"
-
-export const reviewMetrics: AgentRuntimePlugin = {
-  name: "review-metrics",
-  setup() {
-    return {
-      hooks: {
-        beforeRun() {
-          console.time("[review] Total review time")
-          return undefined
-        },
-        beforeTool({ tool }) {
-          console.log(`[review] Tool: ${tool.name}`)
-          return undefined
-        },
-        afterRun({ result }) {
-          console.timeEnd("[review] Total review time")
-          console.log(`[review] Iterations: ${result.iterations}`)
-          console.log(`[review] Tokens: ${result.usage.inputTokens + result.usage.outputTokens}`)
-          return undefined
-        },
-      },
-    }
+createTool({
+  name: "submit_review",
+  description: "Submit the completed review with a summary.",
+  inputSchema: z.object({
+    summary: z.string().describe("Brief overall assessment of the changes"),
+    approve: z.boolean().describe("Whether the changes look good to merge"),
+  }),
+  lifecycle: { completesRun: true },
+  async execute(input) {
+    return JSON.stringify({ summary: input.summary, approve: input.approve })
   },
-}
+})
 ```
 
-## Step 4: Wire It Together
+Without this, the agent would keep looping until `maxIterations`. With it, the agent calls `submit_review` when it's done and the run ends cleanly.
+
+### System Prompt
+
+The system prompt gives the agent a structured workflow to follow:
 
 ```typescript
-// review.ts
-import { Agent } from "@cline/agents"
-import { getPullRequest, readFileFromRepo } from "./tools"
-import { reviewMetrics } from "./metrics-plugin"
+const agent = new Agent({
+  systemPrompt: `You are a senior code reviewer. Analyze the git diff provided and leave review comments using the add_review_comment tool. Focus on:
+- Bugs and logic errors (critical)
+- Security issues (critical)
+- Performance problems (warning)
+- Style and readability improvements (suggestion)
 
-const SYSTEM_PROMPT = `You are a senior code reviewer. When asked to review a PR:
+When you are done reviewing, call submit_review with a brief summary.`,
+  // ...
+})
+```
 
-1. Use get_pull_request to fetch the PR diff and metadata
-2. Read any files you need for additional context using read_file_from_repo
-3. Analyze the changes for:
-   - Bugs and logic errors
-   - Security vulnerabilities
-   - Performance issues
-   - Style and readability
-   - Missing tests
-4. Produce a structured review with:
-   - A summary (2-3 sentences)
-   - A quality rating (1-5)
-   - Specific comments with file paths and line numbers
-   - Suggested improvements
+Telling the agent exactly which tools to use and when keeps the workflow predictable.
 
-Be constructive and specific. Reference exact lines when pointing out issues.`
+### Event Streaming
 
-async function reviewPR(owner: string, repo: string, prNumber: number) {
-  const agent = new Agent({
-    providerId: "anthropic",
-    modelId: "claude-sonnet-4-6",
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    systemPrompt: SYSTEM_PROMPT,
-    tools: [getPullRequest, readFileFromRepo],
-    plugins: [reviewMetrics],
-  })
+The bot subscribes to events to show progress as the agent works:
 
-  agent.subscribe((event) => {
-    if (event.type === "assistant-text-delta") {
+```typescript
+agent.subscribe((event) => {
+  switch (event.type) {
+    case "assistant-text-delta":
       process.stdout.write(event.text)
-    }
-  })
-
-  const result = await agent.run(
-    `Review PR #${prNumber} in ${owner}/${repo}`
-  )
-
-  // Agent has no explicit shutdown method
-  return result
-}
-
-// Run it
-const result = await reviewPR("your-org", "your-repo", 123)
-console.log("\n\nReview complete:", result.status)
+      break
+    case "tool-started":
+      if (event.toolCall.toolName === "add_review_comment") {
+        const input = event.toolCall.input
+        console.log(`  [${input.severity}] ${input.file}:${input.line} - ${input.comment}`)
+      }
+      break
+  }
+})
 ```
 
-## Step 5: Run It
+This prints review comments as they're made, so you see results streaming rather than waiting for the full run to finish.
+
+### Post-Run Processing
+
+After the run, the bot groups comments by severity and prints a summary:
+
+```typescript
+const result = await agent.run(`Review this git diff:\n\n\`\`\`diff\n${diff}\n\`\`\``)
+
+const critical = reviews.filter((r) => r.severity === "critical")
+const warnings = reviews.filter((r) => r.severity === "warning")
+const suggestions = reviews.filter((r) => r.severity === "suggestion")
+```
+
+The tool calls accumulate structured data during the run, and the application processes it after. This pattern is useful any time you want the agent to produce structured output.
+
+## Run It
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... GITHUB_TOKEN=ghp_... npx tsx review.ts
+ANTHROPIC_API_KEY=sk-ant-... bun dev        # review last commit
+ANTHROPIC_API_KEY=sk-ant-... bun dev main   # review against main
 ```
 
 ## Extending Further
@@ -239,7 +148,17 @@ From here, you could:
 - Add a tool that posts review comments back to GitHub via the API
 - Use `continue()` for follow-up questions about specific findings
 - Add a `checkstyle` tool that runs linters on the changed files
-- Store reviews in a database for trend analysis
 - Connect it to a webhook for automatic PR reviews
+
+## More Examples
+
+<CardGroup cols={2}>
+  <Card title="CLI Agent" icon="terminal" href="https://github.com/cline/sdk/tree/main/apps/examples/cli-agent">
+    Interactive terminal chat with tools and multi-turn conversation.
+  </Card>
+  <Card title="Multi-Agent" icon="users" href="https://github.com/cline/sdk/tree/main/apps/examples/multi-agent">
+    Parallel agents streaming to a web UI.
+  </Card>
+</CardGroup>
 
 See [Creating Custom Tools](/sdk/guides/creating-custom-tools) and [Writing Plugins](/sdk/guides/writing-plugins) for more on extending agent capabilities.

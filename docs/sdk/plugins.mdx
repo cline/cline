@@ -11,7 +11,7 @@ Plugins are packages of reusable agent capabilities. They let you bundle tools, 
 A plugin is an `AgentExtension` — an object that implements the SDK's extension interface. It can register tools, hook into agent lifecycle events, and provide configuration defaults.
 
 ```typescript
-import { type AgentExtension } from "@cline/core"
+import { type AgentExtension } from "@cline/sdk"
 
 const myPlugin: AgentExtension = {
   name: "my-plugin",
@@ -64,25 +64,6 @@ Hooks are defined inside the `hooks` object, not directly on the extension. The 
 
 For tool definitions, see [Tools](/sdk/tools).
 
-## SDK Examples
-
-The [SDK repository](https://github.com/cline/sdk) includes ready-to-run plugin examples under [`examples/plugins/`](https://github.com/cline/sdk/tree/main/examples/plugins):
-
-| Example | Description |
-|---------|-------------|
-| [`weather-plugin.example.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/weather-plugin.example.ts) | Registers a weather lookup tool and tracks token usage via lifecycle hooks |
-| [`mac-notify.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/mac-notify.ts) | Sends a macOS Notification Center alert when a run completes successfully |
-| [`automation-events.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/automation-events.ts) | Demonstrates how plugins can emit normalized automation events |
-| [`custom-compaction.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/custom-compaction.ts) | Custom summary-based message compaction using the `messageBuilders` API |
-| [`background-terminal.ts`](https://github.com/cline/sdk/blob/main/examples/plugins/background-terminal.ts) | Detached background shell jobs with persisted logs and optional session steering |
-
-To run an example locally:
-
-```sh
-mkdir -p .cline/plugins
-cp path/to/sdk/examples/plugins/weather-plugin.example.ts .cline/plugins/
-cline -i "What's the weather like in Tokyo?"
-```
 
 ## Next Steps
 
@@ -170,3 +151,9 @@ Use `fail_closed` for policy-enforcement hooks where bypassing the hook is unsaf
 ## Build a Plugin
 
 For a step-by-step plugin tutorial, see [Writing Plugins](/sdk/guides/writing-plugins).
+
+## SDK Examples
+
+The [SDK repository](https://github.com/cline/sdk) includes ready-to-run plugin examples under [`examples/plugins/`](https://github.com/cline/sdk/tree/main/examples/plugins), including tool registration, lifecycle metrics, notifications, custom compaction, policy guards, web search, background jobs, TypeScript LSP tools, and multi-agent teams.
+
+See [Plugin Examples](/sdk/plugin-examples) for the full list and usage commands.
