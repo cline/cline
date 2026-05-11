@@ -86,7 +86,7 @@ cline config
 In SDK code, load plugins from file paths using the `pluginPaths` session config option:
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({ clientName: "my-app" })
 
@@ -106,7 +106,7 @@ Plugin files must export an `AgentExtension` as the default export.
 When using the `Agent` or `AgentRuntime` directly, pass plugin instances in the `plugins` array:
 
 ```typescript
-import { Agent } from "@cline/agents"
+import { Agent } from "@cline/sdk"
 import { myPlugin } from "./my-plugin"
 
 const agent = new Agent({
@@ -121,7 +121,7 @@ const agent = new Agent({
 With `ClineCore`, use the `extensions` config array instead:
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({ clientName: "my-app" })
 
@@ -137,3 +137,4 @@ await cline.start({
 
 - **Learn about [Plugins](/sdk/plugins)** — Understand what plugins are and their benefits.
 - **Follow the [Writing Plugins](/sdk/guides/writing-plugins) guide** — Build and distribute your own plugin.
+- **Explore [Plugin Examples](/sdk/plugin-examples)** — Copy ready-to-run plugin examples from the SDK repository.

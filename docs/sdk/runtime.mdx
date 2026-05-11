@@ -37,7 +37,7 @@ run() or continue()
 ```
 
 ```typescript
-import { Agent } from "@cline/agents"
+import { Agent } from "@cline/sdk"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -93,7 +93,7 @@ If you persist messages externally, restore them with `restore(messages)` before
 - optional plugin paths and extensions
 
 ```typescript
-import { ClineCore } from "@cline/core"
+import { ClineCore } from "@cline/sdk"
 
 const cline = await ClineCore.create({
   clientName: "my-app",

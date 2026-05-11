@@ -151,6 +151,7 @@
 							"core-workflows/working-with-files",
 							"core-workflows/using-commands",
 							"core-workflows/checkpoints",
+							"features/connectors",
 							"cli/agent-teams",
 							"features/subagents"
 						]
@@ -179,7 +180,7 @@
 						"group": "Start",
 						"pages": [
 							"sdk/overview",
-							"sdk/quickstart"
+							"sdk/examples"
 						]
 					},
 					{
@@ -200,11 +201,11 @@
 								"pages": [
 									"sdk/plugins",
 									"sdk/plugin-install",
-									"sdk/guides/writing-plugins"
+									"sdk/guides/writing-plugins",
+									"sdk/plugin-examples"
 								]
 							},
-							"sdk/guides/scheduled-agents",
-							"sdk/guides/connectors"
+							"sdk/guides/scheduled-agents"
 						]
 					},
 					{
@@ -778,7 +779,11 @@
 		},
 		{
 			"source": "/cline-sdk/quickstart",
-			"destination": "/sdk/quickstart"
+			"destination": "/sdk/examples"
+		},
+		{
+			"source": "/sdk/quickstart",
+			"destination": "/sdk/examples"
 		},
 		{
 			"source": "/cline-sdk/examples",
@@ -838,7 +843,11 @@
 		},
 		{
 			"source": "/cline-sdk/guides/connectors",
-			"destination": "/sdk/guides/connectors"
+			"destination": "/features/connectors"
+		},
+		{
+			"source": "/sdk/guides/connectors",
+			"destination": "/features/connectors"
 		},
 		{
 			"source": "/cline-sdk/guides/going-to-production",
