@@ -180,7 +180,7 @@
 						"group": "Start",
 						"pages": [
 							"sdk/overview",
-							"sdk/quickstart"
+							"sdk/examples"
 						]
 					},
 					{
@@ -201,7 +201,8 @@
 								"pages": [
 									"sdk/plugins",
 									"sdk/plugin-install",
-									"sdk/guides/writing-plugins"
+									"sdk/guides/writing-plugins",
+									"sdk/plugin-examples"
 								]
 							},
 							"sdk/guides/scheduled-agents"
@@ -778,7 +779,11 @@
 		},
 		{
 			"source": "/cline-sdk/quickstart",
-			"destination": "/sdk/quickstart"
+			"destination": "/sdk/examples"
+		},
+		{
+			"source": "/sdk/quickstart",
+			"destination": "/sdk/examples"
 		},
 		{
 			"source": "/cline-sdk/examples",
