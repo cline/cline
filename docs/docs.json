@@ -200,7 +200,8 @@
 								"pages": [
 									"sdk/plugins",
 									"sdk/plugin-install",
-									"sdk/guides/writing-plugins"
+									"sdk/guides/writing-plugins",
+									"sdk/plugin-examples"
 								]
 							},
 							"sdk/guides/scheduled-agents",
