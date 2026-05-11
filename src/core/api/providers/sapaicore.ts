@@ -686,11 +686,16 @@ export class SapAiCoreHandler implements ApiHandler {
 					: formattedMessages
 				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, enableCaching)
 
+				const inferenceConfig: { maxTokens: number | undefined; temperature?: number } = {
+					maxTokens: model.info.maxTokens,
+					temperature: 0.0,
+				}
+				if (model.id === "anthropic--claude-4.7-opus") {
+					delete inferenceConfig.temperature
+				}
+
 				payload = {
-					inferenceConfig: {
-						maxTokens: model.info.maxTokens,
-						temperature: 0.0,
-					},
+					inferenceConfig,
 					system: systemMessages,
 					messages: messagesForPayload,
 				}
