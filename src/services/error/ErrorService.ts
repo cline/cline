@@ -26,6 +26,10 @@ export class ErrorService {
 		return ErrorService.instance
 	}
 
+	public static isInitialized(): boolean {
+		return !!ErrorService.instance
+	}
+
 	/**
 	 * Gets the singleton instance
 	 */

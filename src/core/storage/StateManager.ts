@@ -122,6 +122,10 @@ export class StateManager {
 		this.storage = storage
 	}
 
+	public static isInitialized(): boolean {
+		return !!StateManager.instance
+	}
+
 	/**
 	 * Initialize the cache by loading data from the file-backed StorageContext.
 	 */

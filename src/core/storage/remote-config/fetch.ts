@@ -89,6 +89,47 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 	return data
 }
 
+export async function fetchUserRemoteConfig(): Promise<{ config: RemoteConfig; organizationId: string } | undefined> {
+	try {
+		const discovered = await discoverRemoteConfigOrg()
+
+		if (!discovered) {
+			return undefined
+		}
+
+		const { organizationId, discoveredValue } = discovered
+
+		if (!organizationId) {
+			return undefined
+		}
+
+		const remoteConfig = await resolveRemoteConfig(organizationId, discoveredValue)
+
+		if (!remoteConfig) {
+			return undefined
+		}
+
+		return { config: remoteConfig, organizationId }
+	} catch (error) {
+		Logger.error(`Failed to fetch remote config`, error)
+
+		const cachedConfig = await readRemoteConfigFromCache()
+		if (cachedConfig) {
+			try {
+				// Validate cached config against schema
+				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
+				// normal flows won't apply this config, but it allows us to check if Kanban was enabled
+				// in the case where the API is down but the user has previously fetched a config with Kanban enabled
+				return { config: validatedCachedConfig, organizationId: "" }
+			} catch (validationError) {
+				Logger.error(`Cached config validation failed`, validationError)
+			}
+		}
+
+		return undefined
+	}
+}
+
 /**
  * Fetches remote configuration for a specific organization from the API.
  * Falls back to cached config if the request fails.
@@ -157,9 +198,7 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<APIK
 	}
 }
 
-async function discoverRemoteConfigOrg(): Promise<
-	{ organizationId: string; discoveredValue?: string } | undefined
-> {
+async function discoverRemoteConfigOrg(): Promise<{ organizationId: string; discoveredValue?: string } | undefined> {
 	const accountService = ClineAccountService.getInstance()
 
 	const discovery = await accountService.fetchUserRemoteConfig()
@@ -194,10 +233,7 @@ function parseDiscoveredConfig(value: string, organizationId: string): RemoteCon
 	}
 }
 
-async function resolveRemoteConfig(
-	organizationId: string,
-	discoveredValue?: string,
-): Promise<RemoteConfig | undefined> {
+async function resolveRemoteConfig(organizationId: string, discoveredValue?: string): Promise<RemoteConfig | undefined> {
 	if (discoveredValue) {
 		const config = parseDiscoveredConfig(discoveredValue, organizationId)
 		if (config) {
@@ -217,19 +253,10 @@ async function resolveRemoteConfig(
  */
 async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
 	const authService = AuthService.getInstance()
-	const discovered = await discoverRemoteConfigOrg()
 
-	if (!discovered) {
-		clearRemoteConfig()
-		controller.postStateToWebview()
-		return undefined
-	}
+	const { organizationId, config: remoteConfig } = (await fetchUserRemoteConfig()) || {}
 
-	const { organizationId, discoveredValue } = discovered
-
-	const remoteConfig = await resolveRemoteConfig(organizationId, discoveredValue)
-
-	if (!remoteConfig) {
+	if (!remoteConfig || !organizationId) {
 		clearRemoteConfig()
 		controller.postStateToWebview()
 		return undefined
