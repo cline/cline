@@ -64,6 +64,30 @@ Validation must include these exact commands and their outputs:
 - grep -rn "<new-pattern>" <paths> | wc -l
 ```
 
+## Model observations from Phase 1.1 / 1.2 implementation rounds
+
+### Phase 1.1 — provider id parsing
+
+- **GPT-5.5** produced the best compact implementation pattern: `KNOWN_API_PROVIDERS satisfies Record<ApiProvider, true>` gives a useful exhaustiveness check while keeping code small.
+- **Opus 4.7** produced the best tests and comments, but its compile-time provider-list check was only one-directional. Mine Opus for test cases and invariant language; verify type-level claims before accepting.
+- **DeepSeek V4 Pro** was mostly correct but used branded casts in tests, violating the boundary rule. Keep requiring grep output for `as ProviderId` / `as Fingerprint`.
+- **Grok 4.3** failed this edit task by deleting `provider-id.ts` and not adding the requested test. Do not use Grok as an implementation horse until it succeeds at a smaller non-critical task.
+
+### Phase 1.2 — config fingerprinting
+
+- **GPT-5.5** and **Opus 4.7** both produced usable implementations. GPT returned a full versioned sha256 fingerprint (`config:v1:<64 hex>`), while Opus had stronger explanatory comments but shortened the final fingerprint to 12 hex chars. For cache identity, prefer the full hash.
+- **GPT-5.1-Codex-Max** produced a solid implementation but used branded casts in tests; prompts should explicitly forbid casts in test files too.
+- **Gemini 3.1 Pro Preview** reported success but left no diff in its worktree in this round. Treat Gemini like Kimi for now: require `git status --short`, `git diff --stat`, and changed-file list in final output before trusting summaries.
+
+Fingerprint-round prompt adjustment:
+
+```text
+The final fingerprint should be versioned and full-length, e.g. `config:v1:<64 hex>`.
+Short hashes are acceptable only for secret subcomponents inside the payload.
+No `as ProviderId` / `as Fingerprint` casts in tests.
+Final response must include literal `git status --short` and `git diff --stat` output.
+```
+
 ## Recommended next-round setup
 
 - For implementation tasks: run **GPT-5.5 + Opus 4.7** as the main two heads.
