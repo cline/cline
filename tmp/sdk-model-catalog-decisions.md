@@ -215,3 +215,26 @@ Decision:
 
 - Proceed with Phase 3.3 commit.
 - Carry richer error classification/status-code preservation as a later hardening task.
+
+## 2026-05-12 — Phase 3.4 store-driven invalidation review
+
+Reviewer: Opus 4.7 teammate (`opus47_phase34_review`, run `run_00016`).
+
+Verdict: **pass with cautions — OK to commit before Phase 3.5**.
+
+Evidence summarized by reviewer:
+
+- Catalog subscribes to the read-only store interface and handles `fields` events.
+- On `fields`, it recomputes the latest effective config fingerprint for the changed provider and invalidates only cached records for that provider whose fingerprint no longer matches.
+- `selection` events are ignored and do not invalidate model-list cache.
+- Tests cover old-fingerprint invalidation, preserving the current fingerprint, preserving other providers' cache entries, and selection changes not invalidating cache.
+
+Non-blocking cautions:
+
+- `createProviderCatalog` does not currently expose a dispose path for its store subscription. This is acceptable for now because the public `ProviderCatalog` contract has no dispose method, but lifecycle cleanup may need attention when controller singletons are wired.
+- Phase 3.6 subscription tests should ensure selection events alone do not notify model-list subscribers.
+
+Decision:
+
+- Proceed with Phase 3.4 commit.
+- Revisit catalog lifecycle disposal when integrating into controller startup/shutdown if needed.
