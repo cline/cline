@@ -459,3 +459,33 @@ Decision:
 
 - Phase 5.1 is complete.
 - Proceed to Phase 5.2 (`useProviderModels`).
+
+## 2026-05-13 — Phase 5.2 useProviderModels hook
+
+Implementation:
+
+- Added `webview-ui/src/hooks/useProviderModels.ts`.
+- The hook exposes `{ models, defaultModelId, isLoading, isStale, error, refresh, fingerprint }` for a provider id.
+- On mount it calls `refresh()`.
+- `refresh()` generates a request id, calls `startProviderModelsRequest(providerId, requestId)`, invokes `ModelsServiceClient.resolveProviderModels({ providerId, forceRefresh: true, requestId })`, and sends the response through `applyProviderModelsResponse`.
+- RPC errors are converted into an error-shaped `ProviderModelsResponse` with the same request id, so the context apply rule still controls staleness.
+- The hook does not import or call any selection-commit client/API.
+
+Tests:
+
+- Added `webview-ui/src/hooks/useProviderModels.test.ts`.
+- Tests cover:
+  - matching request id response is applied,
+  - mismatched request id response is dropped by the apply rule,
+  - two rapid refreshes only apply the second response.
+
+Validation:
+
+- `cd webview-ui && npx vitest run src/hooks/useProviderModels.test.ts --reporter=dot` passed: 1 file, 3 tests.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run check-types -- --pretty false` passed.
+
+Decision:
+
+- Phase 5.2 is complete.
+- Proceed to Phase 5.3 (`useProviderConfig`).
