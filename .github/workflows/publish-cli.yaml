@@ -31,6 +31,10 @@ permissions:
   contents: read
   id-token: write
 
+defaults:
+  run:
+    working-directory: sdk
+
 jobs:
   publish-main:
     name: Publish cline
@@ -38,7 +42,7 @@ jobs:
       contents: write
       id-token: write
     if: |
-      github.repository == 'cline/sdk' &&
+      github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish_target == 'main' &&
@@ -101,12 +105,12 @@ jobs:
           PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-            echo "apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            echo "sdk/apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
             exit 1
           fi
 
           if ! printf "%s\n" "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "apps/cli/package.json has invalid version: ${VERSION}"
+            echo "sdk/apps/cli/package.json has invalid version: ${VERSION}"
             exit 1
           fi
 
@@ -134,7 +138,7 @@ jobs:
 
       - name: Build platform binaries
         run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: apps/cli
+        working-directory: sdk/apps/cli
 
       - name: Verify build output
         run: |
@@ -167,10 +171,11 @@ jobs:
             ls -lh "$dir/bin/"
           done
 
-      # TODO: re-enable NPM_CONFIG_PROVENANCE: "true" when repo is public
       - name: Publish to NPM with latest tag
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag latest
-        working-directory: apps/cli
+        working-directory: sdk/apps/cli
 
       - name: Create GitHub release
         env:
@@ -214,7 +219,7 @@ jobs:
       contents: read
       id-token: write
     if: |
-      github.repository == 'cline/sdk' &&
+      github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
       (
         github.event_name == 'schedule' ||
@@ -321,7 +326,7 @@ jobs:
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
         run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: apps/cli
+        working-directory: sdk/apps/cli
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
@@ -355,11 +360,12 @@ jobs:
             ls -lh "$dir/bin/"
           done
 
-      # TODO: re-enable NPM_CONFIG_PROVENANCE: "true" when repo is public
       - name: Publish to NPM with nightly tag
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag nightly
-        working-directory: apps/cli
+        working-directory: sdk/apps/cli
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
