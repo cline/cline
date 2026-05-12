@@ -73,7 +73,7 @@ The same Cline experience in IntelliJ IDEA,
 PyCharm, WebStorm, GoLand, and the rest of
 the JetBrains family.
 
-<a href="https://plugins.jetbrains.com/plugin/27189-cline">Install from JetBrains Marketplace</a>
+<a href="https://plugins.jetbrains.com/plugin/28247-cline">Install from JetBrains Marketplace</a>
 <br><br>
 
 </td>
@@ -94,7 +94,7 @@ Build your own AI agents and integrations powered by the same engine that runs t
 npm install @cline/sdk
 ```
 
-<a href="https://docs.cline.bot/sdk/overview">Documentation</a>
+<a href="https://docs.cline.bot/cline-sdk/overview">Documentation</a>
 <br><br>
 
 </td>
@@ -111,7 +111,7 @@ Cline ships across multiple surfaces. When you are reading about a feature below
 | Surface | What it is | Pointers |
 |---------|------------|--------------|
 | **SDK / Programmatic API** | Node.js programmatic agent API and extension exports. | [`./sdk/`](https://github.com/cline/cline/tree/main/sdk) |
-| **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`./sdk/cli/`](https://github.com/cline/cline/tree/main/sdk/cli) |
+| **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`./sdk/apps/cli/`](https://github.com/cline/cline/tree/main/sdk/apps/cli) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | ? (We are working on the migration to move VSCode to be upon our SDK.) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins |
 | **Kanban** | Web-based multi-agent task board. | CLI launch alias in `cli/src/index.ts`; Kanban app code lives in [`cline/kanban`](https://github.com/cline/kanban). |
@@ -156,7 +156,7 @@ Cline's capabilities are extensible.
 2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below. Discover more example plugs here (TODO add link when moved over example folder) and more community plugins upcoming.
 
 ```typescript
-import { Agent, createTool } from "@clinebot/sdk"
+import { Agent, createTool } from "@cline/sdk"
 
 const deployTool = createTool({
   name: "deploy",
@@ -206,7 +206,7 @@ Run Cline with zero interaction for scripting and automation. Pipe input, get JS
 ```bash
 cline "Run tests and fix any failures"
 git diff origin/main | cline  "Review these changes for issues"
-cline --json "List all TODO comments" | jq '.text'
+cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and .event.text) | .event.text'
 ```
 
 ## Contributing
