@@ -536,6 +536,7 @@ function App(props: TuiProps) {
 		entryCount: session.entries.length,
 	};
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: we want to reset here
 	useEffect(() => {
 		const loadDeferredInitialMessages = props.loadDeferredInitialMessages;
 		if (!loadDeferredInitialMessages) {
@@ -575,7 +576,6 @@ function App(props: TuiProps) {
 			cancelled = true;
 		};
 	}, [
-		session,
 		props.loadDeferredInitialMessages,
 		appendSessionEntry,
 		replaceSessionEntries,
