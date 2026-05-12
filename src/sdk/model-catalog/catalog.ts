@@ -231,6 +231,19 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 	const now = () => Date.now()
 	const cache = createProviderModelsCache({ ttlMs: DEFAULT_MODEL_CACHE_TTL_MS, now })
 	let providerListingsPromise: Promise<ReadonlyArray<ProviderListing>> | undefined
+	const modelListeners = new Map<ProviderId, Set<(event: ProviderModelsEvent) => void>>()
+
+	function notifyModelListeners(providerId: ProviderId, result: ProviderModelsResult): void {
+		const listeners = modelListeners.get(providerId)
+		if (!listeners) {
+			return
+		}
+		const event: ProviderModelsEvent = { providerId, result }
+		for (const listener of [...listeners]) {
+			listener(event)
+		}
+	}
+
 	reader.subscribe((event) => {
 		if (event.kind !== "fields") {
 			return
@@ -239,10 +252,6 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 		const latestFingerprint = computeConfigFingerprint(event.providerId, latestConfig)
 		cache.invalidateProviderExcept(event.providerId, latestFingerprint)
 	})
-	const unimplemented = (method: string): never => {
-		throw new Error(`ProviderCatalog.${method}: not implemented (Phase 3 resolver pending)`)
-	}
-
 	return {
 		async listProviders(): Promise<ReadonlyArray<ProviderListing>> {
 			providerListingsPromise ??= listSdkProviderListings().catch((error) => {
@@ -262,15 +271,16 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			// SDK config surfaces that require a model id. Phase 3 catalog caching
 			// remains keyed solely by provider + effective config fingerprint.
 			const selection = reader.readSelection(providerId, "act")
+			let result: ProviderModelsResult
 			try {
-				return await cache.resolve({
+				result = await cache.resolve({
 					providerId,
 					fingerprint,
 					forceRefresh: options?.forceRefresh,
 					load: () => resolveSdkModels(providerId, fingerprint, config, selection, now),
 				})
 			} catch (error) {
-				return {
+				result = {
 					ok: false,
 					providerId,
 					configFingerprint: fingerprint,
@@ -278,10 +288,25 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 					fetchedAt: now(),
 				}
 			}
+			notifyModelListeners(providerId, result)
+			return result
 		},
 
-		subscribe(_providerId: ProviderId, _listener: (event: ProviderModelsEvent) => void): Disposable {
-			return unimplemented("subscribe")
+		subscribe(providerId: ProviderId, listener: (event: ProviderModelsEvent) => void): Disposable {
+			let listeners = modelListeners.get(providerId)
+			if (!listeners) {
+				listeners = new Set()
+				modelListeners.set(providerId, listeners)
+			}
+			listeners.add(listener)
+			return {
+				dispose(): void {
+					listeners.delete(listener)
+					if (listeners.size === 0) {
+						modelListeners.delete(providerId)
+					}
+				},
+			}
 		},
 	}
 }

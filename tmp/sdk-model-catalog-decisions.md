@@ -270,3 +270,27 @@ Decision:
 
 - Phase 3.5 is complete.
 - Proceed to Phase 3.6 (`subscribe(providerId, listener)`).
+
+## 2026-05-13 — Phase 3.6 ProviderCatalog subscription implementation
+
+Implementation:
+
+- Added a per-provider listener registry inside `createProviderCatalog`.
+- `resolveModels` now notifies listeners after completion for the requested provider.
+- Notifications fire for successful fresh results, cache-hit results, and error-arm results.
+- Store `selection` events still do not trigger model-list notifications; they are unrelated to catalog model-list freshness.
+- The returned `Disposable` unregisters the listener and removes the empty provider listener set.
+
+Validation:
+
+- `npm run protos` completed successfully.
+- `npm run check-types -- --pretty false` passed.
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/sdk/model-catalog/catalog.test.ts --reporter=dot` passed after proto/typecheck generation: 1 file, 27 tests.
+- `git diff --check` passed.
+- Grep for `\.write\|commitSelection` in `catalog.ts` shows only the invariant doc comment.
+- Grep for `as ProviderId\|as Fingerprint` under `src/sdk/model-catalog` shows only the expected contract comments and parse/compute boundary casts.
+
+Decision:
+
+- Phase 3.6 is complete.
+- Proceed to CHECKPOINT 3 review.

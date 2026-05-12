@@ -553,3 +553,79 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(mocks.getAllProviders).toHaveBeenCalledTimes(2)
 	})
 })
+
+describe("ProviderCatalog Phase 3.6 subscribe", () => {
+	it("fires the provider listener after resolveModels completes", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({ modelId: "model-a", knownModels: { "model-a": { id: "model-a" } } })
+		const providerId = parseProviderId("deepseek")
+		const catalog = createProviderCatalog(makeReader({ providerId, apiKey: "key" }))
+		const listener = vi.fn()
+		catalog.subscribe(providerId, listener)
+
+		const result = await catalog.resolveModels(providerId)
+
+		expect(listener).toHaveBeenCalledTimes(1)
+		expect(listener).toHaveBeenCalledWith({ providerId, result })
+	})
+
+	it("fires after a cache-hit resolveModels result", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({ modelId: "cached", knownModels: { cached: { id: "cached" } } })
+		const providerId = parseProviderId("openrouter")
+		const catalog = createProviderCatalog(makeReader({ providerId, apiKey: "same" }))
+		const listener = vi.fn()
+		catalog.subscribe(providerId, listener)
+
+		const first = await catalog.resolveModels(providerId)
+		const second = await catalog.resolveModels(providerId)
+
+		expect(second).toBe(first)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+		expect(listener).toHaveBeenCalledTimes(2)
+		expect(listener).toHaveBeenNthCalledWith(1, { providerId, result: first })
+		expect(listener).toHaveBeenNthCalledWith(2, { providerId, result: second })
+	})
+
+	it("does not fire provider listener for another provider", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({ modelId: "model-a", knownModels: { "model-a": { id: "model-a" } } })
+		const subscribedProvider = parseProviderId("deepseek")
+		const resolvedProvider = parseProviderId("openrouter")
+		const catalog = createProviderCatalog(makeReader({ providerId: resolvedProvider, apiKey: "key" }))
+		const listener = vi.fn()
+		catalog.subscribe(subscribedProvider, listener)
+
+		await catalog.resolveModels(resolvedProvider)
+
+		expect(listener).not.toHaveBeenCalled()
+	})
+
+	it("does not fire model-list listener when only commitSelection happens", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		const providerId = parseProviderId("ollama")
+		const reader = makeReader({ providerId, baseUrl: "http://localhost:11434/v1" })
+		const catalog = createProviderCatalog(reader)
+		const listener = vi.fn()
+		const selection: ModelSelection = { providerId, modelId: "custom:latest", modelInfo }
+		catalog.subscribe(providerId, listener)
+
+		reader.emit({ kind: "selection", providerId, mode: "act", selection })
+
+		expect(listener).not.toHaveBeenCalled()
+	})
+
+	it("disposable unregisters the provider listener", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({ modelId: "model-a", knownModels: { "model-a": { id: "model-a" } } })
+		const providerId = parseProviderId("deepseek")
+		const catalog = createProviderCatalog(makeReader({ providerId, apiKey: "key" }))
+		const listener = vi.fn()
+		const disposable = catalog.subscribe(providerId, listener)
+
+		disposable.dispose()
+		await catalog.resolveModels(providerId)
+
+		expect(listener).not.toHaveBeenCalled()
+	})
+})
