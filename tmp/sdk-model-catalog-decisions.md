@@ -534,3 +534,38 @@ Decision:
 
 - Phase 5.3 is complete.
 - Proceed to Phase 5.4 (`ModelPickerWithManualEntry`).
+
+## 2026-05-13 — Phase 5.4 ModelPickerWithManualEntry
+
+Implementation:
+
+- Added `webview-ui/src/components/settings/providers/ModelPickerWithManualEntry.tsx`.
+- Props follow the Phase 5.4 shape and `selectedModel` / `onSelect` use a full selection envelope: `{ providerId, modelId, modelInfo }`.
+- Known model dropdown selections construct `modelInfo` from the current `models` map.
+- Custom/manual model ids use `openAiModelInfoSafeDefaults` plus the custom model name.
+- Manual entry is available for custom-id providers during loading, error, empty-list, and selected-not-in-current-list states.
+- Selecting the `Use custom model ID…` affordance reveals manual entry when a model list is present.
+- Stale and not-in-current-list indicators are visible and do not auto-replace selection.
+
+Review:
+
+- Opus 4.7 teammate (`opus47_phase54_review`, run `run_00002`) reviewed the component and returned **PASS with cautions, no blockers**.
+- Follow-up from review/self-check: the custom affordance now reveals the manual-entry form when selected.
+
+Tests:
+
+- Added `webview-ui/src/components/settings/providers/ModelPickerWithManualEntry.test.tsx`.
+- Tests cover known-model selection, loading manual entry, error manual entry, custom commit with safe defaults, custom-option reveal, stale indicator, and not-in-current-list indicator.
+
+Validation:
+
+- `cd webview-ui && npx vitest run src/components/settings/providers/ModelPickerWithManualEntry.test.tsx --reporter=dot` passed: 1 file, 6 tests.
+- `cd webview-ui && npx vitest run src/hooks/useProviderModels.test.ts src/hooks/useProviderConfig.test.ts src/components/settings/providers/ModelPickerWithManualEntry.test.tsx --reporter=dot` passed: 3 files, 13 tests.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run check-types -- --pretty false` passed.
+- `npm run compile` passed before the final custom-affordance follow-up; the final changes were then covered by focused tests and typecheck.
+
+Decision:
+
+- Phase 5.4 is complete.
+- Proceed to CHECKPOINT 5 review.
