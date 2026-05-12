@@ -94,7 +94,7 @@ The `cline.plugins` array accepts:
 | Object with `paths` array | `{ "paths": ["./src/plugin.ts"], "capabilities": ["tools"] }` |
 | Plain string | `"./index.ts"` |
 
-Each path should point to a `.ts` or `.js` file that exports an `AgentExtension` (either as the default export or a named export).
+Each path should point to a `.ts` or `.js` file that exports an `AgentPlugin` (either as the default export or a named export).
 
 If no `cline.plugins` field is present, the installer falls back to auto-discovery: it looks for standard entry points, then recursively scans for `.ts` and `.js` files (skipping `node_modules` and `.git`).
 

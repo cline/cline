@@ -17,7 +17,7 @@ A GitHub integration plugin that:
 
 ```typescript
 // github-plugin.ts
-import { type AgentExtension } from "@cline/sdk"
+import { type AgentPlugin } from "@cline/sdk"
 import { createTool } from "@cline/sdk"
 
 interface GitHubConfig {
@@ -26,7 +26,7 @@ interface GitHubConfig {
   repo: string
 }
 
-export function createGitHubPlugin(config: GitHubConfig): AgentExtension {
+export function createGitHubPlugin(config: GitHubConfig): AgentPlugin {
   let totalTokens = 0
 
   return {
@@ -215,9 +215,9 @@ To load this plugin from a file in ClineCore, pass its path in `pluginPaths`:
 
 ```typescript
 // /absolute/path/to/github.ts
-import { type AgentExtension, createTool } from "@cline/sdk"
+import { type AgentPlugin, createTool } from "@cline/sdk"
 
-const plugin: AgentExtension = {
+const plugin: AgentPlugin = {
   name: "github",
   manifest: { capabilities: ["tools"] },
   setup(api, ctx) {

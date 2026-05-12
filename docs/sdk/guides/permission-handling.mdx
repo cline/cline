@@ -61,7 +61,9 @@ const session = await cline.start({
     search_codebase: { autoApprove: true },
     fetch_web_content: { autoApprove: true },
   },
-  requestToolApproval: async () => ({ approved: true }),
+  capabilities: {
+    requestToolApproval: async () => ({ approved: true }),
+  },
   // ...
 })
 ```
@@ -83,12 +85,14 @@ const ask = (q: string) => new Promise<string>((res) => rl.question(q, res))
 
 const cline = await ClineCore.create({
   clientName: "interactive-app",
-  requestToolApproval: async (request) => {
-    console.log(`\nTool: ${request.toolName}`)
-    console.log(`Input: ${JSON.stringify(request.input, null, 2)}`)
+  capabilities: {
+    requestToolApproval: async (request) => {
+      console.log(`\nTool: ${request.toolName}`)
+      console.log(`Input: ${JSON.stringify(request.input, null, 2)}`)
 
-    const answer = await ask("Approve? (y/n): ")
-    return { approved: answer.toLowerCase() === "y" }
+      const answer = await ask("Approve? (y/n): ")
+      return { approved: answer.toLowerCase() === "y" }
+    },
   },
 })
 ```
@@ -118,28 +122,30 @@ Approve based on what the tool is actually doing, not just which tool it is:
 ```typescript
 const cline = await ClineCore.create({
   clientName: "smart-approval",
-  requestToolApproval: async (request) => {
-    // Auto-approve non-destructive shell commands
-    if (request.toolName === "run_commands") {
-      const cmd = JSON.stringify(request.input)
-      const safeCommands = ["ls", "cat", "grep", "find", "git status", "git log", "git diff"]
-      if (safeCommands.some((safe) => cmd.startsWith(safe))) {
-        return { approved: true }
+  capabilities: {
+    requestToolApproval: async (request) => {
+      // Auto-approve non-destructive shell commands
+      if (request.toolName === "run_commands") {
+        const cmd = JSON.stringify(request.input)
+        const safeCommands = ["ls", "cat", "grep", "find", "git status", "git log", "git diff"]
+        if (safeCommands.some((safe) => cmd.startsWith(safe))) {
+          return { approved: true }
+        }
       }
-    }
 
-    // Auto-approve reads to specific directories
-    if (request.toolName === "read_files") {
-      const path = request.input.path as string
-      if (path.startsWith("/src/") || path.startsWith("/tests/")) {
-        return { approved: true }
+      // Auto-approve reads to specific directories
+      if (request.toolName === "read_files") {
+        const path = request.input.path as string
+        if (path.startsWith("/src/") || path.startsWith("/tests/")) {
+          return { approved: true }
+        }
       }
-    }
 
-    // Everything else requires manual approval
-    console.log(`Approval needed: ${request.toolName}`)
-    console.log(`Input: ${JSON.stringify(request.input)}`)
-    return { approved: false }
+      // Everything else requires manual approval
+      console.log(`Approval needed: ${request.toolName}`)
+      console.log(`Input: ${JSON.stringify(request.input)}`)
+      return { approved: false }
+    },
   },
 })
 ```

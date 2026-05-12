@@ -86,7 +86,7 @@ inputSchema: z.object({
 
 Use `z.enum` for fields with a fixed set of values. This dramatically improves accuracy.
 
-## Using ToolContext
+## Using AgentToolContext
 
 The `execute` function receives a context object with execution metadata:
 
@@ -218,7 +218,7 @@ describe("get_current_time", () => {
   </Tab>
   <Tab title="Via Plugin">
     ```typescript
-    const myPlugin: AgentExtension = {
+    const myPlugin: AgentPlugin = {
       name: "my-tools",
       manifest: { capabilities: ["tools"] },
       setup(api) {

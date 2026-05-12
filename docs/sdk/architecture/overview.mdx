@@ -40,7 +40,7 @@ Key exports include:
 | `ClineCoreStartInput` | Session start input |
 | `CoreSessionConfig` | Session configuration |
 | `SessionRecord` | Persisted session metadata |
-| `AgentPlugin` | Public alias for `AgentExtension` |
+| `AgentPlugin` | Public plugin type |
 | `createTool` | Re-export from shared |
 
 Capabilities include:
@@ -100,7 +100,7 @@ Key exports include:
 | Export | Description |
 |--------|-------------|
 | `createTool` | Helper for creating typed tools |
-| `Tool`, `ToolContext`, `ToolPolicy` | Tool interfaces |
+| `AgentTool`, `AgentToolContext`, `ToolPolicy` | Tool interfaces |
 | `AgentEvent`, `AgentResult`, `AgentConfig` | Host-facing agent types |
 | `AgentRuntimeEvent`, `AgentRunResult` | Runtime-facing agent types |
 | `HookEngine`, `HookStage`, `HookPolicies` | Hook contracts and engine |

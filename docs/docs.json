@@ -458,7 +458,7 @@
 		},
 		{
 			"source": "/getting-started/your-first-task",
-			"destination": "/getting-started/your-first-project"
+			"destination": "/usage/ide"
 		},
 		{
 			"source": "/features/hooks/real-world-examples",
@@ -626,15 +626,15 @@
 		},
 		{
 			"source": "/model-config/model-comparison",
-			"destination": "/core-features/model-selection-guide"
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/troubleshooting/terminal-integration-guide",
-			"destination": "/troubleshooting/terminal-quick-fixes"
+			"destination": "/core-workflows/using-commands"
 		},
 		{
 			"source": "/features/slash-commands/deep-planning",
-			"destination": "/features/deep-planning"
+			"destination": "/core-workflows/using-commands#deep-planning"
 		},
 		{
 			"source": "/features/slash-commands/smol",
@@ -654,7 +654,7 @@
 		},
 		{
 			"source": "/features/focus-chain",
-			"destination": "/features/deep-planning"
+			"destination": "/core-workflows/using-commands#deep-planning"
 		},
 		{
 			"source": "/features/skills",
@@ -778,11 +778,11 @@
 		},
 		{
 			"source": "/cline-sdk/quickstart",
-			"destination": "/sdk/examples"
+			"destination": "/sdk/guides/building-an-agent"
 		},
 		{
 			"source": "/sdk/quickstart",
-			"destination": "/sdk/examples"
+			"destination": "/sdk/guides/building-an-agent"
 		},
 		{
 			"source": "/cline-sdk/examples",
@@ -943,6 +943,166 @@
 		{
 			"source": "/sdk/examples",
 			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/cline-cli/interactive-mode",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/overview",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/samples/overview",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/samples/worktree-workflows",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/contributing/doc-templates",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/contributing/documentation-guide",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/customization/workflows",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/web-tools",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/getting-started/quick-start",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/getting-started/what-is-cline",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/home",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/provider-config/aihubmix",
+			"destination": "/provider-config/other-30-plus-providers#aihubmix"
+		},
+		{
+			"source": "/provider-config/asksage",
+			"destination": "/provider-config/other-30-plus-providers#asksage"
+		},
+		{
+			"source": "/provider-config/baseten",
+			"destination": "/provider-config/other-30-plus-providers#baseten"
+		},
+		{
+			"source": "/provider-config/cerebras",
+			"destination": "/provider-config/other-30-plus-providers#cerebras"
+		},
+		{
+			"source": "/provider-config/dify",
+			"destination": "/provider-config/other-30-plus-providers#difyai"
+		},
+		{
+			"source": "/provider-config/doubao",
+			"destination": "/provider-config/other-30-plus-providers#doubao"
+		},
+		{
+			"source": "/provider-config/fireworks",
+			"destination": "/provider-config/other-30-plus-providers#fireworks-ai"
+		},
+		{
+			"source": "/provider-config/gcp-vertex-ai",
+			"destination": "/provider-config/other-30-plus-providers#gcp-vertex-ai"
+		},
+		{
+			"source": "/provider-config/groq",
+			"destination": "/provider-config/other-30-plus-providers#groq"
+		},
+		{
+			"source": "/provider-config/hicap",
+			"destination": "/provider-config/other-30-plus-providers#hicap"
+		},
+		{
+			"source": "/provider-config/huawei-cloud-maas",
+			"destination": "/provider-config/other-30-plus-providers#huawei-cloud-maas"
+		},
+		{
+			"source": "/provider-config/huggingface",
+			"destination": "/provider-config/other-30-plus-providers#hugging-face"
+		},
+		{
+			"source": "/provider-config/litellm-and-cline-using-codestral",
+			"destination": "/provider-config/openai-compatible"
+		},
+		{
+			"source": "/provider-config/mistral-ai",
+			"destination": "/provider-config/other-30-plus-providers#mistral"
+		},
+		{
+			"source": "/provider-config/moonshot",
+			"destination": "/provider-config/other-30-plus-providers#moonshot"
+		},
+		{
+			"source": "/provider-config/nebius",
+			"destination": "/provider-config/other-30-plus-providers#nebius-ai-studio"
+		},
+		{
+			"source": "/provider-config/nousresearch",
+			"destination": "/provider-config/other-30-plus-providers#nous-research"
+		},
+		{
+			"source": "/provider-config/oracle-code-assist",
+			"destination": "/provider-config/other-30-plus-providers#oracle-code-assist"
+		},
+		{
+			"source": "/provider-config/qwen-code",
+			"destination": "/provider-config/other-30-plus-providers#qwen-code"
+		},
+		{
+			"source": "/provider-config/requesty",
+			"destination": "/provider-config/other-30-plus-providers#requesty"
+		},
+		{
+			"source": "/provider-config/sambanova",
+			"destination": "/provider-config/other-30-plus-providers#sambanova"
+		},
+		{
+			"source": "/provider-config/sap-aicore",
+			"destination": "/provider-config/other-30-plus-providers#sap-ai-core"
+		},
+		{
+			"source": "/provider-config/together",
+			"destination": "/provider-config/other-30-plus-providers#together"
+		},
+		{
+			"source": "/provider-config/vercel-ai-gateway",
+			"destination": "/provider-config/other-30-plus-providers#vercel-ai-gateway"
+		},
+		{
+			"source": "/provider-config/vscode-language-model-api",
+			"destination": "/provider-config/other-30-plus-providers#vs-code-language-model-api"
+		},
+		{
+			"source": "/provider-config/xai-grok",
+			"destination": "/provider-config/other-30-plus-providers#xai-grok"
+		},
+		{
+			"source": "/tools-reference/browser-automation",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/troubleshooting/task-history-recovery",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/troubleshooting/terminal-quick-fixes",
+			"destination": "/core-workflows/using-commands"
 		}
 	],
 	"search": {

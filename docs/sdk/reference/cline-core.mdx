@@ -26,8 +26,8 @@ Common options:
 | `backendMode` | `"auto" \| "local" \| "hub" \| "remote"` | Runtime backend selection |
 | `hub` | `HubOptions` | Local hub connection options |
 | `remote` | `RemoteOptions` | Remote hub options |
+| `capabilities` | `RuntimeCapabilities` | Client-owned tool executors and approval callbacks |
 | `toolPolicies` | `Record<string, ToolPolicy>` | Default tool approval policies |
-| `requestToolApproval` | `(request) => Promise<ToolApprovalResult>` | Approval callback |
 | `automation` | `boolean \| ClineCoreAutomationOptions` | Enable automation APIs |
 | `fetch` | `typeof fetch` | Custom fetch for local provider calls |
 
@@ -42,6 +42,7 @@ const session = await cline.start({
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: process.cwd(),
+    workspaceRoot: process.cwd(),
     enableTools: true,
     enableSpawnAgent: false,
     enableAgentTeams: false,
@@ -60,7 +61,7 @@ const session = await cline.start({
 | `sessionMetadata` | `Record<string, unknown>` | No | Metadata persisted with session |
 | `initialMessages` | `Message[]` | No | Preloaded messages |
 | `toolPolicies` | `Record<string, ToolPolicy>` | No | Per-session tool policies |
-| `requestToolApproval` | function | No | Per-session approval callback |
+| `capabilities` | `RuntimeCapabilities` | No | Per-session tool executors and approval callbacks |
 
 ### StartSessionResult
 

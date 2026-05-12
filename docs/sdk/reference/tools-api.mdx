@@ -25,14 +25,14 @@ const tool = createTool({
 
 `inputSchema` can be either JSON Schema or a Zod schema.
 
-## Tool
+## AgentTool
 
 ```typescript
-interface Tool<TInput = unknown, TOutput = unknown> {
+interface AgentTool<TInput = unknown, TOutput = unknown> {
   name: string
   description: string
   inputSchema: Record<string, unknown>
-  execute: (input: TInput, context: ToolContext, onChange?: (update: unknown) => void) => Promise<TOutput>
+  execute: (input: TInput, context: AgentToolContext, onChange?: (update: unknown) => void) => Promise<TOutput>
   timeoutMs?: number
   retryable?: boolean
   maxRetries?: number
@@ -45,12 +45,12 @@ Defaults from `createTool`:
 |-------|---------|
 | `timeoutMs` | `30000` |
 | `retryable` | `true` |
-| `maxRetries` | `2` |
+| `maxRetries` | `3` |
 
-## ToolContext
+## AgentToolContext
 
 ```typescript
-interface ToolContext {
+interface AgentToolContext {
   agentId: string
   conversationId: string
   iteration: number

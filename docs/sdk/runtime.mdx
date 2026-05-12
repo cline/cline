@@ -108,6 +108,7 @@ const session = await cline.start({
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: "/path/to/project",
+    workspaceRoot: "/path/to/project",
     enableTools: true,
     enableSpawnAgent: false,
     enableAgentTeams: false,
@@ -173,6 +174,7 @@ await cline.start({
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: "You are a helpful coding assistant.",
     cwd: process.cwd(),
+    workspaceRoot: process.cwd(),
     enableTools: true,
     enableSpawnAgent: false,
     enableAgentTeams: false,
@@ -191,8 +193,10 @@ Use `requestToolApproval` when your application needs to decide dynamically:
 ```typescript
 const cline = await ClineCore.create({
   clientName: "my-app",
-  requestToolApproval: async (request) => {
-    return { approved: request.toolName !== "run_commands" }
+  capabilities: {
+    requestToolApproval: async (request) => {
+      return { approved: request.toolName !== "run_commands" }
+    },
   },
 })
 ```

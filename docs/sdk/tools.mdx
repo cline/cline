@@ -102,7 +102,7 @@ const agent = new Agent({
 Tools are more easily shared via plugins/extensions:
 
 ```typescript
-const plugin: AgentExtension = {
+const plugin: AgentPlugin = {
   name: "database-tools",
   manifest: { capabilities: ["tools"] },
   setup(api) {
