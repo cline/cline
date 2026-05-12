@@ -4,8 +4,8 @@
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/sdk",
-		"directory": "packages/llms"
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/llms"
 	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
