@@ -1,0 +1,18 @@
+{
+	"name": "Edit file (Gemini)",
+	"description": "Tests file editing with Gemini model variant",
+	"prompt": "Edit the file greeting.txt and change 'Hello' to 'Goodbye'",
+	"models": [
+		"google/gemini-2.5-flash"
+	],
+	"expectedFiles": [
+		"greeting.txt"
+	],
+	"expectedContent": [
+		{
+			"file": "greeting.txt",
+			"contains": "Goodbye"
+		}
+	],
+	"timeout": 120
+}

@@ -1,0 +1,15 @@
+{
+	"name": "Edit an existing file",
+	"description": "Tests file editing with replace_in_file tool",
+	"prompt": "Edit the file greeting.txt and change 'Hello' to 'Goodbye'",
+	"expectedFiles": [
+		"greeting.txt"
+	],
+	"expectedContent": [
+		{
+			"file": "greeting.txt",
+			"contains": "Goodbye"
+		}
+	],
+	"timeout": 120
+}
