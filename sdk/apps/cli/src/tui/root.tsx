@@ -499,8 +499,9 @@ function App(props: TuiProps) {
 		[props, showToast],
 	);
 
+	const notice = props.initialNotice;
+	const onInitialNoticeShown = props.onInitialNoticeShown;
 	useEffect(() => {
-		const notice = props.initialNotice;
 		if (!notice) return;
 		if (initialNoticeShownRef.current) return;
 		if (appView !== "home") return;
@@ -514,12 +515,12 @@ function App(props: TuiProps) {
 					),
 				})
 				.finally(() => {
-					Promise.resolve(props.onInitialNoticeShown?.(notice)).catch(() => {});
+					Promise.resolve(onInitialNoticeShown?.(notice)).catch(() => {});
 					refocusTextareaRef.current();
 				});
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, dialog, props.initialNotice, props.onInitialNoticeShown]);
+	}, [appView, dialog, notice, onInitialNoticeShown]);
 
 	const {
 		appendEntry: appendSessionEntry,
@@ -574,6 +575,7 @@ function App(props: TuiProps) {
 			cancelled = true;
 		};
 	}, [
+		session,
 		props.loadDeferredInitialMessages,
 		appendSessionEntry,
 		replaceSessionEntries,
@@ -754,7 +756,7 @@ function App(props: TuiProps) {
 	useEffect(() => {
 		if (isDialogOpen || appView === "onboarding") return;
 		promptInput.focusTextarea();
-	}, [isDialogOpen, appView, promptInput.focusTextarea]);
+	}, [isDialogOpen, appView, promptInput]);
 
 	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
@@ -766,7 +768,7 @@ function App(props: TuiProps) {
 			promptInput.submitInitialPrompt();
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, promptInput.submitInitialPrompt, props.initialPrompt]);
+	}, [appView, promptInput, props.initialPrompt]);
 
 	useRootKeyboard({
 		isDialogOpen,
