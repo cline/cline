@@ -115,3 +115,27 @@ Decision:
 
 - CHECKPOINT 2 passed.
 - Proceed to Phase 3.
+
+## 2026-05-12 — Phase 3.1 cache/in-flight review
+
+Reviewer: Opus 4.7 teammate (`opus47_phase31_review`, run `run_00010`).
+
+Verdict: **pass with cautions — OK to commit before Phase 3.2**.
+
+Evidence summarized by reviewer:
+
+- Cache map is keyed by `${providerId}:${fingerprint}`.
+- Records carry per-record `expiresAt` computed from injected `now() + ttlMs`.
+- In-flight map is keyed identically and returns the same promise for matching provider/fingerprint.
+- Tests cover provider/fingerprint cache identity, different fingerprint separation, in-flight reuse/non-reuse, and expiry.
+
+Non-blocking cautions for Phase 3.2:
+
+- `_testing` is acceptable as a temporary internal test hook for the cache substrate, but Phase 3.2 should exercise cache behavior through `resolveModels` once resolver wiring exists.
+- Cache `set()` currently trusts that the loaded record's provider/fingerprint match the requested key. Phase 3.2 should add an invariant assertion before caching records produced by SDK resolution.
+- Error/shape failures must not be cached in Phase 3.3.
+
+Decision:
+
+- Proceed with Phase 3.1 commit.
+- Carry the record-key assertion into Phase 3.2 implementation.
