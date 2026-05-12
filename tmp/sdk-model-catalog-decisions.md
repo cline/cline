@@ -512,6 +512,7 @@ Implementation:
 - On mount/provider change it calls `ModelsServiceClient.readProviderConfig(StringRequest({ value: providerId }))` and stores the redacted config response locally.
 - `write(patch)` calls `ModelsServiceClient.writeProviderConfig(...)`, stores the returned redacted config, and returns it.
 - `commitSelection(mode, selection)` validates the selection provider id matches the hook provider id, calls `ModelsServiceClient.commitModelSelection(...)` with full `modelId` + protobuf `modelInfo`, then refreshes config via `readProviderConfig` so callers see the committed selection returned by Phase 4.3.
+- The implementation intentionally uses read-on-mount plus pull-after-mutation rather than an existing webview state-push subscription for provider config; no provider-config push event exists yet, so CHECKPOINT 5 should treat this as a conscious interim trade-off rather than an accidental omission.
 
 Tests:
 
