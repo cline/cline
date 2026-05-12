@@ -1,15 +1,34 @@
 import type { ModelInfo } from "@shared/api"
-import { describe, expect, it } from "vitest"
-import { _testing } from "./catalog"
-import type { Fingerprint, ProviderModelsResult } from "./contracts"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import type {
+	EffectiveProviderConfig,
+	Fingerprint,
+	ModelSelection,
+	ProviderConfigReader,
+	ProviderModelsResult,
+} from "./contracts"
+import { computeConfigFingerprint } from "./fingerprint"
 import { parseProviderId } from "./provider-id"
+
+const mocks = vi.hoisted(() => ({
+	resolveProviderConfig: vi.fn(),
+}))
+
+vi.mock("@clinebot/core", () => ({
+	resolveProviderConfig: mocks.resolveProviderConfig,
+}))
 
 const modelInfo: ModelInfo = {
 	supportsPromptCache: false,
 }
 
+beforeEach(() => {
+	mocks.resolveProviderConfig.mockReset()
+})
+
 function fingerprint(value: string): Fingerprint {
-	return `config:v1:${value.padEnd(64, "0")}` as Fingerprint
+	const providerId = parseProviderId("fingerprint-test")
+	return computeConfigFingerprint(providerId, { providerId, baseUrl: `https://${value}.example.com` })
 }
 
 function record(
@@ -28,8 +47,31 @@ function record(
 	}
 }
 
+function makeReader(initialConfig: EffectiveProviderConfig, selection?: ModelSelection): ProviderConfigReader {
+	let config = initialConfig
+	return {
+		read: vi.fn(() => config),
+		readSelection: vi.fn(() => selection),
+		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
+		setConfig(next: EffectiveProviderConfig): void {
+			config = next
+		},
+	} as ProviderConfigReader & { setConfig(next: EffectiveProviderConfig): void }
+}
+
+function deferred<T>() {
+	let resolve!: (value: T) => void
+	let reject!: (reason?: unknown) => void
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res
+		reject = rej
+	})
+	return { promise, resolve, reject }
+}
+
 describe("ProviderCatalog Phase 3.1 cache", () => {
-	it("returns cache hit only when provider and fingerprint both match", () => {
+	it("returns cache hit only when provider and fingerprint both match", async () => {
+		const { _testing } = await import("./catalog")
 		let now = 100
 		const cache = _testing.createProviderModelsCache({ ttlMs: 50, now: () => now })
 		const ollama = parseProviderId("ollama")
@@ -47,7 +89,8 @@ describe("ProviderCatalog Phase 3.1 cache", () => {
 		expect(cache.get(ollama, fpA)).toBe(cached)
 	})
 
-	it("does not collide for different fingerprints", () => {
+	it("does not collide for different fingerprints", async () => {
+		const { _testing } = await import("./catalog")
 		const cache = _testing.createProviderModelsCache({ ttlMs: 50, now: () => 100 })
 		const providerId = parseProviderId("ollama")
 		const fpA = fingerprint("a")
@@ -64,6 +107,7 @@ describe("ProviderCatalog Phase 3.1 cache", () => {
 	})
 
 	it("reuses in-flight promise only when provider and fingerprint both match", async () => {
+		const { _testing } = await import("./catalog")
 		const cache = _testing.createProviderModelsCache({ ttlMs: 50, now: () => 100 })
 		const ollama = parseProviderId("ollama")
 		const lmstudio = parseProviderId("lmstudio")
@@ -88,7 +132,8 @@ describe("ProviderCatalog Phase 3.1 cache", () => {
 		expect(cache._inFlightSize()).toBe(0)
 	})
 
-	it("returns undefined and removes expired records", () => {
+	it("returns undefined and removes expired records", async () => {
+		const { _testing } = await import("./catalog")
 		let now = 100
 		const cache = _testing.createProviderModelsCache({ ttlMs: 10, now: () => now })
 		const providerId = parseProviderId("ollama")
@@ -100,5 +145,154 @@ describe("ProviderCatalog Phase 3.1 cache", () => {
 		now = 110
 		expect(cache.get(providerId, fp)).toBeUndefined()
 		expect(cache._cacheSize()).toBe(0)
+	})
+})
+
+describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
+	it("resolves SDK knownModels, adapts model info, and uses SDK default when present", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "sdk-default",
+			baseUrl: "https://provider.example.com",
+			knownModels: {
+				"sdk-default": { id: "sdk-default", name: "Default", capabilities: ["images", "prompt-cache"] },
+				other: { id: "other", name: "Other" },
+			},
+		})
+		const providerId = parseProviderId("openrouter")
+		const config: EffectiveProviderConfig = { providerId, apiKey: "secret", baseUrl: "https://provider.example.com" }
+		const selection: ModelSelection = { providerId, modelId: "selected", modelInfo }
+		const reader = makeReader(config, selection)
+		const catalog = createProviderCatalog(reader)
+
+		const result = await catalog.resolveModels(providerId)
+
+		expect(result.ok).toBe(true)
+		if (!result.ok) throw new Error("expected success")
+		expect(result.providerId).toBe(providerId)
+		expect(result.configFingerprint).toBe(computeConfigFingerprint(providerId, config))
+		expect(result.defaultModelId).toBe("sdk-default")
+		expect(result.source).toBe("sdk-dynamic")
+		expect(result.models.get("sdk-default")).toMatchObject({
+			name: "Default",
+			supportsImages: true,
+			supportsPromptCache: true,
+		})
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledWith(
+			providerId,
+			expect.objectContaining({ loadLatestOnInit: true, loadPrivateOnAuth: true, failOnError: false }),
+			expect.objectContaining({
+				providerId,
+				modelId: "selected",
+				apiKey: "secret",
+				baseUrl: "https://provider.example.com",
+			}),
+		)
+	})
+
+	it("falls back to first model when SDK default is absent", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "missing-default",
+			baseUrl: "https://provider.example.com",
+			knownModels: {
+				first: { id: "first", name: "First" },
+				second: { id: "second", name: "Second" },
+			},
+		})
+		const providerId = parseProviderId("deepseek")
+		const reader = makeReader({ providerId })
+		const result = await createProviderCatalog(reader).resolveModels(providerId)
+
+		expect(result.ok).toBe(true)
+		if (!result.ok) throw new Error("expected success")
+		expect(result.defaultModelId).toBe("first")
+	})
+
+	it("returns cached result without calling SDK again for the same fingerprint", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "m",
+			baseUrl: "https://provider.example.com",
+			knownModels: { m: { id: "m", name: "M" } },
+		})
+		const providerId = parseProviderId("openrouter")
+		const catalog = createProviderCatalog(makeReader({ providerId, apiKey: "same" }))
+
+		const first = await catalog.resolveModels(providerId)
+		const second = await catalog.resolveModels(providerId)
+
+		expect(first).toBe(second)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+	})
+
+	it("forceRefresh bypasses cache but still uses current fingerprint", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig
+			.mockResolvedValueOnce({ modelId: "m1", knownModels: { m1: { id: "m1" } } })
+			.mockResolvedValueOnce({ modelId: "m2", knownModels: { m2: { id: "m2" } } })
+		const providerId = parseProviderId("openrouter")
+		const config: EffectiveProviderConfig = { providerId, apiKey: "same" }
+		const catalog = createProviderCatalog(makeReader(config))
+
+		const first = await catalog.resolveModels(providerId)
+		const second = await catalog.resolveModels(providerId, { forceRefresh: true })
+
+		expect(first.ok && first.defaultModelId).toBe("m1")
+		expect(second.ok && second.defaultModelId).toBe("m2")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+	})
+
+	it("concurrent calls with the same provider and fingerprint share one SDK call", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		const pending = deferred<{ modelId: string; knownModels: Record<string, unknown> }>()
+		mocks.resolveProviderConfig.mockReturnValue(pending.promise)
+		const providerId = parseProviderId("openrouter")
+		const catalog = createProviderCatalog(makeReader({ providerId, apiKey: "same" }))
+
+		const first = catalog.resolveModels(providerId)
+		const second = catalog.resolveModels(providerId)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+		pending.resolve({ modelId: "m", knownModels: { m: { id: "m" } } })
+
+		expect(await second).toBe(await first)
+	})
+
+	it("concurrent calls with different fingerprints make separate SDK calls", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		const firstPending = deferred<{ modelId: string; knownModels: Record<string, unknown> }>()
+		const secondPending = deferred<{ modelId: string; knownModels: Record<string, unknown> }>()
+		mocks.resolveProviderConfig.mockReturnValueOnce(firstPending.promise).mockReturnValueOnce(secondPending.promise)
+		const providerId = parseProviderId("openrouter")
+		const reader = makeReader({ providerId, apiKey: "a" }) as ProviderConfigReader & {
+			setConfig(next: EffectiveProviderConfig): void
+		}
+		const catalog = createProviderCatalog(reader)
+
+		const first = catalog.resolveModels(providerId)
+		reader.setConfig({ providerId, apiKey: "b" })
+		const second = catalog.resolveModels(providerId)
+
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+		firstPending.resolve({ modelId: "a", knownModels: { a: { id: "a" } } })
+		secondPending.resolve({ modelId: "b", knownModels: { b: { id: "b" } } })
+		const firstResult = await first
+		const secondResult = await second
+		expect(firstResult.ok).toBe(true)
+		expect(secondResult.ok).toBe(true)
+		if (!firstResult.ok || !secondResult.ok) throw new Error("expected success")
+		expect(firstResult.defaultModelId).toBe("a")
+		expect(secondResult.defaultModelId).toBe("b")
+	})
+
+	it("throws before caching if loaded record does not match requested key", async () => {
+		const { _testing } = await import("./catalog")
+		const providerId = parseProviderId("openrouter")
+		const otherProviderId = parseProviderId("deepseek")
+		const fp = fingerprint("a")
+		expect(() => _testing.assertRecordMatchesRequest(record(otherProviderId, fp), providerId, fp)).toThrow(
+			/cache invariant failed/,
+		)
 	})
 })
