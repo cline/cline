@@ -131,6 +131,59 @@ describe("computeConfigFingerprint", () => {
 		expect(fingerprint).not.toContain("SECRET_SENTINEL_REFRESH_TOKEN")
 	})
 
+	it("does not include raw header value sentinels in the returned fingerprint", () => {
+		const fingerprint = computeConfigFingerprint(
+			providerId,
+			makeConfig({
+				headers: {
+					authorization: "Bearer SECRET_SENTINEL_HEADER_TOKEN",
+					"x-api-key": "SECRET_SENTINEL_HEADER_API_KEY",
+				},
+			}),
+		)
+
+		expect(fingerprint).not.toContain("SECRET_SENTINEL_HEADER_TOKEN")
+		expect(fingerprint).not.toContain("SECRET_SENTINEL_HEADER_API_KEY")
+		expect(fingerprint).not.toContain("Bearer SECRET_SENTINEL_HEADER_TOKEN")
+	})
+
+	it("does not include raw extras string value sentinels in the returned fingerprint", () => {
+		const fingerprint = computeConfigFingerprint(
+			providerId,
+			makeConfig({
+				extras: {
+					token: "SECRET_SENTINEL_EXTRAS_TOKEN",
+					nested: {
+						credential: "SECRET_SENTINEL_EXTRAS_NESTED",
+					},
+					list: ["SECRET_SENTINEL_EXTRAS_ARRAY_ITEM", 1, true],
+				},
+			}),
+		)
+
+		expect(fingerprint).not.toContain("SECRET_SENTINEL_EXTRAS_TOKEN")
+		expect(fingerprint).not.toContain("SECRET_SENTINEL_EXTRAS_NESTED")
+		expect(fingerprint).not.toContain("SECRET_SENTINEL_EXTRAS_ARRAY_ITEM")
+	})
+
+	it("changes when an extras string value changes but its key does not", () => {
+		expect(computeConfigFingerprint(providerId, makeConfig({ extras: { token: "value-a" } }))).not.toBe(
+			computeConfigFingerprint(providerId, makeConfig({ extras: { token: "value-b" } })),
+		)
+	})
+
+	it("changes when a nested extras string value changes", () => {
+		expect(computeConfigFingerprint(providerId, makeConfig({ extras: { nested: { secret: "x" } } }))).not.toBe(
+			computeConfigFingerprint(providerId, makeConfig({ extras: { nested: { secret: "y" } } })),
+		)
+	})
+
+	it("preserves array order in extras for fingerprint differentiation", () => {
+		expect(computeConfigFingerprint(providerId, makeConfig({ extras: { list: ["a", "b"] } }))).not.toBe(
+			computeConfigFingerprint(providerId, makeConfig({ extras: { list: ["b", "a"] } })),
+		)
+	})
+
 	it("changes when the providerId argument changes", () => {
 		const otherProviderId = parseProviderId("openai")
 
