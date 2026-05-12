@@ -1,5 +1,7 @@
 # Cline Evals Architecture
 
+> Note: The smoke-tests layer (`evals/smoke-tests/`, `npm run eval:smoke`, `cline-evals-regression.yml`) was removed alongside the legacy CLI publish infrastructure. References to "Layer 2: Smoke Tests" and `evals/smoke-tests/` paths below are out of date and will be scrubbed when the eval framework is updated for the new SDK CLI.
+
 ## Overview
 
 The evals system provides multi-layered testing for Cline's AI capabilities.

@@ -2,6 +2,8 @@
 
 A layered testing system for measuring Cline's performance at different levels.
 
+> Note: The smoke-tests layer (`evals/smoke-tests/`, `npm run eval:smoke`, `cline-evals-regression.yml`) was removed alongside the legacy CLI publish infrastructure. The references below are out of date and will be scrubbed when the eval framework is updated for the new SDK CLI.
+
 ## Directory Structure
 
 ```
