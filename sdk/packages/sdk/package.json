@@ -22,7 +22,6 @@
 	},
 	"scripts": {
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
-		"clean": "rimraf dist node_modules",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {

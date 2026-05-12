@@ -33,7 +33,6 @@
 	"scripts": {
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"dev": "bun build ./src/index.ts --outdir ./dist --target node --format esm --watch",
-		"clean": "rimraf dist node_modules",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest"
