@@ -42,7 +42,7 @@ function isQwen3Family(input: ProviderOptionMatchInput): boolean {
 	const normalizedFamily = input.modelFamily?.trim().toLowerCase() ?? "";
 	const normalizedModelId = input.request.modelId.toLowerCase();
 	return (
-		normalizedFamily.startsWith("qwen3") || normalizedModelId.includes("qwen3")
+		normalizedModelId.includes("qwen3")
 	);
 }
 
