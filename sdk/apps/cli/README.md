@@ -211,12 +211,12 @@ cline config
 # Exit interactive mode with Ctrl+D (or Ctrl+C when idle).
 
 # Schedule agents on cron-like intervals
+# If --provider or --model are omitted, schedules use your last configured
+# provider/model selection, then fall back to cline/openai/gpt-5.3-codex.
 cline schedule create "Daily code review" \
   --cron "0 9 * * MON-FRI" \
   --prompt "Review PRs opened yesterday and summarize issues." \
   --workspace /path/to/repo \
-  --provider cline \
-  --model openai/gpt-5.3-codex \
   --timeout 3600 \
   --tags automation,review
 

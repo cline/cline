@@ -6,9 +6,22 @@ import { createScheduleCommand } from "./schedule";
 
 const mockSendHubCommand = vi.hoisted(() => vi.fn());
 const mockEnsureCliHubServer = vi.hoisted(() => vi.fn());
+const mockProviderSettings = vi.hoisted(() => ({
+	lastUsed: undefined as { provider?: string; model?: string } | undefined,
+	providers: {} as Record<string, { provider?: string; model?: string }>,
+}));
 
 vi.mock("@cline/core", () => ({
 	sendHubCommand: mockSendHubCommand,
+	ProviderSettingsManager: class {
+		getLastUsedProviderSettings() {
+			return mockProviderSettings.lastUsed;
+		}
+
+		getProviderSettings(providerId: string) {
+			return mockProviderSettings.providers[providerId];
+		}
+	},
 }));
 
 vi.mock("../utils/hub-runtime", () => ({
@@ -47,6 +60,8 @@ async function runScheduleCommand(
 describe("runScheduleCommand list output", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
+		mockProviderSettings.lastUsed = undefined;
+		mockProviderSettings.providers = {};
 	});
 
 	it('prints "No schedules found." for empty non-json list output', async () => {
@@ -121,9 +136,129 @@ describe("runScheduleCommand list output", () => {
 	});
 });
 
+describe("runScheduleCommand create", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+		mockProviderSettings.lastUsed = undefined;
+		mockProviderSettings.providers = {};
+	});
+
+	it("uses the last used provider and model when both flags are omitted", async () => {
+		mockProviderSettings.lastUsed = {
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+		};
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_123" } },
+		});
+
+		const output: string[] = [];
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Health check",
+				"--cron",
+				"0 */6 * * *",
+				"--prompt",
+				"Run tests",
+				"--workspace",
+				"/tmp/workspace",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(errors).toEqual([]);
+		expect(mockSendHubCommand).toHaveBeenCalledWith(
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
+			expect.objectContaining({
+				clientId: "cline-schedule",
+				command: "schedule.create",
+				payload: expect.objectContaining({
+					provider: "anthropic",
+					model: "claude-sonnet-4-6",
+				}),
+			}),
+		);
+	});
+
+	it("uses an explicit provider with that provider's configured model", async () => {
+		mockProviderSettings.lastUsed = {
+			provider: "cline",
+			model: "openai/gpt-5.3-codex",
+		};
+		mockProviderSettings.providers.anthropic = {
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+		};
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_123" } },
+		});
+
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Health check",
+				"--cron",
+				"0 */6 * * *",
+				"--prompt",
+				"Run tests",
+				"--workspace",
+				"/tmp/workspace",
+				"--provider",
+				"anthropic",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(errors).toEqual([]);
+		expect(mockSendHubCommand).toHaveBeenCalledWith(
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
+			expect.objectContaining({
+				command: "schedule.create",
+				payload: expect.objectContaining({
+					provider: "anthropic",
+					model: "claude-sonnet-4-6",
+				}),
+			}),
+		);
+	});
+});
+
 describe("runScheduleCommand import", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
+		mockProviderSettings.lastUsed = undefined;
+		mockProviderSettings.providers = {};
 	});
 
 	it("preserves exported modelSelection providerId/modelId values", async () => {
@@ -189,6 +324,8 @@ describe("runScheduleCommand import", () => {
 describe("runScheduleCommand export", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
+		mockProviderSettings.lastUsed = undefined;
+		mockProviderSettings.providers = {};
 	});
 
 	it("writes JSON content to the --to file path", async () => {

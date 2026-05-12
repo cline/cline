@@ -56,3 +56,8 @@ evals/smoke-tests/results/
 secrets.json
 tui-traces
 tests/**/cache
+
+# Session files / User data
+.cline/data
+.cline/tmp
+.cline/enterprise
