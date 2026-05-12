@@ -736,13 +736,13 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "ollama Qwen3 reasoning.enabled=false -> OpenAI-compatible reasoning disabled",
+			name: "ollama Qwen3 modelId reasoning.enabled=false -> effort none in provider buckets",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
 				reasoning: { enabled: false },
 			},
-			context: { family: "qwen3" },
+			context: { family: "qwen" },
 			expect: [
 				{
 					bucket: "ollama",
@@ -763,7 +763,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "ollama non-Qwen3 reasoning.enabled=false -> no Qwen3 reasoning override",
+			name: "ollama non-Qwen3 modelId reasoning.enabled=false -> no effort-none override",
 			request: {
 				providerId: "ollama",
 				modelId: "llama3.1",

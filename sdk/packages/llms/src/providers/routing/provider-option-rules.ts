@@ -38,12 +38,9 @@ function isDeepSeekFamily(input: ProviderOptionMatchInput): boolean {
 	return !!input.modelFamily?.trim().toLowerCase().includes("deepseek");
 }
 
-function isQwen3Family(input: ProviderOptionMatchInput): boolean {
-	const normalizedFamily = input.modelFamily?.trim().toLowerCase() ?? "";
+function isQwen3ModelId(input: ProviderOptionMatchInput): boolean {
 	const normalizedModelId = input.request.modelId.toLowerCase();
-	return (
-		normalizedModelId.includes("qwen3")
-	);
+	return normalizedModelId.includes("qwen3");
 }
 
 function resolveFamilyThinkingType(
@@ -177,14 +174,14 @@ const openRouterReasoningRule: ProviderOptionRule = {
 		),
 };
 
-const ollamaReasoningDisabledRule: ProviderOptionRule = {
-	id: "provider.ollama.disable-reasoning",
+const ollamaQwen3ReasoningDisabledRule: ProviderOptionRule = {
+	id: "provider.ollama.qwen3.disable-reasoning",
 	phase: "provider-reasoning",
 	description:
 		"Ollama OpenAI-compatible Qwen3 models need reasoning_effort=none to disable default thinking.",
 	applies: (input) =>
 		input.request.providerId === "ollama" &&
-		isQwen3Family(input) &&
+		isQwen3ModelId(input) &&
 		input.request.reasoning?.enabled === false,
 	suppresses: { genericThinking: true },
 	build: (input) => {
@@ -338,7 +335,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	genericProviderFanoutRule,
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,
-	ollamaReasoningDisabledRule,
+	ollamaQwen3ReasoningDisabledRule,
 	geminiThinkingRule,
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
