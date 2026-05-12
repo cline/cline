@@ -15,7 +15,24 @@ The SDK supports running agents on cron schedules. Scheduled agents persist acro
 
 Scheduled agents rely on the [hub-spoke architecture](/sdk/architecture/hub-spoke) that is part of `ClineCore`. The hub runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
 
-## Schedule Wizard
+## Creating Schedules Programmatically with Cline SDK
+
+```typescript
+import { ClineCore } from "@cline/sdk"
+
+const cline = await ClineCore.create({
+  clientName: "scheduler",
+  automation: true,
+})
+
+await cline.automation.start()
+
+// Use cline.automation to reconcile specs, ingest events, and list runs.
+```
+
+## Schedule Wizard with Cline CLI
+
+An easy way to schedule task is to use Cline CLI for scheduling task, if you've already installed via `npm i -g cline`
 
 Run `cline schedule` to open an interactive menu for creating and managing schedules, browsing execution history, and viewing performance statistics.
 
@@ -61,21 +78,6 @@ cline schedule delete <schedule-id>
 
 # View execution history
 cline schedule executions <schedule-id>
-```
-
-## Creating Schedules Programmatically
-
-```typescript
-import { ClineCore } from "@cline/sdk"
-
-const cline = await ClineCore.create({
-  clientName: "scheduler",
-  automation: true,
-})
-
-await cline.automation.start()
-
-// Use cline.automation to reconcile specs, ingest events, and list runs.
 ```
 
 ## Cron Expression Reference
@@ -128,7 +130,7 @@ The scheduler enforces limits to prevent resource exhaustion:
 
 ## Routing Results
 
-Combine scheduled agents with [connectors](/cli/connectors) to route results to messaging platforms:
+Combine scheduled agents with [connectors](/cli/connectors) in CLI to route results to messaging platforms:
 
 ```bash
 # Start a Telegram connector
