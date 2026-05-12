@@ -393,3 +393,34 @@ Decision:
 
 - Phase 4.2 handlers are complete.
 - Proceed to Phase 4.3 backend integration smoke test.
+
+## 2026-05-13 — Phase 4.3 backend integration smoke test
+
+Implementation:
+
+- Added a Node-side smoke test: `src/core/controller/models/__tests__/providerCatalogSmoke.test.ts`.
+- The smoke test initializes a temporary file-backed `StateManager`, creates real `ProviderConfigStore` and `ProviderCatalog` instances, and exercises the handler boundary:
+  - `listProviders` returns at least four providers and includes `deepseek`.
+  - `resolveProviderModels({ providerId: "deepseek" })` returns at least four models.
+  - `commitModelSelection({ providerId: "deepseek", mode: "act", modelId, modelInfo })` commits a full selection envelope.
+  - `readProviderConfig(StringRequest("deepseek"))` round-trips the committed act selection.
+- Added `plan_selection` / `act_selection` to `ProviderConfigResponse` so the Phase 4.3 round-trip assertion is expressible without exposing secrets.
+- Added a minimal `src/test/vscode-vitest-stub.ts` and mapped `vscode` to it in `vitest.config.sdk.ts` so backend Node-side smoke tests can import storage/host-adjacent code without launching VS Code.
+- Mocked `initializeDistinctId` in the smoke test; machine identity/host identity is unrelated to model-catalog handler behavior and otherwise requires a fully initialized `HostProvider`.
+
+Validation:
+
+- `npm run protos` passed.
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/core/controller/models/__tests__/providerCatalogSmoke.test.ts --reporter=dot` passed: 1 file, 1 test.
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/sdk/model-catalog/catalog.test.ts src/core/controller/models/__tests__/providerCatalogHandlers.test.ts src/core/controller/models/__tests__/providerCatalogSmoke.test.ts --reporter=dot` passed: 3 files, 34 tests.
+- `npm run check-types -- --pretty false` passed.
+- `git diff --check` passed.
+
+Note:
+
+- Immediately after `npm run protos`, the first Vitest invocation can intermittently fail to resolve freshly generated `src/shared/proto/...` modules in this workspace. Re-running the same Vitest command after `check-types` / generation completes succeeds. The final validation commands above passed.
+
+Decision:
+
+- Phase 4.3 is complete.
+- Proceed to CHECKPOINT 4 review.

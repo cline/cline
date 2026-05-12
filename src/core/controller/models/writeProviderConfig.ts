@@ -11,6 +11,7 @@ export async function writeProviderConfig(
 	request: WriteProviderConfigRequest,
 ): Promise<ProviderConfigResponse> {
 	const providerId = parseProviderIdRequest(request.providerId)
-	const updated = controller.getProviderConfigStore().write(providerId, toProviderConfigPatch(request.patch))
-	return toRedactedProviderConfigResponse(updated)
+	const store = controller.getProviderConfigStore()
+	const updated = store.write(providerId, toProviderConfigPatch(request.patch))
+	return toRedactedProviderConfigResponse(updated, store)
 }
