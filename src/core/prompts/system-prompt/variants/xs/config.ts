@@ -1,4 +1,4 @@
-import { isLocalModel } from "@utils/model-utils"
+import { isLocalModel, isMacM4LocalModel } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -21,6 +21,15 @@ export const config = createVariant(ModelFamily.XS)
 	})
 	.matcher((context) => {
 		const providerInfo = context.providerInfo
+		// MacM4LocalAgent local-tier models always get the compact prompt:
+		// their context windows (16K for local-fast, 131K for local-long) and
+		// instruction-following ceiling mean the full ~13.5K-token Cline
+		// system prompt either won't fit or wastes a third of the budget on
+		// tool docs the model can't reliably use. Forcing the xs variant
+		// drops the prompt to ~3-5K tokens.
+		if (isMacM4LocalModel(providerInfo)) {
+			return true
+		}
 		if (!isLocalModel(providerInfo)) {
 			return false
 		}

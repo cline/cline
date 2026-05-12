@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import type { ApiHandlerModel } from "@core/api"
+import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isClaude4PlusModelFamily,
@@ -8,6 +8,8 @@ import {
 	isGLMModelFamily,
 	isGPT5ModelFamily,
 	isGptOssModelFamily,
+	isLocalModel,
+	isMacM4LocalModel,
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
 } from "../model-utils"
@@ -205,5 +207,74 @@ describe("modelDoesntSupportWebp", () => {
 		modelDoesntSupportWebp(m("gemini-2.5-flash")).should.equal(false)
 		modelDoesntSupportWebp(m("qwen2.5-vl-72b")).should.equal(false)
 		modelDoesntSupportWebp(m("llama-3.1-8b")).should.equal(false)
+	})
+})
+
+// Minimal helper to build an ApiProviderInfo for the local-model tests.
+const p = (providerId: string, modelId: string = ""): ApiProviderInfo =>
+	({ providerId, model: { id: modelId, info: {} as any } } as ApiProviderInfo)
+
+describe("isLocalModel", () => {
+	it("returns true for ollama and lmstudio providers", () => {
+		isLocalModel(p("ollama")).should.equal(true)
+		isLocalModel(p("lmstudio")).should.equal(true)
+	})
+
+	it("returns true for the macm4 provider", () => {
+		isLocalModel(p("macm4")).should.equal(true)
+	})
+
+	it("returns false for cloud providers", () => {
+		isLocalModel(p("anthropic")).should.equal(false)
+		isLocalModel(p("openai")).should.equal(false)
+		isLocalModel(p("openrouter")).should.equal(false)
+	})
+
+	it("is case insensitive", () => {
+		isLocalModel(p("OLLAMA")).should.equal(true)
+		isLocalModel(p("MacM4")).should.equal(true)
+	})
+})
+
+describe("isMacM4LocalModel", () => {
+	it("matches the macm4 provider regardless of model id", () => {
+		isMacM4LocalModel(p("macm4", "anything")).should.equal(true)
+		isMacM4LocalModel(p("macm4", "")).should.equal(true)
+	})
+
+	it("matches MacM4 canonical short names via openai-compatible provider", () => {
+		isMacM4LocalModel(p("openai", "local-fast")).should.equal(true)
+		isMacM4LocalModel(p("openai", "local-long")).should.equal(true)
+		isMacM4LocalModel(p("openai", "local-agent")).should.equal(true)
+		isMacM4LocalModel(p("openai", "local-coder-14b")).should.equal(true)
+		isMacM4LocalModel(p("openai", "local-coder-32b")).should.equal(true)
+		isMacM4LocalModel(p("openai", "hybrid-auto")).should.equal(true)
+	})
+
+	it("matches the Cursor-shaped gpt- mirrors", () => {
+		isMacM4LocalModel(p("openai", "gpt-local-fast")).should.equal(true)
+		isMacM4LocalModel(p("openai", "gpt-local-long")).should.equal(true)
+		isMacM4LocalModel(p("openai", "gpt-hybrid-auto")).should.equal(true)
+	})
+
+	it("matches macm4-local-* names from the dedicated provider", () => {
+		isMacM4LocalModel(p("macm4", "macm4-local-fast")).should.equal(true)
+		isMacM4LocalModel(p("openai", "macm4-local-long")).should.equal(true)
+	})
+
+	it("does not match real OpenAI models that look similar", () => {
+		// "gpt-4" is not a MacM4 alias even though it has the gpt- prefix
+		isMacM4LocalModel(p("openai", "gpt-4")).should.equal(false)
+		isMacM4LocalModel(p("openai", "gpt-4o")).should.equal(false)
+		isMacM4LocalModel(p("openai", "gpt-5")).should.equal(false)
+	})
+
+	it("does not match cloud claude models", () => {
+		isMacM4LocalModel(p("anthropic", "claude-opus-4-7")).should.equal(false)
+		isMacM4LocalModel(p("openai", "claude-code")).should.equal(false)
+	})
+
+	it("returns false for empty model id without macm4 provider", () => {
+		isMacM4LocalModel(p("openai", "")).should.equal(false)
 	})
 })

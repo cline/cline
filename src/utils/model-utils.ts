@@ -206,8 +206,45 @@ export function isNextGenModelFamily(id: string): boolean {
 }
 
 export function isLocalModel(providerInfo: ApiProviderInfo): boolean {
-	const localProviders = ["lmstudio", "ollama"]
+	const localProviders = ["lmstudio", "ollama", "macm4"]
 	return localProviders.includes(normalize(providerInfo.providerId))
+}
+
+/**
+ * Detect MacM4LocalAgent model identifiers exposed by the local LiteLLM
+ * proxy (see https://github.com/martinfr-certifyos/MacM4LocalAgent).
+ *
+ * Matches the canonical short names (local-fast, local-long, local-agent)
+ * and the Cursor-shaped gpt-* mirrors registered in litellm-config.yaml.
+ * Also matches the prefixed macm4-* names when used via the dedicated
+ * MacM4 provider added separately.
+ *
+ * Why this exists separately from isLocalModel: when Cline talks to the
+ * MacM4 stack through the generic openai-compatible provider, the
+ * providerId is "openai" not "ollama" / "macm4", so isLocalModel() returns
+ * false even though the upstream model is local. Matching on the model id
+ * (and optionally base URL) lets us recognise the MacM4 traffic shape
+ * regardless of which provider integration the user picked.
+ */
+export function isMacM4LocalModel(providerInfo: ApiProviderInfo): boolean {
+	const providerId = normalize(providerInfo.providerId)
+	if (providerId === "macm4") {
+		return true
+	}
+	const modelId = normalize(providerInfo.model?.id ?? "")
+	if (!modelId) {
+		return false
+	}
+	// Strip the gpt- prefix used for Cursor compatibility before matching.
+	const stripped = modelId.startsWith("gpt-") ? modelId.slice(4) : modelId
+	return (
+		stripped === "local-fast" ||
+		stripped === "local-long" ||
+		stripped === "local-agent" ||
+		stripped.startsWith("local-coder-") ||
+		stripped.startsWith("macm4-local-") ||
+		stripped === "hybrid-auto"
+	)
 }
 
 /**
