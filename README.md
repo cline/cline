@@ -114,7 +114,7 @@ Cline ships across multiple surfaces. When you are reading about a feature below
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`./sdk/apps/cli/`](https://github.com/cline/cline/tree/main/sdk/apps/cli) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | ? (We are working on the migration to move VSCode to be upon our SDK.) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins |
-| **Kanban** | Web-based multi-agent task board. | CLI launch alias in `cli/src/index.ts`; Kanban app code lives in [`cline/kanban`](https://github.com/cline/kanban). |
+| **Kanban** | Web-based multi-agent task board. | CLI entrypoint in `sdk/apps/cli/src/index.ts`; Kanban command wiring lives in `sdk/apps/cli/src/main.ts`. Kanban app code lives in [`cline/kanban`](https://github.com/cline/kanban). |
 | **Docs site** | Public documentation pages. | `docs/` |
 
 ## Edit Code Across All Your Codebases
@@ -153,7 +153,7 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 
 Cline's capabilities are extensible. 
 1. MCP: Use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`. 
-2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below. Discover more example plugs here (TODO add link when moved over example folder) and more community plugins upcoming.
+2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below.
 
 ```typescript
 import { Agent, createTool } from "@cline/sdk"
