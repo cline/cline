@@ -122,7 +122,6 @@
 		"includes": [
 			"**",
 			// explicitly force files to be ignored by the scanner with !!
-			"!!**/sdk",
 			"!!**/dist",
 			"!!**/dist-*",
 			"!!**/out",

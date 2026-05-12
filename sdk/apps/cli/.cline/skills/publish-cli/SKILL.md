@@ -9,6 +9,8 @@ Use this skill when the user asks to release the CLI, publish `cline`, bump the 
 
 The CLI is npm-only. Do not add alternate distribution or signing steps.
 
+> Working directory: this skill lives in the SDK sub-monorepo. Run `cd sdk` (from the repo root) before any of the shell commands below. Paths in commands and instructions (e.g. `apps/cli/package.json`, `bun release cli`) are written relative to `sdk/`.
+
 The skill should guide the user through one release preparation flow, then offer the publish path options. The two normal publish paths are GitHub Actions and local publishing from an authenticated machine.
 
 ## Release contract

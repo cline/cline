@@ -16,15 +16,23 @@ on:
         required: false
         type: boolean
         default: false
+      confirm_publish:
+        description: 'Required when channel=latest. Type "publish" to confirm release publish.'
+        required: false
+        type: string
   schedule:
     # Run nightly at 2:00 AM UTC
     - cron: "0 2 * * *"
+
+defaults:
+  run:
+    working-directory: sdk
 
 jobs:
   test:
     permissions:
       contents: read
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/sdk-test.yml
 
   publish-sdk:
     needs: test
@@ -32,7 +40,17 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    if: github.repository == 'cline/sdk' && github.ref == 'refs/heads/main'
+    if: |
+      github.repository == 'cline/cline' &&
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name != 'workflow_dispatch' ||
+        inputs.channel != 'latest' ||
+        (
+          inputs.confirm_publish == 'publish' &&
+          !endsWith(github.actor, '[bot]')
+        )
+      )
     runs-on: ubuntu-latest
 
     steps:
@@ -67,7 +85,7 @@ jobs:
             exit 0
           fi
 
-          if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
+          if [ "$(git rev-list --count HEAD --since="24 hours ago")" -eq 0 ]; then
             echo "No commits in last 24 hours, skipping publish"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
@@ -156,6 +174,8 @@ jobs:
       # Publish sequentially in dependency order: shared → llms → agents → core → sdk
       - name: Publish @cline/shared
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @cline/shared@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
@@ -165,6 +185,8 @@ jobs:
 
       - name: Publish @cline/llms
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @cline/llms@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
@@ -174,6 +196,8 @@ jobs:
 
       - name: Publish @cline/agents
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @cline/agents@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
@@ -183,6 +207,8 @@ jobs:
 
       - name: Publish @cline/core
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @cline/core@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
@@ -192,6 +218,8 @@ jobs:
 
       - name: Publish @cline/sdk
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @cline/sdk@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
@@ -225,14 +253,14 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           CHANNEL="${{ steps.channel.outputs.channel }}"
-          echo "✅ Published SDK packages with tag '${CHANNEL}':"
+          echo "Published SDK packages with tag '${CHANNEL}':"
           echo "  - @cline/shared@${VERSION}"
           echo "  - @cline/llms@${VERSION}"
           echo "  - @cline/agents@${VERSION}"
           echo "  - @cline/core@${VERSION}"
           echo "  - @cline/sdk@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
-            echo "✅ Created git tags:"
+            echo "Created git tags:"
             echo "  - sdk/shared/v${VERSION}"
             echo "  - sdk/llms/v${VERSION}"
             echo "  - sdk/agents/v${VERSION}"
