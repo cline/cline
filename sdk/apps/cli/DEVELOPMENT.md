@@ -413,3 +413,64 @@ Then attach VS Code or Chrome DevTools to `ws://127.0.0.1:6499`.
   - `@opentui/react` - React reconciler (`createRoot`, hooks)
   - `@opentui-ui/dialog` - Dialog/modal system
   - `opentui-spinner` - Spinner component
+
+## Publishing
+
+The CLI is published as the `cline` wrapper package on npm with platform-specific binaries under `@cline/cli-*`. The release flow lives in the `publish-cli` skill (`sdk/apps/cli/.cline/skills/publish-cli/SKILL.md`).
+
+From the `apps/cli` workspace:
+
+```bash
+# Dry run for checking package size and build output
+bun publish --dry-run
+
+# Publish to npm (version bump required first)
+bun run release
+```
+
+See [DISTRIBUTION.md](./DISTRIBUTION.md) for details on how the CLI is packaged.
+
+## Runtime ownership
+
+- CLI renders runtime events and handles terminal UX.
+- Core owns agent creation, runtime composition, and session message persistence.
+- CLI does not directly instantiate `Agent` for chat/task execution.
+- CLI does not perform direct file/db message persistence in run/interactive paths.
+- CLI owns the user-instruction watcher (rules/workflows/skills) because prompt assembly uses rule context before session start; the watcher is disposed on all exit paths.
+- RPC runtime uses the same prompt resolver and accepts optional `rules` in runtime config (or `systemPrompt` when fully prebuilt by the caller).
+
+### Connector runtime behavior
+
+- Telegram final assistant replies are sent through Telegram entity payloads with raw-text fallback; Google Chat and WhatsApp use the shared connector runtime formatting path.
+- Assistant text streams incrementally into chat surfaces that use the shared runtime streaming path; Telegram sends final assistant replies after the turn completes.
+- Tool activity is summarized as compact start/error messages with short argument previews.
+- Required tool approvals are posted back into the chat thread and accept `Y` / `N` replies.
+- Google Chat serves its webhook at `/api/webhooks/gchat`; configure the Google Chat App URL as `<base-url>/api/webhooks/gchat`.
+- Webhook-based connectors are hosted through a shared CLI `node:http` server helper rather than `Bun.serve`.
+- WhatsApp serves its webhook at `/api/webhooks/whatsapp`; configure the Meta callback URL as `<base-url>/api/webhooks/whatsapp`.
+
+## Logging adapter
+
+`cline` uses a `pino`-backed adapter that targets the core `BasicLogger` contract:
+
+- CLI runtime passes `logger` directly into local `@cline/core` sessions.
+- Hub-backed sessions include a serialized logger payload in `ChatStartSessionRequest.logger`; the runtime reconstructs the same `pino` settings and injects them into core.
+- Hosts can attach stable runtime logger bindings (for example `clientId`, `clientType`, `clientApp`) through `RuntimeLoggerConfig.bindings`.
+
+After login, OAuth credentials are persisted with `auth.expiresAt`, and `@cline/core` refreshes these tokens automatically during session turns. Provider auth and model settings should be changed through `cline auth`, the interactive config UI, or core provider-settings APIs rather than editing provider settings files directly.
+
+On startup, `cline` also attempts a legacy settings import:
+
+- Source files: `<CLINE_DATA_DIR>/globalState.json` and `<CLINE_DATA_DIR>/secrets.json`
+- Target file: `<CLINE_DATA_DIR>/settings/providers.json` (or `CLINE_PROVIDER_SETTINGS_PATH`)
+- Existing providers in `providers.json` are never overwritten
+- Missing providers discovered in legacy files are merged into `providers.json`
+- Migrated provider entries are annotated with `tokenSource: "migration"`
+
+Custom provider registry notes:
+
+- Provider runtime settings continue to persist in `<CLINE_DATA_DIR>/settings/providers.json`.
+- Providers in `providers.json` can opt into the OpenAI Responses API with `"protocol": "openai-responses"`; this routes the runtime through the OpenAI client while keeping the user-defined provider ID, base URL, and model catalog.
+- User-added OpenAI-compatible provider model catalogs are persisted in `<CLINE_DATA_DIR>/settings/models.json` (or alongside `CLINE_PROVIDER_SETTINGS_PATH`).
+- `models.json` stores model lists by provider ID and is loaded by the runtime provider actions.
+- Entries with only `models` extend an existing provider; entries with `provider` metadata register or override a custom provider.

@@ -177,17 +177,32 @@ jobs:
         run: bun script/publish-npm.ts --tag latest
         working-directory: sdk/apps/cli
 
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Get Previous CLI Tag
+        id: prev_tag
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.version }}"
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'cli-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
-          gh release create "$TAG" \
-            --verify-tag \
-            --title "CLI v${VERSION}" \
-            --notes "Published cline@${VERSION} to npm."
+      - name: Get Changelog Entry
+        id: changelog
+        run: |
+          # Grab content between the first "## " header and the next one in apps/cli/CHANGELOG.md
+          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' apps/cli/CHANGELOG.md)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "CLI v${{ steps.version.outputs.version }}"
+          body: |
+            ${{ steps.changelog.outputs.content }}
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
@@ -202,16 +217,20 @@ jobs:
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
           payload: |
             channel: "C0APVKGGZFC"
-            text: "Cline SDK CLI v${{ steps.version.outputs.version }}"
+            text: "Cline CLI v${{ steps.version.outputs.version }}"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "Cline SDK CLI v${{ steps.version.outputs.version }}"
+                  text: "Cline CLI v${{ steps.version.outputs.version }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ${{ toJSON(steps.changelog.outputs.content) }}
               - type: "context"
                 elements:
                   - type: "mrkdwn"
-                    text: "<https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}|View on npm>"
+                    text: "<https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}|View on npm>${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}"
 
   publish-nightly:
     name: Publish cline nightly
