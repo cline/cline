@@ -4,6 +4,7 @@ import type {
 	GatewayProviderConfig,
 	GatewayProviderFactory,
 	GatewayProviderManifest,
+	GatewayProviderMetadata,
 	GatewayProviderRegistration,
 	GatewayResolvedModel,
 	GatewayResolvedProviderConfig,
@@ -57,6 +58,29 @@ function mergeModels(
 	}
 
 	return Array.from(merged.values());
+}
+
+function mergeProviderMetadata(
+	base: GatewayProviderMetadata | undefined,
+	override: GatewayProviderMetadata | undefined,
+): GatewayProviderMetadata | undefined {
+	// Routing metadata merges at the promptCache/reasoning branch boundary:
+	// omitted branches inherit, provided branches replace in full. Route arrays
+	// are intentionally not concatenated so overrides remain explicit.
+	const routing =
+		base?.routing || override?.routing
+			? {
+					...(base?.routing ?? {}),
+					...(override?.routing ?? {}),
+				}
+			: undefined;
+	const metadata: GatewayProviderMetadata = {
+		...(base ?? {}),
+		...(override ?? {}),
+		...(routing ? { routing } : {}),
+	};
+
+	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 function createUnregisteredModel(
@@ -173,13 +197,10 @@ export class GatewayRegistry {
 			...cloneManifest(record.manifest),
 			defaultModelId,
 			models,
-			metadata:
-				config?.metadata || record.manifest.metadata
-					? {
-							...(record.manifest.metadata ?? {}),
-							...(config?.metadata ?? {}),
-						}
-					: undefined,
+			metadata: mergeProviderMetadata(
+				record.manifest.metadata,
+				config?.metadata,
+			),
 		};
 	}
 
@@ -226,12 +247,10 @@ export class GatewayRegistry {
 		}
 
 		const config = this.providerConfigs.get(providerId);
-		const mergedMetadata = {
-			...(record.defaults?.metadata ?? {}),
-			...(config?.metadata ?? {}),
-		};
-		const metadata =
-			Object.keys(mergedMetadata).length > 0 ? mergedMetadata : undefined;
+		const metadata = mergeProviderMetadata(
+			record.defaults?.metadata,
+			config?.metadata,
+		);
 
 		return {
 			manifest,

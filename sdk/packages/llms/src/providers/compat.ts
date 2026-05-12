@@ -63,6 +63,7 @@ function toGatewayCapabilities(
 		switch (capability) {
 			case "tools":
 			case "reasoning":
+			case "prompt-cache":
 			case "images":
 			case "audio":
 				mapped.add(capability);
@@ -70,7 +71,6 @@ function toGatewayCapabilities(
 			case "files":
 			case "streaming":
 			case "temperature":
-			case "prompt-cache":
 			case "reasoning-effort":
 			case "computer-use":
 			case "global-endpoint":
