@@ -1,7 +1,6 @@
-// Phase 0 stub. Behavior added in Phase 3.
-
 import type {
 	Disposable,
+	Fingerprint,
 	ProviderCatalog,
 	ProviderConfigReader,
 	ProviderId,
@@ -10,6 +9,95 @@ import type {
 	ProviderModelsResult,
 } from "./contracts"
 
+type ProviderModelsRecord = Extract<ProviderModelsResult, { ok: true }>
+
+type CacheKey = `${string}:${string}`
+
+interface ProviderModelsCacheOptions {
+	readonly ttlMs: number
+	now(): number
+}
+
+interface ResolveRecordOptions {
+	readonly providerId: ProviderId
+	readonly fingerprint: Fingerprint
+	readonly forceRefresh?: boolean
+	load(): Promise<ProviderModelsRecord>
+}
+
+function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {
+	return `${providerId}:${fingerprint}`
+}
+
+function createProviderModelsCache(options: ProviderModelsCacheOptions) {
+	const records = new Map<CacheKey, { readonly record: ProviderModelsRecord; readonly expiresAt: number }>()
+	const inFlight = new Map<CacheKey, Promise<ProviderModelsRecord>>()
+
+	function get(providerId: ProviderId, fingerprint: Fingerprint): ProviderModelsRecord | undefined {
+		const key = makeCacheKey(providerId, fingerprint)
+		const entry = records.get(key)
+		if (!entry) {
+			return undefined
+		}
+		if (entry.expiresAt <= options.now()) {
+			records.delete(key)
+			return undefined
+		}
+		return entry.record
+	}
+
+	function set(record: ProviderModelsRecord): void {
+		records.set(makeCacheKey(record.providerId, record.configFingerprint), {
+			record,
+			expiresAt: options.now() + options.ttlMs,
+		})
+	}
+
+	function resolve(optionsForRecord: ResolveRecordOptions): Promise<ProviderModelsRecord> {
+		if (!optionsForRecord.forceRefresh) {
+			const cached = get(optionsForRecord.providerId, optionsForRecord.fingerprint)
+			if (cached) {
+				return Promise.resolve(cached)
+			}
+		}
+
+		const key = makeCacheKey(optionsForRecord.providerId, optionsForRecord.fingerprint)
+		const existing = inFlight.get(key)
+		if (existing) {
+			return existing
+		}
+
+		const promise = optionsForRecord
+			.load()
+			.then((record) => {
+				set(record)
+				return record
+			})
+			.finally(() => {
+				inFlight.delete(key)
+			})
+		inFlight.set(key, promise)
+		return promise
+	}
+
+	return {
+		get,
+		set,
+		resolve,
+		_inFlightSize: () => inFlight.size,
+		_cacheSize: () => records.size,
+	}
+}
+
+/**
+ * Internal test hook for Phase 3.1 cache/in-flight behavior. Not part of the
+ * public model-catalog API; production callers should use createProviderCatalog.
+ */
+export const _testing = {
+	createProviderModelsCache,
+	makeCacheKey,
+}
+
 /**
  * Create a {@link ProviderCatalog}.
  *
@@ -17,12 +105,15 @@ import type {
  * Enforces invariant C1 by type: the catalog cannot write to the store,
  * and has no `write`/`commitSelection` access by construction.
  *
- * Phase 0 stub: every method throws a clear Phase 0 error.
+ * Phase 3.1 implements the private cache/in-flight substrate. Public catalog
+ * behavior remains intentionally unimplemented until the resolver is wired in
+ * during Phase 3.2+.
  */
 export function createProviderCatalog(reader: ProviderConfigReader): ProviderCatalog {
 	void reader
+	void createProviderModelsCache({ ttlMs: 5 * 60 * 1000, now: () => Date.now() })
 	const unimplemented = (method: string): never => {
-		throw new Error(`ProviderCatalog.${method}: not implemented (Phase 0 stub)`)
+		throw new Error(`ProviderCatalog.${method}: not implemented (Phase 3 resolver pending)`)
 	}
 
 	return {
