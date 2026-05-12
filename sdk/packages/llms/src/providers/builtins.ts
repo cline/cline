@@ -194,6 +194,9 @@ function modelInfoToGateway(
 	if (info.releaseDate) {
 		metadata.releaseDate = info.releaseDate;
 	}
+	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
+		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
+	}
 	return {
 		id: info.id,
 		name: info.name ?? info.id,

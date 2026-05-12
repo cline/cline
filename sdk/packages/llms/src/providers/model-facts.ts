@@ -153,3 +153,10 @@ export function isMoonshotKimiModelIdFallback(
 export function isDeepSeekFamily(context: GatewayProviderContext): boolean {
 	return normalizedFamily(context).includes("deepseek");
 }
+
+export function getReasoningDefaultOnMetadata(
+	context: GatewayProviderContext,
+): boolean | undefined {
+	const value = context.model.metadata?.reasoningDefaultOn;
+	return typeof value === "boolean" ? value : undefined;
+}
