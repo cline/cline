@@ -9,8 +9,8 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cline/sdk.git",
-		"directory": "apps/cli"
+		"url": "git+https://github.com/cline/cline.git",
+		"directory": "sdk/apps/cli"
 	},
 	"bin": {
 		"cline": "src/index.ts"
