@@ -294,3 +294,38 @@ Decision:
 
 - Phase 3.6 is complete.
 - Proceed to CHECKPOINT 3 review.
+
+## 2026-05-13 — CHECKPOINT 3 catalog review
+
+Reviewer: Opus 4.7 teammate (`opus47_checkpoint3_review`, run `run_00001`).
+
+Verdict: **PASS**.
+
+Evidence:
+
+- `createProviderCatalog` accepts `ProviderConfigReader`, not `ProviderConfigStore`.
+- Grep for `\.write\|commitSelection` in `src/sdk/model-catalog/catalog.ts` shows only the invariant doc comment; the catalog does not call store write APIs.
+- Cache and in-flight maps are keyed by `${providerId}:${fingerprint}`.
+- Cache `set()` asserts the resolved record's provider/fingerprint matches the request before storing.
+- Error arms are not cached; in-flight entries are cleaned up with `finally`.
+- Store `fields` events invalidate only non-matching fingerprints for the affected provider.
+- Store `selection` events do not invalidate cache and do not notify model-list subscribers.
+- Provider model subscribers are keyed by provider id, fire after each `resolveModels` completion for that provider, including cache hits, and dispose unregisters them.
+- No raw secrets are used in cache keys: fingerprints are opaque sha256 values and secret inputs are short-hashed before fingerprinting.
+- Grep for `as ProviderId\|as Fingerprint` under `src/sdk/model-catalog` shows only contract comments and the allowed parse/compute boundary casts.
+
+Validation:
+
+- `npm run protos` passed.
+- `for i in 1 2 3 4 5; do NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/sdk/model-catalog/catalog.test.ts --reporter=dot; done` passed: 5/5 runs, 27 tests each.
+- `npm run check-types -- --pretty false` passed.
+
+Non-blocking cautions:
+
+- `listProviders` uses `authDescription` as the lightweight provider description slot because `ProviderListing` does not yet have a generic `description` field. Revisit if Phase 4 proto/UI needs a clearer field.
+- The catalog holds the store subscription for the catalog lifetime; lifecycle disposal can be revisited when controller singletons are wired.
+
+Decision:
+
+- CHECKPOINT 3 passed.
+- Proceed to Phase 4.1 proto plumbing.
