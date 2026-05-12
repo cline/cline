@@ -11,18 +11,23 @@ const mockProviderSettings = vi.hoisted(() => ({
 	providers: {} as Record<string, { provider?: string; model?: string }>,
 }));
 
-vi.mock("@cline/core", () => ({
-	sendHubCommand: mockSendHubCommand,
-	ProviderSettingsManager: class {
-		getLastUsedProviderSettings() {
-			return mockProviderSettings.lastUsed;
-		}
+vi.mock("@cline/core", async () => {
+	const actual =
+		await vi.importActual<typeof import("@cline/core")>("@cline/core");
+	return {
+		...actual,
+		sendHubCommand: mockSendHubCommand,
+		ProviderSettingsManager: class {
+			getLastUsedProviderSettings() {
+				return mockProviderSettings.lastUsed;
+			}
 
-		getProviderSettings(providerId: string) {
-			return mockProviderSettings.providers[providerId];
-		}
-	},
-}));
+			getProviderSettings(providerId: string) {
+				return mockProviderSettings.providers[providerId];
+			}
+		},
+	};
+});
 
 vi.mock("../utils/hub-runtime", () => ({
 	ensureCliHubServer: mockEnsureCliHubServer,
@@ -251,6 +256,43 @@ describe("runScheduleCommand create", () => {
 				}),
 			}),
 		);
+	});
+
+	it("fails when an explicit provider has no configured model and no model flag", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Health check",
+				"--cron",
+				"0 */6 * * *",
+				"--prompt",
+				"Run tests",
+				"--workspace",
+				"/tmp/workspace",
+				"--provider",
+				"anthropic",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			'No model is configured for provider "anthropic". Pass --model or save a model for that provider before creating the schedule.',
+		]);
+		expect(mockSendHubCommand).not.toHaveBeenCalled();
 	});
 });
 

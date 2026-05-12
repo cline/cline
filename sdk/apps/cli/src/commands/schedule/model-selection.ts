@@ -34,9 +34,17 @@ export function resolveScheduleModelSelection(
 	const selectedProviderSettings = explicitProvider
 		? manager.getProviderSettings(provider)
 		: lastUsedSettings;
+	const savedModel = trimToUndefined(selectedProviderSettings?.model);
 	const model =
 		explicitModel ??
-		trimToUndefined(selectedProviderSettings?.model) ??
-		DEFAULT_SCHEDULE_MODEL;
+		savedModel ??
+		(provider === DEFAULT_SCHEDULE_PROVIDER
+			? DEFAULT_SCHEDULE_MODEL
+			: undefined);
+	if (!model) {
+		throw new Error(
+			`No model is configured for provider "${provider}". Pass --model or save a model for that provider before creating the schedule.`,
+		);
+	}
 	return { provider, model };
 }
