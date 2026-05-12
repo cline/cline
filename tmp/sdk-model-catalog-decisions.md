@@ -68,3 +68,25 @@ Decision:
 
 - This hardening addresses the concrete casing concern before Phase 2.2.
 - Mapping-table drift remains a known refactor candidate, but not a Phase 2.2 blocker.
+
+## 2026-05-12 — Phase 2.2 shape-adapter metadata gaps
+
+Decision for the initial `adaptSdkModelInfo` implementation:
+
+- Map only SDK-owned metadata observed in `tmp/sdk-spike-findings.md`: `id`, `name`, `contextWindow`, `maxTokens`, `capabilities`, `pricing`, and `description`.
+- Validate sparse SDK model info; only `id: string` is required.
+- Do not invent extension-only behavior metadata in the adapter.
+
+Fields intentionally left for host enrichment or upstream SDK metadata:
+
+- `thinkingConfig`
+- `tiers` / tiered pricing
+- `temperature`
+- `apiFormat`
+- `supportsGlobalEndpoint`
+- LM Studio loaded/max context metadata beyond generic `contextWindow`
+- OCA survey/banner/reasoning-effort metadata
+
+Rationale:
+
+The adapter is a boundary translation layer, not model-business logic. Host-specific behavior metadata should be added later in an explicit enrichment step inside the catalog or upstreamed into the SDK, with tests per provider.
