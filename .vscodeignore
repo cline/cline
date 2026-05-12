@@ -22,9 +22,6 @@ eslint-rules/**
 .husky/**
 .env
 
-# cli
-cli/**
-
 # sdk (separate monorepo with its own build/release pipeline)
 sdk/**
 

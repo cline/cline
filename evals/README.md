@@ -2,7 +2,7 @@
 
 A layered testing system for measuring Cline's performance at different levels.
 
-> Note: Smoke tests (Layer 2) are partially disabled while the eval framework is repointed at the new SDK CLI. The scenarios under `evals/smoke-tests/` are preserved and `npm run eval:smoke:run` still works against whatever `cline` is on `$PATH` (install with `npm i -g cline`). The build-and-link helpers (`eval:smoke:build`, `eval:smoke`, `eval:smoke:ci`) and the auto-running `cline-evals-regression.yml` workflow are off until someone wires the build step at the new SDK CLI.
+> Note: Smoke tests (Layer 2) are partially disabled while the eval framework is repointed at the new SDK CLI. The scenarios under `evals/smoke-tests/` are preserved and `npm run eval:smoke:run` still works against whatever `cline` is on `$PATH` (install with `npm i -g cline`). The old build-and-link helpers and the auto-running `cline-evals-regression.yml` workflow are off until someone wires the build step at the new SDK CLI.
 
 ## Directory Structure
 
@@ -58,13 +58,13 @@ Quick validation across providers with real LLM calls:
 export CLINE_API_KEY=sk-...
 
 # Run smoke tests
-npm run eval:smoke
+npm run eval:smoke:run
 
 # Run specific scenario
-npm run eval:smoke -- --scenario 01-create-file
+npm run eval:smoke:run -- --scenario 01-create-file
 
 # Run with specific model (overrides per-scenario models)
-npm run eval:smoke -- --model anthropic/claude-sonnet-4.5
+npm run eval:smoke:run -- --model anthropic/claude-sonnet-4.5
 ```
 
 ### Layer 3: E2E Tests (Hours)
@@ -112,7 +112,7 @@ With 3 trials:
 ```bash
 # Run all fast tests
 npm run test:unit
-npm run eval:smoke
+npm run eval:smoke:run
 
 # Run E2E (requires setup)
 cd evals/cline-bench
@@ -126,7 +126,7 @@ npm run eval:e2e
 
 1. Create `evals/smoke-tests/scenarios/<name>/config.json`
 2. Add optional `template/` directory with starting files
-3. Run to verify: `npm run eval:smoke -- --scenario <name>`
+3. Run to verify: `npm run eval:smoke:run -- --scenario <name>`
 
 ### Contract Test
 
