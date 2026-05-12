@@ -45,6 +45,25 @@ Succinct steering notes for future teammate/subagent runs on this project.
 - Weaker on repository conventions: used value imports instead of `import type`, broad barrel exports, and thinner comments.
 - Useful as a lightweight second opinion, but prompt should explicitly require `import type` and narrow `index.ts` exports.
 
+## Model observations from Phase 0.2 safe-defaults rename
+
+Task: rename `*ModelInfoSaneDefaults` identifiers to `*ModelInfoSafeDefaults`, with grep proving no `SaneDefaults` identifiers remain.
+
+- **GPT-5.5** completed quickly and produced a broad correct rename. Good for straightforward repo-wide symbol changes.
+- **Opus 4.7** correctly noticed that the exit criterion was broader than the step title: not only `openAiModelInfoSaneDefaults`, but all `*ModelInfoSaneDefaults` identifiers had to be renamed. Best reasoning about specification nuance.
+- **DeepSeek V4 Pro** completed but only renamed some defaults; it left `hicapModelInfoSaneDefaults` and `liteLlmModelInfoSaneDefaults` behind. For grep-driven tasks, state the exact failing grep command and require its output in the final response.
+- **Kimi K2.6** reported success but left the worktree unchanged in this run. For Kimi, include an explicit `git diff --stat` requirement and ask it to paste the changed-file list from `git status --short`.
+
+Prompt adjustment for future rename/refactor tasks:
+
+```text
+Validation must include these exact commands and their outputs:
+- git status --short
+- git diff --stat
+- grep -rn "<old-pattern>" <paths> || true
+- grep -rn "<new-pattern>" <paths> | wc -l
+```
+
 ## Recommended next-round setup
 
 - For implementation tasks: run **GPT-5.5 + Opus 4.7** as the main two heads.
