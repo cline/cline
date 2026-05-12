@@ -5,7 +5,7 @@ import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import type { OpenRouterCompatibleModelInfo, ProviderModelsResponse } from "@shared/proto/cline/models"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -27,6 +27,21 @@ import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
+export type ProviderId = string
+
+export interface ProviderModelsState {
+	providerId: ProviderId
+	models: Record<string, ModelInfo>
+	defaultModelId: string
+	configFingerprint: string
+	requestId: string
+	source?: string
+	fetchedAt: number
+	isLoading: boolean
+	isStale: boolean
+	error?: string
+}
+
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
@@ -41,6 +56,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
+	providerModelsByProvider: Partial<Record<ProviderId, ProviderModelsState>>
+	latestModelRequestIdByProvider: Partial<Record<ProviderId, string>>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
@@ -85,6 +102,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
 	setOnboardingModels: (value: OnboardingModelGroup | undefined) => void
+	startProviderModelsRequest: (providerId: ProviderId, requestId: string) => void
+	applyProviderModelsResponse: (response: ProviderModelsResponse) => void
 
 	// Refresh functions
 	refreshClineModels: () => void
@@ -315,8 +334,63 @@ export const ExtensionStateContextProvider: React.FC<{
 		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
 	})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
+	const [providerModelsByProvider, setProviderModelsByProvider] = useState<Partial<Record<ProviderId, ProviderModelsState>>>({})
+	const [latestModelRequestIdByProvider, setLatestModelRequestIdByProvider] = useState<Partial<Record<ProviderId, string>>>({})
+	const latestModelRequestIdByProviderRef = useRef<Partial<Record<ProviderId, string>>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
+
+	const startProviderModelsRequest = useCallback((providerId: ProviderId, requestId: string) => {
+		latestModelRequestIdByProviderRef.current = { ...latestModelRequestIdByProviderRef.current, [providerId]: requestId }
+		setLatestModelRequestIdByProvider((prev) => ({ ...prev, [providerId]: requestId }))
+		setProviderModelsByProvider((prev) => ({
+			...prev,
+			[providerId]: {
+				...(prev[providerId] ?? {
+					providerId,
+					models: {},
+					defaultModelId: "",
+					configFingerprint: "",
+					fetchedAt: 0,
+					isStale: false,
+				}),
+				providerId,
+				requestId,
+				isLoading: true,
+				error: undefined,
+			},
+		}))
+	}, [])
+
+	const applyProviderModelsResponse = useCallback((response: ProviderModelsResponse) => {
+		setProviderModelsByProvider((prevModels) => {
+			const latestRequestId = latestModelRequestIdByProviderRef.current[response.providerId]
+			if (latestRequestId !== response.requestId) {
+				console.debug("Dropping stale provider models response", {
+					providerId: response.providerId,
+					requestId: response.requestId,
+					latestRequestId,
+				})
+				return prevModels
+			}
+
+			return {
+				...prevModels,
+				[response.providerId]: {
+					providerId: response.providerId,
+					models: response.ok ? fromProtobufModels(response.models) : {},
+					defaultModelId: response.defaultModelId ?? "",
+					configFingerprint: response.configFingerprint,
+					requestId: response.requestId,
+					source: response.source,
+					fetchedAt: response.fetchedAt,
+					isLoading: false,
+					isStale: false,
+					error: response.ok ? undefined : response.error?.message,
+				},
+			}
+		})
+	}, [])
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -798,6 +872,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
 		huggingFaceModels,
+		providerModelsByProvider,
+		latestModelRequestIdByProvider,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		totalTasksSize,
@@ -840,6 +916,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAnnouncement,
 		setShowWelcome,
 		setOnboardingModels,
+		startProviderModelsRequest,
+		applyProviderModelsResponse,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,

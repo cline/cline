@@ -424,3 +424,38 @@ Decision:
 
 - Phase 4.3 is complete.
 - Proceed to CHECKPOINT 4 review.
+
+## 2026-05-13 — CHECKPOINT 4 RPC plumbing review
+
+Reviewer: Opus 4.7 (user-provided verdict).
+
+Verdict: **PASS**.
+
+Decision:
+
+- CHECKPOINT 4 passed.
+- Proceed to Phase 5 webview foundation.
+
+## 2026-05-13 — Phase 5.1 webview provider-model state shape
+
+Implementation:
+
+- Added normalized provider model state to `webview-ui/src/context/ExtensionStateContext.tsx`:
+  - `providerModelsByProvider: Partial<Record<ProviderId, ProviderModelsState>>`
+  - `latestModelRequestIdByProvider: Partial<Record<ProviderId, string>>`
+- Added `startProviderModelsRequest(providerId, requestId)` to set the latest request id and mark the provider model state loading.
+- Added `applyProviderModelsResponse(response)` with the stale-response apply rule:
+  - apply only when `response.requestId === latestModelRequestIdByProvider[response.providerId]`
+  - otherwise drop the response and log a debug message.
+- Kept all existing provider-specific model state variables and refresh paths in place.
+
+Validation:
+
+- `npm run check-types -- --pretty false` passed.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run compile` passed, including typecheck, lint, proto lint, and esbuild.
+
+Decision:
+
+- Phase 5.1 is complete.
+- Proceed to Phase 5.2 (`useProviderModels`).
