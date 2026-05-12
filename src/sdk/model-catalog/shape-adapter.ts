@@ -1,6 +1,6 @@
 // Phase 0 stub. Behavior added in Phase 2.
 
-import { type ModelInfo, openAiModelInfoSaneDefaults as openAiModelInfoSafeDefaults } from "@shared/api"
+import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 
 /**
  * Adapt an SDK model-info shape into the extension's {@link ModelInfo} shape.
@@ -10,7 +10,7 @@ import { type ModelInfo, openAiModelInfoSaneDefaults as openAiModelInfoSafeDefau
  * data.
  *
  * Phase 0 stub: returns a copy of {@link openAiModelInfoSafeDefaults}
- * (re-aliased from `openAiModelInfoSaneDefaults` in `@shared/api`) for
+ * (imported directly from `@shared.api`) for
  * every input.
  */
 export function adaptSdkModelInfo(_input: unknown): ModelInfo {

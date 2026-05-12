@@ -23,7 +23,7 @@ import {
 	geminiModels,
 	groqDefaultModelId,
 	groqModels,
-	hicapModelInfoSaneDefaults,
+	hicapModelInfoSafeDefaults,
 	huaweiCloudMaasDefaultModelId,
 	huaweiCloudMaasModels,
 	huggingFaceDefaultModelId,
@@ -32,7 +32,7 @@ import {
 	internationalQwenModels,
 	internationalZAiDefaultModelId,
 	internationalZAiModels,
-	liteLlmModelInfoSaneDefaults,
+	liteLlmModelInfoSafeDefaults,
 	ModelInfo,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
@@ -50,7 +50,7 @@ import {
 	nousResearchModels,
 	openAiCodexDefaultModelId,
 	openAiCodexModels,
-	openAiModelInfoSaneDefaults,
+	openAiModelInfoSafeDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	openRouterDefaultModelId,
@@ -301,7 +301,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: openAiModelId || "",
-				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
+				selectedModelInfo: openAiModelInfo || openAiModelInfoSafeDefaults,
 			}
 		case "hicap":
 			const hicapModelId =
@@ -309,7 +309,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: hicapModelId || "",
-				selectedModelInfo: hicapModelInfoSaneDefaults,
+				selectedModelInfo: hicapModelInfoSafeDefaults,
 			}
 		case "ollama":
 			const ollamaModelId =
@@ -318,7 +318,7 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: ollamaModelId || "",
 				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
+					...openAiModelInfoSafeDefaults,
 					contextWindow: Number(apiConfiguration?.ollamaApiOptionsCtxNum ?? 32768),
 				},
 			}
@@ -329,7 +329,7 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: lmStudioModelId || "",
 				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
+					...openAiModelInfoSafeDefaults,
 					contextWindow: Number(apiConfiguration?.lmStudioMaxTokens ?? 32768),
 				},
 			}
@@ -342,7 +342,7 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: vsCodeLmModelSelector ? `${vsCodeLmModelSelector.vendor}/${vsCodeLmModelSelector.family}` : "",
 				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
+					...openAiModelInfoSafeDefaults,
 					supportsImages: false, // VSCode LM API currently doesn't support images
 				},
 			}
@@ -354,7 +354,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSafeDefaults,
 			}
 		}
 		case "xai":
@@ -477,7 +477,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: ocaModelId || "",
-				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSafeDefaults,
 			}
 		case "aihubmix":
 			const aihubmixModelId =
@@ -487,7 +487,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: aihubmixModelId || "",
-				selectedModelInfo: aihubmixModelInfo || openAiModelInfoSaneDefaults,
+				selectedModelInfo: aihubmixModelInfo || openAiModelInfoSafeDefaults,
 			}
 		case "minimax":
 			return getProviderData(minimaxModels, minimaxDefaultModelId)
