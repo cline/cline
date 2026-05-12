@@ -1,0 +1,66 @@
+# Desktop App Example
+
+Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspecting Cline chat sessions.
+
+## Dev Commands
+
+From `apps/examples/desktop-app/`:
+
+- `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
+- `bun run dev:sidecar` - sidecar backend only
+- `bun run dev` - Tauri desktop dev
+- `bun run build` - build web assets
+- `bun run build:sidecar` - build the Bun sidecar bundle
+- `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
+- `bun run build:binary` - build desktop binary
+- `bun run typecheck` - TypeScript check
+
+## Runtime Overview
+
+Startup flow:
+
+1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
+2. The desktop backend starts the Bun sidecar and exposes one websocket transport (`/transport`) for commands, queries, and pushed events.
+3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
+4. Tool approval updates are pushed from the backend instead of polled from the UI.
+5. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
+
+Desktop transport envelope:
+
+- Request: `{ "type": "command", "id": string, "command": string, "args"?: object }`
+- Response: `{ "type": "response", "id": string, "ok": boolean, "result"?: unknown, "error"?: string }`
+- Event: `{ "type": "event", "event": { "name": string, "payload": unknown } }`
+
+## Settings: Routine
+
+- The Settings sidebar includes a `Routine` view for hub-backed automations.
+- `Routine` lists all RPC schedules and shows status (`enabled`, `nextRunAt`, active execution).
+- From the UI you can open a create form and add, pause/resume, trigger-now, and delete schedules.
+- The view is wired to the same scheduler APIs used by `cline schedule` through Tauri commands and `scripts/routine-schedules.ts`.
+
+## Key Files
+
+- [`src-tauri/src/main.rs`](./src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
+- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar backend
+- [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - in-process chat session runtime
+- [`webview/lib/desktop-client.ts`](./webview/lib/desktop-client.ts) - typed desktop websocket client
+- [`webview/hooks/use-chat-session.ts`](./webview/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
+- [`webview/lib/chat-schema.ts`](./webview/lib/chat-schema.ts) - chat message schema used by the UI
+- [`webview/components/views/settings/routine-view.tsx`](./webview/components/views/settings/routine-view.tsx) - Routine schedules UI
+
+## Data + Storage
+
+- Session artifacts are written under `~/.cline/data/sessions/<sessionId>/` (or `CLINE_SESSION_DATA_DIR`).
+- Canonical replay/export artifact: `<sessionId>.messages.json`.
+- `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
+- `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
+- Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../../packages/core/docs/messages-contract-v1.md).
+
+## Troubleshooting
+
+- If live updates stall, verify the desktop backend websocket is connected and `chat_event` messages are arriving.
+- Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
+- Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
+- If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
+- If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`). The next `cline rpc ensure` call should attach to the current build's sidecar automatically.
+- Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.

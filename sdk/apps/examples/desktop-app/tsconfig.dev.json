@@ -1,0 +1,23 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"paths": {
+			"@/*": ["./*"],
+			"@cline/agents": ["../../../packages/agents/src/index.ts"],
+			"@cline/core": ["../../../packages/core/src/index.ts"],
+			"@cline/core/hub": ["../../../packages/core/src/hub/index.ts"],
+			"@cline/llms": ["../../../packages/llms/src/index.ts"],
+			"@cline/shared": ["../../../packages/shared/src/index.ts"],
+			"@cline/shared/storage": [
+				"../../../packages/shared/src/storage/index.ts"
+			],
+			"@cline/shared/db": ["../../../packages/shared/src/db/index.ts"],
+			"@cline/shared/*": [
+				"../../../packages/shared/src/*",
+				"../../../packages/shared/src/*/index.ts"
+			]
+		}
+	},
+	"include": ["sidecar/**/*.ts", "scripts/**/*.ts", "global.d.ts", "bun.mts"],
+	"exclude": ["node_modules", "webview"]
+}

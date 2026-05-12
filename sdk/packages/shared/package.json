@@ -1,0 +1,64 @@
+{
+	"name": "@cline/shared",
+	"version": "0.0.39",
+	"description": "Shared utilities, types, and schemas for Cline packages",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/shared"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"browser": "./dist/index.browser.js",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./browser": {
+			"types": "./dist/index.browser.d.ts",
+			"import": "./dist/index.browser.js"
+		},
+		"./types": {
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/types/index.js"
+		},
+		"./storage": {
+			"types": "./dist/storage/index.d.ts",
+			"import": "./dist/storage/index.js"
+		},
+		"./db": {
+			"types": "./dist/db/index.d.ts",
+			"import": "./dist/db/index.js"
+		},
+		"./automation": {
+			"types": "./dist/automation/index.d.ts",
+			"import": "./dist/automation/index.js"
+		},
+		"./remote-config": {
+			"types": "./dist/remote-config/index.d.ts",
+			"import": "./dist/remote-config/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "BUILD_MODE=package bun bun.mts",
+		"clean": "rm -rf dist node_modules",
+		"typecheck": "bun tsc --noEmit",
+		"test": "bun run test:unit",
+		"test:unit": "vitest run --config vitest.config.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"aws4fetch": "^1.0.20",
+		"jsonrepair": "^3.13.2",
+		"zod": "^4.3.6",
+		"zod-to-json-schema": "^3.25.1"
+	}
+}

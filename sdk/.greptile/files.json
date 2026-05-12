@@ -1,0 +1,32 @@
+{
+	"files": [
+		{
+			"path": "packages/core/src/services/telemetry/core-events.ts",
+			"description": "Single source of truth for all telemetry event names (CORE_TELEMETRY_EVENTS) and their typed capture helper functions. Every PR touching telemetry must be evaluated against this catalog. New events must be defined here first."
+		},
+		{
+			"path": "packages/shared/src/services/telemetry.ts",
+			"description": "ITelemetryService interface definition. Defines the contract all telemetry implementations must satisfy (capture, captureRequired, recordCounter, recordHistogram, recordGauge, flush, dispose)."
+		},
+		{
+			"path": "packages/core/src/services/telemetry/TelemetryService.ts",
+			"description": "Reference implementation of ITelemetryService used by all hosts. Multi-adapter fan-out service that forwards events to OpenTelemetry."
+		},
+		{
+			"path": "packages/core/src/services/telemetry/OpenTelemetryProvider.ts",
+			"description": "OpenTelemetry-backed provider that wires logs/metrics/traces exporters. Contains createConfiguredTelemetryService and createConfiguredTelemetryHandle, the canonical factories every host should use."
+		},
+		{
+			"path": "DOC.md",
+			"description": "Public API and event documentation. The Event Catalog and 'Activation funnel' sections must be kept in sync with core-events.ts. Host integration rules (CLI dir ordering, hub daemon metadata forwarding) are documented here."
+		},
+		{
+			"path": "ARCHITECTURE.md",
+			"description": "Architecture reference. Telemetry design decisions, completion semantics (submit_and_exit anchoring), and hub-daemon telemetry forwarding are documented here. Use as ground truth for design intent."
+		},
+		{
+			"path": "AGENTS.md",
+			"description": "Package boundary rules. Telemetry runtime services live in @cline/core; @cline/agents must not own stateful telemetry. Use to evaluate whether a telemetry change is being made in the correct package."
+		}
+	]
+}

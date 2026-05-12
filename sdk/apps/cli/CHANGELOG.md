@@ -1,0 +1,126 @@
+# Cline CLI Changelog
+
+## 3.0.0 (2026-05-11)
+
+- Publish the SDK CLI as `cline` for the public package handoff
+- Keep platform-specific binaries under `@cline/cli-*` and resolve them from the `cline` wrapper package
+
+## 0.0.13 (2026-05-07)
+
+- Detect prompt-cache support from cache write pricing so providers with write-only caching are represented correctly in the model catalog
+- Dual-publish `@clinebot/cli` mirror wrapper so existing users who installed via `npm i -g @clinebot/cli` continue receiving updates
+- Fix response truncation for OpenAI Codex model responses
+
+## 0.0.12 (2026-05-06)
+
+- Fix markdown rendering in the published binary: headers, inline code, blockquotes, bold, italic, and lists now render with proper syntax highlighting (tables were the only element working before)
+- Add keyboard shortcuts for scrolling through the chat transcript (Page Up/Down, Home/End)
+- Preserve typed input when selecting slash command skills instead of clearing the prompt
+- Fix `--thinking none` being ignored when persisted reasoning settings existed, which caused DeepSeek API errors
+- Fix terminal cleanup on exit so the summary prints cleanly
+- Fix onboarding provider model resolution
+- Hide ChatGPT subscription provider usage costs
+- Handle file index prewarm timeouts gracefully instead of hanging
+
+## 0.0.11 (2026-05-06)
+
+- Add `/skills` slash command for browsing and toggling available skills interactively
+- System prompts from AI SDK are now passed via the dedicated `system` option instead of being embedded in message history
+- Context compaction can now be triggered manually and runs more reliably
+- Disable the search tool in yolo mode so the model uses bash for searching instead
+- Fix `submit_and_exit` completion policy not being wired through to the runtime
+- Fix resumed sessions losing tool results when an abort interrupted tool execution mid-turn
+- Fix interactive sessions becoming unusable after aborting a running turn
+- Fix strict JSON schema mode rejecting valid tool schemas with unions, optional fields, and nullable types
+- Fix stray log output appearing over the TUI when the log file fallback wrote directly to the stderr file descriptor, bypassing the TUI's stdio capture
+- Refresh the built-in model catalog with the latest available models and pricing
+
+## 0.0.10 (2026-05-04)
+
+- Improve local provider onboarding: setting up Ollama, LM Studio, or other local providers now prompts for the endpoint URL directly, supports typing a model ID manually when the provider returns no models, and correctly discovers models from your saved endpoint
+- Ctrl+C no longer cancels a running turn -- it now clears the input field or exits the CLI, matching standard terminal behavior. Use Escape to cancel a running turn instead
+- Thinking level chosen in the model picker now persists across CLI restarts instead of resetting to off
+- The context bar now shows visible progress as tokens are used, instead of appearing empty on some terminal themes
+- The status bar token count now shows actual context window usage instead of over-counting across multiple model calls in a turn
+- Resuming a saved session now correctly displays the accumulated cost
+- Sessions are now saved to disk after each assistant response, so conversation progress survives crashes or unexpected exits
+- Auto-compaction now runs inline during model requests, keeping long conversations within the context window automatically
+- The home screen robot now follows the cursor while you type
+- Hub websocket connections now automatically reconnect after going idle, so sessions no longer silently lose their connection to the hub daemon
+- MCP stdio servers on Windows no longer spawn visible console windows
+- Tool input schemas containing `allOf` clauses are now handled correctly instead of being rejected
+- Login now uses device auth exclusively
+- Fix chat input and chat view text losing its indent on wrapped lines
+
+## 0.0.9 (2026-05-03)
+
+- Fix stray text appearing over the TUI when background operations (like hub restart messages) write directly to stdout/stderr during interactive sessions
+- Fix hub connection recovery: when a newer CLI instance restarts the shared hub daemon, already-running CLI sessions now automatically reconnect to the new hub endpoint instead of failing with transport errors
+
+## 0.0.8 (2026-05-03)
+
+- Fix crash when pressing Escape to cancel a running turn
+- Add plugin and SDK tool toggles to the settings panel
+- Add `@cline/sdk` as a user-facing alias for `@cline/core`
+- Improve hub recovery with better error handling, logging, and recovery timeouts
+- Show session summary (ID, model, cost, resume command) on exit
+- Fix OAuth browser-launch failure
+- Fix compact no-op being reported indistinctly
+- Fix CLI history resume being non-transactional (could leave blank UI or corrupt session on disk)
+- Fix cross-client session history not loading Code/VS Code sessions, and fix interactive turn status showing stale state
+- Fix configuration file paths for hooks and rules (now resolve from `~/.cline/hooks` and `~/.cline/rules`)
+- Fix Telegram connector: honor `--no-tools` flag, lock tool-disabled mode across state changes, post replies as raw text to avoid markdown parse failures, add `/help` and `/start` commands
+- Clean up CLI program description and compact slash command descriptions
+- Clean up CLI flags
+
+## 0.0.7 (2026-04-30)
+
+- Fix graceful recovery when the model returns malformed tool call inputs, preventing crashes mid-conversation
+- Add settings toggles for core skills (enable/disable individual skills from the settings panel)
+- Secure the local hub daemon with a discovery auth token, preventing unauthorized local access
+- Fix auto-approve tool policies being incorrectly reset after session restore
+- Fix npm wrapper detection for auto updates, so self-update works when the CLI is invoked through npm/npx shims
+- Improve fork session UX with clearer prompts and smoother flow
+- Fix manual thinking budget not being applied when using Anthropic models directly
+- Improve account onboarding flow with better error messages and step sequencing
+- Add enable/disable controls for individual tools and plugins
+- Fix abort handling so the public run promise resolves correctly when a run is cancelled
+- Fix markdown token styling in chat output
+- Fix chat auto-scrolling to bottom on message submit
+- Fix hub tool capabilities being routed to the wrong session
+- Revert loading extension-created sessions from history (was causing issues)
+
+## 0.0.6 (2026-04-29)
+
+- Add checkpoint restore: press Esc twice or type `/undo` to rewind to a previous checkpoint, with options to restore chat only or chat + workspace
+- Fix clipboard: fall back to system clipboard (pbcopy, PowerShell, wl-copy, xclip) when OSC 52 fails, fixing copy for longer text selections
+- Fix prompt focus: restore focus to the prompt input after dialogs close, preventing the input from becoming unresponsive after using `/settings`
+
+## 0.0.5 (2026-04-28)
+
+- The input field has been completely redesigned -- the old bordered box is replaced with a clean chevron-prompt style that adapts its background color to any terminal theme using perceptual OKLAB color math. Light terminals are fully supported now.
+- Pasting 5+ lines into the input shows a compact preview marker instead of flooding the textarea. The full content is still submitted.
+- Arrow-key history navigation respects cursor position so you don't lose your place when scrolling through previous prompts.
+- The TUI renders immediately instead of blocking while the hub daemon boots. Hub readiness and session hydration happen in the background.
+- Listing previous sessions no longer hydrates every full session, making `cline history` and the history picker snappy even with hundreds of sessions.
+- Updating the CLI no longer leaves you connected to a stale hub daemon. Incompatible versions are detected and replaced automatically, eliminating the "Unsupported hub schedule command" class of errors.
+- Schedules can now trigger on external events (webhooks, GitHub events, plugin-emitted signals) in addition to cron intervals, with deduplication, filtering, and retry policies.
+- Plugins can register automation event types that feed into the scheduling system, enabling custom triggers from any source.
+- Resuming a session automatically picks up any in-flight team runs without needing to remember or pass `--team-name`.
+- `providers.json` (which stores API keys and OAuth tokens) is now written with 0600 permissions, preventing other processes on the machine from reading it.
+- Models that emit `command` or `cmd` instead of `commands` (or `paths` instead of `path`) no longer fail. Common aliases are normalized before execution.
+
+## 0.0.4 (2026-04-28)
+
+- Fix compiled binary spawning infinite hub daemon recursion loop
+
+## 0.0.3 (2026-04-28)
+
+- Rewritten TUI from Ink to OpenTUI with streaming markdown, syntax-highlighted diffs, scrollable chat, and mouse support
+- Dialog system for model picker, tool approval, settings browser, session history, and onboarding
+- Interactive setup wizards: `cline connect`, `cline schedule`, `cline mcp`
+- Plan/Act mode toggle with system prompt and tool rebuilding on switch
+- Input autocomplete for slash commands and file mentions
+- Message queuing and steer messages during running turns
+- Platform-specific compiled binaries for macOS, Linux, and Windows (arm64 and x64)
+- npm trusted publishing via GitHub Actions OIDC

@@ -1,0 +1,236 @@
+[
+	{
+		"scope": "https://data.cline.bot",
+		"method": "POST",
+		"path": "/flags/?v=2&config=true",
+		"status": 200,
+		"response": {
+			"errorsWhileComputingFlags": false,
+			"flags": {
+				"remote-welcome-banners": {
+					"key": "remote-welcome-banners",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 0,
+						"description": "Matched condition set 1"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 6,
+						"description": null,
+						"payload": null
+					}
+				},
+				"onboarding_models": {
+					"key": "onboarding_models",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 0,
+						"description": "Matched condition set 1"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 4,
+						"description": null,
+						"payload": "{\"models\":{\"x-ai/grok-code-fast-1\":{\"info\":{\"inputPrice\":0,\"outputPrice\":0},\"hidden\":false},\"openai/gpt-5-codex\":{\"id\":\"REDACTED\",\"name\":\"OpenAI: GPT-5.1 Codex\",\"hidden\":false}}}"
+					}
+				},
+				"cline-recommended-models-upstream": {
+					"key": "cline-recommended-models-upstream",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 3,
+						"description": "Matched condition set 4"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 2,
+						"description": null,
+						"payload": null
+					}
+				},
+				"webtools": {
+					"key": "webtools",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 1,
+						"description": "Matched condition set 2"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 3,
+						"description": null,
+						"payload": null
+					}
+				},
+				"extension_remote_banners_ttl": {
+					"key": "extension_remote_banners_ttl",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 0,
+						"description": "Matched condition set 1"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 1,
+						"description": null,
+						"payload": "86400000"
+					}
+				},
+				"worktree-exp": {
+					"key": "worktree-exp",
+					"enabled": false,
+					"variant": null,
+					"reason": {
+						"code": "no_condition_match",
+						"condition_index": 0,
+						"description": "No matching condition set"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 1,
+						"description": null,
+						"payload": null
+					}
+				}
+			},
+			"requestId": "REDACTED",
+			"evaluatedAt": 1773683206860,
+			"defaultIdentifiedOnly": true,
+			"token": "REDACTED",
+			"sessionRecording": {
+				"consoleLogRecordingEnabled": true,
+				"endpoint": "/s/",
+				"eventTriggers": [],
+				"linkedFlag": null,
+				"masking": null,
+				"minimumDurationMilliseconds": null,
+				"networkPayloadCapture": null,
+				"recorderVersion": "v2",
+				"sampleRate": null,
+				"scriptConfig": {
+					"script": "posthog-recorder"
+				},
+				"triggerMatchType": null,
+				"urlBlocklist": [],
+				"urlTriggers": []
+			},
+			"logs": {
+				"captureConsoleLogs": false
+			},
+			"productTours": false,
+			"analytics": {
+				"endpoint": "/i/v0/e/"
+			},
+			"supportedCompression": ["gzip", "gzip-js"],
+			"surveys": false,
+			"autocaptureExceptions": true,
+			"conversations": false,
+			"capturePerformance": {
+				"network_timing": true,
+				"web_vitals": true,
+				"web_vitals_allowed_metrics": null
+			},
+			"siteApps": [],
+			"autocapture_opt_out": false,
+			"hasFeatureFlags": true,
+			"heatmaps": true,
+			"errorTracking": {
+				"autocaptureExceptions": true,
+				"errorTrackingAutocaptureTriggers": null,
+				"suppressionRules": []
+			},
+			"captureDeadClicks": false,
+			"elementsChainAsString": true
+		},
+		"responseIsBinary": false,
+		"contentType": "application/json"
+	},
+	{
+		"scope": "https://api.cline.bot",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-REDACTED/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false,
+		"contentType": "application/json"
+	},
+	{
+		"scope": "https://api.cline.bot",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-REDACTED/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false,
+		"contentType": "application/json"
+	},
+	{
+		"scope": "https://s3.us-west-2.amazonaws.com",
+		"method": "PUT",
+		"path": "/cline-tasks/tasks/usr-test/taskid/api_conversation_history.json",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot",
+		"method": "POST",
+		"path": "/api/v1/chat/completions",
+		"status": 200,
+		"response": "data: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"! \"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"👋\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"toolu_0184MU5TCnAtzxNFaUp9jQVA\",\"type\":\"function\",\"function\":{\"name\":\"attempt_completion\",\"arguments\":\"\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"resu\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"lt\\\": \\\"Hell\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"o! 👋\\\"\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\", \\\"task_\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"prog\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"re\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"ss\\\": \\\"-\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\" [x] Say he\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"llo\\\"}\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_4e1d4xfed4\"}\n\ndata: {\"id\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"object\":\"chat.completion.chunk\",\"created\":1773683213,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"provider_metadata\":{\"anthropic\":{\"usage\":{\"input_tokens\":3,\"cache_creation_input_tokens\":2770,\"cache_read_input_tokens\":7318,\"cache_creation\":{\"ephemeral_5m_input_tokens\":2770,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":87,\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"cacheCreationInputTokens\":2770,\"stopSequence\":null,\"iterations\":null,\"container\":null,\"contextManagement\":null},\"gateway\":{\"routing\":{\"originalModelId\":\"anthropic/claude-sonnet-4.6\",\"resolvedProvider\":\"anthropic\",\"resolvedProviderApiModelId\":\"claude-sonnet-4-6\",\"internalResolvedModelId\":\"anthropic:claude-sonnet-4-6\",\"fallbacksAvailable\":[\"vertexAnthropic\",\"bedrock\"],\"internalReasoning\":\"Selected anthropic as preferred provider for claude-sonnet-4.6. 2 fallback(s) available: vertexAnthropic, bedrock\",\"planningReasoning\":\"BYOK credentials available for: anthropic. System credentials planned for: anthropic, vertexAnthropic, bedrock. Total execution order: anthropic(BYOK) → anthropic(system) → vertexAnthropic(system) → bedrock(system)\",\"canonicalSlug\":\"anthropic/claude-sonnet-4.6\",\"finalProvider\":\"anthropic\",\"attempts\":[{\"provider\":\"anthropic\",\"internalModelId\":\"anthropic:claude-sonnet-4-6\",\"providerApiModelId\":\"claude-sonnet-4-6\",\"credentialType\":\"byok\",\"success\":true,\"startTime\":672269.248544,\"endTime\":674563.237463,\"providerRequestId\":\"req_011CZ7BGYGMEFpp79Ugpzw3Q\",\"statusCode\":200,\"providerResponseId\":\"msg_01NbbYCjCYyY1oxZxBVuZaqU\"}],\"modelAttemptCount\":1,\"modelAttempts\":[{\"modelId\":\"anthropic:claude-sonnet-4-6\",\"canonicalSlug\":\"anthropic/claude-sonnet-4.6\",\"success\":true,\"providerAttemptCount\":1,\"providerAttempts\":[{\"provider\":\"anthropic\",\"internalModelId\":\"anthropic:claude-sonnet-4-6\",\"providerApiModelId\":\"claude-sonnet-4-6\",\"credentialType\":\"byok\",\"success\":true,\"startTime\":672269.248544,\"endTime\":674563.237463,\"providerRequestId\":\"req_011CZ7BGYGMEFpp79Ugpzw3Q\",\"statusCode\":200,\"providerResponseId\":\"msg_01NbbYCjCYyY1oxZxBVuZaqU\"}]}],\"totalProviderAttemptCount\":1},\"cost\":\"0\",\"marketCost\":\"0.0138969\",\"generationId\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\",\"billableWebSearchCalls\":0}}},\"logprobs\":null,\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":10091,\"completion_tokens\":87,\"total_tokens\":10178,\"cost\":0,\"is_byok\":true,\"prompt_tokens_details\":{\"cached_tokens\":7318,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":0.0138969,\"upstream_inference_prompt_cost\":0,\"upstream_inference_completions_cost\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"image_tokens\":0},\"cache_creation_input_tokens\":2770,\"market_cost\":0.0138969},\"system_fingerprint\":\"fp_4e1d4xfed4\",\"generationId\":\"gen_01KKVW404FZS4XBB6QN6NG0JW1\"}\n\ndata: [DONE]\n\n",
+		"responseIsBinary": false,
+		"contentType": "text/event-stream"
+	},
+	{
+		"scope": "https://s3.us-west-2.amazonaws.com",
+		"method": "PUT",
+		"path": "/cline-tasks/tasks/usr-test/taskid/api_conversation_history.json",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot",
+		"method": "POST",
+		"path": "/batch/",
+		"body": "",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false,
+		"contentType": "application/json"
+	},
+	{
+		"scope": "https://data.cline.bot",
+		"method": "POST",
+		"path": "/batch/",
+		"body": "",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false,
+		"contentType": "application/json"
+	}
+]

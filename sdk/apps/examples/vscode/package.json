@@ -1,0 +1,64 @@
+{
+	"name": "@cline/vscode",
+	"displayName": "Cline Chat",
+	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way. Backed by the Cline CLI runtime.",
+	"version": "0.0.0",
+	"private": true,
+	"publisher": "cline",
+	"icon": "src/webview/public/icon.png",
+	"license": "Apache-2.0",
+	"engines": {
+		"vscode": "^1.90.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "clineVscode.openChat",
+				"title": "Cline: Open Chat in Editor"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "cline",
+					"title": "Cline",
+					"icon": "src/webview/public/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"cline": [
+				{
+					"type": "webview",
+					"id": "clineVscode.chatView",
+					"name": "Chat",
+					"icon": "src/webview/public/icon.svg"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"build:webview": "cd ./src/webview && bun run build",
+		"build": "rm -rf dist && bun run build:webview && bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify",
+		"watch": "bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify --watch",
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf dist",
+		"dev": "bun run watch"
+	},
+	"dependencies": {
+		"@ai-sdk/react": "^3.0.118",
+		"@cline/core": "workspace:*",
+		"@cline/llms": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"ai": "^6.0.116"
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.5",
+		"@types/vscode": "^1.90.0",
+		"typescript": "^5.9.3"
+	}
+}

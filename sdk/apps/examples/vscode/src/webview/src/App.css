@@ -1,0 +1,23 @@
+.app-shell {
+	min-height: 100vh;
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	gap: 12px;
+}
+
+@media (max-width: 980px) {
+	.composer {
+		grid-template-columns: 1fr;
+	}
+
+	.composer__settings {
+		border-right: none;
+		border-bottom: 1px solid var(--border);
+	}
+}
+
+@media (max-width: 720px) {
+	.app-shell {
+		padding: 8px;
+	}
+}

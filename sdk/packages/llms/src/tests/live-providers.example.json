@@ -1,0 +1,214 @@
+{
+	"version": 1,
+	"providers": {
+		"anthropic": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-sonnet-4-6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"anthropic-opus": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-opus-4-7"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"cline": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"cline-opus": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-opus-4.7"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"cline-gpt-5.3-codex": {
+			"settings": {
+				"provider": "cline",
+				"model": "openai/gpt-5.3-codex"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"openai": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.4"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"openai-gpt-5.3-codex": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.3-codex"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"gemini": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-flash-lite-preview"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"gemini-pro": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-pro-preview"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"gemma": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemma-4-31b-it"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"deepseek-v4-pro": {
+			"settings": {
+				"provider": "deepseek",
+				"model": "deepseek-v4-pro"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"mistral": {
+			"settings": {
+				"provider": "mistral",
+				"model": "mistralai/mistral-medium-3.1"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"openrouter-anthropic": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"openrouter-opus": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-opus-4.7"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"openrouter-gpt-5.3-codex": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "openai/gpt-5.3-codex"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"openrouter-qwen": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "qwen/qwen3.6-plus"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"vercel-anthropic": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"vercel-opus": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-opus-4.7"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"vercel-openai": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "openai/gpt-5.4"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"vercel-gemini": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "google/gemini-3.1-flash-lite-preview"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"vercel-qwen": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "alibaba/qwen3.6-plus"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		}
+	}
+}

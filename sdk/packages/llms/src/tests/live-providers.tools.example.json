@@ -1,0 +1,175 @@
+{
+	"version": 1,
+	"providers": {
+		"anthropic-tools": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-sonnet-4-6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"anthropic-opus-tools": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-opus-4-7"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openai-tools": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.4"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openai-gpt-5.3-codex-tools": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.3-codex"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"gemini-tools": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-flash-lite-preview"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"gemini-pro-tools": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-pro-preview"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"gemma-tools": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemma-4-31b-it"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"deepseek-v4-pro-tools": {
+			"settings": {
+				"provider": "deepseek",
+				"model": "deepseek-v4-pro"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"mistral-tools": {
+			"settings": {
+				"provider": "mistral",
+				"model": "mistralai/mistral-medium-3.1"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"cline-tools": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"cline-opus-tools": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-opus-4.7"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"cline-gpt-5.3-codex-tools": {
+			"settings": {
+				"provider": "cline",
+				"model": "openai/gpt-5.3-codex"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openrouter-tools": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openrouter-opus-tools": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-opus-4.7"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openrouter-gpt-5.3-codex-tools": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "openai/gpt-5.3-codex"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"vercel-tools": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"vercel-opus-tools": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-opus-4.7"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		}
+	}
+}

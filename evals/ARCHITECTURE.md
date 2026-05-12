@@ -1,5 +1,7 @@
 # Cline Evals Architecture
 
+> Note: Smoke tests (Layer 2) are partially disabled while the eval framework is repointed at the new SDK CLI. The scenarios under `evals/smoke-tests/` are preserved and `npm run eval:smoke:run` still works against whatever `cline` is on `$PATH` (install with `npm i -g cline`). The build-and-link helpers (`eval:smoke:build`, `eval:smoke`, `eval:smoke:ci`) and the auto-running `cline-evals-regression.yml` workflow are off until someone wires the build step at the new SDK CLI.
+
 ## Overview
 
 The evals system provides multi-layered testing for Cline's AI capabilities.
@@ -220,7 +222,7 @@ ls evals/smoke-tests/results/latest/<scenario>/<model>/workspace-trial-1/
 
 ## CI Integration
 
-Smoke tests run automatically on merge to `main` via `.github/workflows/cline-evals-regression.yml`.
+Smoke tests are temporarily disabled. `.github/workflows/cline-evals-regression.yml` accepts manual `workflow_dispatch` only until the build step is repointed at the new SDK CLI.
 
 **Triggers:**
 - Push to `main` branch (paths: `src/core/**`, `src/shared/**`, `proto/**`)
