@@ -569,3 +569,16 @@ Decision:
 
 - Phase 5.4 is complete.
 - Proceed to CHECKPOINT 5 review.
+
+## 2026-05-13 — Phase 5.4 review follow-up hardening
+
+Follow-up from Opus 4.7 review surfaced by user:
+
+- The selected-not-in-current-list indicator originally only rendered when `allowsCustomIds` was true. It now renders for any provider when the selected model id is missing from the current model map, while manual entry remains gated by `allowsCustomIds`.
+- Added a direct picker-level no-auto-select test for mid-refresh prop changes (`models={}` → populated `models`) to close the loop on the no mid-refresh paint invariant at the picker layer.
+
+Validation:
+
+- `cd webview-ui && npx vitest run src/components/settings/providers/ModelPickerWithManualEntry.test.tsx --reporter=dot` passed: 1 file, 8 tests.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run check-types -- --pretty false` passed.

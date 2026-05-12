@@ -129,4 +129,52 @@ describe("ModelPickerWithManualEntry", () => {
 		expect(screen.getByText("Selected model “custom-outside-list” is not in the current list.")).toBeInTheDocument()
 		expect(onSelect).not.toHaveBeenCalled()
 	})
+
+	it("shows not-in-current-list indicator even when custom ids are not allowed", () => {
+		const onSelect = vi.fn()
+		render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={false}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={models}
+				onSelect={onSelect}
+				selectedModel={{ ...selectedModel, modelId: "retired-static-model" }}
+			/>,
+		)
+
+		expect(screen.getByText("Selected model “retired-static-model” is not in the current list.")).toBeInTheDocument()
+		expect(screen.queryByLabelText("Custom model ID")).not.toBeInTheDocument()
+		expect(onSelect).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-select while model props change during refresh", () => {
+		const onSelect = vi.fn()
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={false}
+				error={undefined}
+				isLoading={true}
+				isStale={false}
+				models={{}}
+				onSelect={onSelect}
+				selectedModel={{ ...selectedModel, modelId: "llama3" }}
+			/>,
+		)
+
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={false}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={models}
+				onSelect={onSelect}
+				selectedModel={{ ...selectedModel, modelId: "llama3" }}
+			/>,
+		)
+
+		expect(onSelect).not.toHaveBeenCalled()
+	})
 })
