@@ -210,7 +210,7 @@ function getOwnServerRecord(
 	servers: Record<string, unknown>,
 	name: string,
 ): Record<string, unknown> | undefined {
-	if (!Object.prototype.hasOwnProperty.call(servers, name)) {
+	if (!Object.hasOwn(servers, name)) {
 		return undefined;
 	}
 	const value = servers[name];
@@ -380,7 +380,7 @@ export function getMcpServerOAuthState(
 	options: LoadMcpSettingsOptions = {},
 ): McpServerOAuthState | undefined {
 	const config = loadMcpSettingsFile(options);
-	if (!Object.prototype.hasOwnProperty.call(config.mcpServers, serverName)) {
+	if (!Object.hasOwn(config.mcpServers, serverName)) {
 		return undefined;
 	}
 	return normalizeMcpServerOAuthState(config.mcpServers[serverName]?.oauth);
