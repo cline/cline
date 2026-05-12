@@ -31,7 +31,7 @@ for CI/CD and scripting.
 npm i -g cline
 ```
 
-<a href="./cli/README.md">Learn more</a>
+<a href="./sdk/apps/cli/README.md">Learn more</a>
 <br><br>
 
 </td>
@@ -91,7 +91,7 @@ the JetBrains family.
 Build your own AI agents and integrations powered by the same engine that runs the CLI, Kanban, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
 
 ```
-npm install @clinebot/sdk
+npm install @cline/sdk
 ```
 
 <a href="https://docs.cline.bot/sdk/overview">Documentation</a>
@@ -104,6 +104,19 @@ npm install @clinebot/sdk
 
 ---
 
+## Repository Map
+
+Cline ships across multiple surfaces. When you are reading about a feature below, use the applicability notes to know where it is available and these paths to find the implementation.
+
+| Surface | What it is | Pointers |
+|---------|------------|--------------|
+| **SDK / Programmatic API** | Node.js programmatic agent API and extension exports. | [`./sdk/`](https://github.com/cline/cline/tree/main/sdk) |
+| **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`./sdk/cli/`](https://github.com/cline/cline/tree/main/sdk/cli) |
+| **VS Code Extension** | The Marketplace extension and extension host integration. | ? (We are working on the migration to move VSCode to be upon our SDK.) |
+| **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins |
+| **Kanban** | Web-based multi-agent task board. | CLI launch alias in `cli/src/index.ts`; Kanban app code lives in [`cline/kanban`](https://github.com/cline/kanban). |
+| **Docs site** | Public documentation pages. | `docs/` |
+
 ## Edit Code Across All Your Codebases
 
 Cline reads your project structure, understands the relationships between files, and makes coordinated changes across your codebase. It monitors linter and compiler errors as it works, fixing issues like missing imports, type mismatches, and syntax errors before you even see them. In VS Code and JetBrains, every edit shows up as a diff you can review, modify, or revert. All changes are tracked in your file timeline.
@@ -115,66 +128,6 @@ Cline executes commands directly in your terminal and watches the output in real
 ## Plan and Act
 
 Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. Every file edit and terminal command requires your approval, so you stay in control of what actually changes. Or toggle auto-approve and let Cline run autonomously.
-
-## Extend With Plugins and MCP Servers
-
-Cline's capabilities are extensible. 
-1. MCP: Use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`. 
-2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below. Discover more example plugs here (TODO add link when moved over example folder) and more community plugins upcoming.
-
-```typescript
-import { Agent, createTool } from "@clinebot/sdk"
-
-const deployTool = createTool({
-  name: "deploy",
-  description: "Deploy the current branch to staging.",
-  inputSchema: { type: "object", properties: { env: { type: "string" } }, required: ["env"] },
-  execute: async (input) => {
-    // your deployment logic
-  },
-})
-
-const agent = new Agent({ tools: [deployTool], /* ... */ })
-```
-
-## Multi-Agent Teams
-
-Coordinate multiple agents working together on complex tasks. A coordinator agent breaks the work into subtasks and delegates to specialist agents, each with their own tools and context. Team state persists across sessions so you can pick up where you left off.
-
-```bash
-cline --team-name auth-sprint "Plan and implement user authentication with tests"
-```
-## Scheduled Agents
-
-Run agents on cron schedules for recurring automations. Daily PR summaries, weekly dependency checks, codebase health reports. Schedules persist across restarts and run independently of any terminal session.
-
-```bash
-cline schedule create "PR summary" \
-  --cron "0 9 * * MON-FRI" \
-  --prompt "List all open PRs and their review status" \
-  --workspace /path/to/repo
-```
-
-## Connect to Slack, Telegram, Discord, and More
-
-Chat with your agent from any messaging platform. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
-
-```bash
-cline connect telegram -m my_bot -k $BOT_TOKEN
-cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
-```
-
-Supported platforms: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear.
-
-## Headless Mode for CI/CD
-
-Run Cline with zero interaction for scripting and automation. Pipe input, get JSON output, chain commands, integrate into CI/CD pipelines.
-
-```bash
-cline -y "Run tests and fix any failures"
-git diff origin/main | cline -y "Review these changes for issues"
-cline --json "List all TODO comments" | jq '.text'
-```
 
 ## Rules and Configuration
 
@@ -195,6 +148,66 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | Cerebras / Groq | Fast inference models |
 | Ollama / LM Studio | Run local models on your machine |
 | Any OpenAI-compatible API | Self-hosted or third-party endpoints |
+
+## Extend With MCP Servers and Plugins
+
+Cline's capabilities are extensible. 
+1. MCP: Use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`. 
+2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below. Discover more example plugs here (TODO add link when moved over example folder) and more community plugins upcoming.
+
+```typescript
+import { Agent, createTool } from "@clinebot/sdk"
+
+const deployTool = createTool({
+  name: "deploy",
+  description: "Deploy the current branch to staging.",
+  inputSchema: { type: "object", properties: { env: { type: "string" } }, required: ["env"] },
+  execute: async (input) => {
+    // your deployment logic
+  },
+})
+
+const agent = new Agent({ tools: [deployTool], /* ... */ })
+```
+
+## Multi-Agent Teams for Cline SDK and Cline CLI
+
+Coordinate multiple agents working together on complex tasks. A coordinator agent breaks the work into subtasks and delegates to specialist agents, each with their own tools and context. Team state persists across sessions so you can pick up where you left off.
+
+```bash
+cline --team-name auth-sprint "Plan and implement user authentication with tests"
+```
+## Scheduled Agents for Cline SDK and Cline CLI
+
+Run agents on cron schedules for recurring automations. Daily PR summaries, weekly dependency checks, codebase health reports. Schedules persist across restarts and run independently of any terminal session.
+
+```bash
+cline schedule create "PR summary" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "List all open PRs and their review status" \
+  --workspace /path/to/repo
+```
+
+## Connect to Slack, Telegram, Discord, and More with Cline CLI
+
+Chat with your agent from any messaging platform. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
+
+```bash
+cline connect telegram -m my_bot -k $BOT_TOKEN
+cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+```
+
+Supported platforms: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear.
+
+## Headless Mode for CI/CD with Cline CLI
+
+Run Cline with zero interaction for scripting and automation. Pipe input, get JSON output, chain commands, integrate into CI/CD pipelines.
+
+```bash
+cline "Run tests and fix any failures"
+git diff origin/main | cline  "Review these changes for issues"
+cline --json "List all TODO comments" | jq '.text'
+```
 
 ## Contributing
 
