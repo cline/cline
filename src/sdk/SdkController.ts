@@ -46,6 +46,9 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
+import { createProviderCatalog } from "./model-catalog/catalog"
+import type { ProviderCatalog, ProviderConfigStore } from "./model-catalog/contracts"
+import { createProviderConfigStore } from "./model-catalog/store"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -129,6 +132,8 @@ export class Controller {
 	private taskStart: SdkTaskStartCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
+	private readonly providerConfigStore: ProviderConfigStore
+	private readonly providerCatalog: ProviderCatalog
 
 	// gRPC bridge (Step 5) — bridges SDK events to webview streams
 	private grpcBridge: WebviewGrpcBridge
@@ -168,6 +173,8 @@ export class Controller {
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
+		this.providerConfigStore = createProviderConfigStore()
+		this.providerCatalog = createProviderCatalog(this.providerConfigStore)
 
 		// MCP hub — using classic McpHub for now (Step 7).
 		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
@@ -399,6 +406,14 @@ export class Controller {
 			})
 
 		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge + auth services")
+	}
+
+	getProviderConfigStore(): ProviderConfigStore {
+		return this.providerConfigStore
+	}
+
+	getProviderCatalog(): ProviderCatalog {
+		return this.providerCatalog
 	}
 
 	/**

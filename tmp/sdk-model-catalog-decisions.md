@@ -362,3 +362,34 @@ Decision:
 
 - Phase 4.1 proto definition is complete.
 - Proceed to Phase 4.2 handlers to restore full typecheck.
+
+## 2026-05-13 — Phase 4.2 provider model catalog handlers
+
+Implementation:
+
+- Added handler files under `src/core/controller/models/`:
+  - `listProviders.ts`
+  - `resolveProviderModels.ts`
+  - `readProviderConfig.ts`
+  - `writeProviderConfig.ts`
+  - `commitModelSelection.ts`
+- Added `providerCatalogShared.ts` for boundary validation and proto conversion helpers.
+- Added `ProviderConfigStore` and `ProviderCatalog` singletons to `SdkController`, initialized at controller startup and exposed through `getProviderConfigStore()` / `getProviderCatalog()`.
+- Handlers are thin and use the controller-provided singleton store/catalog rather than constructing fresh instances.
+- `readProviderConfig` and `writeProviderConfig` return redacted config responses (`has_api_key`, `has_access_token`, `has_refresh_token`) and never serialize raw secrets.
+- `commitModelSelection` validates the boundary `mode` string (`"plan"` / `"act"`) before committing a full `{providerId, modelId, modelInfo}` selection envelope.
+- Expanded `toProtobufModelInfo` / `fromProtobufModelInfo` to preserve `name`, `temperature`, and `apiFormat`, matching the richer `OpenRouterModelInfo` proto shape.
+- Expanded `vitest.config.sdk.ts` to include the new handler tests and the aliases they need.
+
+Validation:
+
+- `npm run protos` passed.
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/core/controller/models/__tests__/providerCatalogHandlers.test.ts --reporter=dot` passed: 1 file, 6 tests.
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/sdk/model-catalog/catalog.test.ts src/core/controller/models/__tests__/providerCatalogHandlers.test.ts --reporter=dot` passed: 2 files, 33 tests.
+- `npm run check-types -- --pretty false` passed, restoring the full typecheck that Phase 4.1 intentionally broke until handlers existed.
+- `git diff --check` passed.
+
+Decision:
+
+- Phase 4.2 handlers are complete.
+- Proceed to Phase 4.3 backend integration smoke test.

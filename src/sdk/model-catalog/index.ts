@@ -3,9 +3,10 @@
  * Public surface of the SDK-backed model catalog.
  *
  * Consumers outside `src/sdk/model-catalog/` import from this barrel only.
- * Internal helpers (`provider-id`, `fingerprint`, `effective-config`,
- * `shape-adapter`) are deliberately not re-exported; they are
- * implementation details of the two factory functions.
+ * Internal helpers (`fingerprint`, `effective-config`, `shape-adapter`) are
+ * deliberately not re-exported; they are implementation details of the two
+ * factory functions. `parseProviderId` is exported as the branded ProviderId
+ * boundary constructor for RPC/serialization edges.
  */
 
 export { createProviderCatalog } from "./catalog"
@@ -30,4 +31,5 @@ export type {
 	ProviderModelsEvent,
 	ProviderModelsResult,
 } from "./contracts"
+export { isKnownProviderId, parseProviderId } from "./provider-id"
 export { createProviderConfigStore } from "./store"
