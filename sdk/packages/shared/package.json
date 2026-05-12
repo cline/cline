@@ -47,7 +47,6 @@
 	],
 	"scripts": {
 		"build": "BUILD_MODE=package bun bun.mts",
-		"clean": "rimraf dist node_modules",
 		"typecheck": "bun tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts"
