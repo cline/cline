@@ -40,6 +40,28 @@ export const config = createVariant(ModelFamily.XS)
 		SystemPromptSection.USER_INSTRUCTIONS,
 		SystemPromptSection.SKILLS,
 	)
+	// Tool allowlist for small / local models. Each exclusion costs a
+	// non-trivial number of tokens at prompt-build time (the tool's
+	// XML schema lives in the system prompt), and each exclusion is
+	// also a capability we judge the target model cannot reliably
+	// drive. Order in the list is preserved for matcher fallback.
+	//
+	// Intentionally EXCLUDED for the XS / MacM4 local tier:
+	//   BROWSER         -- Puppeteer-driven UI automation; 7B-80B local
+	//                      models hallucinate coordinates and fail. The
+	//                      tool description costs ~2K tokens.
+	//   MCP_USE/_ACCESS -- MCP tool catalogues are user-installed and
+	//                      can balloon the prompt unbounded; xs cannot
+	//                      reliably select among many tools.
+	//   WEB_FETCH       -- Needs structured JSON tool args local models
+	//                      get wrong; user can invoke via BASH+curl.
+	//   USE_SUBAGENTS   -- Subagent orchestration requires strong
+	//                      multi-step planning that even Qwen3-Coder-Next
+	//                      80B does inconsistently. ~1K tokens of doc.
+	//   LIST_CODE_DEF   -- Local model rarely benefits over SEARCH+FILE_READ.
+	//   NEW_TASK        -- Spawning sub-tasks isn't reliably handled.
+	//   APPLY_PATCH     -- Patch-format edits are over-generation-prone;
+	//                      FILE_EDIT (replace_in_file) is safer for xs.
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
@@ -49,10 +71,15 @@ export const config = createVariant(ModelFamily.XS)
 		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,
 		ClineDefaultTool.PLAN_MODE,
-		ClineDefaultTool.USE_SUBAGENTS,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,
+		// Hard-pin to false: even if the host extension reports
+		// supportsBrowserUse=true (e.g. user has a chromium binary),
+		// xs-tier models shouldn't render the BROWSER capability text
+		// in their CAPABILITIES section. This keeps the prompt budget
+		// predictable across hosts.
+		SUPPORTS_BROWSER: false,
 	})
 	.overrideComponent(SystemPromptSection.AGENT_ROLE, {
 		template: xsComponentOverrides.AGENT_ROLE,
