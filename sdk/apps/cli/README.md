@@ -1,4 +1,4 @@
-# Cline CLI Lite
+# Cline CLI
 
 Cline CLI built with Cline SDK.
 
