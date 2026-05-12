@@ -29,7 +29,7 @@
 
 import type { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
-import { createOpenAIClient, fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { withRetry } from "../retry"
