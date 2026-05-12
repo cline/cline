@@ -94,6 +94,17 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("reads normalized nousResearch API key from StateManager", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({ nousresearch: { provider: "nousresearch", apiKey: "provider-nous-key" } })
+		mocks.setApiConfiguration({ nousResearchApiKey: "state-nous-key" })
+
+		expect(buildEffectiveProviderConfig(parseProviderId("nousResearch"))).toEqual({
+			providerId: parseProviderId("nousResearch"),
+			apiKey: "state-nous-key",
+		})
+	})
+
 	it("carries Qwen apiLine from StateManager effective configuration", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ qwen: { provider: "qwen", apiKey: "provider-qwen-key", apiLine: "china" } })
