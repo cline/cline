@@ -1,0 +1,91 @@
+---
+title: "Explain Changes"
+sidebarTitle: "Explain Changes"
+description: "Generate AI-powered inline explanations for any git diff, right inside a multi-file diff view."
+---
+
+`/explain-changes` lets you point Cline at any set of git changes — a commit, a branch comparison, a PR, uncommitted work — and get AI-generated inline comments explaining what changed and why. The comments appear directly in a side-by-side diff view inside VS Code.
+
+<Note>
+This feature is only available in VS Code. It is not supported in the CLI or JetBrains environments.
+</Note>
+
+## How to Use It
+
+Type `/explain-changes` in the Cline chat input, optionally followed by a description of what you want explained:
+
+```
+/explain-changes Explain the last commit
+```
+
+```
+/explain-changes What changed between main and feature/auth?
+```
+
+```
+/explain-changes Walk me through PR #42
+```
+
+If you don't provide any details, Cline defaults to analyzing uncommitted changes in your working directory.
+
+### What Happens Next
+
+1. **Cline gathers context** — It runs git or gh CLI commands to retrieve the diff, reads relevant files, and builds an understanding of the changes.
+2. **Cline calls `generate_explanation`** — This opens a multi-file diff view and streams AI-generated inline comments explaining each change.
+
+You'll see Cline working through these steps in the chat before the diff view opens.
+
+## Git Reference Formats
+
+Cline understands all standard git references. Here are common examples:
+
+| What You Want | How to Ask |
+|---|---|
+| Last commit | `Explain the last commit` |
+| Specific commit | `Explain commit abc1234` |
+| Commit range | `Explain changes from abc1234 to def5678` |
+| Branch comparison | `What changed between main and feature/auth?` |
+| Pull request | `Explain PR #42` |
+| Uncommitted changes | `Explain my current changes` |
+| Staged changes | `Explain what I've staged` |
+| Tag comparison | `What changed between v1.0 and v2.0?` |
+
+Under the hood, this translates to git refs like commit hashes, branch names, tags, and relative references (`HEAD~1`, `HEAD^`, `origin/main`, etc.).
+
+## Understanding the Output
+
+### Multi-File Diff View
+
+Cline opens a side-by-side diff view in VS Code showing the before and after state of each changed file. Inline comments are attached to the specific lines they explain.
+
+### Streaming Comments
+
+Comments appear in real-time as the AI generates them. For smaller diffs (1–2 files), the diff view opens immediately and comments stream in. For larger diffs (3+ files), Cline cycles through each file individually to show comments as they arrive, then opens the combined multi-file diff view at the end.
+
+### Interactive Replies
+
+Each comment thread is interactive — you can reply to ask follow-up questions about a specific change. Cline will respond with additional context about that code section. If you need Cline to actually modify code based on the discussion, each comment thread has an **"Add to Cline Chat"** button that sends the conversation to the main Cline agent.
+
+## Checkpoint-Based Explanations
+
+Beyond the slash command, you can also trigger Explain Changes from **checkpoint messages** within a task. When Cline creates checkpoints during a task, each checkpoint message has an option to explain the changes made since the previous checkpoint. This uses the same diff view and inline comments but compares checkpoint hashes rather than git refs.
+
+## Use Cases
+
+- **Code review** — Understand what a PR or commit does before approving it
+- **Onboarding** — Explore unfamiliar codebases by explaining recent changes
+- **Learning** — See explanations of how specific patterns or features were implemented
+- **Debugging** — Understand what changed between a working and broken state
+- **Documentation** — Generate explanations you can reference later when maintaining code
+
+## Tips
+
+- **Provide context in your prompt.** The more specific you are ("Explain the auth changes in PR #42"), the more focused Cline's investigation will be.
+- **Use `@` mentions.** Point Cline at specific files to give it additional context before generating explanations.
+- **Reply to comments.** The interactive threads let you dig deeper into any change you don't fully understand.
+
+## Related
+
+- [Using Commands](/core-workflows/using-commands) — All available slash commands
+- [Checkpoints](/core-workflows/checkpoints) — Git-based snapshots of your project during tasks
+- [Plan & Act Mode](/core-workflows/plan-and-act) — Cline's dual-mode system for structured development
