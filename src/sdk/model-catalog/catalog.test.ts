@@ -4,6 +4,7 @@ import type {
 	EffectiveProviderConfig,
 	Fingerprint,
 	ModelSelection,
+	ProviderConfigChange,
 	ProviderConfigReader,
 	ProviderModelsResult,
 } from "./contracts"
@@ -20,6 +21,11 @@ vi.mock("@clinebot/core", () => ({
 
 const modelInfo: ModelInfo = {
 	supportsPromptCache: false,
+}
+
+type TestReader = ProviderConfigReader & {
+	setConfig(next: EffectiveProviderConfig): void
+	emit(event: ProviderConfigChange): void
 }
 
 beforeEach(() => {
@@ -47,16 +53,25 @@ function record(
 	}
 }
 
-function makeReader(initialConfig: EffectiveProviderConfig, selection?: ModelSelection): ProviderConfigReader {
+function makeReader(initialConfig: EffectiveProviderConfig, selection?: ModelSelection): TestReader {
 	let config = initialConfig
+	const listeners = new Set<(event: ProviderConfigChange) => void>()
 	return {
 		read: vi.fn(() => config),
 		readSelection: vi.fn(() => selection),
-		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
+		subscribe: vi.fn((listener: (event: ProviderConfigChange) => void) => {
+			listeners.add(listener)
+			return { dispose: () => listeners.delete(listener) }
+		}),
 		setConfig(next: EffectiveProviderConfig): void {
 			config = next
 		},
-	} as ProviderConfigReader & { setConfig(next: EffectiveProviderConfig): void }
+		emit(event: ProviderConfigChange): void {
+			for (const listener of listeners) {
+				listener(event)
+			}
+		},
+	} as TestReader
 }
 
 function deferred<T>() {
@@ -362,5 +377,78 @@ describe("ProviderCatalog Phase 3.3 error path", () => {
 		if (!second.ok) throw new Error("expected success")
 		expect(second.defaultModelId).toBe("good")
 		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+	})
+})
+
+describe("ProviderCatalog Phase 3.4 store-driven invalidation", () => {
+	it("fields change invalidates old-fingerprint cache and leaves the new fingerprint empty", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig
+			.mockResolvedValueOnce({ modelId: "old", knownModels: { old: { id: "old", name: "Old" } } })
+			.mockResolvedValueOnce({ modelId: "new", knownModels: { new: { id: "new", name: "New" } } })
+		const providerId = parseProviderId("ollama")
+		const reader = makeReader({ providerId, baseUrl: "http://old.example/v1" })
+		const catalog = createProviderCatalog(reader)
+
+		const oldResult = await catalog.resolveModels(providerId)
+		reader.setConfig({ providerId, baseUrl: "http://new.example/v1" })
+		reader.emit({ kind: "fields", providerId, config: { providerId, baseUrl: "http://new.example/v1" } })
+		const newResult = await catalog.resolveModels(providerId)
+
+		expect(oldResult.ok && oldResult.defaultModelId).toBe("old")
+		expect(newResult.ok && newResult.defaultModelId).toBe("new")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+	})
+
+	it("fields change preserves cache record for the latest fingerprint", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({ modelId: "current", knownModels: { current: { id: "current" } } })
+		const providerId = parseProviderId("ollama")
+		const config: EffectiveProviderConfig = { providerId, baseUrl: "http://current.example/v1" }
+		const reader = makeReader(config)
+		const catalog = createProviderCatalog(reader)
+
+		const first = await catalog.resolveModels(providerId)
+		reader.emit({ kind: "fields", providerId, config })
+		const second = await catalog.resolveModels(providerId)
+
+		expect(second).toBe(first)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+	})
+
+	it("fields change for one provider does not invalidate another provider", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "openrouter-model",
+			knownModels: { "openrouter-model": { id: "openrouter-model" } },
+		})
+		const openrouter = parseProviderId("openrouter")
+		const ollama = parseProviderId("ollama")
+		const reader = makeReader({ providerId: openrouter, apiKey: "key" })
+		const catalog = createProviderCatalog(reader)
+
+		const first = await catalog.resolveModels(openrouter)
+		reader.setConfig({ providerId: openrouter, apiKey: "key" })
+		reader.emit({ kind: "fields", providerId: ollama, config: { providerId: ollama, baseUrl: "http://new.example/v1" } })
+		const second = await catalog.resolveModels(openrouter)
+
+		expect(second).toBe(first)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+	})
+
+	it("selection change does not invalidate model-list cache", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({ modelId: "cached", knownModels: { cached: { id: "cached" } } })
+		const providerId = parseProviderId("openrouter")
+		const reader = makeReader({ providerId, apiKey: "same" })
+		const catalog = createProviderCatalog(reader)
+		const selection: ModelSelection = { providerId, modelId: "different", modelInfo }
+
+		const first = await catalog.resolveModels(providerId)
+		reader.emit({ kind: "selection", providerId, mode: "act", selection })
+		const second = await catalog.resolveModels(providerId)
+
+		expect(second).toBe(first)
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
 	})
 })

@@ -77,6 +77,14 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 		})
 	}
 
+	function invalidateProviderExcept(providerId: ProviderId, fingerprintToKeep: Fingerprint): void {
+		for (const [key, entry] of records) {
+			if (entry.record.providerId === providerId && entry.record.configFingerprint !== fingerprintToKeep) {
+				records.delete(key)
+			}
+		}
+	}
+
 	function resolve(optionsForRecord: ResolveRecordOptions): Promise<ProviderModelsRecord> {
 		if (!optionsForRecord.forceRefresh) {
 			const cached = get(optionsForRecord.providerId, optionsForRecord.fingerprint)
@@ -107,6 +115,7 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 	return {
 		get,
 		set,
+		invalidateProviderExcept,
 		resolve,
 		_inFlightSize: () => inFlight.size,
 		_cacheSize: () => records.size,
@@ -195,6 +204,14 @@ export const _testing = {
 export function createProviderCatalog(reader: ProviderConfigReader): ProviderCatalog {
 	const now = () => Date.now()
 	const cache = createProviderModelsCache({ ttlMs: DEFAULT_MODEL_CACHE_TTL_MS, now })
+	reader.subscribe((event) => {
+		if (event.kind !== "fields") {
+			return
+		}
+		const latestConfig = reader.read(event.providerId)
+		const latestFingerprint = computeConfigFingerprint(event.providerId, latestConfig)
+		cache.invalidateProviderExcept(event.providerId, latestFingerprint)
+	})
 	const unimplemented = (method: string): never => {
 		throw new Error(`ProviderCatalog.${method}: not implemented (Phase 3 resolver pending)`)
 	}
