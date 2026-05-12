@@ -1,6 +1,3 @@
-import type { ApiProviderInfo } from "@/core/api"
-import { getDeepPlanningPrompt } from "./commands/deep-planning"
-
 export const newTaskToolResponse = (willUseNativeTools: boolean) => {
 	const xmlExample = `
 Example:
@@ -303,18 +300,3 @@ Use the generate_explanation tool with:
 Below is the user's input describing what changes they want explained. If no input is provided, default to analyzing uncommitted changes in the working directory (may or may not be staged).
 </explicit_instructions>\n
 `
-
-/**
- * Generates the deep-planning slash command response with model-family-aware variant selection
- * @param focusChainSettings Optional focus chain settings to include in the prompt
- * @param providerInfo Optional API provider info for model family detection
- * @param enableNativeToolCalls Optional flag to determine if native tool calling is enabled
- * @returns The deep-planning prompt string with appropriate variant and focus chain settings applied
- */
-export const deepPlanningToolResponse = (
-	focusChainSettings?: { enabled: boolean },
-	providerInfo?: ApiProviderInfo,
-	enableNativeToolCalls?: boolean,
-) => {
-	return getDeepPlanningPrompt(focusChainSettings, providerInfo, enableNativeToolCalls)
-}

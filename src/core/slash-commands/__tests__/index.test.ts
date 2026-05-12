@@ -1,5 +1,7 @@
 import type { McpPromptResponse } from "@shared/mcp"
 import { expect } from "chai"
+import * as sinon from "sinon"
+import { StateManager } from "@/core/storage/StateManager"
 import { formatMcpPromptResponse, McpPromptFetcher, parseSlashCommands } from "../index"
 
 describe("slash-commands", () => {
@@ -140,5 +142,25 @@ describe("slash-commands", () => {
 		// Note: Tests for "unknown MCP server", "no fetcher", and "fetcher errors"
 		// are skipped because they require StateManager initialization when falling
 		// through to workflow checking. The core MCP functionality is covered above.
+	})
+
+	describe("parseSlashCommands built-in handling", () => {
+		afterEach(() => {
+			sinon.restore()
+		})
+
+		it("should not treat the removed planning command as a built-in command anymore", async () => {
+			sinon.stub(StateManager, "get").returns({
+				getRemoteConfigSettings: () => ({ remoteGlobalWorkflows: [] }),
+				getGlobalStateKey: () => ({}),
+			} as any)
+
+			const removedCommand = "deep-planning" // previously a built-in command, removed in this PR
+			const text = `<task>/${removedCommand} Build the feature carefully</task>`
+			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false)
+
+			expect(result.processedText).to.equal(text)
+			expect(result.needsClinerulesFileCheck).to.equal(false)
+		})
 	})
 })
