@@ -5,6 +5,14 @@ on:
 
 run-name: "Publish Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
 
+# Prevent concurrent publish runs on the same branch. The nightly publish script
+# generates the extension version from a seconds-resolution timestamp, so parallel
+# runs on the same ref can collide on the same version and cause publish failures
+# or inconsistent tagging. Runs on different branches proceed independently.
+concurrency:
+  group: publish-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   checks: write
