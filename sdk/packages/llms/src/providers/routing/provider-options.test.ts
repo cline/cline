@@ -18,8 +18,10 @@ type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
 	metadata?: GatewayProviderContext["provider"]["metadata"];
+	/** Test helper escape hatch for Claude-like models that should not get an auto-injected Anthropic reasoning route. */
 	disableAutoAnthropicRouting?: boolean;
 };
 
@@ -62,6 +64,13 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 							: undefined,
 				}
 			: undefined;
+	const modelMetadata =
+		options?.family || options?.modelMetadata
+			? {
+					...options.modelMetadata,
+					...(options.family ? { family: options.family } : {}),
+				}
+			: undefined;
 	return {
 		provider: {
 			id: providerId,
@@ -77,7 +86,7 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			name: modelId,
 			providerId,
 			capabilities: options?.capabilities,
-			metadata: options?.family ? { family: options.family } : undefined,
+			metadata: modelMetadata,
 		},
 		config: { providerId },
 	};
@@ -1201,6 +1210,146 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{ bucket: "openai-compatible", lacks: ["thinking"] },
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
+			],
+		},
+		// Ollama Qwen3: model behavior fact first, documented dynamic fallback second.
+		{
+			name: "ollama metadata reasoningDefaultOn disabled -> reasoningEffort none",
+			request: {
+				providerId: "ollama",
+				modelId: "local-known-reasoner:latest",
+				reasoning: { enabled: false },
+			},
+			context: { modelMetadata: { reasoningDefaultOn: true } },
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+			],
+		},
+		{
+			name: "ollama qwen3 fallback reasoning disabled -> reasoningEffort none",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+			],
+		},
+		{
+			name: "ollama qwen3 fallback reasoning enabled -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama qwen3 fallback with unset reasoning -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+			},
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama metadata reasoningDefaultOn with unset reasoning -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "local-known-reasoner:latest",
+			},
+			context: { modelMetadata: { reasoningDefaultOn: true } },
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama metadata reasoningDefaultOn beats deepseek family thinking disable",
+			request: {
+				providerId: "ollama",
+				modelId: "deepseek-r1:latest",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "deepseek",
+				modelMetadata: { reasoningDefaultOn: true },
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "ollama metadata reasoningDefaultOn false prevents qwen3 fallback",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: false },
+			},
+			context: { modelMetadata: { reasoningDefaultOn: false } },
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama non-default reasoning disabled -> no special disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "llama3.1:8b",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 	]);

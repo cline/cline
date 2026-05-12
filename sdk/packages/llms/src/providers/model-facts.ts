@@ -160,3 +160,25 @@ export function getReasoningDefaultOnMetadata(
 	const value = context.model.metadata?.reasoningDefaultOn;
 	return typeof value === "boolean" ? value : undefined;
 }
+
+export function isOllamaQwen3ModelIdFallback(
+	request: Pick<GatewayStreamRequest, "providerId" | "modelId">,
+): boolean {
+	// Local Ollama models are discovered from /api/tags and often only provide
+	// names such as "qwen3-coder:30b". This fallback is used by
+	// modelReasoningDefaultsOn when no catalog metadata is present.
+	return (
+		request.providerId === "ollama" &&
+		normalizedModelId(request).includes("qwen3")
+	);
+}
+
+export function modelReasoningDefaultsOn(options: {
+	request: Pick<GatewayStreamRequest, "providerId" | "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	return (
+		getReasoningDefaultOnMetadata(options.context) ??
+		isOllamaQwen3ModelIdFallback(options.request)
+	);
+}
