@@ -36,3 +36,22 @@ Decision:
 
 - Proceed past Phase 1.5 without code changes.
 - No Step 1.5a is needed.
+
+## 2026-05-12 — CHECKPOINT 1 store review
+
+Validation performed after Phase 1.5:
+
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/sdk/model-catalog/provider-id.test.ts src/sdk/model-catalog/fingerprint.test.ts src/sdk/model-catalog/effective-config.test.ts src/sdk/model-catalog/store.test.ts --reporter=dot`
+  - Passed: 4 test files, 43 tests.
+- `npm run check-types -- --pretty false`
+  - Passed.
+- Grep: `grep -R "StateManager\|getProviderSettingsManager\|ProviderSettingsManager\|saveProviderSettings" -n src/sdk/model-catalog --include='*.ts'`
+  - Production write-capable provider settings API usage is localized to `store.ts`.
+  - `effective-config.ts` reads from `StateManager` and `getProviderSettingsManager().getProviderSettings(...)`, but does not write.
+- Grep: `grep -R "as ProviderId\|as Fingerprint" -n src/sdk/model-catalog --include='*.ts'`
+  - Branded casts are only in `provider-id.ts` and `fingerprint.ts`, the allowed parse/compute boundary functions.
+
+Decision:
+
+- CHECKPOINT 1 passed.
+- Proceed to Phase 2.1 SDK spike.
