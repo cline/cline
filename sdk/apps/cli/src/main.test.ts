@@ -444,7 +444,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("loads live catalog models for default interactive model selection", async () => {
+	it("uses bundled catalog models for default interactive startup", async () => {
 		llmMocks.resolveProviderConfig.mockResolvedValue({
 			knownModels: {
 				"live-only-model": {
@@ -461,8 +461,8 @@ describe("runCli lightweight command dispatch", () => {
 		expect(llmMocks.resolveProviderConfig).toHaveBeenCalledWith(
 			"cline",
 			{
-				loadLatestOnInit: true,
-				loadPrivateOnAuth: true,
+				loadLatestOnInit: false,
+				loadPrivateOnAuth: false,
 				failOnError: false,
 			},
 			undefined,
@@ -490,8 +490,8 @@ describe("runCli lightweight command dispatch", () => {
 		expect(llmMocks.resolveProviderConfig).toHaveBeenCalledWith(
 			"cline",
 			{
-				loadLatestOnInit: true,
-				loadPrivateOnAuth: true,
+				loadLatestOnInit: false,
+				loadPrivateOnAuth: false,
 				failOnError: false,
 			},
 			undefined,

@@ -125,6 +125,10 @@ function App(props: TuiProps) {
 			.catch(() => {});
 	}, [props.config.cwd]);
 
+	useEffect(() => {
+		refreshRepoStatus();
+	}, [refreshRepoStatus]);
+
 	const refocusTextareaRef = useRef<() => void>(() => {});
 	const populateInputRef = useRef<(value: string) => void>(() => {});
 	const insertSkillCommandRef = useRef<

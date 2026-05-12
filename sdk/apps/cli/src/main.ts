@@ -10,10 +10,6 @@ import {
 	commanderToParsedArgs,
 	createProgram,
 } from "./commands/program";
-import {
-	autoUpdateOnStartup,
-	getPreferredKanbanInstaller,
-} from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import {
 	buildCliCompactionConfig,
@@ -38,11 +34,7 @@ import {
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
-import { captureCliExtensionActivated } from "./utils/telemetry";
 import type { Config } from "./utils/types";
-import { runConnectWizard } from "./wizards/connect";
-import { runMcpWizard } from "./wizards/mcp";
-import { runScheduleWizard } from "./wizards/schedule";
 
 export function stdinHasPipedInput(): boolean {
 	if (process.stdin.isTTY) return false;
@@ -106,7 +98,12 @@ export function resolveConfigDirArg(argv: string[]): string | undefined {
 
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
-	autoUpdateOnStartup();
+	const updateModulePromise = import("./commands/update");
+	void updateModulePromise
+		.then(({ autoUpdateOnStartup }) => {
+			autoUpdateOnStartup();
+		})
+		.catch(() => {});
 
 	const cliArgs = process.argv.slice(2);
 	const configDir = resolveConfigDirArg(cliArgs);
@@ -120,7 +117,11 @@ export async function runCli(): Promise<void> {
 	// has been applied, so the telemetry singleton's persisted distinct-id
 	// (and any other storage it touches) lands under the user-selected
 	// `--config <dir>` rather than the default home/config location.
-	captureCliExtensionActivated();
+	void import("./utils/telemetry")
+		.then(({ captureCliExtensionActivated }) => {
+			captureCliExtensionActivated();
+		})
+		.catch(() => {});
 
 	let launchConfigView = false;
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
@@ -310,6 +311,7 @@ export async function runCli(): Promise<void> {
 					io,
 				);
 			} else if (process.stdin.isTTY && process.stdout.isTTY) {
+				const { runConnectWizard } = await import("./wizards/connect");
 				ctx.exitCode = await runConnectWizard();
 			} else {
 				writeln(`\nAdapters:\n${formatAdapterList()}`);
@@ -322,6 +324,7 @@ export async function runCli(): Promise<void> {
 		.description("Manage MCP servers")
 		.action(async () => {
 			if (process.stdin.isTTY && process.stdout.isTTY) {
+				const { runMcpWizard } = await import("./wizards/mcp");
 				ctx.exitCode = await runMcpWizard();
 			} else {
 				writeln(
@@ -489,6 +492,7 @@ export async function runCli(): Promise<void> {
 				process.stdin.isTTY &&
 				process.stdout.isTTY
 			) {
+				const { runScheduleWizard } = await import("./wizards/schedule");
 				ctx.exitCode = await runScheduleWizard();
 				return;
 			}
@@ -534,6 +538,7 @@ export async function runCli(): Promise<void> {
 		.description("Run the kanban app")
 		.action(async () => {
 			const { launchKanban } = await import("./commands/kanban");
+			const { getPreferredKanbanInstaller } = await updateModulePromise;
 			ctx.exitCode = await launchKanban({
 				preferredInstaller: getPreferredKanbanInstaller(),
 			});
@@ -587,6 +592,7 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 		const { launchKanban } = await import("./commands/kanban");
+		const { getPreferredKanbanInstaller } = await updateModulePromise;
 		process.exitCode = await launchKanban({
 			preferredInstaller: getPreferredKanbanInstaller(),
 		});
@@ -771,6 +777,13 @@ export async function runCli(): Promise<void> {
 			apiKey = oauthResult?.apiKey ?? apiKey;
 		}
 
+		const systemPromptPromise = resolveSystemPrompt({
+			cwd,
+			explicitSystemPrompt: args.systemPrompt,
+			providerId: provider,
+			mode: args.mode ?? "act",
+		});
+		systemPromptPromise.catch(() => {});
 		let knownModels: Config["knownModels"];
 		try {
 			const persistedProviderConfig = providerSettingsManager.getProviderConfig(
@@ -781,8 +794,8 @@ export async function runCli(): Promise<void> {
 			);
 			const catalogOptions = isInteractive
 				? {
-						loadLatestOnInit: true,
-						loadPrivateOnAuth: true,
+						loadLatestOnInit: false,
+						loadPrivateOnAuth: false,
 						failOnError: false,
 					}
 				: undefined;
@@ -832,12 +845,7 @@ export async function runCli(): Promise<void> {
 				"anthropic/claude-sonnet-4.6",
 			apiKey: apiKey ?? "",
 			knownModels,
-			systemPrompt: await resolveSystemPrompt({
-				cwd,
-				explicitSystemPrompt: args.systemPrompt,
-				providerId: provider,
-				mode: args.mode ?? "act",
-			}),
+			systemPrompt: await systemPromptPromise,
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
