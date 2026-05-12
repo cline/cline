@@ -2,9 +2,7 @@
 
 ## 3.0.0
 
-First Cline CLI release published from the `cline/cline` monorepo. The CLI source previously lived in `cline/sdk` and is now developed alongside the VS Code extension, with releases cut from the same repository.
-
-The Cline CLI is a terminal-native coding agent. It runs in your shell with a TUI built on OpenTUI, and shares its agent core with the Cline VS Code extension, including plan/act modes, MCP servers, checkpoints, rules, skills, and provider configuration.
+Introducing our new Cline CLI built on our new SDK and comes with a snappy new TUI.
 
 Install:
 
