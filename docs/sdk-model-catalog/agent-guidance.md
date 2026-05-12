@@ -88,6 +88,15 @@ No `as ProviderId` / `as Fingerprint` casts in tests.
 Final response must include literal `git status --short` and `git diff --stat` output.
 ```
 
+### Phase 1.2 hardening — sanitized fingerprint payloads
+
+- **GPT-5.5** completed quickly and correctly. Good for small hardening patches.
+- **Opus 4.7** again produced the most useful comments and test coverage, and was selected as the base for the lead branch.
+- **GPT-5.1-Codex-Max** produced a viable implementation, but with less coverage around nested extras / array behavior than Opus.
+- **Gemini 3.1 Pro Preview** exceeded max iterations and left no diff again. Do not use Gemini as an edit horse until it demonstrates a clean diff on a much smaller task.
+
+For future security/sanitization work, explicitly state whether internal payloads may contain sensitive values. If the result crosses RPC/logging boundaries, keep final fingerprints opaque and versioned; only expose sanitized subcomponents to internal helpers/tests.
+
 ## Recommended next-round setup
 
 - For implementation tasks: run **GPT-5.5 + Opus 4.7** as the main two heads.
