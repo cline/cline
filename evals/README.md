@@ -2,7 +2,7 @@
 
 A layered testing system for measuring Cline's performance at different levels.
 
-> Note: Smoke tests (Layer 2) are temporarily disabled while the eval framework is repointed at the new SDK CLI. The scenarios under `evals/smoke-tests/` are preserved; `cline-evals-regression.yml` accepts `workflow_dispatch` only and the `npm run eval:smoke` root scripts are not currently wired up.
+> Note: Smoke tests (Layer 2) are partially disabled while the eval framework is repointed at the new SDK CLI. The scenarios under `evals/smoke-tests/` are preserved and `npm run eval:smoke:run` still works against whatever `cline` is on `$PATH` (install with `npm i -g cline`). The build-and-link helpers (`eval:smoke:build`, `eval:smoke`, `eval:smoke:ci`) and the auto-running `cline-evals-regression.yml` workflow are off until someone wires the build step at the new SDK CLI.
 
 ## Directory Structure
 
