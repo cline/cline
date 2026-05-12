@@ -143,6 +143,7 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | OpenAI | GPT series model |
 | Google | Gemini series model |
 | OpenRouter | 200+ models from any provider |
+| Vercel AI Gateway | Models through Vercel AI Gateway |
 | AWS Bedrock | Claude, Llama, and more |
 | Azure / GCP Vertex | All hosted models |
 | Cerebras / Groq | Fast inference models |
