@@ -329,3 +329,36 @@ Decision:
 
 - CHECKPOINT 3 passed.
 - Proceed to Phase 4.1 proto plumbing.
+
+## 2026-05-13 — Phase 4.1 proto definitions
+
+Implementation:
+
+- Added five RPCs to `ModelsService` in `proto/cline/models.proto`:
+  - `listProviders(Empty) returns (ProviderListingsResponse)`
+  - `resolveProviderModels(ResolveProviderModelsRequest) returns (ProviderModelsResponse)`
+  - `readProviderConfig(StringRequest) returns (ProviderConfigResponse)`
+  - `writeProviderConfig(WriteProviderConfigRequest) returns (ProviderConfigResponse)`
+  - `commitModelSelection(CommitModelSelectionRequest) returns (Empty)`
+- Added lightweight provider-listing messages.
+- Added provider-model response messages carrying full `map<string, OpenRouterModelInfo>` model metadata, preserving the existing full protobuf `ModelInfo` representation.
+- Added redacted provider-config response and write-patch messages.
+- Used a string `mode` field in `CommitModelSelectionRequest` (`"plan"`/`"act"`) rather than importing `PlanActMode` from `state.proto`, because `state.proto` already imports `models.proto` and a reverse import would create a proto cycle. Phase 4.2 handlers must validate this boundary string.
+
+Validation:
+
+- `npm run protos` passed.
+- Generated `src/shared/proto/cline/models.ts` contains `ProviderListingsResponse`, `ResolveProviderModelsRequest`, `ProviderModelsResponse`, `ProviderConfigResponse`, and `CommitModelSelectionRequest`.
+- Generated service definitions contain all five new RPCs.
+- `git diff --check` passed.
+- `npm run check-types -- --pretty false` currently fails only because generated protobus setup imports the Phase 4.2 handler files that do not exist yet:
+  - `@core/controller/models/listProviders`
+  - `@core/controller/models/resolveProviderModels`
+  - `@core/controller/models/readProviderConfig`
+  - `@core/controller/models/writeProviderConfig`
+  - `@core/controller/models/commitModelSelection`
+
+Decision:
+
+- Phase 4.1 proto definition is complete.
+- Proceed to Phase 4.2 handlers to restore full typecheck.
