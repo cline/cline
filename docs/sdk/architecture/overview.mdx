@@ -16,7 +16,7 @@ Your application / CLI / VS Code / JetBrains
 Sessions, storage, built-in tools, hub, automation, telemetry
           │
           ├── @cline/agents
-          │   Browser-safe AgentRuntime / Agent loop
+          │   Browser-compatible AgentRuntime / Agent loop
           │
           ├── @cline/llms
           │   Provider handlers, gateway, model catalogs
@@ -26,60 +26,6 @@ Sessions, storage, built-in tools, hub, automation, telemetry
 ```
 
 ## Packages
-
-### @cline/shared
-
-Foundation package for shared contracts and utilities.
-
-Key exports include:
-
-| Export | Description |
-|--------|-------------|
-| `createTool` | Helper for creating typed tools |
-| `Tool`, `ToolContext`, `ToolPolicy` | Tool interfaces |
-| `AgentEvent`, `AgentResult`, `AgentConfig` | Host-facing agent types |
-| `AgentRuntimeEvent`, `AgentRunResult` | Runtime-facing agent types |
-| `HookEngine`, `HookStage`, `HookPolicies` | Hook contracts and engine |
-| `ContributionRegistry`, `AgentExtensionApi` | Extension registration contracts |
-| `ModelInfo`, `Message`, `ContentBlock` | Model/message types |
-| `BasicLogger`, `noopBasicLogger` | Logging contracts |
-
-No higher-layer dependencies.
-
-### @cline/llms
-
-Provider and model layer.
-
-Key exports include:
-
-| Export | Description |
-|--------|-------------|
-| `DefaultGateway`, `createGateway` | Gateway for creating provider-backed agent models |
-| `createHandler`, `createHandlerAsync` | Provider handler factories |
-| `getAllProviders`, `getProviderIds`, `getModelsForProvider` | Catalog helpers |
-| `registerProvider`, `registerModel` | Runtime registry extension |
-| `ModelInfo`, `ProviderInfo` | Provider/model metadata |
-
-Depends on: `@cline/shared`.
-
-### @cline/agents
-
-Browser-safe agent execution loop.
-
-Key exports include:
-
-| Export | Description |
-|--------|-------------|
-| `AgentRuntime` | Core runtime class |
-| `Agent` | Alias for `AgentRuntime` |
-| `createAgentRuntime`, `createAgent` | Factory functions |
-| `AgentRuntimeConfig` | Constructor config union |
-| `AgentRunInput`, `AgentEventListener` | Runtime helper types |
-| `createTool` | Re-export from `@cline/shared` |
-
-Methods on `AgentRuntime` include `run`, `continue`, `abort`, `subscribe`, `restore`, and `snapshot`.
-
-Depends on: `@cline/shared`, `@cline/llms`.
 
 ### @cline/core
 
@@ -110,6 +56,60 @@ Capabilities include:
 
 Depends on: `@cline/shared`, `@cline/llms`, `@cline/agents`.
 
+### @cline/agents
+
+Browser-compatible agent execution loop.
+
+Key exports include:
+
+| Export | Description |
+|--------|-------------|
+| `AgentRuntime` | Core runtime class |
+| `Agent` | Alias for `AgentRuntime` |
+| `createAgentRuntime`, `createAgent` | Factory functions |
+| `AgentRuntimeConfig` | Constructor config union |
+| `AgentRunInput`, `AgentEventListener` | Runtime helper types |
+| `createTool` | Re-export from `@cline/shared` |
+
+Methods on `AgentRuntime` include `run`, `continue`, `abort`, `subscribe`, `restore`, and `snapshot`.
+
+Depends on: `@cline/shared`, `@cline/llms`.
+
+### @cline/llms
+
+Provider and model layer.
+
+Key exports include:
+
+| Export | Description |
+|--------|-------------|
+| `DefaultGateway`, `createGateway` | Gateway for creating provider-backed agent models |
+| `createHandler`, `createHandlerAsync` | Provider handler factories |
+| `getAllProviders`, `getProviderIds`, `getModelsForProvider` | Catalog helpers |
+| `registerProvider`, `registerModel` | Runtime registry extension |
+| `ModelInfo`, `ProviderInfo` | Provider/model metadata |
+
+Depends on: `@cline/shared`.
+
+### @cline/shared
+
+Foundation package for shared contracts and utilities.
+
+Key exports include:
+
+| Export | Description |
+|--------|-------------|
+| `createTool` | Helper for creating typed tools |
+| `Tool`, `ToolContext`, `ToolPolicy` | Tool interfaces |
+| `AgentEvent`, `AgentResult`, `AgentConfig` | Host-facing agent types |
+| `AgentRuntimeEvent`, `AgentRunResult` | Runtime-facing agent types |
+| `HookEngine`, `HookStage`, `HookPolicies` | Hook contracts and engine |
+| `ContributionRegistry`, `AgentExtensionApi` | Extension registration contracts |
+| `ModelInfo`, `Message`, `ContentBlock` | Model/message types |
+| `BasicLogger`, `noopBasicLogger` | Logging contracts |
+
+No higher-layer dependencies.
+
 ## Install
 
 ```bash
@@ -124,9 +124,9 @@ npm install @cline/sdk
 
 Dependencies flow downward only. Lower layers stay embeddable without pulling in the full runtime.
 
-### Browser-safe agent loop
+### Browser-compatible agent loop
 
-`@cline/agents` exposes a browser-safe runtime. It does not own session storage, built-in file/shell tools, hub transports, or Node-specific orchestration.
+`@cline/agents` exposes a browser-compatible runtime. It does not own session storage, built-in file/shell tools, hub transports, or Node-specific orchestration.
 
 ### Core as orchestration layer
 

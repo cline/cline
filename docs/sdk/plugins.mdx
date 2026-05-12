@@ -6,6 +6,37 @@ description: "Learn what plugins are, their benefits, and how they extend agent 
 
 Plugins are packages of reusable agent capabilities. They let you bundle tools, lifecycle hooks, commands, and configuration into a single module that can be shared across projects or published for others to use.
 
+## Benefits of Plugins
+
+| Benefit | Description |
+|---------|-------------|
+| **Modularity** | Encapsulate related tools and hooks in a single unit. No more scattered logic. |
+| **Reusability** | Share plugins across agents, projects, or teams. Publish to npm or distribute via git. |
+| **Packaging** | Bundle tools, hooks, commands, message builders, and providers together. |
+| **Observability** | Hook into every stage of the agent lifecycle — run start/end, model calls, tool calls, errors. |
+| **Composability** | Combine multiple plugins in a single agent. Each plugin handles its own domain. |
+
+## Extension Glossary
+
+| Extension point | What it does |
+|-----------------|--------------|
+| **Tool** | Lets the model call an action (query a DB, call an API, etc.) |
+| **Command** | Register slash commands to allow actions to be manually triggered |
+| **Hook** | Runs lifecycle logic or policy checks at specific stages |
+| **Rules** | Prompts that steer the agent and will be included in every session |
+| **Events** | Register external events that will trigger agent actions |
+| **Plugin** | Packages tools, hooks, commands, rules, and automation events together |
+
+| If you need to... | Use a... |
+|-------------------|----------|
+| Allow the model to query a database, call an API, run a domain action | **Tool** |
+| Register a user triggered action (slash command) | **Command** |
+| Log runs, collect metrics, enforce policy | **Hook** handler |
+| Block dangerous tool calls | **Hook** or approval policy |
+| Provide consistent guidance to the model via prompts | **Rule** |
+| Trigger agent action on an external event (new PR, Slack message, etc) | **Event** |
+| Bundle several tools into a reusable module | **Plugin** |
+
 ## What is a Plugin?
 
 A plugin is an `AgentExtension` — an object that implements the SDK's extension interface. It can register tools, hook into agent lifecycle events, and provide configuration defaults.
@@ -33,36 +64,6 @@ const myPlugin: AgentExtension = {
 ```
 
 Hooks are defined inside the `hooks` object, not directly on the extension. The available lifecycle hooks are `beforeRun`, `afterRun`, `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, and `onEvent`.
-
-## Benefits of Plugins
-
-| Benefit | Description |
-|---------|-------------|
-| **Modularity** | Encapsulate related tools and hooks in a single unit. No more scattered logic. |
-| **Reusability** | Share plugins across agents, projects, or teams. Publish to npm or distribute via git. |
-| **Packaging** | Bundle tools, hooks, commands, message builders, and providers together. |
-| **Observability** | Hook into every stage of the agent lifecycle — run start/end, model calls, tool calls, errors. |
-| **Composability** | Combine multiple plugins in a single agent. Each plugin handles its own domain. |
-
-
-## Tools vs Plugins vs Hooks
-
-| Extension point | What it does |
-|-----------------|--------------|
-| **Tool** | Lets the model call an action (query a DB, call an API, etc.) |
-| **Plugin** | Packages tools, hooks, commands, providers, and automation events together |
-| **Hook** | Runs lifecycle logic or policy checks at specific stages |
-
-
-| If you need to... | Use a... |
-|-------------------|----------|
-| Query a database, call an API, run a domain action | **Tool** |
-| Bundle several tools into a reusable module | **Plugin** |
-| Log runs, collect metrics, enforce policy | **Hook** handler |
-| Block dangerous tool calls | **Hook** or approval policy |
-| Register slash commands or providers | **Plugin** |
-
-For tool definitions, see [Tools](/sdk/tools).
 
 
 ## Next Steps

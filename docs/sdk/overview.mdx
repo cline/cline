@@ -50,26 +50,30 @@ const result = await agent.run("Explain what an SDK is in two sentences.")
   This is the complete [quickstart example](https://github.com/cline/sdk/tree/main/apps/examples/quickstart). Clone it and run `bun dev` to try it.
 </Note>
 
-## Runtime Choices
-
-| Runtime | Use when |
-|---------|----------|
-| `Agent` / `AgentRuntime` | You want a browser-safe, stateless in-process loop and provide your own tools/persistence |
-| `ClineCore` | You want sessions, built-in tools, approvals, config discovery, scheduling, or hub support |
-
-See [Agent vs ClineCore](/sdk/runtime).
-
 ## Packages
 
 | Package | Purpose |
 |---------|---------|
 | `@cline/sdk` | Public SDK surface (re-exports `@cline/core`) |
-| `@cline/shared` | Types, schemas, tool helpers, hooks, storage helpers |
-| `@cline/llms` | Provider gateway and model catalogs |
-| `@cline/agents` | Browser-safe stateless agent execution loop |
 | `@cline/core` | Node runtime for sessions, built-in tools, persistence, hub support, automation |
+| `@cline/agents` | Browser-compatible stateless agent execution loop |
+| `@cline/llms` | Provider gateway and model catalogs |
+| `@cline/shared` | Types, schemas, tool helpers, hooks, storage helpers |
+
+
+
 
 See [Packages](/sdk/architecture/overview) for package boundaries and exports.
+
+## Runtime Choices
+
+| Runtime | Use when |
+|---------|----------|
+| `ClineCore` | The fully featured Cline agent that you can customize and build upon. Includes session management, built-in tools, approvals, config discovery, channels, and scheduling |
+| `Agent` / `AgentRuntime` | A stateless in-process loop that offers even more control. ClineCore depends on the Agents package. Build with Agents directly if you want to control tools, session persistence, and configuration directly |
+
+
+See [Agent vs ClineCore](/sdk/runtime).
 
 ## Next Steps
 
@@ -77,8 +81,8 @@ See [Packages](/sdk/architecture/overview) for package boundaries and exports.
   <Card title="Examples" icon="rocket" href="/sdk/examples">
     Browse complete, runnable SDK examples.
   </Card>
-  <Card title="Agent vs ClineCore" icon="diagram-project" href="/sdk/runtime">
-    Pick the right runtime layer.
+  <Card title="Plugins" icon="diagram-project" href="/sdk/plugins">
+    Extend Cline's functionality.
   </Card>
   <Card title="Tools" icon="wrench" href="/sdk/tools">
     Add actions the model can call.

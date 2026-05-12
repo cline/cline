@@ -6,8 +6,8 @@ description: "Choose between the stateless AgentRuntime loop and the full ClineC
 
 The SDK has two main runtime entry points:
 
-- `Agent` / `AgentRuntime` from `@cline/agents`: browser-safe, stateless, in-process execution. You provide tools, persistence, and lifecycle management.
 - `ClineCore` from `@cline/core`: Node runtime with sessions, persistence, built-in tools, approvals, automation, and hub support.
+- `Agent` / `AgentRuntime` from `@cline/agents`: browser-compatible, stateless, in-process execution. You provide tools, persistence, and lifecycle management.
 
 `Agent` is an alias for `AgentRuntime`. Use `Agent` when constructing from provider/model IDs. Use `AgentRuntime` when supplying a pre-built `AgentModel`.
 
@@ -15,7 +15,7 @@ The SDK has two main runtime entry points:
 
 | Need | Use |
 |------|-----|
-| Browser-safe or lightweight in-process agent | `Agent` / `AgentRuntime` |
+| Browser-compatible or lightweight in-process agent | `Agent` / `AgentRuntime` |
 | Custom tools only | `Agent` / `AgentRuntime` |
 | Manual control over persistence | `Agent` / `AgentRuntime` |
 | Built-in tools for files, shell, search, web fetch | `ClineCore` |

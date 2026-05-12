@@ -4,7 +4,7 @@ sidebarTitle: "Tools"
 description: "Tools let agents read, write, search, call APIs, and run domain-specific actions."
 ---
 
-Tools are functions the model can call during execution. The SDK sends tool schemas to the model, executes requested calls, then returns results back into the conversation.
+Tools are functions the model can call during execution. Tools consist of a name, description, and schema which the SDK sends to the model. Then the model can direct the SDK to execute tool functions and send results back into the conversation.
 
 ## Built-In Tools
 
@@ -22,9 +22,15 @@ Tools are functions the model can call during execution. The SDK sends tool sche
 | `ask_question` | Ask the user for input |
 | `submit_and_exit` | Submit a final answer and stop |
 
-`Agent` does not include built-in tools. Pass tools explicitly when constructing the agent.
+<Note>
+  If you need more control you can use the `Agents` package directly. This does not include built-in tools. You pass in only the tools you want when constructing the agent.
+</Note>
 
 ## Custom Tools with createTool
+
+One of the most powerful features of the SDK is the ability to create and register custom tools. This allows you to add and share capabilities that are context efficient and behave deterministically because they are implemented in code rather than prompts.
+
+### Quick Example
 
 Use `createTool` with a zod schema for type-safe tools:
 
@@ -70,16 +76,7 @@ For complete examples of tools in action, see the [cli-agent](https://github.com
 
 For a full tutorial, see [Creating Custom Tools](/sdk/guides/creating-custom-tools). For exact types, see [Tools API](/sdk/reference/tools-api).
 
-## Register Tools
-
-With `Agent`:
-
-```typescript
-const agent = new Agent({
-  tools: [searchDatabase, myOtherTool],
-  // ...
-})
-```
+## Registering Tools
 
 With `ClineCore`, custom tools are passed as `extraTools` in session config:
 
@@ -93,7 +90,16 @@ await cline.start({
 })
 ```
 
-Via extension/plugin:
+With `Agent`, you pass all tools into the constructor:
+
+```typescript
+const agent = new Agent({
+  tools: [searchDatabase, myOtherTool],
+  // ...
+})
+```
+
+Tools are more easily shared via plugins/extensions:
 
 ```typescript
 const plugin: AgentExtension = {
@@ -104,12 +110,11 @@ const plugin: AgentExtension = {
   },
 }
 ```
-
-See [Plugins](/sdk/plugins) for plugins and hooks.
+See [Plugins](/sdk/plugins) for more info.
 
 ## Tool Policies
 
-Policies control whether a tool is visible and whether it requires approval.
+You can control how tools are used through Tool Policies. These control whether a tool is visible and whether it requires approval.
 
 ```typescript
 const agent = new Agent({
@@ -131,17 +136,6 @@ const agent = new Agent({
 
 Tool names not listed in `toolPolicies` default to enabled and auto-approved.
 
-## Tool Design Rules
-
-Good tools are specific and predictable.
-
-- Use action-oriented names: `get_pull_request`, `search_database`, `deploy_service`.
-- Describe what the tool does, when to use it, and what it returns.
-- Put constraints in the description: rate limits, read-only behavior, required permissions.
-- Add descriptions for every input property.
-- Return structured JSON instead of prose when possible.
-- Respect `context.abortSignal` in long-running tools.
-
 ## MCP Tools
 
-`ClineCore` can load MCP settings through its runtime/config extension path. MCP tools are registered alongside built-in and custom tools when MCP support is enabled for the session.
+Tools work along side MCP. `ClineCore` can load MCP settings through its runtime/config extension path. MCP tools are registered alongside built-in and custom tools when MCP support is enabled for the session.

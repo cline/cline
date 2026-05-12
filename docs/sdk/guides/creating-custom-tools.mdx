@@ -197,7 +197,18 @@ describe("get_current_time", () => {
 ## Registering Tools
 
 <Tabs>
-  <Tab title="Direct">
+  <Tab title="Cline Core">
+    ```typescript
+    await cline.start({
+      prompt: "Get the current time",
+      config: {
+        // ...
+        extraTools: [getCurrentTime],
+      },
+    })
+    ```
+  </Tab>
+  <Tab title="Agent">
     ```typescript
     const agent = new Agent({
       tools: [searchDatabase, getCurrentTime],
@@ -205,7 +216,7 @@ describe("get_current_time", () => {
     })
     ```
   </Tab>
-  <Tab title="Via Extension">
+  <Tab title="Via Plugin">
     ```typescript
     const myPlugin: AgentExtension = {
       name: "my-tools",
@@ -218,3 +229,14 @@ describe("get_current_time", () => {
     ```
   </Tab>
 </Tabs>
+
+## Tool Design Rules
+
+Good tools are specific and predictable.
+
+- Use action-oriented names: `get_pull_request`, `search_database`, `deploy_service`.
+- Describe what the tool does, when to use it, and what it returns.
+- Put constraints in the description: rate limits, read-only behavior, required permissions.
+- Add descriptions for every input property.
+- Return structured JSON instead of prose when possible.
+- Respect `context.abortSignal` in long-running tools.

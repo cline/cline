@@ -4,18 +4,16 @@ sidebarTitle: "Scheduled Agents"
 description: "Run agents on cron schedules for recurring automations like daily summaries, code reviews, and maintenance tasks."
 ---
 
-The SDK supports running agents on cron schedules through the hub. Scheduled agents persist across process restarts and run independently of any client application.
+The SDK supports running agents on cron schedules. Scheduled agents persist across process restarts and run independently of any client application.
 
 ## How Scheduling Works
 
-Scheduled agents rely on the [hub-spoke architecture](/sdk/architecture/hub-spoke):
-
 1. You define a schedule (cron expression + prompt + config)
-2. The hub stores the schedule and manages execution
-3. At each trigger time, the hub creates a new session and runs the agent
+2. The SDK stores the schedule and manages execution
+3. At each trigger time a new session is created and the agent is run
 4. Results are stored and can be routed to connectors (Slack, email, etc.)
 
-The hub runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
+Scheduled agents rely on the [hub-spoke architecture](/sdk/architecture/hub-spoke) that is part of `ClineCore`. The hub runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
 
 ## Schedule Wizard
 

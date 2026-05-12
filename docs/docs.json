@@ -185,16 +185,6 @@
 					{
 						"group": "Concepts",
 						"pages": [
-							"sdk/runtime",
-							"sdk/model-providers",
-							{
-								"group": "Tools",
-								"pages": [
-									"sdk/tools",
-									"sdk/guides/creating-custom-tools"
-								]
-							},
-							"sdk/events",
 							{
 								"group": "Plugins",
 								"pages": [
@@ -204,7 +194,17 @@
 									"sdk/plugin-examples"
 								]
 							},
-							"sdk/guides/scheduled-agents"
+							{
+								"group": "Tools",
+								"pages": [
+									"sdk/tools",
+									"sdk/guides/creating-custom-tools"
+								]
+							},
+							"sdk/guides/scheduled-agents",
+							"sdk/events",
+							"sdk/model-providers",
+							"sdk/runtime"
 						]
 					},
 					{
