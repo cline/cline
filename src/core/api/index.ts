@@ -22,6 +22,7 @@ import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { LiteLlmHandler } from "./providers/litellm"
 import { LmStudioHandler } from "./providers/lmstudio"
+import { MacM4Handler, type MacM4TierId } from "./providers/macm4"
 import { MinimaxHandler } from "./providers/minimax"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
@@ -291,6 +292,23 @@ function createHandlerForProvider(
 				liteLlmUsePromptCache: options.liteLlmUsePromptCache,
 				ulid: options.ulid,
 			})
+		case "macm4": {
+			// The MacM4 provider exposes the canonical local tier ids
+			// (local-fast, local-long, claude-*, hybrid-auto) via the
+			// LiteLLM proxy at :4000, with optional direct-to-Ollama
+			// bypass for local-long. Settings are read from the LiteLLM
+			// settings keys -- they share the same storage shape -- so
+			// existing users with a LiteLLM config carry over.
+			const tierId =
+				(mode === "plan" ? options.planModeLiteLlmModelId : options.actModeLiteLlmModelId) ||
+				"hybrid-auto"
+			return new MacM4Handler({
+				onRetryAttempt: options.onRetryAttempt,
+				macm4ApiKey: options.liteLlmApiKey,
+				macm4BaseUrl: options.liteLlmBaseUrl,
+				macm4ModelId: tierId as MacM4TierId,
+			})
+		}
 		case "moonshot":
 			return new MoonshotHandler({
 				onRetryAttempt: options.onRetryAttempt,
