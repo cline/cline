@@ -62,24 +62,23 @@ function installFakeProviderModelsContext() {
 describe("useProviderModels", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		vi.spyOn(globalThis.crypto, "randomUUID")
-			.mockReturnValueOnce("req-1")
-			.mockReturnValueOnce("req-2")
-			.mockReturnValueOnce("req-3")
 	})
 
 	it("applies a matching requestId response", async () => {
 		const context = installFakeProviderModelsContext()
-		vi.mocked(ModelsServiceClient.resolveProviderModels).mockResolvedValue(response("req-1"))
+		vi.mocked(ModelsServiceClient.resolveProviderModels).mockImplementation(async (request) =>
+			response(request.requestId ?? ""),
+		)
 
 		renderHook(() => useProviderModels("deepseek"))
 
 		await waitFor(() => expect(context.applied).toHaveLength(1))
-		expect(context.startProviderModelsRequest).toHaveBeenCalledWith("deepseek", "req-1")
+		const requestId = context.startProviderModelsRequest.mock.calls[0][1]
+		expect(context.startProviderModelsRequest).toHaveBeenCalledWith("deepseek", requestId)
 		expect(ModelsServiceClient.resolveProviderModels).toHaveBeenCalledWith(
-			expect.objectContaining({ providerId: "deepseek", forceRefresh: true, requestId: "req-1" }),
+			expect.objectContaining({ providerId: "deepseek", forceRefresh: true, requestId }),
 		)
-		expect(context.applied[0].requestId).toBe("req-1")
+		expect(context.applied[0].requestId).toBe(requestId)
 	})
 
 	it("drops a mismatched requestId response through the apply rule", async () => {
