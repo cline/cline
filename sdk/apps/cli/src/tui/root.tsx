@@ -499,8 +499,9 @@ function App(props: TuiProps) {
 		[props, showToast],
 	);
 
+	const notice = props.initialNotice;
+	const onInitialNoticeShown = props.onInitialNoticeShown;
 	useEffect(() => {
-		const notice = props.initialNotice;
 		if (!notice) return;
 		if (initialNoticeShownRef.current) return;
 		if (appView !== "home") return;
@@ -514,17 +515,19 @@ function App(props: TuiProps) {
 					),
 				})
 				.finally(() => {
-					Promise.resolve(props.onInitialNoticeShown?.(notice)).catch(() => {});
+					Promise.resolve(onInitialNoticeShown?.(notice)).catch(() => {});
 					refocusTextareaRef.current();
 				});
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, dialog, props.initialNotice, props.onInitialNoticeShown]);
+	}, [appView, dialog, notice, onInitialNoticeShown]);
 
 	const {
 		appendEntry: appendSessionEntry,
 		replaceEntries: replaceSessionEntries,
 		setHasSubmitted: setSessionHasSubmitted,
+		setLastTotalCost: setSessionLastTotalCost,
+		setLastTotalTokens: setSessionLastTotalTokens,
 	} = session;
 	const deferredHydrationGuardRef = useRef({
 		hasSubmitted: session.hasSubmitted,
@@ -553,10 +556,10 @@ function App(props: TuiProps) {
 				}
 				replaceSessionEntries(hydrateSessionMessages(messages));
 				if (typeof result.currentContextSize === "number") {
-					session.setLastTotalTokens(result.currentContextSize);
+					setSessionLastTotalTokens(result.currentContextSize);
 				}
 				if (typeof result.totalCost === "number") {
-					session.setLastTotalCost(result.totalCost);
+					setSessionLastTotalCost(result.totalCost);
 				}
 				setSessionHasSubmitted(true);
 				setAppView("chat");
@@ -578,8 +581,8 @@ function App(props: TuiProps) {
 		appendSessionEntry,
 		replaceSessionEntries,
 		setSessionHasSubmitted,
-		session.setLastTotalCost,
-		session.setLastTotalTokens,
+		setSessionLastTotalCost,
+		setSessionLastTotalTokens,
 	]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
@@ -693,6 +696,8 @@ function App(props: TuiProps) {
 		setAppView,
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
+	const focusPromptTextarea = promptInput.focusTextarea;
+	const submitInitialPrompt = promptInput.submitInitialPrompt;
 	refocusTextareaRef.current = promptInput.refocusTextarea;
 	populateInputRef.current = (value: string) => {
 		promptInput.populateInput(value);
@@ -753,8 +758,8 @@ function App(props: TuiProps) {
 
 	useEffect(() => {
 		if (isDialogOpen || appView === "onboarding") return;
-		promptInput.focusTextarea();
-	}, [isDialogOpen, appView, promptInput.focusTextarea]);
+		focusPromptTextarea();
+	}, [isDialogOpen, appView, focusPromptTextarea]);
 
 	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
@@ -763,10 +768,10 @@ function App(props: TuiProps) {
 		const timeout = setTimeout(() => {
 			if (initialPromptSubmittedRef.current) return;
 			initialPromptSubmittedRef.current = true;
-			promptInput.submitInitialPrompt();
+			submitInitialPrompt();
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, promptInput.submitInitialPrompt, props.initialPrompt]);
+	}, [appView, submitInitialPrompt, props.initialPrompt]);
 
 	useRootKeyboard({
 		isDialogOpen,
