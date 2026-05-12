@@ -26,7 +26,7 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "rm -rf dist && bun run bun.mts",
+		"build": "rimraf dist && bun run bun.mts",
 		"build:platforms": "bun script/build.ts --install-native-variants",
 		"build:platforms:single": "bun script/build.ts --single",
 		"prepack": "bun script/guard-direct-publish.ts",
@@ -34,7 +34,7 @@
 		"publish:npm": "bun script/publish-npm.ts",
 		"publish:npm:dry": "bun script/publish-npm.ts --dry-run",
 		"dev": "CLINE_BUILD_ENV=development bun --conditions=development ./src/index.ts",
-		"clean": "rm -rf dist node_modules",
+		"clean": "rimraf dist node_modules",
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts",
