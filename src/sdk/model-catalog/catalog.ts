@@ -1,6 +1,7 @@
 import { type ModelCatalogConfig, resolveProviderConfig } from "@clinebot/core"
 import type { ProviderConfig } from "@clinebot/llms"
 import type {
+	CatalogError,
 	Disposable,
 	EffectiveProviderConfig,
 	Fingerprint,
@@ -13,7 +14,7 @@ import type {
 	ProviderModelsResult,
 } from "./contracts"
 import { computeConfigFingerprint } from "./fingerprint"
-import { adaptSdkModelInfo } from "./shape-adapter"
+import { adaptSdkModelInfo, CatalogShapeError } from "./shape-adapter"
 
 type ProviderModelsRecord = Extract<ProviderModelsResult, { ok: true }>
 
@@ -155,6 +156,25 @@ async function resolveSdkModels(
 	}
 }
 
+function toCatalogError(error: unknown): CatalogError {
+	if (error instanceof CatalogShapeError) {
+		return {
+			kind: "shape",
+			message: error.message,
+		}
+	}
+	if (error instanceof Error) {
+		return {
+			kind: "unknown",
+			message: error.message,
+		}
+	}
+	return {
+		kind: "unknown",
+		message: String(error),
+	}
+}
+
 /**
  * Internal test hook for cache/in-flight behavior. Not part of the public
  * model-catalog API; production callers should use createProviderCatalog.
@@ -194,12 +214,22 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			// SDK config surfaces that require a model id. Phase 3 catalog caching
 			// remains keyed solely by provider + effective config fingerprint.
 			const selection = reader.readSelection(providerId, "act")
-			return cache.resolve({
-				providerId,
-				fingerprint,
-				forceRefresh: options?.forceRefresh,
-				load: () => resolveSdkModels(providerId, fingerprint, config, selection, now),
-			})
+			try {
+				return await cache.resolve({
+					providerId,
+					fingerprint,
+					forceRefresh: options?.forceRefresh,
+					load: () => resolveSdkModels(providerId, fingerprint, config, selection, now),
+				})
+			} catch (error) {
+				return {
+					ok: false,
+					providerId,
+					configFingerprint: fingerprint,
+					error: toCatalogError(error),
+					fetchedAt: now(),
+				}
+			}
 		},
 
 		subscribe(_providerId: ProviderId, _listener: (event: ProviderModelsEvent) => void): Disposable {
