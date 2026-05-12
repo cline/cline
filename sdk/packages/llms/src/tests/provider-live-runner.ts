@@ -31,7 +31,7 @@ export async function runLiveProviderTargets<Target>(options: {
 		while (true) {
 			const target = options.targets[nextIndex];
 			nextIndex += 1;
-			if (!target) {
+			if (target === undefined) {
 				return;
 			}
 			const failure = await options.runTarget(target);
@@ -42,10 +42,6 @@ export async function runLiveProviderTargets<Target>(options: {
 	}
 
 	const workerCount = Math.min(concurrency, options.targets.length);
-	await Promise.all(
-		Array.from({ length: workerCount }, async () => {
-			await worker();
-		}),
-	);
+	await Promise.all(Array.from({ length: workerCount }, () => worker()));
 	return failures;
 }
