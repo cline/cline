@@ -12,6 +12,6 @@
 	},
 	"overrides": {
 		"tar-fs": "^3.1.1",
-		"protobufjs": "7.5.5"
+		"protobufjs": "7.5.6"
 	}
 }
