@@ -16,7 +16,7 @@ Use this page for event handling patterns. For event shapes, see [Events referen
 ```typescript
 const unsubscribe = agent.subscribe((event) => {
   if (event.type === "assistant-text-delta") {
-    process.stdout.write(event.text)
+    process.stdout.write(event.text ?? "")
   }
 })
 
@@ -67,7 +67,7 @@ Subscribe to events to build real-time UIs:
 agent.subscribe((event) => {
   switch (event.type) {
     case "assistant-text-delta":
-      onUpdate({ type: "text", content: event.text })
+      onUpdate({ type: "text", content: event.text ?? "" })
       break
     case "tool-started":
       onUpdate({ type: "tool_start", content: event.toolCall.toolName })

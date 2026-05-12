@@ -106,7 +106,7 @@ The bot subscribes to events to show progress as the agent works:
 agent.subscribe((event) => {
   switch (event.type) {
     case "assistant-text-delta":
-      process.stdout.write(event.text)
+      process.stdout.write(event.text ?? "")
       break
     case "tool-started":
       if (event.toolCall.toolName === "add_review_comment") {

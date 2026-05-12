@@ -145,18 +145,41 @@ const agent = new Agent({
 ### Track Spending
 
 ```typescript
+type ModelPricing = {
+  inputPerMillion: number
+  outputPerMillion: number
+}
+
+function estimateCost(
+  usage: { inputTokens: number; outputTokens: number; totalCost?: number },
+  pricing: ModelPricing,
+) {
+  if (usage.totalCost != null) {
+    return usage.totalCost
+  }
+
+  return (
+    (usage.inputTokens / 1_000_000) * pricing.inputPerMillion +
+    (usage.outputTokens / 1_000_000) * pricing.outputPerMillion
+  )
+}
+
 let sessionCost = 0
 
+const providerId = "anthropic"
+const modelId = "claude-sonnet-4-6"
+// Load current USD-per-million-token pricing from configuration or a pricing service.
+const pricing = loadModelPricing(providerId, modelId)
+
 const agent = new Agent({
-  // ...config
+  providerId,
+  modelId,
+  // ...
 })
 
 agent.subscribe((event) => {
   if (event.type === "usage-updated") {
-    const turnCost =
-      (event.usage.inputTokens * 3) / 1_000_000 +
-      (event.usage.outputTokens * 15) / 1_000_000
-    sessionCost = turnCost
+    sessionCost = estimateCost(event.usage, pricing)
 
     if (sessionCost > 1.0) {
       agent.abort("Cost limit exceeded ($1.00)")

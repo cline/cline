@@ -39,7 +39,7 @@ const agent = new Agent({
 
 agent.subscribe((event) => {
   if (event.type === "assistant-text-delta") {
-    process.stdout.write(event.text)
+    process.stdout.write(event.text ?? "")
   }
 })
 
