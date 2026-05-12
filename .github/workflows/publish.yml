@@ -160,6 +160,13 @@ jobs:
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
                   RELEASE_TYPE: ${{ github.event.inputs.release-type }}
               run: |
+                  # Swap README.marketplace.md into README.md so both the GitHub
+                  # release artifact (vsce package below) and the marketplace
+                  # publish (npm run publish:marketplace below, which swaps
+                  # internally as an idempotent no-op) ship the same README.
+                  node scripts/marketplace-readme.mjs swap-in
+                  trap 'node scripts/marketplace-readme.mjs restore' EXIT
+
                   # Required to generate the .vsix
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
