@@ -1,0 +1,50 @@
+---
+title: "WaveSpeed"
+description: "Learn how to configure and use WaveSpeed LLM with Cline through an OpenAI-compatible endpoint."
+---
+
+WaveSpeed LLM provides access to language models from multiple vendors through an OpenAI-compatible API. Use it in Cline by selecting the OpenAI Compatible provider and pointing it at the WaveSpeed LLM base URL.
+
+**Website:** [https://wavespeed.ai/llm](https://wavespeed.ai/llm)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [WaveSpeed](https://wavespeed.ai/). Create an account or sign in.
+2.  **Navigate to API Keys:** Open the [API keys page](https://wavespeed.ai/accesskey).
+3.  **Create a Key:** Generate a new API key.
+4.  **Copy the Key:** Copy the API key immediately and store it securely.
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "OpenAI Compatible" from the "API Provider" dropdown.
+3.  **Enter Base URL:** Set the base URL to `https://llm.wavespeed.ai/v1`.
+4.  **Enter API Key:** Paste your WaveSpeed API key.
+5.  **Enter Model ID:** Specify a model using the `vendor/model` format from the WaveSpeed catalog, such as `anthropic/claude-opus-4.6`.
+6.  **Configure Settings:** Optionally adjust context window size, max output tokens, image support, and tool use based on the selected model's capabilities.
+7.  **Verify:** Click "Verify" to confirm the connection.
+
+### Supported Models
+
+WaveSpeed hosts models from multiple vendors. Model IDs use a `vendor/model` format. Examples:
+
+-   `anthropic/claude-opus-4.6`
+-   `openai/gpt-5.2-pro`
+-   `google/gemini-3-flash-preview`
+-   `deepseek/deepseek-v4-pro`
+
+Refer to the [WaveSpeed LLM catalog](https://wavespeed.ai/llm) for the complete and up-to-date list.
+
+### Tips and Notes
+
+-   **OpenAI Compatible:** Use the "OpenAI Compatible" provider in Cline, not the "OpenAI" provider.
+-   **Model IDs Are Case-Sensitive:** Copy model IDs exactly from the WaveSpeed catalog, including the vendor prefix.
+-   **Model Capabilities Vary:** Check whether the selected model supports image input or tool use before enabling those options in Cline.
+-   **Quick Start Guide:** See the [WaveSpeed LLM quick start](https://wavespeed.ai/docs/llm-service-quick-start) for additional setup details.
+
+### Troubleshooting
+
+-   **"401 Unauthorized":** Confirm you pasted a WaveSpeed API key, not a key from another provider.
+-   **"404 Model Not Found":** Use the full `vendor/model` ID from the WaveSpeed catalog.
+-   **Connection Errors:** Check that the base URL is exactly `https://llm.wavespeed.ai/v1`, including the `llm.` subdomain and `/v1` path.
+-   **Unexpected Tool or Vision Behavior:** Verify that the selected model supports the capability you enabled in Cline.

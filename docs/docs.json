@@ -206,7 +206,8 @@
 									"provider-config/requesty",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/vscode-language-model-api"
+									"provider-config/vscode-language-model-api",
+									"provider-config/wavespeed"
 								]
 							}
 						]
