@@ -1,6 +1,6 @@
-import { describe, it, beforeEach } from "mocha"
+import { beforeEach, describe, it } from "mocha"
 import "should"
-import { MACM4_TIERS, MacM4Handler, listMacM4Tiers, macm4DefaultModelId } from "../macm4"
+import { listMacM4Tiers, MACM4_TIERS, MacM4Handler, macm4DefaultModelId } from "../macm4"
 
 describe("MacM4 tier catalogue", () => {
 	it("exposes the canonical tier ids that match config/litellm-config.yaml", () => {
@@ -48,10 +48,10 @@ describe("MacM4Handler.getModel", () => {
 		const h = new MacM4Handler({ macm4ModelId: "local-long" })
 		const { id, info } = h.getModel()
 		id.should.equal("local-long")
-		info.contextWindow.should.equal(131_072)
-		info.maxTokens.should.equal(6144)
-		info.supportsImages!.should.equal(false)
-		info.supportsPromptCache!.should.equal(false)
+		;(info.contextWindow ?? 0).should.equal(131_072)
+		;(info.maxTokens ?? 0).should.equal(6144)
+		;(info.supportsImages ?? false).should.equal(false)
+		;(info.supportsPromptCache ?? false).should.equal(false)
 	})
 
 	it("returns the default tier when none is configured", () => {
@@ -63,7 +63,7 @@ describe("MacM4Handler.getModel", () => {
 		const h = new MacM4Handler({ macm4ModelId: "this-tier-does-not-exist" })
 		const { id, info } = h.getModel()
 		id.should.equal("this-tier-does-not-exist")
-		info.contextWindow.should.be.greaterThan(0)
+		;(info.contextWindow ?? 0).should.be.greaterThan(0)
 	})
 
 	it("sets non-zero prices for cloud Claude tiers, zero for local", () => {

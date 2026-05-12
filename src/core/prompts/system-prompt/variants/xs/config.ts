@@ -83,12 +83,15 @@ export const config = createVariant(ModelFamily.XS)
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,
-		// Hard-pin to false: even if the host extension reports
-		// supportsBrowserUse=true (e.g. user has a chromium binary),
-		// xs-tier models shouldn't render the BROWSER capability text
-		// in their CAPABILITIES section. This keeps the prompt budget
-		// predictable across hosts.
-		SUPPORTS_BROWSER: false,
+		// BROWSER capability suppression: xs already overrides
+		// SystemPromptSection.CAPABILITIES below (see .overrideComponent
+		// call) AND omits BROWSER from the tool allowlist above. Both
+		// gates run *before* the SUPPORTS_BROWSER placeholder would
+		// have an effect, so an explicit override here is redundant.
+		// Kept this comment as a paper trail: don't re-add a
+		// `SUPPORTS_BROWSER: false` line -- the placeholders() signature
+		// is Record<string, string> and the existing gates already
+		// achieve the desired prompt-budget invariance.
 	})
 	.overrideComponent(SystemPromptSection.AGENT_ROLE, {
 		template: xsComponentOverrides.AGENT_ROLE,
