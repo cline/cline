@@ -4,7 +4,7 @@ sidebarTitle: "Skills"
 description: "Modular instruction sets that extend Cline's capabilities for specific tasks."
 ---
 
-Skills are modular instruction sets that extend Cline's capabilities for specific tasks. Each skill packages detailed guidance, workflows, and optional resources that Cline loads only when relevant to your request.
+Skills are modular instruction sets that extend Cline's capabilities for specific tasks. Each skill packages detailed guidance, processes, and optional resources that Cline loads only when relevant to your request.
 
 Install multiple skills and Cline only loads what it needs. A deployment skill stays dormant until you ask about deploying. Unlike [rules](/customization/cline-rules) (which are always active), skills load on-demand so they don't consume context when you're working on something unrelated.
 
@@ -23,6 +23,16 @@ Skills use progressive loading to maximize efficiency:
 | Resources | As needed | Effectively unlimited | Bundled files accessed via `read_file` or executed scripts |
 
 When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `use_skill` tool, which loads the full instructions from SKILL.md.
+
+## Triggering Skills with Slash Commands
+
+You can also invoke enabled skills explicitly from the chat input using slash commands.
+
+1. Type `/` in chat to open command suggestions.
+2. Select the skill command you want to run (for example, `/aws-deploy`).
+3. Cline triggers that skill and loads its `SKILL.md` instructions.
+
+This is useful when you want to force a specific skill immediately instead of waiting for auto-matching based on description.
 
 ## Skill Structure
 
@@ -138,7 +148,7 @@ Include real examples. Show what commands to run, what output to expect, and wha
 
 ## Where Skills Live
 
-Skills can be stored globally or in a project workspace. See [Storage Locations](/customization/overview#storage-locations) for guidance on when to use each.
+Skills can be stored globally or in a project workspace. See [Storage Locations](/getting-started/config#storage-locations) for guidance on when to use each.
 
 Project skills:
 - `.cline/skills/` (recommended)
@@ -215,7 +225,7 @@ Cline reads documentation files using `read_file` when the instructions referenc
 | Use Scripts For | Use Instructions For |
 |-----------------|---------------------|
 | Deterministic operations (validation, formatting) | Flexible guidance that adapts to context |
-| Complex computations | Decision-making workflows |
+| Complex computations | Decision-making processes |
 | Operations that need reliability | Steps that might vary by situation |
 | Anything you'd rather not consume tokens explaining | Best practices and patterns |
 
@@ -231,7 +241,7 @@ description: Analyze data files and generate insights. Use when working with CSV
 
 # Data Analysis
 
-When analyzing data files, follow this workflow:
+When analyzing data files, follow this process:
 
 ## 1. Understand the Data
 - Read a sample of the file to understand its structure

@@ -1,7 +1,7 @@
 ---
 title: "Using Commands"
 sidebarTitle: "Using Commands"
-description: "Built-in slash commands to manage context, plan implementations, and create reusable workflows."
+description: "Built-in slash commands to manage context, plan implementations, and trigger reusable skills."
 ---
 
 Cline provides slash commands in chat that help you manage your conversation and plan complex implementations.
@@ -37,7 +37,7 @@ Use `/smol` when you're deep into a debugging session or brainstorming and need 
 
 ### /newrule
 
-`/newrule` creates a rule file that teaches Cline your preferences. Cline will guide you through setting up guidelines for communication style, coding standards, project context, and workflows. The rule is saved to your `.clinerules` directory and automatically loaded for future conversations.
+`/newrule` creates a rule file that teaches Cline your preferences. Cline will guide you through setting up guidelines for communication style, coding standards, project context, and reusable practices. The rule is saved to your `.clinerules` directory and automatically loaded for future conversations.
 
 Use `/newrule` when you find yourself repeating the same instructions across tasks. For more about rules, see [Cline Rules](/customization/cline-rules).
 
@@ -50,7 +50,7 @@ Transform Cline into a meticulous architect who investigates your codebase, asks
 3. **Plan Creation** - Generates `implementation_plan.md` with detailed specifications
 4. **Task Creation** - Creates a new task with trackable implementation steps
 
-Use `/deep-planning` for features touching multiple parts of your codebase, architectural changes, or complex integrations. For detailed documentation, see [Deep Planning](/features/deep-planning).
+Use `/deep-planning` for features touching multiple parts of your codebase, architectural changes, or complex integrations.
 
 ### /explain-changes
 
@@ -68,8 +68,14 @@ Use `/explain-changes` when reviewing code, onboarding to a new codebase, or und
 
 Use `/reportbug` when you encounter unexpected behavior, crashes, or bugs you want to report.
 
-## Custom Workflows
+## Skills via Slash Commands
 
-Beyond the built-in slash commands, you can create your own workflow files that work the same way. Store Markdown files in `.clinerules/workflows/` and invoke them with `/your-workflow.md`.
+In addition to built-in commands, you can trigger enabled skills directly from chat using slash commands.
 
-For a complete guide on creating and managing custom workflows, see [Workflows](/customization/workflows).
+- Type `/` to open command suggestions.
+- Select a skill command (for example, `/aws-deploy`).
+- Cline loads that skill and applies its `SKILL.md` instructions for the task.
+
+Any enabled skill can be triggered this way, which gives you a fast path to skill-specific guidance without rewriting the same instructions each time.
+
+For setup and management details, see [Skills](/customization/skills#triggering-skills-with-slash-commands).
