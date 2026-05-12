@@ -179,6 +179,14 @@ message ProviderConfigResponse {
   bool has_access_token = 7;
   bool has_refresh_token = 8;
   optional string account_id = 9;
+  optional CommittedModelSelection plan_selection = 10;
+  optional CommittedModelSelection act_selection = 11;
+}
+
+message CommittedModelSelection {
+  string provider_id = 1;
+  string model_id = 2;
+  OpenRouterModelInfo model_info = 3;
 }
 
 message WriteProviderConfigPatch {
