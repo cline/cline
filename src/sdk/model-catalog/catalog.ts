@@ -1,5 +1,5 @@
 import { type ModelCatalogConfig, resolveProviderConfig } from "@clinebot/core"
-import type { ProviderConfig } from "@clinebot/llms"
+import { getAllProviders, type ProviderConfig, type ProviderInfo } from "@clinebot/llms"
 import type {
 	CatalogError,
 	Disposable,
@@ -14,6 +14,7 @@ import type {
 	ProviderModelsResult,
 } from "./contracts"
 import { computeConfigFingerprint } from "./fingerprint"
+import { parseProviderId } from "./provider-id"
 import { adaptSdkModelInfo, CatalogShapeError } from "./shape-adapter"
 
 type ProviderModelsRecord = Extract<ProviderModelsResult, { ok: true }>
@@ -39,6 +40,8 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 	failOnError: false,
 	cacheTtlMs: 0,
 }
+
+const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["ollama", "lmstudio", "litellm"])
 
 function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {
 	return `${providerId}:${fingerprint}`
@@ -144,6 +147,29 @@ function chooseDefaultModelId(sdkDefaultModelId: string | undefined, models: Rea
 	return models.keys().next().value ?? ""
 }
 
+function optionalNonEmpty(value: string | undefined): string | undefined {
+	const trimmed = value?.trim()
+	return trimmed ? trimmed : undefined
+}
+
+function toProviderListing(provider: ProviderInfo): ProviderListing {
+	return {
+		id: parseProviderId(provider.id),
+		name: provider.name,
+		defaultModelId: optionalNonEmpty(provider.defaultModelId),
+		protocol: provider.protocol,
+		// ProviderListing intentionally does not include full model-list data.
+		// Reuse the lightweight description slot until the RPC-facing picker
+		// contract decides whether it needs a generic provider description field.
+		authDescription: optionalNonEmpty(provider.description),
+		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(provider.id),
+	}
+}
+
+function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
+	return getAllProviders().then((providers) => providers.map(toProviderListing))
+}
+
 async function resolveSdkModels(
 	providerId: ProviderId,
 	fingerprint: Fingerprint,
@@ -204,6 +230,7 @@ export const _testing = {
 export function createProviderCatalog(reader: ProviderConfigReader): ProviderCatalog {
 	const now = () => Date.now()
 	const cache = createProviderModelsCache({ ttlMs: DEFAULT_MODEL_CACHE_TTL_MS, now })
+	let providerListingsPromise: Promise<ReadonlyArray<ProviderListing>> | undefined
 	reader.subscribe((event) => {
 		if (event.kind !== "fields") {
 			return
@@ -218,7 +245,11 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 
 	return {
 		async listProviders(): Promise<ReadonlyArray<ProviderListing>> {
-			return unimplemented("listProviders")
+			providerListingsPromise ??= listSdkProviderListings().catch((error) => {
+				providerListingsPromise = undefined
+				throw error
+			})
+			return providerListingsPromise
 		},
 
 		async resolveModels(
