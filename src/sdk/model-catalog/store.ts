@@ -101,6 +101,13 @@ const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
 	"vercel-ai-gateway": { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
 }
 
+// Transitional Phase 1.4 compatibility path for providers that only have a
+// mode-specific model id key today (for example DeepSeek/generic SDK-backed
+// providers). The architecture requires `ModelInfo` to be part of the
+// selection envelope, but the legacy StateManager schema does not yet provide
+// durable `*ModelInfo` keys for every provider. Do not make runtime correctness
+// depend on this in-process map across reloads; replace it with durable
+// selection-envelope storage before runtime reads generic selections directly.
 const selectionInfoMemory = new Map<string, ModelInfo>()
 
 function providerKey(providerId: ProviderId): string {
