@@ -502,3 +502,34 @@ Validation:
 - `cd webview-ui && npx vitest run src/hooks/useProviderModels.test.ts --reporter=dot` passed: 1 file, 3 tests.
 - `cd webview-ui && npx tsc --noEmit --pretty false` passed.
 - `npm run check-types -- --pretty false` passed.
+
+## 2026-05-13 — Phase 5.3 useProviderConfig hook
+
+Implementation:
+
+- Added `webview-ui/src/hooks/useProviderConfig.ts`.
+- The hook exposes `{ config, write, commitSelection }` for a provider id.
+- On mount/provider change it calls `ModelsServiceClient.readProviderConfig(StringRequest({ value: providerId }))` and stores the redacted config response locally.
+- `write(patch)` calls `ModelsServiceClient.writeProviderConfig(...)`, stores the returned redacted config, and returns it.
+- `commitSelection(mode, selection)` validates the selection provider id matches the hook provider id, calls `ModelsServiceClient.commitModelSelection(...)` with full `modelId` + protobuf `modelInfo`, then refreshes config via `readProviderConfig` so callers see the committed selection returned by Phase 4.3.
+
+Tests:
+
+- Added `webview-ui/src/hooks/useProviderConfig.test.ts`.
+- Tests cover mount read, write round-trip, commit-selection round-trip, and mismatched-provider validation before RPC call.
+
+Validation:
+
+- `cd webview-ui && npx vitest run src/hooks/useProviderConfig.test.ts --reporter=dot` passed: 1 file, 4 tests.
+- `cd webview-ui && npx vitest run src/hooks/useProviderModels.test.ts src/hooks/useProviderConfig.test.ts --reporter=dot` passed: 2 files, 7 tests.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run check-types -- --pretty false` passed.
+
+Note:
+
+- As with prior focused webview tests, the first Vitest invocation immediately after proto generation can fail to resolve freshly generated `@shared/proto/...` modules. Re-running the same command after generation/typecheck completes succeeds; the final validation above passed.
+
+Decision:
+
+- Phase 5.3 is complete.
+- Proceed to Phase 5.4 (`ModelPickerWithManualEntry`).
