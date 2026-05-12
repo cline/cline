@@ -20,3 +20,11 @@ export {
 	OpenTelemetryProvider,
 	type OpenTelemetryProviderOptions,
 } from "./OpenTelemetryProvider";
+export {
+	captureExtensionActivated,
+	identifyAccount,
+} from "./core-events";
+export {
+	TelemetryLoggerSink,
+	type TelemetryLoggerSinkOptions,
+} from "./TelemetryLoggerSink";

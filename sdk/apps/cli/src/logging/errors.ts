@@ -15,20 +15,21 @@ export function logCliError(
 	});
 }
 
-export function logCliProcessError(kind: string, error: unknown): void {
-	void (async () => {
-		try {
-			const { createCliLoggerAdapter, flushCliLoggerAdapters } = await import(
-				"./adapter"
-			);
-			const logger = createCliLoggerAdapter({
-				runtime: "cli",
-				component: "process",
-			});
-			logCliError(logger.core, "CLI process error", { kind, error });
-			flushCliLoggerAdapters();
-		} catch {
-			// Process-level logging is best-effort; stderr still gets the error.
-		}
-	})();
+export async function logCliProcessError(
+	kind: string,
+	error: unknown,
+): Promise<void> {
+	try {
+		const { createCliLoggerAdapter, flushCliLoggerAdapters } = await import(
+			"./adapter"
+		);
+		const logger = createCliLoggerAdapter({
+			runtime: "cli",
+			component: "process",
+		});
+		logCliError(logger.core, "CLI process error", { kind, error });
+		flushCliLoggerAdapters();
+	} catch {
+		// Process-level logging is best-effort; stderr still gets the error.
+	}
 }

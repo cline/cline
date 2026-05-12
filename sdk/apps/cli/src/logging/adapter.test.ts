@@ -116,7 +116,7 @@ describe("createCliLoggerAdapter", () => {
 		}
 	});
 
-	it("writes process-level errors to the CLI log", () => {
+	it("writes process-level errors to the CLI log", async () => {
 		const snapshot = withEnvSnapshot();
 		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-process-log-`));
 		process.env.CLINE_DATA_DIR = dataDir;
@@ -126,7 +126,7 @@ describe("createCliLoggerAdapter", () => {
 		delete process.env.CLINE_LOG_ENABLED;
 
 		try {
-			logCliProcessError(
+			await logCliProcessError(
 				"unhandledRejection",
 				new Error("message schema validation failed"),
 			);

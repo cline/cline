@@ -28,23 +28,23 @@ if (!isMainThread) {
 	};
 	process.on("SIGINT", forwardSignalToRuntime);
 	process.on("SIGTERM", forwardSignalToRuntime);
-	const handleFatalProcessError = (kind: string, error: unknown) => {
+	const handleFatalProcessError = async (kind: string, error: unknown) => {
 		if (handlingFatalProcessError) {
 			process.exit(1);
 		}
 		handlingFatalProcessError = true;
-		logCliProcessError(kind, error);
 		writeErr(
 			error instanceof Error ? (error.stack ?? error.message) : String(error),
 		);
 		cleanupActiveRuntime();
 		abortActiveRuntime();
-		void disposeAll().finally(() => {
+		await logCliProcessError(kind, error);
+		await disposeAll().finally(() => {
 			process.exit(1);
 		});
 	};
 	process.on("uncaughtException", (error) => {
-		handleFatalProcessError("uncaughtException", error);
+		void handleFatalProcessError("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason, promise) => {
 		if (isAbortInProgress()) {
@@ -53,7 +53,7 @@ if (!isMainThread) {
 			promise.catch(() => {});
 			return;
 		}
-		handleFatalProcessError("unhandledRejection", reason);
+		void handleFatalProcessError("unhandledRejection", reason);
 	});
 
 	void (async () => {
@@ -67,10 +67,10 @@ if (!isMainThread) {
 			const { runCli } = await import("./main");
 			await runCli();
 		} catch (err) {
-			logCliProcessError("runCli", err);
 			writeErr(err instanceof Error ? err.message : String(err));
 			cleanupActiveRuntime();
 			abortActiveRuntime();
+			await logCliProcessError("runCli", err);
 			exitCode = 1;
 		} finally {
 			await disposeAll();

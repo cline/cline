@@ -117,11 +117,8 @@ export async function runCli(): Promise<void> {
 	// has been applied, so the telemetry singleton's persisted distinct-id
 	// (and any other storage it touches) lands under the user-selected
 	// `--config <dir>` rather than the default home/config location.
-	void import("./utils/telemetry")
-		.then(({ captureCliExtensionActivated }) => {
-			captureCliExtensionActivated();
-		})
-		.catch(() => {});
+	const { captureCliExtensionActivated } = await import("./utils/telemetry");
+	captureCliExtensionActivated();
 
 	let launchConfigView = false;
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);

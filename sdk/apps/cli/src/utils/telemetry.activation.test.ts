@@ -7,20 +7,15 @@ const hoisted = vi.hoisted(() => ({
 	getCliTelemetryService: vi.fn(() => undefined),
 }));
 
-vi.mock("@cline/core", () => ({
+vi.mock("@cline/core/telemetry", () => ({
 	captureExtensionActivated: hoisted.captureExtensionActivated,
 	identifyAccount: hoisted.identifyAccount,
-	// CLI telemetry singleton path normally pulls in
-	// `createConfiguredTelemetryHandle` and `createClineTelemetryServiceConfig`;
-	// stub them so the test never spins up a real OpenTelemetry provider.
-	createClineTelemetryServiceConfig: vi.fn(() => ({})),
 	createConfiguredTelemetryHandle: vi.fn(() => ({
 		telemetry: undefined,
 		provider: undefined,
 		flush: vi.fn(),
 		dispose: vi.fn(),
 	})),
-	registerDisposable: vi.fn(),
 	TelemetryLoggerSink: class {},
 }));
 
