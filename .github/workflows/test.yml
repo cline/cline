@@ -200,7 +200,7 @@ jobs:
     qlty:
         needs: [test, test-platform-integration]
         runs-on: ubuntu-latest
-        # Run on PRs to main, pushes to main, and manual dispatches
+        if: ${{ vars.QLTY_ENABLED == 'true' }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -215,7 +215,6 @@ jobs:
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                  # we can merge multiple files if necessary
                   files: |
                     coverage-unit/lcov.info
                   tag: unit:core
@@ -224,7 +223,6 @@ jobs:
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                  # we can merge multiple files if necessary
                   files: |
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
