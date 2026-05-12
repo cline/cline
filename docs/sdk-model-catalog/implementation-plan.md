@@ -881,9 +881,9 @@ Providers: `vscode-lm`, `oca`.
 
 ### File and code shape
 
-- Every file under `src/sdk/model-catalog/` ≤ 300 lines.
-- No `as` casts outside parse/compute boundary functions.
-- One responsibility per file.
+- Keep files in `src/sdk/model-catalog/` small enough to review comfortably. Rough heuristic: if a file grows much beyond ~500 lines or mixes unrelated responsibilities, split it. Do not contort coherent mapping/adapter code just to satisfy an arbitrary line count.
+- No `as ProviderId` or `as Fingerprint` outside parse/compute boundary functions. Other TypeScript boundary assertions are allowed when converting dynamic storage/proto/SDK shapes, but keep them narrow, local, and covered by tests.
+- One responsibility per file, with pragmatic exceptions for cohesive mapping tables plus their immediate helpers.
 - Public API of `src/sdk/model-catalog/` is `index.ts`. Internal modules not imported from outside.
 
 ---
