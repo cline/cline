@@ -18,9 +18,6 @@
 </table>
 </div>
 
-> **⚠️ Disclaimer:** This repo is currently still under active development. We will move this repo to be under the `cline/cline` repository soon. We currently do not accept public contributions given the early stage.
-
-
 The Cline SDK is a TypeScript framework for building AI agents that can edit files, run shell commands, browse the web, call APIs, and use any custom tool you give them. It's the same engine that powers [Cline](https://github.com/cline/cline), packaged as a library you can embed in your own applications.
 
 ```typescript
