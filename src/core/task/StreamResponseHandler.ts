@@ -272,8 +272,11 @@ class ToolUseHandler {
  */
 class ReasoningHandler {
 	private pendingReasoning: PendingReasoning | null = null
+	private received = false
 
 	processReasoningDelta(delta: ReasoningDelta): void {
+		this.received = true
+
 		// Initialize pending reasoning if we have an ID but no pending reasoning yet
 		if (!this.pendingReasoning) {
 			this.pendingReasoning = {
@@ -312,6 +315,10 @@ class ReasoningHandler {
 		}
 	}
 
+	hasReceivedReasoning(): boolean {
+		return this.received
+	}
+
 	getCurrentReasoning(): ClineAssistantThinkingBlock | null {
 		if (!this.pendingReasoning) {
 			return null
@@ -347,5 +354,6 @@ class ReasoningHandler {
 
 	reset(): void {
 		this.pendingReasoning = null
+		this.received = false
 	}
 }

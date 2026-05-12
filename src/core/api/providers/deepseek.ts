@@ -128,7 +128,7 @@ export class DeepSeekHandler implements ApiHandler {
 				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
-			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+			if (delta && "reasoning_content" in delta) {
 				const shouldYieldReasoning = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
 				if (shouldYieldReasoning) {
 					yield {
