@@ -296,3 +296,71 @@ describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
 		)
 	})
 })
+
+describe("ProviderCatalog Phase 3.3 error path", () => {
+	it("SDK rejection produces an error arm", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockRejectedValue(new Error("sdk unavailable"))
+		const providerId = parseProviderId("openrouter")
+		const config: EffectiveProviderConfig = { providerId, apiKey: "same" }
+		const result = await createProviderCatalog(makeReader(config)).resolveModels(providerId)
+
+		expect(result.ok).toBe(false)
+		if (result.ok) throw new Error("expected error")
+		expect(result.providerId).toBe(providerId)
+		expect(result.configFingerprint).toBe(computeConfigFingerprint(providerId, config))
+		expect(result.error).toEqual({ kind: "unknown", message: "sdk unavailable" })
+		expect(result.fetchedAt).toEqual(expect.any(Number))
+	})
+
+	it("shape validation failure produces a shape error arm", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "bad",
+			knownModels: { bad: { name: "missing id" } },
+		})
+		const providerId = parseProviderId("deepseek")
+		const result = await createProviderCatalog(makeReader({ providerId })).resolveModels(providerId)
+
+		expect(result.ok).toBe(false)
+		if (result.ok) throw new Error("expected error")
+		expect(result.error.kind).toBe("shape")
+		expect(result.error.message).toMatch(/id/i)
+	})
+
+	it("does not cache errors; same fingerprint retries after failure", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig
+			.mockRejectedValueOnce(new Error("transient"))
+			.mockResolvedValueOnce({ modelId: "m", knownModels: { m: { id: "m", name: "M" } } })
+		const providerId = parseProviderId("openrouter")
+		const catalog = createProviderCatalog(makeReader({ providerId, apiKey: "same" }))
+
+		const first = await catalog.resolveModels(providerId)
+		const second = await catalog.resolveModels(providerId)
+
+		expect(first.ok).toBe(false)
+		expect(second.ok).toBe(true)
+		if (!second.ok) throw new Error("expected success")
+		expect(second.defaultModelId).toBe("m")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+	})
+
+	it("does not cache shape errors; same fingerprint retries after malformed response", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig
+			.mockResolvedValueOnce({ modelId: "bad", knownModels: { bad: { name: "missing id" } } })
+			.mockResolvedValueOnce({ modelId: "good", knownModels: { good: { id: "good", name: "Good" } } })
+		const providerId = parseProviderId("deepseek")
+		const catalog = createProviderCatalog(makeReader({ providerId }))
+
+		const first = await catalog.resolveModels(providerId)
+		const second = await catalog.resolveModels(providerId)
+
+		expect(first.ok).toBe(false)
+		expect(second.ok).toBe(true)
+		if (!second.ok) throw new Error("expected success")
+		expect(second.defaultModelId).toBe("good")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+	})
+})

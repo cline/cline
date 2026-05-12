@@ -191,3 +191,27 @@ Decision:
 
 - Proceed with Phase 3.2 commit.
 - Carry source/empty-result/error-arm policy into Phase 3.3.
+
+## 2026-05-12 — Phase 3.3 error-path review
+
+Reviewer: Opus 4.7 teammate (`opus47_phase33_review`, runs `run_00014`-`run_00015`).
+
+Verdict: **pass — OK to commit before Phase 3.4**.
+
+Evidence summarized by reviewer:
+
+- Failure results are not cached: cache `set()` only runs in the success `.then(...)` path.
+- In-flight entries are cleaned up on both success and rejection via `.finally(...)`.
+- SDK rejection returns an `ok: false` error arm with provider id, fingerprint, error, and timestamp.
+- `CatalogShapeError` is distinguished and mapped to `error.kind: "shape"`.
+- Same-fingerprint calls retry after SDK and shape failures.
+
+Non-blocking cautions:
+
+- `toCatalogError` currently collapses all non-shape errors to `kind: "unknown"`; future work can preserve provider status/code when SDK exposes one and map obvious auth/network cases.
+- Error objects intentionally avoid raw SDK error details; keep this behavior unless a redaction-safe diagnostic path is added.
+
+Decision:
+
+- Proceed with Phase 3.3 commit.
+- Carry richer error classification/status-code preservation as a later hardening task.
