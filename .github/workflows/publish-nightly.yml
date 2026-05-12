@@ -13,17 +13,19 @@ concurrency:
   group: publish-nightly-${{ github.ref }}
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  checks: write
+permissions: {}
 
 jobs:
   test:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
+    permissions:
+      contents: read
     uses: ./.github/workflows/test.yml
 
   publish:
     needs: test
+    permissions:
+      contents: write
     name: Publish Cline (Nightly) Extension
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
