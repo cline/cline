@@ -23,6 +23,7 @@ export type ApiProvider =
 	| "vscode-lm"
 	| "cline"
 	| "litellm"
+	| "macm4"
 	| "moonshot"
 	| "nebius"
 	| "fireworks"
@@ -3193,6 +3194,93 @@ export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 	cacheReadsPrice: 0,
 	temperature: 0,
 }
+
+// MacM4LocalAgent tiers
+//
+// Mirrors MACM4_TIERS in src/core/api/providers/macm4.ts (kept duplicated here
+// so the webview-ui bundle can pull tier metadata without importing extension
+// host code). When you add or rename a tier, update both spots and the M7
+// dashboard /api/macm4-models endpoint.
+//
+// All MacM4 traffic is loopback to http://127.0.0.1:4000 (LiteLLM proxy), so
+// supportsPromptCache is false (LiteLLM does not surface Anthropic caching for
+// proxied requests) and pricing for local-* tiers is 0.
+export type MacM4ModelId =
+	| "hybrid-auto"
+	| "local-fast"
+	| "local-long"
+	| "local-agent"
+	| "claude-haiku-4-5"
+	| "claude-sonnet-4-6"
+	| "claude-opus-4-7"
+	| "claude-code"
+export const macm4DefaultModelId: MacM4ModelId = "hybrid-auto"
+export const macm4Models = {
+	"hybrid-auto": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: "Router picks the cheapest tier that fits the prompt.",
+	},
+	"local-fast": {
+		maxTokens: 6144,
+		contextWindow: 16_384,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: "Qwen2.5-Coder on MLX (Apple Silicon GPU). ~70 tok/s, free.",
+	},
+	"local-long": {
+		maxTokens: 6144,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: "Qwen3-Coder-Next 80B on Ollama + TurboQuant. ~12 tok/s, free, 131K ctx.",
+	},
+	"local-agent": {
+		maxTokens: 6144,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: "Alias for local-long with agent-tuned defaults.",
+	},
+	"claude-haiku-4-5": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		description: "Anthropic Haiku 4.5 ($1 / $5 per Mtok), routed via proxy.",
+	},
+	"claude-sonnet-4-6": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "Anthropic Sonnet 4.6 ($3 / $15 per Mtok), routed via proxy.",
+	},
+	"claude-opus-4-7": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "Anthropic Opus 4.7 ($5 / $25 per Mtok), routed via proxy.",
+	},
+	"claude-code": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		description: "Default Claude tier (currently Opus 4.7), routed via proxy.",
+	},
+} as const satisfies Record<MacM4ModelId, ModelInfo>
 
 // AskSage Models
 // https://docs.asksage.ai/

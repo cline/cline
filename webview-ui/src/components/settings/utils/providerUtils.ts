@@ -33,6 +33,8 @@ import {
 	internationalZAiDefaultModelId,
 	internationalZAiModels,
 	liteLlmModelInfoSaneDefaults,
+	macm4DefaultModelId,
+	macm4Models,
 	ModelInfo,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
@@ -146,6 +148,8 @@ export function getModelsForProvider(
 			return nousResearchModels
 		case "litellm":
 			return dynamicModels?.liteLlmModels
+		case "macm4":
+			return macm4Models as Record<string, ModelInfo>
 		// Providers with dynamic models - return undefined
 		case "openrouter":
 		case "cline":
@@ -355,6 +359,24 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
 				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+			}
+		}
+		case "macm4": {
+			// MacM4 reuses the LiteLLM storage slot for its tier id (shared
+			// proxy at :4000, same config shape). Tier metadata is static so
+			// we ignore any user-supplied ModelInfo and always derive from
+			// macm4Models -- this is what gives ContextManager (C3) the
+			// correct contextWindow for local-fast vs local-long.
+			const macm4TierId =
+				(currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelId : apiConfiguration?.actModeLiteLlmModelId) ||
+				macm4DefaultModelId
+			const macm4ModelInfo =
+				(macm4Models as Record<string, ModelInfo>)[macm4TierId] ??
+				(macm4Models as Record<string, ModelInfo>)[macm4DefaultModelId]
+			return {
+				selectedProvider: provider,
+				selectedModelId: macm4TierId,
+				selectedModelInfo: macm4ModelInfo,
 			}
 		}
 		case "xai":
@@ -736,6 +758,14 @@ export async function syncModeConfigurations(
 			updates.actModeLiteLlmModelInfo = sourceFields.liteLlmModelInfo
 			break
 
+		case "macm4":
+			// MacM4 piggybacks on the LiteLLM storage slot (same proxy at
+			// :4000, same key). The tier id is written into liteLlmModelId
+			// so existing sync logic just works.
+			updates.planModeLiteLlmModelId = sourceFields.liteLlmModelId
+			updates.actModeLiteLlmModelId = sourceFields.liteLlmModelId
+			break
+
 		case "groq":
 			updates.planModeGroqModelId = sourceFields.groqModelId
 			updates.actModeGroqModelId = sourceFields.groqModelId
@@ -885,6 +915,13 @@ export const getProviderInfo = (
 					effectiveMode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
 				baseUrl: apiConfiguration.liteLlmBaseUrl,
 				helpText: "Add your LiteLLM proxy URL in settings",
+			}
+		case "macm4":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
+				baseUrl: apiConfiguration.liteLlmBaseUrl,
+				helpText: "Start the MacM4LocalAgent stack (make start) and pick a tier",
 			}
 		case "openai":
 			return {

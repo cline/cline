@@ -53,6 +53,10 @@
 			"label": "LiteLLM"
 		},
 		{
+			"value": "macm4",
+			"label": "MacM4LocalAgent"
+		},
+		{
 			"value": "claude-code",
 			"label": "Claude Code"
 		},

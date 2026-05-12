@@ -177,6 +177,12 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "macm4":
+				// MacM4 is a loopback-only proxy (127.0.0.1:4000) -- the API key
+				// is "noop" by default and the base URL has a hardcoded fallback,
+				// so there is nothing to validate at the config layer. Runtime
+				// errors surface from the handler if the stack is not running.
+				break
 		}
 	}
 	return undefined

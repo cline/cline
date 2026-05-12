@@ -282,6 +282,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.CLINE
 		case "litellm":
 			return ProtoApiProvider.LITELLM
+		case "macm4":
+			return ProtoApiProvider.MACM4
 		case "moonshot":
 			return ProtoApiProvider.MOONSHOT
 		case "huggingface":
@@ -374,6 +376,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "cline"
 		case ProtoApiProvider.LITELLM:
 			return "litellm"
+		case ProtoApiProvider.MACM4:
+			return "macm4"
 		case ProtoApiProvider.MOONSHOT:
 			return "moonshot"
 		case ProtoApiProvider.HUGGINGFACE:
