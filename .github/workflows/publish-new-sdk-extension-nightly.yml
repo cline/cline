@@ -1,4 +1,4 @@
-name: "Publish SDK Nightly Release"
+name: "Publish New SDK Extension Nightly"
 
 on:
     schedule:
@@ -17,7 +17,7 @@ env:
 
 jobs:
     publish:
-        name: Publish Cline (Nightly SDK) Extension
+        name: Publish Cline New SDK Extension Nightly
         if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         environment: PublishNightly
