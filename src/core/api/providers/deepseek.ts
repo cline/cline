@@ -7,6 +7,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
+import { convertDeepSeekMessages } from "../transform/deepseek-format"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
@@ -34,7 +35,7 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.deepseek.com/v1",
+					baseURL: "https://api.deepseek.com",
 					apiKey: this.options.deepSeekApiKey,
 					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
@@ -86,15 +87,17 @@ export class DeepSeekHandler implements ApiHandler {
 		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
 
 		const convertedMessages = convertToOpenAiMessages(messages)
+		const isV4Model = model.id.startsWith("deepseek-v4")
+		const isThinkingEnabled = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
+		const reasoningEffort = isThinkingEnabled
+			? (this.options.reasoningEffort as OpenAI.ChatCompletionReasoningEffort)
+			: undefined
+
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
-			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
-
-		const isV4Model = model.id.startsWith("deepseek-v4")
-		const reasoningEffort =
-			this.options.reasoningEffort && this.options.reasoningEffort !== "none"
-				? (this.options.reasoningEffort as OpenAI.ChatCompletionReasoningEffort)
-				: undefined
+			: isV4Model && isThinkingEnabled
+				? convertDeepSeekMessages(messages, systemPrompt)
+				: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_completion_tokens: model.info.maxTokens,
