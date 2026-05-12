@@ -139,3 +139,55 @@ Decision:
 
 - Proceed with Phase 3.1 commit.
 - Carry the record-key assertion into Phase 3.2 implementation.
+
+## 2026-05-12 — Phase 3.2 resolveModels happy-path review
+
+Reviewer: Opus 4.7 teammate (`opus47_phase32_review`, runs `run_00011`-`run_00013`).
+
+Verdict: **pass with cautions — OK to commit before Phase 3.3**.
+
+Evidence summarized by reviewer:
+
+- `resolveModels` reads effective config through `ProviderConfigReader`, computes a config fingerprint, and uses provider+fingerprint cache/in-flight identity.
+- SDK calls are deduped for matching provider/fingerprint and separated for different fingerprints.
+- `forceRefresh` bypasses cache while still honoring in-flight dedupe.
+- SDK `knownModels` are adapted through `adaptSdkModelInfo`, and a cache record key assertion runs before storing results.
+- The catalog remains read-only with respect to the store; no `write`/`commitSelection` calls are present in `catalog.ts`.
+
+Non-blocking cautions for Phase 3.3+:
+
+- `reader.readSelection(providerId, "act")` is currently only an SDK model-id hint, not model-list identity; future mode-aware catalog surfaces should thread mode explicitly if needed.
+- Empty `knownModels` currently returns an empty success result with `defaultModelId: ""`; Phase 3.3 should decide whether this remains success or becomes a config/empty error arm.
+- `source` is currently `"sdk-dynamic"` for all SDK successful results, even when SDK internally used bundled fallback; source semantics should be refined when SDK exposes enough metadata or when fallbacks are layered.
+- Phase 3.3 must translate SDK errors and `CatalogShapeError` into error arms and must not cache failed results.
+
+Decision:
+
+- Proceed with Phase 3.2 commit.
+- Carry source/empty-result/error-arm policy into Phase 3.3.
+
+## 2026-05-12 — Phase 3.2 resolveModels happy-path review
+
+Reviewer: Opus 4.7 teammate (`opus47_phase32_review`, runs `run_00011`-`run_00013`).
+
+Verdict: **pass with cautions — OK to commit before Phase 3.3**.
+
+Evidence summarized by reviewer:
+
+- `resolveModels` reads effective config through `ProviderConfigReader`, computes a config fingerprint, and uses provider+fingerprint cache/in-flight identity.
+- SDK calls are deduped for matching provider/fingerprint and separated for different fingerprints.
+- `forceRefresh` bypasses cache while still honoring in-flight dedupe.
+- SDK `knownModels` are adapted through `adaptSdkModelInfo`, and a cache record key assertion runs before storing results.
+- The catalog remains read-only with respect to the store; no `write`/`commitSelection` calls are present in `catalog.ts`.
+
+Non-blocking cautions for Phase 3.3+:
+
+- `reader.readSelection(providerId, "act")` is currently only an SDK model-id hint, not model-list identity; future mode-aware catalog surfaces should thread mode explicitly if needed.
+- Empty `knownModels` currently returns an empty success result with `defaultModelId: ""`; Phase 3.3 should decide whether this remains success or becomes a config/empty error arm.
+- `source` is currently `"sdk-dynamic"` for all SDK successful results, even when SDK internally used bundled fallback; source semantics should be refined when SDK exposes enough metadata or when fallbacks are layered.
+- Phase 3.3 must translate SDK errors and `CatalogShapeError` into error arms and must not cache failed results.
+
+Decision:
+
+- Proceed with Phase 3.2 commit.
+- Carry source/empty-result/error-arm policy into Phase 3.3.
