@@ -38,6 +38,14 @@ function isDeepSeekFamily(input: ProviderOptionMatchInput): boolean {
 	return !!input.modelFamily?.trim().toLowerCase().includes("deepseek");
 }
 
+function isQwen3Family(input: ProviderOptionMatchInput): boolean {
+	const normalizedFamily = input.modelFamily?.trim().toLowerCase() ?? "";
+	const normalizedModelId = input.request.modelId.toLowerCase();
+	return (
+		normalizedFamily.startsWith("qwen3") || normalizedModelId.includes("qwen3")
+	);
+}
+
 function resolveFamilyThinkingType(
 	input: ProviderOptionMatchInput,
 	defaultWhenUnset: "enabled" | "disabled" | undefined,
@@ -167,6 +175,32 @@ const openRouterReasoningRule: ProviderOptionRule = {
 			input,
 			buildOpenRouterReasoningOptions(input.request),
 		),
+};
+
+const ollamaReasoningDisabledRule: ProviderOptionRule = {
+	id: "provider.ollama.disable-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Ollama OpenAI-compatible Qwen3 models need reasoning_effort=none to disable default thinking.",
+	applies: (input) =>
+		input.request.providerId === "ollama" &&
+		isQwen3Family(input) &&
+		input.request.reasoning?.enabled === false,
+	suppresses: { genericThinking: true },
+	build: (input) => {
+		const bucketOptions = {
+			reasoningEffort: "none",
+			reasoning: { effort: "none" },
+		};
+		return {
+			...buildProviderAndAliasPatch({
+				providerId: input.request.providerId,
+				providerOptionsKey: input.providerOptionsKey,
+				bucketOptions,
+			}),
+			openaiCompatible: bucketOptions,
+		};
+	},
 };
 
 const geminiThinkingRule: ProviderOptionRule = {
@@ -304,6 +338,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	genericProviderFanoutRule,
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,
+	ollamaReasoningDisabledRule,
 	geminiThinkingRule,
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,

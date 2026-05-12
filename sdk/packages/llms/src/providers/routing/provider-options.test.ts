@@ -736,6 +736,52 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
+			name: "ollama Qwen3 reasoning.enabled=false -> OpenAI-compatible reasoning disabled",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: false },
+			},
+			context: { family: "qwen3" },
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "ollama non-Qwen3 reasoning.enabled=false -> no Qwen3 reasoning override",
+			request: {
+				providerId: "ollama",
+				modelId: "llama3.1",
+				reasoning: { enabled: false },
+			},
+			context: { family: "llama" },
+			expect: [
+				{
+					bucket: "ollama",
+					lacks: ["reasoningEffort", "reasoning", "thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["reasoningEffort", "reasoning", "thinking"],
+				},
+			],
+		},
+		{
 			name: "cline non-K2.6 Moonshot Kimi reasoning.enabled=false -> thinking.type=disabled",
 			request: {
 				providerId: "cline",
