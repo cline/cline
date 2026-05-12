@@ -238,3 +238,35 @@ Decision:
 
 - Proceed with Phase 3.4 commit.
 - Revisit catalog lifecycle disposal when integrating into controller startup/shutdown if needed.
+
+## 2026-05-12 — Phase 3.5 listProviders implementation
+
+Implementation source:
+
+- GPT-5.5 teammate implementation in `/Users/dpc/clients/cline/cline2` was used as the base.
+- Lead review/synthesis added failure retry behavior for the per-catalog listing promise.
+- The planned Opus 4.7 review could not complete because the team runtime reset, so the lead performed the architectural review directly before commit.
+
+SDK API decision:
+
+- Use `getAllProviders()` from `@clinebot/llms`.
+- Do not use settings-backed/local provider listing APIs for Phase 3.5 because top-level provider listings must not read provider config or pull catalog listing toward provider settings storage.
+
+Behavior:
+
+- `ProviderCatalog.listProviders()` maps SDK `ProviderInfo` to lightweight `ProviderListing` records.
+- Full model lists are intentionally omitted; provider models still flow through `resolveModels`.
+- The listing promise is cached per catalog instance and reset on failure so a transient SDK listing error can be retried.
+- The catalog still accepts only `ProviderConfigReader` and does not call `write` or `commitSelection`.
+
+Validation:
+
+- `npm run check-types -- --pretty false` passed. This also ran `npm run protos`, which generated missing proto outputs required by the focused vitest run.
+- `NODE_ENV=production npx vitest run --config vitest.config.sdk.ts src/sdk/model-catalog/catalog.test.ts --reporter=dot` passed after proto generation: 1 file, 22 tests.
+- Grep for `\.write\|commitSelection` in `catalog.ts` shows only the invariant doc comment.
+- Grep for `as ProviderId\|as Fingerprint` under `src/sdk/model-catalog` shows only the expected contract comments and parse/compute boundary casts.
+
+Decision:
+
+- Phase 3.5 is complete.
+- Proceed to Phase 3.6 (`subscribe(providerId, listener)`).

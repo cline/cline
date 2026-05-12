@@ -13,11 +13,20 @@ import { parseProviderId } from "./provider-id"
 
 const mocks = vi.hoisted(() => ({
 	resolveProviderConfig: vi.fn(),
+	getAllProviders: vi.fn(),
 }))
 
 vi.mock("@clinebot/core", () => ({
 	resolveProviderConfig: mocks.resolveProviderConfig,
 }))
+
+vi.mock("@clinebot/llms", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@clinebot/llms")>()
+	return {
+		...actual,
+		getAllProviders: mocks.getAllProviders,
+	}
+})
 
 const modelInfo: ModelInfo = {
 	supportsPromptCache: false,
@@ -30,6 +39,7 @@ type TestReader = ProviderConfigReader & {
 
 beforeEach(() => {
 	mocks.resolveProviderConfig.mockReset()
+	mocks.getAllProviders.mockReset()
 })
 
 function fingerprint(value: string): Fingerprint {
@@ -450,5 +460,96 @@ describe("ProviderCatalog Phase 3.4 store-driven invalidation", () => {
 
 		expect(second).toBe(first)
 		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+	})
+})
+
+describe("ProviderCatalog Phase 3.5 listProviders", () => {
+	it("returns SDK provider listings with top-level picker metadata", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.getAllProviders.mockResolvedValue([
+			{
+				id: "openrouter",
+				name: "OpenRouter",
+				description: "OpenRouter AI platform",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				defaultModelId: "anthropic/claude-sonnet-4.6",
+				source: "system",
+			},
+		])
+		const providerId = parseProviderId("openrouter")
+		const catalog = createProviderCatalog(makeReader({ providerId }))
+
+		const listings = await catalog.listProviders()
+
+		expect(listings).toHaveLength(1)
+		expect(listings[0]).toEqual({
+			id: providerId,
+			name: "OpenRouter",
+			defaultModelId: "anthropic/claude-sonnet-4.6",
+			protocol: "openai-chat",
+			authDescription: "OpenRouter AI platform",
+			allowsCustomModelIds: false,
+		})
+		expect(listings[0]).not.toHaveProperty("models")
+		expect(mocks.getAllProviders).toHaveBeenCalledTimes(1)
+	})
+
+	it("caches provider listings per catalog instance without reading provider config", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.getAllProviders.mockResolvedValue([
+			{
+				id: "ollama",
+				name: "Ollama",
+				description: "Ollama Cloud and local LLM hosting",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				defaultModelId: "default",
+				source: "system",
+			},
+		])
+		const reader = makeReader({ providerId: parseProviderId("ollama") })
+		const catalog = createProviderCatalog(reader)
+
+		const first = await catalog.listProviders()
+		const second = await catalog.listProviders()
+
+		expect(second).toBe(first)
+		expect(first[0]).toMatchObject({
+			id: parseProviderId("ollama"),
+			name: "Ollama",
+			defaultModelId: "default",
+			allowsCustomModelIds: true,
+		})
+		expect(mocks.getAllProviders).toHaveBeenCalledTimes(1)
+		expect(reader.read).not.toHaveBeenCalled()
+		expect(reader.readSelection).not.toHaveBeenCalled()
+	})
+
+	it("retries provider listing after an SDK listing failure", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.getAllProviders.mockRejectedValueOnce(new Error("temporary catalog failure")).mockResolvedValueOnce([
+			{
+				id: "deepseek",
+				name: "DeepSeek",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				defaultModelId: "deepseek-v4-flash",
+				source: "system",
+			},
+		])
+		const providerId = parseProviderId("deepseek")
+		const catalog = createProviderCatalog(makeReader({ providerId }))
+
+		await expect(catalog.listProviders()).rejects.toThrow("temporary catalog failure")
+		await expect(catalog.listProviders()).resolves.toMatchObject([
+			{
+				id: providerId,
+				name: "DeepSeek",
+				defaultModelId: "deepseek-v4-flash",
+				allowsCustomModelIds: false,
+			},
+		])
+		expect(mocks.getAllProviders).toHaveBeenCalledTimes(2)
 	})
 })
