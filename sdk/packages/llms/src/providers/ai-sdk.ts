@@ -19,9 +19,11 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
 import {
-	applyPromptCacheToLastTextPart,
 	isAnthropicCompatibleModel,
 	resolveModelFamily,
+} from "./model-facts";
+import {
+	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {
