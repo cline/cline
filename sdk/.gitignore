@@ -1,0 +1,61 @@
+# dependencies (bun install)
+node_modules
+
+# output
+out
+dist
+*.tgz
+target
+.next
+.map
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+.env
+.env*.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+next-env.d.ts
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# Package lock files created by other package managers
+package-lock.json
+yarn.lock 
+pnpm-lock.yaml
+
+# Session files / User data
+.cline/data
+.cline/tmp
+*.db
+*.db-shm
+*.db-wal
+
+# Protobuf generated code
+packages/rpc/src/proto/generated
+
+# Tauri generated code
+apps/*/src-tauri/gen
+apps/*/src-tauri/bin
+apps/examples/*/src-tauri/gen
+apps/examples/*/src-tauri/bin
+# Tauri UI test snapshots
+apps/*/src/tests/.tui-test
+apps/*/src/tests/tui-traces
+
+.cli-release-staging

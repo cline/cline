@@ -2045,6 +2045,10 @@ export class TelemetryService {
 	 * @param searchType Type of search (file, folder, or all)
 	 * @param isEmpty Whether the search returned no results
 	 * @param fsContext Optional filesystem info, emitted as `fs_class` and `fs_type`.
+	 * @param searchSource Which backend served the search: `host_index` (e.g.
+	 *   JetBrains FilenameIndex) or `ripgrep` (default everywhere). Emitted as
+	 *   the `search_source` property so we can tell, for a given fs_class, how
+	 *   often the host index actually picks up the load.
 	 */
 	public captureMentionSearchResults(
 		query: string,
@@ -2052,6 +2056,7 @@ export class TelemetryService {
 		searchType: "file" | "folder" | "all",
 		isEmpty: boolean,
 		fsContext?: { fsClass?: "local" | "network" | "unknown"; fsType?: string },
+		searchSource?: "host_index" | "ripgrep",
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MENTION_SEARCH_RESULTS,
@@ -2062,6 +2067,7 @@ export class TelemetryService {
 				isEmpty,
 				...(fsContext?.fsClass ? { fs_class: fsContext.fsClass } : {}),
 				...(fsContext?.fsType ? { fs_type: fsContext.fsType } : {}),
+				...(searchSource ? { search_source: searchSource } : {}),
 				timestamp: new Date().toISOString(),
 			},
 		})

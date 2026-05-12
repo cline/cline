@@ -1,0 +1,62 @@
+{
+	"name": "@cline/packages",
+	"private": true,
+	"workspaces": [
+		"packages/*",
+		"apps/*",
+		"apps/examples/*",
+		"apps/examples/vscode/src/webview",
+		"examples",
+		"examples/plugins/*"
+	],
+	"scripts": {
+		"prepare": "husky",
+		"build": "bun run clean && bun install && bun run build:sdk && bun -F @cline/cli build",
+		"build:sdk": "bun --production -F './packages/*' build",
+		"build:apps": "bun -F './apps/**' --production build",
+		"build:models": "bun -F @cline/llms generate:models && bun format --write",
+		"dev": "bun --conditions=development run build:sdk && bun run cli && bun run cli hub stop",
+		"cli": "bun --conditions=development --cwd apps/cli dev",
+		"code": "bun --conditions=development -F @cline/code dev",
+		"clean": "bun --parallel -F '*' clean",
+		"types": "bun --parallel -F '*' typecheck",
+		"test": "bun --parallel -F './packages/**' -F './apps/cli' test",
+		"test:unit": "bash -lc 'set -euo pipefail; bun -F @cline/agents test & p1=$!; bun -F @cline/llms test & p2=$!; bun -F @cline/core test:unit & p3=$!; bun -F @cline/cli test:unit & p4=$!; wait $p1; wait $p2; wait $p3; wait $p4'",
+		"test:e2e": "bun -F @cline/core test:e2e && bun -F @cline/cli test:e2e",
+		"test:e2e:interactive": "bun -F @cline/cli test:e2e:interactive",
+		"verify:routines": "zsh -lc 'cd packages/core && bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
+		"verify:workos-device-auth": "bun scripts/verify-workos-device-auth.ts",
+		"biome": "bunx --bun @biomejs/biome",
+		"format": "bun biome format",
+		"lint": "bun biome lint",
+		"fix": "bun biome check --write --unsafe --diagnostic-level=error",
+		"check": "bun biome check --diagnostic-level=error && bun run build:sdk && bun run -F @cline/cli build && bun --parallel -F './packages/**' -F @cline/cli typecheck && bun scripts/check-publish.ts",
+		"version": "bun run types && bun scripts/version.ts",
+		"release": "bun scripts/release.ts"
+	},
+	"lint-staged": {
+		"*": [
+			"sh -c 'bun run types'",
+			"bun biome check --no-errors-on-unmatched --files-ignore-unknown=true"
+		]
+	},
+	"module": "index.ts",
+	"type": "module",
+	"engines": {
+		"bun": "1.3.13",
+		"node": ">=22"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.5",
+		"@types/bun": "^1.3.13",
+		"@types/node": "^25.3.5",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.3.2",
+		"vitest": "^4.0.18"
+	},
+	"peerDependencies": {
+		"nanoid": "^5.1.7",
+		"typescript": "^5.9.3"
+	},
+	"packageManager": "bun@1.3.13"
+}

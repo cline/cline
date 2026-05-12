@@ -1,0 +1,122 @@
+#!/usr/bin/env node
+
+// Binary resolver for Cline CLI.
+//
+// This script runs with Node.js (available everywhere npm is) and finds the
+// correct platform-specific compiled binary to execute. The compiled binary
+// has Bun embedded, so users don't need Bun installed.
+//
+// Resolution order:
+// 1. CLINE_BIN_PATH env var override
+// 2. Cached binary at bin/.cline (created by postinstall)
+// 3. Walk up node_modules to find the platform-specific package
+
+const childProcess = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+
+const scriptPath = fs.realpathSync(__filename);
+const scriptDir = path.dirname(scriptPath);
+const childEnv = {
+	...process.env,
+	CLINE_WRAPPER_PATH: scriptPath,
+};
+
+function run(target) {
+	const result = childProcess.spawnSync(target, process.argv.slice(2), {
+		stdio: "inherit",
+		env: childEnv,
+	});
+	if (result.error) {
+		console.error(result.error.message);
+		process.exit(1);
+	}
+	if (typeof result.status === "number") {
+		process.exit(result.status);
+	}
+	if (result.signal) {
+		process.kill(process.pid, result.signal);
+		process.exit(128);
+	}
+	process.exit(1);
+}
+
+// 1. Check env var override
+const envPath = process.env.CLINE_BIN_PATH;
+if (envPath) {
+	run(envPath);
+}
+
+// 2. Check cached binary
+const cached = path.join(scriptDir, ".cline");
+if (fs.existsSync(cached)) {
+	run(cached);
+}
+
+// 3. Detect platform and architecture
+const platformMap = {
+	darwin: "darwin",
+	linux: "linux",
+	win32: "windows",
+};
+const archMap = {
+	x64: "x64",
+	arm64: "arm64",
+};
+
+let platform = platformMap[os.platform()];
+if (!platform) {
+	platform = os.platform();
+}
+let arch = archMap[os.arch()];
+if (!arch) {
+	arch = os.arch();
+}
+
+const base = "@cline/cli-" + platform + "-" + arch;
+const binary = platform === "windows" ? "cline.exe" : "cline";
+
+// Build fallback chain of package names to try
+const names = [base];
+
+function findBinary(startDir) {
+	let current = startDir;
+	for (;;) {
+		const modules = path.join(current, "node_modules");
+		if (fs.existsSync(modules)) {
+			for (const name of names) {
+				// Scoped package: @cline/cli-darwin-arm64 lives at
+				// node_modules/@cline/cli-darwin-arm64
+				const candidate = path.join(modules, name, "bin", binary);
+				if (fs.existsSync(candidate)) return candidate;
+			}
+		}
+		const parent = path.dirname(current);
+		if (parent === current) {
+			return undefined;
+		}
+		current = parent;
+	}
+}
+
+const resolved = findBinary(scriptDir);
+if (!resolved) {
+	console.error(
+		"Could not find the Cline CLI binary for your platform.\n" +
+			"Your platform: " +
+			os.platform() +
+			" " +
+			os.arch() +
+			"\n" +
+			"Looked for: " +
+			names.map(function (n) {
+				return '"' + n + '"';
+			}).join(" or ") +
+			"\n\n" +
+			"Try reinstalling: npm install -g cline",
+	);
+	process.exit(1);
+}
+
+run(resolved);

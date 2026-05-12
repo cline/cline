@@ -1,0 +1,217 @@
+import { registerDisposable } from "@cline/shared";
+import { nowIso } from "./helpers";
+import type { ActiveCliSession, CliOutputMode } from "./types";
+
+// =============================================================================
+// ANSI Colors (no dependencies for speed)
+// =============================================================================
+
+export const c = {
+	reset: "\x1b[0m",
+	dim: "\x1b[2m",
+	bold: "\x1b[1m",
+	cyan: "\x1b[36m",
+	green: "\x1b[32m",
+	yellow: "\x1b[33m",
+	red: "\x1b[31m",
+	gray: "\x1b[90m",
+};
+
+// =============================================================================
+// Shared mutable state for output
+// =============================================================================
+
+let currentOutputMode: CliOutputMode = "text";
+let activeCliSession: ActiveCliSession | undefined;
+
+export function setCurrentOutputMode(mode: CliOutputMode): void {
+	currentOutputMode = mode;
+}
+
+export function getCurrentOutputMode(): CliOutputMode {
+	return currentOutputMode;
+}
+
+export function setActiveCliSession(
+	session: ActiveCliSession | undefined,
+): void {
+	activeCliSession = session;
+}
+
+export function getActiveCliSession(): ActiveCliSession | undefined {
+	return activeCliSession;
+}
+
+// =============================================================================
+// Stream error guards
+// =============================================================================
+
+const STDOUT_ERROR_GUARD = Symbol.for("@cline/cli.stdoutErrorGuard");
+const STDERR_ERROR_GUARD = Symbol.for("@cline/cli.stderrErrorGuard");
+
+type GuardedStream = NodeJS.WriteStream & {
+	[STDOUT_ERROR_GUARD]?: (error: unknown) => void;
+	[STDERR_ERROR_GUARD]?: (error: unknown) => void;
+};
+
+function exitForBrokenPipe(): never {
+	process.exit(process.exitCode ?? 0);
+}
+
+export function isBrokenPipeError(error: unknown): boolean {
+	return Boolean(
+		error &&
+			typeof error === "object" &&
+			"code" in error &&
+			typeof (error as { code?: unknown }).code === "string" &&
+			(error as { code: string }).code === "EPIPE",
+	);
+}
+
+export function installStreamErrorGuards(): void {
+	const stdout = process.stdout as GuardedStream;
+	if (!stdout[STDOUT_ERROR_GUARD]) {
+		const onStdoutError = (error: unknown) => {
+			if (isBrokenPipeError(error)) {
+				exitForBrokenPipe();
+			}
+		};
+		stdout[STDOUT_ERROR_GUARD] = onStdoutError;
+		stdout.on("error", onStdoutError);
+		registerDisposable(() => {
+			const guard = stdout[STDOUT_ERROR_GUARD];
+			if (!guard) {
+				return;
+			}
+			stdout.off("error", guard);
+			delete stdout[STDOUT_ERROR_GUARD];
+		});
+	}
+
+	const stderr = process.stderr as GuardedStream;
+	if (!stderr[STDERR_ERROR_GUARD]) {
+		const onStderrError = (error: unknown) => {
+			if (isBrokenPipeError(error)) {
+				exitForBrokenPipe();
+			}
+		};
+		stderr[STDERR_ERROR_GUARD] = onStderrError;
+		stderr.on("error", onStderrError);
+		registerDisposable(() => {
+			const guard = stderr[STDERR_ERROR_GUARD];
+			if (!guard) {
+				return;
+			}
+			stderr.off("error", guard);
+			delete stderr[STDERR_ERROR_GUARD];
+		});
+	}
+}
+
+// =============================================================================
+// CLI Output
+// =============================================================================
+
+function jsonReplacer(_key: string, value: unknown): unknown {
+	if (value instanceof Error) {
+		return {
+			name: value.name,
+			message: value.message,
+			stack: value.stack,
+		};
+	}
+	if (typeof value === "bigint") {
+		return value.toString();
+	}
+	return value;
+}
+
+export function emitJsonLine(
+	stream: "stdout" | "stderr",
+	record: Record<string, unknown>,
+): void {
+	const line = `${JSON.stringify(
+		{
+			ts: nowIso(),
+			...record,
+		},
+		jsonReplacer,
+	)}\n`;
+	try {
+		if (stream === "stdout") {
+			process.stdout.write(line);
+		} else {
+			process.stderr.write(line);
+		}
+	} catch (error) {
+		if (!isBrokenPipeError(error)) {
+			throw error;
+		}
+	}
+}
+
+export function write(text: string): void {
+	try {
+		process.stdout.write(text);
+	} catch (error) {
+		if (!isBrokenPipeError(error)) {
+			throw error;
+		}
+	}
+}
+
+export function writeln(text = ""): void {
+	if (currentOutputMode === "json") {
+		return;
+	}
+	write(`${text}\n`);
+}
+
+export function prepareTerminalForPostTuiOutput(): void {
+	if (currentOutputMode === "json" || !process.stdout.isTTY) {
+		return;
+	}
+	write("\r\x1b[J");
+}
+
+export function writeErr(text: string): void {
+	if (currentOutputMode === "json") {
+		emitJsonLine("stderr", { type: "error", message: text });
+		return;
+	}
+	console.error(`${c.red}error:${c.reset} ${text}`);
+}
+
+// =============================================================================
+// Formatting helpers
+// =============================================================================
+
+export function formatUsd(value: number, fixed = 6): string {
+	if (!Number.isFinite(value) || value <= 0) {
+		return "$0.00";
+	}
+	if (value >= 1) {
+		return `$${value.toFixed(fixed)}`;
+	}
+	if (value >= 0.01) {
+		return `$${value.toFixed(fixed)}`;
+	}
+	return `$${value.toFixed(fixed)}`;
+}
+
+export function formatCreditBalance(value: number, decimalPlaces = 2): string {
+	if (!Number.isFinite(value)) {
+		return "$0.00";
+	}
+	return `$${value.toLocaleString("en-US", {
+		minimumFractionDigits: decimalPlaces,
+		maximumFractionDigits: decimalPlaces,
+	})}`;
+}
+
+export function normalizeCreditBalance(value: number): number {
+	if (!Number.isFinite(value)) {
+		return 0;
+	}
+	return value / 1_000_000;
+}

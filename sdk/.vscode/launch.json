@@ -1,0 +1,132 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run VS Code Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/examples/vscode",
+				"--disable-extensions"
+			],
+			"outFiles": ["${workspaceFolder}/apps/examples/vscode/dist/**/*.js"],
+			"preLaunchTask": "build-vscode-extension"
+		},
+		{
+			"name": "Run VS Code Extension (Dev Webview)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/examples/vscode",
+				"--disable-extensions"
+			],
+			"outFiles": ["${workspaceFolder}/apps/examples/vscode/dist/**/*.js"],
+			"env": {
+				"VITE_DEV_SERVER_URL": "http://localhost:5173"
+			},
+			"preLaunchTask": "dev-all-vscode",
+			"postDebugTask": "kill-vscode-dev"
+		},
+		{
+			"name": "Launch Bun CLI (Prompt)",
+			"type": "bun",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/apps/cli",
+			"runtime": "bun",
+			"runtimeArgs": ["--conditions=development"],
+			"program": "${workspaceFolder}/apps/cli/src/index.ts",
+			"args": ["${input:cliPrompt}"],
+			"env": {
+				"CLINE_BUILD_ENV": "development"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Launch RPC Server",
+			"type": "bun",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/apps/cli",
+			"runtime": "bun",
+			"runtimeArgs": ["--conditions=development"],
+			"program": "${workspaceFolder}/apps/cli/src/index.ts",
+			"args": ["rpc", "start"],
+			"env": {
+				"CLINE_BUILD_ENV": "development",
+				"CLINE_DEBUG_PORT_BASE": "9230"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach RPC Runtime (9230)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9230",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Hook Worker (9231)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9231",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Plugin Sandbox (9232)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9232",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Connector Child (9233)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9233",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		}
+	],
+	"compounds": [
+		{
+			"name": "Launch RPC Server Debugger",
+			"configurations": ["Launch RPC Server", "Attach RPC Runtime (9230)"]
+		},
+		{
+			"name": "Launch CLI Debugger",
+			"configurations": [
+				"Launch Bun CLI (Prompt)",
+				"Attach RPC Runtime (9230)",
+				"Attach Hook Worker (9231)",
+				"Attach Plugin Sandbox (9232)",
+				"Attach Connector Child (9233)"
+			]
+		}
+	],
+	"inputs": [
+		{
+			"id": "cliPrompt",
+			"type": "promptString",
+			"description": "Prompt to send to the CLI",
+			"default": "hey"
+		}
+	]
+}
