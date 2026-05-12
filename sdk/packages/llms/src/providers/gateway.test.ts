@@ -193,17 +193,30 @@ describe("sdk-gateway", () => {
 			.listProviders()
 			.find((provider) => provider.id === "aihubmix");
 		expect(aihubmix?.metadata).toMatchObject({
-			promptCacheStrategy: "anthropic-automatic",
+			routing: {
+				promptCache: {
+					format: "anthropic-cache-control",
+				},
+				reasoning: {
+					format: "anthropic-thinking",
+					routes: [
+						{
+							matcher: "anthropic-compatible",
+						},
+					],
+				},
+			},
 		});
 	});
 
-	it("keeps anthropic-automatic prompt cache strategy on the expected remapped provider set", () => {
+	it("keeps Anthropic cache-control routing on the expected provider set", () => {
 		const gateway = createGateway();
 		const strategyProviders = gateway
 			.listProviders()
 			.filter(
 				(provider) =>
-					provider.metadata?.promptCacheStrategy === "anthropic-automatic",
+					provider.metadata?.routing?.promptCache?.format ===
+					"anthropic-cache-control",
 			)
 			.map((provider) => provider.id)
 			.sort();
@@ -222,6 +235,80 @@ describe("sdk-gateway", () => {
 			"vercel-ai-gateway",
 			"vertex",
 		]);
+	});
+
+	it("routes Qwen cache controls by model family instead of exact model ids", () => {
+		const gateway = createGateway();
+		const openrouter = gateway
+			.listProviders()
+			.find((provider) => provider.id === "openrouter");
+		const promptCacheRoutes =
+			openrouter?.metadata?.routing?.promptCache?.routes ?? [];
+
+		expect(promptCacheRoutes).toEqual([
+			{ matcher: "anthropic-compatible" },
+			{
+				matcher: "model-family",
+				family: "qwen",
+				requiredCapability: "prompt-cache",
+			},
+		]);
+		expect(promptCacheRoutes).not.toContainEqual(
+			expect.objectContaining({ matcher: "model-id" }),
+		);
+
+		const openrouterQwen = gateway
+			.listModels("openrouter")
+			.find((model) => model.id === "qwen/qwen3.6-plus");
+		expect(openrouterQwen?.metadata?.family).toBe("qwen");
+		expect(openrouterQwen?.capabilities).toContain("prompt-cache");
+
+		const directQwen = gateway
+			.listModels("qwen")
+			.find((model) => model.id === "qwen-plus-latest");
+		expect(directQwen).toBeDefined();
+		expect(directQwen?.metadata?.family).toBe("qwen");
+		expect(directQwen?.capabilities).toContain("prompt-cache");
+
+		const directQwenCode = gateway
+			.listModels("qwen-code")
+			.find((model) => model.id === "qwen3-coder-plus");
+		expect(directQwenCode).toBeDefined();
+		expect(directQwenCode?.metadata?.family).toBe("qwen");
+		expect(directQwenCode?.capabilities).toContain("prompt-cache");
+	});
+
+	it("deep-merges provider config routing metadata overrides", () => {
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					metadata: {
+						routing: {
+							promptCache: {
+								format: "anthropic-cache-control",
+								routes: [{ matcher: "model-id", modelId: "custom/qwen" }],
+							},
+						},
+					},
+				},
+			],
+		});
+
+		const openrouter = gateway
+			.listProviders()
+			.find((provider) => provider.id === "openrouter");
+
+		expect(openrouter?.metadata?.routing).toMatchObject({
+			promptCache: {
+				format: "anthropic-cache-control",
+				routes: [{ matcher: "model-id", modelId: "custom/qwen" }],
+			},
+			reasoning: {
+				format: "anthropic-thinking",
+				routes: [{ matcher: "anthropic-compatible" }],
+			},
+		});
 	});
 
 	it("adapts OpenAI Responses streams through the native AI SDK provider", async () => {
@@ -1735,6 +1822,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "alibaba/qwen3.6-plus",
 							name: "Qwen 3.6 Plus",
+							capabilities: ["prompt-cache"],
 							metadata: {
 								family: "qwen",
 							},
@@ -1772,6 +1860,7 @@ describe("sdk-gateway", () => {
 					}),
 				}),
 			}),
+			{ type: "text", text: " " },
 		]);
 		expect(userMessage?.content).not.toBe("Hello");
 	});
@@ -2074,7 +2163,14 @@ describe("sdk-gateway", () => {
 				{
 					providerId: "deepseek",
 					apiKey: "deepseek-key",
-					metadata: { promptCacheStrategy: "anthropic-automatic" },
+					metadata: {
+						routing: {
+							promptCache: {
+								format: "anthropic-cache-control",
+								routes: [{ matcher: "anthropic-compatible" }],
+							},
+						},
+					},
 					models: [
 						{
 							id: "deepseek-claude-alias",
@@ -2127,6 +2223,289 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it("preserves legacy promptCacheStrategy for custom Qwen provider configs", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "deepseek",
+					apiKey: "deepseek-key",
+					metadata: {
+						promptCacheStrategy: "anthropic-automatic",
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "deepseek",
+				modelId: "qwen/qwen3.6-plus",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					expect.objectContaining({
+						role: "user",
+						content: [
+							expect.objectContaining({
+								type: "text",
+								text: "Hello",
+								providerOptions: expect.objectContaining({
+									openaiCompatible: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+									deepseek: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+							{ type: "text", text: " " },
+						],
+					}),
+				],
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					deepseek: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+		const qwenCall = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			providerOptions?: Record<string, Record<string, unknown> | undefined>;
+		};
+		expect(qwenCall.providerOptions?.anthropic).not.toEqual(
+			expect.objectContaining({
+				cache_control: { type: "ephemeral" },
+			}),
+		);
+	});
+
+	it("forwards Anthropic-style prompt cache controls for Qwen on OpenRouter", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 10126,
+						completion_tokens: 13,
+						prompt_tokens_details: {
+							cached_tokens: 0,
+							cache_write_tokens: 10106,
+						},
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "openrouter-key",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "qwen/qwen3.6-plus",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "user",
+						content: [
+							expect.objectContaining({
+								type: "text",
+								providerOptions: expect.objectContaining({
+									openaiCompatible: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+									openrouter: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+							{ type: "text", text: " " },
+						],
+					}),
+				]),
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					openrouter: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+		const qwenCall = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			providerOptions?: Record<string, Record<string, unknown> | undefined>;
+		};
+		expect(qwenCall.providerOptions?.anthropic).not.toEqual(
+			expect.objectContaining({
+				cache_control: { type: "ephemeral" },
+			}),
+		);
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: expect.objectContaining({
+				cacheReadTokens: 0,
+				cacheWriteTokens: 10106,
+			}),
+		});
+	});
+
+	it.each([
+		{
+			providerId: "cline",
+			modelId: "qwen/qwen3.6-plus",
+			providerOptionsKey: "cline",
+			aliasKey: undefined,
+		},
+		{
+			providerId: "vercel-ai-gateway",
+			modelId: "alibaba/qwen3.6-plus",
+			providerOptionsKey: "vercel-ai-gateway",
+			aliasKey: "vercelAiGateway",
+		},
+	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
+		providerId,
+		modelId,
+		providerOptionsKey,
+		aliasKey,
+	}) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: "provider-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+				reasoning: { enabled: true, effort: "high" },
+			}),
+		);
+
+		const qwenCall = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			messages?: Array<{
+				role: string;
+				content: Array<{
+					type: string;
+					providerOptions?: Record<string, Record<string, unknown>>;
+				}>;
+			}>;
+			providerOptions?: Record<string, Record<string, unknown> | undefined>;
+		};
+		const expectedCacheControl = {
+			cache_control: { type: "ephemeral" },
+		};
+
+		expect(qwenCall.messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					role: "user",
+					content: [
+						expect.objectContaining({
+							type: "text",
+							providerOptions: expect.objectContaining({
+								openaiCompatible: expect.objectContaining(expectedCacheControl),
+								[providerOptionsKey]:
+									expect.objectContaining(expectedCacheControl),
+							}),
+						}),
+						{ type: "text", text: " " },
+					],
+				}),
+			]),
+		);
+		expect(qwenCall.providerOptions).toEqual(
+			expect.objectContaining({
+				openaiCompatible: expect.objectContaining(expectedCacheControl),
+				[providerOptionsKey]: expect.objectContaining(expectedCacheControl),
+			}),
+		);
+		if (aliasKey) {
+			expect(qwenCall.providerOptions?.[aliasKey]).toEqual(
+				expect.objectContaining(expectedCacheControl),
+			);
+		}
+		expect(qwenCall.providerOptions?.[providerOptionsKey]).not.toEqual(
+			expect.objectContaining({
+				reasoning: expect.anything(),
+			}),
+		);
+		expect(qwenCall.providerOptions?.anthropic).not.toEqual(
+			expect.objectContaining(expectedCacheControl),
+		);
+	});
+
+	it.each([
+		{
+			providerId: "openrouter",
+			modelId: "qwen/qwen-future-cache-model",
+		},
+		{
+			providerId: "vercel-ai-gateway",
+			modelId: "alibaba/qwen-future-cache-model",
+		},
+	])("does not prompt-cache unregistered $providerId Qwen ids without capability metadata", async ({
+		providerId,
+		modelId,
+	}) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId, apiKey: "test-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleSpy).toHaveBeenCalledWith(modelId);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(JSON.stringify(call)).not.toContain("cache_control");
 	});
 
 	it("does not rewrite non-anthropic messages with prompt cache provider options", async () => {

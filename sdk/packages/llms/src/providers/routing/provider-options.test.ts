@@ -19,21 +19,58 @@ type ContextOverrides = {
 	modelId?: string;
 	family?: string;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
-	providerMetadata?: GatewayProviderContext["provider"]["metadata"];
+	metadata?: GatewayProviderContext["provider"]["metadata"];
+	disableAutoAnthropicRouting?: boolean;
 };
 
 function makeContext(options?: ContextOverrides): GatewayProviderContext {
 	const providerId = options?.providerId ?? "test-provider";
 	const modelId = options?.modelId ?? "model-id";
+	const normalizedFamily = options?.family?.toLowerCase() ?? "";
+	const normalizedModelId = modelId.toLowerCase();
+	const useAnthropicReasoningRoute =
+		options?.disableAutoAnthropicRouting !== true &&
+		(normalizedFamily.includes("claude") ||
+			normalizedModelId.includes("claude") ||
+			normalizedModelId.includes("anthropic"));
+	const anthropicReasoningMetadata: GatewayProviderContext["provider"]["metadata"] =
+		useAnthropicReasoningRoute
+			? {
+					routing: {
+						reasoning: {
+							format: "anthropic-thinking",
+							routes: [
+								{
+									matcher: "anthropic-compatible",
+								},
+							],
+						},
+					},
+				}
+			: undefined;
+	const metadata =
+		anthropicReasoningMetadata || options?.metadata
+			? {
+					...(anthropicReasoningMetadata ?? {}),
+					...(options?.metadata ?? {}),
+					routing:
+						anthropicReasoningMetadata?.routing || options?.metadata?.routing
+							? {
+									...(anthropicReasoningMetadata?.routing ?? {}),
+									...(options?.metadata?.routing ?? {}),
+								}
+							: undefined,
+				}
+			: undefined;
 	return {
 		provider: {
 			id: providerId,
 			name: providerId,
 			defaultModelId: modelId,
-			metadata: options?.providerMetadata,
 			models: [
 				{ id: modelId, name: modelId, providerId, capabilities: ["text"] },
 			],
+			metadata,
 		},
 		model: {
 			id: modelId,
@@ -476,6 +513,30 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 				},
 			],
 		},
+		{
+			name: "legacy custom Claude with promptCacheStrategy -> Anthropic reasoning",
+			request: {
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				disableAutoAnthropicRouting: true,
+				metadata: { promptCacheStrategy: "anthropic-automatic" },
+			},
+			expect: [
+				{
+					bucket: "custom-provider",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
 	]);
 });
 
@@ -527,7 +588,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			context: {
 				family: "qwen",
-				providerMetadata: { promptCacheStrategy: "anthropic-automatic" },
+				metadata: { promptCacheStrategy: "anthropic-automatic" },
 			},
 			expect: [
 				{
@@ -815,6 +876,171 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: { family: "kimi-k2.6" },
 			expect: [
 				{ bucket: "openaiCompatible", has: { thinking: { type: "enabled" } } },
+			],
+		},
+		{
+			name: "qwen prompt-cache-only route reasoning.enabled=true -> cache control, no thinking",
+			request: {
+				providerId: "qwen",
+				modelId: "qwen-plus",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "prompt-cache"],
+				metadata: {
+					routing: {
+						promptCache: {
+							format: "anthropic-cache-control",
+							routes: [
+								{
+									matcher: "model-family",
+									family: "qwen",
+									requiredCapability: "prompt-cache",
+								},
+							],
+						},
+					},
+				},
+			},
+			expect: [
+				{
+					bucket: "qwen",
+					has: { cache_control: { type: "ephemeral" } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { cache_control: { type: "ephemeral" } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "qwen prompt-cache route without capability reasoning.enabled=true -> no generic thinking",
+			request: {
+				providerId: "qwen",
+				modelId: "qwen-plus",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text"],
+				metadata: {
+					routing: {
+						promptCache: {
+							format: "anthropic-cache-control",
+							routes: [
+								{
+									matcher: "model-family",
+									family: "qwen",
+									requiredCapability: "prompt-cache",
+								},
+							],
+						},
+					},
+				},
+			},
+			expect: [
+				{
+					bucket: "qwen",
+					lacks: [
+						"cache_control",
+						"thinking",
+						"effort",
+						"reasoningEffort",
+						"reasoningSummary",
+					],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: [
+						"cache_control",
+						"thinking",
+						"effort",
+						"reasoningEffort",
+						"reasoningSummary",
+					],
+				},
+			],
+		},
+		{
+			name: "cline qwen prompt-cache-only route reasoning.enabled=true -> cache control, no gateway reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "qwen/qwen3.6-plus",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "qwen",
+				capabilities: ["text", "prompt-cache"],
+				metadata: {
+					routing: {
+						promptCache: {
+							format: "anthropic-cache-control",
+							routes: [
+								{
+									matcher: "model-family",
+									family: "qwen",
+									requiredCapability: "prompt-cache",
+								},
+							],
+						},
+					},
+				},
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { cache_control: { type: "ephemeral" } },
+					lacks: [
+						"reasoning",
+						"thinking",
+						"effort",
+						"reasoningEffort",
+						"reasoningSummary",
+					],
+				},
+			],
+		},
+		{
+			name: "cline unregistered qwen reasoning.enabled=true -> no gateway reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "qwen/qwen3.7-plus",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				metadata: {
+					routing: {
+						promptCache: {
+							format: "anthropic-cache-control",
+							routes: [
+								{
+									matcher: "model-family",
+									family: "qwen",
+									requiredCapability: "prompt-cache",
+								},
+							],
+						},
+					},
+				},
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: [
+						"reasoning",
+						"thinking",
+						"effort",
+						"reasoningEffort",
+						"reasoningSummary",
+					],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
 			],
 		},
 		{

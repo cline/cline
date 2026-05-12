@@ -267,6 +267,44 @@ describe("ai-sdk usage normalization", () => {
 			expect(flattened).toBeDefined();
 		});
 
+		it("extracts Qwen cache writes from OpenRouter prompt token details", () => {
+			const normalized = normalizeUsage({
+				prompt_tokens: 10126,
+				completion_tokens: 13,
+				prompt_tokens_details: {
+					cached_tokens: 0,
+					cache_write_tokens: 10106,
+				},
+			});
+
+			expect(normalized).toEqual(
+				expect.objectContaining({
+					inputTokens: 10126,
+					outputTokens: 13,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 10106,
+				}),
+			);
+		});
+
+		it("extracts Qwen cache reads from raw prompt token details", () => {
+			const normalized = normalizeUsage({
+				raw: {
+					prompt_tokens_details: {
+						cached_tokens: 8885,
+						cache_write_tokens: 10106,
+					},
+				},
+			});
+
+			expect(normalized).toEqual(
+				expect.objectContaining({
+					cacheReadTokens: 8885,
+					cacheWriteTokens: 10106,
+				}),
+			);
+		});
+
 		it("handles Anthropic's cache_creation metadata", () => {
 			const anthropicRaw = (
 				(fixtures as Record<string, unknown>).anthropic_stream_usage as Record<

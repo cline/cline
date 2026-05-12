@@ -22,7 +22,7 @@ import {
 	applyPromptCacheToLastTextPart,
 	isAnthropicCompatibleModel,
 	resolveModelFamily,
-	shouldUseAnthropicPromptCache,
+	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {
 	type AiSdkProviderOptionsTarget,
@@ -492,8 +492,8 @@ export function normalizeUsage(
 				"cache_read_input_tokens",
 			) ||
 			getNestedUsageValue(usage, "prompt_tokens_details", "cached_tokens") ||
-			getUsageValue(rawUsage, "cachedContentTokenCount") ||
 			getNestedUsageValue(rawUsage, "prompt_tokens_details", "cached_tokens") ||
+			getUsageValue(rawUsage, "cachedContentTokenCount") ||
 			getUsageValue(
 				providerUsage ?? {},
 				"cachedInputTokens",
@@ -504,14 +504,13 @@ export function normalizeUsage(
 		cacheWriteTokens:
 			getNestedUsageValue(usage, "inputTokens", "cacheWrite") ||
 			getNestedUsageValue(usage, "inputTokenDetails", "cacheWriteTokens") ||
-			getUsageValue(
+			getNestedUsageValue(
 				usage,
-				"cacheWriteTokens",
+				"prompt_tokens_details",
 				"cache_write_tokens",
-				"cache_creation_input_tokens",
 			) ||
 			getUsageValue(
-				rawUsage,
+				usage,
 				"cacheWriteTokens",
 				"cache_write_tokens",
 				"cache_creation_input_tokens",
@@ -520,6 +519,12 @@ export function normalizeUsage(
 				rawUsage,
 				"prompt_tokens_details",
 				"cache_write_tokens",
+			) ||
+			getUsageValue(
+				rawUsage,
+				"cacheWriteTokens",
+				"cache_write_tokens",
+				"cache_creation_input_tokens",
 			) ||
 			getUsageValue(
 				providerUsage ?? {},
@@ -875,7 +880,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
-					messages: (shouldUseAnthropicPromptCache(request, context)
+					messages: (shouldApplyPromptCache(request, context)
 						? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
 						: toAiSdkMessages(request.messages, messagesSystemPrompt)) as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),

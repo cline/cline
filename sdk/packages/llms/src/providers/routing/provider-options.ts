@@ -90,7 +90,6 @@ export function composeAiSdkProviderOptions(
 	const compatibleOptions = buildCompatibleProviderOptions({
 		request,
 		context,
-		isAnthropicCompatibleModelId,
 		target,
 		suppressions,
 	});
