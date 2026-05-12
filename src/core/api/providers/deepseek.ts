@@ -15,6 +15,8 @@ import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-p
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	apiModelId?: string
+	reasoningEffort?: string
+	apiModelInfo?: ModelInfo
 }
 
 export class DeepSeekHandler implements ApiHandler {
@@ -88,15 +90,27 @@ export class DeepSeekHandler implements ApiHandler {
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
+		const isV4Model = model.id.startsWith("deepseek-v4")
+		const reasoningEffort =
+			this.options.reasoningEffort && this.options.reasoningEffort !== "none"
+				? (this.options.reasoningEffort as OpenAI.ChatCompletionReasoningEffort)
+				: undefined
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_completion_tokens: model.info.maxTokens,
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			// Only set temperature for non-reasoner models
-			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
+			...(model.id === "deepseek-reasoner" || isV4Model ? {} : { temperature: 0 }),
 			...getOpenAIToolParams(tools),
+			...(isV4Model
+				? {
+						extra_body: {
+							thinking: { type: reasoningEffort && reasoningEffort !== "none" ? "enabled" : "disabled" },
+						},
+						...(reasoningEffort && reasoningEffort !== "none" ? { reasoning_effort: reasoningEffort } : {}),
+					}
+				: {}),
 		})
 
 		const toolCallProcessor = new ToolCallProcessor()
@@ -115,9 +129,12 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					reasoning: (delta.reasoning_content as string | undefined) || "",
+				const shouldYieldReasoning = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
+				if (shouldYieldReasoning) {
+					yield {
+						type: "reasoning",
+						reasoning: (delta.reasoning_content as string | undefined) || "",
+					}
 				}
 			}
 

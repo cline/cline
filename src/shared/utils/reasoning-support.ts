@@ -27,6 +27,20 @@ export function resolveClaudeOpusAdaptiveThinking(
 	return legacyThinkingBudgetTokens && legacyThinkingBudgetTokens > 0 ? { enabled: true, effort: "high" } : { enabled: false }
 }
 
+/**
+ * Resolves adaptive thinking settings for DeepSeek V4 models.
+ * DeepSeek V4 supports only "medium" and "high" reasoning effort levels.
+ * Default is "medium" when no explicit effort is set.
+ */
+export function resolveDeepSeekAdaptiveThinking(reasoningEffort?: string): ClaudeOpusAdaptiveThinkingSettings {
+	if (reasoningEffort) {
+		const effort = normalizeOpenaiReasoningEffort(reasoningEffort)
+		return effort === "none" ? { enabled: false } : { enabled: true, effort }
+	}
+	// Default to high for DeepSeek V4
+	return { enabled: true, effort: "high" }
+}
+
 export function supportsReasoningEffortForModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false
