@@ -86,6 +86,11 @@ describe("anthropic-compatible routing helpers", () => {
 				family: "Claude-Sonnet",
 			}),
 		).toBe(true);
+		expect(
+			isAnthropicCompatibleModel({
+				family: "Anthropic",
+			}),
+		).toBe(true);
 	});
 
 	it("falls back to model id when family is whitespace-only", () => {
@@ -107,6 +112,7 @@ describe("anthropic-compatible routing helpers", () => {
 		expect(isAnthropicCompatibleModelId("anthropic--claude-3.5-sonnet")).toBe(
 			true,
 		);
+		expect(isAnthropicCompatibleModelId("custom/anthropic-alias")).toBe(true);
 	});
 
 	it("does not match unrelated model ids", () => {

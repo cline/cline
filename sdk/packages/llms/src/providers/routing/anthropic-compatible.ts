@@ -94,10 +94,9 @@ export function isAnthropicCompatibleModel(options: {
 	modelId?: string;
 	family?: string;
 }): boolean {
-	const family =
-		typeof options.family === "string" ? options.family.trim() : "";
+	const family = normalizeRoutingValue(options.family);
 	if (family) {
-		return family.toLowerCase().includes("claude");
+		return isAnthropicLineageValue(family);
 	}
 
 	return isAnthropicCompatibleModelId(options.modelId);
@@ -110,11 +109,7 @@ export function isAnthropicCompatibleModelId(
 		return false;
 	}
 
-	const normalized = modelId.toLowerCase();
-	const hasAnthropicVendor = normalized.includes("anthropic");
-	const hasClaudeLineage = normalized.includes("claude");
-
-	return hasAnthropicVendor || hasClaudeLineage;
+	return isAnthropicLineageValue(modelId);
 }
 
 export function isQwenModel(options: {
@@ -133,6 +128,13 @@ export function isQwenModel(options: {
 function normalizeRoutingValue(value: string | undefined) {
 	const normalized = value?.trim().toLowerCase();
 	return normalized ? normalized : undefined;
+}
+
+function isAnthropicLineageValue(value: string | undefined): boolean {
+	const normalized = normalizeRoutingValue(value);
+	return normalized
+		? normalized.includes("anthropic") || normalized.includes("claude")
+		: false;
 }
 
 function isQwenLineageValue(value: string | undefined): boolean {
