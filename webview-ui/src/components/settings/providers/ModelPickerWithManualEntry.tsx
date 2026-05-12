@@ -93,7 +93,7 @@ export function ModelPickerWithManualEntry({
 				</select>
 			)}
 
-			{!selectedModelInList && allowsCustomIds && selectedModel.modelId && hasModels && (
+			{!selectedModelInList && selectedModel.modelId && hasModels && (
 				<div role="status">Selected model “{selectedModel.modelId}” is not in the current list.</div>
 			)}
 
