@@ -55,3 +55,16 @@ Decision:
 
 - CHECKPOINT 1 passed.
 - Proceed to Phase 2.1 SDK spike.
+
+## 2026-05-12 — Opus review follow-up hardening
+
+Follow-up from Opus 4.7 review of commits `63ed64594..b9f639e49`:
+
+- Added explicit `nousResearch`/`nousresearch` casing coverage for `ProviderConfigStore.write`, `commitSelection`, and `readSelection`.
+- Added explicit `nousResearch` casing coverage for `buildEffectiveProviderConfig` reading `nousResearchApiKey` from StateManager after provider id normalization.
+- Documented the generic-provider `ModelInfo` in-process selection map in `store.ts` as transitional Phase 1.4 compatibility only. Runtime correctness must not depend on it across reloads; durable selection-envelope storage remains a required follow-up before runtime reads generic selections directly.
+
+Decision:
+
+- This hardening addresses the concrete casing concern before Phase 2.2.
+- Mapping-table drift remains a known refactor candidate, but not a Phase 2.2 blocker.

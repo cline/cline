@@ -123,6 +123,24 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toEqual(selection)
 	})
 
+	it("handles normalized nousResearch provider casing for writes and selections", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("nousResearch")
+		const selection = { providerId, modelId: "nousresearch/hermes-4-70b", modelInfo: modelInfoA }
+
+		const written = store.write(providerId, { apiKey: "nous-key" })
+		store.commitSelection(providerId, "act", selection)
+
+		expect(written).toEqual({ providerId, apiKey: "nous-key" })
+		expect(store.readSelection(providerId, "act")).toEqual(selection)
+		expect(mocks.getSavedProviderSettings("nousresearch")).toMatchObject({
+			provider: "nousresearch",
+			apiKey: "nous-key",
+			model: "nousresearch/hermes-4-70b",
+		})
+	})
+
 	it("returns undefined from readSelection when modelId or modelInfo is missing", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
