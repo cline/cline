@@ -1,4 +1,4 @@
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
@@ -392,7 +392,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
 		// Accumulate the text and count at the end of the stream to reduce token counting overhead.
-		let accumulatedText: string = ""
+		let accumulatedText = ""
 
 		try {
 			// Create the response stream with minimal required options
@@ -498,17 +498,17 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 				// Return original error if it's already an Error instance
 				throw error
-			} else if (typeof error === "object" && error !== null) {
+			}
+			if (typeof error === "object" && error !== null) {
 				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				Logger.error("Cline <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Cline <Language Model API>: Response stream error: ${errorDetails}`)
-			} else {
-				// Fallback for unknown error types
-				const errorMessage = String(error)
-				Logger.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
-				throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 			}
+			// Fallback for unknown error types
+			const errorMessage = String(error)
+			Logger.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
+			throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 		}
 	}
 
@@ -542,7 +542,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				contextWindow:
 					typeof this.client.maxInputTokens === "number"
 						? Math.max(0, this.client.maxInputTokens)
-						: openAiModelInfoSaneDefaults.contextWindow,
+						: openAiModelInfoSafeDefaults.contextWindow,
 				supportsImages: false, // VSCode Language Model API currently doesn't support image inputs
 				supportsPromptCache: true,
 				inputPrice: 0,
@@ -563,7 +563,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		return {
 			id: fallbackId,
 			info: {
-				...openAiModelInfoSaneDefaults,
+				...openAiModelInfoSafeDefaults,
 				description: `VSCode Language Model (Fallback): ${fallbackId}`,
 			},
 		}
