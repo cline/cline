@@ -489,3 +489,16 @@ Decision:
 
 - Phase 5.2 is complete.
 - Proceed to Phase 5.3 (`useProviderConfig`).
+
+## 2026-05-13 — Phase 5.2 request id simplification
+
+Decision:
+
+- Replaced `crypto.randomUUID()` request ids in `useProviderModels` with a simple module-local incrementing counter.
+- The hook only needs request ids to be unique within the current webview process for stale-response rejection; global randomness is unnecessary.
+
+Validation:
+
+- `cd webview-ui && npx vitest run src/hooks/useProviderModels.test.ts --reporter=dot` passed: 1 file, 3 tests.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run check-types -- --pretty false` passed.
