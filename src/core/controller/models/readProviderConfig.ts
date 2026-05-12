@@ -7,5 +7,6 @@ export async function readProviderConfig(
 	request: StringRequest,
 ): Promise<ProviderConfigResponse> {
 	const providerId = parseProviderIdRequest(request.value, "value")
-	return toRedactedProviderConfigResponse(controller.getProviderConfigStore().read(providerId))
+	const store = controller.getProviderConfigStore()
+	return toRedactedProviderConfigResponse(store.read(providerId), store)
 }

@@ -14,6 +14,7 @@ import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import {
 	CatalogErrorInfo,
 	CommitModelSelectionRequest,
+	CommittedModelSelection,
 	OpenRouterModelInfo,
 	ProviderConfigResponse,
 	ProviderListing as ProviderListingProto,
@@ -73,6 +74,17 @@ function toProtobufModels(models: ReadonlyMap<string, ModelInfo>): Record<string
 	return result
 }
 
+function toCommittedModelSelectionProto(selection: ModelSelection | undefined): CommittedModelSelection | undefined {
+	if (!selection) {
+		return undefined
+	}
+	return CommittedModelSelection.create({
+		providerId: selection.providerId,
+		modelId: selection.modelId,
+		modelInfo: toProtobufModelInfo(selection.modelInfo),
+	})
+}
+
 export function toProviderModelsResponse(
 	providerId: ProviderId,
 	requestId: string,
@@ -91,7 +103,10 @@ export function toProviderModelsResponse(
 	})
 }
 
-export function toRedactedProviderConfigResponse(config: EffectiveProviderConfig): ProviderConfigResponse {
+export function toRedactedProviderConfigResponse(
+	config: EffectiveProviderConfig,
+	store?: ProviderConfigStore,
+): ProviderConfigResponse {
 	return ProviderConfigResponse.create({
 		providerId: config.providerId,
 		baseUrl: config.baseUrl,
@@ -102,6 +117,8 @@ export function toRedactedProviderConfigResponse(config: EffectiveProviderConfig
 		hasAccessToken: Boolean(config.auth?.accessToken),
 		hasRefreshToken: Boolean(config.auth?.refreshToken),
 		accountId: config.auth?.accountId,
+		planSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "plan")),
+		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
 	})
 }
 
