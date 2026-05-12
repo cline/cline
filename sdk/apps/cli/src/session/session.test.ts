@@ -241,6 +241,7 @@ describe("createCliCore", () => {
 				limit: 25,
 				includeManifestFallback: true,
 				hydrate: false,
+				includeSubagents: false,
 			},
 		);
 		expect(createCore).not.toHaveBeenCalled();
@@ -271,6 +272,7 @@ describe("createCliCore", () => {
 				limit: 25,
 				includeManifestFallback: true,
 				hydrate: false,
+				includeSubagents: false,
 			},
 		);
 		expect(rows).toEqual([

@@ -39,7 +39,6 @@ Requires Node.js 22+.
 | [desktop-app](./desktop-app) | Full Tauri + Next.js desktop app for running and inspecting chat sessions. | Sidecar runtime, websocket transport, session persistence |
 | [menubar](./menubar) | macOS menu bar app with Tauri. | Native app integration, compact UI |
 | [vscode](./vscode) | VS Code extension with chat panel. | Extension API, webview, workspace context |
-| [slack-bot](./slack-bot) | Slack bot integration. | Event-driven, external service integration |
 
 ## SDK packages
 

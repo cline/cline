@@ -20,6 +20,7 @@ export interface SessionHistoryListOptions {
 	limit?: number;
 	includeManifestFallback?: boolean;
 	hydrate?: boolean;
+	includeSubagents?: boolean;
 }
 
 type StoredSessionMessage = LlmsProviders.Message & {
@@ -69,6 +70,21 @@ function asHistoryMetadata(value: unknown): SessionHistoryMetadata | undefined {
 function normalizeHistoryLimit(limit: number | undefined): number {
 	const value = limit ?? 200;
 	return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 200;
+}
+
+function normalizeHistoryScanLimit(limit: number): number {
+	if (limit === 0) {
+		return 0;
+	}
+	return Math.min(Math.max(limit * 2, 20), 2000);
+}
+
+function isRootSessionRecord(
+	row: Pick<SessionRecord, "isSubagent"> & {
+		parentSessionId?: string;
+	},
+): boolean {
+	return row.isSubagent !== true && !asTrimmedString(row.parentSessionId);
 }
 
 function extractSessionRecencyToken(sessionId: string): number {
@@ -170,13 +186,21 @@ async function listManifestHistoryRows(
 async function listHostSessionRows(
 	host: Pick<RuntimeHost, "listSessions" | "readSessionMessages">,
 	limit: number,
+	options: { includeSubagents: boolean },
 ): Promise<SessionRecord[]> {
 	const requestedLimit = normalizeHistoryLimit(limit);
 	if (requestedLimit === 0) {
 		await host.listSessions(0);
 		return [];
 	}
-	return (await host.listSessions(requestedLimit)).slice(0, requestedLimit);
+	const scanLimit = options.includeSubagents
+		? requestedLimit
+		: normalizeHistoryScanLimit(requestedLimit);
+	const rows = await host.listSessions(scanLimit);
+	const filtered = options.includeSubagents
+		? rows
+		: rows.filter(isRootSessionRecord);
+	return filtered.slice(0, requestedLimit);
 }
 
 function extractTextFromContent(
@@ -369,7 +393,10 @@ export async function listSessionHistory(
 	options: SessionHistoryListOptions = {},
 ): Promise<SessionHistoryRecord[]> {
 	const limit = normalizeHistoryLimit(options.limit);
-	const backendRows = await listHostSessionRows(host, limit);
+	const includeSubagents = options.includeSubagents === true;
+	const backendRows = await listHostSessionRows(host, limit, {
+		includeSubagents,
+	});
 	const manifestRows =
 		options.includeManifestFallback === true && backendRows.length < limit
 			? await listManifestHistoryRows(Math.min(Math.max(limit * 2, 100), 500))

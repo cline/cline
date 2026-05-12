@@ -100,6 +100,7 @@ export async function listSessions(
 		limit,
 		includeManifestFallback: true,
 		hydrate: options?.hydrate ?? false,
+		includeSubagents: false,
 	});
 }
 
