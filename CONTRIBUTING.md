@@ -46,17 +46,10 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 4. Install the necessary dependencies for the extension and webview-gui:
     ```bash
     npm run install:all
-    cd sdk && bun install
-    ```
-5. Generate Protocol Buffer files (required before first build):
-    ```bash
-    npm run protos
-    ```
-6. Build the SDK
-    ```bash
     cd sdk && bun run build
     ```
-7. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+5. Generate Protocol Buffer files (required before first build):
+6. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
 
