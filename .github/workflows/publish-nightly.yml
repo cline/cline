@@ -7,9 +7,7 @@ run-name: "Publish Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
 
 permissions:
   contents: write
-  packages: write
   checks: write
-  pull-requests: write
 
 jobs:
   test:
@@ -90,8 +88,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Cline Nightly published from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
-          # use token auth to push tag since we set persist-credentials: false on checkout for security hardening,
-          # so the default GITHUB_TOKEN auth won't be available in this step
+          # Use an explicit HTTPS remote with GH_TOKEN because checkout was run with
+          # persist-credentials: false, so actions/checkout did not persist a git credential helper.
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
 
           echo "Tagged published commit: $TAG"
