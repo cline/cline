@@ -29,13 +29,13 @@
 
 import type { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
 
 /**
  * Canonical MacM4 tier identifiers and their static metadata. Kept in
@@ -114,6 +114,17 @@ export type MacM4TierId = keyof typeof MACM4_TIERS
 
 export const macm4DefaultModelId: MacM4TierId = "hybrid-auto"
 
+/**
+ * Real Ollama model tags for tiers with backend === "ollama".
+ * These are the names Ollama's /v1/chat/completions endpoint actually
+ * accepts -- NOT the litellm-config alias names (e.g. "local-long").
+ * Override per-instance via MacM4HandlerOptions.macm4OllamaModelTag.
+ */
+const OLLAMA_DEFAULT_TAGS: Partial<Record<MacM4TierId, string>> = {
+	"local-long": "qwen3-coder-next:q4_K_M",
+	"local-agent": "llama3.1:8b-instruct-q8_0",
+}
+
 export interface MacM4HandlerOptions extends CommonApiHandlerOptions {
 	/** LiteLLM proxy base URL. Defaults to http://127.0.0.1:4000. */
 	macm4BaseUrl?: string
@@ -125,6 +136,12 @@ export interface MacM4HandlerOptions extends CommonApiHandlerOptions {
 	macm4OllamaBaseUrl?: string
 	/** When true (default), local-long routes directly to Ollama, bypassing the proxy. */
 	macm4UseDirectOllama?: boolean
+	/**
+	 * Ollama model tag to use for direct-Ollama tiers (local-long, local-agent).
+	 * Defaults to OLLAMA_DEFAULT_TAGS[tierId]. Set this if you pull a different
+	 * quantisation or want to point at a different model entirely.
+	 */
+	macm4OllamaModelTag?: string
 	/** Per-request timeout in ms. Defaults to 300s (local long-context runs can be slow). */
 	requestTimeoutMs?: number
 }
@@ -205,10 +222,12 @@ export class MacM4Handler implements ApiHandler {
 		const meta = tierMeta(tierId)
 		const useDirectOllama = this.options.macm4UseDirectOllama !== false
 		if (meta?.backend === "ollama" && useDirectOllama) {
-			// Ollama doesn't know the litellm-config alias names; map
-			// to the canonical Ollama tag via env if the operator set one.
-			// Fall back to the alias itself otherwise.
-			const ollamaTag = (this.options as any).macm4OllamaModelTag || tierId
+			// Ollama only accepts its own model tags (e.g. "qwen3-coder-next:q4_K_M"),
+			// not the litellm-config alias names ("local-long"). Resolve in priority order:
+			//   1. Explicit override from handler options (set via UI "Ollama model tag" field)
+			//   2. OLLAMA_DEFAULT_TAGS default for this tier
+			//   3. tierId as last resort (will 404 unless Ollama happens to have that name)
+			const ollamaTag = this.options.macm4OllamaModelTag || OLLAMA_DEFAULT_TAGS[tierId as MacM4TierId] || tierId
 			return { client: this.ensureOllamaClient(), model: ollamaTag }
 		}
 		return { client: this.ensureProxyClient(), model: tierId }
@@ -266,10 +285,7 @@ export class MacM4Handler implements ApiHandler {
 			if (error?.name === "AbortError") {
 				throw new Error(`MacM4 request aborted after ${timeoutMs / 1000}s timeout`)
 			}
-			Logger.error(
-				`[MacM4Handler] tier=${tierId} backend=${meta?.backend ?? "unknown"} error:`,
-				error,
-			)
+			Logger.error(`[MacM4Handler] tier=${tierId} backend=${meta?.backend ?? "unknown"} error:`, error)
 			throw error
 		} finally {
 			clearTimeout(timeoutHandle)
