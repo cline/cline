@@ -102,10 +102,10 @@
 						"group": "Usage",
 						"pages": [
 							"usage/ide",
-							"usage/tui",
 							{
 								"group": "CLI",
 								"pages": [
+									"usage/tui",
 									"usage/cli-overview",
 									"cli/cli-reference",
 									{
