@@ -537,6 +537,29 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 				},
 			],
 		},
+		{
+			name: "unrouted custom Claude -> Anthropic reasoning",
+			request: {
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-3.5-sonnet",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				disableAutoAnthropicRouting: true,
+			},
+			expect: [
+				{
+					bucket: "custom-provider",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
 	]);
 });
 

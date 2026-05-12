@@ -122,17 +122,38 @@ export function isQwenModel(options: {
 	family?: string;
 }): boolean {
 	const family = normalizeRoutingValue(options.family);
-	if (family === "qwen") {
+	if (isQwenLineageValue(family)) {
 		return true;
 	}
 
 	const modelId = normalizeRoutingValue(options.modelId);
-	return modelId ? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(modelId) : false;
+	return isQwenLineageValue(modelId);
 }
 
 function normalizeRoutingValue(value: string | undefined) {
 	const normalized = value?.trim().toLowerCase();
 	return normalized ? normalized : undefined;
+}
+
+function isQwenLineageValue(value: string | undefined): boolean {
+	return value ? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(value) : false;
+}
+
+function modelFamilyMatches(
+	family: string | undefined,
+	routeFamily: string | undefined,
+): boolean {
+	const normalizedFamily = normalizeRoutingValue(family);
+	const normalizedRouteFamily = normalizeRoutingValue(routeFamily);
+	if (!normalizedFamily || !normalizedRouteFamily) {
+		return false;
+	}
+	if (normalizedFamily === normalizedRouteFamily) {
+		return true;
+	}
+	return normalizedRouteFamily === "qwen"
+		? isQwenLineageValue(normalizedFamily)
+		: false;
 }
 
 function routeMatches(
@@ -155,10 +176,7 @@ function routeMatches(
 		case "anthropic-compatible":
 			return isAnthropicCompatibleModel(options);
 		case "model-family":
-			return (
-				normalizeRoutingValue(options.family) ===
-				normalizeRoutingValue(route.family)
-			);
+			return modelFamilyMatches(options.family, route.family);
 		case "model-id":
 			return (
 				normalizeRoutingValue(options.modelId) ===
@@ -222,6 +240,13 @@ export function applyPromptCacheToLastTextPart(
 		return;
 	}
 
+	const textPartCount = content.filter(
+		(part) =>
+			part &&
+			typeof part === "object" &&
+			(part as { type?: unknown }).type === "text",
+	).length;
+
 	for (let i = content.length - 1; i >= 0; i--) {
 		const part = content[i];
 		if (
@@ -229,7 +254,7 @@ export function applyPromptCacheToLastTextPart(
 			typeof part === "object" &&
 			(part as { type?: unknown }).type === "text"
 		) {
-			const needsFiller = content.length === 1 && !includeAnthropic;
+			const needsFiller = textPartCount === 1 && !includeAnthropic;
 			content[i] = {
 				...(part as Record<string, unknown>),
 				providerOptions: createPromptCacheProviderOptions(
@@ -322,6 +347,23 @@ function resolveLegacyReasoningRoute(
 		: undefined;
 }
 
+function resolveUnroutedAnthropicReasoningRoute(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): GatewayModelRoute | undefined {
+	if (context.provider.metadata?.routing) {
+		return undefined;
+	}
+
+	const family = resolveModelFamily(context);
+	return isAnthropicCompatibleModel({
+		modelId: request.modelId,
+		family,
+	})
+		? { matcher: "anthropic-compatible" }
+		: undefined;
+}
+
 export function resolvePromptCacheRoute(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -350,7 +392,10 @@ export function resolveReasoningRoute(
 ): GatewayModelRoute | undefined {
 	const reasoning = context.provider.metadata?.routing?.reasoning;
 	if (!reasoning) {
-		return resolveLegacyReasoningRoute(request, context);
+		return (
+			resolveLegacyReasoningRoute(request, context) ??
+			resolveUnroutedAnthropicReasoningRoute(request, context)
+		);
 	}
 	if (reasoning.format !== "anthropic-thinking") {
 		return undefined;

@@ -5,6 +5,7 @@ import type {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
+	applyPromptCacheToLastTextPart,
 	isAnthropicCompatibleModel,
 	isAnthropicCompatibleModelId,
 	isQwenModel,
@@ -120,6 +121,7 @@ describe("anthropic-compatible routing helpers", () => {
 		expect(isQwenModel({ modelId: "qwen/qwen3.6-plus" })).toBe(true);
 		expect(isQwenModel({ modelId: "alibaba/qwen3.6-plus" })).toBe(true);
 		expect(isQwenModel({ family: "qwen" })).toBe(true);
+		expect(isQwenModel({ family: "qwen3.6" })).toBe(true);
 		expect(isQwenModel({ modelId: "anthropic/claude-sonnet-4.6" })).toBe(false);
 		expect(
 			resolvePromptCacheRoute(
@@ -131,6 +133,32 @@ describe("anthropic-compatible routing helpers", () => {
 				makeContext(),
 			),
 		).toBeUndefined();
+		expect(
+			resolvePromptCacheRoute(
+				{
+					providerId: "test-provider",
+					modelId: "alibaba/qwen3.6-plus",
+					messages: [],
+				},
+				makeContext(
+					"qwen3.6",
+					metadataWithRouting({
+						promptCacheRoutes: [
+							{
+								matcher: "model-family",
+								family: "qwen",
+								requiredCapability: "prompt-cache",
+							},
+						],
+					}),
+					["text", "prompt-cache"],
+				),
+			),
+		).toEqual({
+			matcher: "model-family",
+			family: "qwen",
+			requiredCapability: "prompt-cache",
+		});
 		expect(
 			resolvePromptCacheRoute(
 				{
@@ -301,6 +329,20 @@ describe("anthropic-compatible routing helpers", () => {
 		});
 	});
 
+	it("preserves unrouted Anthropic reasoning for custom Claude providers", () => {
+		const request = {
+			providerId: "test-provider",
+			modelId: "anthropic/claude-3.5-sonnet",
+			messages: [],
+		};
+
+		expect(
+			resolveAnthropicReasoningRequestPolicy(request, makeContext()),
+		).toEqual({
+			kind: "anthropic-manual",
+		});
+	});
+
 	it("does not preserve legacy Anthropic reasoning for custom Qwen providers", () => {
 		const request = {
 			providerId: "test-provider",
@@ -389,5 +431,49 @@ describe("anthropic-compatible routing helpers", () => {
 				),
 			),
 		).toEqual({ kind: "none" });
+	});
+
+	it("adds the non-Anthropic filler when only one text part is present", () => {
+		const message = {
+			content: [
+				{ type: "image_url", image_url: { url: "https://example.test/a.png" } },
+				{ type: "text", text: "Hello" },
+			],
+		};
+
+		applyPromptCacheToLastTextPart(message, "openrouter", false);
+
+		expect(message.content).toHaveLength(3);
+		expect(message.content[1]).toMatchObject({
+			type: "text",
+			text: "Hello",
+			providerOptions: {
+				openaiCompatible: { cache_control: { type: "ephemeral" } },
+				openrouter: { cache_control: { type: "ephemeral" } },
+			},
+		});
+		expect(message.content[2]).toEqual({ type: "text", text: " " });
+	});
+
+	it("does not add the non-Anthropic filler when multiple text parts are present", () => {
+		const message = {
+			content: [
+				{ type: "image_url", image_url: { url: "https://example.test/a.png" } },
+				{ type: "text", text: "Hello" },
+				{ type: "text", text: "World" },
+			],
+		};
+
+		applyPromptCacheToLastTextPart(message, "openrouter", false);
+
+		expect(message.content).toHaveLength(3);
+		expect(message.content[2]).toMatchObject({
+			type: "text",
+			text: "World",
+			providerOptions: {
+				openaiCompatible: { cache_control: { type: "ephemeral" } },
+				openrouter: { cache_control: { type: "ephemeral" } },
+			},
+		});
 	});
 });
