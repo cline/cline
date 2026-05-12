@@ -526,6 +526,8 @@ function App(props: TuiProps) {
 		appendEntry: appendSessionEntry,
 		replaceEntries: replaceSessionEntries,
 		setHasSubmitted: setSessionHasSubmitted,
+		setLastTotalCost: setSessionLastTotalCost,
+		setLastTotalTokens: setSessionLastTotalTokens,
 	} = session;
 	const deferredHydrationGuardRef = useRef({
 		hasSubmitted: session.hasSubmitted,
@@ -555,10 +557,10 @@ function App(props: TuiProps) {
 				}
 				replaceSessionEntries(hydrateSessionMessages(messages));
 				if (typeof result.currentContextSize === "number") {
-					session.setLastTotalTokens(result.currentContextSize);
+					setSessionLastTotalTokens(result.currentContextSize);
 				}
 				if (typeof result.totalCost === "number") {
-					session.setLastTotalCost(result.totalCost);
+					setSessionLastTotalCost(result.totalCost);
 				}
 				setSessionHasSubmitted(true);
 				setAppView("chat");
@@ -580,8 +582,8 @@ function App(props: TuiProps) {
 		appendSessionEntry,
 		replaceSessionEntries,
 		setSessionHasSubmitted,
-		session.setLastTotalCost,
-		session.setLastTotalTokens,
+		setSessionLastTotalCost,
+		setSessionLastTotalTokens,
 	]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
@@ -695,6 +697,8 @@ function App(props: TuiProps) {
 		setAppView,
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
+	const focusPromptTextarea = promptInput.focusTextarea;
+	const submitInitialPrompt = promptInput.submitInitialPrompt;
 	refocusTextareaRef.current = promptInput.refocusTextarea;
 	populateInputRef.current = (value: string) => {
 		promptInput.populateInput(value);
@@ -755,8 +759,8 @@ function App(props: TuiProps) {
 
 	useEffect(() => {
 		if (isDialogOpen || appView === "onboarding") return;
-		promptInput.focusTextarea();
-	}, [isDialogOpen, appView, promptInput]);
+		focusPromptTextarea();
+	}, [isDialogOpen, appView, focusPromptTextarea]);
 
 	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
@@ -765,10 +769,10 @@ function App(props: TuiProps) {
 		const timeout = setTimeout(() => {
 			if (initialPromptSubmittedRef.current) return;
 			initialPromptSubmittedRef.current = true;
-			promptInput.submitInitialPrompt();
+			submitInitialPrompt();
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, promptInput, props.initialPrompt]);
+	}, [appView, submitInitialPrompt, props.initialPrompt]);
 
 	useRootKeyboard({
 		isDialogOpen,
