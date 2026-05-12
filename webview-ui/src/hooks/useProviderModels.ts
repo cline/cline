@@ -3,8 +3,11 @@ import { useCallback, useEffect } from "react"
 import { type ProviderId, useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
+let providerModelRequestCounter = 0
+
 function createRequestId(): string {
-	return globalThis.crypto?.randomUUID?.() ?? `provider-models-${Date.now()}-${Math.random().toString(36).slice(2)}`
+	providerModelRequestCounter += 1
+	return `provider-models-${providerModelRequestCounter}`
 }
 
 /**
