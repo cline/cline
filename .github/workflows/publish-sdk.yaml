@@ -16,6 +16,10 @@ on:
         required: false
         type: boolean
         default: false
+      confirm_publish:
+        description: 'Required when channel=latest. Type "publish" to confirm release publish.'
+        required: false
+        type: string
   schedule:
     # Run nightly at 2:00 AM UTC
     - cron: "0 2 * * *"
@@ -36,7 +40,17 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
+    if: |
+      github.repository == 'cline/cline' &&
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name != 'workflow_dispatch' ||
+        inputs.channel != 'latest' ||
+        (
+          inputs.confirm_publish == 'publish' &&
+          !endsWith(github.actor, '[bot]')
+        )
+      )
     runs-on: ubuntu-latest
 
     steps:
@@ -71,7 +85,7 @@ jobs:
             exit 0
           fi
 
-          if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
+          if [ "$(git rev-list --count HEAD --since="24 hours ago")" -eq 0 ]; then
             echo "No commits in last 24 hours, skipping publish"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
