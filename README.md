@@ -112,7 +112,7 @@ Cline ships across multiple surfaces. When you are reading about a feature below
 |---------|------------|--------------|
 | **SDK** | Node.js programmatic agent API and extension exports. | [`./sdk/`](https://github.com/cline/cline/tree/main/sdk) |
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`./sdk/apps/cli/`](https://github.com/cline/cline/tree/main/sdk/apps/cli) |
-| **VS Code Extension** | The Marketplace extension and extension host integration. | ? (We are working on the migration to move VSCode to be upon our SDK.) |
+| **VS Code Extension** | The Marketplace extension and extension host integration. | [./](https://github.com/cline/cline/tree/main) (WIP migrating) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins |
 | **Kanban** | Web-based multi-agent task board. | Kanban app code lives in [`cline/kanban`](https://github.com/cline/kanban). |
 | **Docs site** | Public documentation pages. | `docs/` |
