@@ -889,6 +889,7 @@ export class Controller {
 		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 		const lazyTeammateModeEnabled = this.stateManager.getGlobalSettingsKey("lazyTeammateModeEnabled")
 		const showFeatureTips = this.stateManager.getGlobalSettingsKey("showFeatureTips")
+		const kanbanAutoStartEnabled = this.stateManager.getGlobalSettingsKey("kanbanAutoStartEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -1001,6 +1002,7 @@ export class Controller {
 			doubleCheckCompletionEnabled,
 			lazyTeammateModeEnabled,
 			showFeatureTips,
+			kanbanAutoStartEnabled,
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,

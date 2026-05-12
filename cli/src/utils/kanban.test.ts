@@ -8,6 +8,7 @@ import {
 	forwardSignalToKanbanProcess,
 	hasUsedLegacyCli,
 	isKanbanCommandAvailable,
+	resolveCommandFullPath,
 	resolveKanbanInstallCommand,
 	shouldDetachKanbanProcess,
 	shouldLaunchKanbanByDefault,
@@ -137,6 +138,44 @@ describe("kanban command availability", () => {
 			expect(isKanbanCommandAvailable({ PATH: tempDirectory }, process.platform)).toBe(true)
 		} finally {
 			rmSync(tempDirectory, { recursive: true, force: true })
+		}
+	})
+})
+
+describe("resolveCommandFullPath", () => {
+	it("full path when the command exists", () => {
+		const tempDir = mkdtempSync(join(tmpdir(), "kanban-resolve-test-"))
+		const fakeBinary = join(tempDir, "kanban")
+		writeFileSync(fakeBinary, "#!/bin/sh\necho ok")
+		chmodSync(fakeBinary, 0o755)
+
+		try {
+			expect(resolveCommandFullPath("kanban", { PATH: tempDir }, "darwin")).toBe(fakeBinary)
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true })
+		}
+	})
+
+	it("command is not found", () => {
+		expect(resolveCommandFullPath("nonexistent-binary", { PATH: "/nonexistent" }, "darwin")).toBeNull()
+	})
+
+	it("returns null when PATH is empty", () => {
+		expect(resolveCommandFullPath("kanban", { PATH: "" }, "darwin")).toBeNull()
+	})
+
+	it.skipIf(process.platform === "win32")("searches multiple PATH entries", () => {
+		const dir1 = mkdtempSync(join(tmpdir(), "kanban-resolve-test-"))
+		const dir2 = mkdtempSync(join(tmpdir(), "kanban-resolve-test-"))
+		const binary = join(dir2, "kanban")
+		writeFileSync(binary, "#!/bin/sh\necho ok")
+		chmodSync(binary, 0o755)
+
+		try {
+			expect(resolveCommandFullPath("kanban", { PATH: `${dir1}:${dir2}` }, "darwin")).toBe(binary)
+		} finally {
+			rmSync(dir1, { recursive: true, force: true })
+			rmSync(dir2, { recursive: true, force: true })
 		}
 	})
 })

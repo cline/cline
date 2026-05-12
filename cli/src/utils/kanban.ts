@@ -145,6 +145,30 @@ export function isCommandAvailable(
 	return false
 }
 
+export function resolveCommandFullPath(
+	command: string,
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): string | null {
+	const commandHasExtension = extname(command).length > 0
+	const pathExtensions =
+		platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";").filter((ext) => ext.length > 0) : []
+
+	for (const pathEntry of getPathEntries(env)) {
+		const commandPath = join(pathEntry, command)
+		if (pathExists(commandPath, platform)) return commandPath
+
+		if (!commandHasExtension && platform === "win32") {
+			for (const extension of pathExtensions) {
+				const withExt = `${commandPath}${extension}`
+				if (pathExists(withExt, platform)) return withExt
+			}
+		}
+	}
+
+	return null
+}
+
 export function isKanbanCommandAvailable(
 	env: NodeJS.ProcessEnv = process.env,
 	platform: NodeJS.Platform = process.platform,

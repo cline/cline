@@ -13,6 +13,11 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
+import {
+	installKanbanLaunchAgent,
+	resolveKanbanBinaryPath,
+	uninstallKanbanLaunchAgent,
+} from "../../../shared/services/kanban-service"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 
@@ -350,6 +355,21 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.showFeatureTips !== undefined) {
 			controller.stateManager.setGlobalState("showFeatureTips", request.showFeatureTips)
+		}
+
+		if (request.kanbanAutoStartEnabled !== undefined) {
+			controller.stateManager.setGlobalState("kanbanAutoStartEnabled", request.kanbanAutoStartEnabled)
+			try {
+				if (request.kanbanAutoStartEnabled) {
+					const kanbanBinaryPath = await resolveKanbanBinaryPath()
+					await installKanbanLaunchAgent(kanbanBinaryPath)
+				} else {
+					await uninstallKanbanLaunchAgent()
+				}
+			} catch (error) {
+				Logger.error("Failed to update Kanban launch agent:", error)
+				controller.stateManager.setGlobalState("kanbanAutoStartEnabled", !request.kanbanAutoStartEnabled)
+			}
 		}
 
 		// Post updated state to webview
