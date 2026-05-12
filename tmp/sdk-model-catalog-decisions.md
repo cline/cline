@@ -90,3 +90,28 @@ Fields intentionally left for host enrichment or upstream SDK metadata:
 Rationale:
 
 The adapter is a boundary translation layer, not model-business logic. Host-specific behavior metadata should be added later in an explicit enrichment step inside the catalog or upstreamed into the SDK, with tests per provider.
+
+## 2026-05-12 — CHECKPOINT 2 SDK adapter review
+
+Reviewer: Opus 4.7 teammate (`opus47_checkpoint2_review`, run `run_00009`).
+
+Verdict: **PASS**.
+
+Evidence summarized by reviewer:
+
+- `adaptSdkModelInfo` validates `unknown` input at the boundary and throws `CatalogShapeError` for malformed shapes.
+- The function is total over accepted SDK-shaped inputs and deterministic.
+- Sparse SDK model info is supported; only `id: string` is required.
+- Defaults and lossy/unmapped fields are documented in `shape-adapter.ts` and this decisions file.
+- `shape-adapter.test.ts` covers validation, capabilities, pricing, sparse input defaults, rich input mapping, unmapped field dropping, and non-mutation.
+- `src/sdk/spike/catalog-spike.ts` is deleted; `tmp/sdk-spike-findings.md` remains.
+
+Non-blocking cautions:
+
+- The adapter intentionally does not map extension behavior metadata such as `thinkingConfig`, `apiFormat`, tiered pricing, or local provider loaded-context metadata. Those require host enrichment/upstream SDK work in later phases.
+- Phase 3 agents should be prompted to translate `CatalogShapeError` into a catalog error arm and avoid caching failed shape-validation results.
+
+Decision:
+
+- CHECKPOINT 2 passed.
+- Proceed to Phase 3.
