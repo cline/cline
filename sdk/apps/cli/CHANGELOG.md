@@ -1,17 +1,30 @@
 # Cline CLI Changelog
 
-## 3.0.0 (2026-05-11)
+## 3.0.0
 
-- Publish the SDK CLI as `cline` for the public package handoff
-- Keep platform-specific binaries under `@cline/cli-*` and resolve them from the `cline` wrapper package
+First Cline CLI release published from the `cline/cline` monorepo. The CLI source previously lived in `cline/sdk` and is now developed alongside the VS Code extension, with releases cut from the same repository.
 
-## 0.0.13 (2026-05-07)
+The Cline CLI is a terminal-native coding agent. It runs in your shell with a TUI built on OpenTUI, and shares its agent core with the Cline VS Code extension, including plan/act modes, MCP servers, checkpoints, rules, skills, and provider configuration.
+
+Install:
+
+```sh
+npm install -g cline
+```
+
+For nightly builds:
+
+```sh
+npm install -g cline@nightly
+```
+
+## 0.0.13
 
 - Detect prompt-cache support from cache write pricing so providers with write-only caching are represented correctly in the model catalog
 - Dual-publish `@clinebot/cli` mirror wrapper so existing users who installed via `npm i -g @clinebot/cli` continue receiving updates
 - Fix response truncation for OpenAI Codex model responses
 
-## 0.0.12 (2026-05-06)
+## 0.0.12
 
 - Fix markdown rendering in the published binary: headers, inline code, blockquotes, bold, italic, and lists now render with proper syntax highlighting (tables were the only element working before)
 - Add keyboard shortcuts for scrolling through the chat transcript (Page Up/Down, Home/End)
@@ -22,7 +35,7 @@
 - Hide ChatGPT subscription provider usage costs
 - Handle file index prewarm timeouts gracefully instead of hanging
 
-## 0.0.11 (2026-05-06)
+## 0.0.11
 
 - Add `/skills` slash command for browsing and toggling available skills interactively
 - System prompts from AI SDK are now passed via the dedicated `system` option instead of being embedded in message history
@@ -35,7 +48,7 @@
 - Fix stray log output appearing over the TUI when the log file fallback wrote directly to the stderr file descriptor, bypassing the TUI's stdio capture
 - Refresh the built-in model catalog with the latest available models and pricing
 
-## 0.0.10 (2026-05-04)
+## 0.0.10
 
 - Improve local provider onboarding: setting up Ollama, LM Studio, or other local providers now prompts for the endpoint URL directly, supports typing a model ID manually when the provider returns no models, and correctly discovers models from your saved endpoint
 - Ctrl+C no longer cancels a running turn -- it now clears the input field or exits the CLI, matching standard terminal behavior. Use Escape to cancel a running turn instead
@@ -52,12 +65,12 @@
 - Login now uses device auth exclusively
 - Fix chat input and chat view text losing its indent on wrapped lines
 
-## 0.0.9 (2026-05-03)
+## 0.0.9
 
 - Fix stray text appearing over the TUI when background operations (like hub restart messages) write directly to stdout/stderr during interactive sessions
 - Fix hub connection recovery: when a newer CLI instance restarts the shared hub daemon, already-running CLI sessions now automatically reconnect to the new hub endpoint instead of failing with transport errors
 
-## 0.0.8 (2026-05-03)
+## 0.0.8
 
 - Fix crash when pressing Escape to cancel a running turn
 - Add plugin and SDK tool toggles to the settings panel
@@ -73,7 +86,7 @@
 - Clean up CLI program description and compact slash command descriptions
 - Clean up CLI flags
 
-## 0.0.7 (2026-04-30)
+## 0.0.7
 
 - Fix graceful recovery when the model returns malformed tool call inputs, preventing crashes mid-conversation
 - Add settings toggles for core skills (enable/disable individual skills from the settings panel)
@@ -90,13 +103,13 @@
 - Fix hub tool capabilities being routed to the wrong session
 - Revert loading extension-created sessions from history (was causing issues)
 
-## 0.0.6 (2026-04-29)
+## 0.0.6
 
 - Add checkpoint restore: press Esc twice or type `/undo` to rewind to a previous checkpoint, with options to restore chat only or chat + workspace
 - Fix clipboard: fall back to system clipboard (pbcopy, PowerShell, wl-copy, xclip) when OSC 52 fails, fixing copy for longer text selections
 - Fix prompt focus: restore focus to the prompt input after dialogs close, preventing the input from becoming unresponsive after using `/settings`
 
-## 0.0.5 (2026-04-28)
+## 0.0.5
 
 - The input field has been completely redesigned -- the old bordered box is replaced with a clean chevron-prompt style that adapts its background color to any terminal theme using perceptual OKLAB color math. Light terminals are fully supported now.
 - Pasting 5+ lines into the input shows a compact preview marker instead of flooding the textarea. The full content is still submitted.
@@ -110,11 +123,11 @@
 - `providers.json` (which stores API keys and OAuth tokens) is now written with 0600 permissions, preventing other processes on the machine from reading it.
 - Models that emit `command` or `cmd` instead of `commands` (or `paths` instead of `path`) no longer fail. Common aliases are normalized before execution.
 
-## 0.0.4 (2026-04-28)
+## 0.0.4
 
 - Fix compiled binary spawning infinite hub daemon recursion loop
 
-## 0.0.3 (2026-04-28)
+## 0.0.3
 
 - Rewritten TUI from Ink to OpenTUI with streaming markdown, syntax-highlighted diffs, scrollable chat, and mouse support
 - Dialog system for model picker, tool approval, settings browser, session history, and onboarding

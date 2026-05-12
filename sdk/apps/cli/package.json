@@ -2,7 +2,7 @@
 	"name": "@cline/cli",
 	"displayName": "cline",
 	"version": "3.0.0",
-	"description": "[EXPERIMENTAL] A lightweight Cline CLI built with the Cline SDKs",
+	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"type": "module",
 	"publishConfig": {
 		"access": "public"
@@ -11,6 +11,29 @@
 		"type": "git",
 		"url": "git+https://github.com/cline/cline.git",
 		"directory": "sdk/apps/cli"
+	},
+	"keywords": [
+		"cline",
+		"claude",
+		"dev",
+		"mcp",
+		"openrouter",
+		"coding",
+		"agent",
+		"autonomous",
+		"chatgpt",
+		"sonnet",
+		"ai",
+		"llama",
+		"cli"
+	],
+	"author": {
+		"name": "Cline Bot Inc."
+	},
+	"license": "Apache-2.0",
+	"homepage": "https://cline.bot",
+	"bugs": {
+		"url": "https://github.com/cline/cline/issues"
 	},
 	"bin": {
 		"cline": "src/index.ts"
@@ -69,7 +92,6 @@
 		"yaml": "^2.8.2",
 		"zod": "^4.1.11"
 	},
-	"license": "Apache-2.0",
 	"devDependencies": {
 		"@cline/core": "workspace:*",
 		"@cline/shared": "workspace:*",

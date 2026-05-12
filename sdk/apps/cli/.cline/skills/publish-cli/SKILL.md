@@ -67,7 +67,7 @@ Ask whether this should be patch, minor, major, or an explicit version. Do not g
 
 Update `apps/cli/package.json` to the approved version.
 
-Prepend a section to `apps/cli/CHANGELOG.md` for the approved version using the approved release notes.
+Prepend a section to `apps/cli/CHANGELOG.md` for the approved version using the approved release notes. Use the header format `## X.Y.Z` with no date. The publish workflow extracts the top section of the changelog by matching `^## [0-9]` and pastes it verbatim into the GitHub release body and the Slack release announcement, so the section content is the release notes that get shipped.
 
 6. Verify before committing.
 
