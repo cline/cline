@@ -149,7 +149,7 @@ export interface HicapCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 }
 
-export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
+export const hicapModelInfoSafeDefaults: HicapCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -1450,7 +1450,7 @@ export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
 	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
 ) as Record<string, ModelInfo>
 
-export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
+export const openAiModelInfoSafeDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -3182,7 +3182,7 @@ export interface LiteLLMModelInfo extends ModelInfo {
 	temperature?: number
 }
 
-export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
+export const liteLlmModelInfoSafeDefaults: LiteLLMModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,

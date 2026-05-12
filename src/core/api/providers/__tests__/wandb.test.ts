@@ -1,5 +1,5 @@
 import "should"
-import { openAiModelInfoSaneDefaults, wandbDefaultModelId, wandbModels } from "@shared/api"
+import { openAiModelInfoSafeDefaults, wandbDefaultModelId, wandbModels } from "@shared/api"
 import { WandbHandler } from "../wandb"
 
 describe("WandbHandler", () => {
@@ -26,7 +26,7 @@ describe("WandbHandler", () => {
 		const model = handler.getModel()
 
 		model.id.should.equal(unknownModelId)
-		model.info.should.deepEqual(openAiModelInfoSaneDefaults)
+		model.info.should.deepEqual(openAiModelInfoSafeDefaults)
 	})
 
 	it("uses the default W&B model when no model id is configured", () => {
