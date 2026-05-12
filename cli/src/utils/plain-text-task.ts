@@ -102,7 +102,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 				completionResolve()
 			}
 		} else if (message.say === "error" || message.ask === "api_req_failed") {
-			completionReject(message.text ?? "message.say error || message.ask api_req_failed")
+			if (isViewTaskOnly || ts > completionCutoffTs) {
+				completionReject(message.text ?? "message.say error || message.ask api_req_failed")
+			}
 		}
 	}
 
