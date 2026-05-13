@@ -154,21 +154,27 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 
 Cline's capabilities are extensible. 
 1. MCP: Use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`. 
-2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below.
+2. Plugins: With the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. See the [SDK docs](https://docs.cline.bot/cline-sdk/overview) for plugin examples.
+
+A minimal SDK agent run:
 
 ```typescript
-import { Agent, createTool } from "@cline/sdk"
+import { ClineCore } from "@cline/sdk"
 
-const deployTool = createTool({
-  name: "deploy",
-  description: "Deploy the current branch to staging.",
-  inputSchema: { type: "object", properties: { env: { type: "string" } }, required: ["env"] },
-  execute: async (input) => {
-    // your deployment logic
+const cline = await ClineCore.create({})
+const result = await cline.start({
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    cwd: process.cwd(),
+    mode: "act",
   },
+  prompt: "Summarize this project.",
 })
 
-const agent = new Agent({ tools: [deployTool], /* ... */ })
+console.log(result.result?.text)
+await cline.dispose()
 ```
 
 ## Multi-Agent Teams for Cline SDK and Cline CLI
