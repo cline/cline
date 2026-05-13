@@ -37,17 +37,17 @@ npm i -g cline
 </td>
 <td align="center" width="50%">
 
-### Kanban
+### SDK
 
-Run many agents in parallel from a
-web-based task board. Each card gets its own
-worktree, auto-commit, and dependency chains.
+Build your own AI agents and integrations
+on the same engine that runs the CLI,
+Kanban, and the IDE plugins.
 
 ```
-npx kanban
+npm install @cline/sdk
 ```
 
-<a href="https://github.com/cline/kanban">Learn more</a>
+<a href="https://docs.cline.bot/cline-sdk/overview">Documentation</a>
 <br><br>
 
 </td>
@@ -78,23 +78,19 @@ the JetBrains family.
 
 </td>
 </tr>
-</table>
-</div>
-
-<div align="center">
-<table>
 <tr>
-<td align="center">
+<td align="center" colspan="2">
 
-### SDK
+### Kanban
 
-Build your own AI agents and integrations powered by the same engine that runs the CLI, Kanban, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
+Run many agents in parallel from a web-based task board.
+Each card gets its own worktree, auto-commit, and dependency chains.
 
 ```
-npm install @cline/sdk
+npx kanban
 ```
 
-<a href="https://docs.cline.bot/cline-sdk/overview">Documentation</a>
+<a href="https://github.com/cline/kanban">Learn more</a>
 <br><br>
 
 </td>
