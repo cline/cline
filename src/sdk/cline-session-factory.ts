@@ -8,7 +8,12 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@cline/core"
+import {
+	type ClineCoreStartInput,
+	type CoreSessionConfig,
+	type ProviderSettings,
+	type StartSessionResult,
+} from "@cline/core"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -104,6 +109,67 @@ function resolveWorkspaceName(workspacePath: string): string {
 	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "")
 	const name = withoutTrailingSeparators.split(/[\\/]/).filter(Boolean).pop()?.trim()
 	return name || "workspace"
+}
+
+type ReasoningEffort = NonNullable<CoreSessionConfig["reasoningEffort"]>
+type ProviderReasoningSettings = NonNullable<ProviderSettings["reasoning"]>
+type SessionReasoningConfig = Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
+
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
+	return value === "low" || value === "medium" || value === "high" || value === "xhigh"
+}
+
+function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | undefined): boolean {
+	return reasoning?.enabled === false && (reasoning.effort !== undefined || reasoning.budgetTokens !== undefined)
+}
+
+/**
+ * Convert SDK provider-level reasoning settings into the SDK session fields that
+ * are actually forwarded as model options. Keep `thinking` and
+ * `reasoningEffort` coherent: a disabled/none state must never carry an effort.
+ */
+export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningSettings | undefined): SessionReasoningConfig {
+	if (!reasoning) {
+		return {}
+	}
+
+	if (reasoning.enabled === false || reasoning.effort === "none") {
+		return { thinking: false }
+	}
+
+	if (reasoning.enabled === true) {
+		return {
+			thinking: true,
+			...(isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}),
+		}
+	}
+
+	return isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}
+}
+
+function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
+	try {
+		const manager = getProviderSettingsManager(resolveDataDir())
+		const settings = manager.getProviderSettings(providerId)
+		if (!settings) {
+			return {}
+		}
+
+		if (hasStaleDisabledReasoningFields(settings.reasoning)) {
+			const sanitizedSettings: ProviderSettings = {
+				...settings,
+				reasoning: { enabled: false },
+			}
+			manager.saveProviderSettings(sanitizedSettings, { setLastUsed: false })
+			Logger.warn(`[SessionFactory] Cleared stale disabled reasoning fields for provider=${providerId}`)
+			return normalizeProviderReasoningSettings(sanitizedSettings.reasoning)
+		}
+
+		return normalizeProviderReasoningSettings(settings.reasoning)
+	} catch (error) {
+		Logger.warn("[SessionFactory] Provider reasoning resolution failed:", error)
+		return {}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +431,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	providerId = providerId ?? "cline"
 	modelId = modelId ?? "openai/gpt-5.4"
 	apiKey = apiKey ?? ""
+	const reasoningConfig = resolveProviderReasoningConfig(providerId)
 
 	// Build the system prompt using the shared prompt builder. Core still
 	// expects callers to provide a concrete systemPrompt, but the prompt builder
@@ -423,7 +490,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableAgentTeams: false,
 		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",
-		thinking: false,
+		...reasoningConfig,
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {
