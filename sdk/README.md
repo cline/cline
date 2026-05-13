@@ -42,6 +42,16 @@ That's it. The agent streams its response, calls tools if you give it any, and r
 npm install @cline/sdk
 ```
 
+## SDK Skill
+
+If you use a coding agent (Claude Code, Codex, Cline, etc.), install the [Cline SDK skill](https://github.com/cline/sdk-skill) to give your agent context on the SDK's APIs and best practices to help you build with the Cline SDK.
+
+```bash
+npx skills add cline/sdk-skill
+```
+
+Prompt it to scaffold agents, create custom tools, wire up plugins, configure providers, and more.
+
 ## What You Can Build
 
 Coding agents, Slack bots, scheduled automations, code review pipelines, multi-agent teams, IDE integrations -- anything that benefits from an LLM that can take actions, not just generate text.
