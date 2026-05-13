@@ -4,6 +4,7 @@ import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
+import { normalizeDeepSeekProviderSwitch } from "./providerSwitchNormalization"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -35,10 +36,11 @@ export async function updateApiConfigurationPartial(
 		const newConfigValues = convertProtoToApiConfiguration(request.apiConfiguration)
 
 		// Apply only the fields specified in the mask
-		const updatedConfig = { ...currentConfig }
+		let updatedConfig = { ...currentConfig }
 		for (const field of request.updateMask) {
 			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
 		}
+		updatedConfig = normalizeDeepSeekProviderSwitch(currentConfig, updatedConfig)
 
 		// Update storage and task API handler
 		controller.stateManager.setApiConfiguration(updatedConfig)
