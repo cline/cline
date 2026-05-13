@@ -35,7 +35,6 @@
 		"test": "vitest run",
 		"test:live": "vitest run src/tests/provider-live*.test.ts",
 		"test:watch": "vitest",
-		"clean": "rm -rf dist node_modules",
 		"generate:models": "bun run scripts/generate-models.ts"
 	},
 	"peerDependenciesMeta": {

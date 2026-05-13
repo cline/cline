@@ -33,8 +33,7 @@
 		}
 	},
 	"scripts": {
-		"build": "rm -rf dist && bun run ./bun.mts && bun tsc -p tsconfig.build.json",
-		"clean": "rm -rf dist node_modules",
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit && bun run typecheck:smoke",
 		"typecheck:smoke": "bun tsc -p tsconfig.smoke.json --noEmit",
 		"test": "bun run test:unit && bun run test:e2e",
