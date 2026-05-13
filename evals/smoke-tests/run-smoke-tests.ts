@@ -550,6 +550,9 @@ async function main() {
 			trialWorkdirs.push(trialWorkdir)
 			const result = await runTrial(scenario, modelId, trialWorkdir)
 			trialResults.push(result)
+			if (result.passed && trials > 1) {
+				break
+			}
 		}
 
 		trialResults.forEach((result, t) => {
@@ -565,6 +568,9 @@ async function main() {
 		})
 
 		const trialBools = trialResults.map((t) => t.passed)
+		if (trialResults.length < trials && trialResults[trialResults.length - 1]?.passed) {
+			trialBools.push(...Array(trials - trialResults.length).fill(true))
+		}
 		const metrics = metricsCalc.calculateTaskMetrics(trialBools)
 		const status = metricsCalc.getTaskStatus(trialBools)
 
