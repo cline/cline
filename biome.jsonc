@@ -129,6 +129,7 @@
 			"!!**/playwright",
 			"!!**/test-results",
 			"!!**/node_modules",
+			"!!**/sdk",
 			"!!**/webview-ui/build",
 			"!!**/generated",
 			"!!**/proto",
