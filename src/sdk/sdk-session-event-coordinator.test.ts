@@ -1,4 +1,4 @@
-import type { CoreSessionEvent } from "@clinebot/core"
+import type { CoreSessionEvent } from "@cline/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"

@@ -1,4 +1,4 @@
-import type { CoreSessionEvent } from "@clinebot/core"
+import type { CoreSessionEvent } from "@cline/core"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { TaskProxy } from "./task-proxy"

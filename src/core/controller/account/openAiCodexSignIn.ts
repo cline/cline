@@ -7,7 +7,7 @@ import { Controller } from ".."
 
 /**
  * Initiates OpenAI Codex OAuth authentication flow.
- * Uses the SDK-backed AuthService which delegates to @clinebot/core's
+ * Uses the SDK-backed AuthService which delegates to @cline/core's
  * loginOpenAICodex() function.
  */
 export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest): Promise<Empty> {

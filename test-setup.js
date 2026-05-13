@@ -35,5 +35,103 @@ Module.prototype.require = function (id) {
 		const mockPath = path.join(baseUrl, "out/src/core/api/providers/gemini-mock.test.js")
 		return originalRequire.call(this, mockPath)
 	}
+
+	// The SDK packages are ESM-only and expose only an `import` condition.
+	// Integration tests run the tsc-built `out/` tree as CommonJS in VS Code's
+	// extension host, so `require("@cline/core")` fails before tests start.
+	// Mock the small surface needed by legacy VS Code integration tests.
+	if (id === "@cline/core") {
+		class ProviderSettingsManager {
+			constructor(_options) {
+				this.state = { providers: {}, lastUsedProvider: undefined }
+			}
+
+			read() {
+				return this.state
+			}
+
+			getLastUsedProviderSettings() {
+				return undefined
+			}
+
+			getProviderSettings(_provider) {
+				return undefined
+			}
+
+			saveProviderSettings(_settings, _options) {}
+		}
+
+		return {
+			ClineCore: class {
+				constructor() {
+					this.runtimeAddress = undefined
+					this.pendingPrompts = {
+						list: async () => [],
+						update: async () => ({ updated: false }),
+						delete: async () => ({ updated: false }),
+					}
+				}
+
+				static async create() {
+					return new this()
+				}
+
+				async start() {
+					return { sessionId: "test-session" }
+				}
+
+				async send() {
+					return undefined
+				}
+
+				async getAccumulatedUsage() {
+					return { usage: undefined }
+				}
+
+				async abort() {}
+				async stop() {}
+				async dispose() {}
+				async get() {
+					return undefined
+				}
+				async list() {
+					return []
+				}
+				async listHistory() {
+					return []
+				}
+				async delete() {
+					return false
+				}
+				async readMessages() {
+					return []
+				}
+				async update() {
+					return { updated: false }
+				}
+				async ingestHookEvent() {}
+				async updateSessionModel() {}
+				subscribe() {
+					return () => {}
+				}
+			},
+			ProviderSettingsManager,
+			createDefaultExecutors: () => ({}),
+			createMcpTools: () => ({}),
+			createOAuthClientCallbacks: () => ({}),
+			getValidClineCredentials: async () => undefined,
+			loginClineOAuth: async () => undefined,
+			loginOcaOAuth: async () => undefined,
+			loginOpenAICodex: async () => undefined,
+		}
+	}
+
+	if (id === "@cline/shared") {
+		return {
+			buildClineSystemPrompt: () => "",
+			createTool: (tool) => tool,
+		}
+	}
+
 	return originalRequire.call(this, id)
 }

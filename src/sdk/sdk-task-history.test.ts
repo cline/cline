@@ -1,4 +1,4 @@
-import type { SessionHistoryRecord } from "@clinebot/core"
+import type { SessionHistoryRecord } from "@cline/core"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"

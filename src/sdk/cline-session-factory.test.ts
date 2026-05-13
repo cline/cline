@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import type { CoreSessionConfig } from "@clinebot/core"
+import type { CoreSessionConfig } from "@cline/core"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import {
 	buildResumeSessionInput,
