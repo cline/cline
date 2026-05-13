@@ -102,6 +102,10 @@ npm install @cline/sdk
 </table>
 </div>
 
+<p align="center">
+  Open source. Runs in your IDE, terminal, or as a library. Works with every major model. Extensible through MCP servers and plugins.
+</p>
+
 ---
 
 ## Repository Map
