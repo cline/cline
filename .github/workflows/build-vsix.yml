@@ -8,6 +8,7 @@ on:
 
 permissions:
     contents: read
+    id-token: write  # required for Workload Identity Federation
 
 jobs:
     build-vsix:
@@ -66,19 +67,20 @@ jobs:
             - name: Authenticate to Google Cloud
               uses: google-github-actions/auth@v2
               with:
-                  credentials_json: ${{ secrets.GCS_SA_KEY_JSON }}
+                  workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+                  service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
             - name: Upload versioned VSIX to GCS
-              uses: google-github-actions/upload-cloud-storage@v2
-              with:
-                  path: dist/${{ steps.package.outputs.filename }}
-                  destination: ${{ secrets.GCS_VSIX_BUCKET }}/cline-macm4/
+              run: |
+                  gsutil cp \
+                    "dist/${{ steps.package.outputs.filename }}" \
+                    "gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/${{ steps.package.outputs.filename }}"
 
             - name: Upload as latest (stable pointer)
               run: |
                   gsutil cp \
                     "dist/${{ steps.package.outputs.filename }}" \
-                    "gs://${{ secrets.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix"
+                    "gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix"
 
             - name: Summary
               run: |
@@ -88,9 +90,9 @@ jobs:
                   echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
                   echo "| Version | ${{ steps.package.outputs.version }} |" >> "$GITHUB_STEP_SUMMARY"
                   echo "| File | \`${{ steps.package.outputs.filename }}\` |" >> "$GITHUB_STEP_SUMMARY"
-                  echo "| GCS path | \`gs://${{ secrets.GCS_VSIX_BUCKET }}/cline-macm4/${{ steps.package.outputs.filename }}\` |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "| GCS path | \`gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/${{ steps.package.outputs.filename }}\` |" >> "$GITHUB_STEP_SUMMARY"
                   echo "" >> "$GITHUB_STEP_SUMMARY"
                   echo "**Install on any machine:**" >> "$GITHUB_STEP_SUMMARY"
                   echo "\`\`\`bash" >> "$GITHUB_STEP_SUMMARY"
-                  echo "gsutil cp gs://\$GCS_VSIX_BUCKET/cline-macm4/cline-macm4-latest.vsix /tmp/ && code --install-extension /tmp/cline-macm4-latest.vsix" >> "$GITHUB_STEP_SUMMARY"
+                  echo "gsutil cp gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix /tmp/ && code --install-extension /tmp/cline-macm4-latest.vsix" >> "$GITHUB_STEP_SUMMARY"
                   echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
