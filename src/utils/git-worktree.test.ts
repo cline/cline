@@ -81,8 +81,15 @@ describe("createTaskWorktree", () => {
 		result.message.should.match(/Not a git repository/)
 	})
 
-	it("rejects unsafe taskIds", async () => {
+	it("rejects unsafe taskIds (path traversal)", async () => {
 		const result = await createTaskWorktree({ cwd: repoPath, taskId: "../escape" })
+		result.success.should.equal(false)
+		result.message.should.match(/Invalid worktree id/)
+	})
+
+	it("rejects taskIds containing a null byte", async () => {
+		// A null byte could otherwise sneak past the `..` substring check on some kernels.
+		const result = await createTaskWorktree({ cwd: repoPath, taskId: "safe\0../escape" })
 		result.success.should.equal(false)
 		result.message.should.match(/Invalid worktree id/)
 	})

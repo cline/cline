@@ -379,6 +379,13 @@ export async function createTaskWorktree(options: {
 	/** Optional override for the worktree id (parent directory name). Defaults to a uuid. */
 	taskId?: string
 }): Promise<CreateTaskWorktreeResult> {
+	if (!(await checkGitInstalled())) {
+		return {
+			success: false,
+			message: "Git is not installed. --worktree requires git on PATH.",
+		}
+	}
+
 	const repoRoot = await getGitRootPath(options.cwd)
 	if (!repoRoot) {
 		return {
@@ -388,7 +395,7 @@ export async function createTaskWorktree(options: {
 	}
 
 	const taskId = options.taskId?.trim() || randomUUID()
-	if (taskId.includes("/") || taskId.includes("\\") || taskId.includes("..")) {
+	if (taskId.includes("/") || taskId.includes("\\") || taskId.includes("..") || taskId.includes("\0")) {
 		return { success: false, message: `Invalid worktree id: ${taskId}` }
 	}
 

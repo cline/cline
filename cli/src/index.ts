@@ -1170,12 +1170,10 @@ async function continueTask(options: TaskOptions) {
  * If auth is not configured, show auth flow first
  */
 async function showWelcome(options: TaskOptions) {
-	await applyWorktreeOption(options)
+	// NOTE: --worktree is rejected before reaching this path (see root command action).
+	// We don't create a worktree here because the user may Esc out of the welcome TUI
+	// without ever submitting a task, which would leave an orphan worktree on disk.
 	const ctx = await initializeCli({ ...options, enableAuth: true })
-
-	if (options.worktree) {
-		telemetryService.captureHostEvent("worktree_flag", "created")
-	}
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
@@ -1280,6 +1278,15 @@ program
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
 
+		// --worktree without a prompt would create an empty worktree that may be abandoned
+		// if the user exits the welcome TUI without submitting a task. Require a prompt
+		// (or --taskId / --continue, which both run a real task). Checked here so it fires
+		// before kanban auto-launches and short-circuits the rest of this action.
+		if (options.worktree && !prompt && !stdinInput && !options.taskId && !options.continue) {
+			printWarning('--worktree requires a task prompt; use `cline --worktree "your prompt"`.')
+			exit(1)
+		}
+
 		if (
 			shouldLaunchKanbanByDefault({
 				prompt,
@@ -1367,7 +1374,7 @@ program
 			// Pass stdinWasPiped flag so runTask knows to use plain text mode
 			await runTask(effectivePrompt, { ...options, stdinWasPiped })
 		} else {
-			// Show welcome prompt if no prompt given
+			// Show welcome prompt if no prompt given (--worktree rejection happened earlier).
 			await showWelcome(options)
 		}
 	})
