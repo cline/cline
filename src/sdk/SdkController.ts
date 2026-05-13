@@ -47,7 +47,7 @@ import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
-import type { ProviderCatalog, ProviderConfigStore } from "./model-catalog/contracts"
+import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
 import { createProviderConfigStore } from "./model-catalog/store"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
@@ -134,6 +134,8 @@ export class Controller {
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly providerConfigStore: ProviderConfigStore
 	private readonly providerCatalog: ProviderCatalog
+	private readonly providerConfigStoreSubscription: Disposable
+	private providerConfigStatePostScheduled = false
 
 	// gRPC bridge (Step 5) — bridges SDK events to webview streams
 	private grpcBridge: WebviewGrpcBridge
@@ -175,6 +177,9 @@ export class Controller {
 		this.stateManager = StateManager.get()
 		this.providerConfigStore = createProviderConfigStore()
 		this.providerCatalog = createProviderCatalog(this.providerConfigStore)
+		this.providerConfigStoreSubscription = this.providerConfigStore.subscribe((event) => {
+			this.handleProviderConfigChange(event)
+		})
 
 		// MCP hub — using classic McpHub for now (Step 7).
 		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
@@ -416,6 +421,46 @@ export class Controller {
 		return this.providerCatalog
 	}
 
+	private handleProviderConfigChange(event: ProviderConfigChange): void {
+		this.scheduleProviderConfigStatePost()
+
+		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
+			this.sessions
+				?.updateActiveSessionModel(event.selection.modelId)
+				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
+		}
+	}
+
+	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
+		try {
+			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
+			const mode = modeValue === "plan" ? "plan" : "act"
+			if (event.mode !== mode) {
+				return false
+			}
+
+			const apiConfig = this.stateManager.getApiConfiguration()
+			const activeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+			return activeProvider === event.providerId.toString()
+		} catch {
+			return false
+		}
+	}
+
+	private scheduleProviderConfigStatePost(): void {
+		if (this.providerConfigStatePostScheduled) {
+			return
+		}
+
+		this.providerConfigStatePostScheduled = true
+		queueMicrotask(() => {
+			this.providerConfigStatePostScheduled = false
+			this.postStateToWebview().catch((error) => {
+				Logger.error("[SdkController] Failed to post state after provider config change:", error)
+			})
+		})
+	}
+
 	/**
 	 * Starts the periodic remote config fetching timer.
 	 * Fetches immediately and then every hour. Mirrors the classic
@@ -449,6 +494,7 @@ export class Controller {
 	}
 
 	async dispose(): Promise<void> {
+		this.providerConfigStoreSubscription.dispose()
 		// Clear the remote config timer to prevent stale fetches
 		if (this.remoteConfigTimer) {
 			clearInterval(this.remoteConfigTimer)
