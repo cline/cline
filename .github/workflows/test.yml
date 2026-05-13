@@ -15,7 +15,41 @@ permissions:
     contents: read # Needed to check out code
 
 jobs:
+    preflight:
+        runs-on: ubuntu-latest
+        name: Preflight
+        outputs:
+            run_quality_checks: ${{ steps.scope.outputs.run_quality_checks }}
+            run_core_tests: ${{ steps.scope.outputs.run_core_tests }}
+            run_webview_tests: ${{ steps.scope.outputs.run_webview_tests }}
+            run_cli_tests: ${{ steps.scope.outputs.run_cli_tests }}
+            run_platform_tests: ${{ steps.scope.outputs.run_platform_tests }}
+            run_windows_tests: ${{ steps.scope.outputs.run_windows_tests }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Detect changed scope
+              id: scope
+              run: |
+                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                    node scripts/ci-changed-scope.mjs "origin/${{ github.base_ref }}"
+                  else
+                    # Push to main, workflow_dispatch, workflow_call: run everything
+                    echo "Non-PR event (${{ github.event_name }}) — running all scopes"
+                    echo "run_quality_checks=true" >> "$GITHUB_OUTPUT"
+                    echo "run_core_tests=true" >> "$GITHUB_OUTPUT"
+                    echo "run_webview_tests=true" >> "$GITHUB_OUTPUT"
+                    echo "run_cli_tests=true" >> "$GITHUB_OUTPUT"
+                    echo "run_platform_tests=true" >> "$GITHUB_OUTPUT"
+                    echo "run_windows_tests=true" >> "$GITHUB_OUTPUT"
+                  fi
+
     quality-checks:
+        needs: preflight
+        if: needs.preflight.outputs.run_quality_checks == 'true'
         runs-on: ubuntu-latest
         name: Quality Checks
         steps:
@@ -43,13 +77,19 @@ jobs:
               run: npm run ci:check-all
 
     test:
-        needs: quality-checks
+        needs: [preflight, quality-checks]
+        if: |
+            always() &&
+            (needs.quality-checks.result == 'success' || needs.quality-checks.result == 'skipped') &&
+            (needs.preflight.outputs.run_core_tests == 'true' ||
+             needs.preflight.outputs.run_webview_tests == 'true' ||
+             needs.preflight.outputs.run_cli_tests == 'true')
         env:
             VSCODE_TEST_VERSION: 1.103.0
         strategy:
             fail-fast: false
             matrix:
-                os: [ubuntu-latest, windows-latest]
+                os: ${{ needs.preflight.outputs.run_windows_tests == 'true' && fromJson('["ubuntu-latest","windows-latest"]') || fromJson('["ubuntu-latest"]') }}
         runs-on: ${{ matrix.os }}
         name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
         defaults:
@@ -63,17 +103,33 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-npm-
+
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-npm-webview-
 
             - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Set up NPM on Windows
@@ -131,14 +187,14 @@ jobs:
 
             - name: Webview Tests with Coverage
               id: webview_tests
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && needs.preflight.outputs.run_webview_tests == 'true' }}
               run: |
                   cd webview-ui
                   npm run test:coverage
 
             - name: CLI Tests
               id: cli_tests
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && needs.preflight.outputs.run_cli_tests == 'true' }}
               run: cd cli && npm run test:run
 
             - name: Save Coverage Reports
@@ -152,7 +208,11 @@ jobs:
                       webview-ui/coverage/lcov.info
 
     test-platform-integration:
-        needs: quality-checks
+        needs: [preflight, quality-checks]
+        if: |
+            always() &&
+            (needs.quality-checks.result == 'success' || needs.quality-checks.result == 'skipped') &&
+            needs.preflight.outputs.run_platform_tests == 'true'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -197,32 +257,34 @@ jobs:
 
     qlty:
         needs: [test, test-platform-integration]
+        if: always() && (needs.test.result == 'success' || needs.test-platform-integration.result == 'success')
         runs-on: ubuntu-latest
-        # Run on PRs to main, pushes to main, and manual dispatches
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
 
             - name: Download unit tests coverage reports
               uses: actions/download-artifact@v4
+              continue-on-error: true
+              id: download-unit-coverage
               with:
                   name: pr-coverage-reports
                   path: .
 
             - name: Upload core unit tests coverage to Qlty
+              if: steps.download-unit-coverage.outcome == 'success'
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                  # we can merge multiple files if necessary
                   files: |
                     coverage-unit/lcov.info
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
+              if: steps.download-unit-coverage.outcome == 'success'
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                  # we can merge multiple files if necessary
                   files: |
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
