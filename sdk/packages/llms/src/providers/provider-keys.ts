@@ -65,6 +65,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "nebius",
 	},
 	{
+		modelsDevKey: "nvidia",
+		generatedProviderId: "nvidia",
+		runtimeProviderId: "nvidia",
+	},
+	{
 		modelsDevKey: "huggingface",
 		generatedProviderId: "huggingface",
 		runtimeProviderId: "huggingface",

@@ -1,4 +1,4 @@
-import { moonshotDefaultModelId } from "@shared/api"
+import { moonshotDefaultModelId, nvidiaDefaultModelId } from "@shared/api"
 import { expect } from "chai"
 import { describe, it } from "mocha"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "../provider-keys"
@@ -11,6 +11,15 @@ describe("Provider key mapping", () => {
 	it("uses generic model key for Moonshot", () => {
 		expect(getProviderModelIdKey("moonshot", "act")).to.equal("actModeApiModelId")
 		expect(getProviderModelIdKey("moonshot", "plan")).to.equal("planModeApiModelId")
+	})
+
+	it("returns NVIDIA default model ID", () => {
+		expect(getProviderDefaultModelId("nvidia")).to.equal(nvidiaDefaultModelId)
+	})
+
+	it("uses generic model key for NVIDIA", () => {
+		expect(getProviderModelIdKey("nvidia", "act")).to.equal("actModeApiModelId")
+		expect(getProviderModelIdKey("nvidia", "plan")).to.equal("planModeApiModelId")
 	})
 
 	it("keeps provider-specific model key behavior for OpenRouter", () => {

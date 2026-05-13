@@ -26,6 +26,7 @@ import { MinimaxHandler } from "./providers/minimax"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { NvidiaHandler } from "./providers/nvidia"
 import { NousResearchHandler } from "./providers/nousresearch"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
@@ -310,6 +311,12 @@ function createHandlerForProvider(
 			return new NebiusHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				nebiusApiKey: options.nebiusApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "nvidia":
+			return new NvidiaHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				nvidiaApiKey: options.nvidiaApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "asksage":

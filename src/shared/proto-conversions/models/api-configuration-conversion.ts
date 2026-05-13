@@ -290,6 +290,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NEBIUS
 		case "wandb":
 			return ProtoApiProvider.WANDB
+		case "nvidia":
+			return ProtoApiProvider.NVIDIA
 		case "fireworks":
 			return ProtoApiProvider.FIREWORKS
 		case "asksage":
@@ -382,6 +384,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nebius"
 		case ProtoApiProvider.WANDB:
 			return "wandb"
+		case ProtoApiProvider.NVIDIA:
+			return "nvidia"
 		case ProtoApiProvider.FIREWORKS:
 			return "fireworks"
 		case ProtoApiProvider.ASKSAGE:
@@ -483,6 +487,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		huggingFaceApiKey: config.huggingFaceApiKey,
 		nebiusApiKey: config.nebiusApiKey,
 		wandbApiKey: config.wandbApiKey,
+		nvidiaApiKey: config.nvidiaApiKey,
 		asksageApiUrl: config.asksageApiUrl,
 		asksageApiKey: config.asksageApiKey,
 		xaiApiKey: config.xaiApiKey,
@@ -663,6 +668,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		huggingFaceApiKey: protoConfig.huggingFaceApiKey,
 		nebiusApiKey: protoConfig.nebiusApiKey,
 		wandbApiKey: protoConfig.wandbApiKey,
+		nvidiaApiKey: protoConfig.nvidiaApiKey,
 		asksageApiUrl: protoConfig.asksageApiUrl,
 		asksageApiKey: protoConfig.asksageApiKey,
 		xaiApiKey: protoConfig.xaiApiKey,

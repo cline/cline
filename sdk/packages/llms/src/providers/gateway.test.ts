@@ -1,4 +1,10 @@
-import type { AgentMessage, AgentModelEvent } from "@cline/shared";
+import {
+	type AgentMessage,
+	type AgentModelEvent,
+	NVIDIA_NIM_BASE_URL,
+	NVIDIA_NIM_BILLING_ORIGIN_HEADER,
+	NVIDIA_NIM_BILLING_ORIGIN_VALUE,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createGateway } from "./gateway";
@@ -188,6 +194,7 @@ describe("sdk-gateway", () => {
 		expect(providerIds).toContain("aihubmix");
 		expect(providerIds).toContain("claude-code");
 		expect(providerIds).toContain("openai-codex");
+		expect(providerIds).toContain("nvidia");
 
 		const aihubmix = gateway
 			.listProviders()
@@ -207,6 +214,122 @@ describe("sdk-gateway", () => {
 				},
 			},
 		});
+	});
+
+	it("configures the NVIDIA built-in with the billing origin header", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "nvidia",
+					apiKey: "test-nvidia-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "nvidia",
+				modelId: "nvidia/nemotron-3-super-120b-a12b",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "nvidia",
+				apiKey: "test-nvidia-key",
+				baseURL: NVIDIA_NIM_BASE_URL,
+				headers: expect.objectContaining({
+					[NVIDIA_NIM_BILLING_ORIGIN_HEADER]:
+						NVIDIA_NIM_BILLING_ORIGIN_VALUE,
+				}),
+			}),
+		);
+	});
+
+	it("adds the NVIDIA billing origin header for OpenAI-compatible configs pointed at public NIM", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-openai-compatible-key",
+					baseUrl: NVIDIA_NIM_BASE_URL,
+					headers: {
+						"X-Existing": "1",
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "nvidia/nemotron-3-super-120b-a12b",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "openrouter",
+				apiKey: "test-openai-compatible-key",
+				baseURL: NVIDIA_NIM_BASE_URL,
+				headers: expect.objectContaining({
+					"X-Existing": "1",
+					[NVIDIA_NIM_BILLING_ORIGIN_HEADER]:
+						NVIDIA_NIM_BILLING_ORIGIN_VALUE,
+				}),
+			}),
+		);
+	});
+
+	it("does not overwrite an explicit NVIDIA billing origin header", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-openai-compatible-key",
+					baseUrl: NVIDIA_NIM_BASE_URL,
+					headers: {
+						"x-billing-invoke-origin": "CustomOrigin",
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "nvidia/nemotron-3-super-120b-a12b",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				headers: {
+					"x-billing-invoke-origin": "CustomOrigin",
+				},
+			}),
+		);
 	});
 
 	it("keeps Anthropic cache-control routing on the expected provider set", () => {

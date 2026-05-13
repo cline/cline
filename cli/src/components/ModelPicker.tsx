@@ -48,6 +48,7 @@ import {
 	moonshotModels,
 	nebiusDefaultModelId,
 	nebiusModels,
+	nvidiaDefaultModelId,
 	nousResearchDefaultModelId,
 	nousResearchModels,
 	openAiCodexDefaultModelId,
@@ -119,6 +120,9 @@ export function hasModelPicker(provider: string): boolean {
 export function getDefaultModelId(provider: string): string {
 	if (usesOpenRouterModels(provider)) {
 		return getOpenRouterDefaultModelId()
+	}
+	if (provider === "nvidia") {
+		return nvidiaDefaultModelId
 	}
 	return providerModels[provider]?.defaultId || ""
 }

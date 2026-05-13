@@ -44,6 +44,7 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "nvidia"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -1459,6 +1460,15 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
+}
+
+export const nvidiaDefaultModelId = "nvidia/nemotron-3-super-120b-a12b"
+export const nvidiaDefaultModelInfo: OpenAiCompatibleModelInfo = {
+	...openAiModelInfoSaneDefaults,
+	name: "NVIDIA Nemotron 3 Super 120B A12B",
+	supportsReasoning: true,
+	supportsTools: true,
+	supportsStreaming: true,
 }
 
 // Gemini
