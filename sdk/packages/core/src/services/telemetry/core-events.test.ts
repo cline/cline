@@ -1,6 +1,9 @@
 import type { ITelemetryService } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
+	CORE_TELEMETRY_EVENTS,
+	captureCompactionExecuted,
+	captureCompactionSkipped,
 	captureExtensionActivated,
 	captureTelemetryOptOut,
 	captureWorkspaceInitError,
@@ -221,6 +224,96 @@ describe("captureWorkspacePathResolved", () => {
 		).not.toThrow();
 	});
 });
+describe("captureCompactionExecuted", () => {
+	const baseProps = {
+		ulid: "ulid-1",
+		strategy: "basic" as const,
+		mode: "auto" as const,
+		messagesBefore: 12,
+		messagesAfter: 6,
+		messagesRemoved: 6,
+		tokensBefore: 100_000,
+		tokensAfter: 50_000,
+		tokensSaved: 50_000,
+		triggerTokens: 180_000,
+		maxInputTokens: 200_000,
+		thresholdRatio: 0.9,
+		durationMs: 42,
+		provider: "anthropic",
+		modelId: "claude-sonnet-4",
+	};
+
+	test("emits task.compaction_executed with all properties and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureCompactionExecuted(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(CORE_TELEMETRY_EVENTS.TASK.COMPACTION_EXECUTED);
+		expect(event).toBe("task.compaction_executed");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+
+	test("preserves optional agent identity fields when supplied", () => {
+		const stub = createTelemetryStub();
+		captureCompactionExecuted(stub.telemetry, {
+			...baseProps,
+			agentId: "agent-7",
+			agentKind: "subagent",
+			conversationId: "conv-1",
+			parentAgentId: "agent-root",
+			isSubagent: true,
+		});
+		const { properties } = captureCallAt(stub, 0);
+		const props = properties as Record<string, unknown>;
+		expect(props.agentId).toBe("agent-7");
+		expect(props.agentKind).toBe("subagent");
+		expect(props.conversationId).toBe("conv-1");
+		expect(props.parentAgentId).toBe("agent-root");
+		expect(props.isSubagent).toBe(true);
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureCompactionExecuted(undefined, baseProps)).not.toThrow();
+	});
+});
+
+describe("captureCompactionSkipped", () => {
+	const baseProps = {
+		ulid: "ulid-1",
+		strategy: "agentic" as const,
+		mode: "auto" as const,
+		reason: "no_result",
+		tokensBefore: 100_000,
+		triggerTokens: 180_000,
+		maxInputTokens: 200_000,
+		thresholdRatio: 0.9,
+		durationMs: 17,
+		provider: "anthropic",
+		modelId: "claude-sonnet-4",
+	};
+
+	test("emits task.compaction_skipped with all properties and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureCompactionSkipped(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED);
+		expect(event).toBe("task.compaction_skipped");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureCompactionSkipped(undefined, baseProps)).not.toThrow();
+	});
+});
 
 /**
  * Telemetry-policy regression coverage.
@@ -324,6 +417,50 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureCompactionExecuted never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureCompactionExecuted(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			messagesBefore: 12,
+			messagesAfter: 6,
+			messagesRemoved: 6,
+			tokensBefore: 100_000,
+			tokensAfter: 50_000,
+			tokensSaved: 50_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 42,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
+	test("captureCompactionSkipped never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureCompactionSkipped(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			reason: "no_result",
+			tokensBefore: 100_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 17,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("a correctly-policed adapter drops these events when disabled", () => {
 		// This test layers on top of the previous four to assert the *full*
 		// end-to-end policy: when the adapter is disabled, a real adapter
@@ -368,12 +505,40 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			context: "search_codebase",
 			resolution_type: "fallback_to_primary",
 		});
+		captureCompactionExecuted(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			messagesBefore: 12,
+			messagesAfter: 6,
+			messagesRemoved: 6,
+			tokensBefore: 100_000,
+			tokensAfter: 50_000,
+			tokensSaved: 50_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 42,
+		});
+		captureCompactionSkipped(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			reason: "no_result",
+			tokensBefore: 100_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 17,
+		});
 		expect(observed).toEqual([]);
 		expect(dropped).toEqual([
 			"user.extension_activated",
 			"workspace.initialized",
 			"workspace.init_error",
 			"workspace.path_resolved",
+			"task.compaction_executed",
+			"task.compaction_skipped",
 		]);
 	});
 });

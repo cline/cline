@@ -38,7 +38,7 @@ import {
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
-import { captureCliExtensionActivated } from "./utils/telemetry";
+import { captureCliExtensionActivated, getCliTelemetryService } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
 import { runMcpWizard } from "./wizards/mcp";
@@ -856,6 +856,7 @@ export async function runCli(): Promise<void> {
 			mode: args.mode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
+			telemetry: getCliTelemetryService(loggerAdapter.core),
 			defaultToolAutoApprove,
 			toolPolicies,
 			enableSpawnAgent: !isYoloMode,

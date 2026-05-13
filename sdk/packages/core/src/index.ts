@@ -461,8 +461,12 @@ export {
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
 export type {
+	CaptureCompactionExecutedProperties,
+	CaptureCompactionSkippedProperties,
 	TelemetryAgentIdentityProperties,
 	TelemetryAgentKind,
+	TelemetryCompactionMode,
+	TelemetryCompactionStrategy,
 	WorkspaceInitErrorProperties,
 	WorkspaceInitializedProperties,
 	WorkspacePathResolvedProperties,
@@ -475,6 +479,8 @@ export {
 	captureAuthLoggedOut,
 	captureAuthStarted,
 	captureAuthSucceeded,
+	captureCompactionExecuted,
+	captureCompactionSkipped,
 	captureConversationTurnEvent,
 	captureDiffEditFailure,
 	captureExtensionActivated,

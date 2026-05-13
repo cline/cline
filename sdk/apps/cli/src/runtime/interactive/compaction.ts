@@ -72,6 +72,11 @@ export async function compactInteractiveMessages(input: {
 				enabled: true,
 			},
 			logger: input.config.logger,
+			// Forward telemetry + sessionId so manual compactions emit
+			// `task.compaction_executed` / `task.compaction_skipped` events
+			// alongside auto compactions.
+			telemetry: input.config.telemetry,
+			sessionId: input.sessionId,
 		},
 		{ mode: "manual" },
 	);
