@@ -270,6 +270,7 @@ const InternalApp: React.FC<AppProps> = ({
 							onError={onError}
 							onExit={onWelcomeExit}
 							taskId={selectedTaskId}
+							verbose={verbose}
 						/>
 					)}
 				</TaskContextProvider>
