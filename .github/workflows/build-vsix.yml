@@ -77,13 +77,13 @@ jobs:
 
             - name: Upload versioned VSIX to GCS
               run: |
-                  gsutil cp \
+                  gcloud storage cp \
                     "dist/${{ steps.package.outputs.filename }}" \
                     "gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/${{ steps.package.outputs.filename }}"
 
             - name: Upload as latest (stable pointer)
               run: |
-                  gsutil cp \
+                  gcloud storage cp \
                     "dist/${{ steps.package.outputs.filename }}" \
                     "gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix"
 
@@ -99,5 +99,5 @@ jobs:
                   echo "" >> "$GITHUB_STEP_SUMMARY"
                   echo "**Install on any machine:**" >> "$GITHUB_STEP_SUMMARY"
                   echo "\`\`\`bash" >> "$GITHUB_STEP_SUMMARY"
-                  echo "gsutil cp gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix /tmp/ && code --install-extension /tmp/cline-macm4-latest.vsix" >> "$GITHUB_STEP_SUMMARY"
+                  echo "gcloud storage cp gs://${{ vars.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix /tmp/ && code --install-extension /tmp/cline-macm4-latest.vsix" >> "$GITHUB_STEP_SUMMARY"
                   echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
