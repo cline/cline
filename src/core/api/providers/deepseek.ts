@@ -32,7 +32,7 @@ export class DeepSeekHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://api.deepseek.com/v1",
+					baseURL: "https://api.deepseek.com",
 					apiKey: this.options.deepSeekApiKey,
 					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
