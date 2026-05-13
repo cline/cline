@@ -15,7 +15,7 @@
 			},
 			"response": {
 				"message": {
-					"value": "http://localhost:7777/"
+					"value": "http://localhost:7777/api/v1/auth/authorize?client_type=extension&callback_url=http%3A%2F%2F127.0.0.1%3A48801%2Fauth&redirect_uri=http%3A%2F%2F127.0.0.1%3A48801%2Fauth"
 				}
 			},
 			"duration": 13

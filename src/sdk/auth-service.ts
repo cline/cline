@@ -460,52 +460,65 @@ export class AuthService {
 			return ProtoString.create({ value: "Already authenticated" })
 		}
 
-		try {
-			const apiBaseUrl = ClineEnv.config().apiBaseUrl
+		let resolveAuthUrl!: (url: string) => void
+		let rejectAuthUrl!: (error: unknown) => void
+		const authUrlPromise = new Promise<string>((resolve, reject) => {
+			resolveAuthUrl = resolve
+			rejectAuthUrl = reject
+		})
 
-			const callbacks = createOAuthClientCallbacks({
-				onPrompt: async (prompt) => prompt.defaultValue ?? "",
-				openUrl: async (url: string) => {
-					await openExternal(url)
-				},
-				onOpenUrlError: ({ url, error }) => {
-					Logger.error(`[SdkAuthService] Failed to open browser for ${url}:`, error)
-				},
-			})
+		void (async () => {
+			try {
+				const apiBaseUrl = ClineEnv.config().apiBaseUrl
+				const credentials = await loginClineOAuth({
+					apiBaseUrl,
+					// Fetch login URLs via redirect to support production/staging/local environments.
+					useWorkOSDeviceAuth: false,
+					headers: await buildBasicClineHeaders(),
+					callbacks: createOAuthClientCallbacks({
+						onOutput: (message) => {
+							if (/^https?:\/\//.test(message)) {
+								resolveAuthUrl(message)
+							}
+						},
+						onPrompt: async (prompt) => prompt.defaultValue ?? "",
+						openUrl: async (url: string) => {
+							resolveAuthUrl(url)
+							await openExternal(url)
+						},
+						onOpenUrlError: ({ url, error }) => {
+							Logger.error(`[SdkAuthService] Failed to open browser for ${url}:`, error)
+						},
+					}),
+				})
 
-			const credentials = await loginClineOAuth({
-				apiBaseUrl,
-				// Fetch login URLs via redirect to support production/staging/local environments.
-				useWorkOSDeviceAuth: false,
-				callbacks,
-			})
+				// Convert and persist to providers.json
+				const authInfo = await this.credentialsToAuthInfo(credentials, "cline")
+				this._clineAuthInfo = authInfo
+				this._authenticated = true
 
-			// Convert and persist to providers.json
-			const authInfo = await this.credentialsToAuthInfo(credentials, "cline")
-			this._clineAuthInfo = authInfo
-			this._authenticated = true
+				writeClineCredentials({
+					accessToken: credentials.access,
+					refreshToken: credentials.refresh,
+					expiresAt: credentials.expires,
+					accountId: authInfo.userInfo.id || credentials.accountId,
+				})
 
-			writeClineCredentials({
-				accessToken: credentials.access,
-				refreshToken: credentials.refresh,
-				expiresAt: credentials.expires,
-				accountId: authInfo.userInfo.id || credentials.accountId,
-			})
+				// Push auth state update
+				await this.sendAuthStatusUpdate()
 
-			// Push auth state update
-			await this.sendAuthStatusUpdate()
+				// Notify BannerService of auth change (mirrors classic AuthService)
+				BannerService.onAuthUpdate(authInfo.userInfo?.id || null).catch((error) => {
+					Logger.error("[SdkAuthService] Banner update failed after login", error)
+				})
+			} catch (error) {
+				rejectAuthUrl(error)
+				Logger.error("[SdkAuthService] Cline OAuth login failed:", error)
+			}
+		})()
 
-			// Notify BannerService of auth change (mirrors classic AuthService)
-			BannerService.onAuthUpdate(authInfo.userInfo?.id || null).catch((error) => {
-				Logger.error("[SdkAuthService] Banner update failed after login", error)
-			})
-
-			const { String: ProtoString } = await import("@shared/proto/cline/common")
-			return ProtoString.create({ value: "Authenticated" })
-		} catch (error) {
-			Logger.error("[SdkAuthService] Cline OAuth login failed:", error)
-			throw error
-		}
+		const { String: ProtoString } = await import("@shared/proto/cline/common")
+		return ProtoString.create({ value: await authUrlPromise })
 	}
 
 	/**
