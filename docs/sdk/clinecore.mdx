@@ -1,16 +1,12 @@
 ---
-title: "Session Management"
-sidebarTitle: "Session Management"
-description: "How the SDK handles sessions, persistence, and state across agent runs."
+title: "ClineCore"
+sidebarTitle: "ClineCore"
+description: "The full Cline harness: built-in tools, sessions, approvals, scheduling, and hub support."
 ---
 
-The SDK lets you choose how much session management you want it to handle.
+`ClineCore` is the full Cline harness as a programmable runtime. It gives you everything Cline ships out of the box: built-in tools for files, shell, search, and web; session persistence and message history; tool approval callbacks; local, hub, and remote backends; scheduling and automation APIs; and plugin support.
 
-`ClineCore` manages everything: session persistence, message history, built-in tools, approvals, scheduling, and hub support. Use it when you want a fully managed agent runtime.
-
-`Agent` (also exported as `AgentRuntime`) is the stateless primitive underneath. You bring your own tools and manage your own state. Use it when you want direct control, lightweight embedding, or browser compatibility.
-
-`Agent` is an alias for `AgentRuntime`. Use `Agent` when constructing from provider/model IDs. Use `AgentRuntime` when supplying a pre-built `AgentModel`.
+Under the hood, `ClineCore` uses the `Agent` class from `@cline/agents`. You can use `Agent` directly if you want to skip the harness and wire everything yourself: your own tools, your own persistence, your own lifecycle.
 
 ## When to use which
 
@@ -24,63 +20,6 @@ The SDK lets you choose how much session management you want it to handle.
 | Browser-compatible or lightweight in-process agent | `Agent` |
 | Custom tools only, no built-ins | `Agent` |
 | Full control over persistence and lifecycle | `Agent` |
-
-## Agent / AgentRuntime
-
-`Agent` runs the core loop:
-
-```txt
-run() or continue()
-  -> model request
-  -> tool calls, if any
-  -> tool results
-  -> repeat until complete
-```
-
-```typescript
-import { Agent } from "@cline/sdk"
-
-const agent = new Agent({
-  providerId: "anthropic",
-  modelId: "claude-sonnet-4-6",
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  systemPrompt: "You are a helpful coding assistant.",
-  tools: [myTool],
-})
-
-agent.subscribe((event) => {
-  if (event.type === "assistant-text-delta") {
-    process.stdout.write(event.text ?? "")
-  }
-})
-
-const result = await agent.run("Review this diff")
-console.log(result.outputText)
-```
-
-### Methods
-
-| Method | Purpose |
-|--------|---------|
-| `run(input)` | Start a run with user input |
-| `continue(input?)` | Continue with optional new input |
-| `abort(reason?)` | Abort the active run |
-| `subscribe(listener)` | Listen to `AgentRuntimeEvent` events |
-| `restore(messages)` | Replace conversation history |
-| `snapshot()` | Read runtime state |
-
-See [Agent reference](/sdk/reference/agent) for exact signatures.
-
-## Multi-Turn Conversations
-
-`AgentRuntime` keeps message state internally. Use `continue()` after the first run:
-
-```typescript
-await agent.run("What does this project do?")
-await agent.continue("Now identify risky files")
-```
-
-If you persist messages externally, restore them with `restore(messages)` before continuing.
 
 ## ClineCore
 
@@ -203,3 +142,64 @@ const cline = await ClineCore.create({
 ```
 
 For tool behavior and policies, see [Tools](/sdk/tools).
+
+## Using Agent directly
+
+`Agent` (also exported as `AgentRuntime`) is the stateless primitive that `ClineCore` builds on. Use it directly when you want full control or don't need the harness.
+
+`Agent` is an alias for `AgentRuntime`. Use `Agent` when constructing from provider/model IDs. Use `AgentRuntime` when supplying a pre-built `AgentModel`.
+
+`Agent` runs the core loop:
+
+```txt
+run() or continue()
+  -> model request
+  -> tool calls, if any
+  -> tool results
+  -> repeat until complete
+```
+
+```typescript
+import { Agent } from "@cline/sdk"
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a helpful coding assistant.",
+  tools: [myTool],
+})
+
+agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text ?? "")
+  }
+})
+
+const result = await agent.run("Review this diff")
+console.log(result.outputText)
+```
+
+### Agent Methods
+
+| Method | Purpose |
+|--------|---------|
+| `run(input)` | Start a run with user input |
+| `continue(input?)` | Continue with optional new input |
+| `abort(reason?)` | Abort the active run |
+| `subscribe(listener)` | Listen to `AgentRuntimeEvent` events |
+| `restore(messages)` | Replace conversation history |
+| `snapshot()` | Read runtime state |
+
+See [Agent reference](/sdk/reference/agent) for exact signatures.
+
+### Multi-Turn Conversations
+
+`AgentRuntime` keeps message state internally. Use `continue()` after the first run:
+
+```typescript
+await agent.run("What does this project do?")
+await agent.continue("Now identify risky files")
+```
+
+If you persist messages externally, restore them with `restore(messages)` before continuing.

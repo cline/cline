@@ -204,7 +204,7 @@
 							"sdk/guides/scheduled-agents",
 							"sdk/events",
 							"sdk/model-providers",
-							"sdk/session-management"
+							"sdk/clinecore"
 						]
 					},
 					{
@@ -790,11 +790,11 @@
 		},
 		{
 			"source": "/cline-sdk/agents",
-			"destination": "/sdk/session-management"
+			"destination": "/sdk/clinecore"
 		},
 		{
 			"source": "/cline-sdk/sessions",
-			"destination": "/sdk/session-management"
+			"destination": "/sdk/clinecore"
 		},
 		{
 			"source": "/cline-sdk/tools",
@@ -922,11 +922,11 @@
 		},
 		{
 			"source": "/sdk/agents",
-			"destination": "/sdk/session-management"
+			"destination": "/sdk/clinecore"
 		},
 		{
 			"source": "/sdk/sessions",
-			"destination": "/sdk/session-management"
+			"destination": "/sdk/clinecore"
 		},
 		{
 			"source": "/sdk/streaming-and-events",
