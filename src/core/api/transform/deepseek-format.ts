@@ -25,10 +25,11 @@ export type DeepSeekModelMessage = OpenAI.Chat.ChatCompletionMessageParam & {
  * with reasoning_content attached for DeepSeek V4/V3 models.
  *
  * Strategy based on DeepSeek V4 thinking_mode documentation:
- * 1. Convert each message independently (no skipping), guaranteeing 1:1 indexing
- * 2. If tool_use has ever occurred, attach reasoning_content to ALL assistant messages
- *    from the first tool_use onward
- * 3. Empty reasoning_content (thinking: "") is preserved
+ * 1. Pure thinking messages (no text, no tool_use) are skipped — their thinking text
+ *    is accumulated and attached to the next valid assistant message.
+ * 2. Valid assistant messages (with text or tool_use) always carry reasoning_content
+ *    when they have thinking blocks or pending thinking.
+ * 3. Empty reasoning_content (thinking: "") is preserved.
  *
  * @param originalMessages - ClineStorageMessage[] in Anthropic format
  * @param systemPrompt - System prompt to prepend as role: "system"
@@ -36,12 +37,37 @@ export type DeepSeekModelMessage = OpenAI.Chat.ChatCompletionMessageParam & {
  */
 export function convertDeepSeekMessages(originalMessages: ClineStorageMessage[], systemPrompt: string): DeepSeekModelMessage[] {
 	const result: DeepSeekModelMessage[] = [{ role: "system", content: systemPrompt } as DeepSeekModelMessage]
+	let pendingThinking = ""
 
 	for (const msg of originalMessages) {
 		if (msg.role === "assistant") {
-			result.push(convertAssistant(msg))
+			const { thinkingText, hasText, hasToolUse } = extractAssistantBlocks(msg)
+			const converted = buildAssistantMessage(msg, hasText, hasToolUse)
+
+			if (converted) {
+				// Build reasoning_content: pending + current thinking
+				let reasoning = ""
+				if (pendingThinking) {
+					reasoning = pendingThinking
+					pendingThinking = ""
+				}
+				if (thinkingText) {
+					reasoning = reasoning ? `${reasoning}\n${thinkingText}` : thinkingText
+				}
+				if (reasoning) {
+					converted.reasoning_content = reasoning
+				}
+				result.push(converted)
+			} else {
+				// Pure thinking message — accumulate for next valid assistant
+				if (thinkingText) {
+					pendingThinking = pendingThinking ? `${pendingThinking}\n${thinkingText}` : thinkingText
+				}
+			}
 		} else if (msg.role === "user") {
 			result.push(...convertUser(msg))
+			// New turn clears pending thinking buffer
+			pendingThinking = ""
 		}
 	}
 
@@ -50,22 +76,51 @@ export function convertDeepSeekMessages(originalMessages: ClineStorageMessage[],
 
 // ---- Internal converters ----
 
-function convertAssistant(msg: ClineStorageMessage): DeepSeekModelMessage {
+/**
+ * Extracts thinking text and checks for text/tool_use blocks in an assistant message.
+ */
+function extractAssistantBlocks(msg: ClineStorageMessage): {
+	thinkingText: string
+	hasText: boolean
+	hasToolUse: boolean
+} {
+	let thinkingText = ""
+	let hasText = false
+	let hasToolUse = false
+
+	if (Array.isArray(msg.content)) {
+		for (const part of msg.content) {
+			if (part.type === "thinking") {
+				thinkingText += (part as ClineAssistantThinkingBlock).thinking
+			} else if (part.type === "text") {
+				hasText = true
+			} else if (part.type === "tool_use") {
+				hasToolUse = true
+			}
+		}
+	}
+
+	return { thinkingText, hasText, hasToolUse }
+}
+
+/**
+ * Builds an OpenAI assistant message from text and tool_use blocks.
+ * Returns null if the message has neither text nor tool_use (pure thinking).
+ */
+function buildAssistantMessage(msg: ClineStorageMessage, hasText: boolean, hasToolUse: boolean): DeepSeekModelMessage | null {
+	if (!hasText && !hasToolUse) {
+		return null
+	}
+
 	if (!Array.isArray(msg.content)) {
 		return { role: "assistant", content: msg.content || null } as DeepSeekModelMessage
 	}
 
-	// Separate thinking, text, and tool_use blocks
-	let thinkingText = ""
-	let hasThinkingBlock = false
 	const textParts: string[] = []
 	const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
 
 	for (const part of msg.content) {
-		if (part.type === "thinking") {
-			hasThinkingBlock = true
-			thinkingText += (part as ClineAssistantThinkingBlock).thinking
-		} else if (part.type === "text") {
+		if (part.type === "text") {
 			textParts.push((part as ClineTextContentBlock).text)
 		} else if (part.type === "tool_use") {
 			const toolUse = part as ClineAssistantToolUseBlock
@@ -78,30 +133,15 @@ function convertAssistant(msg: ClineStorageMessage): DeepSeekModelMessage {
 				},
 			})
 		}
-		// redacted_thinking is ignored
-	}
-
-	const hasToolCalls = toolCalls.length > 0
-	const hasText = textParts.length > 0
-	const content = hasText ? textParts.join("\n") : hasToolCalls ? null : undefined
-
-	// Always attach reasoning_content when the message has thinking blocks.
-	// Per DeepSeek V4 API: reasoning_content must be passed back (even if empty)
-	// for all assistant messages that received thinking content from the model.
-	if (hasThinkingBlock) {
-		return {
-			role: "assistant",
-			content,
-			tool_calls: hasToolCalls ? toolCalls : undefined,
-			reasoning_content: thinkingText,
-		}
+		// thinking and redacted_thinking are ignored here
 	}
 
 	return {
 		role: "assistant",
-		content,
-		tool_calls: hasToolCalls ? toolCalls : undefined,
-	} as DeepSeekModelMessage
+		content: hasText ? textParts.join("\n") : null,
+		tool_calls: hasToolUse ? toolCalls : undefined,
+		reasoning_content: "",
+	}
 }
 
 function convertUser(msg: ClineStorageMessage): DeepSeekModelMessage[] {

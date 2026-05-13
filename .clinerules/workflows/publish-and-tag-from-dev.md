@@ -61,7 +61,25 @@ git add package.json package-lock.json CHANGELOG.md
 git commit -m "v<version> Release Notes"
 ```
 
-### 6) Tag and push
+### 6) Install dependencies
+
+Install dependencies in all sub-projects (root, webview-ui, cli). If any install fails, stop and fix before proceeding.
+
+```bash
+npm install --include=dev
+cd webview-ui && npm install --include=dev && cd ..
+cd cli && npm install --include=dev && cd ..
+```
+
+### 7) Build validation
+
+Run `vsce package` to build the extension. If the build fails with errors, stop and fix the errors before proceeding. Only push when the build succeeds.
+
+```bash
+npx vsce package
+```
+
+### 8) Tag and push
 
 ```bash
 git push origin main
@@ -69,7 +87,7 @@ git tag v<version>
 git push origin v<version>
 ```
 
-### 7) Summary
+### 9) Summary
 
 Present to the user:
 - New version tag: `v<version>`
