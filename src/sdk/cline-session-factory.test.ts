@@ -8,6 +8,7 @@ import {
 	buildStartSessionInput,
 	createHistoryItemFromSession,
 	getHistoryItemById,
+	normalizeProviderReasoningSettings,
 	updateHistoryItem,
 } from "./cline-session-factory"
 
@@ -120,6 +121,36 @@ describe("buildResumeSessionInput", () => {
 
 		expect(result.userImages).toEqual(["img.png"])
 		expect(result.userFiles).toEqual(["file.ts"])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// normalizeProviderReasoningSettings
+// ---------------------------------------------------------------------------
+
+describe("normalizeProviderReasoningSettings", () => {
+	it("does not emit reasoningEffort when thinking is disabled", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: false, effort: "medium" })
+
+		expect(result).toEqual({ thinking: false })
+	})
+
+	it("treats effort none as disabled thinking", () => {
+		const result = normalizeProviderReasoningSettings({ effort: "none" })
+
+		expect(result).toEqual({ thinking: false })
+	})
+
+	it("passes enabled reasoning with a concrete effort", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, effort: "high" })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "high" })
+	})
+
+	it("leaves explicit effort-only settings enabled by SDK/provider defaults", () => {
+		const result = normalizeProviderReasoningSettings({ effort: "medium" })
+
+		expect(result).toEqual({ reasoningEffort: "medium" })
 	})
 })
 
