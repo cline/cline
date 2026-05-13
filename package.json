@@ -575,7 +575,7 @@
 		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"shell-quote": "^1.8.3",
-		"simple-git": "^3.36.0",
+		"simple-git": "3.36.0",
 		"strip-ansi": "^7.1.2",
 		"tailwindcss": "^4.1.14",
 		"tree-sitter-wasms": "^0.1.11",
