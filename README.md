@@ -8,6 +8,14 @@
   Autonomous AI coding agents for your IDE, terminal, and applications.
 </p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/cline"><img src="https://img.shields.io/npm/v/cline?label=cli&color=4f46e5" alt="cli npm version" /></a>
+  <a href="https://www.npmjs.com/package/@cline/sdk"><img src="https://img.shields.io/npm/v/%40cline%2Fsdk?label=sdk&color=4f46e5" alt="sdk npm version" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/cline/cline" alt="license" /></a>
+  <a href="https://discord.gg/cline"><img src="https://img.shields.io/badge/Discord-cline-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://github.com/cline/cline/stargazers"><img src="https://img.shields.io/github/stars/cline/cline?style=social" alt="GitHub stars" /></a>
+</p>
+
 <div align="center">
 
 [Discord](https://discord.gg/cline) | [Documentation](https://docs.cline.bot) | [Reddit](https://www.reddit.com/r/cline/) | [Feature Requests](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) | [Careers](https://cline.bot/join-us)
