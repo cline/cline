@@ -16,6 +16,18 @@
 
 <br>
 
+## Quick Start
+
+Get a running agent in under a minute:
+
+```bash
+npm i -g cline
+cline auth
+cline "what does this repo do?"
+```
+
+For other surfaces, see the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev), [JetBrains plugin](https://plugins.jetbrains.com/plugin/28247-cline), [SDK](#sdk), or [Kanban](https://github.com/cline/kanban).
+
 <div align="center">
 <table>
 <tr>
