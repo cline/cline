@@ -8,6 +8,7 @@ import {
 	mergeProviderOptionPatches,
 	type ProviderOptionsPatch,
 } from "./provider-options";
+import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 
 type RequestOverrides = Partial<GatewayStreamRequest> & {
 	providerId: string;
@@ -770,6 +771,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				modelId: "glm-4.7",
 				reasoning: { enabled: true },
 			},
+			context: { family: "glm", metadata: GLM_THINKING_ROUTING_METADATA },
 			expect: [
 				{ bucket: "zai", has: { thinking: { type: "enabled" } } },
 				{
