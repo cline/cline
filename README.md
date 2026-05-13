@@ -94,7 +94,7 @@ Build your own AI agents and integrations powered by the same engine that runs t
 npm install @cline/sdk
 ```
 
-<a href="https://docs.cline.bot/cline-sdk/overview">Documentation</a>
+<a href="./sdk/README.md">Learn more</a>
 <br><br>
 
 </td>
