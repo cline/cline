@@ -564,8 +564,9 @@ Uncomment each and confirm the call site compiles against the contract. If anyth
 - Read `src/core/api/providers/deepseek.ts`. Confirm `getModel()` reads `modelId`/`modelInfo` from passed-in config, not a static map.
 - If a static-map lookup exists, replace with read from passed-in config. Add test: `getModel().info` equals the passed-in info.
 - Verify `cline-session-factory.ts` resolves provider config via `ProviderConfigStore` and snapshots at task start.
+- Audit every auxiliary field the legacy provider panel could set, not just `modelId`/`modelInfo`. For DeepSeek this includes reasoning/thinking state (`enabled`, `effort`, and budget tokens). The migrated runtime must either carry each auxiliary field through the SDK provider settings/session config coherently, or explicitly document that field as out of scope for the picker migration. In particular, disabled thinking must clear any orphaned reasoning effort before inference; otherwise provider switches can tear configuration across providers.
 
-**Exit:** Runtime test passes. `cline-session-factory` does not import `deepSeekModels`.
+**Exit:** Runtime test passes. `cline-session-factory` does not import `deepSeekModels`. Auxiliary-field tests prove DeepSeek does not send contradictory thinking/reasoning options after switching from a provider with reasoning enabled.
 
 ### Step 6.3 — End-to-end live test
 
