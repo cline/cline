@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto"
+import { mkdir } from "node:fs/promises"
+import * as os from "node:os"
 import * as path from "path"
 import simpleGit from "simple-git"
 import { Logger } from "@/shared/services/Logger"
@@ -234,7 +237,7 @@ export async function createWorktree(
 /**
  * Delete a worktree
  */
-export async function deleteWorktree(cwd: string, path: string, force: boolean = false): Promise<WorktreeResult> {
+export async function deleteWorktree(cwd: string, path: string, force = false): Promise<WorktreeResult> {
 	const isInstalled = await checkGitInstalled()
 	if (!isInstalled) {
 		return { success: false, message: "Git is not installed" }
@@ -321,5 +324,97 @@ export async function getAvailableBranches(cwd: string): Promise<BranchInfo> {
 	} catch (error) {
 		Logger.error("Error getting available branches:", error)
 		return { localBranches: [], remoteBranches: [], currentBranch: "" }
+	}
+}
+
+/**
+ * Root directory under which auto-created task worktrees are placed.
+ * Follows the convention shared with Kanban: ~/.cline/worktrees/<taskId>/<repoName>/
+ */
+export function getTaskWorktreesHomePath(): string {
+	return path.join(os.homedir(), ".cline", "worktrees")
+}
+
+/**
+ * Sanitize a path segment so it's safe to use as a directory name.
+ * Strips path separators, control characters, and trims; falls back to "workspace".
+ */
+function sanitizeRepoNameForWorktreePath(repoPath: string): string {
+	const folder = path.basename(repoPath.replace(/[\\/]+$/g, "")) || "workspace"
+	const cleaned = [...folder]
+		.filter((char) => {
+			const code = char.charCodeAt(0)
+			return code >= 32 && code !== 127 && char !== "/" && char !== "\\"
+		})
+		.join("")
+		.trim()
+	return cleaned || "workspace"
+}
+
+export interface CreateTaskWorktreeResult {
+	success: boolean
+	message: string
+	/** Absolute path of the new worktree, when success is true. */
+	path?: string
+	/** Identifier used as the parent directory name under ~/.cline/worktrees/. */
+	taskId?: string
+	/** Absolute path of the source repository root (the "main" worktree), when success is true. */
+	repoRoot?: string
+}
+
+/**
+ * Auto-create a detached-HEAD worktree for a new Cline task.
+ *
+ * Detects the git repo root for `cwd`, then creates a worktree at
+ *   `~/.cline/worktrees/<taskId>/<repoName>/`
+ * pointing at the current HEAD. The directory name convention matches Kanban
+ * so worktrees from different surfaces (CLI, VS Code, JetBrains, Kanban) sit
+ * side-by-side under a single root.
+ *
+ * Any surface that wants to "run this task in a fresh worktree" can call this
+ * and then use the returned `path` as the workspace cwd.
+ */
+export async function createTaskWorktree(options: {
+	cwd: string
+	/** Optional override for the worktree id (parent directory name). Defaults to a uuid. */
+	taskId?: string
+}): Promise<CreateTaskWorktreeResult> {
+	const repoRoot = await getGitRootPath(options.cwd)
+	if (!repoRoot) {
+		return {
+			success: false,
+			message: `Not a git repository: ${options.cwd}. --worktree requires a git repo.`,
+		}
+	}
+
+	const taskId = options.taskId?.trim() || randomUUID()
+	if (taskId.includes("/") || taskId.includes("\\") || taskId.includes("..")) {
+		return { success: false, message: `Invalid worktree id: ${taskId}` }
+	}
+
+	const repoName = sanitizeRepoNameForWorktreePath(repoRoot)
+	const worktreePath = path.join(getTaskWorktreesHomePath(), taskId, repoName)
+
+	try {
+		await mkdir(path.dirname(worktreePath), { recursive: true })
+	} catch (error) {
+		return {
+			success: false,
+			message: `Failed to create worktree parent directory: ${error instanceof Error ? error.message : String(error)}`,
+		}
+	}
+
+	// Detached worktree at HEAD — same as Kanban's `git worktree add --detach <path> <baseCommit>`.
+	const result = await createWorktree(repoRoot, worktreePath, {})
+	if (!result.success) {
+		return { success: false, message: result.message }
+	}
+
+	return {
+		success: true,
+		message: result.message,
+		path: worktreePath,
+		taskId,
+		repoRoot,
 	}
 }
