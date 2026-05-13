@@ -21,6 +21,16 @@ eslint-rules/**
 .github/**
 .husky/**
 .env
+.env.*
+
+# AI agent/IDE config dirs (not needed in extension bundle)
+.agents/**
+.claude/**
+.codex/**
+.clinerules/**
+
+# Upstream SDK (dev/standalone tooling, not the VS Code extension)
+sdk/**
 
 # cli
 cli/**
