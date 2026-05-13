@@ -11,8 +11,8 @@ React-based webview in `webview-ui/`. There's a JetBrains plugin
 that packages the core and communicates via protobufs. There's a
 CLI that uses the SDK separately.
 
-The Cline SDK (`@clinebot/core`, `@clinebot/llms`,
-`@clinebot/agents`, `@clinebot/shared`) provides session management,
+The Cline SDK (`@cline/core`, `@cline/llms`,
+`@cline/agents`, `@cline/shared`) provides session management,
 provider handling, tool execution, and MCP integration. Our goal is
 to replace the classic core with the SDK while keeping the webview
 mostly intact.
@@ -33,7 +33,7 @@ VSCode Extension
 
 ```
 VSCode Extension
-  WebviewProvider → SDK Adapter Layer → @clinebot/core
+  WebviewProvider → SDK Adapter Layer → @cline/core
                   → Custom MCP Manager
   Webview (React) ← gRPC/postMessage → gRPC Thunk → SDK Adapter
   (same proto messages — webview unchanged)
@@ -77,7 +77,7 @@ code is always recoverable from git.
 
 ```
 VSCode Extension
-  SDK Adapter Layer → @clinebot/core
+  SDK Adapter Layer → @cline/core
   Webview (React) ← typed JSON messages → SDK Adapter
   (gRPC removed; simpler message protocol)
 
@@ -243,7 +243,7 @@ VSCode comes first.
 ### SDK Storage Isolation
 
 ```typescript
-import { setClineDir, setHomeDir } from "@clinebot/shared/storage"
+import { setClineDir, setHomeDir } from "@cline/shared/storage"
 const tempHome = mkdtempSync(join(tmpdir(), "test-home-"))
 process.env.HOME = tempHome
 process.env.CLINE_DIR = join(tempHome, ".cline")

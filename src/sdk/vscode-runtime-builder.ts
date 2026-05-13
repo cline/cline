@@ -1,5 +1,5 @@
-import { createDefaultExecutors, createMcpTools } from "@clinebot/core"
-import { type AgentTool, type AgentToolContext, createTool } from "@clinebot/shared"
+import { createDefaultExecutors, createMcpTools } from "@cline/core"
+import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"

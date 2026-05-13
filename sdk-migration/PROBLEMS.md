@@ -143,7 +143,7 @@ underlying patterns that caused them are relevant.
 ### Step 6: Auth & Account Flows — Completed
 
 - **Status**: 🟢 Verified Fixed
-- **Description**: SDK-backed auth and account services implemented. `src/sdk/auth-service.ts` replaces classic `src/services/auth/AuthService.ts`, using `@clinebot/core` OAuth functions (`loginClineOAuth`, `loginOcaOAuth`, `loginOpenAICodex`, `refreshClineToken`) for login flows while maintaining compatibility with the existing gRPC handler interface. `src/sdk/account-service.ts` replaces classic `src/services/account/ClineAccountService.ts`, making authenticated API requests using the SDK-backed AuthService for token management. The SdkController now initializes `authService`, `ocaAuthService`, and `accountService` in its constructor and restores auth state from secrets on startup. gRPC handlers (`accountLoginClicked`, `accountLogoutClicked`, `subscribeToAuthStatusUpdate`, `openAiCodexSignIn`, `openAiCodexSignOut`) now import from `@/sdk/auth-service` instead of the classic `@/services/auth/AuthService`. The `extension.ts` secrets listener also imports from the new location.
+- **Description**: SDK-backed auth and account services implemented. `src/sdk/auth-service.ts` replaces classic `src/services/auth/AuthService.ts`, using `@cline/core` OAuth functions (`loginClineOAuth`, `loginOcaOAuth`, `loginOpenAICodex`, `refreshClineToken`) for login flows while maintaining compatibility with the existing gRPC handler interface. `src/sdk/account-service.ts` replaces classic `src/services/account/ClineAccountService.ts`, making authenticated API requests using the SDK-backed AuthService for token management. The SdkController now initializes `authService`, `ocaAuthService`, and `accountService` in its constructor and restores auth state from secrets on startup. gRPC handlers (`accountLoginClicked`, `accountLogoutClicked`, `subscribeToAuthStatusUpdate`, `openAiCodexSignIn`, `openAiCodexSignOut`) now import from `@/sdk/auth-service` instead of the classic `@/services/auth/AuthService`. The `extension.ts` secrets listener also imports from the new location.
 - **Key design decisions**:
   - Auth info persisted in `secrets.json` under `cline:clineAccountId` (same key as classic)
   - Tokens stored with `workos:` prefix for API compatibility
@@ -683,7 +683,7 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
   2. **Wrong workspace path**: `SdkController` used `process.cwd()` instead of the VSCode workspace root. In the VSCode extension host, `process.cwd()` can return the VSCode installation directory or `/`, causing `rg` to recurse enormous directory trees.
 - **Root cause**: SDK `file-indexer.ts` had no buffer size limit and inconsistent directory exclusions between `rg` and `walkDir` codepaths. Extension used `process.cwd()` instead of `getCwd()` (which resolves the actual workspace folder via `HostProvider.workspace.getWorkspacePaths()`).
 - **Fix applied**:
-  1. **SDK `file-indexer.ts`** (`@clinebot/core/src/services/workspace/file-indexer.ts`):
+  1. **SDK `file-indexer.ts`** (`@cline/core/src/services/workspace/file-indexer.ts`):
      - Added `MAX_RG_STDOUT_BYTES = 64MB` safety limit — kills `rg` and falls back to `walkDir` if output exceeds the limit.
      - Added `rgExcludeArgs` that generates `-g '!dir'` flags for every entry in `DEFAULT_EXCLUDE_DIRS`, making `rg` and `walkDir` exclude the same directories.
   2. **`SdkController.ts`**: Replaced all 4 `process.cwd()` calls with `await getCwd()` (which uses `HostProvider.workspace.getWorkspacePaths()`).
@@ -725,7 +725,7 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 #### Where does the agent get tool descriptions?
 
 On the SDK branch, tool descriptions come from **two sources**:
-1. **SDK built-in tools** — defined inside `@clinebot/core`. The SDK provides: `read_files`/`read_file`, `list_files`, `list_code_definition_names`, `editor`/`replace_in_file`, `write_to_file`, `apply_patch`, `delete_file`, `run_commands`/`execute_command`, `search_codebase`/`search_files`, `fetch_web_content`/`web_fetch`, `web_search`, `skills`/`use_skill`, `ask_question`/`ask_followup_question`.
+1. **SDK built-in tools** — defined inside `@cline/core`. The SDK provides: `read_files`/`read_file`, `list_files`, `list_code_definition_names`, `editor`/`replace_in_file`, `write_to_file`, `apply_patch`, `delete_file`, `run_commands`/`execute_command`, `search_codebase`/`search_files`, `fetch_web_content`/`web_fetch`, `web_search`, `skills`/`use_skill`, `ask_question`/`ask_followup_question`.
 2. **VSCode extra tools** — defined in `src/sdk/vscode-runtime-builder.ts::createVscodeExtraTools()`, injected via `VscodeSessionHost.create()` → `applyToStartSessionInput()` → `config.extraTools`. Currently: `attempt_completion` + MCP tools bridged from McpHub.
 
 The classic system prompt tool definitions (`src/core/prompts/system-prompt/tools/*.ts`) and variant templates are **NOT used** for tool descriptions on the SDK branch — the SDK constructs its own system prompt with its own tool definitions. The classic tool specs are only used by the classic Task path (subagents, legacy code).

@@ -8,8 +8,8 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@clinebot/core"
-import { buildClineSystemPrompt } from "@clinebot/shared"
+import { type ClineCoreStartInput, type CoreSessionConfig, type StartSessionResult } from "@cline/core"
+import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"

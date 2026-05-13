@@ -19,7 +19,7 @@ The actual gap is narrower than it first appears:
 
 `cline_mcp_settings.json` — JSON with `{ mcpServers: { ... } }`.
 
-SDK utilities (all from `@clinebot/core`):
+SDK utilities (all from `@cline/core`):
 - `resolveDefaultMcpSettingsPath()` — find the file
 - `hasMcpSettingsFile()` — check existence
 - `loadMcpSettingsFile()` — parse and validate with Zod
@@ -146,7 +146,7 @@ used by the Tauri apps:
 
 The SDK provides MCP-specific disable policies:
 ```typescript
-import { createDisabledMcpToolPolicies } from "@clinebot/core"
+import { createDisabledMcpToolPolicies } from "@cline/core"
 const policies = createDisabledMcpToolPolicies({
   serverName: "risky-server",
   toolNames: ["delete", "modify"],

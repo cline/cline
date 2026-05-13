@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config"
 
 export default defineConfig({
 	test: {
-		include: ["src/sdk/**/*.test.ts"],
+		include: ["src/sdk/**/*.test.ts", "src/core/storage/remote-config/**/*.test.ts"],
 		environment: "node",
 	},
 	resolve: {

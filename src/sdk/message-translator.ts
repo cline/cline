@@ -25,9 +25,9 @@
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
 
-import type { CoreSessionEvent } from "@clinebot/core"
-import type { Message as SdkMessage } from "@clinebot/llms"
-import type { AgentEvent } from "@clinebot/shared"
+import type { CoreSessionEvent } from "@cline/core"
+import type { Message as SdkMessage } from "@cline/llms"
+import type { AgentEvent } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
 	ClineApiReqInfo,
