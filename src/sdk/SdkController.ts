@@ -8,7 +8,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { SessionHistoryRecord } from "@cline/core"
+import type { PreparedRemoteConfigCoreIntegration, SessionHistoryRecord } from "@cline/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -25,7 +25,7 @@ import { ClineEnv } from "@/config"
 import { sendMcpMarketplaceCatalogEvent } from "@/core/controller/mcp/subscribeToMcpMarketplaceCatalog"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists, writeMcpMarketplaceCatalogToCache } from "@/core/storage/disk"
-import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
+import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
@@ -158,6 +158,7 @@ export class Controller {
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
+	private remoteConfigCoreIntegration?: PreparedRemoteConfigCoreIntegration
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -217,6 +218,7 @@ export class Controller {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
 			},
+			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			getTerminalManager: () => {
 				if (!this._terminalManager) {
 					this._terminalManager = HostProvider.get().createTerminalManager()
@@ -380,8 +382,8 @@ export class Controller {
 
 		// Restore auth state from secrets on startup, then start the remote
 		// config polling timer (enterprise policy enforcement). The timer must
-		// start after auth is restored so fetchRemoteConfig() can identify
-		// the user's organization and apply org-level policies.
+		// start after auth is restored so remote config can identify the user's
+		// organization and apply org-level policies.
 		this.authService
 			.restoreRefreshTokenAndRetrieveAuthInfo()
 			.then(() => {
@@ -403,9 +405,27 @@ export class Controller {
 	 */
 	private startRemoteConfigTimer(): void {
 		// Initial fetch
-		fetchRemoteConfig(this)
+		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Initial remote config refresh failed:", err))
 		// Set up 1-hour interval
-		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
+		this.remoteConfigTimer = setInterval(() => {
+			this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config timer failed:", err))
+		}, 3600000) // 1 hour
+	}
+
+	private async refreshRemoteConfig(): Promise<void> {
+		await refreshSdkRemoteConfig(this, { workspacePath: await this.getRemoteConfigWorkspacePath() })
+	}
+
+	async setRemoteConfigCoreIntegration(integration: PreparedRemoteConfigCoreIntegration | undefined): Promise<void> {
+		const previous = this.remoteConfigCoreIntegration
+		this.remoteConfigCoreIntegration = integration
+		if (previous && previous !== integration) {
+			try {
+				await previous.dispose()
+			} catch (error) {
+				Logger.error("[SdkController] Failed to dispose previous remote config integration:", error)
+			}
+		}
 	}
 
 	async dispose(): Promise<void> {
@@ -414,6 +434,7 @@ export class Controller {
 			clearInterval(this.remoteConfigTimer)
 			this.remoteConfigTimer = undefined
 		}
+		await this.setRemoteConfigCoreIntegration(undefined)
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
@@ -480,6 +501,19 @@ export class Controller {
 			Logger.warn("[SdkController] Failed to get workspace paths, falling back to Desktop:", error)
 		}
 		return noWorkspaceFallback
+	}
+
+	private async getRemoteConfigWorkspacePath(): Promise<string | undefined> {
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			if (!paths.length) {
+				return undefined
+			}
+			return resolveWorkspaceRootPath(paths, paths[0])
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to get workspace paths for remote config, using global fallback:", error)
+			return undefined
+		}
 	}
 
 	// ---- Session event subscription ----
@@ -629,9 +663,8 @@ export class Controller {
 	): Promise<string | undefined> {
 		// Fire-and-forget: ensure we have the latest remote config (enterprise
 		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
-		// blocking the UI. fetchRemoteConfig() catches all errors internally
-		// and calls postStateToWebview() when done.
-		fetchRemoteConfig(this)
+		// blocking the UI.
+		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
@@ -716,6 +749,7 @@ export class Controller {
 	async handleSignOut(): Promise<void> {
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
 		clearRemoteConfig()
+		await this.setRemoteConfigCoreIntegration(undefined)
 		await this.postStateToWebview()
 	}
 
@@ -729,7 +763,7 @@ export class Controller {
 		await this.authService.handleAuthCallback(customToken, provider ?? "cline")
 		// Fetch remote config immediately after login so enterprise policies
 		// (provider lockdown, MCP servers, OTel, etc.) are applied right away.
-		await fetchRemoteConfig(this)
+		await this.refreshRemoteConfig()
 		await this.postStateToWebview()
 	}
 

@@ -1,4 +1,4 @@
-import type { CoreSessionEvent, StartSessionResult } from "@cline/core"
+import type { CoreSessionEvent, PreparedRemoteConfigCoreIntegration, StartSessionResult } from "@cline/core"
 import { StateManager } from "@/core/storage/StateManager"
 import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -18,6 +18,8 @@ export interface SdkSessionLifecycleOptions {
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
 	getTerminalManager?: () => ITerminalManager
+	/** Returns the latest prepared remote-config integration, if remote config is active. */
+	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 }
@@ -55,6 +57,7 @@ export class SdkSessionLifecycle {
 			askQuestion: this.options.askQuestion,
 			toolPolicies,
 			getTerminalManager: this.options.getTerminalManager,
+			getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 		})
 		const unsubscribe = sdkHost.subscribe(this.options.onSessionEvent)
 		const startResult = await sdkHost.start(startInput)

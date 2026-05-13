@@ -14,6 +14,7 @@ import {
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
+	type PreparedRemoteConfigCoreIntegration,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
 	type SessionHistoryRecord,
@@ -46,6 +47,8 @@ export interface VscodeSessionHostOptions {
 	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
+	/** Returns the latest prepared remote-config integration, if remote config is active. */
+	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/**
 	 * Lazy factory for the VscodeTerminalManager.
 	 * When provided, the SDK's built-in `run_commands` is suppressed and replaced
@@ -94,16 +97,20 @@ export class VscodeSessionHost implements SdkSessionHost {
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
+					const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
+					const inputWithRemoteConfig = remoteConfigIntegration
+						? await remoteConfigIntegration.applyToStartSessionInput(input)
+						: input
 					const extraTools = await createVscodeExtraTools(options.mcpHub, {
-						cwd: input.config.cwd,
+						cwd: inputWithRemoteConfig.config.cwd,
 						getTerminalManager: options.getTerminalManager,
 					})
 					return {
-						...input,
-						source: input.source ?? "vscode",
+						...inputWithRemoteConfig,
+						source: inputWithRemoteConfig.source ?? "vscode",
 						config: {
-							...input.config,
-							extraTools: [...(input.config.extraTools ?? []), ...extraTools],
+							...inputWithRemoteConfig.config,
+							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
 						},
 					}
 				},
