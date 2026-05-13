@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -34,6 +34,17 @@ describe("resolveExistingFilePath", () => {
 		const dir = mkdtempSync(join(tmpdir(), "path-resolution-nnbsp-am-"));
 		const onDisk = "Screenshot 2026-01-01 at 10.00.00\u202Fam.png";
 		const requested = join(dir, "Screenshot 2026-01-01 at 10.00.00 am.png");
+		writeFileSync(join(dir, onDisk), "hello");
+
+		expect(resolveExistingFilePath(requested)).toBe(join(dir, onDisk));
+	});
+
+	it("does not rewrite AM/PM text in directory components", () => {
+		const parentDir = mkdtempSync(join(tmpdir(), "path-resolution-dir-ampm-"));
+		const dir = join(parentDir, "my AM.photos");
+		mkdirSync(dir);
+		const onDisk = "Screenshot 2026-05-12 at 4.42.48\u202FPM.png";
+		const requested = join(dir, "Screenshot 2026-05-12 at 4.42.48 PM.png");
 		writeFileSync(join(dir, onDisk), "hello");
 
 		expect(resolveExistingFilePath(requested)).toBe(join(dir, onDisk));

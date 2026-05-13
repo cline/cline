@@ -29,7 +29,14 @@ function collapseUnicodeWhitespace(name: string): string {
 function tryMacOSAmPmVariant(filePath: string): string {
 	// macOS Sonoma+ inserts U+202F before AM/PM in screenshot names. Some
 	// locales (e.g. en_AU) emit lowercase am/pm; hence the /i flag.
-	return filePath.replace(/ (AM|PM)\./gi, `${NARROW_NO_BREAK_SPACE}$1.`);
+	const fileName = basename(filePath);
+	const variantName = fileName.replace(
+		/ (AM|PM)\./gi,
+		`${NARROW_NO_BREAK_SPACE}$1.`,
+	);
+	return variantName === fileName
+		? filePath
+		: join(dirname(filePath), variantName);
 }
 
 function tryNFDVariant(filePath: string): string {
@@ -95,7 +102,11 @@ export function resolveExistingFilePath(filePath: string): string | undefined {
 	}
 
 	const nfdCurlyVariant = tryCurlyApostropheVariant(nfdVariant);
-	if (nfdCurlyVariant !== filePath && existsSync(nfdCurlyVariant)) {
+	if (
+		nfdCurlyVariant !== nfdVariant &&
+		nfdCurlyVariant !== curlyVariant &&
+		existsSync(nfdCurlyVariant)
+	) {
 		return nfdCurlyVariant;
 	}
 
