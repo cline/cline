@@ -43,6 +43,12 @@ service ModelsService {
   rpc updateApiConfiguration(UpdateApiConfigurationRequestNew) returns (Empty);
   // Updates API configuration with partial values (only updates fields that are explicitly set)
   rpc updateApiConfigurationPartial(UpdateApiConfigurationPartialRequest) returns (Empty);
+  // Saves the current API configuration as a reusable profile
+  rpc saveApiConfigurationProfile(SaveApiConfigurationProfileRequest) returns (Empty);
+  // Loads a saved API configuration profile
+  rpc loadApiConfigurationProfile(StringRequest) returns (Empty);
+  // Deletes a saved API configuration profile
+  rpc deleteApiConfigurationProfile(StringRequest) returns (Empty);
   // Refreshes and returns Groq models
   rpc refreshGroqModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
@@ -367,6 +373,12 @@ message UpdateApiConfigurationPartialRequest {
   // Field names should use camelCase (e.g., "apiKey", "planModeApiProvider").
   // If a field is in the mask but not set in api_configuration, it will be cleared (set to undefined).
   google.protobuf.FieldMask update_mask = 3;
+}
+
+message SaveApiConfigurationProfileRequest {
+  Metadata metadata = 1;
+  optional string id = 2;
+  string name = 3;
 }
 
 // Model info for OCA (OpenAI-compatible) models exposed by the OCA provider

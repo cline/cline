@@ -1,4 +1,14 @@
+import { randomUUID } from "node:crypto"
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import {
+	API_CONFIGURATION_PROFILES_STATE_KEY,
+	type ApiConfigurationProfile,
+	type ApiConfigurationProfilesState,
+	getApiConfigurationProfileSecretKey,
+	LEGACY_API_CONFIGURATION_PROFILES_SECRET_KEY,
+	MAX_API_CONFIGURATION_PROFILES,
+	type StoredApiConfigurationProfile,
+} from "@shared/api-configuration-profiles"
 import {
 	ApiHandlerSettingsKeys,
 	type GlobalState,
@@ -33,6 +43,17 @@ import { readGlobalStateFromStorage, readSecretsFromStorage, readWorkspaceStateF
 export interface PersistenceErrorEvent {
 	error: Error
 }
+
+const PROFILE_EXCLUDED_SECRET_KEYS = new Set<SecretKey>([
+	"clineAccountId",
+	"cline:clineAccountId",
+	"authNonce",
+	"mcpOAuthSecrets",
+	"openai-codex-oauth-credentials",
+	"remoteLiteLlmApiKey",
+])
+
+const PROFILE_API_SECRET_KEYS = SecretKeys.filter((key) => !PROFILE_EXCLUDED_SECRET_KEYS.has(key)) as SecretKey[]
 
 /**
  * In-memory state manager for fast state access.
@@ -638,6 +659,104 @@ export class StateManager {
 		}
 	}
 
+	getApiConfigurationProfiles(): ApiConfigurationProfile[] {
+		return this.readApiConfigurationProfilesState().profiles.map((profile) => this.toApiConfigurationProfile(profile))
+	}
+
+	getActiveApiConfigurationProfileId(): string | undefined {
+		return this.readApiConfigurationProfilesState().activeProfileId
+	}
+
+	saveApiConfigurationProfile(name: string, id?: string): ApiConfigurationProfile {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		const trimmedName = name.trim()
+		if (!trimmedName) {
+			throw new Error("Profile name is required")
+		}
+
+		const state = this.readApiConfigurationProfilesState()
+		const now = Date.now()
+		const profileId = id || randomUUID()
+		const existingProfile = state.profiles.find((profile) => profile.id === profileId)
+		const nameOwner = state.profiles.find(
+			(profile) => profile.id !== profileId && this.areProfileNamesEqual(profile.name, trimmedName),
+		)
+		if (nameOwner) {
+			throw new Error("A profile with this name already exists")
+		}
+		if (!existingProfile && state.profiles.length >= MAX_API_CONFIGURATION_PROFILES) {
+			throw new Error(`You can save up to ${MAX_API_CONFIGURATION_PROFILES} API configuration profiles`)
+		}
+
+		const apiConfiguration = this.sanitizeApiConfigurationForProfile(this.getApiConfiguration())
+		const currentMode = this.getGlobalSettingsKey("mode")
+		const apiProvider = currentMode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+		const apiConfigurationSecretKey =
+			existingProfile?.apiConfigurationSecretKey ?? getApiConfigurationProfileSecretKey(profileId)
+
+		const savedProfile: StoredApiConfigurationProfile = {
+			id: profileId,
+			name: trimmedName,
+			apiProvider,
+			createdAt: existingProfile?.createdAt ?? now,
+			updatedAt: now,
+			apiConfigurationSecretKey,
+		}
+		this.storage.secrets.set(apiConfigurationSecretKey, JSON.stringify(apiConfiguration))
+
+		const profiles = existingProfile
+			? state.profiles.map((profile) => (profile.id === profileId ? savedProfile : profile))
+			: [...state.profiles, savedProfile]
+
+		this.writeApiConfigurationProfilesState({
+			activeProfileId: profileId,
+			profiles,
+		})
+
+		return this.toApiConfigurationProfile(savedProfile)
+	}
+
+	applyApiConfigurationProfile(id: string): ApiConfigurationProfile {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		const state = this.readApiConfigurationProfilesState()
+		const profile = state.profiles.find((candidate) => candidate.id === id)
+		if (!profile) {
+			throw new Error(`API configuration profile not found: ${id}`)
+		}
+
+		const apiConfiguration = this.readApiConfigurationProfileConfig(profile)
+		this.replaceApiConfigurationFromProfile(apiConfiguration)
+		this.writeApiConfigurationProfilesState({
+			...state,
+			activeProfileId: id,
+		})
+
+		return this.toApiConfigurationProfile(profile)
+	}
+
+	deleteApiConfigurationProfile(id: string): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		const state = this.readApiConfigurationProfilesState()
+		const deletedProfile = state.profiles.find((profile) => profile.id === id)
+		const profiles = state.profiles.filter((profile) => profile.id !== id)
+		if (deletedProfile?.apiConfigurationSecretKey) {
+			this.storage.secrets.set(deletedProfile.apiConfigurationSecretKey, undefined)
+		}
+		this.writeApiConfigurationProfilesState({
+			activeProfileId: state.activeProfileId === id ? undefined : state.activeProfileId,
+			profiles,
+		})
+	}
+
 	/**
 	 * Get method for global settings keys - reads from in-memory cache
 	 * Precedence: remote config > session override > task settings > global settings
@@ -940,6 +1059,201 @@ export class StateManager {
 			...secrets,
 			...settings,
 		} satisfies ApiConfiguration
+	}
+
+	private readApiConfigurationProfilesState(): ApiConfigurationProfilesState {
+		const raw =
+			(this.globalStateCache as Record<string, unknown>)[API_CONFIGURATION_PROFILES_STATE_KEY] ??
+			this.storage.globalState.get(API_CONFIGURATION_PROFILES_STATE_KEY)
+		if (!raw) {
+			return this.readLegacyApiConfigurationProfilesState()
+		}
+
+		try {
+			const parsed =
+				typeof raw === "string"
+					? (JSON.parse(raw) as ApiConfigurationProfilesState)
+					: (raw as ApiConfigurationProfilesState)
+			const profiles = Array.isArray(parsed.profiles)
+				? parsed.profiles
+						.filter((profile) => profile?.id && profile?.name)
+						.map((profile) => ({
+							id: profile.id,
+							name: profile.name,
+							apiProvider: profile.apiProvider,
+							createdAt: profile.createdAt,
+							updatedAt: profile.updatedAt,
+							apiConfigurationSecretKey:
+								profile.apiConfigurationSecretKey ?? getApiConfigurationProfileSecretKey(profile.id),
+						}))
+				: []
+			const activeProfileId = profiles.some((profile) => profile.id === parsed.activeProfileId)
+				? parsed.activeProfileId
+				: undefined
+
+			return { activeProfileId, profiles: profiles.slice(0, MAX_API_CONFIGURATION_PROFILES) }
+		} catch (error) {
+			Logger.error("[StateManager] Failed to parse API configuration profiles:", error)
+			return { profiles: [] }
+		}
+	}
+
+	private writeApiConfigurationProfilesState(state: ApiConfigurationProfilesState): void {
+		const profiles = state.profiles
+			.map((profile) => ({
+				id: profile.id,
+				name: profile.name,
+				apiProvider: profile.apiProvider,
+				createdAt: profile.createdAt,
+				updatedAt: profile.updatedAt,
+				apiConfigurationSecretKey: profile.apiConfigurationSecretKey ?? getApiConfigurationProfileSecretKey(profile.id),
+			}))
+			.sort((a, b) => b.updatedAt - a.updatedAt)
+			.slice(0, MAX_API_CONFIGURATION_PROFILES)
+
+		const activeProfileId = profiles.some((profile) => profile.id === state.activeProfileId)
+			? state.activeProfileId
+			: undefined
+
+		;(this.globalStateCache as Record<string, unknown>)[API_CONFIGURATION_PROFILES_STATE_KEY] = {
+			activeProfileId,
+			profiles,
+		}
+		this.storage.globalStateBackingStore.set(API_CONFIGURATION_PROFILES_STATE_KEY, { activeProfileId, profiles })
+	}
+
+	private readLegacyApiConfigurationProfilesState(): ApiConfigurationProfilesState {
+		const raw = this.storage.secrets.get(LEGACY_API_CONFIGURATION_PROFILES_SECRET_KEY)
+		if (!raw) {
+			return { profiles: [] }
+		}
+
+		try {
+			const parsed = JSON.parse(raw) as ApiConfigurationProfilesState
+			const profiles = Array.isArray(parsed.profiles) ? parsed.profiles : []
+			const migratedProfiles: StoredApiConfigurationProfile[] = []
+			const seenNames = new Set<string>()
+
+			for (const profile of profiles) {
+				if (!profile?.id || !profile?.name || !profile?.apiConfiguration) {
+					continue
+				}
+
+				const normalizedName = this.normalizeProfileName(profile.name)
+				if (seenNames.has(normalizedName)) {
+					continue
+				}
+				seenNames.add(normalizedName)
+
+				const apiConfigurationSecretKey = getApiConfigurationProfileSecretKey(profile.id)
+				this.storage.secrets.set(
+					apiConfigurationSecretKey,
+					JSON.stringify(this.sanitizeApiConfigurationForProfile(profile.apiConfiguration)),
+				)
+				migratedProfiles.push({
+					id: profile.id,
+					name: profile.name,
+					apiProvider: profile.apiProvider,
+					createdAt: profile.createdAt,
+					updatedAt: profile.updatedAt,
+					apiConfigurationSecretKey,
+				})
+
+				if (migratedProfiles.length >= MAX_API_CONFIGURATION_PROFILES) {
+					break
+				}
+			}
+
+			const activeProfileId = migratedProfiles.some((profile) => profile.id === parsed.activeProfileId)
+				? parsed.activeProfileId
+				: undefined
+			const migratedState = { activeProfileId, profiles: migratedProfiles }
+			this.writeApiConfigurationProfilesState(migratedState)
+			this.storage.secrets.set(LEGACY_API_CONFIGURATION_PROFILES_SECRET_KEY, undefined)
+			return migratedState
+		} catch (error) {
+			Logger.error("[StateManager] Failed to parse legacy API configuration profiles:", error)
+			return { profiles: [] }
+		}
+	}
+
+	private sanitizeApiConfigurationForProfile(apiConfiguration: ApiConfiguration): ApiConfiguration {
+		const sanitized: ApiConfiguration = {}
+
+		for (const key of ApiHandlerSettingsKeys) {
+			const value = apiConfiguration[key]
+			if (value !== undefined) {
+				;(sanitized as Record<string, unknown>)[key] = value
+			}
+		}
+
+		for (const key of PROFILE_API_SECRET_KEYS) {
+			const value = apiConfiguration[key]
+			if (value !== undefined) {
+				;(sanitized as Record<string, unknown>)[key] = value
+			}
+		}
+
+		return sanitized
+	}
+
+	private readApiConfigurationProfileConfig(profile: StoredApiConfigurationProfile): ApiConfiguration {
+		const raw = profile.apiConfigurationSecretKey ? this.storage.secrets.get(profile.apiConfigurationSecretKey) : undefined
+		if (raw) {
+			try {
+				return this.sanitizeApiConfigurationForProfile(JSON.parse(raw) as ApiConfiguration)
+			} catch (error) {
+				Logger.error("[StateManager] Failed to parse API configuration profile:", error)
+			}
+		}
+
+		if (profile.apiConfiguration) {
+			return this.sanitizeApiConfigurationForProfile(profile.apiConfiguration)
+		}
+
+		throw new Error(`API configuration profile data not found: ${profile.id}`)
+	}
+
+	private normalizeProfileName(name: string): string {
+		return name.trim().toLocaleLowerCase()
+	}
+
+	private areProfileNamesEqual(left: string, right: string): boolean {
+		return this.normalizeProfileName(left) === this.normalizeProfileName(right)
+	}
+
+	private replaceApiConfigurationFromProfile(apiConfiguration: ApiConfiguration): void {
+		const sanitized = this.sanitizeApiConfigurationForProfile(apiConfiguration)
+		const settingsUpdates = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, undefined])) as Partial<Settings>
+		const secretsUpdates = Object.fromEntries(PROFILE_API_SECRET_KEYS.map((key) => [key, undefined])) as Partial<Secrets>
+
+		for (const key of ApiHandlerSettingsKeys) {
+			const value = sanitized[key]
+			if (value !== undefined) {
+				settingsUpdates[key] = value as any
+			}
+		}
+
+		for (const key of PROFILE_API_SECRET_KEYS) {
+			const value = sanitized[key]
+			if (value !== undefined) {
+				secretsUpdates[key] = value
+			}
+		}
+
+		this.setRemoteConfigState(settingsUpdates as Partial<GlobalStateAndSettings>)
+		this.setGlobalStateBatch(settingsUpdates as Partial<GlobalStateAndSettings>)
+		this.setSecretsBatch(secretsUpdates)
+	}
+
+	private toApiConfigurationProfile(profile: StoredApiConfigurationProfile): ApiConfigurationProfile {
+		return {
+			id: profile.id,
+			name: profile.name,
+			apiProvider: profile.apiProvider,
+			createdAt: profile.createdAt,
+			updatedAt: profile.updatedAt,
+		}
 	}
 
 	/**

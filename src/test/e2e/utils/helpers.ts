@@ -118,6 +118,61 @@ export class E2ETestHelper {
 		}
 	}
 
+	private static async runWithTimeout<T>(operation: () => Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+		let timeout: ReturnType<typeof setTimeout> | undefined
+
+		try {
+			return await Promise.race([
+				operation(),
+				new Promise<never>((_, reject) => {
+					timeout = setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+				}),
+			])
+		} finally {
+			if (timeout) {
+				clearTimeout(timeout)
+			}
+		}
+	}
+
+	private static async waitForProcessExit(app: ElectronApplication, timeoutMs: number): Promise<void> {
+		const appProcess = app.process()
+
+		if (appProcess.exitCode !== null || appProcess.signalCode !== null) {
+			return
+		}
+
+		await Promise.race([
+			new Promise<void>((resolve) => {
+				appProcess.once("exit", () => resolve())
+			}),
+			new Promise<void>((resolve) => {
+				setTimeout(resolve, timeoutMs)
+			}),
+		])
+	}
+
+	public static async closeVSCode(app: ElectronApplication): Promise<void> {
+		const appProcess = app.process()
+
+		try {
+			await E2ETestHelper.runWithTimeout(() => app.close(), 15_000, "Timed out while closing VS Code")
+			return
+		} catch (error) {
+			console.warn(`VS Code did not close gracefully: ${error}`)
+		}
+
+		if (appProcess.exitCode === null && appProcess.signalCode === null) {
+			appProcess.kill()
+			await E2ETestHelper.waitForProcessExit(app, 5_000)
+		}
+
+		if (process.platform !== "win32" && appProcess.exitCode === null && appProcess.signalCode === null) {
+			appProcess.kill("SIGKILL")
+			await E2ETestHelper.waitForProcessExit(app, 2_000)
+		}
+	}
+
 	public async signin(webview: Frame): Promise<void> {
 		await webview.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 
@@ -287,7 +342,7 @@ export const e2e = test
 			try {
 				await use(app)
 			} finally {
-				await app.close()
+				await E2ETestHelper.closeVSCode(app)
 				// Cleanup in parallel - include clineTestDir if it was created
 				const cleanupTasks = [
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
