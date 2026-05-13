@@ -56,6 +56,25 @@ describe("createBedrockProviderModule", () => {
 		expect(fromNodeProviderChainMock).not.toHaveBeenCalled();
 	});
 
+	it("suppresses provider credential fallback for explicit API-key auth with no resolved key", async () => {
+		await createBedrockProviderModule(
+			config({
+				options: { authentication: "apikey", region: "us-east-1" },
+			}),
+		);
+
+		expect(createAmazonBedrockMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "",
+				accessKeyId: undefined,
+				secretAccessKey: undefined,
+				sessionToken: undefined,
+				credentialProvider: undefined,
+			}),
+		);
+		expect(fromNodeProviderChainMock).not.toHaveBeenCalled();
+	});
+
 	it("uses direct IAM credentials and disables bearer-token env fallback", async () => {
 		process.env.AWS_BEARER_TOKEN_BEDROCK = "env-bearer-token";
 

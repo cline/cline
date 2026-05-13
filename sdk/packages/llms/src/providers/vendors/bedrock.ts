@@ -27,21 +27,19 @@ export async function createBedrockProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
 	const authentication = readAuthentication(config.options?.authentication);
+	const usesApiKeyAuth =
+		authentication === "api-key" || authentication === "apikey";
 	const hasDirectCredentials =
 		readOptionalString(config.options?.accessKeyId) !== undefined &&
 		readOptionalString(config.options?.secretAccessKey) !== undefined;
 	const hasProfile = readOptionalString(config.options?.profile) !== undefined;
 	const usesExplicitSigV4Auth =
-		authentication !== "api-key" &&
-		authentication !== "apikey" &&
+		!usesApiKeyAuth &&
 		(authentication === "iam" || authentication === "profile" || hasProfile);
 	const apiKey = usesExplicitSigV4Auth
 		? undefined
 		: await resolveBedrockApiKey(config, {
-				includeEnvironment:
-					authentication === "api-key" ||
-					authentication === "apikey" ||
-					!hasDirectCredentials,
+				includeEnvironment: usesApiKeyAuth || !hasDirectCredentials,
 			});
 	const credentialProvider = resolveCredentialProvider(config, {
 		authentication,
@@ -57,12 +55,9 @@ export async function createBedrockProviderModule(
 
 	const provider = createAmazonBedrock({
 		region: readOptionalString(config.options?.region),
-		apiKey:
-			authentication === "api-key" || authentication === "apikey" || apiKey
-				? apiKey
-				: usesSigV4
-					? ""
-					: undefined,
+		apiKey: usesApiKeyAuth
+			? (apiKey ?? "")
+			: (apiKey ?? (usesSigV4 ? "" : undefined)),
 		accessKeyId: credentialProvider
 			? undefined
 			: readOptionalString(config.options?.accessKeyId),
@@ -105,11 +100,10 @@ function resolveCredentialProvider(
 	}
 
 	if (options.authentication === "profile" || options.hasProfile) {
+		const profile = readOptionalString(config.options?.profile);
 		return fromNodeProviderChain({
 			ignoreCache: true,
-			...(readOptionalString(config.options?.profile)
-				? { profile: readOptionalString(config.options?.profile) }
-				: {}),
+			...(profile ? { profile } : {}),
 		});
 	}
 
