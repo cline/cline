@@ -178,9 +178,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							console.error("FileServiceClient.copyToClipboard failed:", err)
 						})
 
-						// Only suppress the browser default if we actually
-						// wrote to the clipboard ourselves. If both paths
-						// failed, let the browser fall back to its own copy.
+						// Only suppress the browser default if navigator.clipboard
+						// actually wrote our formatted text. If that path failed or
+						// was unavailable, let the browser fall back to its own
+						// copy — the gRPC mirror is fire-and-forget, so we cannot
+						// know its outcome at this point in the handler.
 						if (copySucceeded) {
 							e.preventDefault()
 						}
