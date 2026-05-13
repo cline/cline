@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import { resolveClineDir } from "@cline/shared/storage";
 
 const execFileAsync = promisify(execFile);
+const TASK_ID_LENGTH = 5;
 
 export interface CreateTaskWorktreeResult {
 	success: boolean;
@@ -19,16 +20,29 @@ export function getTaskWorktreesHomePath(): string {
 	return path.join(resolveClineDir(), "worktrees");
 }
 
-function sanitizeRepoNameForWorktreePath(repoPath: string): string {
+function getWorkspaceFolderLabelForWorktreePath(repoPath: string): string {
 	const folder = path.basename(repoPath.replace(/[\\/]+$/g, "")) || "workspace";
 	const cleaned = [...folder]
 		.filter((char) => {
 			const code = char.charCodeAt(0);
-			return code >= 32 && code !== 127 && char !== "/" && char !== "\\";
+			return code >= 32 && code !== 127;
 		})
 		.join("")
 		.trim();
 	return cleaned || "workspace";
+}
+
+function createShortTaskId(): string {
+	return randomUUID().replaceAll("-", "").slice(0, TASK_ID_LENGTH);
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+	try {
+		await access(targetPath);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 async function checkGitInstalled(): Promise<boolean> {
@@ -73,7 +87,7 @@ export async function createTaskWorktree(options: {
 		};
 	}
 
-	const taskId = options.taskId?.trim() || randomUUID();
+	let taskId = options.taskId?.trim() || createShortTaskId();
 	if (
 		taskId.includes("/") ||
 		taskId.includes("\\") ||
@@ -83,8 +97,26 @@ export async function createTaskWorktree(options: {
 		return { success: false, message: `Invalid worktree id: ${taskId}` };
 	}
 
-	const repoName = sanitizeRepoNameForWorktreePath(repoRoot);
-	const worktreePath = path.join(getTaskWorktreesHomePath(), taskId, repoName);
+	const workspaceLabel = getWorkspaceFolderLabelForWorktreePath(repoRoot);
+	let worktreePath = path.join(
+		getTaskWorktreesHomePath(),
+		taskId,
+		workspaceLabel,
+	);
+	if (!options.taskId) {
+		for (
+			let attempt = 0;
+			attempt < 16 && (await pathExists(worktreePath));
+			attempt += 1
+		) {
+			taskId = createShortTaskId();
+			worktreePath = path.join(
+				getTaskWorktreesHomePath(),
+				taskId,
+				workspaceLabel,
+			);
+		}
+	}
 
 	try {
 		await mkdir(path.dirname(worktreePath), { recursive: true });

@@ -72,26 +72,40 @@ describe("createTaskWorktree", () => {
 
 		expect(result.success).toBe(true);
 		expect(result.taskId).toBe("my-task");
-		expect(await realpath(result.repoRoot!)).toBe(await realpath(repoPath));
+		expect(result.repoRoot).toBeDefined();
+		expect(result.path).toBeDefined();
+		if (!result.repoRoot || !result.path) {
+			throw new Error("Expected worktree result to include repoRoot and path.");
+		}
+		const worktreePath = result.path;
+
+		expect(await realpath(result.repoRoot)).toBe(await realpath(repoPath));
 		expect(result.path).toBe(
 			path.join(clineDir, "worktrees", "my-task", "myrepo"),
 		);
-		expect(git(result.path!, ["rev-parse", "--is-inside-work-tree"])).toBe(
+		expect(git(worktreePath, ["rev-parse", "--is-inside-work-tree"])).toBe(
 			"true",
 		);
-		expect(git(result.path!, ["rev-parse", "HEAD"])).toBe(
+		expect(git(worktreePath, ["rev-parse", "HEAD"])).toBe(
 			git(repoPath, ["rev-parse", "HEAD"]),
 		);
-		expect(git(result.path!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe(
+		expect(git(worktreePath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe(
 			"HEAD",
 		);
 	});
 
-	it("generates a uuid taskId when none is provided", async () => {
+	it("generates a Kanban-style short taskId when none is provided", async () => {
 		const result = await createTaskWorktree({ cwd: repoPath });
 
 		expect(result.success).toBe(true);
-		expect(result.taskId).toMatch(/^[0-9a-f-]{36}$/i);
+		expect(result.taskId).toMatch(/^[0-9a-f]{5}$/i);
+		expect(result.taskId).toBeDefined();
+		if (!result.taskId) {
+			throw new Error("Expected generated taskId.");
+		}
+		expect(result.path).toBe(
+			path.join(clineDir, "worktrees", result.taskId, "myrepo"),
+		);
 	});
 
 	it("rejects when cwd is not a git repository", async () => {
