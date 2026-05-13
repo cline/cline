@@ -569,6 +569,7 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"workspace.initialized",
 			"workspace.init_error",
 			"workspace.path_resolved",
+			"user.provider_configured",
 			"task.compaction_executed",
 			"task.compaction_skipped",
 		]);
