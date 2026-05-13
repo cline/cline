@@ -121,6 +121,32 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("updates the active session model for the next turn when supported", async () => {
+		const updateSessionModel = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" }, updateSessionModel })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		const didUpdate = await lifecycle.updateActiveSessionModel("deepseek-v4-flash")
+
+		expect(didUpdate).toBe(true)
+		expect(updateSessionModel).toHaveBeenCalledWith("session-123", "deepseek-v4-flash")
+	})
+
+	it("does not update active session model when no host capability is available", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		const didUpdate = await lifecycle.updateActiveSessionModel("deepseek-v4-flash")
+
+		expect(didUpdate).toBe(false)
+	})
+
 	it("detects abort errors", () => {
 		const error = new Error("aborted by user")
 		expect(isAbortError(error)).toBe(true)
