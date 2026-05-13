@@ -132,7 +132,7 @@ npm install @cline/sdk
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`sdk/apps/cli/`](https://github.com/cline/cline/tree/main/sdk/apps/cli) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | [`/`](https://github.com/cline/cline/tree/main) (WIP migrating) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins |
-| **Kanban** | Web-based multi-agent task board. | [`cline/kanban`](https://github.com/cline/kanban). |
+| **Kanban** | Web-based multi-agent task board. | [`cline/kanban`](https://github.com/cline/kanban) |
 | **Docs site** | Public documentation pages. | [`docs/`](https://docs.cline.bot/) |
 
 ## Edits Code Across Your Project
