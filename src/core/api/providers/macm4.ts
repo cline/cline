@@ -63,7 +63,8 @@ export const MACM4_TIERS = {
 		maxTokens: 6144,
 		isLocal: true,
 		backend: "ollama" as const,
-		description: "Alias for local-long with agent-tuned defaults.",
+		description:
+			"Qwen3-Coder-Next 80B on Ollama — same model as local-long, tuned for Cline agentic tasks (thinking mode, low temp).",
 	},
 	"claude-haiku-4-5": {
 		contextWindow: 200_000,
@@ -119,10 +120,14 @@ export const macm4DefaultModelId: MacM4TierId = "hybrid-auto"
  * These are the names Ollama's /v1/chat/completions endpoint actually
  * accepts -- NOT the litellm-config alias names (e.g. "local-long").
  * Override per-instance via MacM4HandlerOptions.macm4OllamaModelTag.
+ *
+ * local-agent intentionally uses the same 80B Qwen3 model as local-long.
+ * The 8B llama3.1 model cannot reliably follow Cline's multi-step XML
+ * tool-call schema; 80B is the minimum for agentic tasks.
  */
 const OLLAMA_DEFAULT_TAGS: Partial<Record<MacM4TierId, string>> = {
 	"local-long": "qwen3-coder-next:q4_K_M",
-	"local-agent": "llama3.1:8b-instruct-q8_0",
+	"local-agent": "qwen3-coder-next:q4_K_M",
 }
 
 export interface MacM4HandlerOptions extends CommonApiHandlerOptions {
@@ -149,6 +154,32 @@ export interface MacM4HandlerOptions extends CommonApiHandlerOptions {
 const DEFAULT_PROXY_URL = "http://127.0.0.1:4000"
 const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 const DEFAULT_REQUEST_TIMEOUT_MS = 300_000
+
+/**
+ * Prepended to the system prompt for every local-model request.
+ * Cline's built-in system prompt already defines the XML tool schema in
+ * full, but small/mid-size models tend to omit required parameters or
+ * generate malformed tags. This preamble locks in four concrete rules:
+ *   1. Every tool call must contain ALL required XML child elements.
+ *   2. Never emit an empty tag for a required parameter.
+ *   3. Only one tool call per reply (Cline processes them sequentially).
+ *   4. Plain text thinking/reasoning BEFORE the opening tool tag is fine;
+ *      do NOT put any text after the closing tool tag.
+ *
+ * Placed BEFORE the Cline system prompt so the model sees the constraint
+ * first; the detailed schema that follows then reinforces it.
+ */
+const LOCAL_TOOL_CALL_PREAMBLE = `\
+TOOL-USE RULES (MANDATORY — read before anything else):
+1. When you call a tool you MUST include EVERY required XML child element with a non-empty value.
+   Missing or empty required parameters cause a hard error and waste the user's time.
+2. Emit at most ONE tool call per reply. Place it at the very end of your response.
+3. Do NOT put any text after the closing tool tag.
+4. If you do not yet have enough information to fill every required parameter,
+   ask for it using <ask_followup_question><question>…your question here…</question></ask_followup_question>.
+   The <question> element is REQUIRED and must never be empty.
+
+`
 
 function tierMeta(id: string): (typeof MACM4_TIERS)[MacM4TierId] | undefined {
 	return MACM4_TIERS[id as MacM4TierId]
@@ -241,13 +272,25 @@ export class MacM4Handler implements ApiHandler {
 		const timeoutMs = this.options.requestTimeoutMs || DEFAULT_REQUEST_TIMEOUT_MS
 
 		const formattedMessages = convertToOpenAiMessages(messages)
+
+		// Prepend the tool-call preamble for local models so they never
+		// emit incomplete XML tool calls.
+		const effectiveSystemPrompt = meta?.isLocal ? LOCAL_TOOL_CALL_PREAMBLE + systemPrompt : systemPrompt
+
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 			role: "system",
-			content: systemPrompt,
+			content: effectiveSystemPrompt,
 		}
 
 		this.abortController = new AbortController()
 		const timeoutHandle = setTimeout(() => this.abortController?.abort(), timeoutMs)
+
+		// Qwen3 supports extended thinking via Ollama's extra_body option.
+		// Enabling it for local-agent gives the model a reasoning scratchpad
+		// before it commits to a tool call, which dramatically reduces
+		// malformed / incomplete XML output.
+		const isQwen3 = model.startsWith("qwen3")
+		const extraBody = isQwen3 ? { think: true } : undefined
 
 		try {
 			const stream = await client.chat.completions.create(
@@ -261,6 +304,8 @@ export class MacM4Handler implements ApiHandler {
 					// Local tiers benefit from a slightly lower temperature
 					// for tool-shaped responses; cloud keeps the OpenAI default.
 					temperature: meta?.isLocal ? 0.2 : undefined,
+					// Pass model-specific extra options (e.g. Qwen3 thinking mode).
+					...(extraBody ? { extra_body: extraBody } : {}),
 				},
 				{ signal: this.abortController.signal },
 			)
