@@ -78,6 +78,19 @@ describe("createOpenRouterStream", () => {
 		payload.should.not.have.property("max_tokens")
 	})
 
+	it("adds cache_control blocks for Qwen models that require explicit OpenRouter caching", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
+			id: "qwen/qwen3.6-plus",
+			info: createModelInfo(65_536),
+		})
+
+		const payload = create.firstCall.args[0] as any
+		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+	})
+
 	it("uses adaptive reasoning with verbosity for Claude Opus adaptive models", async () => {
 		const { client, create } = createClient()
 

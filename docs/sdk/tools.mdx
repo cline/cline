@@ -1,0 +1,141 @@
+---
+title: "Tools"
+sidebarTitle: "Tools"
+description: "Tools let agents read, write, search, call APIs, and run domain-specific actions."
+---
+
+Tools are functions the model can call during execution. Tools consist of a name, description, and schema which the SDK sends to the model. Then the model can direct the SDK to execute tool functions and send results back into the conversation.
+
+## Built-In Tools
+
+`ClineCore` can enable the built-in tool suite:
+
+| Tool | Description |
+|------|-------------|
+| `read_files` | Read one or more files |
+| `search_codebase` | Search the workspace |
+| `run_commands` | Execute shell commands |
+| `fetch_web_content` | Fetch web content |
+| `apply_patch` | Apply patch/diff edits |
+| `editor` | Edit files |
+| `skills` | Invoke configured skills |
+| `ask_question` | Ask the user for input |
+| `submit_and_exit` | Submit a final answer and stop |
+
+<Note>
+  If you need more control you can use the `Agents` package directly. This does not include built-in tools. You pass in only the tools you want when constructing the agent.
+</Note>
+
+## Custom Tools with createTool
+
+One of the most powerful features of the SDK is the ability to create and register custom tools. This allows you to add and share capabilities that are context efficient and behave deterministically because they are implemented in code rather than prompts.
+
+### Quick Example
+
+Use `createTool` with a zod schema for type-safe tools:
+
+```typescript
+import { createTool } from "@cline/sdk"
+import { z } from "zod"
+
+const searchDatabase = createTool({
+  name: "search_database",
+  description: "Search the application database. Returns matching records as JSON.",
+  inputSchema: z.object({
+    query: z.string().describe("Search query"),
+    limit: z.number().optional().describe("Maximum results to return"),
+  }),
+  async execute(input) {
+    const results = await db.search(input.query, input.limit ?? 10)
+    return { results, count: results.length }
+  },
+})
+```
+
+`createTool` also accepts raw JSON Schema if you prefer:
+
+```typescript
+const searchDatabase = createTool({
+  name: "search_database",
+  description: "Search the application database.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Search query" },
+      limit: { type: "number", description: "Maximum results to return" },
+    },
+    required: ["query"],
+  },
+  async execute(input) {
+    return await db.search(input.query, input.limit ?? 10)
+  },
+})
+```
+
+For complete examples of tools in action, see the [cli-agent](https://github.com/cline/cline/tree/main/sdk/apps/examples/cli-agent) (shell tool) and [code-review-bot](https://github.com/cline/cline/tree/main/sdk/apps/examples/code-review-bot) (multiple tools with completion lifecycle).
+
+For a full tutorial, see [Creating Custom Tools](/sdk/guides/creating-custom-tools). For exact types, see [Tools API](/sdk/reference/tools-api).
+
+## Registering Tools
+
+With `ClineCore`, custom tools are passed as `extraTools` in session config:
+
+```typescript
+await cline.start({
+  prompt: "Analyze customer records",
+  config: {
+    // ...
+    extraTools: [searchDatabase],
+  },
+})
+```
+
+With `Agent`, you pass all tools into the constructor:
+
+```typescript
+const agent = new Agent({
+  tools: [searchDatabase, myOtherTool],
+  // ...
+})
+```
+
+Tools are more easily shared via plugins/extensions:
+
+```typescript
+const plugin: AgentPlugin = {
+  name: "database-tools",
+  manifest: { capabilities: ["tools"] },
+  setup(api) {
+    api.registerTool(searchDatabase)
+  },
+}
+```
+See [Plugins](/sdk/plugins) for more info.
+
+## Tool Policies
+
+You can control how tools are used through Tool Policies. These control whether a tool is visible and whether it requires approval.
+
+```typescript
+const agent = new Agent({
+  tools: [readTool, writeTool, deleteTool],
+  toolPolicies: {
+    read_data: { autoApprove: true },
+    write_data: { autoApprove: false },
+    delete_data: { enabled: false },
+  },
+  // ...
+})
+```
+
+| Policy | Effect |
+|--------|--------|
+| `{ autoApprove: true }` | Run without asking |
+| `{ autoApprove: false }` | Ask before running |
+| `{ enabled: false }` | Hide/disable the tool |
+
+Tool names not listed in `toolPolicies` default to enabled and auto-approved.
+
+## MCP Tools
+
+Tools work along side MCP. `ClineCore` can load MCP settings through its runtime/config extension path. MCP tools are registered alongside built-in and custom tools when MCP support is enabled for the session.

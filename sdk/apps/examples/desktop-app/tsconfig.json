@@ -1,0 +1,45 @@
+{
+	"compilerOptions": {
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"allowJs": true,
+		"target": "ES6",
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true,
+		"esModuleInterop": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"incremental": true,
+		"plugins": [
+			{
+				"name": "next"
+			}
+		],
+		"paths": {
+			"@/*": ["./*"],
+			"@cline/agents": ["../../../packages/agents/src/index.ts"],
+			"@cline/core": ["../../../packages/core/src/index.ts"],
+			"@cline/core/hub": ["../../../packages/core/src/hub/index.ts"],
+			"@cline/llms": ["../../../packages/llms/src/index.ts"],
+			"@cline/shared": ["../../../packages/shared/src/index.ts"],
+			"@cline/shared/storage": [
+				"../../../packages/shared/src/storage/index.ts"
+			],
+			"@cline/shared/db": ["../../../packages/shared/src/db/index.ts"],
+			"@cline/shared/*": [
+				"../../../packages/shared/src/*",
+				"../../../packages/shared/src/*/index.ts"
+			]
+		}
+	},
+	"include": [
+		"**/*.ts",
+		"**/*.tsx",
+		".next/types/**/*.ts",
+		".next/dev/types/**/*.ts"
+	],
+	"exclude": ["node_modules"]
+}

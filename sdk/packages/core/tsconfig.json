@@ -1,0 +1,24 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"sourceMap": false,
+		"emitDeclarationOnly": true,
+		"paths": {
+			"@cline/agents": ["../agents/src/index.ts"],
+			"@cline/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
+			"@cline/llms": ["../llms/src/index.ts"],
+			"@cline/llms/browser": ["../llms/src/index.browser.ts"],
+			"@cline/shared": ["../shared/src/index.ts"],
+			"@cline/shared/automation": ["../shared/src/automation/index.ts"],
+			"@cline/shared/browser": ["../shared/src/index.browser.ts"],
+			"@cline/shared/db": ["../shared/src/db/index.ts"],
+			"@cline/shared/storage": ["../shared/src/storage/index.ts"],
+			"@cline/shared/types": ["../shared/src/types/index.ts"],
+			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+		}
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist", "fixtures"]
+}

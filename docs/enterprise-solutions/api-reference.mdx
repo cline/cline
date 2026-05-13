@@ -4,7 +4,7 @@ sidebarTitle: "API Reference"
 description: "REST API endpoints for managing users, organizations, billing, plans, and API keys."
 ---
 
-The Enterprise API provides REST endpoints for account management, organization administration, billing, and API key management. These are separate from the [Chat Completions API](/api/reference), which handles model inference.
+The Enterprise API provides REST endpoints for account management, organization administration, billing, and API key management. These are separate from the [Chat Completions API](/api/overview), which handles model inference.
 
 ## Base URL
 
@@ -20,7 +20,7 @@ All endpoints require a Bearer token in the `Authorization` header:
 Authorization: Bearer YOUR_AUTH_TOKEN
 ```
 
-Use the same API key or account auth token described in the [public API reference](/api/reference#authentication).
+Use the same API key or account auth token described in the [public API reference](/api/overview#authentication).
 
 ## Quick Example
 
@@ -180,7 +180,7 @@ Track token consumption and costs across your organization.
 
 ## API Keys
 
-Create and manage API keys for programmatic access. Keys created here work with both the [Chat Completions API](/api/reference) and the endpoints on this page.
+Create and manage API keys for programmatic access. Keys created here work with both the [Chat Completions API](/api/overview) and the endpoints on this page.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -193,7 +193,7 @@ Create and manage API keys for programmatic access. Keys created here work with 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Chat Completions API" icon="code" href="/api/reference">
+  <Card title="Chat Completions API" icon="code" href="/api/overview">
     The public inference API for sending prompts and receiving completions.
   </Card>
   <Card title="SSO Setup" icon="key" href="/enterprise-solutions/sso-setup">

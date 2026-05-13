@@ -1,0 +1,35 @@
+{
+	"extends": "../../../packages/tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "dist",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"target": "ESNext",
+		"paths": {
+			"@cline/agents": ["../../../packages/agents/src/index.ts"],
+			"@cline/agents/*": [
+				"../../../packages/agents/src/*",
+				"../../../packages/agents/src/*/index.ts"
+			],
+			"@cline/core": ["../../../packages/core/src/index.ts"],
+			"@cline/core/hub/daemon-entry": [
+				"../../../packages/core/src/hub/daemon/entry.ts"
+			],
+			"@cline/core/*": [
+				"../../../packages/core/src/*",
+				"../../../packages/core/src/*/index.ts"
+			],
+			"@cline/llms": ["../../../packages/llms/src/index.ts"],
+			"@cline/shared": ["../../../packages/shared/src/index.ts"],
+			"@cline/shared/storage": [
+				"../../../packages/shared/src/storage/index.ts"
+			],
+			"@cline/shared/db": ["../../../packages/shared/src/db/index.ts"],
+			"@cline/shared/*": [
+				"../../../packages/shared/src/*",
+				"../../../packages/shared/src/*/index.ts"
+			]
+		}
+	},
+	"include": ["sidecar/**/*.ts"]
+}

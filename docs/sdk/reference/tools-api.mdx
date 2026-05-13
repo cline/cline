@@ -1,0 +1,86 @@
+---
+title: "Tools API"
+sidebarTitle: "Tools API"
+description: "API reference for creating and configuring tools."
+---
+
+## `createTool(config)`
+
+```typescript
+import { createTool } from "@cline/sdk"
+```
+
+Creates a typed tool. Also re-exported from `@cline/agents` and `@cline/core`.
+
+```typescript
+const tool = createTool({
+  name: "get_current_time",
+  description: "Return the current time as ISO string.",
+  inputSchema: { type: "object", properties: {} },
+  execute: async (_input, context) => {
+    return { now: new Date().toISOString() }
+  },
+})
+```
+
+`inputSchema` can be either JSON Schema or a Zod schema.
+
+## AgentTool
+
+```typescript
+interface AgentTool<TInput = unknown, TOutput = unknown> {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+  execute: (input: TInput, context: AgentToolContext, onChange?: (update: unknown) => void) => Promise<TOutput>
+  timeoutMs?: number
+  retryable?: boolean
+  maxRetries?: number
+}
+```
+
+Defaults from `createTool`:
+
+| Field | Default |
+|-------|---------|
+| `timeoutMs` | `30000` |
+| `retryable` | `true` |
+| `maxRetries` | `3` |
+
+## AgentToolContext
+
+```typescript
+interface AgentToolContext {
+  agentId: string
+  conversationId: string
+  iteration: number
+  abortSignal?: AbortSignal
+  metadata?: Record<string, unknown>
+}
+```
+
+## ToolPolicy
+
+```typescript
+interface ToolPolicy {
+  enabled?: boolean
+  autoApprove?: boolean
+}
+```
+
+Tool names not listed in a policy map default to enabled and auto-approved.
+
+## ToolCallRecord
+
+```typescript
+interface ToolCallRecord {
+  id: string
+  name: string
+  input: unknown
+  output: unknown
+  error?: string
+  durationMs: number
+  startedAt: Date
+  endedAt: Date
+}
+```

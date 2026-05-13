@@ -7,7 +7,6 @@
 	},
 	"license": "MIT",
 	"dependencies": {
-		"axios": "1.15.0",
 		"better-sqlite3": "^12.4.1",
 		"chalk": "5.6.2",
 		"commander": "^9.4.1",
