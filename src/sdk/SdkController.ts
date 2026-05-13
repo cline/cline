@@ -27,7 +27,6 @@ import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
-import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { ExtensionRegistryInfo } from "@/registry"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
@@ -143,7 +142,9 @@ export class Controller {
 	ocaAuthService: AuthService
 	readonly stateManager: StateManager
 
-	// Lazy VscodeTerminalManager for foreground terminal execution.
+	// Lazy terminal manager for foreground terminal execution.
+	// Concrete impl comes from HostProvider (VscodeTerminalManager in VSCode,
+	// StandaloneTerminalManager in cline-core / JetBrains).
 	// Created on first use; shared across all sessions in this Controller's lifetime.
 	private _terminalManager?: ITerminalManager
 
@@ -212,13 +213,13 @@ export class Controller {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
 			},
-			// Lazy terminal manager for foreground terminal execution.
-			// The VscodeTerminalManager is created once and shared across sessions.
 			getTerminalManager: () => {
 				if (!this._terminalManager) {
-					this._terminalManager = new VscodeTerminalManager()
+					this._terminalManager = HostProvider.get().createTerminalManager()
 					this.applyTerminalSettings(this._terminalManager)
-					Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
+					Logger.log(
+						`[SdkController] Created ${this._terminalManager.constructor.name} for foreground terminal execution`,
+					)
 				}
 				return this._terminalManager
 			},
@@ -1026,8 +1027,8 @@ export class Controller {
 
 	/**
 	 * Apply the user's terminal settings from StateManager to a terminal manager.
-	 * Called once when the lazy VscodeTerminalManager is first created, and
-	 * can be called again when settings change at runtime.
+	 * Called once when the lazy terminal manager is first created, and can be
+	 * called again when settings change at runtime.
 	 */
 	applyTerminalSettings(terminalManager: ITerminalManager): void {
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
