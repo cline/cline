@@ -1,28 +1,29 @@
 ---
-title: "Agent vs ClineCore"
-sidebarTitle: "Agent vs ClineCore"
-description: "Choose between the stateless AgentRuntime loop and the full ClineCore runtime."
+title: "Session Management"
+sidebarTitle: "Session Management"
+description: "How the SDK handles sessions, persistence, and state across agent runs."
 ---
 
-The SDK has two main runtime entry points:
+The SDK lets you choose how much session management you want it to handle.
 
-- `ClineCore` from `@cline/core`: Node runtime with sessions, persistence, built-in tools, approvals, automation, and hub support.
-- `Agent` / `AgentRuntime` from `@cline/agents`: browser-compatible, stateless, in-process execution. You provide tools, persistence, and lifecycle management.
+`ClineCore` manages everything: session persistence, message history, built-in tools, approvals, scheduling, and hub support. Use it when you want a fully managed agent runtime.
+
+`Agent` (also exported as `AgentRuntime`) is the stateless primitive underneath. You bring your own tools and manage your own state. Use it when you want direct control, lightweight embedding, or browser compatibility.
 
 `Agent` is an alias for `AgentRuntime`. Use `Agent` when constructing from provider/model IDs. Use `AgentRuntime` when supplying a pre-built `AgentModel`.
 
-## Which Runtime to Use
+## When to use which
 
 | Need | Use |
 |------|-----|
-| Browser-compatible or lightweight in-process agent | `Agent` / `AgentRuntime` |
-| Custom tools only | `Agent` / `AgentRuntime` |
-| Manual control over persistence | `Agent` / `AgentRuntime` |
+| Sessions, persistence, message history | `ClineCore` |
 | Built-in tools for files, shell, search, web fetch | `ClineCore` |
-| Session persistence | `ClineCore` |
 | Hub/remote runtime | `ClineCore` |
 | Scheduling or event automation | `ClineCore` |
 | Multi-agent teams | `ClineCore` |
+| Browser-compatible or lightweight in-process agent | `Agent` |
+| Custom tools only, no built-ins | `Agent` |
+| Full control over persistence and lifecycle | `Agent` |
 
 ## Agent / AgentRuntime
 
