@@ -1,5 +1,10 @@
 # Cline CLI Changelog
 
+## 3.0.1
+
+- Fix CLI release cleanup scripts so they work correctly on Windows.
+- Fix the kanban migration notice wording in the TUI.
+
 ## 3.0.0
 
 Introducing our new Cline CLI built on our new SDK and comes with a snappy new TUI.
