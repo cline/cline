@@ -981,7 +981,7 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("uses provider-specific openrouter billed total from nested raw usage", async () => {
+	it("adds OpenRouter BYOK account fee and upstream provider cost from nested raw usage", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{
@@ -991,6 +991,7 @@ describe("sdk-gateway", () => {
 						completion_tokens: 31,
 						raw: {
 							cost: 0.000618625,
+							is_byok: true,
 							cost_details: {
 								upstream_inference_cost: 0.0123725,
 							},
@@ -1032,6 +1033,60 @@ describe("sdk-gateway", () => {
 				event.type === "usage",
 		);
 		expect(usageEvent?.usage.totalCost).toBeCloseTo(0.012991125, 12);
+	});
+
+	it("does not double-count OpenRouter credit-billed upstream cost from nested raw usage", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 15,
+						completion_tokens: 5,
+						raw: {
+							cost: 0.0000301,
+							is_byok: false,
+							cost_details: {
+								upstream_inference_cost: 0.0000301,
+							},
+						},
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "openrouter-key",
+					defaultModelId: "z-ai/glm-5.1",
+					models: [
+						{
+							id: "z-ai/glm-5.1",
+							name: "GLM 5.1",
+							metadata: {
+								pricing: { input: 0.98, output: 3.08 },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "z-ai/glm-5.1",
+				messages: baseMessages,
+			}),
+		);
+
+		const usageEvent = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "usage" }> =>
+				event.type === "usage",
+		);
+		expect(usageEvent?.usage.totalCost).toBe(0.0000301);
 	});
 
 	it("applies provider-specific usage normalization to stream usage promises", async () => {

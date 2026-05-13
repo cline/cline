@@ -404,14 +404,6 @@ function calculateUsageCostFromPricing(
 
 /**
  * Normalizes usage from various provider formats into a standard structure.
- * Handles multiple naming conventions (e.g., inputTokens vs input_tokens),
- * extracts costs from market_cost/cost/upstream_inference_cost fields,
- * and falls back to pricing-based calculation if no explicit cost is found.
- * For providers that charge both gateway and model costs (e.g., OpenRouter),
- * sums baseCost + upstreamInferenceCost when both are present.
- */
-/**
- * Normalizes usage from various provider formats into a standard structure.
  * Accepts both AI SDK's normalized shapes (AiSdkStreamTotalUsage, AiSdkStreamUsage)
  * and raw provider responses. Handles multiple naming conventions (camelCase vs snake_case),
  * extracts costs from provider-specific fields, and falls back to pricing-based calculation.
@@ -462,11 +454,22 @@ export function normalizeUsage(
 		marketCost !== undefined ||
 		baseCost !== undefined ||
 		upstreamInferenceCost !== undefined;
+	const isByokUsage =
+		rawUsage.is_byok === true ||
+		rawUsage.isByok === true ||
+		gatewayMetadata.is_byok === true ||
+		gatewayMetadata.isByok === true;
+	const shouldAddUpstreamCost =
+		isByokUsage &&
+		baseCost !== undefined &&
+		upstreamInferenceCost !== undefined;
+	const costOrUpstream =
+		baseCost !== undefined && baseCost > 0
+			? baseCost
+			: (upstreamInferenceCost ?? baseCost);
 	const totalCost =
 		marketCost ??
-		(baseCost !== undefined && upstreamInferenceCost !== undefined
-			? baseCost + upstreamInferenceCost
-			: (baseCost ?? upstreamInferenceCost));
+		(shouldAddUpstreamCost ? baseCost + upstreamInferenceCost : costOrUpstream);
 	const normalizedUsage = {
 		inputTokens:
 			getNestedUsageValue(usage, "inputTokens", "total") ||
