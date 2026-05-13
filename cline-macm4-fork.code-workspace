@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../MacM4LocalAgent"
+		}
+	],
+	"settings": {
+		"typescript.tsc.autoDetect": "off",
+		"remote.autoForwardPorts": false
+	}
+}

@@ -1,3 +1,113 @@
+> **This is the CertifyOS macm4 fork of Cline.** See the [macm4 install & setup guide](#macm4-fork--install--setup) below before anything else.
+
+---
+
+## macm4 Fork — Install & Setup
+
+This fork ships with macm4-specific enhancements: a local-agent routing fix (Qwen3-80B), bundled CertifyOS governance rules (`.clinerules/`), and a CI pipeline that publishes every build to GCS. The VSIX is **never installed from the VS Marketplace** — always pulled fresh from GCS.
+
+### Prerequisites
+
+| Tool | Purpose | Check |
+|---|---|---|
+| [Cursor](https://cursor.sh) and/or [VS Code](https://code.visualstudio.com) | IDE to install into | `ls /Applications/Cursor.app` |
+| [gcloud CLI](https://cloud.google.com/sdk/docs/install) | Download VSIX from GCS | `gcloud --version` |
+| Active GCP credentials | Access `gs://cline-repo` | `gcloud auth list` |
+| GCP project set | Required by gcloud storage | `gcloud config get-value project` |
+
+If you need GCS access, ask in **#macm4-engineering** for `Storage Object Viewer` on `gs://cline-repo`.
+
+### Install
+
+The install script is idempotent — safe to run on a fresh machine or to upgrade an existing install. It runs all pre-flight checks upfront and reports every issue before touching anything.
+
+```bash
+# From the repo root:
+./scripts/install-cline-macm4.sh
+```
+
+You will be asked which IDE(s) to install into (Cursor, VS Code, or both). To skip the prompt:
+
+```bash
+TARGET=cursor ./scripts/install-cline-macm4.sh
+TARGET=vscode ./scripts/install-cline-macm4.sh
+TARGET=both   ./scripts/install-cline-macm4.sh
+```
+
+The script will:
+1. Verify gcloud auth, project, GCS access, and IDE presence — reporting **all** issues before proceeding
+2. Download `gs://cline-repo/cline-macm4/cline-macm4-latest.vsix` fresh every time
+3. Uninstall any existing Cline (both `saoudrizwan.claude-dev` and `martinfr-certifyos.claude-dev`) from each chosen IDE
+4. Install the macm4 fork cleanly
+
+### Post-install configuration
+
+**1. Reload your IDE**
+
+After the script completes, reload each IDE window:
+`Cmd+Shift+P` → `Developer: Reload Window`
+
+**2. Open the macm4 workspace**
+
+Use the included workspace file to open both this repo and the local agent project together:
+
+```bash
+cursor cline-macm4-fork.code-workspace
+# or
+code cline-macm4-fork.code-workspace
+```
+
+This workspace pre-configures TypeScript and port-forwarding settings for the macm4 stack.
+
+**3. Open the Cline panel**
+
+Click the Cline robot icon in the Activity Bar (left sidebar), or:
+`Cmd+Shift+P` → `Cline: Open in Sidebar`
+
+**4. Configure your AI provider**
+
+On first open you will be prompted for a provider and API key. For the macm4 stack use:
+
+- **Provider:** Anthropic
+- **Model:** `claude-sonnet-4-5` or later
+- **API key:** Your personal Anthropic key, or the team OpenRouter key from **#macm4-engineering**
+
+**5. Verify workspace rules are loaded**
+
+Open Cline settings (gear icon in the Cline panel) → **Custom Instructions**. You should see the `.clinerules/general.md` content loaded automatically. These rules are workspace-scoped and activate whenever you open this repo.
+
+**6. Connect the CertifyOS MCP servers**
+
+The five governance MCP servers (GCS, Atlassian, Slack, SonarQube, GCP Observability) are registered as Cursor plugins and connect automatically when Cursor loads. To verify:
+
+- Open Cline settings → **MCP Servers**
+- Each server (`plugin-certifyos-ai-governance-*`) should show a green **Connected** badge
+- If a server shows disconnected, run `Cmd+Shift+P` → `Developer: Reload Window` and check again
+
+**7. Smoke test**
+
+Try this prompt to confirm everything is wired up:
+
+> *"What branch am I on, what files have changed, and which .clinerules are active?"*
+
+Cline should answer using git context and confirm the macm4 clinerules are loaded.
+
+### Re-installing / upgrading
+
+Re-run the script at any time — it always pulls the latest build from GCS:
+
+```bash
+./scripts/install-cline-macm4.sh
+```
+
+### Build pipeline
+
+Pushes to `integration/macm4-enhancements` trigger `.github/workflows/build-vsix.yml`, which builds the VSIX and uploads two copies to GCS:
+- `gs://cline-repo/cline-macm4/cline-macm4-<version>-<sha>.vsix` (versioned, permanent)
+- `gs://cline-repo/cline-macm4/cline-macm4-latest.vsix` (always the newest build)
+
+---
+
 <div align="center"><sub>
 English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
 </sub></div>
