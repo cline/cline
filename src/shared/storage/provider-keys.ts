@@ -6,7 +6,6 @@ import {
 	anthropicDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,
-	deepSeekDefaultModelId,
 	fireworksDefaultModelId,
 	geminiDefaultModelId,
 	groqDefaultModelId,
@@ -114,7 +113,6 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	minimax: minimaxDefaultModelId,
 	moonshot: moonshotDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
-	deepseek: deepSeekDefaultModelId,
 	wandb: wandbDefaultModelId,
 } as const
 
