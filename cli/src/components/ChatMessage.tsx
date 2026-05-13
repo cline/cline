@@ -850,7 +850,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 			<Box flexDirection="column" marginBottom={1} width="100%">
 				<DotRow color={COLORS.primaryBlue} flashing={partial === true && isStreaming}>
 					<Text bold color={COLORS.primaryBlue}>
-						Cline wants to create a Github issue:
+						Cline wants to create a GitHub issue:
 					</Text>
 				</DotRow>
 				<Box flexDirection="column" paddingLeft={2}>
