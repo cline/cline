@@ -453,6 +453,43 @@ describe("runCli lightweight command dispatch", () => {
 		expect(worktreeMocks.createTaskWorktree).not.toHaveBeenCalled();
 	});
 
+	it("allows --worktree with piped stdin", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => true,
+			isFile: () => false,
+		} as unknown as ReturnType<typeof fstatSync>);
+		vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(
+			async function* (): AsyncGenerator<Buffer, undefined> {
+				yield Buffer.from("from pipe");
+				return undefined;
+			},
+		);
+		process.argv = ["bun", "src/index.ts", "--worktree"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(worktreeMocks.createTaskWorktree).toHaveBeenCalledWith({
+			cwd: process.cwd(),
+		});
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"from pipe",
+			expect.objectContaining({
+				cwd: "/tmp/cline-worktree",
+				workspaceRoot: "/tmp/cline-worktree",
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("validates resumed sessions before creating a worktree", async () => {
 		sessionMocks.getSessionRow.mockResolvedValueOnce(undefined);
 		process.argv = ["bun", "src/index.ts", "--worktree", "--id", "missing"];

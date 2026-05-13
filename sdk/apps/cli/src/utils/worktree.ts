@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir } from "node:fs/promises";
+import { access, mkdir, rm } from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import { resolveClineDir } from "@cline/shared/storage";
@@ -118,8 +118,11 @@ export async function createTaskWorktree(options: {
 		}
 	}
 
+	const parentDir = path.dirname(worktreePath);
+	const parentDirExisted = await pathExists(parentDir);
+
 	try {
-		await mkdir(path.dirname(worktreePath), { recursive: true });
+		await mkdir(parentDir, { recursive: true });
 		await execFileAsync(
 			"git",
 			["-C", repoRoot, "worktree", "add", "--detach", worktreePath, "HEAD"],
@@ -133,6 +136,9 @@ export async function createTaskWorktree(options: {
 			repoRoot,
 		};
 	} catch (error) {
+		if (!parentDirExisted) {
+			await rm(parentDir, { recursive: true, force: true }).catch(() => {});
+		}
 		return {
 			success: false,
 			message: `Failed to create worktree: ${error instanceof Error ? error.message : String(error)}`,

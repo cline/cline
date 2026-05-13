@@ -699,6 +699,7 @@ export async function runCli(): Promise<void> {
 		if (
 			!args.prompt &&
 			!resumeSessionId &&
+			!stdinHasPipedInput() &&
 			(!process.stdin.isTTY || !process.stdout.isTTY)
 		) {
 			writeErr("--worktree without a prompt requires an interactive terminal.");

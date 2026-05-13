@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { setClineDir } from "@cline/shared/storage";
@@ -11,6 +18,15 @@ function git(cwd: string, args: string[]): string {
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "pipe"],
 	}).trim();
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+	try {
+		await access(targetPath);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 describe("createTaskWorktree", () => {
@@ -113,6 +129,23 @@ describe("createTaskWorktree", () => {
 
 		expect(result.success).toBe(false);
 		expect(result.message).toMatch(/Not a git repository/);
+	});
+
+	it("cleans up the task directory when git worktree add fails", async () => {
+		const emptyRepoPath = path.join(sandboxRoot, "empty-repo");
+		await mkdir(emptyRepoPath, { recursive: true });
+		git(emptyRepoPath, ["init", "-q", "-b", "main"]);
+
+		const result = await createTaskWorktree({
+			cwd: emptyRepoPath,
+			taskId: "empty",
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.message).toMatch(/Failed to create worktree/);
+		expect(await pathExists(path.join(clineDir, "worktrees", "empty"))).toBe(
+			false,
+		);
 	});
 
 	it("rejects unsafe taskIds", async () => {
