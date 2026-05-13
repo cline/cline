@@ -44,6 +44,8 @@ import {
 	mistralModels,
 	moonshotDefaultModelId,
 	moonshotModels,
+	brainiallDefaultModelId,
+	brainiallModels,
 	nebiusDefaultModelId,
 	nebiusModels,
 	nousResearchDefaultModelId,
@@ -144,6 +146,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "brainiall":
+			return brainiallModels
 		case "litellm":
 			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
@@ -504,6 +508,8 @@ export function normalizeApiConfiguration(
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
 			}
+		case "brainiall":
+			return getProviderData(brainiallModels, brainiallDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -834,6 +840,7 @@ export async function syncModeConfigurations(
 		case "xai":
 		case "nebius":
 		case "wandb":
+		case "brainiall":
 		case "sambanova":
 		case "cerebras":
 		case "sapaicore":

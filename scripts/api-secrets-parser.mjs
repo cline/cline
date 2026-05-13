@@ -316,6 +316,7 @@ export function generateApiKeyDisplayName(fieldName) {
 		groqApiKey: "Groq API Key",
 		huggingFaceApiKey: "Hugging Face API Key",
 		nebiusApiKey: "Nebius API Key",
+		brainiallApiKey: "Brainiall API Key",
 		basetenApiKey: "Baseten API Key",
 		vercelAiGatewayApiKey: "Vercel AI Gateway API Key",
 		zaiApiKey: "Z AI API Key",
