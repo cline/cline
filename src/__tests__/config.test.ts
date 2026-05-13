@@ -11,7 +11,9 @@ describe("ClineEndpoint configuration", () => {
 	let tempDir: string
 	let originalHomedir: typeof os.homedir
 
-	beforeEach(async () => {
+	beforeEach(async function () {
+		this.timeout(10_000)
+		sinon.restore()
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `config-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
@@ -21,9 +23,7 @@ describe("ClineEndpoint configuration", () => {
 
 		// Stub os.homedir to return our temp directory
 		originalHomedir = os.homedir
-		sandbox
-			.stub(os, "homedir")
-			.returns(tempDir)
+		sandbox.stub(os, "homedir").returns(tempDir)
 
 		// Reset the singleton state using internal method
 		;(ClineEndpoint as any)._instance = null
@@ -31,8 +31,10 @@ describe("ClineEndpoint configuration", () => {
 		;(ClineEndpoint as any)._extensionFsPath = undefined
 	})
 
-	afterEach(async () => {
-		sandbox.restore()
+	afterEach(async function () {
+		this.timeout(10_000)
+		sandbox?.restore()
+		sinon.restore()
 		// Reset singleton state
 		;(ClineEndpoint as any)._instance = null
 		;(ClineEndpoint as any)._initialized = false

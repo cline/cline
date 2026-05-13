@@ -195,6 +195,11 @@ export function getConfiguredProviders(
 		configured.push("openai")
 	}
 
+	// Abliteration - requires API key
+	if (apiConfiguration.abliterationApiKey) {
+		configured.push("abliteration")
+	}
+
 	// Ollama - local provider, check base URL OR model configured
 	if (apiConfiguration.ollamaBaseUrl || apiConfiguration.planModeOllamaModelId || apiConfiguration.actModeOllamaModelId) {
 		configured.push("ollama")
