@@ -537,6 +537,7 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			context: "search_codebase",
 			resolution_type: "fallback_to_primary",
 		});
+		captureProviderConfigured(service, "test-provider");
 		captureCompactionExecuted(service, {
 			ulid: "ulid-1",
 			strategy: "basic",
