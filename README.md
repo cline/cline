@@ -5,7 +5,7 @@
 <h1 align="center">Cline</h1>
 
 <p align="center">
-  Autonomous AI coding agents for your IDE, terminal, and applications.
+  Open source AI coding agents for your IDE, terminal, and applications.
 </p>
 
 <div align="center">
@@ -13,6 +13,10 @@
 [Discord](https://discord.gg/cline) | [Documentation](https://docs.cline.bot) | [Reddit](https://www.reddit.com/r/cline/) | [Feature Requests](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) | [Careers](https://cline.bot/join-us)
 
 </div>
+
+<p align="center">
+  <em>New:</em> Cline SDK and CLI v3 are live. <code>npm i -g cline</code> for the CLI, or <a href="#sdk">install the SDK</a>.
+</p>
 
 <br>
 
