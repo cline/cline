@@ -6,12 +6,10 @@ on:
             - integration/macm4-enhancements
     workflow_dispatch:
 
-# Required GitHub variables (Settings → Variables → Actions):
-#   GCP_WORKLOAD_IDENTITY_PROVIDER  — org-level var (shared WIF pool, safe to reuse)
-#   GCP_MACM4_SERVICE_ACCOUNT       — repo-level var; set to the macm4-specific SA
-#                                     e.g. macm4-deployer@<project>.iam.gserviceaccount.com
-#                                     Needs roles/storage.objectCreator on gs://cline-repo
-#   GCS_VSIX_BUCKET                 — repo-level var; set to: cline-repo
+# GitHub repo variables (martinfr-certifyos/cline → Settings → Variables → Actions):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/106861691435/locations/global/workloadIdentityPools/github-actions/providers/macm4-deployer-gh
+#   GCP_MACM4_SERVICE_ACCOUNT       macm4-deployer@certifyos-development.iam.gserviceaccount.com
+#   GCS_VSIX_BUCKET                 cline-repo
 
 permissions:
     contents: read
