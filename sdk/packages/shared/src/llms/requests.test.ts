@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
 	addNvidiaBillingOriginHeader,
 	addNvidiaBillingOriginHeaderForBaseUrl,
+	isPublicNvidiaNimBaseUrl,
 	NVIDIA_NIM_BILLING_ORIGIN_HEADER,
 	NVIDIA_NIM_BILLING_ORIGIN_VALUE,
-	isPublicNvidiaNimBaseUrl,
 } from "./requests";
 
 describe("NVIDIA NIM billing origin headers", () => {
 	it("detects the public NVIDIA NIM host", () => {
-		expect(isPublicNvidiaNimBaseUrl("https://integrate.api.nvidia.com/v1")).toBe(
-			true,
-		);
+		expect(
+			isPublicNvidiaNimBaseUrl("https://integrate.api.nvidia.com/v1"),
+		).toBe(true);
 		expect(
 			isPublicNvidiaNimBaseUrl(
 				"https://integrate.api.nvidia.com/v1/chat/completions",
@@ -24,7 +24,9 @@ describe("NVIDIA NIM billing origin headers", () => {
 	});
 
 	it("adds the billing origin header without dropping existing headers", () => {
-		expect(addNvidiaBillingOriginHeader({ Authorization: "Bearer test" })).toEqual({
+		expect(
+			addNvidiaBillingOriginHeader({ Authorization: "Bearer test" }),
+		).toEqual({
 			Authorization: "Bearer test",
 			[NVIDIA_NIM_BILLING_ORIGIN_HEADER]: NVIDIA_NIM_BILLING_ORIGIN_VALUE,
 		});

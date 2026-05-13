@@ -2,9 +2,9 @@ import "should"
 import {
 	addNvidiaBillingOriginHeader,
 	addNvidiaBillingOriginHeaderForBaseUrl,
+	isPublicNvidiaNimBaseUrl,
 	NVIDIA_NIM_BILLING_ORIGIN_HEADER,
 	NVIDIA_NIM_BILLING_ORIGIN_VALUE,
-	isPublicNvidiaNimBaseUrl,
 } from "../net"
 
 describe("NVIDIA NIM billing origin headers", () => {
@@ -30,15 +30,17 @@ describe("NVIDIA NIM billing origin headers", () => {
 	})
 
 	it("only adds the header when the base URL is public NVIDIA NIM", () => {
-		addNvidiaBillingOriginHeaderForBaseUrl("https://integrate.api.nvidia.com/v1", {
+		const publicHeaders = addNvidiaBillingOriginHeaderForBaseUrl("https://integrate.api.nvidia.com/v1", {
 			"X-Test": "1",
-		}).should.deepEqual({
+		})
+		should(publicHeaders).deepEqual({
 			"X-Test": "1",
 			[NVIDIA_NIM_BILLING_ORIGIN_HEADER]: NVIDIA_NIM_BILLING_ORIGIN_VALUE,
 		})
 
-		addNvidiaBillingOriginHeaderForBaseUrl("https://proxy.example.com/v1", {
+		const proxyHeaders = addNvidiaBillingOriginHeaderForBaseUrl("https://proxy.example.com/v1", {
 			"X-Test": "1",
-		}).should.deepEqual({ "X-Test": "1" })
+		})
+		should(proxyHeaders).deepEqual({ "X-Test": "1" })
 	})
 })

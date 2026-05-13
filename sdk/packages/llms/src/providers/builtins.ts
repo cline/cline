@@ -1,12 +1,12 @@
 import {
-	getClineEnvironmentConfig,
-	NVIDIA_NIM_BASE_URL,
 	type GatewayModelCapability,
 	type GatewayModelDefinition,
 	type GatewayProviderManifest,
 	type GatewayProviderMetadata,
 	type GatewayProviderSettings,
+	getClineEnvironmentConfig,
 	type JsonValue,
+	NVIDIA_NIM_BASE_URL,
 	type ProviderCapability,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";

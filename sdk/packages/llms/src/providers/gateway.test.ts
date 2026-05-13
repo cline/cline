@@ -246,8 +246,7 @@ describe("sdk-gateway", () => {
 				apiKey: "test-nvidia-key",
 				baseURL: NVIDIA_NIM_BASE_URL,
 				headers: expect.objectContaining({
-					[NVIDIA_NIM_BILLING_ORIGIN_HEADER]:
-						NVIDIA_NIM_BILLING_ORIGIN_VALUE,
+					[NVIDIA_NIM_BILLING_ORIGIN_HEADER]: NVIDIA_NIM_BILLING_ORIGIN_VALUE,
 				}),
 			}),
 		);
@@ -288,8 +287,7 @@ describe("sdk-gateway", () => {
 				baseURL: NVIDIA_NIM_BASE_URL,
 				headers: expect.objectContaining({
 					"X-Existing": "1",
-					[NVIDIA_NIM_BILLING_ORIGIN_HEADER]:
-						NVIDIA_NIM_BILLING_ORIGIN_VALUE,
+					[NVIDIA_NIM_BILLING_ORIGIN_HEADER]: NVIDIA_NIM_BILLING_ORIGIN_VALUE,
 				}),
 			}),
 		);

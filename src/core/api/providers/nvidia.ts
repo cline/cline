@@ -1,4 +1,4 @@
-import { nvidiaDefaultModelId, nvidiaDefaultModelInfo, openAiModelInfoSaneDefaults, type ModelInfo } from "@shared/api"
+import { type ModelInfo, nvidiaDefaultModelId, nvidiaDefaultModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"

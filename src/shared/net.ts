@@ -145,9 +145,8 @@ export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callba
 			return result.finally(() => {
 				mockFetch = originalMockFetch
 			}) as typeof result
-		} else {
-			return result
 		}
+		return result
 	} finally {
 		if (willResetSync) {
 			mockFetch = originalMockFetch
