@@ -7,9 +7,11 @@ on:
     workflow_dispatch:
 
 # Required GitHub variables (Settings → Variables → Actions):
-#   GCP_WORKLOAD_IDENTITY_PROVIDER  — org-level, shared with certify-firefighter
-#   GCP_DEPLOYER_SERVICE_ACCOUNT    — org-level, shared with certify-firefighter
-#   GCS_VSIX_BUCKET                 — set to: cline-repo
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  — org-level var (shared WIF pool, safe to reuse)
+#   GCP_MACM4_SERVICE_ACCOUNT       — repo-level var; set to the macm4-specific SA
+#                                     e.g. macm4-deployer@<project>.iam.gserviceaccount.com
+#                                     Needs roles/storage.objectCreator on gs://cline-repo
+#   GCS_VSIX_BUCKET                 — repo-level var; set to: cline-repo
 
 permissions:
     contents: read
@@ -73,7 +75,7 @@ jobs:
               uses: google-github-actions/auth@v2
               with:
                   workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-                  service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+                  service_account: ${{ vars.GCP_MACM4_SERVICE_ACCOUNT }}
 
             - name: Upload versioned VSIX to GCS
               run: |
