@@ -582,3 +582,42 @@ Validation:
 - `cd webview-ui && npx vitest run src/components/settings/providers/ModelPickerWithManualEntry.test.tsx --reporter=dot` passed: 1 file, 8 tests.
 - `cd webview-ui && npx tsc --noEmit --pretty false` passed.
 - `npm run check-types -- --pretty false` passed.
+
+## 2026-05-13 — Phase 6.1 DeepSeek settings panel migration
+
+Implementation:
+
+- Replaced DeepSeek's direct static `deepSeekModels` picker path with:
+  - `useProviderModels("deepseek")`
+  - `useProviderConfig("deepseek")`
+  - `ModelPickerWithManualEntry` with `allowsCustomIds={false}`
+- DeepSeek model selections now call `useProviderConfig("deepseek").commitSelection(currentMode, selection)` and pass the full `{ providerId, modelId, modelInfo }` envelope.
+- Kept the existing API key field path in place for this additive pilot.
+- Removed `deepSeekModels` / `deepSeekDefaultModelId` webview references from `providerUtils`; DeepSeek is now treated like a dynamic model provider in webview model-list helpers.
+
+Tests:
+
+- Added `webview-ui/src/components/settings/providers/DeepSeekProvider.test.tsx`.
+- Tests cover using catalog-backed models, committing full selection envelopes, and falling back to the catalog default when no committed selection exists.
+
+Validation:
+
+- `cd webview-ui && npx vitest run src/components/settings/providers/DeepSeekProvider.test.tsx --reporter=dot` passed: 1 file, 2 tests.
+- `cd webview-ui && npx vitest run src/components/settings/providers/DeepSeekProvider.test.tsx src/components/settings/providers/ModelPickerWithManualEntry.test.tsx src/hooks/useProviderModels.test.ts src/hooks/useProviderConfig.test.ts --reporter=dot` passed: 4 files, 17 tests.
+- `grep -R "deepSeekDefaultModelId\|deepSeekModels" webview-ui/src --include='*.ts' --include='*.tsx'` returned no hits.
+- `cd webview-ui && npx tsc --noEmit --pretty false` passed.
+- `npm run check-types -- --pretty false` passed.
+- `npm run lint` passed.
+- `IS_DEV=true node esbuild.mjs` passed.
+- `git diff --check` passed.
+
+Debug harness attempt:
+
+- `npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch` started the harness server.
+- Explicit `launch` remained stuck at `Ensuring VSCode binary is available...` beyond the 30s tool timeout and `status` stayed `running: false`, so the actual visual DeepSeek settings smoke could not be completed in this environment.
+- Proceeding with the code/test validation above; rerun the debug harness smoke once the local VS Code binary availability issue is resolved.
+
+Decision:
+
+- Phase 6.1 code migration is complete.
+- Proceed to Phase 6.2 runtime verification / debug-harness visual smoke when the harness can launch VS Code.

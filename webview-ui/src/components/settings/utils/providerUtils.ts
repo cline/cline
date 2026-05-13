@@ -13,8 +13,6 @@ import {
 	cerebrasModels,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
-	deepSeekDefaultModelId,
-	deepSeekModels,
 	doubaoDefaultModelId,
 	doubaoModels,
 	fireworksDefaultModelId,
@@ -102,8 +100,6 @@ export function getModelsForProvider(
 			return openAiNativeModels
 		case "openai-codex":
 			return openAiCodexModels
-		case "deepseek":
-			return deepSeekModels
 		case "qwen":
 			return apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 		case "qwen-code":
@@ -237,7 +233,11 @@ export function normalizeApiConfiguration(
 		case "openai-codex":
 			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId)
 		case "deepseek":
-			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+			return {
+				selectedProvider: provider,
+				selectedModelId: modelId || "",
+				selectedModelInfo: openAiModelInfoSafeDefaults,
+			}
 		case "qwen":
 			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 			const qwenDefaultId =
