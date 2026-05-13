@@ -5,8 +5,7 @@
 	"version": "3.82.0",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
-		".",
-		"cli"
+		"."
 	],
 	"engines": {
 		"vscode": "^1.84.0"
@@ -631,8 +630,6 @@
 			"**/src/xml/**",
 			"**/standalone/**",
 			"**/src/generated/**",
-			"**/evals/cli/dist/**",
-			"**/evals/cli/src/**",
 			"dist"
 		],
 		"all": true,
