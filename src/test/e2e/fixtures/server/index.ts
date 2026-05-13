@@ -177,7 +177,8 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				log(`Authenticating token: ${authToken}`)
-				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
+				const normalizedAuthToken = authToken.replace(/^workos:/i, "")
+				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(normalizedAuthToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
@@ -319,7 +320,8 @@ export class ClineApiServerMock {
 					if (endpoint === "/auth/token" && method === "POST") {
 						const body = await readBody()
 						const parsed = JSON.parse(body)
-						const { code, grantType } = parsed
+						const { code } = parsed
+						const grantType = parsed.grantType ?? parsed.grant_type
 
 						if (grantType !== "authorization_code" || !code) {
 							return sendApiError("Invalid request", 400)

@@ -14,8 +14,8 @@
  * See sdk-migration/FOREGROUND-TERMINAL-DESIGN.md for the full design rationale.
  */
 
-import { createDefaultExecutors } from "@clinebot/core"
-import { type AgentTool, type AgentToolContext, createTool } from "@clinebot/shared"
+import { createDefaultExecutors } from "@cline/core"
+import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"

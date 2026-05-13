@@ -8,7 +8,7 @@
 // This is the "thunking layer" — the webview continues to receive gRPC-shaped
 // messages, but the source is now the SDK instead of the classic Task.
 
-import type { CoreSessionEvent } from "@clinebot/core"
+import type { CoreSessionEvent } from "@cline/core"
 import { sendStateUpdate } from "@core/controller/state/subscribeToState"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
