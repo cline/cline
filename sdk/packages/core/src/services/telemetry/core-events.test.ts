@@ -417,6 +417,50 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureCompactionExecuted never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureCompactionExecuted(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			messagesBefore: 12,
+			messagesAfter: 6,
+			messagesRemoved: 6,
+			tokensBefore: 100_000,
+			tokensAfter: 50_000,
+			tokensSaved: 50_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 42,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
+	test("captureCompactionSkipped never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureCompactionSkipped(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			reason: "no_result",
+			tokensBefore: 100_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 17,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("a correctly-policed adapter drops these events when disabled", () => {
 		// This test layers on top of the previous four to assert the *full*
 		// end-to-end policy: when the adapter is disabled, a real adapter
@@ -461,12 +505,40 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			context: "search_codebase",
 			resolution_type: "fallback_to_primary",
 		});
+		captureCompactionExecuted(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			messagesBefore: 12,
+			messagesAfter: 6,
+			messagesRemoved: 6,
+			tokensBefore: 100_000,
+			tokensAfter: 50_000,
+			tokensSaved: 50_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 42,
+		});
+		captureCompactionSkipped(service, {
+			ulid: "ulid-1",
+			strategy: "basic",
+			mode: "auto",
+			reason: "no_result",
+			tokensBefore: 100_000,
+			triggerTokens: 180_000,
+			maxInputTokens: 200_000,
+			thresholdRatio: 0.9,
+			durationMs: 17,
+		});
 		expect(observed).toEqual([]);
 		expect(dropped).toEqual([
 			"user.extension_activated",
 			"workspace.initialized",
 			"workspace.init_error",
 			"workspace.path_resolved",
+			"task.compaction_executed",
+			"task.compaction_skipped",
 		]);
 	});
 });
