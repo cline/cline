@@ -65,16 +65,6 @@ const result = await agent.run("Explain what an SDK is in two sentences.")
 
 See [Packages](/sdk/architecture/overview) for package boundaries and exports.
 
-## Runtime Choices
-
-| Runtime | Use when |
-|---------|----------|
-| `ClineCore` | The fully featured Cline agent that you can customize and build upon. Includes session management, built-in tools, approvals, config discovery, channels, and scheduling |
-| `Agent` / `AgentRuntime` | A stateless in-process loop that offers even more control. ClineCore depends on the Agents package. Build with Agents directly if you want to control tools, session persistence, and configuration directly |
-
-
-See [Agent vs ClineCore](/sdk/runtime).
-
 ## Next Steps
 
 <CardGroup cols={2}>
