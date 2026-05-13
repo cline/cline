@@ -6,7 +6,7 @@ and orchestrates OAuth flows. For the migration plan, see [../README.md](../READ
 ## Provider Catalog
 
 The SDK owns the canonical list of inference providers via `BUILTIN_SPECS`
-in `@clinebot/llms`. Each provider is a `BuiltinSpec` with `id`, `name`,
+in `@cline/llms`. Each provider is a `BuiltinSpec` with `id`, `name`,
 `family`, `capabilities`, `apiKeyEnv`, `defaultModelId`, etc.
 
 At runtime, `toManifest()` converts these to `GatewayProviderManifest`
@@ -55,7 +55,7 @@ interface OAuthLoginCallbacks {
 ### Client Integration Helper
 
 ```typescript
-import { createOAuthClientCallbacks } from "@clinebot/core"
+import { createOAuthClientCallbacks } from "@cline/core"
 
 const callbacks = createOAuthClientCallbacks({
   onPrompt: ...,

@@ -1,5 +1,5 @@
-import type { CoreSessionEvent } from "@clinebot/core"
-import type { AgentEvent } from "@clinebot/shared"
+import type { CoreSessionEvent } from "@cline/core"
+import type { AgentEvent } from "@cline/shared"
 import type { ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {

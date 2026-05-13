@@ -22,8 +22,8 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 	type ToolExecutors,
-} from "@clinebot/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@clinebot/shared"
+} from "@cline/core"
+import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
@@ -138,7 +138,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async getAccumulatedUsage(sessionId: string): Promise<SessionAccumulatedUsage | undefined> {
-		return this.inner.getAccumulatedUsage(sessionId)
+		return (await this.inner.getAccumulatedUsage(sessionId))?.usage
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {

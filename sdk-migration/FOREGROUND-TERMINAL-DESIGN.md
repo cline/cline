@@ -58,7 +58,7 @@ provide custom run_commands via extraTools
         │       • onChange/emitUpdate for streaming output to chat
         │
         └── background path ("backgroundExec"):
-            └── createBashExecutor() from @clinebot/core
+            └── createBashExecutor() from @cline/core
                 • Same implementation SDK would use
                 • Configurable timeout (default 5min)
 ```
@@ -85,7 +85,7 @@ execute: async (input, context, onChange) => {
 }
 ```
 
-For background mode, we reuse `createBashExecutor()` from `@clinebot/core` — the exact same proven `child_process.spawn` implementation the SDK uses internally.
+For background mode, we reuse `createBashExecutor()` from `@cline/core` — the exact same proven `child_process.spawn` implementation the SDK uses internally.
 
 ### Real-Time Output Streaming via `onChange`/`emitUpdate`
 

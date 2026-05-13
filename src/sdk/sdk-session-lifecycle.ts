@@ -1,4 +1,4 @@
-import type { CoreSessionEvent, StartSessionResult } from "@clinebot/core"
+import type { CoreSessionEvent, StartSessionResult } from "@cline/core"
 import { StateManager } from "@/core/storage/StateManager"
 import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"

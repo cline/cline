@@ -1,4 +1,4 @@
-import { type AgentTool, createTool } from "@clinebot/shared"
+import { type AgentTool, createTool } from "@cline/shared"
 import type { StateManager } from "@/core/storage/StateManager"
 import { buildSessionConfig, type SessionConfigInput } from "./cline-session-factory"
 import { buildAgentHooks, type HookMessageEmitter } from "./hooks-adapter"

@@ -1,27 +1,30 @@
 // Replaces classic src/core/controller/index.ts (see origin/main)
 //
 // This is the SDK-backed Controller. It provides the same interface as the
-// classic Controller but delegates to the Cline SDK (@clinebot/core).
+// classic Controller but delegates to the Cline SDK (@cline/core).
 //
 // Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
 // Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { SessionHistoryRecord } from "@clinebot/core"
+import type { SessionHistoryRecord } from "@cline/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import type { McpMarketplaceCatalog } from "@shared/mcp"
+import type { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
 import { DeleteAllTaskHistoryCount, GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import axios from "axios"
+import { ClineEnv } from "@/config"
+import { sendMcpMarketplaceCatalogEvent } from "@/core/controller/mcp/subscribeToMcpMarketplaceCatalog"
 import { parseMentions } from "@/core/mentions"
-import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
+import { ensureMcpServersDirectoryExists, writeMcpMarketplaceCatalogToCache } from "@/core/storage/disk"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
@@ -34,6 +37,7 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
+import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
@@ -745,9 +749,49 @@ export class Controller {
 
 	// ---- MCP marketplace (Step 7) ----
 
-	async refreshMcpMarketplace(_sendCatalogEvent: boolean): Promise<McpMarketplaceCatalog | undefined> {
-		stubWarn("refreshMcpMarketplace")
-		return undefined
+	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
+		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
+			headers: {
+				"Content-Type": "application/json",
+				"User-Agent": "cline-vscode-extension",
+			},
+			...getAxiosSettings(),
+		})
+
+		if (!response.data) {
+			throw new Error("Invalid response from MCP marketplace API")
+		}
+
+		const allowedMCPServers = this.stateManager.getRemoteConfigSettings().allowedMCPServers
+
+		let items: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
+			...item,
+			githubStars: item.githubStars ?? 0,
+			downloadCount: item.downloadCount ?? 0,
+			tags: item.tags ?? [],
+		}))
+
+		if (allowedMCPServers) {
+			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
+			items = items.filter((item) => allowedIds.has(item.mcpId))
+		}
+
+		const catalog: McpMarketplaceCatalog = { items }
+		await writeMcpMarketplaceCatalogToCache(catalog)
+		return catalog
+	}
+
+	async refreshMcpMarketplace(sendCatalogEvent: boolean): Promise<McpMarketplaceCatalog | undefined> {
+		try {
+			const catalog = await this.fetchMcpMarketplaceFromApi()
+			if (catalog && sendCatalogEvent) {
+				await sendMcpMarketplaceCatalogEvent(catalog)
+			}
+			return catalog
+		} catch (error) {
+			Logger.error("Failed to refresh MCP marketplace:", error)
+			return undefined
+		}
 	}
 
 	// ---- Provider auth callbacks (Step 6) ----

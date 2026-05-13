@@ -1,7 +1,7 @@
 # SDK Migration — Entry Point
 
 You are working on migrating the Cline VSCode extension from its
-classic core to the Cline SDK (`@clinebot/core`). This document is
+classic core to the Cline SDK (`@cline/core`). This document is
 your primary reference. Read it in full before starting any step.
 
 ## Document Map
@@ -149,8 +149,8 @@ and the extension's entry point switched to the SDK adapter.
 There is one entry point, not two.
 
 Tasks:
-- Add `@clinebot/core`, `@clinebot/llms`, `@clinebot/shared`,
-  `@clinebot/agents` as dependencies (via `npm link` from local SDK)
+- Add `@cline/core`, `@cline/llms`, `@cline/shared`,
+  `@cline/agents` as dependencies (via `npm link` from local SDK)
 - Add `vitest.config.sdk.ts` for SDK adapter tests
 - Create `src/sdk/` directory with `index.ts` barrel export
 - Modify `src/extension.ts` to use the SDK adapter as its
@@ -428,9 +428,9 @@ documented and triaged.
 **Do NOT start this step until Step 9 is fully verified.**
 
 Tasks:
-- Delete `src/core/task/` (replaced by `@clinebot/agents`)
+- Delete `src/core/task/` (replaced by `@cline/agents`)
 - Delete `src/core/controller/` (replaced by SDK adapter)
-- Delete `src/core/api/` (replaced by `@clinebot/llms`)
+- Delete `src/core/api/` (replaced by `@cline/llms`)
 - Delete `src/core/prompts/system-prompt/` (replaced by SDK prompts)
 - Delete `src/services/mcp/McpHub.ts` (replaced by SDK MCP)
 - Delete `src/standalone/` (not needed for VSCode)
