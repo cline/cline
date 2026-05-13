@@ -168,6 +168,7 @@ export {
 } from "./parse/string";
 export { formatHumanReadableDate, formatUptime } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
+export { resolveExistingFilePath } from "./path-resolution";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
 export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {

@@ -6,7 +6,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentToolContext } from "@cline/shared";
+import { type AgentToolContext, resolveExistingFilePath } from "@cline/shared";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
 
@@ -70,9 +70,13 @@ export function createFileReadExecutor(
 
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
 		const { path: filePath, start_line, end_line } = request;
-		const resolvedPath = path.isAbsolute(filePath)
+		const initialPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
 			: path.resolve(process.cwd(), filePath);
+		// Tolerate Unicode-whitespace mismatches (e.g. macOS Sonoma+
+		// screenshot paths where the on-disk filename contains U+202F but
+		// the caller's string has a regular space).
+		const resolvedPath = resolveExistingFilePath(initialPath) ?? initialPath;
 		const extension = path.extname(resolvedPath).toLowerCase();
 		const imageMediaType = IMAGE_MEDIA_TYPES.get(extension);
 
