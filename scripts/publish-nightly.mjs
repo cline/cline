@@ -52,6 +52,7 @@ import { execFileSync, execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { restore as restoreMarketplaceReadme, swapIn as swapInMarketplaceReadme } from "./marketplace-readme.mjs"
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url)
@@ -109,6 +110,7 @@ class NightlyPublisher {
 		this.hasBackup = false
 		this.didRenameWorkspaceLink = false
 		this.didCreateNightlyWorkspaceLink = false
+		this.didSwapMarketplaceReadme = false
 	}
 
 	/**
@@ -293,6 +295,35 @@ class NightlyPublisher {
 	}
 
 	/**
+	 * Swap README.marketplace.md into README.md so the .vsix is packaged with
+	 * the marketplace-flavored README. vsce reads README.md from disk at
+	 * `vsce package` time and there's no flag to redirect it.
+	 */
+	swapMarketplaceReadme() {
+		const result = swapInMarketplaceReadme()
+		this.didSwapMarketplaceReadme = !result.skipped
+		if (this.didSwapMarketplaceReadme) {
+			log.info("Swapped README.marketplace.md into README.md for packaging")
+		}
+	}
+
+	/**
+	 * Restore README.md if this publisher performed the swap.
+	 */
+	restoreMarketplaceReadme() {
+		if (!this.didSwapMarketplaceReadme) {
+			return
+		}
+		try {
+			restoreMarketplaceReadme()
+			log.info("Restored original README.md")
+		} catch (error) {
+			log.error(`Failed to restore README.md: ${error.message}`)
+		}
+		this.didSwapMarketplaceReadme = false
+	}
+
+	/**
 	 * Generate new version with timestamp
 	 * Format: major.minor.timestamp
 	 */
@@ -465,6 +496,9 @@ class NightlyPublisher {
 			// Step 3.5: Keep npm workspace self-link aligned with nightly package name
 			this.reconcileWorkspaceSelfLinkForNightly()
 
+			// Step 3.6: Swap in marketplace README before packaging
+			this.swapMarketplaceReadme()
+
 			// Step 4: Package extension
 			this.packageExtension(isPreRelease)
 
@@ -496,6 +530,9 @@ class NightlyPublisher {
 
 			// Always restore package.json
 			this.restorePackageJson()
+
+			// Always restore README.md
+			this.restoreMarketplaceReadme()
 		}
 	}
 }
@@ -506,12 +543,14 @@ const publisher = new NightlyPublisher()
 process.on("exit", () => {
 	publisher.restoreWorkspaceSelfLink()
 	publisher.restorePackageJson()
+	publisher.restoreMarketplaceReadme()
 })
 
 process.on("SIGINT", () => {
 	log.info("\nInterrupted, cleaning up...")
 	publisher.restoreWorkspaceSelfLink()
 	publisher.restorePackageJson()
+	publisher.restoreMarketplaceReadme()
 	process.exit(130)
 })
 
@@ -519,6 +558,7 @@ process.on("SIGTERM", () => {
 	log.info("\nTerminated, cleaning up...")
 	publisher.restoreWorkspaceSelfLink()
 	publisher.restorePackageJson()
+	publisher.restoreMarketplaceReadme()
 	process.exit(143)
 })
 

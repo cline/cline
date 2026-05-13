@@ -37,7 +37,7 @@ export function MigrationNoticeContent(
 					<span fg="#98c379" bg="#1f2937">
 						{" cline kanban "}
 					</span>{" "}
-					on your terminal
+					in your terminal
 				</text>
 			</box>
 			<text fg={palette.muted}>Press Esc to close</text>

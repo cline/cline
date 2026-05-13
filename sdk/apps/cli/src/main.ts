@@ -833,6 +833,8 @@ export async function runCli(): Promise<void> {
 			cwd,
 		});
 
+		const { getCliTelemetryService } = await import("./utils/telemetry");
+
 		const config: Config = {
 			providerId: provider,
 			modelId:
@@ -861,6 +863,7 @@ export async function runCli(): Promise<void> {
 			mode: args.mode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
+			telemetry: getCliTelemetryService(loggerAdapter.core),
 			defaultToolAutoApprove,
 			toolPolicies,
 			enableSpawnAgent: !isYoloMode,

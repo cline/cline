@@ -157,6 +157,44 @@
 				"provider": "openrouter",
 				"model": "qwen/qwen3.6-plus"
 			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"qwen-direct-cache": {
+			"settings": {
+				"provider": "qwen",
+				"model": "qwen-plus",
+				"apiKeyEnv": "DASHSCOPE_API_KEY",
+				"baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"qwen-code-direct-cache": {
+			"settings": {
+				"provider": "qwen-code",
+				"model": "qwen3-coder-plus",
+				"apiKeyEnv": "DASHSCOPE_API_KEY",
+				"baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"cline-qwen": {
+			"settings": {
+				"provider": "cline",
+				"model": "qwen/qwen3.6-plus"
+			},
+			"runs": 3,
 			"expectations": {
 				"requireUsage": true
 			}
@@ -206,8 +244,10 @@
 				"provider": "vercel-ai-gateway",
 				"model": "alibaba/qwen3.6-plus"
 			},
+			"runs": 3,
 			"expectations": {
-				"requireUsage": true
+				"requireUsage": true,
+				"requireCacheReadTokens": true
 			}
 		}
 	}

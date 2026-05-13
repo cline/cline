@@ -217,6 +217,20 @@ if (existsSync(licenseFrom)) {
 	await $`cp ${licenseFrom} ${join(mainPkgDir, "LICENSE")}`;
 }
 
+// Copy README.md so the npm registry listing has the same landing page
+// as the repo. The published wrapper package is generated fresh in
+// dist/cli/ each release, so the source README is not picked up
+// automatically.
+const readmeFrom = join(cliDir, "README.md");
+if (existsSync(readmeFrom)) {
+	await $`cp ${readmeFrom} ${join(mainPkgDir, "README.md")}`;
+} else {
+	console.error(
+		`Missing ${readmeFrom}. The CLI README must exist before publishing.`,
+	);
+	process.exit(1);
+}
+
 const mainPkg: unknown = JSON.parse(
 	readFileSync(join(cliDir, "package.json"), "utf-8"),
 );
@@ -230,11 +244,25 @@ const license =
 	"license" in mainPkgRecord && typeof mainPkgRecord.license === "string"
 		? mainPkgRecord.license
 		: undefined;
+const keywords =
+	"keywords" in mainPkgRecord && isStringArray(mainPkgRecord.keywords)
+		? mainPkgRecord.keywords
+		: undefined;
+const author = "author" in mainPkgRecord ? mainPkgRecord.author : undefined;
+const homepage =
+	"homepage" in mainPkgRecord && typeof mainPkgRecord.homepage === "string"
+		? mainPkgRecord.homepage
+		: undefined;
+const bugs = "bugs" in mainPkgRecord ? mainPkgRecord.bugs : undefined;
 const wrapperPackageJson = {
 	name: wrapperPackageName,
 	version,
 	description: description || "Cline CLI",
 	license: license || "Apache-2.0",
+	...(keywords ? { keywords } : {}),
+	...(author ? { author } : {}),
+	...(homepage ? { homepage } : {}),
+	...(bugs ? { bugs } : {}),
 	...(sourceRepository ? { repository: sourceRepository } : {}),
 	bin: {
 		cline: "./bin/cline",

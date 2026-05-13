@@ -1,0 +1,242 @@
+---
+title: "Creating Custom Tools"
+sidebarTitle: "Creating Custom Tools"
+description: "Define, register, and test your own tools with type-safe schemas and execution handlers."
+---
+
+Custom tools extend what your agent can do. A tool is a function with a name, a description the LLM reads, a schema for inputs, and an execute function that does the actual work.
+
+## Basic Tool
+
+Use `createTool` with a zod schema for the simplest approach:
+
+```typescript
+import { createTool } from "@cline/sdk"
+import { z } from "zod"
+
+const getCurrentTime = createTool({
+  name: "get_current_time",
+  description: "Get the current date and time. Optionally specify a timezone.",
+  inputSchema: z.object({
+    timezone: z.string().optional().describe("IANA timezone (e.g., 'America/New_York'). Defaults to UTC."),
+  }),
+  async execute(input) {
+    const tz = input.timezone ?? "UTC"
+    const date = new Date()
+    return {
+      iso: date.toISOString(),
+      timezone: tz,
+      formatted: date.toLocaleString("en-US", { timeZone: tz }),
+    }
+  },
+})
+```
+
+The SDK converts the zod schema to JSON Schema automatically. Input is fully typed in the `execute` function.
+
+For working examples of tools in real agents, see the [cli-agent](https://github.com/cline/cline/tree/main/sdk/apps/examples/cli-agent) (shell tool with zod) and [code-review-bot](https://github.com/cline/cline/tree/main/sdk/apps/examples/code-review-bot) (multiple tools with completion lifecycle).
+
+## Anatomy of a Tool
+
+Every tool has four parts:
+
+| Field | Purpose |
+|-------|---------|
+| `name` | Unique identifier (snake_case recommended) |
+| `description` | LLM reads this to decide when to use the tool |
+| `inputSchema` | Zod schema or JSON Schema defining accepted arguments |
+| `execute` | Function that does the work |
+
+### The Name
+
+Use `snake_case`. Keep it descriptive but concise:
+
+- `search_database`, not `db` or `performDatabaseSearchOperation`
+- `send_email`, not `email` or `handleEmailSending`
+
+### The Description
+
+This is the most important field for tool call accuracy. The LLM uses it to decide when and how to use the tool.
+
+```typescript
+// Weak: model won't know when to use this
+description: "Handles data."
+
+// Strong: model knows exactly what this does and when to use it
+description: "Search the PostgreSQL database by executing a read-only SQL query. Returns matching rows as JSON. Use this when you need to look up user records, order history, or product data. Maximum 100 rows per query."
+```
+
+Include:
+- What the tool does
+- What it returns
+- When to use it (and when not to)
+- Constraints (rate limits, read-only, max results, etc.)
+
+### The Input Schema
+
+With zod, use `.describe()` on every field:
+
+```typescript
+inputSchema: z.object({
+  query: z.string().describe("Search query. Supports wildcards (*) and exact phrases."),
+  limit: z.number().min(1).max(100).optional().describe("Maximum results. Default: 10."),
+  status: z.enum(["active", "archived", "deleted"]).optional().describe("Filter by record status."),
+})
+```
+
+Use `z.enum` for fields with a fixed set of values. This dramatically improves accuracy.
+
+## Using AgentToolContext
+
+The `execute` function receives a context object with execution metadata:
+
+```typescript
+const longProcess = createTool({
+  name: "long_process",
+  description: "Process data in batches.",
+  inputSchema: z.object({}),
+  async execute(_input, context) {
+    console.log(`Agent: ${context.agentId}, Iteration: ${context.iteration}`)
+
+    for (const batch of batches) {
+      if (context.signal?.aborted) {
+        return { status: "cancelled", processed: count }
+      }
+      await processBatch(batch)
+    }
+
+    return { status: "complete" }
+  },
+})
+```
+
+## Error Handling
+
+Return errors as structured data rather than throwing:
+
+```typescript
+const apiTool = createTool({
+  name: "call_api",
+  description: "Make an authenticated API call.",
+  inputSchema: z.object({
+    endpoint: z.string().describe("API endpoint path"),
+  }),
+  async execute(input) {
+    try {
+      const response = await fetch(`https://api.example.com${input.endpoint}`, {
+        headers: { Authorization: `Bearer ${process.env.API_TOKEN}` },
+      })
+
+      if (!response.ok) {
+        return {
+          output: { error: `API returned ${response.status}` },
+          isError: true,
+        }
+      }
+
+      return await response.json()
+    } catch (err) {
+      return {
+        output: { error: `Network error: ${(err as Error).message}` },
+        isError: true,
+      }
+    }
+  },
+})
+```
+
+When a tool returns an error, the agent sees it and can adjust its approach. When a tool throws, it counts as a "mistake" and increments the consecutive mistake counter.
+
+## Completion Tools
+
+Mark a tool with `lifecycle: { completesRun: true }` to make it end the agent loop when called successfully:
+
+```typescript
+const submitResult = createTool({
+  name: "submit_result",
+  description: "Submit the final result and end the run.",
+  inputSchema: z.object({
+    summary: z.string(),
+    approve: z.boolean(),
+  }),
+  lifecycle: { completesRun: true },
+  async execute(input) {
+    return JSON.stringify(input)
+  },
+})
+```
+
+See the [code-review-bot example](https://github.com/cline/cline/tree/main/sdk/apps/examples/code-review-bot) for this pattern in a complete application.
+
+## Testing Tools
+
+Test your tools in isolation before giving them to an agent:
+
+```typescript
+import { describe, it, expect } from "vitest"
+
+describe("get_current_time", () => {
+  it("returns ISO timestamp", async () => {
+    const result = await getCurrentTime.execute(
+      { timezone: "UTC" },
+      {
+        agentId: "test",
+        runId: "run_test",
+        iteration: 1,
+        toolCallId: "tool_test",
+        snapshot: {} as never,
+        emitUpdate: () => {},
+      }
+    )
+
+    expect(result.iso).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+})
+```
+
+## Registering Tools
+
+<Tabs>
+  <Tab title="Cline Core">
+    ```typescript
+    await cline.start({
+      prompt: "Get the current time",
+      config: {
+        // ...
+        extraTools: [getCurrentTime],
+      },
+    })
+    ```
+  </Tab>
+  <Tab title="Agent">
+    ```typescript
+    const agent = new Agent({
+      tools: [searchDatabase, getCurrentTime],
+      // ...
+    })
+    ```
+  </Tab>
+  <Tab title="Via Plugin">
+    ```typescript
+    const myPlugin: AgentPlugin = {
+      name: "my-tools",
+      manifest: { capabilities: ["tools"] },
+      setup(api) {
+        api.registerTool(searchDatabase)
+        api.registerTool(getCurrentTime)
+      },
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Tool Design Rules
+
+Good tools are specific and predictable.
+
+- Use action-oriented names: `get_pull_request`, `search_database`, `deploy_service`.
+- Describe what the tool does, when to use it, and what it returns.
+- Put constraints in the description: rate limits, read-only behavior, required permissions.
+- Add descriptions for every input property.
+- Return structured JSON instead of prose when possible.
+- Respect `context.abortSignal` in long-running tools.

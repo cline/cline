@@ -36,7 +36,7 @@ const testCases = [
 			outputTokens: 77,
 			cacheReadTokens: 9090,
 			cacheWriteTokens: 0,
-			totalCost: 0.0068249999999999995, // 0.000325 (cost) + 0.0065 (upstream)
+			totalCost: 0.0068249999999999995, // BYOK fee + upstream provider cost
 		},
 	},
 	{
@@ -183,12 +183,51 @@ describe("ai-sdk usage normalization", () => {
 			expect(normalized.totalCost).toBe(0.000641);
 		});
 
-		it("sums base + upstream costs when both present (OpenRouter)", () => {
+		it("sums BYOK fee + upstream provider cost when OpenRouter marks the request as BYOK", () => {
 			const openrouterUsage = (fixtures as Record<string, unknown>)
 				.openrouter_stream_usage as Record<string, unknown>;
 			const normalized = normalizeUsage(openrouterUsage);
-			// 0.000325 (cost) + 0.0065 (upstream_inference_cost) = 0.0068250
 			expect(normalized.totalCost).toBeCloseTo(0.006825, 5);
+		});
+
+		it("does not double-count OpenRouter credit-billed usage when upstream mirrors cost", () => {
+			const normalized = normalizeUsage({
+				prompt_tokens: 15,
+				completion_tokens: 5,
+				cost: 0.0000301,
+				is_byok: false,
+				cost_details: {
+					upstream_inference_cost: 0.0000301,
+				},
+			});
+
+			expect(normalized.totalCost).toBe(0.0000301);
+		});
+
+		it("uses upstream inference cost when OpenRouter reports no account charge for BYOK", () => {
+			const normalized = normalizeUsage({
+				prompt_tokens: 10,
+				completion_tokens: 5,
+				cost: 0,
+				is_byok: true,
+				cost_details: {
+					upstream_inference_cost: 0.000036,
+				},
+			});
+
+			expect(normalized.totalCost).toBe(0.000036);
+		});
+
+		it("falls back to upstream inference cost when it is the only explicit cost", () => {
+			const normalized = normalizeUsage({
+				prompt_tokens: 10,
+				completion_tokens: 5,
+				cost_details: {
+					upstream_inference_cost: 0.000036,
+				},
+			});
+
+			expect(normalized.totalCost).toBe(0.000036);
 		});
 
 		it("calculates cost from pricing when no explicit cost in response", () => {
@@ -265,6 +304,44 @@ describe("ai-sdk usage normalization", () => {
 			// Both should normalize to cacheReadTokens: 50
 			expect(nested).toBeDefined();
 			expect(flattened).toBeDefined();
+		});
+
+		it("extracts Qwen cache writes from OpenRouter prompt token details", () => {
+			const normalized = normalizeUsage({
+				prompt_tokens: 10126,
+				completion_tokens: 13,
+				prompt_tokens_details: {
+					cached_tokens: 0,
+					cache_write_tokens: 10106,
+				},
+			});
+
+			expect(normalized).toEqual(
+				expect.objectContaining({
+					inputTokens: 10126,
+					outputTokens: 13,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 10106,
+				}),
+			);
+		});
+
+		it("extracts Qwen cache reads from raw prompt token details", () => {
+			const normalized = normalizeUsage({
+				raw: {
+					prompt_tokens_details: {
+						cached_tokens: 8885,
+						cache_write_tokens: 10106,
+					},
+				},
+			});
+
+			expect(normalized).toEqual(
+				expect.objectContaining({
+					cacheReadTokens: 8885,
+					cacheWriteTokens: 10106,
+				}),
+			);
 		});
 
 		it("handles Anthropic's cache_creation metadata", () => {
