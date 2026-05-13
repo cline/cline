@@ -58,6 +58,8 @@ export const CORE_TELEMETRY_EVENTS = {
 		AGENT_TEAM_CREATED: "task.agent_team_created",
 		SUBAGENT_STARTED: "task.subagent_started",
 		SUBAGENT_COMPLETED: "task.subagent_completed",
+		COMPACTION_EXECUTED: "task.compaction_executed",
+		COMPACTION_SKIPPED: "task.compaction_skipped",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -528,6 +530,94 @@ export function captureHookDiscovery(
 		globalCount,
 		workspaceCount,
 		totalCount: globalCount + workspaceCount,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * Identifies which compaction implementation produced a
+ * `task.compaction_executed` / `task.compaction_skipped` event.
+ *
+ * - `basic`   — built-in token-budget truncation
+ *   (see `extensions/context/basic-compaction.ts`).
+ * - `agentic` — built-in LLM-powered summarization
+ *   (see `extensions/context/agentic-compaction.ts`).
+ * - `custom`  — user-supplied `compaction.compact()` callback on
+ *   `CoreSessionConfig`.
+ */
+export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
+
+/**
+ * Trigger mode for a compaction attempt.
+ *
+ * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
+ *   when input tokens exceed the configured threshold.
+ * - `manual` — user-initiated (e.g. CLI `/compact`).
+ */
+export type TelemetryCompactionMode = "auto" | "manual";
+
+export interface CaptureCompactionExecutedProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	messagesBefore: number;
+	messagesAfter: number;
+	messagesRemoved: number;
+	tokensBefore: number;
+	tokensAfter: number;
+	tokensSaved: number;
+	triggerTokens: number;
+	maxInputTokens: number;
+	thresholdRatio: number;
+	durationMs: number;
+	// Name matches the rest of the TASK-namespace capture functions
+	// (`captureTaskCompleted`, `captureToolUsage`, etc.) — using `provider`,
+	// not `providerId`, keeps downstream PostHog joins consistent.
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionExecuted(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionExecutedProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_EXECUTED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureCompactionSkippedProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	/**
+	 * Why the strategy decided not to compact. Currently only one value is
+	 * emitted by the wrapper:
+	 * - `no_result` — strategy returned `undefined` (e.g. there was nothing
+	 *   safe to remove). Strategy *exceptions* propagate up instead of
+	 *   firing telemetry, so no `strategy_error` value is emitted today.
+	 * The field is kept loosely typed (`string`) so additional reasons can
+	 * be introduced without changing the schema.
+	 */
+	reason: string;
+	tokensBefore: number;
+	triggerTokens: number;
+	maxInputTokens: number;
+	thresholdRatio: number;
+	durationMs: number;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionSkipped(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionSkippedProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
+		...properties,
 		timestamp: new Date().toISOString(),
 	});
 }

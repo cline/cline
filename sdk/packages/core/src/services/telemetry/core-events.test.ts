@@ -1,6 +1,9 @@
 import type { ITelemetryService } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
+	CORE_TELEMETRY_EVENTS,
+	captureCompactionExecuted,
+	captureCompactionSkipped,
 	captureExtensionActivated,
 	captureTelemetryOptOut,
 	captureWorkspaceInitError,
@@ -219,6 +222,96 @@ describe("captureWorkspacePathResolved", () => {
 				resolution_type: "fallback_to_primary",
 			}),
 		).not.toThrow();
+	});
+});
+describe("captureCompactionExecuted", () => {
+	const baseProps = {
+		ulid: "ulid-1",
+		strategy: "basic" as const,
+		mode: "auto" as const,
+		messagesBefore: 12,
+		messagesAfter: 6,
+		messagesRemoved: 6,
+		tokensBefore: 100_000,
+		tokensAfter: 50_000,
+		tokensSaved: 50_000,
+		triggerTokens: 180_000,
+		maxInputTokens: 200_000,
+		thresholdRatio: 0.9,
+		durationMs: 42,
+		provider: "anthropic",
+		modelId: "claude-sonnet-4",
+	};
+
+	test("emits task.compaction_executed with all properties and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureCompactionExecuted(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(CORE_TELEMETRY_EVENTS.TASK.COMPACTION_EXECUTED);
+		expect(event).toBe("task.compaction_executed");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+
+	test("preserves optional agent identity fields when supplied", () => {
+		const stub = createTelemetryStub();
+		captureCompactionExecuted(stub.telemetry, {
+			...baseProps,
+			agentId: "agent-7",
+			agentKind: "subagent",
+			conversationId: "conv-1",
+			parentAgentId: "agent-root",
+			isSubagent: true,
+		});
+		const { properties } = captureCallAt(stub, 0);
+		const props = properties as Record<string, unknown>;
+		expect(props.agentId).toBe("agent-7");
+		expect(props.agentKind).toBe("subagent");
+		expect(props.conversationId).toBe("conv-1");
+		expect(props.parentAgentId).toBe("agent-root");
+		expect(props.isSubagent).toBe(true);
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureCompactionExecuted(undefined, baseProps)).not.toThrow();
+	});
+});
+
+describe("captureCompactionSkipped", () => {
+	const baseProps = {
+		ulid: "ulid-1",
+		strategy: "agentic" as const,
+		mode: "auto" as const,
+		reason: "no_result",
+		tokensBefore: 100_000,
+		triggerTokens: 180_000,
+		maxInputTokens: 200_000,
+		thresholdRatio: 0.9,
+		durationMs: 17,
+		provider: "anthropic",
+		modelId: "claude-sonnet-4",
+	};
+
+	test("emits task.compaction_skipped with all properties and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureCompactionSkipped(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED);
+		expect(event).toBe("task.compaction_skipped");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureCompactionSkipped(undefined, baseProps)).not.toThrow();
 	});
 });
 
