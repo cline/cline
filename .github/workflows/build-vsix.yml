@@ -1,0 +1,96 @@
+name: Build & Publish VSIX
+
+on:
+    push:
+        branches:
+            - integration/macm4-enhancements
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    build-vsix:
+        name: Package VSIX and upload to GCS
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      webview-ui/package-lock.json
+
+            - name: Install root dependencies
+              run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview dependencies
+              run: npm ci
+              working-directory: webview-ui
+
+            - name: Generate protobuf types
+              run: npm run protos
+
+            - name: Build webview
+              run: npm run build:webview
+
+            - name: Type-check
+              run: npm run check-types
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Bundle extension (production)
+              run: node esbuild.mjs --production
+
+            - name: Package VSIX
+              id: package
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  GIT_SHA=$(git rev-parse --short HEAD)
+                  FILENAME="cline-macm4-${VERSION}-${GIT_SHA}.vsix"
+                  npx vsce package \
+                    --allow-package-secrets sendgrid \
+                    --out "dist/${FILENAME}"
+                  echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
+                  echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+            - name: Authenticate to Google Cloud
+              uses: google-github-actions/auth@v2
+              with:
+                  credentials_json: ${{ secrets.GCS_SA_KEY_JSON }}
+
+            - name: Upload versioned VSIX to GCS
+              uses: google-github-actions/upload-cloud-storage@v2
+              with:
+                  path: dist/${{ steps.package.outputs.filename }}
+                  destination: ${{ secrets.GCS_VSIX_BUCKET }}/cline-macm4/
+
+            - name: Upload as latest (stable pointer)
+              run: |
+                  gsutil cp \
+                    "dist/${{ steps.package.outputs.filename }}" \
+                    "gs://${{ secrets.GCS_VSIX_BUCKET }}/cline-macm4/cline-macm4-latest.vsix"
+
+            - name: Summary
+              run: |
+                  echo "### VSIX built and published" >> "$GITHUB_STEP_SUMMARY"
+                  echo "" >> "$GITHUB_STEP_SUMMARY"
+                  echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "| Version | ${{ steps.package.outputs.version }} |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "| File | \`${{ steps.package.outputs.filename }}\` |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "| GCS path | \`gs://${{ secrets.GCS_VSIX_BUCKET }}/cline-macm4/${{ steps.package.outputs.filename }}\` |" >> "$GITHUB_STEP_SUMMARY"
+                  echo "" >> "$GITHUB_STEP_SUMMARY"
+                  echo "**Install on any machine:**" >> "$GITHUB_STEP_SUMMARY"
+                  echo "\`\`\`bash" >> "$GITHUB_STEP_SUMMARY"
+                  echo "gsutil cp gs://\$GCS_VSIX_BUCKET/cline-macm4/cline-macm4-latest.vsix /tmp/ && code --install-extension /tmp/cline-macm4-latest.vsix" >> "$GITHUB_STEP_SUMMARY"
+                  echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
