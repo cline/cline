@@ -1,5 +1,4 @@
 import type { BasicLogger } from "@cline/core";
-import { createCliLoggerAdapter, flushCliLoggerAdapters } from "./adapter";
 
 export function logCliError(
 	logger: BasicLogger | undefined,
@@ -16,8 +15,14 @@ export function logCliError(
 	});
 }
 
-export function logCliProcessError(kind: string, error: unknown): void {
+export async function logCliProcessError(
+	kind: string,
+	error: unknown,
+): Promise<void> {
 	try {
+		const { createCliLoggerAdapter, flushCliLoggerAdapters } = await import(
+			"./adapter"
+		);
 		const logger = createCliLoggerAdapter({
 			runtime: "cli",
 			component: "process",

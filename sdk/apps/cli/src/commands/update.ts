@@ -1,14 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
-import {
-	clearHubDiscovery,
-	probeHubServer,
-	readHubDiscovery,
-	resolveSharedHubOwnerContext,
-	stopLocalHubServerGracefully,
-} from "@cline/core";
 import { version } from "../../package.json";
-import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
 import {
 	getInstalledKanbanVersion,
@@ -235,6 +227,7 @@ async function waitForHubToStop(
 	url: string,
 	timeoutMs: number,
 ): Promise<boolean> {
+	const { probeHubServer } = await import("@cline/core");
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		const check = await probeHubServer(url).catch(() => undefined);
@@ -250,6 +243,14 @@ async function waitForHubToStop(
  * clears stale discovery, then re-ensures a fresh instance is spawned.
  */
 async function restartHubServerIfRunning(): Promise<void> {
+	const {
+		clearHubDiscovery,
+		probeHubServer,
+		readHubDiscovery,
+		resolveSharedHubOwnerContext,
+		stopLocalHubServerGracefully,
+	} = await import("@cline/core");
+	const { ensureCliHubServer } = await import("../utils/hub-runtime");
 	const owner = resolveSharedHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath).catch(
 		() => undefined,

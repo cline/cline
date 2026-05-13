@@ -26,7 +26,6 @@ import {
 	writeln,
 } from "../utils/output";
 import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
-import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import {
 	clearAbortInProgress,
@@ -63,7 +62,6 @@ export async function runInteractive(
 ): Promise<void> {
 	assertInteractivePreflight(config);
 
-	const initialRepoStatus = await readRepoStatus(config.cwd);
 	const workflowSlashCommands = listInteractiveSlashCommands(
 		userInstructionService,
 	);
@@ -338,7 +336,6 @@ export async function runInteractive(
 		initialNotice: options?.initialNotice,
 		onInitialNoticeShown: options?.onInitialNoticeShown,
 		loadDeferredInitialMessages,
-		initialRepoStatus,
 		workflowSlashCommands,
 		loadAdditionalSlashCommands,
 		loadWelcomeLine: async () =>

@@ -1,4 +1,3 @@
-import { createTeamName } from "@cline/core";
 import { formatUserCommandBlock } from "@cline/shared";
 import type { Config } from "./types";
 
@@ -33,5 +32,6 @@ export async function enableTeamsForPrompt(config: Config): Promise<void> {
 		return;
 	}
 	config.enableAgentTeams = true;
+	const { createTeamName } = await import("@cline/core");
 	config.teamName = config.teamName?.trim() || createTeamName();
 }

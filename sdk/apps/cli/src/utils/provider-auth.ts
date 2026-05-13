@@ -1,4 +1,5 @@
-import { Llms, type ProviderSettings } from "@cline/core";
+import type { ProviderSettings } from "@cline/core";
+import { normalizeProviderId as normalizeLlmsProviderId } from "@cline/llms";
 import { isOAuthProviderId } from "@cline/shared";
 
 export type OAuthCredentials = {
@@ -11,7 +12,7 @@ export type OAuthCredentials = {
 };
 
 export function normalizeProviderId(providerId: string): string {
-	return Llms.normalizeProviderId(providerId.trim());
+	return normalizeLlmsProviderId(providerId.trim());
 }
 
 export function normalizeAuthProviderId(providerId: string): string {

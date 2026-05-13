@@ -1,13 +1,15 @@
 import {
-	type BasicLogger,
 	captureExtensionActivated,
-	createClineTelemetryServiceConfig,
 	createConfiguredTelemetryHandle,
-	type ITelemetryService,
 	identifyAccount,
-	registerDisposable,
 	TelemetryLoggerSink,
-} from "@cline/core";
+} from "@cline/core/telemetry";
+import {
+	type BasicLogger,
+	createClineTelemetryServiceConfig,
+	type ITelemetryService,
+	registerDisposable,
+} from "@cline/shared";
 import { getCliBuildInfo } from "./common";
 import {
 	markActivationCaptured,
