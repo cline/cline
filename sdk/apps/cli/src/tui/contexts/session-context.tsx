@@ -210,11 +210,9 @@ export function SessionProvider(props: {
 
 	const addUsageDelta = useCallback(
 		(usage: { inputTokens?: number; outputTokens?: number; cost?: number }) => {
-			const tokenDelta =
-				Math.max(0, usage.inputTokens ?? 0) +
-				Math.max(0, usage.outputTokens ?? 0);
-			if (tokenDelta > 0) {
-				setLastTotalTokens((prev) => prev + tokenDelta);
+			const inputTokens = Math.max(0, usage.inputTokens ?? 0);
+			if (inputTokens > 0) {
+				setLastTotalTokens(inputTokens);
 			}
 			const costDelta = usage.cost;
 			if (
