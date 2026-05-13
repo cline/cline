@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 3.0.2
+
+- Fix token count display showing inflated numbers in the TUI.
+
 ## 3.0.1
 
 - Fix CLI release cleanup scripts so they work correctly on Windows.

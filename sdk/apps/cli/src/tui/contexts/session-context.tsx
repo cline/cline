@@ -37,11 +37,7 @@ interface SessionContextValue {
 	setHasSubmitted: (v: boolean) => void;
 	setLastTotalTokens: (v: number) => void;
 	setLastTotalCost: (v: number) => void;
-	addUsageDelta: (usage: {
-		inputTokens?: number;
-		outputTokens?: number;
-		cost?: number;
-	}) => void;
+	addUsageDelta: (usage: UsageDelta) => void;
 	setUiMode: (mode: AgentMode) => void;
 	toggleMode: () => void;
 	toggleAutoApprove: () => void;
@@ -51,12 +47,26 @@ interface SessionContextValue {
 	replaceEntries: (entries: ChatEntry[]) => void;
 }
 
+type UsageDelta = {
+	inputTokens?: number;
+	outputTokens?: number;
+	cost?: number;
+};
+
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function useSession(): SessionContextValue {
 	const ctx = useContext(SessionContext);
 	if (!ctx) throw new Error("useSession must be within SessionProvider");
 	return ctx;
+}
+
+export function nextUsageTokenDisplay(
+	previousTotalTokens: number,
+	usage: UsageDelta,
+): number {
+	const inputTokens = Math.max(0, usage.inputTokens ?? 0);
+	return inputTokens > 0 ? inputTokens : previousTotalTokens;
 }
 
 export function SessionProvider(props: {
@@ -209,12 +219,10 @@ export function SessionProvider(props: {
 	}, []);
 
 	const addUsageDelta = useCallback(
-		(usage: { inputTokens?: number; outputTokens?: number; cost?: number }) => {
-			const tokenDelta =
-				Math.max(0, usage.inputTokens ?? 0) +
-				Math.max(0, usage.outputTokens ?? 0);
-			if (tokenDelta > 0) {
-				setLastTotalTokens((prev) => prev + tokenDelta);
+		(usage: UsageDelta) => {
+			const nextTotalTokens = nextUsageTokenDisplay(0, usage);
+			if (nextTotalTokens > 0) {
+				setLastTotalTokens((prev) => nextUsageTokenDisplay(prev, usage));
 			}
 			const costDelta = usage.cost;
 			if (

@@ -1,3 +1,8 @@
+import {
+	captureCompactionExecuted,
+	captureCompactionSkipped,
+	type TelemetryCompactionStrategy,
+} from "../../services/telemetry/core-events";
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
@@ -204,10 +209,30 @@ function resolveManualTargetState(input: {
 	};
 }
 
+/**
+ * Build the `prepareTurn` callback used by the agent runtime to compact the
+ * transcript before each model request.
+ *
+ * Telemetry: emits `task.compaction_executed` on a successful compaction and
+ * `task.compaction_skipped` when the configured strategy returns `undefined`.
+ * Telemetry is keyed by `config.sessionId` (falling back to the per-turn
+ * `conversationId`) and tagged with `provider` / `modelId`.
+ *
+ * Known gap: compactions performed via plugin `registerMessageBuilder()` or
+ * via the `beforeModel` runtime hook bypass this wrapper entirely, so they
+ * do not emit compaction telemetry. If we want coverage there too, the
+ * plugin/hook pipelines must be instrumented separately.
+ */
 export function createContextCompactionPrepareTurn(
 	config: Pick<
 		CoreSessionConfig,
-		"providerConfig" | "providerId" | "modelId" | "compaction" | "logger"
+		| "providerConfig"
+		| "providerId"
+		| "modelId"
+		| "compaction"
+		| "logger"
+		| "telemetry"
+		| "sessionId"
 	>,
 	options: ContextCompactionPrepareTurnOptions = {},
 ):
@@ -230,6 +255,9 @@ export function createContextCompactionPrepareTurn(
 	const strategy = userCompaction?.strategy ?? "basic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 	const mode = options.mode ?? "auto";
+	const telemetryStrategy: TelemetryCompactionStrategy = userCompaction?.compact
+		? "custom"
+		: strategy;
 
 	return async (context) => {
 		const inputTokens = context.apiMessages.reduce(
@@ -313,6 +341,7 @@ export function createContextCompactionPrepareTurn(
 		);
 
 		const beforeMessageCount = context.messages.length;
+		const startedAt = Date.now();
 
 		const result = userCompaction?.compact
 			? await userCompaction.compact(compactionContext)
@@ -327,6 +356,18 @@ export function createContextCompactionPrepareTurn(
 					estimateMessageTokens,
 					logger: config.logger,
 				});
+
+		const durationMs = Date.now() - startedAt;
+		// Telemetry identity: surface the agent/conversation passed into the
+		// prepareTurn so multi-agent runs can attribute compactions correctly.
+		// `sessionId` is the host-owned session id (ulid). We fall back to the
+		// conversation id when no sessionId is supplied (e.g. ad-hoc callers).
+		const telemetryUlid = config.sessionId ?? context.conversationId;
+		const telemetryIdentity = {
+			agentId: context.agentId,
+			conversationId: context.conversationId,
+			parentAgentId: context.parentAgentId ?? undefined,
+		};
 
 		if (result?.messages) {
 			const afterTokens = result.messages.reduce(
@@ -347,6 +388,41 @@ export function createContextCompactionPrepareTurn(
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
 			} as Record<string, unknown>);
+			captureCompactionExecuted(config.telemetry, {
+				ulid: telemetryUlid,
+				strategy: telemetryStrategy,
+				mode,
+				messagesBefore: beforeMessageCount,
+				messagesAfter: result.messages.length,
+				messagesRemoved: beforeMessageCount - result.messages.length,
+				tokensBefore: inputTokens,
+				tokensAfter: afterTokens,
+				tokensSaved: inputTokens - afterTokens,
+				triggerTokens: targetState.triggerTokens,
+				maxInputTokens,
+				thresholdRatio: targetState.thresholdRatio,
+				durationMs,
+				// Matches the field name used by other TASK telemetry helpers
+				// (e.g. captureTaskCompleted, captureToolUsage).
+				provider: config.providerId,
+				modelId: config.modelId,
+				...telemetryIdentity,
+			});
+		} else {
+			captureCompactionSkipped(config.telemetry, {
+				ulid: telemetryUlid,
+				strategy: telemetryStrategy,
+				mode,
+				reason: "no_result",
+				tokensBefore: inputTokens,
+				triggerTokens: targetState.triggerTokens,
+				maxInputTokens,
+				thresholdRatio: targetState.thresholdRatio,
+				durationMs,
+				provider: config.providerId,
+				modelId: config.modelId,
+				...telemetryIdentity,
+			});
 		}
 
 		return result;
