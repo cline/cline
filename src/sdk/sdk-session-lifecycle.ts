@@ -45,6 +45,16 @@ export class SdkSessionLifecycle {
 		return activeSession
 	}
 
+	async updateActiveSessionModel(modelId: string): Promise<boolean> {
+		const activeSession = this.activeSession
+		if (!activeSession?.sdkHost.updateSessionModel) {
+			return false
+		}
+
+		await activeSession.sdkHost.updateSessionModel(activeSession.sessionId, modelId)
+		return true
+	}
+
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
