@@ -1,5 +1,7 @@
 import OpenAI from "openai"
+import { ApiProvider } from "@/shared/api"
 import {
+	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
 	ClineAssistantToolUseBlock,
 	ClineImageContentBlock,
@@ -7,6 +9,303 @@ import {
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
+
+// ---- copied from openai-format.ts ----
+
+// OpenAI API has a maximum tool call ID length of 40 characters
+const MAX_TOOL_CALL_ID_LENGTH = 40
+
+function isOpenAIResponseToolId(callId: string): boolean {
+	return callId.startsWith("fc_") && callId.length === 53
+}
+
+function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider): string {
+	if (isOpenAIResponseToolId(toolId)) {
+		return `call_${toolId.slice(toolId.length - (MAX_TOOL_CALL_ID_LENGTH - 5))}`
+	}
+	if (provider !== "openai-native") {
+		return toolId
+	}
+	if (toolId.length > MAX_TOOL_CALL_ID_LENGTH) {
+		return toolId.slice(0, MAX_TOOL_CALL_ID_LENGTH)
+	}
+	return toolId
+}
+
+type ReasoningDetail = {
+	type: string
+	text?: string
+	data?: string
+	signature?: string | null
+	id?: string | null
+	format: string
+	index?: number
+}
+
+function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): ReasoningDetail[] {
+	if (!reasoningDetails || reasoningDetails.length === 0) {
+		return []
+	}
+
+	const groupedByIndex = new Map<number, ReasoningDetail[]>()
+
+	for (const detail of reasoningDetails) {
+		if (detail.type === "reasoning.encrypted" && !detail.data) continue
+
+		const index = detail.index ?? 0
+		if (!groupedByIndex.has(index)) {
+			groupedByIndex.set(index, [])
+		}
+		groupedByIndex.get(index)!.push(detail)
+	}
+
+	const consolidated: ReasoningDetail[] = []
+
+	for (const [index, details] of groupedByIndex.entries()) {
+		let concatenatedText = ""
+		let signature: string | undefined
+		let id: string | undefined
+		let format = "unknown"
+		let type = "reasoning.text"
+
+		for (const detail of details) {
+			if (detail.text) {
+				concatenatedText += detail.text
+			}
+			if (detail.signature) {
+				signature = detail.signature
+			}
+			if (detail.id) {
+				id = detail.id
+			}
+			if (detail.format) {
+				format = detail.format
+			}
+			if (detail.type) {
+				type = detail.type
+			}
+		}
+
+		if (concatenatedText) {
+			const consolidatedEntry: ReasoningDetail = {
+				type: type,
+				text: concatenatedText,
+				signature: signature,
+				id: id,
+				format: format,
+				index: index,
+			}
+			consolidated.push(consolidatedEntry)
+		}
+
+		let lastDataEntry: ReasoningDetail | undefined
+		for (const detail of details) {
+			if (detail.data) {
+				lastDataEntry = {
+					type: detail.type,
+					data: detail.data,
+					signature: detail.signature,
+					id: detail.id,
+					format: detail.format,
+					index: index,
+				}
+			}
+		}
+		if (lastDataEntry) {
+			consolidated.push(lastDataEntry)
+		}
+	}
+
+	return consolidated
+}
+
+export function convertDeepseekToOpenAiMessages(
+	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
+	provider?: ApiProvider,
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+	for (const anthropicMessage of anthropicMessages) {
+		if (typeof anthropicMessage.content === "string") {
+			openAiMessages.push({
+				role: anthropicMessage.role,
+				content: anthropicMessage.content,
+			})
+		} else {
+			if (anthropicMessage.role === "user") {
+				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+					toolMessages: ClineUserToolResultContentBlock[]
+				}>(
+					(acc, part) => {
+						if (part.type === "tool_result") {
+							acc.toolMessages.push(part)
+						} else if (part.type === "text" || part.type === "image") {
+							acc.nonToolMessages.push(part)
+						}
+						return acc
+					},
+					{ nonToolMessages: [], toolMessages: [] },
+				)
+
+				const toolResultImages: ClineImageContentBlock[] = []
+				toolMessages.forEach((toolMessage) => {
+					let content: string
+
+					if (typeof toolMessage.content === "string") {
+						content = toolMessage.content
+					} else if (Array.isArray(toolMessage.content)) {
+						content =
+							toolMessage.content
+								?.map((part) => {
+									if (part.type === "image") {
+										toolResultImages.push(part)
+										return "(see following user message for image)"
+									}
+									return part.text
+								})
+								.join("\n") ?? ""
+					} else {
+						content = ""
+					}
+					openAiMessages.push({
+						role: "tool",
+						tool_call_id: transformToolCallIdForNativeApi(toolMessage.tool_use_id, provider),
+						content: content,
+					})
+				})
+
+				if (toolResultImages.length > 0) {
+					openAiMessages.push({
+						role: "user",
+						content: toolResultImages.map((part) => ({
+							type: "image_url",
+							image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+						})),
+					})
+				}
+
+				if (nonToolMessages.length > 0) {
+					openAiMessages.push({
+						role: "user",
+						content: nonToolMessages.map((part) => {
+							if (part.type === "image") {
+								return {
+									type: "image_url",
+									image_url: {
+										url: `data:${part.source.media_type};base64,${part.source.data}`,
+									},
+								}
+							}
+							return { type: "text", text: part.text }
+						}),
+					})
+				}
+			} else if (anthropicMessage.role === "assistant") {
+				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+					nonToolMessages: (
+						| ClineTextContentBlock
+						| ClineImageContentBlock
+						| ClineAssistantThinkingBlock
+						| ClineAssistantRedactedThinkingBlock
+					)[]
+					toolMessages: ClineAssistantToolUseBlock[]
+				}>(
+					(acc, part) => {
+						if (part.type === "tool_use") {
+							acc.toolMessages.push(part)
+						} else if (part.type === "text" || part.type === "image") {
+							acc.nonToolMessages.push(part)
+						}
+						return acc
+					},
+					{ nonToolMessages: [], toolMessages: [] },
+				)
+
+				let content: string | undefined
+				const reasoningDetails: any[] = []
+				const thinkingBlock = []
+				if (nonToolMessages.length > 0) {
+					nonToolMessages.forEach((part) => {
+						const anyPart = part as any
+						if (part.type === "text" && anyPart.reasoning_details) {
+							if (Array.isArray(anyPart.reasoning_details)) {
+								reasoningDetails.push(...anyPart.reasoning_details)
+							} else {
+								reasoningDetails.push(anyPart.reasoning_details)
+							}
+						}
+						if (part.type === "thinking" && part.thinking) {
+							thinkingBlock.push(part)
+						}
+					})
+					content = nonToolMessages
+						.map((part) => {
+							if (part.type === "text" && part.text) {
+								return part.text
+							}
+							return ""
+						})
+						.join("\n")
+				}
+
+				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => {
+					const toolDetails = toolMessage.reasoning_details
+					const toolId = toolMessage.id
+					if (toolDetails) {
+						if (Array.isArray(toolDetails)) {
+							const validDetails = toolDetails.filter((detail: any) => detail?.id === toolId)
+							if (validDetails.length > 0) {
+								reasoningDetails.push(...validDetails)
+							}
+						} else {
+							const detail = toolDetails as any
+							if (detail?.id === toolId) {
+								reasoningDetails.push(toolDetails)
+							}
+						}
+					}
+
+					return {
+						id: transformToolCallIdForNativeApi(toolId, provider),
+						type: "function",
+						function: {
+							name: toolMessage.name,
+							arguments: JSON.stringify(toolMessage.input),
+						},
+					}
+				})
+
+				const hasToolCalls = tool_calls.length > 0
+				const hasMeaningfulContent = content !== undefined && content.trim() !== ""
+				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : undefined
+
+				const consolidatedReasoningDetails =
+					reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails as any) : []
+
+				// Skip pure-thinking messages (neither content nor tool_calls)
+				if (finalContent === undefined && !hasToolCalls) {
+					Logger.warn(
+						"Skipping pure-thinking assistant message in convertDeepseekToOpenAiMessages — no content or tool_calls",
+					)
+					continue
+				}
+
+				openAiMessages.push({
+					role: "assistant",
+					content: finalContent,
+					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
+					// @ts-expect-error
+					reasoning_details: consolidatedReasoningDetails.length > 0 ? consolidatedReasoningDetails : undefined,
+				})
+			}
+		}
+	}
+
+	return openAiMessages
+}
+// ---- end -----
 
 /**
  * DeepSeek V4/V3 model message format with reasoning_content support.
@@ -52,7 +351,7 @@ export function convertDeepSeekMessages(originalMessages: ClineStorageMessage[],
 					pendingThinking = ""
 				}
 				if (thinkingText) {
-					reasoning = reasoning ? `${reasoning}\n${thinkingText}` : thinkingText
+					reasoning = reasoning ? reasoning + "\n" + thinkingText : thinkingText
 				}
 				if (reasoning) {
 					converted.reasoning_content = reasoning
@@ -61,7 +360,7 @@ export function convertDeepSeekMessages(originalMessages: ClineStorageMessage[],
 			} else {
 				// Pure thinking message — accumulate for next valid assistant
 				if (thinkingText) {
-					pendingThinking = pendingThinking ? `${pendingThinking}\n${thinkingText}` : thinkingText
+					pendingThinking = pendingThinking ? pendingThinking + "\n" + thinkingText : thinkingText
 				}
 			}
 		} else if (msg.role === "user") {
@@ -172,7 +471,6 @@ function convertUser(msg: ClineStorageMessage): DeepSeekModelMessage[] {
 		if (typeof tr.content === "string") {
 			content = tr.content
 		} else if (Array.isArray(tr.content)) {
-			// Extract text, note images
 			const imageNoteParts: string[] = []
 			for (const p of tr.content) {
 				if (p.type === "text") {

@@ -7,8 +7,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
-import { convertDeepSeekMessages } from "../transform/deepseek-format"
-import { convertToOpenAiMessages } from "../transform/openai-format"
+import { convertDeepSeekMessages, convertDeepseekToOpenAiMessages } from "../transform/deepseek-format"
 import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
@@ -17,7 +16,6 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	apiModelId?: string
 	reasoningEffort?: string
-	apiModelInfo?: ModelInfo
 }
 
 export class DeepSeekHandler implements ApiHandler {
@@ -86,7 +84,7 @@ export class DeepSeekHandler implements ApiHandler {
 
 		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
 
-		const convertedMessages = convertToOpenAiMessages(messages)
+		const convertedMessages = convertDeepseekToOpenAiMessages(messages)
 		const isV4Model = model.id.startsWith("deepseek-v4")
 		const isThinkingEnabled = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
 		const reasoningEffort = isThinkingEnabled
