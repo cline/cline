@@ -129,11 +129,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						label="Model"
 						models={modelsToUse}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 						zIndex={DROPDOWN_Z_INDEX - 2}

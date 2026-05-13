@@ -37,14 +37,7 @@ export const FireworksProvider = ({ currentMode, isPopup, showModelOptions }: Fi
 				label="Model"
 				models={fireworksModels}
 				onChange={(e: any) => {
-					handleModeFieldChange(
-						{
-							plan: "planModeFireworksModelId",
-							act: "actModeFireworksModelId",
-						},
-						e.target.value,
-						currentMode,
-					)
+					handleModeFieldChange("modelId", e.target.value, currentMode)
 				}}
 				selectedModelId={selectedModelId}
 			/>

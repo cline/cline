@@ -321,9 +321,7 @@ export class SubagentRunner {
 			const api = this.apiHandler
 			this.activeApiAbort = api.abort?.bind(api)
 
-			const providerId = (
-				mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
-			) as string
+			const providerId = (apiConfiguration[mode === "plan" ? "planConfig" : "actConfig"]?.apiProvider ?? "anthropic") as string
 			const providerInfo = {
 				providerId,
 				model: api.getModel(),

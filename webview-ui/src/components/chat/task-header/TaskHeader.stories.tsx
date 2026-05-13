@@ -83,8 +83,7 @@ export const Collapsed: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: false,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -113,8 +112,7 @@ export const Expanded: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -147,8 +145,7 @@ export const WithImages: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -181,8 +178,7 @@ export const WithFiles: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -213,8 +209,7 @@ export const LongTaskText: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -244,12 +239,14 @@ export const HighTokenUsage: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
-				actModeOpenRouterModelInfo: {
-					contextWindow: 200000,
-					maxTokens: 8000,
-					supportsPromptCache: true,
+				actConfig: {
+					apiProvider: "anthropic",
+					modelId: "claude-3-5-sonnet-20241022",
+					modelInfo: {
+						contextWindow: 200000,
+						maxTokens: 8000,
+						supportsPromptCache: true,
+					},
 				},
 			},
 			clineMessages: createMessages(),
@@ -277,8 +274,7 @@ export const NoCost: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "ollama",
-				actModeApiModelId: "llama3.2",
+				actConfig: { apiProvider: "ollama", modelId: "llama3.2" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -306,8 +302,7 @@ export const WithCheckpointError: Story = {
 			expandTaskHeader: true,
 			checkpointManagerErrorMessage: "Git is not installed or not configured properly disabling checkpoints.",
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -338,8 +333,7 @@ export const WithProgressMessage: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -367,8 +361,7 @@ export const LocalEnvironment: Story = {
 			expandTaskHeader: true,
 			environment: Environment.local,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -396,8 +389,7 @@ export const StagingEnvironment: Story = {
 			expandTaskHeader: true,
 			environment: Environment.staging,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -425,8 +417,7 @@ export const ProductionEnvironment: Story = {
 			expandTaskHeader: true,
 			environment: Environment.production,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: createMessages(),
 		}),
@@ -453,8 +444,7 @@ export const MinimalTask: Story = {
 		createStorybookDecorator({
 			expandTaskHeader: true,
 			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
+				actConfig: { apiProvider: "anthropic", modelId: "claude-3-5-sonnet-20241022" },
 			},
 			clineMessages: [
 				{

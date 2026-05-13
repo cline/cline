@@ -163,12 +163,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					const modelId = action.arg || "anthropic/claude-sonnet-4.5"
 					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
-						planModeOpenRouterModelId: modelId,
-						actModeOpenRouterModelId: modelId,
-						planModeOpenRouterModelInfo: openRouterModels[modelId],
-						actModeOpenRouterModelInfo: openRouterModels[modelId],
-						planModeApiProvider: "cline",
-						actModeApiProvider: "cline",
+						planConfig: { apiProvider: "cline", modelId, modelInfo: openRouterModels[modelId] },
+						actConfig: { apiProvider: "cline", modelId, modelInfo: openRouterModels[modelId] },
 					})
 					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 					break
@@ -182,8 +178,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					if (action.arg) {
 						// Pre-select the provider before navigating
 						handleFieldsChange({
-							planModeApiProvider: action.arg as any,
-							actModeApiProvider: action.arg as any,
+							planConfig: { apiProvider: action.arg as any },
+							actConfig: { apiProvider: action.arg as any },
 						})
 					}
 					navigateToSettings("api-config")

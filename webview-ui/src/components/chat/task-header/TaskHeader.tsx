@@ -95,13 +95,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	const isCostAvailable =
 		(totalCost &&
-			modeFields.apiProvider === "openai" &&
-			modeFields.openAiModelInfo?.inputPrice &&
-			modeFields.openAiModelInfo?.outputPrice) ||
-		(modeFields.apiProvider !== "vscode-lm" &&
-			modeFields.apiProvider !== "ollama" &&
-			modeFields.apiProvider !== "lmstudio" &&
-			modeFields.apiProvider !== "openai-codex") // Subscription-based, no per-token costs
+			modeFields?.apiProvider === "openai" &&
+			modeFields?.modelInfo?.inputPrice &&
+			modeFields?.modelInfo?.outputPrice) ||
+		(modeFields?.apiProvider !== "vscode-lm" &&
+			modeFields?.apiProvider !== "ollama" &&
+			modeFields?.apiProvider !== "lmstudio" &&
+			modeFields?.apiProvider !== "openai-codex") // Subscription-based, no per-token costs
 
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])

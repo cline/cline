@@ -35,11 +35,7 @@ export const WandbProvider = ({ showModelOptions, isPopup, currentMode }: WandbP
 						label="Model"
 						models={wandbModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

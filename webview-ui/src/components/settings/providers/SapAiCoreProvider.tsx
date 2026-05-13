@@ -7,7 +7,7 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -24,7 +24,7 @@ interface SapAiCoreProviderProps {
  */
 export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: SapAiCoreProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Handle orchestration checkbox change
 	const handleOrchestrationChange = async (checked: boolean) => {
@@ -113,17 +113,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	// Handle model selection
 	const handleModelChange = useCallback(
 		(modelId: string, deploymentId: string) => {
-			// Update both model ID and deployment ID atomically
-			handleModeFieldsChange(
-				{
-					modelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-					deploymentId: { plan: "planModeSapAiCoreDeploymentId", act: "actModeSapAiCoreDeploymentId" },
-				},
-				{ modelId, deploymentId },
-				currentMode,
-			)
+			handleModeFieldChange("modelId", modelId, currentMode)
+			handleModeFieldChange("sapAiCoreDeploymentId", deploymentId, currentMode)
 		},
-		[handleModeFieldsChange, currentMode],
+		[handleModeFieldChange, currentMode],
 	)
 
 	return (
@@ -236,11 +229,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 									placeholder="Select a model..."
 									sapAiCoreModelDeployments={sapAiCoreModelDeployments}
 									selectedDeploymentId={
-										apiConfiguration?.[
-											currentMode === "plan"
-												? "planModeSapAiCoreDeploymentId"
-												: "actModeSapAiCoreDeploymentId"
-										]
+										getModeSpecificFields(apiConfiguration, currentMode)?.sapAiCoreDeploymentId
 									}
 									selectedModelId={selectedModelId || ""}
 									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode}

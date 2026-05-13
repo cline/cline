@@ -1,5 +1,6 @@
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import {
+	ApiConfigProfile,
 	ApiProvider,
 	DEFAULT_API_PROVIDER,
 	LiteLLMModelInfo,
@@ -94,6 +95,24 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
+	apiConfigProfiles: { default: [] as ApiConfigProfile[] },
+	lastAppliedProfileIdByMode: { default: { plan: undefined, act: undefined } as Record<Mode, string | undefined> },
+} satisfies FieldDefinitions
+
+// Mode-specific configuration (shared by planConfig and actConfig)
+const MODE_CONFIG_FIELDS = {
+	apiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
+	modelId: { default: undefined as string | undefined },
+	modelInfo: { default: undefined as ModelInfo | OpenAiCompatibleModelInfo | LiteLLMModelInfo | OcaModelInfo | undefined },
+	thinkingBudgetTokens: { default: undefined as number | undefined },
+	reasoningEffort: { default: undefined as string | undefined },
+	verbosity: { default: undefined as string | undefined },
+	geminiThinkingLevel: { default: undefined as string | undefined },
+	vsCodeLmModelSelector: { default: undefined as LanguageModelChatSelector | undefined },
+	awsBedrockCustomSelected: { default: undefined as boolean | undefined },
+	awsBedrockCustomModelBaseId: { default: undefined as string | undefined },
+	sapAiCoreDeploymentId: { default: undefined as string | undefined },
+	ocaReasoningEffort: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
@@ -144,101 +163,9 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	aihubmixAppCode: { default: undefined as string | undefined },
 	enableParallelToolCalling: { default: true as boolean },
 
-	// Plan mode configurations
-	planModeApiModelId: { default: undefined as string | undefined },
-	planModeThinkingBudgetTokens: { default: undefined as number | undefined },
-	geminiPlanModeThinkingLevel: { default: undefined as string | undefined },
-	planModeReasoningEffort: { default: undefined as string | undefined },
-	planModeVerbosity: { default: undefined as string | undefined },
-	planModeVsCodeLmModelSelector: { default: undefined as LanguageModelChatSelector | undefined },
-	planModeAwsBedrockCustomSelected: { default: undefined as boolean | undefined },
-	planModeAwsBedrockCustomModelBaseId: { default: undefined as string | undefined },
-	planModeOpenRouterModelId: { default: undefined as string | undefined },
-	planModeOpenRouterModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeClineModelId: { default: undefined as string | undefined },
-	planModeClineModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeOpenAiModelId: { default: undefined as string | undefined },
-	planModeOpenAiModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
-	planModeOllamaModelId: { default: undefined as string | undefined },
-	planModeLmStudioModelId: { default: undefined as string | undefined },
-	planModeLiteLlmModelId: { default: undefined as string | undefined },
-	planModeLiteLlmModelInfo: { default: undefined as LiteLLMModelInfo | undefined },
-	planModeRequestyModelId: { default: undefined as string | undefined },
-	planModeRequestyModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeTogetherModelId: { default: undefined as string | undefined },
-	planModeFireworksModelId: { default: undefined as string | undefined },
-	planModeSapAiCoreModelId: { default: undefined as string | undefined },
-	planModeSapAiCoreDeploymentId: { default: undefined as string | undefined },
-	planModeGroqModelId: { default: undefined as string | undefined },
-	planModeGroqModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeBasetenModelId: { default: undefined as string | undefined },
-	planModeBasetenModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeHuggingFaceModelId: { default: undefined as string | undefined },
-	planModeHuggingFaceModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeHuaweiCloudMaasModelId: { default: undefined as string | undefined },
-	planModeHuaweiCloudMaasModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeOcaModelId: { default: undefined as string | undefined },
-	planModeOcaModelInfo: { default: undefined as OcaModelInfo | undefined },
-	planModeOcaReasoningEffort: { default: undefined as string | undefined },
-	planModeAihubmixModelId: { default: undefined as string | undefined },
-	planModeAihubmixModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
-	planModeHicapModelId: { default: undefined as string | undefined },
-	planModeHicapModelInfo: { default: undefined as ModelInfo | undefined },
-	planModeNousResearchModelId: { default: undefined as string | undefined },
-	planModeVercelAiGatewayModelId: { default: undefined as string | undefined },
-	planModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
-
-	// Act mode configurations
-	actModeApiModelId: { default: undefined as string | undefined },
-	actModeThinkingBudgetTokens: { default: undefined as number | undefined },
-	geminiActModeThinkingLevel: { default: undefined as string | undefined },
-	actModeReasoningEffort: { default: undefined as string | undefined },
-	actModeVerbosity: { default: undefined as string | undefined },
-	actModeVsCodeLmModelSelector: { default: undefined as LanguageModelChatSelector | undefined },
-	actModeAwsBedrockCustomSelected: { default: undefined as boolean | undefined },
-	actModeAwsBedrockCustomModelBaseId: { default: undefined as string | undefined },
-	actModeOpenRouterModelId: { default: undefined as string | undefined },
-	actModeOpenRouterModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeClineModelId: { default: undefined as string | undefined },
-	actModeClineModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeOpenAiModelId: { default: undefined as string | undefined },
-	actModeOpenAiModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
-	actModeOllamaModelId: { default: undefined as string | undefined },
-	actModeLmStudioModelId: { default: undefined as string | undefined },
-	actModeLiteLlmModelId: { default: undefined as string | undefined },
-	actModeLiteLlmModelInfo: { default: undefined as LiteLLMModelInfo | undefined },
-	actModeRequestyModelId: { default: undefined as string | undefined },
-	actModeRequestyModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeTogetherModelId: { default: undefined as string | undefined },
-	actModeFireworksModelId: { default: undefined as string | undefined },
-	actModeSapAiCoreModelId: { default: undefined as string | undefined },
-	actModeSapAiCoreDeploymentId: { default: undefined as string | undefined },
-	actModeGroqModelId: { default: undefined as string | undefined },
-	actModeGroqModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeBasetenModelId: { default: undefined as string | undefined },
-	actModeBasetenModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeHuggingFaceModelId: { default: undefined as string | undefined },
-	actModeHuggingFaceModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeHuaweiCloudMaasModelId: { default: undefined as string | undefined },
-	actModeHuaweiCloudMaasModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeOcaModelId: { default: undefined as string | undefined },
-	actModeOcaModelInfo: { default: undefined as OcaModelInfo | undefined },
-	actModeOcaReasoningEffort: { default: undefined as string | undefined },
-	actModeAihubmixModelId: { default: undefined as string | undefined },
-	actModeAihubmixModelInfo: { default: undefined as OpenAiCompatibleModelInfo | undefined },
-	actModeHicapModelId: { default: undefined as string | undefined },
-	actModeHicapModelInfo: { default: undefined as ModelInfo | undefined },
-	actModeNousResearchModelId: { default: undefined as string | undefined },
-	actModeVercelAiGatewayModelId: { default: undefined as string | undefined },
-	actModeVercelAiGatewayModelInfo: { default: undefined as ModelInfo | undefined },
-
-	// Model-specific settings
-	planModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
-	actModeApiProvider: { default: DEFAULT_API_PROVIDER as ApiProvider },
-
-	// Deprecated model settings
-	hicapModelId: { default: undefined as string | undefined },
-	lmStudioModelId: { default: undefined as string | undefined },
+	// Mode-specific configuration (nested objects)
+	planConfig: { default: {} as ModeConfigSettings },
+	actConfig: { default: {} as ModeConfigSettings },
 } satisfies FieldDefinitions
 
 const USER_SETTINGS_FIELDS = {
@@ -254,7 +181,6 @@ const USER_SETTINGS_FIELDS = {
 		transform: (v: any) => ({ ...DEFAULT_BROWSER_SETTINGS, ...v }),
 	},
 	telemetrySetting: { default: "unset" as TelemetrySetting },
-	planActSeparateModelsSetting: { default: false as boolean, isComputed: true },
 	enableCheckpointsSetting: { default: true as boolean },
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
@@ -371,6 +297,21 @@ export const LocalStateKeys = [
 type ExtractDefault<T> = T extends { default: infer U } ? U : never
 type BuildInterface<T extends Record<string, { default: any }>> = { [K in keyof T]: ExtractDefault<T[K]> }
 
+export type ModeConfigSettings = {
+	apiProvider: ApiProvider
+	modelId?: string
+	modelInfo?: ModelInfo | OpenAiCompatibleModelInfo | LiteLLMModelInfo | OcaModelInfo
+	thinkingBudgetTokens?: number
+	reasoningEffort?: string
+	verbosity?: string
+	geminiThinkingLevel?: string
+	vsCodeLmModelSelector?: LanguageModelChatSelector
+	awsBedrockCustomSelected?: boolean
+	awsBedrockCustomModelBaseId?: string
+	sapAiCoreDeploymentId?: string
+	ocaReasoningEffort?: string
+}
+
 export type GlobalState = BuildInterface<typeof GLOBAL_STATE_FIELDS>
 export type Settings = BuildInterface<typeof SETTINGS_FIELDS>
 type RemoteConfigExtra = BuildInterface<typeof REMOTE_CONFIG_EXTRA_FIELDS>
@@ -401,6 +342,7 @@ const GlobalStateAndSettingsKeySet = new Set(Object.keys(GLOBAL_STATE_AND_SETTIN
 const ApiHandlerSettingsKeysSet = new Set(Object.keys(API_HANDLER_SETTINGS_FIELDS))
 
 export const SecretKeys = Array.from(SECRETS_KEYS)
+export const ModeConfigKeys = Object.keys(MODE_CONFIG_FIELDS) as (keyof ModeConfigSettings)[]
 export const SettingsKeys = Array.from(SettingsKeysSet) as (keyof Settings)[]
 export const ApiHandlerSettingsKeys = Array.from(ApiHandlerSettingsKeysSet) as (keyof ApiHandlerOptionSettings)[]
 export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet) as GlobalStateAndSettingsKey[]

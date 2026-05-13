@@ -51,8 +51,9 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = React.memo(({ con
 			// Get current provider from state
 			const stateManager = StateManager.get()
 			const mode = stateManager.getGlobalSettingsKey("mode") as string
-			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-			const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as string
+			const configKey = mode === "act" ? "actConfig" : "planConfig"
+			const currentConfig = stateManager.getGlobalSettingsKey(configKey)
+			const currentProvider = currentConfig?.apiProvider as string
 			setProvider(currentProvider || "cline")
 
 			// If using Cline provider, fetch additional info

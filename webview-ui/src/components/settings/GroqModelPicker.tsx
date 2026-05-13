@@ -20,9 +20,9 @@ export interface GroqModelPickerProps {
 
 const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { apiConfiguration, groqModels: dynamicGroqModels, setGroqModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.groqModelId || groqDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(modeFields.modelId || groqDefaultModelId)
 	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -31,21 +31,18 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
-		// Use dynamic models if available, otherwise fall back to static models
 		const modelInfo = dynamicGroqModels?.[newModelId] || groqModels[newModelId as keyof typeof groqModels]
 
-		handleModeFieldsChange(
-			{
-				groqModelId: { plan: "planModeGroqModelId", act: "actModeGroqModelId" },
-				groqModelInfo: { plan: "planModeGroqModelInfo", act: "actModeGroqModelInfo" },
-			},
-			{
-				groqModelId: newModelId,
-				groqModelInfo: modelInfo,
-			},
-			currentMode,
-		)
 		setSearchTerm(newModelId)
+
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo,
+			},
+		} as any)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -67,9 +64,9 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.groqModelId || groqDefaultModelId
+		const currentModelId = modeFields.modelId || groqDefaultModelId
 		setSearchTerm(currentModelId)
-	}, [modeFields.groqModelId])
+	}, [modeFields.modelId])
 
 	// Debounce search term to reduce re-renders
 	useEffect(() => {

@@ -40,7 +40,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+	const { modelId: lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
 
@@ -108,14 +108,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 						className="w-full mb-3"
 						onChange={(e: any) => {
 							const value = e?.target?.value
-							handleModeFieldChange(
-								{
-									plan: "planModeLmStudioModelId",
-									act: "actModeLmStudioModelId",
-								},
-								value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", value, currentMode)
 						}}
 						value={lmStudioModelId}>
 						{lmStudioModels.map((model) => (
@@ -126,17 +119,10 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 					</VSCodeDropdown>
 				</DropdownContainer>
 			) : (
-				<DebouncedTextField
+					<DebouncedTextField
 					initialValue={lmStudioModelId || ""}
 					onChange={(value) =>
-						handleModeFieldChange(
-							{
-								plan: "planModeLmStudioModelId",
-								act: "actModeLmStudioModelId",
-							},
-							value,
-							currentMode,
-						)
+						handleModeFieldChange("modelId", value, currentMode)
 					}
 					placeholder={"e.g. meta-llama-3.1-8b-instruct"}
 					style={{ width: "100%" }}

@@ -5,7 +5,7 @@ import React, { useMemo } from "react"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND, VSC_FOREGROUND } from "@/utils/vscStyles"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 export interface OcaModelPickerProps {
@@ -27,69 +27,51 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 	loading,
 	lastRefreshedAt,
 }: OcaModelPickerProps) => {
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleFieldsChange } = useApiConfigurationHandlers()
 	const [pendingModelId, setPendingModelId] = React.useState<string | null>(null)
 	const [showRestrictedPopup, setShowRestrictedPopup] = React.useState(false)
 
 	const handleModelChange = async (newModelId: string) => {
-		// could be setting invalid model id/undefined info but validation will catch it
-
 		if (ocaModels) {
 			const banner = ocaModels[newModelId]?.banner
 			if (banner) {
 				setPendingModelId(newModelId)
 				setShowRestrictedPopup(true)
 			} else {
-				await handleModeFieldsChange(
-					{
-						ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-						ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
-						ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
-					},
-					{
-						ocaModelId: newModelId,
-						ocaModelInfo: ocaModels[newModelId],
+				const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+				await handleFieldsChange({
+					[modeKey]: {
+						...(apiConfiguration as any)?.[modeKey],
+						modelId: newModelId,
+						modelInfo: ocaModels[newModelId],
 						ocaReasoningEffort:
 							ocaModels[newModelId].reasoningEffortOptions.length > 0
 								? ocaModels[newModelId].reasoningEffortOptions[0]
 								: undefined,
 					},
-					currentMode,
-				)
+				} as any)
 			}
 		}
 	}
 
 	const handleReasoningEffortChange = async (newValue: string) => {
-		await handleModeFieldsChange(
-			{
-				ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
-			},
-			{
-				ocaReasoningEffort: newValue,
-			},
-			currentMode,
-		)
+		await handleModeFieldChange("ocaReasoningEffort", newValue, currentMode)
 	}
 
 	const onAcknowledge = async () => {
 		if (pendingModelId && ocaModels) {
-			await handleModeFieldsChange(
-				{
-					ocaModelId: { plan: "planModeOcaModelId", act: "actModeOcaModelId" },
-					ocaModelInfo: { plan: "planModeOcaModelInfo", act: "actModeOcaModelInfo" },
-					ocaReasoningEffort: { plan: "planModeOcaReasoningEffort", act: "actModeOcaReasoningEffort" },
-				},
-				{
-					ocaModelId: pendingModelId,
-					ocaModelInfo: ocaModels[pendingModelId],
+			const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+			await handleFieldsChange({
+				[modeKey]: {
+					...(apiConfiguration as any)?.[modeKey],
+					modelId: pendingModelId,
+					modelInfo: ocaModels[pendingModelId],
 					ocaReasoningEffort:
 						ocaModels[pendingModelId].reasoningEffortOptions.length > 0
 							? ocaModels[pendingModelId].reasoningEffortOptions[0]
 							: undefined,
 				},
-				currentMode,
-			)
+			} as any)
 			setPendingModelId(null)
 			setShowRestrictedPopup(false)
 		}
@@ -104,11 +86,7 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 	}, [apiConfiguration, currentMode])
 
 	const selectedReasoningEffort = useMemo(() => {
-		if (currentMode == "plan") {
-			return apiConfiguration?.planModeOcaReasoningEffort
-		} else {
-			return apiConfiguration?.actModeOcaReasoningEffort
-		}
+		return getModeSpecificFields(apiConfiguration, currentMode)?.ocaReasoningEffort
 	}, [apiConfiguration, currentMode])
 
 	const reasoningEffortOptions = selectedModelInfo ? (selectedModelInfo as OcaModelInfo).reasoningEffortOptions : []

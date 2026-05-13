@@ -1,8 +1,7 @@
 import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { convertProtoToModeConfig } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
@@ -34,15 +33,8 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			const convertedApiConfigurationFromProto = {
 				...protoApiConfiguration,
-				// Convert proto ApiProvider enums to native string types
-				planModeApiProvider: protoApiConfiguration.planModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-					: undefined,
-				actModeApiProvider: protoApiConfiguration.actModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-					: undefined,
-				planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
-				actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
+				planConfig: convertProtoToModeConfig(protoApiConfiguration.planConfig),
+				actConfig: convertProtoToModeConfig(protoApiConfiguration.actConfig),
 			}
 
 			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
@@ -60,11 +52,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update telemetry setting
 		if (request.telemetrySetting) {
 			await controller.updateTelemetrySetting(request.telemetrySetting as TelemetrySetting)
-		}
-
-		// Update plan/act separate models setting
-		if (request.planActSeparateModelsSetting !== undefined) {
-			controller.stateManager.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
 		}
 
 		// Update checkpoints setting

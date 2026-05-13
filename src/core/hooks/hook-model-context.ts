@@ -16,7 +16,7 @@ export function getHookModelContext(api: ApiHandler, stateManager: StateManager)
 	// `api` is expected to represent the handler for the currently resolved mode.
 	// We still resolve provider/model from state config for deterministic hook metadata,
 	// then fall back to the active handler model id if config is unavailable.
-	const provider = (resolvedMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as
+	const provider = (resolvedMode === "plan" ? apiConfig.planConfig?.apiProvider : apiConfig.actConfig?.apiProvider) as
 		| ApiProvider
 		| undefined
 

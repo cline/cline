@@ -4,7 +4,6 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 const THUMB_SIZE = 16
@@ -71,47 +70,39 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const modeConfig = currentMode === "plan" ? apiConfiguration?.planConfig : apiConfiguration?.actConfig
 
-	// Add local state for the slider value
-	const [localValue, setLocalValue] = useState(modeFields.thinkingBudgetTokens || 0)
+	const [localValue, setLocalValue] = useState(modeConfig?.thinkingBudgetTokens || 0)
 
-	const [isEnabled, setIsEnabled] = useState<boolean>((modeFields.thinkingBudgetTokens || 0) > 0)
+	const [isEnabled, setIsEnabled] = useState<boolean>((modeConfig?.thinkingBudgetTokens || 0) > 0)
 
 	const onToggle = useCallback((isChecked: boolean) => {
 		const newThinkingBudgetValue = isChecked ? ANTHROPIC_MIN_THINKING_BUDGET : 0
 		setIsEnabled(isChecked)
 		setLocalValue(newThinkingBudgetValue)
 
-		handleModeFieldChange(
-			{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-			newThinkingBudgetValue,
-			currentMode,
-		)
-	}, [])
+		handleModeFieldChange("thinkingBudgetTokens", newThinkingBudgetValue, currentMode)
+	}, [currentMode])
 
 	useEffect(() => {
-		// Extremely hacky solution to handle the case where
-		// because the model always uses thinking, we can't use enabling it to set the minimum budget tokens
 		const isToggleAlwaysOn = !showEnableToggle
-		const hasThinkingConfig = !!modeFields.thinkingBudgetTokens && modeFields.thinkingBudgetTokens > 0
+		const hasThinkingConfig = !!modeConfig?.thinkingBudgetTokens && modeConfig.thinkingBudgetTokens > 0
 		if (isToggleAlwaysOn && !hasThinkingConfig) {
 			onToggle(true)
 		}
-	}, [showEnableToggle, modeFields.thinkingBudgetTokens])
+	}, [showEnableToggle, modeConfig?.thinkingBudgetTokens])
 
 	useEffect(() => {
-		const newThinkingBudgetValue = modeFields.thinkingBudgetTokens || 0
+		const newThinkingBudgetValue = modeConfig?.thinkingBudgetTokens || 0
 		const newIsEnabled = newThinkingBudgetValue > 0
 
-		// Check if the value has changed, we could be getting the same value as feedback from the user's action of clicking the enabled checkbox or moving the slider
 		if (newThinkingBudgetValue !== localValue) {
 			setLocalValue(newThinkingBudgetValue)
 		}
 		if (newIsEnabled !== isEnabled) {
 			setIsEnabled(newIsEnabled)
 		}
-	}, [modeFields.thinkingBudgetTokens])
+	}, [modeConfig?.thinkingBudgetTokens])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = Number.parseInt(event.target.value, 10)
@@ -120,11 +111,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	}, [])
 
 	const handleSliderComplete = () => {
-		handleModeFieldChange(
-			{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-			localValue,
-			currentMode,
-		)
+		handleModeFieldChange("thinkingBudgetTokens", localValue, currentMode)
 	}
 
 	const handleToggleChange = (event: any) => {

@@ -21,7 +21,7 @@ export const TogetherProvider = ({ showModelOptions, isPopup, currentMode }: Tog
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const { togetherModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+	const { modelId: togetherModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	return (
 		<div>
@@ -33,7 +33,7 @@ export const TogetherProvider = ({ showModelOptions, isPopup, currentMode }: Tog
 			<DebouncedTextField
 				initialValue={togetherModelId || ""}
 				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeTogetherModelId", act: "actModeTogetherModelId" }, value, currentMode)
+					handleModeFieldChange("modelId", value, currentMode)
 				}
 				placeholder={"Enter Model ID..."}
 				style={{ width: "100%" }}>

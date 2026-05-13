@@ -49,7 +49,7 @@ interface BedrockProviderProps {
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -442,25 +442,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							onChange={(e: any) => {
 								const isCustom = e.target.value === "custom"
 
-								handleModeFieldsChange(
-									{
-										apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-										awsBedrockCustomSelected: {
-											plan: "planModeAwsBedrockCustomSelected",
-											act: "actModeAwsBedrockCustomSelected",
-										},
-										awsBedrockCustomModelBaseId: {
-											plan: "planModeAwsBedrockCustomModelBaseId",
-											act: "actModeAwsBedrockCustomModelBaseId",
-										},
-									},
-									{
-										apiModelId: isCustom ? "" : e.target.value,
-										awsBedrockCustomSelected: isCustom,
-										awsBedrockCustomModelBaseId: bedrockDefaultModelId,
-									},
-									currentMode,
-								)
+								handleModeFieldChange("modelId", isCustom ? "" : e.target.value, currentMode)
+								handleModeFieldChange("awsBedrockCustomSelected", isCustom, currentMode)
+								handleModeFieldChange("awsBedrockCustomModelBaseId", bedrockDefaultModelId, currentMode)
 							}}
 							value={modeFields.awsBedrockCustomSelected ? "custom" : selectedModelId}>
 							<VSCodeOption value="">Select a model...</VSCodeOption>
@@ -485,13 +469,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							<DebouncedTextField
 								className="w-full mt-0.5"
 								id="bedrock-model-input"
-								initialValue={modeFields.apiModelId || ""}
+								initialValue={modeFields.modelId || ""}
 								onChange={(value) =>
-									handleModeFieldChange(
-										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-										value,
-										currentMode,
-									)
+									handleModeFieldChange("modelId", value, currentMode)
 								}
 								placeholder="Enter custom model ID...">
 								<span className="font-medium">Model ID</span>
@@ -504,14 +484,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									className="w-full"
 									id="bedrock-base-model-dropdown"
 									onChange={(e: any) =>
-										handleModeFieldChange(
-											{
-												plan: "planModeAwsBedrockCustomModelBaseId",
-												act: "actModeAwsBedrockCustomModelBaseId",
-											},
-											e.target.value,
-											currentMode,
-										)
+										handleModeFieldChange("awsBedrockCustomModelBaseId", e.target.value, currentMode)
 									}
 									value={modeFields.awsBedrockCustomModelBaseId || bedrockDefaultModelId}>
 									<VSCodeOption value="">Select a model...</VSCodeOption>

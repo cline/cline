@@ -102,7 +102,7 @@ const ApiOptions = ({
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange, handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -191,7 +191,16 @@ const ApiOptions = ({
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
 	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		const currentConfig = apiConfiguration?.[modeKey]
+		handleFieldsChange({
+			[modeKey]: {
+				...(currentConfig ?? {}),
+				apiProvider: newProvider as any,
+				modelId: "",
+				modelInfo: undefined,
+			},
+		} as any)
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}

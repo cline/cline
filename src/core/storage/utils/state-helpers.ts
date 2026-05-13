@@ -93,8 +93,8 @@ export async function readGlobalStateFromStorage(store: ClineMemento): Promise<G
 async function handleComputedProperties(result: any, stateValues: Map<string, any>): Promise<void> {
 	// 1. API Provider logic - set defaults based on existing values
 	const defaultApiProvider: ApiProvider = "openrouter"
-	result.planModeApiProvider = result.planModeApiProvider || defaultApiProvider
-	result.actModeApiProvider = result.actModeApiProvider || defaultApiProvider
+	result.planConfig = { ...result.planConfig, apiProvider: result.planConfig?.apiProvider || defaultApiProvider }
+	result.actConfig = { ...result.actConfig, apiProvider: result.actConfig?.apiProvider || defaultApiProvider }
 
 	// 2. Plan/Act separate models setting with special logic
 	const planActSeparateModelsSettingRaw = stateValues.get("planActSeparateModelsSetting")

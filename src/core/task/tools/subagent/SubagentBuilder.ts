@@ -121,7 +121,8 @@ export class SubagentBuilder {
 		}
 
 		const mode = _mode === "plan" ? "plan" : "act"
-		const provider = apiConfiguration[_mode === "plan" ? "planModeApiProvider" : "actModeApiProvider"] as ApiProvider
+		const planOrActConfig = apiConfiguration[_mode === "plan" ? "planConfig" : "actConfig"] as { apiProvider?: ApiProvider } | undefined
+		const provider = (planOrActConfig?.apiProvider ?? "anthropic") as ApiProvider
 		apiConfiguration[getProviderModelIdKey(provider as ApiProvider, mode)] = trimmedModelId
 	}
 }

@@ -1,5 +1,5 @@
 import { ApiFormat } from "./proto/cline/models"
-import type { ApiHandlerSettings } from "./storage/state-keys"
+import type { ApiHandlerOptionSettings, ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -53,6 +53,23 @@ export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 }
 
 export type ApiConfiguration = ApiHandlerOptions
+
+export interface ApiConfigProfile {
+	id: string
+	displayName?: string
+	provider: ApiProvider
+	modelId: string
+	modelInfo?: ModelInfo | OpenAiCompatibleModelInfo | LiteLLMModelInfo | OcaModelInfo
+	thinkingBudgetTokens?: number
+	reasoningEffort?: string
+	verbosity?: string
+	vsCodeLmModelSelector?: { vendor?: string; family?: string; version?: string; id?: string }
+	awsBedrockCustomSelected?: boolean
+	awsBedrockCustomModelBaseId?: string
+	sapAiCoreDeploymentId?: string
+	ocaReasoningEffort?: string
+	globalConfig: Record<string, unknown>
+}
 
 // Models
 

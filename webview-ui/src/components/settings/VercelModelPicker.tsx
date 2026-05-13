@@ -21,11 +21,10 @@ export interface VercelModelPickerProps {
 }
 
 const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentMode }) => {
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, vercelAiGatewayModels, refreshVercelAiGatewayModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	// Vercel AI Gateway uses its own model fields
-	const [searchTerm, setSearchTerm] = useState(modeFields.vercelAiGatewayModelId || "")
+	const [searchTerm, setSearchTerm] = useState(modeFields.modelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -35,34 +34,30 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 	const handleModelChange = (newModelId: string) => {
 		setSearchTerm(newModelId)
 
-		// Vercel AI Gateway uses its own model fields
-		handleModeFieldsChange(
-			{
-				vercelAiGatewayModelId: { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-				vercelAiGatewayModelInfo: { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo: vercelAiGatewayModels[newModelId],
 			},
-			{
-				vercelAiGatewayModelId: newModelId,
-				vercelAiGatewayModelInfo: vercelAiGatewayModels[newModelId],
-			},
-			currentMode,
-		)
+		} as any)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		return {
-			selectedModelId: modeFields.vercelAiGatewayModelId || "",
-			selectedModelInfo: modeFields.vercelAiGatewayModelInfo as ModelInfo | undefined,
+			selectedModelId: modeFields.modelId || "",
+			selectedModelInfo: modeFields.modelInfo as ModelInfo | undefined,
 		}
-	}, [modeFields.vercelAiGatewayModelId, modeFields.vercelAiGatewayModelInfo])
+	}, [modeFields.modelId, modeFields.modelInfo])
 
 	useMount(refreshVercelAiGatewayModels)
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.vercelAiGatewayModelId || ""
+		const currentModelId = modeFields.modelId || ""
 		setSearchTerm(currentModelId)
-	}, [modeFields.vercelAiGatewayModelId])
+	}, [modeFields.modelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {

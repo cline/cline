@@ -117,8 +117,8 @@ export async function streamAIExplanationComments(
 	// Disable thinking/reasoning for faster response
 	const configWithoutThinking: ApiConfiguration = {
 		...apiConfiguration,
-		actModeThinkingBudgetTokens: 0,
-		planModeThinkingBudgetTokens: 0,
+		planConfig: { ...apiConfiguration.planConfig, apiProvider: "anthropic" as const, thinkingBudgetTokens: 0 },
+		actConfig: { ...apiConfiguration.actConfig, apiProvider: "anthropic" as const, thinkingBudgetTokens: 0 },
 	}
 	const apiHandler = buildApiHandler(configWithoutThinking, "act")
 
@@ -303,8 +303,8 @@ async function handleCommentReply(
 	// Disable thinking/reasoning for faster response
 	const configWithoutThinking: ApiConfiguration = {
 		...apiConfiguration,
-		actModeThinkingBudgetTokens: 0,
-		planModeThinkingBudgetTokens: 0,
+		planConfig: { ...apiConfiguration.planConfig, apiProvider: "anthropic" as const, thinkingBudgetTokens: 0 },
+		actConfig: { ...apiConfiguration.actConfig, apiProvider: "anthropic" as const, thinkingBudgetTokens: 0 },
 	}
 
 	// Find the relevant file - check both absolutePath and relativePath for robustness

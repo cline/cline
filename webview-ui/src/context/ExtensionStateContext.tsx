@@ -5,15 +5,21 @@ import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import { ModeConfigSettings } from "@shared/storage/state-keys"
+import { Mode } from "@shared/storage/types"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
+	ApiConfigProfile,
+	ApiConfiguration,
 	basetenDefaultModelId,
 	basetenModels,
 	groqDefaultModelId,
@@ -118,6 +124,22 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
+
+	// Profile callbacks
+	handleCreateProfile: (profile: ApiConfigProfile) => void
+	handleUpdateProfile: (
+		profileId: string,
+		updates: Partial<
+			Pick<
+				ApiConfigProfile,
+				"displayName" | "provider" | "modelId" | "modelInfo" | "thinkingBudgetTokens" | "reasoningEffort"
+			>
+		>,
+	) => void
+	handleDeleteProfile: (profileId: string) => void
+	handleApplyProfile: (profileId: string, mode: Mode) => void
+	handleResetApiConfiguration: (mode?: Mode) => void
+	handleSetApiConfiguration: (config: ApiConfiguration) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -290,7 +312,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		hooksEnabled: false,
 		nativeToolCallSetting: false,
 		enableParallelToolCalling: false,
+		apiConfigProfiles: [],
+		lastAppliedProfileIdByMode: { plan: undefined, act: undefined } as Record<"plan" | "act", string | undefined>,
 	})
+	const stateRef = useRef(state)
+	stateRef.current = state
+
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
 
@@ -777,11 +804,132 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Auto-refresh Cline models when provider is cline
 	useEffect(() => {
 		const hasClineProvider =
-			state.apiConfiguration?.actModeApiProvider === "cline" || state.apiConfiguration?.planModeApiProvider === "cline"
+			state.apiConfiguration?.actConfig?.apiProvider === "cline" ||
+			state.apiConfiguration?.planConfig?.apiProvider === "cline"
 		if (hasClineProvider && clineModels === null) {
 			refreshClineModels()
 		}
-	}, [state.apiConfiguration?.actModeApiProvider, state.apiConfiguration?.planModeApiProvider, clineModels, refreshClineModels])
+	}, [
+		state.apiConfiguration?.actConfig?.apiProvider,
+		state.apiConfiguration?.planConfig?.apiProvider,
+		clineModels,
+		refreshClineModels,
+	])
+
+	const handleCreateProfile = useCallback((profile: ApiConfigProfile) => {
+		setState((prevState) => ({
+			...prevState,
+			apiConfigProfiles: [...prevState.apiConfigProfiles, profile],
+		}))
+		StateServiceClient.profileOperation(
+			StringRequest.create({ value: JSON.stringify({ operation: "create", profile }) }),
+		).catch((err: Error) => console.error("Failed to persist profile:", err))
+	}, [])
+
+	const handleUpdateProfile = useCallback(
+		(
+			profileId: string,
+			updates: Partial<
+				Pick<
+					ApiConfigProfile,
+					"displayName" | "provider" | "modelId" | "modelInfo" | "thinkingBudgetTokens" | "reasoningEffort"
+				>
+			>,
+		) => {
+			setState((prevState) => ({
+				...prevState,
+				apiConfigProfiles: prevState.apiConfigProfiles.map((p) => (p.id === profileId ? { ...p, ...updates } : p)),
+			}))
+			StateServiceClient.profileOperation(
+				StringRequest.create({ value: JSON.stringify({ operation: "update", profileId, profile: updates }) }),
+			).catch((err: Error) => console.error("Failed to persist profile update:", err))
+		},
+		[],
+	)
+
+	const handleDeleteProfile = useCallback((profileId: string) => {
+		setState((prevState) => {
+			const byMode = prevState.lastAppliedProfileIdByMode ?? { plan: undefined, act: undefined }
+			return {
+				...prevState,
+				apiConfigProfiles: prevState.apiConfigProfiles.filter((p) => p.id !== profileId),
+				lastAppliedProfileIdByMode: {
+					plan: byMode.plan === profileId ? undefined : byMode.plan,
+					act: byMode.act === profileId ? undefined : byMode.act,
+				},
+			}
+		})
+		StateServiceClient.profileOperation(
+			StringRequest.create({ value: JSON.stringify({ operation: "delete", profileId }) }),
+		).catch((err: Error) => console.error("Failed to persist profile delete:", err))
+	}, [])
+
+	const handleApplyProfile = useCallback((profileId: string, mode: Mode) => {
+		const currentState = stateRef.current
+		const profile = currentState.apiConfigProfiles.find((p) => p.id === profileId)
+		if (!profile) return
+
+		const prevConfig = currentState.apiConfiguration ?? {}
+		const modeKey = mode === "plan" ? "planConfig" : "actConfig"
+		const profileModeConfig: Partial<ModeConfigSettings> = {
+			apiProvider: profile.provider,
+			modelId: profile.modelId,
+			modelInfo: profile.modelInfo,
+			thinkingBudgetTokens: profile.thinkingBudgetTokens,
+			reasoningEffort: profile.reasoningEffort,
+			vsCodeLmModelSelector: profile.vsCodeLmModelSelector,
+			awsBedrockCustomSelected: profile.awsBedrockCustomSelected,
+			awsBedrockCustomModelBaseId: profile.awsBedrockCustomModelBaseId,
+			sapAiCoreDeploymentId: profile.sapAiCoreDeploymentId,
+			ocaReasoningEffort: profile.ocaReasoningEffort,
+		}
+		const mergedConfig = {
+			...prevConfig,
+			[modeKey]: { ...(prevConfig[modeKey] ?? {}), ...profileModeConfig, globalConfig: undefined },
+			...profile.globalConfig,
+		}
+
+		setState((prevState) => ({
+			...prevState,
+			apiConfiguration: mergedConfig as any,
+			lastAppliedProfileIdByMode: {
+				...(prevState.lastAppliedProfileIdByMode ?? { plan: undefined, act: undefined }),
+				[mode]: profileId,
+			},
+		}))
+
+		ModelsServiceClient.updateApiConfigurationProto(
+			UpdateApiConfigurationRequest.create({
+				apiConfiguration: convertApiConfigurationToProto(mergedConfig as any),
+			}),
+		).catch((err: Error) => console.error("Failed to sync profile config:", err))
+
+		StateServiceClient.profileOperation(
+			StringRequest.create({ value: JSON.stringify({ operation: "apply", profileId, mode }) }),
+		).catch((err: Error) => console.error("Failed to apply profile:", err))
+	}, [])
+
+	const handleResetApiConfiguration = useCallback((mode?: Mode) => {
+		setState((prevState) => ({
+			...prevState,
+			apiConfiguration: mode
+				? {
+						...prevState.apiConfiguration,
+						[mode === "plan" ? "planConfig" : "actConfig"]: { apiProvider: "openrouter" } as any,
+					}
+				: ({
+						planConfig: { apiProvider: "openrouter" },
+						actConfig: { apiProvider: "openrouter" },
+					} as any),
+		}))
+	}, [])
+
+	const handleSetApiConfiguration = useCallback((config: ApiConfiguration) => {
+		setState((prevState) => ({
+			...prevState,
+			apiConfiguration: config as any,
+		}))
+	}, [])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -920,6 +1068,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,
+		handleCreateProfile,
+		handleUpdateProfile,
+		handleDeleteProfile,
+		handleApplyProfile,
+		handleResetApiConfiguration,
+		handleSetApiConfiguration,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

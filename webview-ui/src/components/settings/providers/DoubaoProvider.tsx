@@ -41,11 +41,7 @@ export const DoubaoProvider = ({ showModelOptions, isPopup, currentMode }: Douba
 						label="Model"
 						models={doubaoModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

@@ -487,7 +487,7 @@ export class Task {
 			},
 		}
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const currentProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+		const currentProvider = mode === "plan" ? apiConfiguration.planConfig?.apiProvider : apiConfiguration.actConfig?.apiProvider
 
 		// Now that ulid is initialized, we can build the API handler
 		this.api = buildApiHandler(effectiveApiConfiguration, mode)
@@ -1633,7 +1633,7 @@ export class Task {
 				const apiConfig = this.stateManager.getApiConfiguration()
 				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 				const currentProvider = (
-					currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+					currentMode === "plan" ? apiConfig.planConfig?.apiProvider : apiConfig.actConfig?.apiProvider
 				) as string
 				const currentModelId = this.api.getModel().id
 
@@ -1740,7 +1740,7 @@ export class Task {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const providerId = (mode === "plan" ? apiConfig.planConfig?.apiProvider : apiConfig.actConfig?.apiProvider) as string
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return { model, providerId, customPrompt, mode }
 	}

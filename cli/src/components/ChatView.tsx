@@ -503,8 +503,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Get provider based on current mode (computed first since modelId depends on it)
 	const provider = useMemo(() => {
 		const stateManager = StateManager.get()
-		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		return (stateManager.getGlobalSettingsKey(providerKey) as string) || ""
+		const configKey = mode === "act" ? "actConfig" : "planConfig"
+		const config = stateManager.getGlobalSettingsKey(configKey)
+		return (config?.apiProvider as string) || ""
 	}, [mode, activePanel])
 
 	// Get model ID based on current mode and provider
@@ -872,8 +873,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				const apiConfig = StateManager.get().getApiConfiguration()
 				const provider =
 					mode === "act"
-						? apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
-						: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
+						? apiConfig.actConfig?.apiProvider || apiConfig.planConfig?.apiProvider
+						: apiConfig.planConfig?.apiProvider || apiConfig.actConfig?.apiProvider
 				const initialMode = !provider ? undefined : provider === "cline" ? "featured-models" : "model-picker"
 				const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
 				setActivePanel({ type: "settings", initialMode, initialModelKey })

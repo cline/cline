@@ -1,7 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
+import type { ApiConfigProfile } from "@/shared/api"
 import { HistoryItem } from "@/shared/HistoryItem"
+import type { ModeConfigSettings } from "@/shared/storage/state-keys"
 import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 
@@ -661,6 +663,328 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 	} catch (error) {
 		Logger.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
 		// Continue execution - cleanup failure shouldn't break extension startup
+	}
+}
+
+// ─── Flat planMode*/actMode* → nested planConfig/actConfig ─────────────────
+
+const PLAN_MODE_KEYS = [
+	"planModeApiProvider",
+	"planModeApiModelId",
+	"planModeThinkingBudgetTokens",
+	"planModeReasoningEffort",
+	"planModeVsCodeLmModelSelector",
+	"planModeAwsBedrockCustomSelected",
+	"planModeAwsBedrockCustomModelBaseId",
+	"planModeOpenRouterModelId",
+	"planModeOpenRouterModelInfo",
+	"planModeOpenAiModelId",
+	"planModeOpenAiModelInfo",
+	"planModeOllamaModelId",
+	"planModeLmStudioModelId",
+	"planModeLiteLlmModelId",
+	"planModeLiteLlmModelInfo",
+	"planModeRequestyModelId",
+	"planModeRequestyModelInfo",
+	"planModeTogetherModelId",
+	"planModeFireworksModelId",
+	"planModeSapAiCoreModelId",
+	"planModeGroqModelId",
+	"planModeGroqModelInfo",
+	"planModeHuggingFaceModelId",
+	"planModeHuggingFaceModelInfo",
+	"planModeClineModelId",
+	"planModeBasetenModelId",
+	"planModeHicapModelId",
+	"planModeAihubmixModelId",
+	"planModeNousResearchModelId",
+	"planModeVercelAiGatewayModelId",
+] as const
+
+const ACT_MODE_KEYS = PLAN_MODE_KEYS.map((k) => k.replace(/^planMode/, "actMode"))
+
+const UNIFIED_FLAT_TO_NESTED: Record<string, keyof ModeConfigSettings> = {
+	planModeApiProvider: "apiProvider",
+	planModeApiModelId: "modelId",
+	planModeThinkingBudgetTokens: "thinkingBudgetTokens",
+	planModeReasoningEffort: "reasoningEffort",
+	planModeVsCodeLmModelSelector: "vsCodeLmModelSelector",
+	planModeAwsBedrockCustomSelected: "awsBedrockCustomSelected",
+	planModeAwsBedrockCustomModelBaseId: "awsBedrockCustomModelBaseId",
+	planModeSapAiCoreModelId: "sapAiCoreDeploymentId",
+}
+
+const actUnified: Record<string, keyof ModeConfigSettings> = {}
+for (const [flatKey, nestedField] of Object.entries(UNIFIED_FLAT_TO_NESTED)) {
+	actUnified[flatKey.replace(/^planMode/, "actMode")] = nestedField
+}
+
+const PROVIDER_MODEL_ID_MAP: Record<string, string> = {
+	anthropic: "planModeApiModelId",
+	"claude-code": "planModeApiModelId",
+	bedrock: "planModeApiModelId",
+	vertex: "planModeApiModelId",
+	gemini: "planModeApiModelId",
+	"openai-native": "planModeApiModelId",
+	"openai-codex": "planModeApiModelId",
+	deepseek: "planModeApiModelId",
+	qwen: "planModeApiModelId",
+	"qwen-code": "planModeApiModelId",
+	doubao: "planModeApiModelId",
+	mistral: "planModeApiModelId",
+	asksage: "planModeApiModelId",
+	moonshot: "planModeApiModelId",
+	nebius: "planModeApiModelId",
+	sambanova: "planModeApiModelId",
+	cerebras: "planModeApiModelId",
+	xai: "planModeApiModelId",
+	"huawei-cloud-maas": "planModeApiModelId",
+	dify: "planModeApiModelId",
+	zai: "planModeApiModelId",
+	oca: "planModeApiModelId",
+	minimax: "planModeApiModelId",
+	wandb: "planModeApiModelId",
+	"vscode-lm": "planModeVsCodeLmModelSelector",
+	openrouter: "planModeOpenRouterModelId",
+	cline: "planModeClineModelId",
+	openai: "planModeOpenAiModelId",
+	ollama: "planModeOllamaModelId",
+	lmstudio: "planModeLmStudioModelId",
+	litellm: "planModeLiteLlmModelId",
+	requesty: "planModeRequestyModelId",
+	together: "planModeTogetherModelId",
+	fireworks: "planModeFireworksModelId",
+	groq: "planModeGroqModelId",
+	baseten: "planModeBasetenModelId",
+	huggingface: "planModeHuggingFaceModelId",
+	sapaicore: "planModeSapAiCoreModelId",
+	hicap: "planModeHicapModelId",
+	aihubmix: "planModeAihubmixModelId",
+	nousResearch: "planModeNousResearchModelId",
+	"vercel-ai-gateway": "planModeVercelAiGatewayModelId",
+}
+
+const PROVIDER_MODEL_INFO_MAP: Record<string, string> = {
+	openrouter: "planModeOpenRouterModelInfo",
+	openai: "planModeOpenAiModelInfo",
+	litellm: "planModeLiteLlmModelInfo",
+	requesty: "planModeRequestyModelInfo",
+	groq: "planModeGroqModelInfo",
+	huggingface: "planModeHuggingFaceModelInfo",
+}
+
+function actKey(planKey: string): string {
+	return planKey.replace(/^planMode/, "actMode")
+}
+
+async function readModeConfig(
+	context: vscode.ExtensionContext,
+	prefix: "planMode" | "actMode",
+): Promise<ModeConfigSettings | undefined> {
+	const provider = await context.globalState.get<string>(`${prefix}ApiProvider`)
+	if (provider === undefined) {
+		return undefined
+	}
+
+	const config: Record<string, any> = { apiProvider: provider }
+
+	// Read unified fields
+	const unifiedMap = prefix === "planMode" ? UNIFIED_FLAT_TO_NESTED : actUnified
+	for (const [flatKey, nestedField] of Object.entries(unifiedMap)) {
+		const value = await context.globalState.get<any>(flatKey)
+		if (value !== undefined) {
+			config[nestedField] = value
+		}
+	}
+
+	// Resolve modelId from provider-specific key (fallback to generic)
+	const modelIdKey = PROVIDER_MODEL_ID_MAP[provider]
+	if (modelIdKey) {
+		const prefixedKey = modelIdKey.startsWith(prefix) ? modelIdKey : `${prefix}${modelIdKey.slice("planMode".length)}`
+		const modelId = await context.globalState.get<string | undefined>(prefixedKey)
+		if (modelId !== undefined) {
+			config.modelId = modelId
+		}
+	}
+
+	// Resolve modelInfo from provider-specific key
+	const modelInfoKey = PROVIDER_MODEL_INFO_MAP[provider]
+	if (modelInfoKey) {
+		const prefixedKey = modelInfoKey.startsWith(prefix)
+			? modelInfoKey
+			: `${prefix}${modelInfoKey.slice("planMode".length)}`
+		const modelInfo = await context.globalState.get<any>(prefixedKey)
+		if (modelInfo !== undefined) {
+			config.modelInfo = modelInfo
+		}
+	}
+
+	return config as ModeConfigSettings
+}
+
+async function deleteKeys(context: vscode.ExtensionContext, keys: readonly string[]): Promise<void> {
+	for (const key of keys) {
+		await context.globalState.update(key, undefined)
+	}
+}
+
+export async function migrateFlatToNestedModeConfig(context: vscode.ExtensionContext) {
+	try {
+		const existingPlanConfig = await context.globalState.get("planConfig")
+		if (existingPlanConfig !== undefined) {
+			Logger.log("[Storage Migration] planConfig already exists, skipping flat-to-nested migration")
+			return
+		}
+
+		Logger.log("[Storage Migration] Starting flat-to-nested mode config migration...")
+
+		// 2-3. Read planConfig and actConfig from flat keys
+		const planConfig = await readModeConfig(context, "planMode")
+		const actConfig = await readModeConfig(context, "actMode")
+
+		// Only write if we found data
+		if (planConfig) {
+			await context.globalState.update("planConfig", planConfig)
+			Logger.log("[Storage Migration] planConfig written")
+		}
+		if (actConfig) {
+			await context.globalState.update("actConfig", actConfig)
+			Logger.log("[Storage Migration] actConfig written")
+		}
+
+		// 5. Delete all old planMode*/actMode* keys
+		const allFlatKeys = [...PLAN_MODE_KEYS, ...ACT_MODE_KEYS]
+		const existingFlatKeys: string[] = []
+		for (const key of allFlatKeys) {
+			const value = await context.globalState.get(key)
+			if (value !== undefined) {
+				existingFlatKeys.push(key)
+			}
+		}
+		if (existingFlatKeys.length > 0) {
+			await deleteKeys(context, existingFlatKeys)
+			Logger.log(`[Storage Migration] Deleted ${existingFlatKeys.length} old flat keys`)
+		}
+
+		// 6. Convert old ApiConfigProfile entries
+		const profiles = await context.globalState.get<Array<Record<string, any>>>("apiConfigProfiles")
+		if (Array.isArray(profiles) && profiles.length > 0) {
+			const convertedProfiles = profiles.map((profile) => {
+				// Old format has config, new format has direct properties + globalConfig
+				if (profile.config) {
+					const oldConfig = profile.config as Record<string, any>
+					const planProvider = oldConfig.planModeApiProvider as string | undefined
+					const actProvider = oldConfig.actModeApiProvider as string | undefined
+					const provider = planProvider || actProvider || "openrouter"
+
+					// Extract modelId based on provider
+					let modelId: string | undefined
+					const modelIdOldKey = PROVIDER_MODEL_ID_MAP[provider]
+					if (modelIdOldKey) {
+						modelId = oldConfig[modelIdOldKey] ?? oldConfig[actKey(modelIdOldKey)]
+					}
+					if (!modelId) {
+						modelId = (oldConfig.planModeApiModelId ?? oldConfig.actModeApiModelId) as string | undefined
+					}
+
+					// Extract modelInfo based on provider
+					let modelInfo: any
+					const modelInfoOldKey = PROVIDER_MODEL_INFO_MAP[provider]
+					if (modelInfoOldKey) {
+						modelInfo = oldConfig[modelInfoOldKey] ?? oldConfig[actKey(modelInfoOldKey)]
+					}
+
+					const thinkingBudgetTokens = (oldConfig.planModeThinkingBudgetTokens ??
+						oldConfig.actModeThinkingBudgetTokens) as number | undefined
+					const reasoningEffort = (oldConfig.planModeReasoningEffort ??
+						oldConfig.actModeReasoningEffort) as string | undefined
+					const vsCodeLmModelSelector = (oldConfig.planModeVsCodeLmModelSelector ??
+						oldConfig.actModeVsCodeLmModelSelector) as any
+					const awsBedrockCustomSelected = (oldConfig.planModeAwsBedrockCustomSelected ??
+						oldConfig.actModeAwsBedrockCustomSelected) as boolean | undefined
+					const awsBedrockCustomModelBaseId = (oldConfig.planModeAwsBedrockCustomModelBaseId ??
+						oldConfig.actModeAwsBedrockCustomModelBaseId) as string | undefined
+					const sapAiCoreDeploymentId = (oldConfig.planModeSapAiCoreModelId ??
+						oldConfig.actModeSapAiCoreModelId) as string | undefined
+
+					// The globalConfig is everything from old config minus the fields we lifted out
+					const liftedKeys = new Set<string>()
+					for (const map of [Object.keys(UNIFIED_FLAT_TO_NESTED), Object.keys(actUnified)]) {
+						for (const k of map) {
+							liftedKeys.add(k)
+						}
+					}
+					for (const map of [PROVIDER_MODEL_ID_MAP, PROVIDER_MODEL_INFO_MAP]) {
+						for (const k of Object.values(map)) {
+							liftedKeys.add(k)
+							liftedKeys.add(actKey(k))
+						}
+					}
+
+					const globalConfig: Record<string, unknown> = {}
+					for (const [key, value] of Object.entries(oldConfig)) {
+						if (!liftedKeys.has(key)) {
+							globalConfig[key] = value
+						}
+					}
+
+					const result: Record<string, any> = {
+						id: profile.id,
+						provider,
+						globalConfig,
+					}
+					if (profile.displayName !== undefined) {
+						result.displayName = profile.displayName
+					}
+					if (modelId !== undefined) {
+						result.modelId = modelId
+					}
+					if (modelInfo !== undefined) {
+						result.modelInfo = modelInfo
+					}
+					if (thinkingBudgetTokens !== undefined) {
+						result.thinkingBudgetTokens = thinkingBudgetTokens
+					}
+					if (reasoningEffort !== undefined) {
+						result.reasoningEffort = reasoningEffort
+					}
+					if (vsCodeLmModelSelector !== undefined) {
+						result.vsCodeLmModelSelector = vsCodeLmModelSelector
+					}
+					if (awsBedrockCustomSelected !== undefined) {
+						result.awsBedrockCustomSelected = awsBedrockCustomSelected
+					}
+					if (awsBedrockCustomModelBaseId !== undefined) {
+						result.awsBedrockCustomModelBaseId = awsBedrockCustomModelBaseId
+					}
+					if (sapAiCoreDeploymentId !== undefined) {
+						result.sapAiCoreDeploymentId = sapAiCoreDeploymentId
+					}
+					return result as ApiConfigProfile
+				}
+				return profile as ApiConfigProfile
+			})
+
+			await context.globalState.update("apiConfigProfiles", convertedProfiles)
+			Logger.log(`[Storage Migration] Converted ${convertedProfiles.length} API config profiles`)
+		}
+
+		// 7. Convert old lastAppliedProfileId to lastAppliedProfileIdByMode
+		const lastAppliedProfileId = await context.globalState.get<string | undefined>("lastAppliedProfileId")
+		if (lastAppliedProfileId !== undefined) {
+			const currentMode = await context.globalState.get<string>("mode")
+			const mode = currentMode === "plan" ? "plan" : "act"
+			await context.globalState.update("lastAppliedProfileIdByMode", {
+				plan: mode === "plan" ? lastAppliedProfileId : undefined,
+				act: mode === "act" ? lastAppliedProfileId : undefined,
+			})
+			await context.globalState.update("lastAppliedProfileId", undefined)
+			Logger.log(`[Storage Migration] Converted lastAppliedProfileId to lastAppliedProfileIdByMode`)
+		}
+
+		Logger.log("[Storage Migration] Flat-to-nested mode config migration completed")
+	} catch (error) {
+		Logger.error("[Storage Migration] Failed to migrate flat to nested mode config:", error)
 	}
 }
 

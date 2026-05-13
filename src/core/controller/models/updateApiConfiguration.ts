@@ -99,7 +99,8 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			}
 
 			// Check if mode-specific configurations should be kept separate
-			const separateModeConfigs = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+			const currentApiConfig = controller.stateManager.getApiConfiguration()
+			const separateModeConfigs = currentApiConfig.planConfig?.apiProvider !== currentApiConfig.actConfig?.apiProvider
 
 			// Process entries that are in the mask
 			for (const [key, value] of Object.entries(protoOptions)) {

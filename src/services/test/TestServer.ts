@@ -224,8 +224,8 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 						const currentConfig = visibleWebview.controller.stateManager.getApiConfiguration()
 						visibleWebview.controller.stateManager.setApiConfiguration({
 							...currentConfig,
-							planModeApiProvider: "cline",
-							actModeApiProvider: "cline",
+							planConfig: { apiProvider: "cline" as ApiProvider },
+							actConfig: { apiProvider: "cline" as ApiProvider },
 						})
 
 						// Post state to webview to reflect changes

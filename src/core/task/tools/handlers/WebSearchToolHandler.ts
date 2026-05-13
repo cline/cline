@@ -51,7 +51,8 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 			// Extract provider information for telemetry
 			const apiConfig = config.services.stateManager.getApiConfiguration()
 			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+			const modeConfig = currentMode === "plan" ? apiConfig?.planConfig : apiConfig?.actConfig
+		const provider = modeConfig?.apiProvider ?? "anthropic"
 
 			// Check if Cline web tools are enabled (both user setting and feature flag)
 			const clineWebToolsEnabled = config.services.stateManager.getGlobalSettingsKey("clineWebToolsEnabled")

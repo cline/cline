@@ -40,7 +40,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
 
 	// Get mode-specific fields
-	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
+	const { modelInfo: openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -113,7 +113,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			<DebouncedTextField
 				initialValue={selectedModelId || ""}
 				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+					handleModeFieldChange("modelId", value, currentMode)
 				}
 				placeholder={"Enter Model ID..."}
 				style={{ width: "100%", marginBottom: 10 }}>
@@ -264,27 +264,19 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							const isChecked = e.target.checked === true
 							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
+							handleModeFieldChange("modelInfo", modelInfo, currentMode)
 						}}>
 						Supports Images
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.isR1FormatRequired}
+						checked={!!(openAiModelInfo as any)?.isR1FormatRequired}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
 							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-							modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
+							modelInfo = { ...modelInfo as any, isR1FormatRequired: isChecked } as any
 
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
+							handleModeFieldChange("modelInfo", modelInfo, currentMode)
 						}}>
 						Enable R1 messages format
 					</VSCodeCheckbox>
@@ -299,11 +291,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(value)
-								handleModeFieldChange(
-									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-									modelInfo,
-									currentMode,
-								)
+								handleModeFieldChange("modelInfo", modelInfo, currentMode)
 							}}
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Context Window Size</span>
@@ -318,11 +306,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.maxTokens = Number(value)
-								handleModeFieldChange(
-									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-									modelInfo,
-									currentMode,
-								)
+								handleModeFieldChange("modelInfo", modelInfo, currentMode)
 							}}
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
@@ -339,11 +323,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.inputPrice = parsePrice(value, openAiModelInfoSaneDefaults.inputPrice ?? 0)
-								handleModeFieldChange(
-									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-									modelInfo,
-									currentMode,
-								)
+								handleModeFieldChange("modelInfo", modelInfo, currentMode)
 							}}
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
@@ -358,11 +338,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.outputPrice = parsePrice(value, openAiModelInfoSaneDefaults.outputPrice ?? 0)
-								handleModeFieldChange(
-									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-									modelInfo,
-									currentMode,
-								)
+								handleModeFieldChange("modelInfo", modelInfo, currentMode)
 							}}
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
@@ -379,11 +355,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.temperature = parsePrice(value, openAiModelInfoSaneDefaults.temperature ?? 0)
-								handleModeFieldChange(
-									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-									modelInfo,
-									currentMode,
-								)
+								handleModeFieldChange("modelInfo", modelInfo, currentMode)
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
 						</DebouncedTextField>

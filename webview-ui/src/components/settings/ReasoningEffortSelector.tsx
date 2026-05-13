@@ -3,7 +3,6 @@ import { memo } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ReasoningEffortSelectorProps {
@@ -23,10 +22,10 @@ const ReasoningEffortSelector = ({
 }: ReasoningEffortSelectorProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const modeConfig = currentMode === "plan" ? apiConfiguration?.planConfig : apiConfiguration?.actConfig
 	const selectedEffort =
-		isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
-			? modeFields.reasoningEffort
+		isOpenaiReasoningEffort(modeConfig?.reasoningEffort) && allowedEfforts.includes(modeConfig?.reasoningEffort)
+			? modeConfig?.reasoningEffort
 			: defaultEffort
 
 	return (
@@ -34,7 +33,7 @@ const ReasoningEffortSelector = ({
 			<Label className="text-xs font-medium">{label}</Label>
 			<Select
 				onValueChange={(value) =>
-					handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, value, currentMode)
+					handleModeFieldChange("reasoningEffort", value, currentMode)
 				}
 				value={selectedEffort}>
 				<SelectTrigger className="w-full mt-1">

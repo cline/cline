@@ -37,6 +37,7 @@ service StateService {
   rpc refreshRemoteConfig(EmptyRequest) returns (Empty);
   rpc testOtelConnection(EmptyRequest) returns (TestConnectionResult);
   rpc testPromptUploading(EmptyRequest) returns (TestConnectionResult);
+  rpc profileOperation(StringRequest) returns (Empty);
 }
 
 message AutoApprovalActions {
@@ -154,97 +155,12 @@ message Settings {
   optional string oca_mode = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
-  optional string plan_mode_api_model_id = 44;
-  optional int64 plan_mode_thinking_budget_tokens = 45;
-  optional string gemini_plan_mode_thinking_level = 46;
-  optional string plan_mode_reasoning_effort = 47;
-  optional string plan_mode_verbosity = 48;
-  optional LanguageModelChatSelector plan_mode_vs_code_lm_model_selector = 49;
-  optional bool plan_mode_aws_bedrock_custom_selected = 50;
-  optional string plan_mode_aws_bedrock_custom_model_base_id = 51;
-  optional string plan_mode_open_router_model_id = 52;
-  optional OpenRouterModelInfo plan_mode_open_router_model_info = 53;
-  optional string plan_mode_open_ai_model_id = 54;
-  optional OpenAiCompatibleModelInfo plan_mode_open_ai_model_info = 55;
-  optional string plan_mode_ollama_model_id = 56;
-  optional string plan_mode_lm_studio_model_id = 57;
-  optional string plan_mode_lite_llm_model_id = 58;
-  optional LiteLLMModelInfo plan_mode_lite_llm_model_info = 59;
-  optional string plan_mode_requesty_model_id = 60;
-  optional OpenRouterModelInfo plan_mode_requesty_model_info = 61;
-  optional string plan_mode_together_model_id = 62;
-  optional string plan_mode_fireworks_model_id = 63;
-  optional string plan_mode_sap_ai_core_model_id = 64;
-  optional string plan_mode_sap_ai_core_deployment_id = 65;
-  optional string plan_mode_groq_model_id = 66;
-  optional OpenRouterModelInfo plan_mode_groq_model_info = 67;
-  optional string plan_mode_baseten_model_id = 68;
-  optional OpenRouterModelInfo plan_mode_baseten_model_info = 69;
-  optional string plan_mode_hugging_face_model_id = 70;
-  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 71;
-  optional string plan_mode_huawei_cloud_maas_model_id = 72;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 73;
-  optional string plan_mode_oca_model_id = 74;
-  optional OcaModelInfo plan_mode_oca_model_info = 75;
-  optional string plan_mode_oca_reasoning_effort = 76;
-  optional string plan_mode_aihubmix_model_id = 77;
-  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 78;
-  optional string plan_mode_hicap_model_id = 79;
-  optional OpenRouterModelInfo plan_mode_hicap_model_info = 80;
-  optional string plan_mode_nous_research_model_id = 81;
-  optional string plan_mode_vercel_ai_gateway_model_id = 82;
-  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 83;
-  optional string act_mode_api_model_id = 84;
-  optional int64 act_mode_thinking_budget_tokens = 85;
-  optional string gemini_act_mode_thinking_level = 86;
-  optional string act_mode_reasoning_effort = 87;
-  optional string act_mode_verbosity = 88;
-  optional LanguageModelChatSelector act_mode_vs_code_lm_model_selector = 89;
-  optional bool act_mode_aws_bedrock_custom_selected = 90;
-  optional string act_mode_aws_bedrock_custom_model_base_id = 91;
-  optional string act_mode_open_router_model_id = 92;
-  optional OpenRouterModelInfo act_mode_open_router_model_info = 93;
-  optional string act_mode_open_ai_model_id = 94;
-  optional OpenAiCompatibleModelInfo act_mode_open_ai_model_info = 95;
-  optional string act_mode_ollama_model_id = 96;
-  optional string act_mode_lm_studio_model_id = 97;
-  optional string act_mode_lite_llm_model_id = 98;
-  optional LiteLLMModelInfo act_mode_lite_llm_model_info = 99;
-  optional string act_mode_requesty_model_id = 100;
-  optional OpenRouterModelInfo act_mode_requesty_model_info = 101;
-  optional string act_mode_together_model_id = 102;
-  optional string act_mode_fireworks_model_id = 103;
-  optional string act_mode_sap_ai_core_model_id = 104;
-  optional string act_mode_sap_ai_core_deployment_id = 105;
-  optional string act_mode_groq_model_id = 106;
-  optional OpenRouterModelInfo act_mode_groq_model_info = 107;
-  optional string act_mode_baseten_model_id = 108;
-  optional OpenRouterModelInfo act_mode_baseten_model_info = 109;
-  optional string act_mode_hugging_face_model_id = 110;
-  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 111;
-  optional string act_mode_huawei_cloud_maas_model_id = 112;
-  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 113;
-  optional string act_mode_oca_model_id = 114;
-  optional OcaModelInfo act_mode_oca_model_info = 115;
-  optional string act_mode_oca_reasoning_effort = 116;
-  optional string act_mode_aihubmix_model_id = 117;
-  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 118;
-  optional string act_mode_hicap_model_id = 119;
-  optional OpenRouterModelInfo act_mode_hicap_model_info = 120;
-  optional string act_mode_nous_research_model_id = 121;
-  optional string act_mode_vercel_ai_gateway_model_id = 122;
-  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 123;
-  optional ApiProvider plan_mode_api_provider = 124;
-  optional ApiProvider act_mode_api_provider = 125;
-  optional string hicap_model_id = 126;
-  optional string lm_studio_model_id = 127;
   optional AutoApprovalSettings auto_approval_settings = 128;
   optional string global_cline_rules_toggles = 129;
   optional string global_workflow_toggles = 130;
   optional string global_skills_toggles = 131;
   optional BrowserSettings browser_settings = 132;
   optional string telemetry_setting = 133;
-  optional bool plan_act_separate_models_setting = 134;
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
@@ -281,12 +197,10 @@ message Settings {
   optional bool auto_approve_all_toggled = 174;
   optional bool double_check_completion_enabled = 176;
   map<string, string> open_ai_headers = 177;
-  optional string plan_mode_cline_model_id = 178;
-  optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
-  optional string act_mode_cline_model_id = 180;
-  optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
   optional bool lazy_teammate_mode_enabled = 183;
+  optional ModeConfig plan_config = 184;
+  optional ModeConfig act_config = 185;
 }
 
 message State {
@@ -391,11 +305,11 @@ message UpdateSettingsRequest {
   reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 23; // was dictation_settings (dictation removed)
   reserved 38; // was skills_enabled (removed - now always enabled)
-
+  reserved 4; // was plan_act_separate_models_setting
+  
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
   optional string telemetry_setting = 3;
-  optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
   optional bool mcp_marketplace_enabled = 6;
   optional int32 shell_integration_timeout = 8;

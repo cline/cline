@@ -41,11 +41,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 						label="Model"
 						models={deepSeekModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

@@ -189,19 +189,19 @@ export function getConfiguredProviders(
 	// OpenAI Compatible - requires base URL and API key, OR has model configured
 	if (
 		(apiConfiguration.openAiBaseUrl && apiConfiguration.openAiApiKey) ||
-		apiConfiguration.planModeOpenAiModelId ||
-		apiConfiguration.actModeOpenAiModelId
+		apiConfiguration.planConfig?.modelId ||
+		apiConfiguration.actConfig?.modelId
 	) {
 		configured.push("openai")
 	}
 
 	// Ollama - local provider, check base URL OR model configured
-	if (apiConfiguration.ollamaBaseUrl || apiConfiguration.planModeOllamaModelId || apiConfiguration.actModeOllamaModelId) {
+	if (apiConfiguration.ollamaBaseUrl || apiConfiguration.planConfig?.modelId || apiConfiguration.actConfig?.modelId) {
 		configured.push("ollama")
 	}
 
 	// LM Studio - local provider, check base URL OR model configured
-	if (apiConfiguration.lmStudioBaseUrl || apiConfiguration.planModeLmStudioModelId || apiConfiguration.actModeLmStudioModelId) {
+	if (apiConfiguration.lmStudioBaseUrl || apiConfiguration.planConfig?.modelId || apiConfiguration.actConfig?.modelId) {
 		configured.push("lmstudio")
 	}
 
@@ -209,8 +209,8 @@ export function getConfiguredProviders(
 	if (
 		apiConfiguration.liteLlmBaseUrl ||
 		apiConfiguration.liteLlmApiKey ||
-		apiConfiguration.planModeLiteLlmModelId ||
-		apiConfiguration.actModeLiteLlmModelId
+		apiConfiguration.planConfig?.modelId ||
+		apiConfiguration.actConfig?.modelId
 	) {
 		configured.push("litellm")
 	}

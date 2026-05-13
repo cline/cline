@@ -130,8 +130,8 @@ export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan
 	}
 
 	// For providers without a specific key (anthropic, gemini, bedrock, etc.),
-	// they use the generic actModeApiModelId/planModeApiModelId
-	return `${mode}ModeApiModelId`
+	// they use {mode}Config.modelId nested in the config object
+	return `${mode}ModeApiModelId` as SettingsKey
 }
 
 export function getProviderDefaultModelId(provider: ApiProvider): string | null {

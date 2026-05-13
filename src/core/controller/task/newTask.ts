@@ -51,11 +51,15 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 					customArgs: request.taskSettings.browserSettings.customArgs,
 				},
 			}),
-			...(request.taskSettings?.planModeReasoningEffort !== undefined && {
-				planModeReasoningEffort: normalizeOpenaiReasoningEffort(request.taskSettings.planModeReasoningEffort),
+			...(request.taskSettings?.planConfig?.reasoningEffort !== undefined && {
+				planConfig: {
+					reasoningEffort: normalizeOpenaiReasoningEffort(request.taskSettings.planConfig.reasoningEffort),
+				},
 			}),
-			...(request.taskSettings?.actModeReasoningEffort !== undefined && {
-				actModeReasoningEffort: normalizeOpenaiReasoningEffort(request.taskSettings.actModeReasoningEffort),
+			...(request.taskSettings?.actConfig?.reasoningEffort !== undefined && {
+				actConfig: {
+					reasoningEffort: normalizeOpenaiReasoningEffort(request.taskSettings.actConfig.reasoningEffort),
+				},
 			}),
 			...(request.taskSettings?.mode !== undefined && {
 				mode: convertPlanActMode(request.taskSettings.mode),
@@ -63,11 +67,15 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 			...(request.taskSettings?.customPrompt === "compact" && {
 				customPrompt: "compact",
 			}),
-			...(request.taskSettings?.planModeApiProvider !== undefined && {
-				planModeApiProvider: convertProtoToApiProvider(request.taskSettings.planModeApiProvider),
+			...(request.taskSettings?.planConfig?.apiProvider !== undefined && {
+				planConfig: {
+					apiProvider: convertProtoToApiProvider(request.taskSettings.planConfig.apiProvider),
+				},
 			}),
-			...(request.taskSettings?.actModeApiProvider !== undefined && {
-				actModeApiProvider: convertProtoToApiProvider(request.taskSettings.actModeApiProvider),
+			...(request.taskSettings?.actConfig?.apiProvider !== undefined && {
+				actConfig: {
+					apiProvider: convertProtoToApiProvider(request.taskSettings.actConfig.apiProvider),
+				},
 			}),
 		}).filter(([_, value]) => value !== undefined),
 	)

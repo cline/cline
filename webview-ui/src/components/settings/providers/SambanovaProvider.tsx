@@ -41,11 +41,7 @@ export const SambanovaProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 						label="Model"
 						models={sambanovaModels}
 						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
+							handleModeFieldChange("modelId", e.target.value, currentMode)
 						}
 						selectedModelId={selectedModelId}
 					/>

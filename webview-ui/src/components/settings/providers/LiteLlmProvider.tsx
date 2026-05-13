@@ -25,7 +25,7 @@ interface LiteLlmProviderProps {
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [isLoading, setIsLoading] = useState(false)
 
@@ -33,17 +33,14 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
-		handleModeFieldsChange(
-			{
-				liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
-				liteLlmModelInfo: { plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo,
 			},
-			{
-				liteLlmModelId: newModelId,
-				liteLlmModelInfo: modelInfo,
-			},
-			currentMode,
-		)
+		} as any)
 	}
 
 	const onRefreshModels = async () => {

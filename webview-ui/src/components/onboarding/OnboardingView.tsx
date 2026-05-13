@@ -309,12 +309,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			const modelSelected = (updateModelId && selectedModelId) || undefined
 			if (modelSelected) {
 				await handleFieldsChange({
-					planModeOpenRouterModelId: selectedModelId,
-					actModeOpenRouterModelId: selectedModelId,
-					planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-					actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-					planModeApiProvider: "cline",
-					actModeApiProvider: "cline",
+					planConfig: { apiProvider: "cline", modelId: selectedModelId, modelInfo: openRouterModels[selectedModelId] },
+					actConfig: { apiProvider: "cline", modelId: selectedModelId, modelInfo: openRouterModels[selectedModelId] },
 				})
 			}
 			hideAccount()

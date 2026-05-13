@@ -19,9 +19,9 @@ export interface HuggingFaceModelPickerProps {
 
 const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { apiConfiguration, huggingFaceModels: dynamicModels, setHuggingFaceModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.huggingFaceModelId || huggingFaceDefaultModelId)
+	const [searchTerm, setSearchTerm] = useState(modeFields.modelId || huggingFaceDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -32,18 +32,16 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 		const allModels = { ...huggingFaceModels, ...dynamicModels }
 		const modelInfo = allModels[newModelId as keyof typeof allModels]
 
-		handleModeFieldsChange(
-			{
-				huggingFaceModelId: { plan: "planModeHuggingFaceModelId", act: "actModeHuggingFaceModelId" },
-				huggingFaceModelInfo: { plan: "planModeHuggingFaceModelInfo", act: "actModeHuggingFaceModelInfo" },
-			},
-			{
-				huggingFaceModelId: newModelId,
-				huggingFaceModelInfo: modelInfo,
-			},
-			currentMode,
-		)
 		setSearchTerm(newModelId)
+
+		const modeKey = currentMode === "plan" ? "planConfig" : "actConfig"
+		handleFieldsChange({
+			[modeKey]: {
+				...(apiConfiguration as any)?.[modeKey],
+				modelId: newModelId,
+				modelInfo,
+			},
+		} as any)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
@@ -65,9 +63,9 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.huggingFaceModelId || huggingFaceDefaultModelId
+		const currentModelId = modeFields.modelId || huggingFaceDefaultModelId
 		setSearchTerm(currentModelId)
-	}, [modeFields.huggingFaceModelId])
+	}, [modeFields.modelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {

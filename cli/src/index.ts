@@ -23,8 +23,8 @@ import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/Po
 import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
-import { getProviderModelIdKey } from "@/shared/storage"
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@/shared/storage/types"
+import { type ModeConfigSettings } from "@shared/storage"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
@@ -115,7 +115,10 @@ function setModeScopedState(currentMode: "act" | "plan", setter: (mode: "act" | 
 	const stateManager = StateManager.get()
 	setter(currentMode)
 
-	const separateModels = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false
+	const apiConfig = stateManager.getApiConfiguration()
+	const separateModels =
+		apiConfig.planConfig?.apiProvider !== apiConfig.actConfig?.apiProvider ||
+		apiConfig.planConfig?.modelId !== apiConfig.actConfig?.modelId
 	if (!separateModels) {
 		const otherMode: "act" | "plan" = currentMode === "act" ? "plan" : "act"
 		setter(otherMode)
@@ -169,12 +172,9 @@ function applyTaskOptions(options: TaskOptions): void {
 	// Apply model override if specified
 	if (options.model) {
 		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") ?? "act") as "act" | "plan"
-		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
-		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
-		if (modelKey) {
-			StateManager.get().setSessionOverride(modelKey, options.model)
-		}
+		const configKey = selectedMode === "act" ? "actConfig" : "planConfig"
+		const currentConfig = StateManager.get().getGlobalSettingsKey(configKey) ?? ({} as ModeConfigSettings)
+		StateManager.get().setSessionOverride(configKey, { ...currentConfig, modelId: options.model })
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
@@ -193,8 +193,9 @@ function applyTaskOptions(options: TaskOptions): void {
 		}
 
 		setModeScopedState(currentMode, (mode) => {
-			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-			StateManager.get().setSessionOverride(thinkingKey, thinkingBudget)
+			const configKey = mode === "act" ? "actConfig" : "planConfig"
+			const currentConfig = StateManager.get().getGlobalSettingsKey(configKey) ?? ({} as ModeConfigSettings)
+			StateManager.get().setSessionOverride(configKey, { ...currentConfig, thinkingBudgetTokens: thinkingBudget })
 		})
 		telemetryService.captureHostEvent("thinking_flag", "true")
 	}
@@ -202,8 +203,9 @@ function applyTaskOptions(options: TaskOptions): void {
 	const reasoningEffort = normalizeReasoningEffort(options.reasoningEffort)
 	if (reasoningEffort !== undefined) {
 		setModeScopedState(currentMode, (mode) => {
-			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-			StateManager.get().setSessionOverride(reasoningKey, reasoningEffort)
+			const configKey = mode === "act" ? "actConfig" : "planConfig"
+			const currentConfig = StateManager.get().getGlobalSettingsKey(configKey) ?? ({} as ModeConfigSettings)
+			StateManager.get().setSessionOverride(configKey, { ...currentConfig, reasoningEffort })
 		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}

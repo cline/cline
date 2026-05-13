@@ -162,8 +162,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const [step, setStep] = useState<AuthStep>("menu")
 	const [selectedProvider, setSelectedProvider] = useState<string>(
-		StateManager.get().getApiConfiguration().actModeApiProvider ||
-			StateManager.get().getApiConfiguration().planModeApiProvider ||
+		StateManager.get().getApiConfiguration().actConfig?.apiProvider ||
+			StateManager.get().getApiConfiguration().planConfig?.apiProvider ||
 			"",
 	)
 	const [apiKey, setApiKey] = useState("")
@@ -181,13 +181,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
-		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		// Fetch OCA models from the API - this sets actConfig/planConfig in state
 		await refreshOcaModels(controller, StringRequest.create({ value: "" }))
 		const stateManager = StateManager.get()
 		stateManager.setGlobalState("welcomeViewCompleted", true)
 		await stateManager.flushPendingState()
 		setSelectedProvider("oca")
-		const actModelId = stateManager.getGlobalSettingsKey("actModeOcaModelId") || ""
+		const actConfig = stateManager.getGlobalSettingsKey("actConfig") as Record<string, unknown> | undefined
+		const actModelId = (actConfig?.modelId as string) || ""
 		setModelId(actModelId)
 		setStep("success")
 	}, [controller])

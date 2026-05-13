@@ -13,7 +13,8 @@ import { computeLineDiffStats } from "./lineDiffStats"
 export function getModelInfo(config: TaskConfig): { providerId: string; modelId: string } {
 	const apiConfig = config.services.stateManager.getApiConfiguration()
 	const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-	const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+	const modeConfig = currentMode === "plan" ? apiConfig?.planConfig : apiConfig?.actConfig
+	const providerId = modeConfig?.apiProvider ?? "anthropic"
 	const modelId = config.api.getModel().id
 	return { providerId, modelId }
 }

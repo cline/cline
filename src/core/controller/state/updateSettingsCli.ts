@@ -38,12 +38,10 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			const {
 				// Fields requiring conversion
 				autoApprovalSettings,
-				planModeReasoningEffort,
-				actModeReasoningEffort,
+				planConfig,
+				actConfig,
 				mode,
 				customPrompt,
-				planModeApiProvider,
-				actModeApiProvider,
 				// Fields requiring special logic (telemetry, merging, etc.)
 				telemetrySetting,
 				yoloModeToggled,
@@ -87,14 +85,24 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				controller.stateManager.setGlobalState("autoApprovalSettings", mergedSettings)
 			}
 
-			if (planModeReasoningEffort !== undefined) {
-				const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)
-				controller.stateManager.setGlobalState("planModeReasoningEffort", converted)
+			if (planConfig?.reasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(planConfig.reasoningEffort)
+				const currentPlanConfig = controller.stateManager.getApiConfiguration().planConfig ?? {}
+				controller.stateManager.setGlobalState("planConfig", {
+					apiProvider: "openrouter" as const,
+					...currentPlanConfig,
+					reasoningEffort: converted,
+				})
 			}
 
-			if (actModeReasoningEffort !== undefined) {
-				const converted = normalizeOpenaiReasoningEffort(actModeReasoningEffort)
-				controller.stateManager.setGlobalState("actModeReasoningEffort", converted)
+			if (actConfig?.reasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(actConfig.reasoningEffort)
+				const currentActConfig = controller.stateManager.getApiConfiguration().actConfig ?? {}
+				controller.stateManager.setGlobalState("actConfig", {
+					apiProvider: "openrouter" as const,
+					...currentActConfig,
+					reasoningEffort: converted,
+				})
 			}
 
 			if (mode !== undefined) {
@@ -106,14 +114,16 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				controller.stateManager.setGlobalState("customPrompt", "compact")
 			}
 
-			if (planModeApiProvider !== undefined) {
-				const converted = convertProtoToApiProvider(planModeApiProvider)
-				controller.stateManager.setGlobalState("planModeApiProvider", converted)
+			if (planConfig?.apiProvider !== undefined) {
+				const converted = convertProtoToApiProvider(planConfig.apiProvider) as import("@shared/api").ApiProvider
+				const currentPlanConfig = controller.stateManager.getApiConfiguration().planConfig ?? {}
+				controller.stateManager.setGlobalState("planConfig", { ...currentPlanConfig, apiProvider: converted })
 			}
 
-			if (actModeApiProvider !== undefined) {
-				const converted = convertProtoToApiProvider(actModeApiProvider)
-				controller.stateManager.setGlobalState("actModeApiProvider", converted)
+			if (actConfig?.apiProvider !== undefined) {
+				const converted = convertProtoToApiProvider(actConfig.apiProvider) as import("@shared/api").ApiProvider
+				const currentActConfig = controller.stateManager.getApiConfiguration().actConfig ?? {}
+				controller.stateManager.setGlobalState("actConfig", { ...currentActConfig, apiProvider: converted })
 			}
 
 			if (controller.task) {
