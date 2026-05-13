@@ -537,6 +537,7 @@ export class AgentRuntime {
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
+		this.state.usage = cloneUsage(DEFAULT_USAGE);
 
 		try {
 			await this.callBeforeRunHooks();
