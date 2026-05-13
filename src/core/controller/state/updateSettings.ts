@@ -13,7 +13,6 @@ import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
-import { normalizeDeepSeekProviderSwitch } from "../models/providerSwitchNormalization"
 
 /**
  * Updates multiple extension settings in a single request
@@ -31,21 +30,18 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 
-			const convertedApiConfigurationFromProto = normalizeDeepSeekProviderSwitch(
-				controller.stateManager.getApiConfiguration(),
-				{
-					...protoApiConfiguration,
-					// Convert proto ApiProvider enums to native string types
-					planModeApiProvider: protoApiConfiguration.planModeApiProvider
-						? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-						: undefined,
-					actModeApiProvider: protoApiConfiguration.actModeApiProvider
-						? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-						: undefined,
-					planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
-					actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
-				},
-			)
+			const convertedApiConfigurationFromProto = {
+				...protoApiConfiguration,
+				// Convert proto ApiProvider enums to native string types
+				planModeApiProvider: protoApiConfiguration.planModeApiProvider
+					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
+					: undefined,
+				actModeApiProvider: protoApiConfiguration.actModeApiProvider
+					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
+					: undefined,
+				planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
+				actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
+			}
 
 			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
