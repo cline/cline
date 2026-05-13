@@ -5,7 +5,6 @@
 import type { ChildProcess } from "node:child_process"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
-import { createTaskWorktree } from "@utils/git-worktree"
 import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
@@ -92,7 +91,6 @@ interface TaskOptions {
 	json?: boolean
 	stdinWasPiped?: boolean
 	hooksDir?: string
-	worktree?: boolean
 }
 
 let telemetryDisposed = false
@@ -625,26 +623,6 @@ interface InitOptions {
 }
 
 /**
- * If --worktree was passed, create a fresh detached-HEAD worktree under
- * ~/.cline/worktrees/<id>/<repoName>/ and rewrite options.cwd so the task runs there.
- * Exits the process on failure since the user explicitly asked for an isolated worktree.
- */
-async function applyWorktreeOption(options: TaskOptions): Promise<void> {
-	if (!options.worktree) {
-		return
-	}
-	const sourceCwd = options.cwd || process.cwd()
-	const result = await createTaskWorktree({ cwd: sourceCwd })
-	if (!result.success || !result.path) {
-		printWarning(`--worktree failed: ${result.message}`)
-		exit(1)
-	}
-	printInfo(`Created worktree at ${result.path}`)
-	options.cwd = result.path
-	// NOTE: telemetry is captured later by the calling command path once HostProvider is initialized.
-}
-
-/**
  * Initialize all CLI infrastructure and return context needed for commands
  */
 async function initializeCli(options: InitOptions): Promise<CliContext> {
@@ -735,9 +713,6 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
  * Run a task with the given prompt - uses welcome view for consistent behavior
  */
 async function runTask(prompt: string, options: TaskOptions & { images?: string[] }, existingContext?: CliContext) {
-	if (!existingContext) {
-		await applyWorktreeOption(options)
-	}
 	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Parse images from the prompt text (e.g., @/path/to/image.png)
@@ -753,9 +728,6 @@ async function runTask(prompt: string, options: TaskOptions & { images?: string[
 
 	// Task without prompt starts in interactive mode
 	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
-	if (options.worktree) {
-		telemetryService.captureHostEvent("worktree_flag", "created")
-	}
 
 	// Capture piped stdin telemetry now that HostProvider is initialized
 	if (options.stdinWasPiped) {
@@ -999,7 +971,6 @@ program
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
-	.option("--worktree", "Auto-create a detached git worktree under ~/.cline/worktrees/ and run the task there")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
 		if (options.taskId) {
@@ -1088,9 +1059,6 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  * Loads the task and optionally prefills the input with a prompt
  */
 async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }, existingContext?: CliContext) {
-	if (!existingContext) {
-		await applyWorktreeOption(options)
-	}
 	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Validate task exists
@@ -1103,9 +1071,6 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 	}
 
 	telemetryService.captureHostEvent("resume_task_command", options.initialPrompt ? "with_prompt" : "interactive")
-	if (options.worktree) {
-		telemetryService.captureHostEvent("worktree_flag", "created")
-	}
 
 	// Capture piped stdin telemetry now that HostProvider is initialized
 	if (options.stdinWasPiped) {
@@ -1147,16 +1112,11 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 }
 
 async function continueTask(options: TaskOptions) {
-	// Resolve the "most recent task" from the user's *original* cwd before --worktree
-	// rewrites it — otherwise we'd be looking inside a brand-new empty worktree path
-	// that has no history.
-	const lookupCwd = options.cwd || process.cwd()
-	await applyWorktreeOption(options)
 	const ctx = await initializeCli({ ...options, enableAuth: true })
-	const historyItem = findMostRecentTaskForWorkspace(StateManager.get().getGlobalStateKey("taskHistory"), lookupCwd)
+	const historyItem = findMostRecentTaskForWorkspace(StateManager.get().getGlobalStateKey("taskHistory"), ctx.workspacePath)
 
 	if (!historyItem) {
-		printWarning(`No previous task found for ${lookupCwd}`)
+		printWarning(`No previous task found for ${ctx.workspacePath}`)
 		printInfo("Start a new task or use 'cline history' to browse previous tasks.")
 		await disposeCliContext(ctx)
 		exit(1)
@@ -1170,9 +1130,6 @@ async function continueTask(options: TaskOptions) {
  * If auth is not configured, show auth flow first
  */
 async function showWelcome(options: TaskOptions) {
-	// NOTE: --worktree is rejected before reaching this path (see root command action).
-	// We don't create a worktree here because the user may Esc out of the welcome TUI
-	// without ever submitting a task, which would leave an orphan worktree on disk.
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
 	// Check if auth is configured
@@ -1225,7 +1182,6 @@ program
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
-	.option("--worktree", "Auto-create a detached git worktree under ~/.cline/worktrees/ and run the task there")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("--update", "Check for updates and install if available")
 	.option("--kanban", `Run ${KANBAN_LAUNCH_COMMAND}`)
@@ -1277,15 +1233,6 @@ program
 		// stdinInput === "" means stdin was piped but empty
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
-
-		// --worktree without a prompt would create an empty worktree that may be abandoned
-		// if the user exits the welcome TUI without submitting a task. Require a prompt
-		// (or --taskId / --continue, which both run a real task). Checked here so it fires
-		// before kanban auto-launches and short-circuits the rest of this action.
-		if (options.worktree && !prompt && !stdinInput && !options.taskId && !options.continue) {
-			printWarning('--worktree requires a task prompt; use `cline --worktree "your prompt"`.')
-			exit(1)
-		}
 
 		if (
 			shouldLaunchKanbanByDefault({
@@ -1374,7 +1321,7 @@ program
 			// Pass stdinWasPiped flag so runTask knows to use plain text mode
 			await runTask(effectivePrompt, { ...options, stdinWasPiped })
 		} else {
-			// Show welcome prompt if no prompt given (--worktree rejection happened earlier).
+			// Show welcome prompt if no prompt given
 			await showWelcome(options)
 		}
 	})

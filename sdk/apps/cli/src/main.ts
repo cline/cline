@@ -38,7 +38,10 @@ import {
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
-import { captureCliExtensionActivated, getCliTelemetryService } from "./utils/telemetry";
+import {
+	captureCliExtensionActivated,
+	getCliTelemetryService,
+} from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
 import { runMcpWizard } from "./wizards/mcp";
@@ -595,18 +598,6 @@ export async function runCli(): Promise<void> {
 
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
-	const cwd = args.cwd ?? process.cwd();
-	const workspaceRoot = resolveWorkspaceRoot(cwd);
-	// Sandbox mode is enabled implicitly whenever --data-dir is provided, or
-	// when CLINE_SANDBOX=1 is set in the environment (in which case the data
-	// dir falls back to $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox).
-	const sandboxEnabled =
-		!!args.dataDir || process.env.CLINE_SANDBOX?.trim() === "1";
-	const sandboxDataDir = configureSandboxEnvironment({
-		enabled: sandboxEnabled,
-		cwd,
-		explicitDir: args.dataDir,
-	});
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {
@@ -703,6 +694,53 @@ export async function runCli(): Promise<void> {
 		await runAcpMode();
 		return;
 	}
+
+	if (args.worktree) {
+		if (
+			!args.prompt &&
+			!resumeSessionId &&
+			(!process.stdin.isTTY || !process.stdout.isTTY)
+		) {
+			writeErr("--worktree without a prompt requires an interactive terminal.");
+			process.exitCode = 1;
+			return;
+		}
+		if (resumeSessionId) {
+			const { getSessionRow } = await import("./session/session");
+			const session = await getSessionRow(resumeSessionId);
+			if (!session) {
+				writeErr(`Session not found: ${resumeSessionId}`);
+				process.exitCode = 1;
+				return;
+			}
+		}
+		const { createTaskWorktree } = await import("./utils/worktree");
+		const sourceCwd = args.cwd ?? process.cwd();
+		const result = await createTaskWorktree({ cwd: sourceCwd });
+		if (!result.success || !result.path) {
+			writeErr(`--worktree failed: ${result.message}`);
+			process.exitCode = 1;
+			return;
+		}
+		writeln(`Created worktree at ${result.path}`);
+		args = {
+			...args,
+			cwd: result.path,
+		};
+	}
+
+	const cwd = args.cwd ?? process.cwd();
+	const workspaceRoot = resolveWorkspaceRoot(cwd);
+	// Sandbox mode is enabled implicitly whenever --data-dir is provided, or
+	// when CLINE_SANDBOX=1 is set in the environment (in which case the data
+	// dir falls back to $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox).
+	const sandboxEnabled =
+		!!args.dataDir || process.env.CLINE_SANDBOX?.trim() === "1";
+	const sandboxDataDir = configureSandboxEnvironment({
+		enabled: sandboxEnabled,
+		cwd,
+		explicitDir: args.dataDir,
+	});
 
 	// Keep command-style subcommands on a narrow path. Runtime-only imports pull
 	// in provider resolution, config services, and session startup wiring that
