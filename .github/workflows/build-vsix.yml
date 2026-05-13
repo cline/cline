@@ -6,6 +6,11 @@ on:
             - integration/macm4-enhancements
     workflow_dispatch:
 
+# Required GitHub variables (Settings → Variables → Actions):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  — org-level, shared with certify-firefighter
+#   GCP_DEPLOYER_SERVICE_ACCOUNT    — org-level, shared with certify-firefighter
+#   GCS_VSIX_BUCKET                 — set to: cline-repo
+
 permissions:
     contents: read
     id-token: write  # required for Workload Identity Federation
