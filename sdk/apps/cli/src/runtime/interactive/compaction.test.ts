@@ -32,6 +32,7 @@ function createConfig(): Config {
 		toolPolicies: {
 			"*": { autoApprove: true },
 		},
+		runCommandsTimeoutMs: 30000,
 	};
 }
 

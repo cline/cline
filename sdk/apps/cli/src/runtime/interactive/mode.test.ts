@@ -26,6 +26,7 @@ function makeConfig(): Config {
 		enableAgentTeams: true,
 		defaultToolAutoApprove: false,
 		toolPolicies: {},
+		runCommandsTimeoutMs: 30000,
 		cwd: process.cwd(),
 	};
 }

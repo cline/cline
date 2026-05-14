@@ -533,6 +533,7 @@ export class AcpAgent implements Agent {
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
 			toolPolicies: { "*": { autoApprove: false } },
+			runCommandsTimeoutMs: 30000,
 			enableSpawnAgent: true,
 			enableAgentTeams: false,
 			enableTools: true,

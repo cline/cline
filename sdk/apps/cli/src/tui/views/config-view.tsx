@@ -333,6 +333,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+	const runCommandsTimeoutPresets = [30000, 60000, 120000, 300000];
 
 	useEffect(() => {
 		if (
@@ -534,7 +535,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						setVerbose(!verbose);
 						break;
 					case "run-commands-timeout": {
-						const nextTimeoutMs = runCommandsTimeoutMs === 30000 ? 120000 : 30000;
+						const currentIndex = runCommandsTimeoutPresets.indexOf(
+							runCommandsTimeoutMs,
+						);
+						const nextTimeoutMs =
+							runCommandsTimeoutPresets[
+								(currentIndex + 1) % runCommandsTimeoutPresets.length
+							] ?? 30000;
 						setRunCommandsTimeoutMs(nextTimeoutMs);
 						props.onSetRunCommandsTimeoutMs(nextTimeoutMs);
 						break;
