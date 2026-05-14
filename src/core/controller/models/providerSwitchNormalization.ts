@@ -2,6 +2,7 @@ import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from 
 import type { Mode, ProviderConfigStore, ProviderId } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import type { ApiConfiguration, ApiProvider } from "@/shared/api"
+import { isMigratedSdkProvider } from "@/shared/model-catalog/provider-helpers"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
 
 type ProviderSwitchConfig = Partial<
@@ -65,7 +66,7 @@ export function normalizeProviderSwitchModel<T extends ProviderSwitchConfig>(
 		}
 
 		const providerId = toProviderId(nextProvider)
-		if (!providerId || providerId !== "deepseek") {
+		if (!providerId || !isMigratedSdkProvider(providerId)) {
 			continue
 		}
 
