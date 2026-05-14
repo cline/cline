@@ -11,6 +11,7 @@ import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { buildApiHandler } from "@/core/api"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
+import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
 
 /**
  * Updates API configuration
@@ -124,16 +125,19 @@ export async function updateApiConfigurationProto(
 			actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		}
 
+		const normalizedApiConfiguration = normalizeProviderSwitchModel(
+			controller.getProviderConfigStore(),
+			controller.stateManager.getApiConfiguration(),
+			convertedApiConfigurationFromProto,
+		)
+
 		// Update the API configuration in storage
-		controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
+		controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler(
-				{ ...convertedApiConfigurationFromProto, ulid: controller.task.ulid },
-				currentMode,
-			)
+			controller.task.api = buildApiHandler({ ...normalizedApiConfiguration, ulid: controller.task.ulid }, currentMode)
 		}
 
 		// Post updated state to webview

@@ -5,6 +5,10 @@ import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { ApiFormat, OpenRouterModelInfo } from "@/shared/proto/cline/models"
 import type { ProviderCatalogController } from "../providerCatalogShared"
 
+type TestStateManager = {
+	setGlobalStateBatch: ReturnType<typeof vi.fn>
+}
+
 function makeStore(config: EffectiveProviderConfig): ProviderConfigStore {
 	return {
 		read: vi.fn(() => config),
@@ -23,10 +27,15 @@ function makeCatalog(): ProviderCatalog {
 	}
 }
 
-function makeController(store: ProviderConfigStore, catalog: ProviderCatalog): ProviderCatalogController {
+function makeController(
+	store: ProviderConfigStore,
+	catalog: ProviderCatalog,
+	stateManager?: TestStateManager,
+): ProviderCatalogController {
 	return {
 		getProviderConfigStore: () => store,
 		getProviderCatalog: () => catalog,
+		...(stateManager ? { stateManager } : {}),
 	}
 }
 
@@ -178,7 +187,8 @@ describe("provider model catalog handlers", () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")
 		const store = makeStore({ providerId })
-		const controller = makeController(store, makeCatalog())
+		const stateManager: TestStateManager = { setGlobalStateBatch: vi.fn() }
+		const controller = makeController(store, makeCatalog(), stateManager)
 
 		await commitModelSelection(controller, {
 			providerId: "deepseek",
@@ -201,6 +211,10 @@ describe("provider model catalog handlers", () => {
 				supportsPromptCache: true,
 				apiFormat: ApiFormat.OPENAI_CHAT,
 			}),
+		})
+		expect(stateManager.setGlobalStateBatch).toHaveBeenCalledWith({
+			actModeApiProvider: "deepseek",
+			actModeApiModelId: "deepseek-v4-flash",
 		})
 	})
 

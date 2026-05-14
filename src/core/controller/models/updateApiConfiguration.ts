@@ -6,6 +6,7 @@ import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
 import { Secrets } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
+import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
 
 /**
  * Parses field mask paths into separate sets for options and secrets
@@ -136,7 +137,13 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			controller.stateManager.setSecretsBatch(secrets)
 		}
 		if (Object.keys(options).length > 0) {
-			controller.stateManager.setGlobalStateBatch(options)
+			controller.stateManager.setGlobalStateBatch(
+				normalizeProviderSwitchModel(
+					controller.getProviderConfigStore(),
+					controller.stateManager.getApiConfiguration(),
+					options,
+				),
+			)
 		}
 
 		// Update the task's API handler if there's an active task
