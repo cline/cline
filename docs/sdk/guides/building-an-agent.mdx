@@ -1,0 +1,164 @@
+---
+title: "Building an Agent"
+sidebarTitle: "Building an Agent"
+description: "Walk through a complete code review bot that reads diffs, analyzes code, and produces structured feedback."
+---
+
+This tutorial walks through the [code-review-bot example](https://github.com/cline/cline/tree/main/sdk/apps/examples/code-review-bot) from the SDK repository. By the end, you'll understand how to combine custom tools, system prompts, completion lifecycle, and event streaming into a real application.
+
+## What It Builds
+
+A code review agent that:
+1. Reads a git diff from the local repo
+2. Optionally reads full file contents for context
+3. Produces structured review comments with severity levels
+4. Ends the run with a summary and approve/reject decision
+
+## Prerequisites
+
+- Node.js 22+
+- An Anthropic API key
+- A git repository with at least one commit
+
+## Get the Code
+
+```bash
+git clone https://github.com/cline/cline.git
+cd cline/sdk/apps/examples/code-review-bot
+bun install
+```
+
+Or read along with the [source on GitHub](https://github.com/cline/cline/blob/main/sdk/apps/examples/code-review-bot/src/index.ts).
+
+## How It Works
+
+### Defining Tools with Zod Schemas
+
+The bot uses `createTool` with zod schemas for type-safe tool definitions. Here's the review comment tool:
+
+```typescript
+createTool({
+  name: "add_review_comment",
+  description: "Add a review comment on a specific file and line.",
+  inputSchema: z.object({
+    file: z.string().describe("File path"),
+    line: z.number().describe("Line number (approximate is fine)"),
+    severity: z.enum(["critical", "warning", "suggestion"]),
+    comment: z.string().describe("The review comment"),
+  }),
+  async execute(input) {
+    reviews.push(input)
+    return `Comment added (${reviews.length} total)`
+  },
+})
+```
+
+Key points:
+- `z.enum` constrains severity to valid values, which improves model accuracy
+- `.describe()` on each field tells the model what to provide
+- The tool accumulates results in an array for post-run processing
+
+### Completion Tools
+
+The `submit_review` tool uses `lifecycle: { completesRun: true }` to signal that the agent's work is done:
+
+```typescript
+createTool({
+  name: "submit_review",
+  description: "Submit the completed review with a summary.",
+  inputSchema: z.object({
+    summary: z.string().describe("Brief overall assessment of the changes"),
+    approve: z.boolean().describe("Whether the changes look good to merge"),
+  }),
+  lifecycle: { completesRun: true },
+  async execute(input) {
+    return JSON.stringify({ summary: input.summary, approve: input.approve })
+  },
+})
+```
+
+Without this, the agent would keep looping until `maxIterations`. With it, the agent calls `submit_review` when it's done and the run ends cleanly.
+
+### System Prompt
+
+The system prompt gives the agent a structured workflow to follow:
+
+```typescript
+const agent = new Agent({
+  systemPrompt: `You are a senior code reviewer. Analyze the git diff provided and leave review comments using the add_review_comment tool. Focus on:
+- Bugs and logic errors (critical)
+- Security issues (critical)
+- Performance problems (warning)
+- Style and readability improvements (suggestion)
+
+When you are done reviewing, call submit_review with a brief summary.`,
+  // ...
+})
+```
+
+Telling the agent exactly which tools to use and when keeps the workflow predictable.
+
+### Event Streaming
+
+The bot subscribes to events to show progress as the agent works:
+
+```typescript
+agent.subscribe((event) => {
+  switch (event.type) {
+    case "assistant-text-delta":
+      process.stdout.write(event.text ?? "")
+      break
+    case "tool-started":
+      if (event.toolCall.toolName === "add_review_comment") {
+        const input = event.toolCall.input
+        console.log(`  [${input.severity}] ${input.file}:${input.line} - ${input.comment}`)
+      }
+      break
+  }
+})
+```
+
+This prints review comments as they're made, so you see results streaming rather than waiting for the full run to finish.
+
+### Post-Run Processing
+
+After the run, the bot groups comments by severity and prints a summary:
+
+```typescript
+const result = await agent.run(`Review this git diff:\n\n\`\`\`diff\n${diff}\n\`\`\``)
+
+const critical = reviews.filter((r) => r.severity === "critical")
+const warnings = reviews.filter((r) => r.severity === "warning")
+const suggestions = reviews.filter((r) => r.severity === "suggestion")
+```
+
+The tool calls accumulate structured data during the run, and the application processes it after. This pattern is useful any time you want the agent to produce structured output.
+
+## Run It
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... bun dev        # review last commit
+ANTHROPIC_API_KEY=sk-ant-... bun dev main   # review against main
+```
+
+## Extending Further
+
+From here, you could:
+
+- Add a tool that posts review comments back to GitHub via the API
+- Use `continue()` for follow-up questions about specific findings
+- Add a `checkstyle` tool that runs linters on the changed files
+- Connect it to a webhook for automatic PR reviews
+
+## More Examples
+
+<CardGroup cols={2}>
+  <Card title="CLI Agent" icon="terminal" href="https://github.com/cline/cline/tree/main/sdk/apps/examples/cli-agent">
+    Interactive terminal chat with tools and multi-turn conversation.
+  </Card>
+  <Card title="Multi-Agent" icon="users" href="https://github.com/cline/cline/tree/main/sdk/apps/examples/multi-agent">
+    Parallel agents streaming to a web UI.
+  </Card>
+</CardGroup>
+
+See [Creating Custom Tools](/sdk/guides/creating-custom-tools) and [Writing Plugins](/sdk/guides/writing-plugins) for more on extending agent capabilities.

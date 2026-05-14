@@ -78,7 +78,7 @@ export const AwsSettingsSchema = z.object({
 	sessionToken: z.string().optional(),
 	region: z.string().optional(),
 	profile: z.string().optional(),
-	authentication: z.enum(["iam", "api-key", "profile"]).optional(),
+	authentication: z.enum(["iam", "api-key", "apikey", "profile"]).optional(),
 	usePromptCache: z.boolean().optional(),
 	useCrossRegionInference: z.boolean().optional(),
 	useGlobalInference: z.boolean().optional(),

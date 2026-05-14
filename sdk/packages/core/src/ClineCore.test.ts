@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentResult } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClineCoreStartInput } from "./cline-core/types";
 import type {
@@ -17,6 +16,7 @@ vi.mock("./runtime/host/host", () => ({
 	createRuntimeHost: createRuntimeHostMock,
 }));
 
+import type { AgentResult } from "@cline/shared";
 import { ClineCore } from "./ClineCore";
 
 function createStartInput(): ClineCoreStartInput {
@@ -389,7 +389,7 @@ describe("ClineCore", () => {
 		const core = await ClineCore.create();
 		const [row] = await core.list(10);
 
-		expect(host.listSessions).toHaveBeenCalledWith(10);
+		expect(host.listSessions).toHaveBeenCalledWith(20);
 		expect(host.readSessionMessages).toHaveBeenCalledWith("session-3");
 		expect(row).toMatchObject({
 			sessionId: "session-3",
@@ -444,9 +444,10 @@ describe("ClineCore", () => {
 		const core = await ClineCore.create();
 		const [row] = await core.list(10, { hydrate: false });
 
-		// Hydration options are consumed by ClineCore/listSessionHistory; the host
-		// list contract only receives the numeric limit.
-		expect(host.listSessions.mock.calls).toEqual([[10]]);
+		// Hydration and default root-session filtering are consumed by
+		// ClineCore/listSessionHistory; the host list contract only receives the
+		// numeric scan limit.
+		expect(host.listSessions.mock.calls).toEqual([[20]]);
 		expect(host.readSessionMessages).not.toHaveBeenCalled();
 		expect(row).toMatchObject({
 			sessionId: "session-lightweight",

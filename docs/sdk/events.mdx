@@ -1,0 +1,106 @@
+---
+title: "Events"
+sidebarTitle: "Events"
+description: "Subscribe to runtime and session events for UIs, logs, monitoring, and cancellation."
+---
+
+The SDK exposes two related event surfaces:
+
+- `AgentRuntimeEvent` from `@cline/agents`, delivered through `agent.subscribe(listener)`.
+- `AgentEvent` / `CoreSessionEvent` from `@cline/core`, delivered through core session adapters and `cline.subscribe(listener)`.
+
+Use this page for event handling patterns. For event shapes, see [Events reference](/sdk/reference/events).
+
+## AgentRuntime Events
+
+```typescript
+const unsubscribe = agent.subscribe((event) => {
+  if (event.type === "assistant-text-delta") {
+    process.stdout.write(event.text ?? "")
+  }
+})
+
+await agent.run("Explain this codebase")
+unsubscribe()
+```
+
+`AgentRuntimeEvent` is the low-level event stream from the browser-compatible runtime.
+
+## Core / Host-Facing Agent Events
+
+`AgentEvent` is the host-facing event shape used by `@cline/core` session orchestration. For direct `Agent` usage, prefer `agent.subscribe(...)` and `AgentRuntimeEvent`.
+
+Common host-facing event categories:
+
+| Category | Events | Use for |
+|----------|--------|---------|
+| Content | `content_start`, `content_update`, `content_end` | Text/reasoning/tool UI |
+| Iterations | `iteration_start`, `iteration_end` | Progress tracking |
+| Usage | `usage` | Token/cost tracking |
+| Notices | `notice` | Recovery and status updates |
+| Completion | `done`, `error` | Final state and failure handling |
+
+## ClineCore Session Events
+
+Use `cline.subscribe()` for session-level events:
+
+```typescript
+const unsubscribe = cline.subscribe((event) => {
+  console.log(event.type, event.sessionId)
+})
+
+await cline.start({ /* ... */ })
+unsubscribe()
+```
+
+Pass a `sessionId` filter when you only want one session:
+
+```typescript
+const unsubscribe = cline.subscribe(listener, { sessionId })
+```
+
+## Streaming UI Pattern
+
+Subscribe to events to build real-time UIs:
+
+```typescript
+agent.subscribe((event) => {
+  switch (event.type) {
+    case "assistant-text-delta":
+      onUpdate({ type: "text", content: event.text ?? "" })
+      break
+    case "tool-started":
+      onUpdate({ type: "tool_start", content: event.toolCall.toolName })
+      break
+    case "tool-finished":
+      onUpdate({ type: "tool_end", content: event.toolCall.toolName })
+      break
+    case "run-finished":
+      onUpdate({ type: "done", content: event.result.status })
+      break
+  }
+})
+```
+
+For a complete working example of streaming agent events to a browser via SSE, see the [multi-agent example](https://github.com/cline/cline/tree/main/sdk/apps/examples/multi-agent). It spawns multiple agents in parallel and streams each agent's events to separate UI cards.
+
+## Usage Tracking Pattern
+
+```typescript
+let totalTokens = 0
+
+agent.subscribe((event) => {
+  if (event.type === "usage-updated") {
+    totalTokens = event.usage.inputTokens + event.usage.outputTokens
+  }
+})
+```
+
+## Runtime State Snapshots
+
+Call `snapshot()` when you need the current state:
+
+```typescript
+const snapshot = agent.snapshot()
+console.log(snapshot.status, snapshot.iteration, snapshot.usage)
+```

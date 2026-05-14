@@ -63,6 +63,7 @@ function toGatewayCapabilities(
 		switch (capability) {
 			case "tools":
 			case "reasoning":
+			case "prompt-cache":
 			case "images":
 			case "audio":
 				mapped.add(capability);
@@ -70,7 +71,6 @@ function toGatewayCapabilities(
 			case "files":
 			case "streaming":
 			case "temperature":
-			case "prompt-cache":
 			case "reasoning-effort":
 			case "computer-use":
 			case "global-endpoint":
@@ -466,8 +466,8 @@ function buildGatewayConfig(config: ProviderConfig) {
 			accessKeyId: config.aws?.accessKey,
 			secretAccessKey: config.aws?.secretKey,
 			sessionToken: config.aws?.sessionToken,
-			credentialProvider: config.aws?.profile,
 			authentication: config.aws?.authentication,
+			profile: config.aws?.profile,
 			endpoint: config.aws?.endpoint,
 			customModelBaseId: config.aws?.customModelBaseId,
 			apiVersion: config.azure?.apiVersion,

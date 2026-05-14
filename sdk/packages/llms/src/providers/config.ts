@@ -155,7 +155,7 @@ export interface AwsConfig {
 	accessKey?: string;
 	secretKey?: string;
 	sessionToken?: string;
-	authentication?: "iam" | "api-key" | "profile";
+	authentication?: "iam" | "api-key" | "apikey" | "profile";
 	profile?: string;
 	usePromptCache?: boolean;
 	endpoint?: string;

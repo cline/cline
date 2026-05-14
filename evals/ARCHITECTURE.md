@@ -219,7 +219,7 @@ ls evals/smoke-tests/results/latest/<scenario>/<model>/workspace-trial-1/
 
 ## CI Integration
 
-Smoke tests are temporarily disabled. `.github/workflows/cline-evals-regression.yml` accepts manual `workflow_dispatch` only until the build step is repointed at the new SDK CLI.
+Smoke test CI is temporarily disabled. `.github/workflows/cline-evals-regression.yml` was removed until the build step is repointed at the new SDK CLI.
 
 ### Viewing CI Results
 

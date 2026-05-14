@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	formatCheckpointDetail,
 	formatHistoryListLine,
+	mergeHistoryStatusRows,
 	runHistoryExport,
 	runHistoryList,
 } from "./history";
@@ -76,7 +77,7 @@ describe("formatHistoryListLine", () => {
 		);
 
 		expect(line).toContain(
-			"12/31/2025 16:00 mock-provider:mock-model | $0.25 | hello world",
+			"12/31/2025 16:00 mock-provider:mock-model [completed] | $0.25 | hello world",
 		);
 	});
 
@@ -103,7 +104,7 @@ describe("formatHistoryListLine", () => {
 		);
 
 		expect(line).toContain(
-			"12/31/2025 16:00 mock-provider:mock-model | $0.25 | hello world",
+			"12/31/2025 16:00 mock-provider:mock-model [completed] | $0.25 | hello world",
 		);
 		expect(line).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
 	});
@@ -160,8 +161,37 @@ describe("formatHistoryListLine", () => {
 			}),
 		);
 
-		expect(line).toContain("openai-codex:gpt-5.4 | hello world");
+		expect(line).toContain("openai-codex:gpt-5.4 [completed] | hello world");
 		expect(line).not.toContain("$0.25");
+	});
+
+	it("merges refreshed session status without dropping hydrated display metadata", () => {
+		const current = createHistoryRow({
+			metadata: { title: "hydrated title", totalCost: 0.25 },
+			status: "running",
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const [merged] = mergeHistoryStatusRows(
+			[current],
+			[
+				createHistoryRow({
+					sessionId: current.sessionId,
+					metadata: undefined,
+					prompt: undefined,
+					status: "completed",
+					endedAt: "2026-01-01T00:02:00.000Z",
+					updatedAt: "2026-01-01T00:02:00.000Z",
+				}),
+			],
+		);
+
+		expect(merged).toMatchObject({
+			sessionId: current.sessionId,
+			status: "completed",
+			endedAt: "2026-01-01T00:02:00.000Z",
+			updatedAt: "2026-01-01T00:02:00.000Z",
+			metadata: { title: "hydrated title", totalCost: 0.25 },
+		});
 	});
 });
 

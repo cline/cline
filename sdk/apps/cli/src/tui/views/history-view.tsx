@@ -11,6 +11,10 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listSessions } from "../../session/session";
+import {
+	formatSessionStatusLabel,
+	mergeHistoryStatusRows,
+} from "../../utils/history-format";
 import { formatUsd } from "../../utils/output";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import { palette } from "../palette";
@@ -45,6 +49,7 @@ function formatRelativeDate(dateStr: string): string {
 }
 
 const MAX_VISIBLE = 12;
+const DEFAULT_REFRESH_INTERVAL_MS = 2000;
 
 type HistoryListActions = {
 	onResolve: (sessionId: string) => void;
@@ -65,10 +70,31 @@ type HistoryListContentProps = HistoryListActions & {
 	footerText?: string;
 	title?: string;
 	loadRows?: boolean;
+	refreshRows?: () => Promise<SessionHistoryRecord[]>;
+	refreshIntervalMs?: number;
 	registerKeyHandler?: (
 		handler: (key: HistoryKeyEvent | undefined) => void,
 	) => void;
 };
+
+function getStatusColor(
+	status: SessionHistoryRecord["status"],
+	selected: boolean,
+): string {
+	if (selected) {
+		return palette.textOnSelection;
+	}
+	switch (status) {
+		case "running":
+			return palette.success;
+		case "failed":
+			return "red";
+		case "cancelled":
+			return "yellow";
+		case "completed":
+			return "gray";
+	}
+}
 
 function HistoryListContent({
 	initialRows,
@@ -80,6 +106,8 @@ function HistoryListContent({
 	footerText = "\u2191/\u2193 navigate, Enter to resume, Esc to close",
 	title = "Session History",
 	loadRows = false,
+	refreshRows,
+	refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
 	registerKeyHandler,
 }: HistoryListContentProps) {
 	const { width } = useTerminalDimensions();
@@ -95,20 +123,76 @@ function HistoryListContent({
 	);
 
 	useEffect(() => {
-		if (!loadRows) {
+		const loadInitialRows = () => listSessions(50, { hydrate: true });
+		const loadRefreshRows =
+			refreshRows ?? (() => listSessions(50, { hydrate: false }));
+		let disposed = false;
+		let refreshInFlight = false;
+		let interval: ReturnType<typeof setInterval> | undefined;
+
+		const refresh = async (
+			showLoading: boolean,
+			load: () => Promise<SessionHistoryRecord[]>,
+		) => {
+			if (refreshInFlight) {
+				return;
+			}
+			refreshInFlight = true;
+			if (showLoading) {
+				setLoading(true);
+			}
+			try {
+				const refreshedRows = await load();
+				if (disposed) {
+					return;
+				}
+				setRows((currentRows) =>
+					currentRows.length === 0
+						? refreshedRows
+						: mergeHistoryStatusRows(currentRows, refreshedRows),
+				);
+				setSelected((currentSelected) =>
+					Math.min(currentSelected, Math.max(0, refreshedRows.length - 1)),
+				);
+			} catch {
+				// Keep the last visible history snapshot when a background refresh fails.
+			} finally {
+				refreshInFlight = false;
+				if (!disposed && showLoading) {
+					setLoading(false);
+				}
+			}
+		};
+
+		if (!loadRows && !refreshRows) {
 			setRows(initialRows ?? []);
 			setLoading(false);
 			return;
 		}
 
-		listSessions(50, { hydrate: true })
-			.then((r) => setRows(r))
-			.catch(() => {})
-			.finally(() => setLoading(false));
-	}, [initialRows, loadRows]);
+		if (loadRows) {
+			void refresh(true, loadInitialRows);
+		} else {
+			setRows(initialRows ?? []);
+			setLoading(false);
+		}
+
+		if (refreshIntervalMs > 0) {
+			interval = setInterval(() => {
+				void refresh(false, loadRefreshRows);
+			}, refreshIntervalMs);
+		}
+
+		return () => {
+			disposed = true;
+			if (interval) {
+				clearInterval(interval);
+			}
+		};
+	}, [initialRows, loadRows, refreshIntervalMs, refreshRows]);
 
 	const safeSelected = Math.min(selected, Math.max(0, rows.length - 1));
-	const titleMaxLen = Math.max(20, width - 30);
+	const titleMaxLen = Math.max(20, width - 44);
 
 	const rowsRef = useRef(rows);
 	rowsRef.current = rows;
@@ -269,6 +353,7 @@ function HistoryListContent({
 					const showCost = shouldShowCliUsageCost(row.provider);
 					const title = formatTitle(row, titleMaxLen);
 					const date = formatRelativeDate(row.startedAt);
+					const status = formatSessionStatusLabel(row.status);
 
 					return (
 						<box
@@ -291,6 +376,11 @@ function HistoryListContent({
 								flexGrow={1}
 							>
 								{title}
+							</text>
+							<text fg={getStatusColor(row.status, isSel)} flexShrink={0}>
+								{"  ["}
+								{status}
+								{"]"}
 							</text>
 							{showCost && cost != null && cost > 0 && (
 								<text
@@ -372,6 +462,8 @@ export function HistoryStandaloneContent(
 		rows: SessionHistoryRecord[];
 		title?: string;
 		footerText?: string;
+		refreshRows?: () => Promise<SessionHistoryRecord[]>;
+		refreshIntervalMs?: number;
 	},
 ) {
 	const [keyHandler, setKeyHandler] = useState<
@@ -393,6 +485,8 @@ export function HistoryStandaloneContent(
 			onDismiss={props.onDismiss}
 			onExport={props.onExport}
 			onDelete={props.onDelete}
+			refreshRows={props.refreshRows}
+			refreshIntervalMs={props.refreshIntervalMs}
 			title={props.title ?? "History"}
 			footerText={
 				props.footerText ??
