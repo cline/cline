@@ -329,6 +329,9 @@ export type RunCommandsInput = z.infer<typeof RunCommandsInputSchema>;
 export type StructuredCommandInput = z.infer<
 	typeof StructuredCommandInputSchema
 >;
+export type StructuredCommandsInput = z.infer<
+	typeof StructuredCommandsInputUnionSchema
+>;
 
 /**
  * Web fetch request parameters

@@ -8,6 +8,7 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	createTool,
+	type ITelemetryService,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
@@ -49,6 +50,7 @@ import {
 	type SkillsInput,
 	SkillsInputSchema,
 	type StructuredCommandInput,
+	type StructuredCommandsInput,
 	StructuredCommandsInputSchema,
 	StructuredCommandsInputUnionSchema,
 	type SubmitInput,
@@ -82,40 +84,6 @@ function isRunCommandsTimeoutError(error: unknown, timeoutMs: number): boolean {
 		error instanceof TimeoutError &&
 		error.message === `Command timed out after ${timeoutMs}ms`
 	);
-}
-
-function captureRunCommandsTimeoutFromContext(
-	context: AgentToolContext,
-	properties: {
-		effectiveTimeoutMs: number;
-		timeoutSource: "default_setting" | "command_parameter";
-		commandCount: number;
-		commandIndex: number;
-		durationMs: number;
-	},
-): void {
-	captureRunCommandsTimeout((context.metadata?.telemetry as never) ?? undefined, {
-		tool_name: "run_commands",
-		effective_timeout_ms: properties.effectiveTimeoutMs,
-		timeout_source: properties.timeoutSource,
-		command_count: properties.commandCount,
-		command_index: properties.commandIndex,
-		duration_ms: properties.durationMs,
-		mode:
-			typeof context.metadata?.mode === "string"
-				? context.metadata.mode
-				: undefined,
-		source:
-			typeof context.metadata?.source === "string"
-				? context.metadata.source
-				: undefined,
-		session_id: context.sessionId,
-		agent_id: context.agentId,
-		conversation_id: context.conversationId,
-		run_id: context.runId,
-		iteration: context.iteration,
-		tool_call_id: context.toolCallId,
-	});
 }
 
 /**
@@ -244,6 +212,54 @@ export function createSearchTool(
 	});
 }
 
+function getTelemetryFromMetadata(
+	metadata: AgentToolContext["metadata"],
+): ITelemetryService | undefined {
+	const telemetry = metadata?.telemetry;
+	if (!telemetry || typeof telemetry !== "object") {
+		return undefined;
+	}
+
+	const candidate = telemetry as Partial<ITelemetryService>;
+	return typeof candidate.capture === "function" &&
+		typeof candidate.captureRequired === "function"
+		? (telemetry as ITelemetryService)
+		: undefined;
+}
+
+function captureRunCommandsTimeoutFromContext(
+	context: AgentToolContext,
+	properties: {
+		effectiveTimeoutMs: number;
+		timeoutSource: "default_setting" | "command_parameter";
+		commandCount: number;
+		commandIndex: number;
+		durationMs: number;
+	},
+): void {
+	captureRunCommandsTimeout(getTelemetryFromMetadata(context.metadata), {
+		tool_name: "run_commands",
+		effective_timeout_ms: properties.effectiveTimeoutMs,
+		timeout_source: properties.timeoutSource,
+		command_count: properties.commandCount,
+		command_index: properties.commandIndex,
+		duration_ms: properties.durationMs,
+		mode:
+			typeof context.metadata?.mode === "string"
+				? context.metadata.mode
+				: undefined,
+		source:
+			typeof context.metadata?.source === "string"
+				? context.metadata.source
+				: undefined,
+		session_id: context.sessionId,
+		agent_id: context.agentId,
+		conversation_id: context.conversationId,
+		run_id: context.runId,
+		iteration: context.iteration,
+		tool_call_id: context.toolCallId,
+	});
+}
 /**
  * Create the run_commands tool
  *
@@ -330,12 +346,12 @@ export function createBashTool(
 export function createWindowsShellTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
-): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
+): AgentTool<StructuredCommandsInput, ToolOperationResult[]> {
 	const defaultTimeoutMs =
 		config.bashTimeoutMs ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS;
 	const cwd = config.cwd ?? process.cwd();
 
-	return createTool<StructuredCommandInput, ToolOperationResult[]>({
+	return createTool<StructuredCommandsInput, ToolOperationResult[]>({
 		name: "run_commands",
 		description:
 			"Run shell commands from the root of the workspace in a Windows environment. " +

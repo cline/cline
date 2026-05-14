@@ -240,8 +240,11 @@ async function main() {
 			iteration: 1,
 		});
 		dumpEvents(t.events);
-		const dump = JSON.stringify(t.events[0]?.properties ?? {});
-		assertSmoke("run_commands timeout omits raw command field", dump.includes("command"), false);
+		const payload = t.events[0]?.properties ?? {};
+		assertSmoke("run_commands timeout omits raw command field", "command" in payload, false);
+		assertSmoke("run_commands timeout omits raw commands field", "commands" in payload, false);
+		assertSmoke("run_commands timeout omits stdout field", "stdout" in payload, false);
+		assertSmoke("run_commands timeout omits stderr field", "stderr" in payload, false);
 	}
 
 	header("explicit captureWorkspacePathResolved payload sample");

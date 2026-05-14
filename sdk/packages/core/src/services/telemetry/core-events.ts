@@ -61,7 +61,6 @@ export const CORE_TELEMETRY_EVENTS = {
 		SUBAGENT_COMPLETED: "task.subagent_completed",
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
-		EMERGENCY_TRUNCATION: "task.emergency_truncation",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -658,41 +657,6 @@ export function captureCompactionSkipped(
 		Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
-		...properties,
-		timestamp: new Date().toISOString(),
-	});
-}
-
-/**
- * CLINE-2192 Layer B: emitted when `MessageBuilder.buildForApi` had to
- * apply emergency truncation to force the outbound request below
- * `maxInputTokens * CHARS_PER_TOKEN` bytes. This fires only when
- * Layer A's largest-first heuristic was insufficient (adversarial
- * inputs, oversized tool_use.input bodies, exotic block layouts).
- *
- * Treat any occurrence as a signal that production is operating in
- * degraded mode — the model is seeing truncated content and the
- * agent may produce wrong output as a result. The user-visible
- * `emitStatusNotice("compacted to fit context window", ...)` fires
- * alongside this event so the operator sees it in the TUI/webview.
- */
-export interface CaptureEmergencyTruncationProperties {
-	ulid: string;
-	bytesBefore: number;
-	bytesAfter: number;
-	maxInputTokens: number;
-	truncatedBlocks: number;
-	droppedBlocks: number;
-	provider?: string;
-	modelId?: string;
-}
-
-export function captureEmergencyTruncation(
-	telemetry: ITelemetryService | undefined,
-	properties: CaptureEmergencyTruncationProperties &
-		Partial<TelemetryAgentIdentityProperties>,
-): void {
-	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.EMERGENCY_TRUNCATION, {
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
