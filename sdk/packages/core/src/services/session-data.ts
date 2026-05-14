@@ -154,14 +154,21 @@ export function withLatestAssistantTurnMetadata(
 	}
 
 	const lastAssistantIndex = assistantIndexes[assistantIndexes.length - 1];
+	const hasAssistantTurnMetrics = assistantIndexes.some(
+		(index) => next[index]?.metrics,
+	);
 	for (const targetIndex of assistantIndexes) {
 		const target = next[targetIndex];
 		// Use per-turn metrics already stamped on the message if available.
 		// Only fall back to result.usage (total run usage) for the terminal
-		// assistant message when no per-turn metrics are present, to avoid
-		// attaching session totals to intermediate turn messages.
+		// assistant message when this run has no per-turn metrics, to avoid
+		// attaching session totals to terminal bookkeeping messages.
 		let metrics = target.metrics;
-		if (!metrics && targetIndex === lastAssistantIndex) {
+		if (
+			!metrics &&
+			targetIndex === lastAssistantIndex &&
+			!hasAssistantTurnMetrics
+		) {
 			const usage = result.usage;
 			metrics = {
 				inputTokens: usage.inputTokens,

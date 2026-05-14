@@ -1,19 +1,12 @@
 ---
 title: "Cline SDK"
 sidebarTitle: "Overview"
-description: "TypeScript packages for embedding Cline agents, tools, providers, and sessions."
+description: "TypeScript packages for embedding Cline's agent runtime in your own applications."
 ---
 
-The Cline SDK is a set of TypeScript packages for embedding Cline's agent runtime in your own applications.
+The Cline SDK is an open source framework for building agentic applications, and is the same harness used in the Cline IDE extensions and CLI. It uses a plugin architecture that makes it easy to customize and comes with all the features you expect from agents like checkpoints, web fetch, MCPs, cron jobs, subagents, and more.
 
-Use it to build:
-
-- in-process agents with custom tools
-- coding agents with file, shell, search, and web tools
-- persistent sessions
-- chat connectors
-- scheduled automations
-- multi-agent workflows
+Use the Cline SDK to run agents from CI/CD pipelines, create automations for end-to-end workflows, or embed agents directly inside your products.
 
 ## Install
 
@@ -21,11 +14,21 @@ Use it to build:
 npm install @cline/sdk
 ```
 
-`@cline/sdk` re-exports everything from `@cline/core`. You only need `@cline/agents` or `@cline/llms` if you want lower-level control over the agent runtime or model gateway directly.
+`@cline/sdk` exports all SDK packages: `@cline/core` for the full agent harness, `@cline/agents` for the stateless agent loop, `@cline/llms` for control over the model gateway, and `@cline/shared` for common utilities.
 
 Requires Node.js 22 or later.
 
-## Minimal Agent
+## SDK Skill
+
+If you use a coding agent (Claude Code, Codex, Cline, etc.), install the [Cline SDK skill](https://github.com/cline/sdk-skill) to give your agent context on the SDK's APIs and best practices to help you build with the Cline SDK.
+
+```bash
+npx skills add cline/sdk-skill
+```
+
+Prompt it to scaffold agents, create custom tools, wire up plugins, configure providers, and more.
+
+## Your First Agent
 
 ```typescript
 import { Agent } from "@cline/sdk"
@@ -62,18 +65,7 @@ const result = await agent.run("Explain what an SDK is in two sentences.")
 
 
 
-
 See [Packages](/sdk/architecture/overview) for package boundaries and exports.
-
-## Runtime Choices
-
-| Runtime | Use when |
-|---------|----------|
-| `ClineCore` | The fully featured Cline agent that you can customize and build upon. Includes session management, built-in tools, approvals, config discovery, channels, and scheduling |
-| `Agent` / `AgentRuntime` | A stateless in-process loop that offers even more control. ClineCore depends on the Agents package. Build with Agents directly if you want to control tools, session persistence, and configuration directly |
-
-
-See [Agent vs ClineCore](/sdk/runtime).
 
 ## Next Steps
 

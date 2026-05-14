@@ -7,7 +7,7 @@
  * package.json, plus the repo root itself. Runs serially to avoid races between
  * sibling workspaces whose `node_modules` are wired together via symlinks /
  * junctions on Windows.
- * 
+ *
  */
 
 import { readFile, rm, stat } from "node:fs/promises";
@@ -67,7 +67,9 @@ async function removeTargetsIn(dir: string): Promise<void> {
 			console.log(`  removed ${path.relative(root, targetPath) || target}`);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			console.warn(`  skipped ${path.relative(root, targetPath) || target}: ${message}`);
+			console.warn(
+				`  skipped ${path.relative(root, targetPath) || target}: ${message}`,
+			);
 		}
 	}
 }
