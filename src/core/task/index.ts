@@ -3204,6 +3204,31 @@ export class Task {
 				// Save checkpoint after all tools in this response have finished executing
 				await this.checkpointManager?.saveCheckpoint()
 
+				// Fire PostAssistantTurn hook — observation-only, fires after every complete turn
+				if (getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))) {
+					const toolNames = this.taskState.assistantMessageContent
+						.filter((block) => block.type === "tool_use")
+						.map((block) => (block as { type: "tool_use"; name: string }).name)
+					const turnNumber = Math.ceil(this.messageStateHandler.getApiConversationHistory().length / 2)
+					await executeHook({
+						hookName: "PostAssistantTurn",
+						hookInput: {
+							postAssistantTurn: {
+								assistantText: assistantTextOnly,
+								toolNames,
+								turnNumber,
+								taskMetadata: { taskId: this.taskId, ulid: this.ulid },
+							},
+						},
+						isCancellable: false,
+						say: this.say.bind(this),
+						messageStateHandler: this.messageStateHandler,
+						taskId: this.taskId,
+						hooksEnabled: true,
+						model: getHookModelContext(this.api, this.stateManager),
+					})
+				}
+
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 

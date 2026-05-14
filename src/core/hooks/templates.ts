@@ -19,6 +19,7 @@ export function getHookTemplate(hookName: string): string {
 		UserPromptSubmit: getUserPromptSubmitTemplate(),
 		Notification: getNotificationTemplate(),
 		PreCompact: getPreCompactTemplate(),
+		PostAssistantTurn: getPostAssistantTurnTemplate(),
 	}
 
 	return templates[hookName] || getDefaultTemplate(hookName)
@@ -463,6 +464,51 @@ fi
 echo "[PreCompact] About to compact conversation (contextSize: $CONTEXT_SIZE, strategy: $STRATEGY, tokensIn: $TOKENS_IN, tokensOut: $TOKENS_OUT)" >&2
 
 # Return result
+echo '{"cancel":false,"contextModification":"","errorMessage":""}'
+`
+}
+
+function getPostAssistantTurnTemplate(): string {
+	return `#!/bin/bash
+#
+# PostAssistantTurn Hook
+#
+# Executes after each complete assistant turn (text + all tool calls finished).
+# Observation-only: cancel and contextModification are ignored by the caller.
+#
+# Input: {
+#   taskId,
+#   postAssistantTurn: {
+#     assistantText: string,     # plain text of the assistant response
+#     toolNames: string[],       # tools invoked this turn (may be empty)
+#     turnNumber: number,        # 1-based turn index within the task
+#     taskMetadata: { taskId: string, ulid: string }
+#   },
+#   clineVersion, timestamp, ...
+# }
+# Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
+#
+# Use cases:
+# - Log every AI exchange for reproducibility (e.g. repro-mcp log_exchange)
+# - Audit assistant responses
+# - Trigger external notifications after each turn
+
+INPUT=$(cat)
+
+if command -v jq &> /dev/null; then
+  TASK_ID=$(echo "$INPUT" | jq -r '.taskId')
+  TURN=$(echo "$INPUT" | jq -r '.postAssistantTurn.turnNumber')
+  TOOLS=$(echo "$INPUT" | jq -r '.postAssistantTurn.toolNames | join(", ")')
+  TEXT_LEN=$(echo "$INPUT" | jq -r '.postAssistantTurn.assistantText | length')
+else
+  TASK_ID="<taskId>"
+  TURN="?"
+  TOOLS=""
+  TEXT_LEN="?"
+fi
+
+echo "[PostAssistantTurn] Task=$TASK_ID turn=$TURN tools=[$TOOLS] response_length=$TEXT_LEN" >&2
+
 echo '{"cancel":false,"contextModification":"","errorMessage":""}'
 `
 }

@@ -25,6 +25,7 @@ message HookInput {
     TaskCompleteData task_complete = 16;
     PreCompactData pre_compact = 17;
     NotificationData notification = 18;
+    PostAssistantTurnData post_assistant_turn = 19;
   }
 }
 
@@ -95,6 +96,18 @@ message TaskCancelData {
 // Data for TaskComplete hook
 message TaskCompleteData {
   map<string, string> task_metadata = 1;
+}
+
+// Data for PostAssistantTurn hook
+message PostAssistantTurnData {
+  // Plain text of the assistant's response (no tool XML)
+  string assistant_text = 1;
+  // Names of tools invoked during this turn (empty if none)
+  repeated string tool_names = 2;
+  // Turn number within the current task (1-based)
+  int64 turn_number = 3;
+  // Task metadata (taskId, ulid)
+  map<string, string> task_metadata = 4;
 }
 
 // Data for PreCompact hook

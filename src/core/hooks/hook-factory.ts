@@ -9,6 +9,7 @@ import {
 	HookModelContext,
 	HookOutput,
 	NotificationData,
+	PostAssistantTurnData,
 	PostToolUseData,
 	PreCompactData,
 	PreToolUseData,
@@ -126,6 +127,9 @@ export interface Hooks {
 	}
 	PreCompact: {
 		preCompact: PreCompactData
+	}
+	PostAssistantTurn: {
+		postAssistantTurn: PostAssistantTurnData
 	}
 }
 
