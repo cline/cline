@@ -55,7 +55,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	let hasError = false
 	let hasEmittedTaskStarted = false
 	// Track which messages have been processed (by timestamp)
-	const processedMessages = new Map<number, string>()
+	const processedMessages = new Map<number, { text: string; say?: string; type?: string }>()
 
 	const isViewTaskOnly = Boolean(options.taskId) && !prompt
 
@@ -92,7 +92,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			handleMessageForPipeMode(message, verbose || false)
 		}
 
-		processedMessages.set(ts, message.text ?? "")
+		processedMessages.set(ts, { text: message.text ?? "", say: message.say, type: message.type })
 
 		// Check for completion (only on non-partial messages)
 		// When resuming a task, only consider completion_result messages that appeared
@@ -173,14 +173,17 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		getRequestRegistry().cancelRequest(requestId)
 	}
 
-	// non json mode outputs only the final complete message
-	// (it should be the completion_result message)
+	// Non-JSON mode: output all assistant text and completion result, separated by newlines.
+	// This ensures multi-segment responses have proper line breaks between them.
 	if (!jsonOutput && !verbose) {
-		const msg = Array.from(processedMessages.entries())
+		const output = Array.from(processedMessages.entries())
 			.sort(([aTs], [bTs]) => aTs - bTs)
-			.map(([_, msg]) => msg)
-			.at(-1)
-		process.stdout.write(msg + "\n")
+			.filter(([_, msg]) => msg.type === "say" && (msg.say === "text" || msg.say === "completion_result") && msg.text)
+			.map(([_, msg]) => msg.text)
+			.join("\n\n")
+		if (output) {
+			process.stdout.write(output + "\n")
+		}
 	}
 
 	return !hasError
