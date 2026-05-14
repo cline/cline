@@ -597,6 +597,106 @@ describe("SessionRuntime message preparation", () => {
 		}
 	});
 
+	it("does not emit stale emergency truncation telemetry from a failed retry attempt", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const capture = vi.fn();
+		const telemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						maxInputTokens: 1_000,
+					},
+				},
+			}),
+			{ ...deps, telemetry: telemetry as never },
+		);
+		const notices: AgentEvent[] = [];
+		session.subscribeEvents((event) => {
+			notices.push(event);
+		});
+
+		await session.run("go");
+		// Deliberately replace the private builder here: this regression targets
+		// the orchestrator retry buffer, independent of MessageBuilder internals.
+		const buildForApi = vi
+			.fn()
+			.mockImplementationOnce((_messages, options) => {
+				options.emitStatusNotice?.("compacted to fit context window", {
+					kind: "emergency_truncation",
+				});
+				options.telemetry?.capture({
+					event: "task.emergency_truncation",
+					properties: { bytesBefore: 10_000 },
+				});
+				return [
+					{
+						role: "user",
+						content: [{ type: "text", text: "x".repeat(10_000) }],
+					},
+				];
+			})
+			.mockImplementationOnce(() => [
+				{
+					role: "user",
+					content: [{ type: "text", text: "ok" }],
+				},
+			]);
+		(
+			session as unknown as {
+				messageBuilder: { buildForApi: typeof buildForApi };
+			}
+		).messageBuilder.buildForApi = buildForApi;
+
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [{ type: "text", text: "original" }],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(buildForApi).toHaveBeenCalledTimes(2);
+		expect(result?.messages?.[0]?.content[0]).toMatchObject({
+			type: "text",
+			text: "ok",
+		});
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "task.emergency_truncation" }),
+		);
+		expect(
+			notices.filter(
+				(event) =>
+					event.type === "notice" &&
+					event.message === "compacted to fit context window",
+			),
+		).toHaveLength(0);
+	});
+
 	it("emits request-overhead telemetry when non-message payload alone exceeds the budget", async () => {
 		const { deps, configs } = makeRecordingRuntimeFactory();
 		const capture = vi.fn();

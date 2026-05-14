@@ -549,6 +549,24 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureRequestOverheadExceedsBudget never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureRequestOverheadExceedsBudget(service, {
+			ulid: "ulid-1",
+			requestBytes: 80_000,
+			budgetBytes: 60_000,
+			maxInputTokens: 20_000,
+			systemPromptBytes: 50_000,
+			toolsBytes: 25_000,
+			optionsBytes: 500,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("a correctly-policed adapter drops these events when disabled", () => {
 		// This test layers on top of the previous four to assert the *full*
 		// end-to-end policy: when the adapter is disabled, a real adapter
@@ -627,6 +645,15 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			truncatedBlocks: 4,
 			droppedBlocks: 1,
 		});
+		captureRequestOverheadExceedsBudget(service, {
+			ulid: "ulid-1",
+			requestBytes: 80_000,
+			budgetBytes: 60_000,
+			maxInputTokens: 20_000,
+			systemPromptBytes: 50_000,
+			toolsBytes: 25_000,
+			optionsBytes: 500,
+		});
 		expect(observed).toEqual([]);
 		expect(dropped).toEqual([
 			"user.extension_activated",
@@ -636,6 +663,7 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"task.compaction_executed",
 			"task.compaction_skipped",
 			"task.emergency_truncation",
+			"task.request_overhead_exceeds_budget",
 		]);
 	});
 });

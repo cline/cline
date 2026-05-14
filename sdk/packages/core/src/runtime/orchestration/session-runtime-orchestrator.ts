@@ -1148,6 +1148,10 @@ export class SessionRuntime {
 		// monotonically non-increasing as the message payload shrinks. The third
 		// attempt is a guard for unexpected formatter drift.
 		for (let attempt = 0; attempt < REQUEST_BUDGET_MAX_ATTEMPTS; attempt += 1) {
+			// Keep only the final attempt's signal; a clean retry must not flush
+			// stale emergency-truncation telemetry from an earlier failed attempt.
+			bufferedNotice = undefined;
+			bufferedTelemetry = undefined;
 			apiMessages = this.messageBuilder.buildForApi(providerMessages, {
 				...bufferingOptions,
 				requestOverheadBytes,
