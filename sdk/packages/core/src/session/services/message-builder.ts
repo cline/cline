@@ -898,9 +898,12 @@ export class MessageBuilder {
 				// share the existing `MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES`
 				// floor; truncating below that loses too much signal.
 				//
-				// `redacted_thinking` is intentionally skipped — its
-				// content is a fixed placeholder. `tool_use` and its
-				// `input` body are skipped here too; a JSON-aware
+				// `thinking` and `redacted_thinking` are intentionally
+				// skipped: signatures/details are tied to the original
+				// reasoning payload, so middle-truncating the text can make
+				// providers reject the request. Layer B may remove those
+				// blocks whole if the request still exceeds budget.
+				// `tool_use` and its `input` body are skipped here too; a JSON-aware
 				// structural truncator that can drill into values
 				// without corrupting `tool_use_id`s or breaking JSON
 				// shape is the responsibility of Layer B (CLINE-2192).
@@ -910,16 +913,6 @@ export class MessageBuilder {
 						get: () => block.text,
 						set: (value) => {
 							block.text = value;
-						},
-					});
-					continue;
-				}
-				if (block.type === "thinking") {
-					candidates.push({
-						byteLength: utf8ByteLength(block.thinking),
-						get: () => block.thinking,
-						set: (value) => {
-							block.thinking = value;
 						},
 					});
 					continue;

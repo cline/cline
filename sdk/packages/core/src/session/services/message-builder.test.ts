@@ -499,9 +499,10 @@ describe("MessageBuilder", () => {
 	});
 
 	// CLINE-2191 (Layer A): widen MessageBuilder.collectTruncationCandidates
-	// beyond tool_result content so user text, assistant text, thinking
-	// blocks, and top-level file blocks also participate in the aggregate
-	// budget. Also tie the budget to the model's actual maxInputTokens.
+	// beyond tool_result content so user text, assistant text, and top-level
+	// file blocks also participate in the aggregate budget. Thinking blocks
+	// are counted but not middle-truncated because their signatures/details
+	// are tied to the original reasoning payload.
 	it("truncates user text blocks under the aggregate budget (CLINE-2191)", () => {
 		const builder = new MessageBuilder(50_000, undefined, 500_000);
 		const messages: Message[] = [
@@ -521,13 +522,17 @@ describe("MessageBuilder", () => {
 		expect(block.text).toContain("provider request budget");
 	});
 
-	it("truncates assistant text and thinking blocks under the aggregate budget (CLINE-2191)", () => {
+	it("truncates assistant text but preserves signed thinking blocks under the aggregate budget (CLINE-2191)", () => {
 		const builder = new MessageBuilder(50_000, undefined, 250_000);
 		const messages: Message[] = [
 			{
 				role: "assistant",
 				content: [
-					{ type: "thinking", thinking: "t".repeat(1_000_000) },
+					{
+						type: "thinking",
+						thinking: "t".repeat(1_000_000),
+						signature: "sig-1",
+					},
 					{ type: "text", text: "a".repeat(2_000_000) },
 				],
 			},
@@ -535,18 +540,49 @@ describe("MessageBuilder", () => {
 
 		const result = builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
-		expect(serialized.length).toBeLessThan(1_000_000);
 		expect(serialized).toContain("provider request budget");
-		// Both blocks got reduced; neither is the full 2 MB / 1 MB original.
 		const content = result[0].content as Array<{ type: string }>;
 		const thinking = content.find((b) => b.type === "thinking") as unknown as
-			| { thinking: string }
+			| { thinking: string; signature?: string }
 			| undefined;
 		const text = content.find((b) => b.type === "text") as unknown as
 			| { text: string }
 			| undefined;
 		if (!thinking || !text) throw new Error("expected both blocks present");
-		expect(thinking.thinking.length).toBeLessThan(1_000_000);
+		expect(thinking.thinking).toBe("t".repeat(1_000_000));
+		expect(thinking.signature).toBe("sig-1");
+		expect(text.text.length).toBeLessThan(2_000_000);
+	});
+
+	it("preserves unsigned thinking blocks with details under the aggregate budget (CLINE-2191)", () => {
+		const details = [{ provider: "anthropic", hash: "opaque" }];
+		const builder = new MessageBuilder(50_000, undefined, 250_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "u".repeat(750_000),
+						details,
+					},
+					{ type: "text", text: "b".repeat(2_000_000) },
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const content = result[0].content as Array<{ type: string }>;
+		const thinking = content.find((b) => b.type === "thinking") as unknown as
+			| { thinking: string; details?: unknown[] }
+			| undefined;
+		const text = content.find((b) => b.type === "text") as unknown as
+			| { text: string }
+			| undefined;
+		if (!thinking || !text) throw new Error("expected both blocks present");
+		expect(thinking.thinking).toBe("u".repeat(750_000));
+		expect(thinking.details).toEqual(details);
+		expect(text.text).toContain("provider request budget");
 		expect(text.text.length).toBeLessThan(2_000_000);
 	});
 
