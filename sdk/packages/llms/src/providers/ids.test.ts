@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createOpenAIProvider } from "./ai-sdk";
+import { createOpenAICompatibleProvider, createOpenAIProvider } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
-import { BUILT_IN_PROVIDER_IDS } from "./ids";
+import { createGateway } from "./gateway";
+import { BUILT_IN_PROVIDER_IDS, normalizeProviderId } from "./ids";
 import {
 	getModelsForProvider,
 	getProvider,
@@ -31,6 +32,50 @@ describe("provider-ids", () => {
 			"v0-1.5-lg",
 			"v0-1.5-md",
 		]);
+	});
+
+	it("keeps legacy openai as the OpenAI Compatible built-in provider", async () => {
+		expect(normalizeProviderId("openai")).toBe("openai");
+		expect(BUILT_IN_PROVIDER_IDS).toContain("openai");
+
+		await expect(getProvider("openai")).resolves.toMatchObject({
+			id: "openai",
+			name: "OpenAI Compatible",
+			baseUrl: "https://api.openai.com/v1",
+			defaultModelId: "gpt-4o",
+			client: "openai-compatible",
+		});
+		await expect(getModelsForProvider("openai")).resolves.toMatchObject({
+			"gpt-4o": {
+				id: "gpt-4o",
+				contextWindow: 128_000,
+				maxInputTokens: 128_000,
+			},
+		});
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "openai",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai",
+					apiKey: "test-key",
+					baseUrl: "https://gateway.example.invalid/v1",
+					models: [{ id: "gpt-oss-120b", name: "GPT OSS 120B" }],
+				},
+			],
+		});
+		expect(gateway.listModels("openai")).toContainEqual(
+			expect.objectContaining({
+				id: "gpt-oss-120b",
+				providerId: "openai",
+			}),
+		);
 	});
 
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {

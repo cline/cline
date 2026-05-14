@@ -813,6 +813,7 @@ const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
 	"ollama",
 	"lmstudio",
 	"litellm",
+	"openai",
 ]);
 
 function shouldExposeBaseUrlField(

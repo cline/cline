@@ -158,6 +158,7 @@ interface LegacyProviderStorage {
 }
 
 const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
+const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
 
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
@@ -651,6 +652,9 @@ function resolveLegacyCustomProviderRegistration(
 			[settings.model]: {
 				id: settings.model,
 				name: settings.model,
+				contextWindow: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
+				maxInputTokens: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
+				capabilities: ["streaming", "tools", "images"],
 			},
 		},
 	};

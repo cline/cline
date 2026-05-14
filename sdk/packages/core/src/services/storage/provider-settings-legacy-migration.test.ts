@@ -242,6 +242,9 @@ describe("migrateLegacyProviderSettings", () => {
 						"gpt-oss-120b": {
 							id: "gpt-oss-120b",
 							name: "gpt-oss-120b",
+							contextWindow: 128000,
+							maxInputTokens: 128000,
+							capabilities: ["streaming", "tools", "images"],
 						},
 					},
 				},

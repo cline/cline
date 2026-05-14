@@ -150,6 +150,11 @@ function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
 		id,
 		name: id,
 	};
+	if (spec?.family === "openai-compatible") {
+		info.contextWindow = 128_000;
+		info.maxInputTokens = 128_000;
+		info.capabilities = ["streaming", "tools", "images"];
+	}
 	if (spec?.id === "qwen" || spec?.id === "qwen-code") {
 		info.family = "qwen";
 		info.capabilities = ["prompt-cache"];
@@ -252,6 +257,17 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 }
 
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
+	{
+		id: "openai",
+		name: "OpenAI Compatible",
+		description: "OpenAI-compatible chat completions endpoint",
+		family: "openai-compatible",
+		popular: 7,
+		capabilities: ["tools"],
+		defaultModelId: "gpt-4o",
+		apiKeyEnv: ["OPENAI_API_KEY"],
+		defaults: { baseUrl: "https://api.openai.com/v1" },
+	},
 	{
 		id: "cline",
 		name: "Cline",
