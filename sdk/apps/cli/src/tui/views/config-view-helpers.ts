@@ -17,7 +17,6 @@ export type ConfigAction =
 
 const CONFIG_TABS: InteractiveConfigTab[] = [
 	"general",
-	"advanced",
 	"mcp",
 	"skills",
 	"rules",
@@ -25,6 +24,7 @@ const CONFIG_TABS: InteractiveConfigTab[] = [
 	"plugins",
 	"agents",
 	"hooks",
+	"advanced",
 ];
 
 export function getConfigTabs(): InteractiveConfigTab[] {

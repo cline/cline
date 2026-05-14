@@ -86,8 +86,9 @@ describe("config view helpers", () => {
 		expect(toTabLabel("advanced")).toBe("Advanced");
 		expect(resolveInitialConfigTab("skills")).toBe("skills");
 		expect(resolveInitialConfigTab(undefined)).toBe("general");
-		expect(getAdjacentConfigTab("general", "right")).toBe("advanced");
-		expect(getAdjacentConfigTab("advanced", "left")).toBe("general");
+		expect(getAdjacentConfigTab("hooks", "right")).toBe("advanced");
+		expect(getAdjacentConfigTab("advanced", "left")).toBe("hooks");
+		expect(getAdjacentConfigTab("advanced", "right")).toBe("general");
 		expect(getAdjacentConfigTab("mcp", "right")).toBe("skills");
 		expect(getAdjacentConfigTab("skills", "left")).toBe("mcp");
 	});
