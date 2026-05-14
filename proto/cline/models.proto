@@ -59,6 +59,8 @@ service ModelsService {
   rpc listProviders(Empty) returns (ProviderListingsResponse);
   // Resolves model metadata for a provider through the unified SDK-backed catalog
   rpc resolveProviderModels(ResolveProviderModelsRequest) returns (ProviderModelsResponse);
+  // Resolves model metadata for a provider/model without refreshing model lists
+  rpc resolveModelInfo(ResolveModelInfoRequest) returns (ResolveModelInfoResponse);
   // Reads redacted effective provider configuration
   rpc readProviderConfig(StringRequest) returns (ProviderConfigResponse);
   // Writes provider configuration fields and returns redacted effective configuration
@@ -167,6 +169,18 @@ message ProviderModelsResponse {
   optional string default_model_id = 7;
   optional string source = 8;
   optional CatalogErrorInfo error = 9;
+}
+
+message ResolveModelInfoRequest {
+  string provider_id = 1;
+  optional string model_id = 2;
+}
+
+message ResolveModelInfoResponse {
+  string provider_id = 1;
+  string model_id = 2;
+  optional OpenRouterModelInfo model_info = 3;
+  string source = 4;
 }
 
 message ProviderConfigResponse {
