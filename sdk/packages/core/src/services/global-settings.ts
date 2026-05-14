@@ -34,6 +34,13 @@ export const GlobalSettingsSchema = z
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		runCommandsTimeoutMs: z
+			.number()
+			.int()
+			.positive()
+			.optional()
+			.catch(30000)
+			.default(30000),
 	})
 	.strip()
 	.transform((settings) => {
@@ -41,8 +48,10 @@ export const GlobalSettingsSchema = z
 			telemetryOptOut: boolean;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
+			runCommandsTimeoutMs: number;
 		} = {
 			telemetryOptOut: settings.telemetryOptOut,
+			runCommandsTimeoutMs: settings.runCommandsTimeoutMs,
 		};
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;

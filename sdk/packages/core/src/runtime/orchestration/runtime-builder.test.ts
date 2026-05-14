@@ -280,6 +280,41 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).toContain("read_files");
 	});
 
+	it("uses runCommandsTimeoutMs from global settings for run_commands tool and executor", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-timeout-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ runCommandsTimeoutMs: 120000 }, null, 2),
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+		const runCommandsTool = runtime.tools.find((tool) => tool.name === "run_commands");
+		expect(runCommandsTool).toBeDefined();
+		expect(runCommandsTool?.timeoutMs).toBe(240000);
+	});
+
+	it("defaults invalid runCommandsTimeoutMs in global settings to 30000", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-timeout-invalid-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ runCommandsTimeoutMs: "oops" }, null, 2),
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+		const runCommandsTool = runtime.tools.find((tool) => tool.name === "run_commands");
+		expect(runCommandsTool?.timeoutMs).toBe(60000);
+	});
+
 	it("adds spawn tool when enabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({

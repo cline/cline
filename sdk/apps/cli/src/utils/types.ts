@@ -30,6 +30,7 @@ export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	mode: CliAgentMode;
 	defaultToolAutoApprove: boolean;
 	toolPolicies: Record<string, ToolPolicy>;
+	runCommandsTimeoutMs: number;
 }
 
 export interface ActiveCliSession {

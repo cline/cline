@@ -196,6 +196,9 @@ function App(props: TuiProps) {
 		toggleMode,
 		toggleAutoApprove: () => session.toggleAutoApprove(),
 		setCompactionMode: session.setCompactionMode,
+		setRunCommandsTimeoutMs: (value) => {
+			void props.onRunCommandsTimeoutChange(value);
+		},
 		termHeight,
 		loadConfigData: props.loadConfigData,
 		onToggleConfigItem: props.onToggleConfigItem,
