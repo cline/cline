@@ -8,12 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import {
-	type ClineCoreStartInput,
-	type CoreSessionConfig,
-	type ProviderSettings,
-	type StartSessionResult,
-} from "@cline/core"
+import { type ClineCoreStartInput, type CoreSessionConfig, type ProviderSettings, type StartSessionResult } from "@cline/core"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
