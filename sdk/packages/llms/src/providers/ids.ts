@@ -11,7 +11,7 @@ export enum BUILT_IN_PROVIDER {
 	CLAUDE_CODE = "claude-code",
 	CLINE = "cline",
 	// OpenAI variants
-	OPENAI = "openai",
+	OPENAI_COMPATIBLE = "openai-compatible",
 	OPENAI_NATIVE = "openai-native",
 	OPENAI_CODEX = "openai-codex",
 	OPENAI_CODEX_CLI = "openai-codex-cli",
@@ -69,6 +69,7 @@ export enum BUILT_IN_PROVIDER {
  * Keep this map as the single source of truth for alias handling.
  */
 export const PROVIDER_ID_ALIASES: Record<string, BUILT_IN_PROVIDER> = {
+	openai: BUILT_IN_PROVIDER.OPENAI_COMPATIBLE,
 	togetherai: BUILT_IN_PROVIDER.TOGETHER,
 	"sap-ai-core": BUILT_IN_PROVIDER.SAPAICORE,
 };

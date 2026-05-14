@@ -34,18 +34,21 @@ describe("provider-ids", () => {
 		]);
 	});
 
-	it("keeps legacy openai as the OpenAI Compatible built-in provider", async () => {
-		expect(normalizeProviderId("openai")).toBe("openai");
-		expect(BUILT_IN_PROVIDER_IDS).toContain("openai");
+	it("uses openai-compatible as the OpenAI Compatible built-in provider", async () => {
+		expect(normalizeProviderId("openai")).toBe("openai-compatible");
+		expect(BUILT_IN_PROVIDER_IDS).not.toContain("openai");
+		expect(BUILT_IN_PROVIDER_IDS).toContain("openai-compatible");
 
-		await expect(getProvider("openai")).resolves.toMatchObject({
-			id: "openai",
+		await expect(getProvider("openai-compatible")).resolves.toMatchObject({
+			id: "openai-compatible",
 			name: "OpenAI Compatible",
 			baseUrl: "https://api.openai.com/v1",
 			defaultModelId: "gpt-4o",
 			client: "openai-compatible",
 		});
-		await expect(getModelsForProvider("openai")).resolves.toMatchObject({
+		await expect(
+			getModelsForProvider("openai-compatible"),
+		).resolves.toMatchObject({
 			"gpt-4o": {
 				id: "gpt-4o",
 				contextWindow: 128_000,
@@ -54,7 +57,7 @@ describe("provider-ids", () => {
 		});
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
-			(item) => item.manifest.id === "openai",
+			(item) => item.manifest.id === "openai-compatible",
 		);
 		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
 			createProvider: createOpenAICompatibleProvider,
@@ -63,17 +66,17 @@ describe("provider-ids", () => {
 		const gateway = createGateway({
 			providerConfigs: [
 				{
-					providerId: "openai",
+					providerId: "openai-compatible",
 					apiKey: "test-key",
 					baseUrl: "https://gateway.example.invalid/v1",
 					models: [{ id: "gpt-oss-120b", name: "GPT OSS 120B" }],
 				},
 			],
 		});
-		expect(gateway.listModels("openai")).toContainEqual(
+		expect(gateway.listModels("openai-compatible")).toContainEqual(
 			expect.objectContaining({
 				id: "gpt-oss-120b",
-				providerId: "openai",
+				providerId: "openai-compatible",
 			}),
 		);
 	});

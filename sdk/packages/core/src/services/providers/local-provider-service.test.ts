@@ -1351,8 +1351,8 @@ describe("getProviderConfigFields", () => {
 	});
 
 	it("returns api-key auth with apiKey + baseUrl for OpenAI Compatible", () => {
-		const result = getProviderConfigFields("openai");
-		expect(result.providerId).toBe("openai");
+		const result = getProviderConfigFields("openai-compatible");
+		expect(result.providerId).toBe("openai-compatible");
 		expect(result.authMethod).toBe("api-key");
 		expect(result.fields.apiKey).toEqual({});
 		expect(result.fields.baseUrl?.defaultValue).toBe(

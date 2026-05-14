@@ -250,7 +250,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (providerId === "cline") {
 				setClineModelSelected(0);
 				setStep("cline_model");
-			} else if (providerId === "openai") {
+			} else if (providerId === "openai-compatible") {
 				const existing =
 					providerSettingsManager.getProviderSettings(providerId);
 				setCustomModelId(existing?.model ?? provider?.defaultModelId ?? "");
@@ -604,7 +604,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		customModelError,
 		customModelId,
 		customModelTitle:
-			activeProviderId === "openai" ? "Set model ID" : "Create custom model ID",
+			activeProviderId === "openai-compatible"
+				? "Set model ID"
+				: "Create custom model ID",
 		handleByoApiKeyInput: setByoApiKey,
 		handleByoBaseUrlInput: setByoBaseUrl,
 		handleCustomModelIdInput: (value: string) => {

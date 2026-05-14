@@ -157,7 +157,7 @@ interface LegacyProviderStorage {
 	secrets: LegacySecrets;
 }
 
-const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
+const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai-compatible";
 const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
 
 export interface MigrateLegacyProviderSettingsOptions {
@@ -259,41 +259,8 @@ function resolveLegacyStorage(
 	};
 }
 
-function isOfficialOpenAiBaseUrl(baseUrl: string): boolean {
-	try {
-		const url = new URL(baseUrl);
-		const hostname = url.hostname.toLowerCase();
-		return (
-			hostname === "api.openai.com" ||
-			hostname.endsWith(".openai.azure.com") ||
-			hostname.endsWith(".services.ai.azure.com")
-		);
-	} catch {
-		return false;
-	}
-}
-
-function shouldMigrateLegacyOpenAiAsCustomProvider(
-	legacyGlobalState: LegacyGlobalState,
-): boolean {
-	const baseUrl = trimNonEmpty(legacyGlobalState.openAiBaseUrl);
-	if (!baseUrl) {
-		return false;
-	}
-	if (legacyGlobalState.azureApiVersion || legacyGlobalState.azureIdentity) {
-		return false;
-	}
-	return !isOfficialOpenAiBaseUrl(baseUrl);
-}
-
-function resolveMigratedProviderId(
-	providerId: string,
-	legacyGlobalState: LegacyGlobalState,
-): string {
-	if (
-		providerId === "openai" &&
-		shouldMigrateLegacyOpenAiAsCustomProvider(legacyGlobalState)
-	) {
+function resolveMigratedProviderId(providerId: string): string {
+	if (providerId === "openai") {
 		return LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID;
 	}
 	return providerId;
@@ -435,10 +402,7 @@ function buildLegacyProviderSettings(
 	legacySecrets: LegacySecrets,
 	mode: LegacyMode,
 ): ProviderSettings | undefined {
-	const targetProviderId = resolveMigratedProviderId(
-		providerId,
-		legacyGlobalState,
-	);
+	const targetProviderId = resolveMigratedProviderId(providerId);
 	const activeProviderForMode = trimNonEmpty(
 		mode === "plan"
 			? legacyGlobalState.planModeApiProvider
@@ -729,7 +693,7 @@ export function migrateLegacyProviderSettings(
 	let addedCustomProviderCount = 0;
 
 	for (const legacyProviderId of candidates) {
-		const providerId = resolveMigratedProviderId(legacyProviderId, globalState);
+		const providerId = resolveMigratedProviderId(legacyProviderId);
 		if (next.providers[providerId]) {
 			continue;
 		}
@@ -772,7 +736,7 @@ export function migrateLegacyProviderSettings(
 			: globalState.actModeApiProvider,
 	);
 	const migratedPreferredProvider = preferredProvider
-		? resolveMigratedProviderId(preferredProvider, globalState)
+		? resolveMigratedProviderId(preferredProvider)
 		: undefined;
 	next.lastUsedProvider =
 		existing.lastUsedProvider ??

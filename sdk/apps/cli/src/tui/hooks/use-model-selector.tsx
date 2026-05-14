@@ -74,7 +74,7 @@ function clearReasoningConfig(config: Config): void {
 }
 
 function usesModelIdInput(providerId: string): boolean {
-	return providerId === "openai";
+	return providerId === "openai-compatible";
 }
 
 async function runProviderChange(

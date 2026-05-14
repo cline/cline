@@ -258,7 +258,7 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	{
-		id: "openai",
+		id: "openai-compatible",
 		name: "OpenAI Compatible",
 		description: "OpenAI-compatible chat completions endpoint",
 		family: "openai-compatible",
