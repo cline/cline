@@ -16,12 +16,12 @@ const mocks = vi.hoisted(() => ({
 	getAllProviders: vi.fn(),
 }))
 
-vi.mock("@clinebot/core", () => ({
+vi.mock("@cline/core", () => ({
 	resolveProviderConfig: mocks.resolveProviderConfig,
 }))
 
-vi.mock("@clinebot/llms", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@clinebot/llms")>()
+vi.mock("@cline/llms", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/llms")>()
 	return {
 		...actual,
 		getAllProviders: mocks.getAllProviders,
