@@ -413,7 +413,9 @@ describe("MessageBuilder", () => {
 		// 1 MB total budget against ~6 MB of input across the four newly
 		// covered tools. Use the default TARGET_TOOL_NAMES (omit the
 		// second constructor arg) to exercise the constant change itself.
-		const builder = new MessageBuilder(50_000, undefined, 1_000_000);
+		// maxToolResultChars is set above each block size so the per-block
+		// truncator does not fire and the aggregate budget is the active limiter.
+		const builder = new MessageBuilder(2_000_000, undefined, 1_000_000);
 		const messages: Message[] = [
 			{
 				role: "assistant",
@@ -492,13 +494,7 @@ describe("MessageBuilder", () => {
 			);
 		}, 0);
 
-		// Either path is acceptable: the per-block truncator
-		// (`...[truncated N chars]...`) or the aggregate-budget
-		// truncator (`...[truncated N chars to fit provider request
-		// budget]...`) must have fired and pulled the request well
-		// below the configured 1 MB budget. Before CLINE-2183 neither
-		// fired for these tools and totalBytes was ~6 MB.
 		expect(totalBytes).toBeLessThanOrEqual(1_000_000);
-		expect(JSON.stringify(result)).toContain("...[truncated");
+		expect(JSON.stringify(result)).toContain("to fit provider request budget");
 	});
 });
