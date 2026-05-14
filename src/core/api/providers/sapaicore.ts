@@ -776,16 +776,25 @@ export class SapAiCoreHandler implements ApiHandler {
 				...convertToOpenAiMessages(messages),
 			]
 
-			// Cohere deployments expose `/chat` instead of `/chat/completions`
-			const chatPath = model.id.startsWith("cohere--") ? "chat" : "chat/completions"
-			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/${chatPath}`
-			payload = {
-				stream: true,
-				model: model.id,
-				messages: openAiMessages,
-				max_tokens: model.info.maxTokens,
-				temperature: 0.0,
-				stream_options: { include_usage: true },
+			if (model.id.startsWith("cohere--")) {
+				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat`
+				payload = {
+					stream: true,
+					model: model.id,
+					messages: openAiMessages,
+					max_tokens: model.info.maxTokens,
+					temperature: 0.0,
+				}
+			} else {
+				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions`
+				payload = {
+					stream: true,
+					model: model.id,
+					messages: openAiMessages,
+					max_tokens: model.info.maxTokens,
+					temperature: 0.0,
+					stream_options: { include_usage: true },
+				}
 			}
 		} else if (geminiModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
@@ -829,6 +838,8 @@ export class SapAiCoreHandler implements ApiHandler {
 						outputTokens: response.data.usage.completion_tokens,
 					}
 				}
+			} else if (model.id.startsWith("cohere--")) {
+				yield* this.streamCompletionCohere(response.data, model)
 			} else if (
 				openAIModels.includes(model.id) ||
 				perplexityModels.includes(model.id) ||
@@ -968,8 +979,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		stream: any,
 		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		const _usage = { input_tokens: 0, output_tokens: 0 }
-
 		try {
 			// Iterate over the stream and process each chunk
 			for await (const chunk of stream) {
@@ -1106,6 +1115,54 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 		} catch (error) {
 			Logger.error("Error streaming GPT completion:", error)
+			throw error
+		}
+	}
+
+	private async *streamCompletionCohere(
+		stream: any,
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
+	): AsyncGenerator<any, void, unknown> {
+		let inputTokens = 0
+		let outputTokens = 0
+
+		try {
+			for await (const chunk of stream) {
+				const chunkStr = this.chunkToString(chunk)
+				const lines = chunkStr.split("\n").filter(Boolean)
+				for (const line of lines) {
+					if (!line.startsWith("data: ")) {
+						continue
+					}
+					const jsonData = line.slice(6).trim()
+					if (!jsonData || jsonData === "[DONE]") {
+						continue
+					}
+					try {
+						const data = JSON.parse(jsonData)
+
+						//  https://docs.cohere.com/docs/streaming
+						if (data.type === "content-delta") {
+							const text = data.delta?.message?.content?.text
+							if (text) {
+								yield { type: "text", text }
+							}
+						}
+						if (data.type === "message-end") {
+							const usage = data.delta?.usage?.tokens ?? data.delta?.usage?.billed_units
+							if (usage) {
+								inputTokens = usage.input_tokens ?? inputTokens
+								outputTokens = usage.output_tokens ?? outputTokens
+								yield { type: "usage", inputTokens, outputTokens }
+							}
+						}
+					} catch (error) {
+						Logger.error("Failed to parse Cohere JSON data:", error)
+					}
+				}
+			}
+		} catch (error) {
+			Logger.error("Error streaming Cohere completion:", error)
 			throw error
 		}
 	}
