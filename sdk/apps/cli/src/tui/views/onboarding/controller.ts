@@ -250,12 +250,18 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (providerId === "cline") {
 				setClineModelSelected(0);
 				setStep("cline_model");
+			} else if (providerId === "openai-compatible") {
+				const existing =
+					providerSettingsManager.getProviderSettings(providerId);
+				setCustomModelId(existing?.model ?? provider?.defaultModelId ?? "");
+				setCustomModelError("");
+				setStep("custom_model_id");
 			} else {
 				setStep("model_picker");
 				loadModelsForProvider(providerId);
 			}
 		},
-		[providers, loadModelsForProvider],
+		[providers, loadModelsForProvider, providerSettingsManager],
 	);
 
 	const resetAuth = useCallback(() => {
@@ -597,6 +603,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		deviceVerifyUrl,
 		customModelError,
 		customModelId,
+		customModelTitle:
+			activeProviderId === "openai-compatible"
+				? "Set model ID"
+				: "Create custom model ID",
 		handleByoApiKeyInput: setByoApiKey,
 		handleByoBaseUrlInput: setByoBaseUrl,
 		handleCustomModelIdInput: (value: string) => {

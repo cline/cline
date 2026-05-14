@@ -158,6 +158,9 @@ interface LegacyProviderStorage {
 }
 
 const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
+const OPENAI_COMPATIBLE_PROVIDER_ID =
+	LlmsModels.BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
+const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
 
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
@@ -258,42 +261,9 @@ function resolveLegacyStorage(
 	};
 }
 
-function isOfficialOpenAiBaseUrl(baseUrl: string): boolean {
-	try {
-		const url = new URL(baseUrl);
-		const hostname = url.hostname.toLowerCase();
-		return (
-			hostname === "api.openai.com" ||
-			hostname.endsWith(".openai.azure.com") ||
-			hostname.endsWith(".services.ai.azure.com")
-		);
-	} catch {
-		return false;
-	}
-}
-
-function shouldMigrateLegacyOpenAiAsCustomProvider(
-	legacyGlobalState: LegacyGlobalState,
-): boolean {
-	const baseUrl = trimNonEmpty(legacyGlobalState.openAiBaseUrl);
-	if (!baseUrl) {
-		return false;
-	}
-	if (legacyGlobalState.azureApiVersion || legacyGlobalState.azureIdentity) {
-		return false;
-	}
-	return !isOfficialOpenAiBaseUrl(baseUrl);
-}
-
-function resolveMigratedProviderId(
-	providerId: string,
-	legacyGlobalState: LegacyGlobalState,
-): string {
-	if (
-		providerId === "openai" &&
-		shouldMigrateLegacyOpenAiAsCustomProvider(legacyGlobalState)
-	) {
-		return LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID;
+function resolveMigratedProviderId(providerId: string): string {
+	if (providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
+		return OPENAI_COMPATIBLE_PROVIDER_ID;
 	}
 	return providerId;
 }
@@ -434,10 +404,7 @@ function buildLegacyProviderSettings(
 	legacySecrets: LegacySecrets,
 	mode: LegacyMode,
 ): ProviderSettings | undefined {
-	const targetProviderId = resolveMigratedProviderId(
-		providerId,
-		legacyGlobalState,
-	);
+	const targetProviderId = resolveMigratedProviderId(providerId);
 	const activeProviderForMode = trimNonEmpty(
 		mode === "plan"
 			? legacyGlobalState.planModeApiProvider
@@ -516,7 +483,10 @@ function buildLegacyProviderSettings(
 			// Failed to parse stored cline auth data
 		}
 	}
-	if (providerId === "openai" && legacyGlobalState.openAiHeaders) {
+	if (
+		providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID &&
+		legacyGlobalState.openAiHeaders
+	) {
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
@@ -547,7 +517,7 @@ function buildLegacyProviderSettings(
 		};
 	}
 	if (
-		providerId === "openai" &&
+		providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID &&
 		(legacyGlobalState.azureApiVersion ||
 			legacyGlobalState.azureIdentity !== undefined)
 	) {
@@ -635,7 +605,7 @@ function resolveLegacyCustomProviderRegistration(
 	providerId: string,
 	settings: ProviderSettings,
 ): StoredModelsFile["providers"][string] | undefined {
-	if (providerId !== LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
+	if (providerId !== OPENAI_COMPATIBLE_PROVIDER_ID) {
 		return undefined;
 	}
 	if (!settings.baseUrl || !settings.model) {
@@ -651,6 +621,9 @@ function resolveLegacyCustomProviderRegistration(
 			[settings.model]: {
 				id: settings.model,
 				name: settings.model,
+				contextWindow: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
+				maxInputTokens: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
+				capabilities: ["streaming", "tools", "images"],
 			},
 		},
 	};
@@ -673,7 +646,9 @@ function collectCandidateProviderIds(
 	if (trimNonEmpty(legacySecrets.apiKey)) candidates.add("anthropic");
 	if (trimNonEmpty(legacySecrets.openRouterApiKey))
 		candidates.add("openrouter");
-	if (trimNonEmpty(legacySecrets.openAiApiKey)) candidates.add("openai");
+	if (trimNonEmpty(legacySecrets.openAiApiKey)) {
+		candidates.add(LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID);
+	}
 	if (trimNonEmpty(legacySecrets.openAiNativeApiKey))
 		candidates.add("openai-native");
 	if (trimNonEmpty(legacySecrets["openai-codex-oauth-credentials"]))
@@ -725,7 +700,7 @@ export function migrateLegacyProviderSettings(
 	let addedCustomProviderCount = 0;
 
 	for (const legacyProviderId of candidates) {
-		const providerId = resolveMigratedProviderId(legacyProviderId, globalState);
+		const providerId = resolveMigratedProviderId(legacyProviderId);
 		if (next.providers[providerId]) {
 			continue;
 		}
@@ -768,7 +743,7 @@ export function migrateLegacyProviderSettings(
 			: globalState.actModeApiProvider,
 	);
 	const migratedPreferredProvider = preferredProvider
-		? resolveMigratedProviderId(preferredProvider, globalState)
+		? resolveMigratedProviderId(preferredProvider)
 		: undefined;
 	next.lastUsedProvider =
 		existing.lastUsedProvider ??

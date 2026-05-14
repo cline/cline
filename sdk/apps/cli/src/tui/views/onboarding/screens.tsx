@@ -504,6 +504,7 @@ export function OnboardingCustomModelIdScreen(props: {
 	mouse: MouseTrackerState;
 	onInput: (value: string) => void;
 	onSubmit: () => void;
+	title: string;
 	value: string;
 }) {
 	const defaultFg = useDefaultFg();
@@ -514,7 +515,7 @@ export function OnboardingCustomModelIdScreen(props: {
 			mouse={props.mouse}
 		>
 			<text fg={defaultFg} paddingX={1}>
-				<strong>Create custom model ID</strong>
+				{props.title}
 			</text>
 			<text fg="gray" paddingX={1}>
 				{props.activeProviderName}

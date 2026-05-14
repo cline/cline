@@ -57,6 +57,78 @@ function formatTokenCount(tokens: number): string {
 
 export const CHANGE_PROVIDER_ACTION = "__change_provider__";
 
+export function ModelIdInputContent(
+	props: ChoiceContext<string> & {
+		currentModel: string;
+		currentProviderName: string;
+	},
+) {
+	const { resolve, dismiss, dialogId, currentModel, currentProviderName } =
+		props;
+	const [modelId, setModelId] = useState(currentModel);
+	const [error, setError] = useState("");
+	const [onProvider, setOnProvider] = useState(false);
+
+	const submit = () => {
+		const trimmed = modelId.trim();
+		if (!trimmed) {
+			setError("Enter a model ID");
+			return;
+		}
+		resolve(trimmed);
+	};
+
+	useDialogKeyboard((key) => {
+		if (key.name === "escape") {
+			dismiss();
+			return;
+		}
+		if (key.name === "tab") {
+			setOnProvider((value) => !value);
+			return;
+		}
+		if (key.name === "return" || key.name === "enter") {
+			if (onProvider) {
+				resolve(CHANGE_PROVIDER_ACTION);
+				return;
+			}
+			submit();
+		}
+	}, dialogId);
+
+	return (
+		<box flexDirection="column" gap={1}>
+			<text>Set Model ID</text>
+
+			<ProviderRow providerName={currentProviderName} focused={onProvider} />
+
+			<box flexDirection="column" gap={0}>
+				<text fg="gray">Model ID</text>
+				<box
+					border
+					borderStyle="rounded"
+					borderColor={error ? "red" : onProvider ? "gray" : palette.act}
+					paddingX={1}
+				>
+					<input
+						value={modelId}
+						onInput={(value: string) => {
+							setModelId(value);
+							setError("");
+						}}
+						placeholder="provider/model"
+						flexGrow={1}
+						focused={!onProvider}
+					/>
+				</box>
+				{error && <text fg="red">{error}</text>}
+			</box>
+
+			<text fg="gray">Enter to save, Tab to change provider, Esc to close</text>
+		</box>
+	);
+}
+
 export function ModelSelectorContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;

@@ -179,6 +179,7 @@ describe("sdk-gateway", () => {
 		const gateway = createGateway();
 		const providerIds = gateway.listProviders().map((provider) => provider.id);
 
+		expect(providerIds).toContain("openai-compatible");
 		expect(providerIds).toContain("openai-native");
 		expect(providerIds).toContain("anthropic");
 		expect(providerIds).toContain("gemini");
