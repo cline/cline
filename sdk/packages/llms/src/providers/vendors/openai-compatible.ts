@@ -1,8 +1,9 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
-import type {
-	GatewayProviderContext,
-	GatewayResolvedProviderConfig,
+import {
+	addNvidiaBillingOriginHeaderForBaseUrl,
+	type GatewayProviderContext,
+	type GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
 import { resolveApiKey } from "../http";
@@ -18,11 +19,15 @@ export async function createOpenAICompatibleProviderModule(
 	// authoritative error and is surfaced to the user as-is. This keeps
 	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
+	const headers = addNvidiaBillingOriginHeaderForBaseUrl(
+		config.baseUrl,
+		config.headers,
+	);
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,
 		...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
-		...(config.headers ? { headers: config.headers } : {}),
+		...(headers ? { headers } : {}),
 		...(config.fetch ? { fetch: config.fetch } : {}),
 		includeUsage: true,
 	} as never);

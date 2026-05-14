@@ -6,6 +6,7 @@ import {
 	type GatewayProviderSettings,
 	getClineEnvironmentConfig,
 	type JsonValue,
+	NVIDIA_NIM_BASE_URL,
 	type ProviderCapability,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
@@ -25,6 +26,7 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
+const NVIDIA_NIM_DEFAULT_MODEL_ID = "nvidia/nemotron-3-super-120b-a12b";
 
 export type ProviderFamily =
 	| "openai"
@@ -143,6 +145,20 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 			},
 		]),
 	);
+}
+
+function buildNvidiaModels(): Record<string, ModelInfo> {
+	const models = generatedModels("nvidia");
+	if (Object.keys(models).length > 0) {
+		return models;
+	}
+	return {
+		[NVIDIA_NIM_DEFAULT_MODEL_ID]: {
+			id: NVIDIA_NIM_DEFAULT_MODEL_ID,
+			name: "NVIDIA Nemotron 3 Super 120B A12B",
+			capabilities: ["tools", "reasoning", "streaming", "temperature"],
+		},
+	};
 }
 
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
@@ -344,6 +360,21 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "nvidia/nemotron-3-super-120b-a12b",
 		apiKeyEnv: ["NEBIUS_API_KEY"],
 		defaults: { baseUrl: "https://api.studio.nebius.ai/v1" },
+	},
+	{
+		id: "nvidia",
+		name: "NVIDIA NIM",
+		description: "NVIDIA NIM inference via OpenAI-compatible APIs",
+		family: "openai-compatible",
+		capabilities: ["reasoning", "tools"],
+		defaultModelId: NVIDIA_NIM_DEFAULT_MODEL_ID,
+		apiKeyEnv: ["NVIDIA_API_KEY"],
+		modelsProviderId: "nvidia",
+		modelsFactory: buildNvidiaModels,
+		docsUrl: "https://build.nvidia.com/explore/discover",
+		defaults: {
+			baseUrl: NVIDIA_NIM_BASE_URL,
+		},
 	},
 	{
 		id: "baseten",

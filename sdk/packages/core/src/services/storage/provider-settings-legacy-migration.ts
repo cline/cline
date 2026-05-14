@@ -134,6 +134,7 @@ interface LegacySecrets {
 	zaiApiKey?: string;
 	huggingFaceApiKey?: string;
 	nebiusApiKey?: string;
+	nvidiaApiKey?: string;
 	sambanovaApiKey?: string;
 	cerebrasApiKey?: string;
 	sapAiCoreClientId?: string;
@@ -481,6 +482,7 @@ function buildLegacyProviderSettings(
 		zai: legacySecrets.zaiApiKey,
 		huggingface: legacySecrets.huggingFaceApiKey,
 		nebius: legacySecrets.nebiusApiKey,
+		nvidia: legacySecrets.nvidiaApiKey,
 		sambanova: legacySecrets.sambanovaApiKey,
 		cerebras: legacySecrets.cerebrasApiKey,
 		groq: legacySecrets.groqApiKey,
@@ -692,6 +694,7 @@ function collectCandidateProviderIds(
 		candidates.add("vertex");
 	}
 	if (trimNonEmpty(legacySecrets.clineApiKey)) candidates.add("cline");
+	if (trimNonEmpty(legacySecrets.nvidiaApiKey)) candidates.add("nvidia");
 	if (trimNonEmpty(legacySecrets.ocaApiKey)) candidates.add("oca");
 	return candidates;
 }

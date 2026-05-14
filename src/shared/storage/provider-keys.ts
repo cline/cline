@@ -17,6 +17,7 @@ import {
 	minimaxDefaultModelId,
 	moonshotDefaultModelId,
 	nousResearchDefaultModelId,
+	nvidiaDefaultModelId,
 	openAiNativeDefaultModelId,
 	openRouterDefaultModelId,
 	requestyDefaultModelId,
@@ -85,6 +86,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	nousResearch: "nousResearchApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
 	wandb: "wandbApiKey",
+	nvidia: "nvidiaApiKey",
 } as const
 
 const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
@@ -116,6 +118,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
 	wandb: wandbDefaultModelId,
+	nvidia: nvidiaDefaultModelId,
 } as const
 
 /**

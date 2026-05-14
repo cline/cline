@@ -48,6 +48,8 @@ import {
 	nebiusModels,
 	nousResearchDefaultModelId,
 	nousResearchModels,
+	nvidiaDefaultModelId,
+	nvidiaDefaultModelInfo,
 	openAiCodexDefaultModelId,
 	openAiCodexModels,
 	openAiModelInfoSaneDefaults,
@@ -120,6 +122,8 @@ export function getModelsForProvider(
 			return moonshotModels
 		case "nebius":
 			return nebiusModels
+		case "nvidia":
+			return {}
 		case "wandb":
 			return wandbModels
 		case "sambanova":
@@ -377,6 +381,16 @@ export function normalizeApiConfiguration(
 			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
+		case "nvidia": {
+			const nvidiaModelId =
+				(currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId) ||
+				nvidiaDefaultModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: nvidiaModelId,
+				selectedModelInfo: nvidiaModelId === nvidiaDefaultModelId ? nvidiaDefaultModelInfo : openAiModelInfoSaneDefaults,
+			}
+		}
 		case "wandb":
 			return getProviderData(wandbModels, wandbDefaultModelId)
 		case "sambanova":
@@ -833,6 +847,7 @@ export async function syncModeConfigurations(
 		case "asksage":
 		case "xai":
 		case "nebius":
+		case "nvidia":
 		case "wandb":
 		case "sambanova":
 		case "cerebras":

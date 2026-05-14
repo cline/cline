@@ -5,7 +5,7 @@ import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { createOpenAIClient, fetch } from "@/shared/net"
+import { addNvidiaBillingOriginHeaderForBaseUrl, createOpenAIClient, fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -48,6 +48,10 @@ export class OpenAiHandler implements ApiHandler {
 				const baseUrl = this.options.openAiBaseUrl?.toLowerCase() ?? ""
 				const isAzureDomain = baseUrl.includes("azure.com") || baseUrl.includes("azure.us")
 				const externalHeaders = buildExternalBasicHeaders()
+				const openAiHeaders = addNvidiaBillingOriginHeaderForBaseUrl(
+					this.options.openAiBaseUrl,
+					this.options.openAiHeaders,
+				)
 				// Azure API shape slightly differs from the core API shape...
 				if (
 					this.options.azureApiVersion ||
@@ -63,7 +67,7 @@ export class OpenAiHandler implements ApiHandler {
 							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 							defaultHeaders: {
 								...externalHeaders,
-								...this.options.openAiHeaders,
+								...openAiHeaders,
 							},
 							fetch,
 						})
@@ -74,7 +78,7 @@ export class OpenAiHandler implements ApiHandler {
 							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 							defaultHeaders: {
 								...externalHeaders,
-								...this.options.openAiHeaders,
+								...openAiHeaders,
 							},
 							fetch,
 						})
@@ -83,7 +87,7 @@ export class OpenAiHandler implements ApiHandler {
 					this.client = createOpenAIClient({
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
-						defaultHeaders: this.options.openAiHeaders,
+						defaultHeaders: openAiHeaders,
 					})
 				}
 			} catch (error: any) {

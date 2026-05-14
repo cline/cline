@@ -106,6 +106,11 @@ export function getConfiguredProviders(
 		configured.push("nebius")
 	}
 
+	// NVIDIA NIM - requires API key
+	if (apiConfiguration.nvidiaApiKey) {
+		configured.push("nvidia")
+	}
+
 	// AskSage - requires API key
 	if (apiConfiguration.asksageApiKey) {
 		configured.push("asksage")

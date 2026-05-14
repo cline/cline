@@ -126,7 +126,16 @@ export {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
-export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
+export {
+	addNvidiaBillingOriginHeader,
+	addNvidiaBillingOriginHeaderForBaseUrl,
+	DEFAULT_REQUEST_HEADERS,
+	isPublicNvidiaNimBaseUrl,
+	NVIDIA_NIM_BASE_URL,
+	NVIDIA_NIM_BILLING_ORIGIN_HEADER,
+	NVIDIA_NIM_BILLING_ORIGIN_VALUE,
+	serializeAbortReason,
+} from "./llms/requests";
 export { estimateTokens } from "./llms/tokens";
 export type {
 	ToolApprovalRequest,

@@ -36,6 +36,7 @@ import { MistralProvider } from "./providers/MistralProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
 import { NousResearchProvider } from "./providers/NousresearchProvider"
+import { NvidiaProvider } from "./providers/NvidiaProvider"
 import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
@@ -482,6 +483,10 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "wandb" && (
 				<WandbProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "nvidia" && (
+				<NvidiaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "xai" && (

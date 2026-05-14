@@ -118,6 +118,49 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.anthropic?.tokenSource).toBe("migration");
 	});
 
+	it("migrates legacy NVIDIA NIM API keys", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "nvidia",
+					actModeApiModelId: "nvidia/nemotron-3-super-120b-a12b",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ nvidiaApiKey: "legacy-nvidia-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 1,
+			lastUsedProvider: "nvidia",
+		});
+		expect(manager.getProviderSettings("nvidia")).toEqual({
+			provider: "nvidia",
+			model: "nvidia/nemotron-3-super-120b-a12b",
+			apiKey: "legacy-nvidia-key",
+		});
+		expect(manager.read().providers.nvidia?.tokenSource).toBe("migration");
+	});
+
 	it("migrates legacy OpenAI Codex OAuth credentials", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
