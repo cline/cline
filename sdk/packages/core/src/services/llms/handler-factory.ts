@@ -75,6 +75,56 @@ function toGatewayConfiguredModel(
 	};
 }
 
+function setGatewayOption(
+	options: Record<string, unknown>,
+	key: string,
+	value: unknown,
+): void {
+	if (value !== undefined) {
+		options[key] = value;
+	}
+}
+
+function toGatewayProviderOptions(
+	config: ProviderConfig,
+): Record<string, unknown> | undefined {
+	const options: Record<string, unknown> = {};
+	const location = config.region ?? config.gcp?.region;
+
+	setGatewayOption(options, "region", location);
+	setGatewayOption(options, "project", config.gcp?.projectId);
+	setGatewayOption(options, "projectId", config.gcp?.projectId);
+	setGatewayOption(options, "location", location);
+	setGatewayOption(options, "accessKeyId", config.aws?.accessKey);
+	setGatewayOption(options, "secretAccessKey", config.aws?.secretKey);
+	setGatewayOption(options, "sessionToken", config.aws?.sessionToken);
+	setGatewayOption(options, "authentication", config.aws?.authentication);
+	setGatewayOption(options, "profile", config.aws?.profile);
+	setGatewayOption(options, "endpoint", config.aws?.endpoint);
+	setGatewayOption(options, "customModelBaseId", config.aws?.customModelBaseId);
+	setGatewayOption(options, "apiVersion", config.azure?.apiVersion);
+	setGatewayOption(options, "useIdentity", config.azure?.useIdentity);
+	setGatewayOption(options, "mode", config.oca?.mode);
+	setGatewayOption(
+		options,
+		"usePromptCache",
+		config.aws?.usePromptCache ?? config.oca?.usePromptCache,
+	);
+
+	for (const source of [
+		config.codex,
+		config.claudeCode,
+		config.opencode,
+		config.sap,
+	]) {
+		for (const [key, value] of Object.entries(source ?? {})) {
+			setGatewayOption(options, key, value);
+		}
+	}
+
+	return Object.keys(options).length > 0 ? options : undefined;
+}
+
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
@@ -105,6 +155,7 @@ export function createAgentModelFromConfig(
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
+				options: toGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
 							([id, model]) => toGatewayConfiguredModel(id, model),

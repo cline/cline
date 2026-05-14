@@ -17,6 +17,13 @@ import type {
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
 ): AgentMessage[] {
+	return messageToAgentMessagesWithToolNames(message);
+}
+
+function messageToAgentMessagesWithToolNames(
+	message: MessageWithMetadata,
+	toolNamesById?: Map<string, string>,
+): AgentMessage[] {
 	const blocks = normalizeContentBlocks(message.content);
 	const out: AgentMessage[] = [];
 	const baseId = message.id ?? generateMessageId();
@@ -35,7 +42,9 @@ export function messageToAgentMessages(
 		out.push({
 			id,
 			role: message.role,
-			content: nonToolBlocks.map(contentBlockToAgentPart),
+			content: nonToolBlocks.map((block) =>
+				contentBlockToAgentPart(block, toolNamesById),
+			),
 			createdAt: message.ts ?? Date.now(),
 			metadata: message.metadata,
 			modelInfo: message.modelInfo,
@@ -66,7 +75,12 @@ export function messageToAgentMessages(
 		out.push({
 			id: `${baseId}_tool_${block.tool_use_id}`,
 			role: "tool",
-			content: [toolResultContentToAgentPart(block)],
+			content: [
+				toolResultContentToAgentPart(
+					block,
+					toolNamesById?.get(block.tool_use_id),
+				),
+			],
 			createdAt: message.ts ?? Date.now(),
 			metadata: message.metadata,
 		});
@@ -79,7 +93,10 @@ export function messageToAgentMessages(
 export function messagesToAgentMessages(
 	messages: readonly MessageWithMetadata[],
 ): AgentMessage[] {
-	return messages.flatMap(messageToAgentMessages);
+	const toolNamesById = new Map<string, string>();
+	return messages.flatMap((message) =>
+		messageToAgentMessagesWithToolNames(message, toolNamesById),
+	);
 }
 
 export function agentMessageToMessageWithMetadata(
@@ -140,7 +157,10 @@ function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
 	return [...content];
 }
 
-function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
+function contentBlockToAgentPart(
+	block: ContentBlock,
+	toolNamesById?: Map<string, string>,
+): AgentMessagePart {
 	switch (block.type) {
 		case "text":
 			return { type: "text", text: block.text };
@@ -165,26 +185,41 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			return { type: "image", image: block.data, mediaType: block.mediaType };
 		case "file":
 			return { type: "file", path: block.path, content: block.content };
-		case "tool_use":
+		case "tool_use": {
+			toolNamesById?.set(block.id, block.name);
+			if (block.call_id) {
+				toolNamesById?.set(block.call_id, block.name);
+			}
+			const signatureMetadata = block.signature
+				? {
+						signature: block.signature,
+						thoughtSignature: block.signature,
+					}
+				: undefined;
 			return {
 				type: "tool-call",
 				toolCallId: block.id,
 				toolName: block.name,
 				input: block.input,
-				metadata: block.signature ? { signature: block.signature } : undefined,
+				metadata: signatureMetadata,
 			};
+		}
 		case "tool_result":
-			return toolResultContentToAgentPart(block);
+			return toolResultContentToAgentPart(
+				block,
+				toolNamesById?.get(block.tool_use_id),
+			);
 	}
 }
 
 function toolResultContentToAgentPart(
 	block: ToolResultContent,
+	toolName = "",
 ): AgentMessagePart {
 	return {
 		type: "tool-result",
 		toolCallId: block.tool_use_id,
-		toolName: "",
+		toolName,
 		output: block.content,
 		isError: block.is_error,
 	};
@@ -229,15 +264,25 @@ function agentPartToContentBlock(
 				path: part.path,
 				content: part.content,
 			} satisfies FileContent;
-		case "tool-call":
+		case "tool-call": {
+			const metadata = part.metadata as
+				| {
+						signature?: string;
+						thoughtSignature?: string;
+						thought_signature?: string;
+				  }
+				| undefined;
 			return {
 				type: "tool_use",
 				id: part.toolCallId,
 				name: part.toolName,
 				input: (part.input as Record<string, unknown>) ?? {},
-				signature: (part.metadata as { signature?: string } | undefined)
-					?.signature,
+				signature:
+					metadata?.thoughtSignature ??
+					metadata?.thought_signature ??
+					metadata?.signature,
 			} satisfies ToolUseContent;
+		}
 		case "tool-result": {
 			const output = part.output;
 			const content =

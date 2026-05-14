@@ -4,9 +4,21 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { resolveApiKey } from "../http";
 import { isClaudeModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
+
+async function resolveExplicitApiKey(
+	config: GatewayResolvedProviderConfig,
+): Promise<string | undefined> {
+	const explicitApiKey = config.apiKey?.trim();
+	if (explicitApiKey) {
+		return explicitApiKey;
+	}
+
+	const resolvedApiKey = await config.apiKeyResolver?.();
+	const trimmedResolvedApiKey = resolvedApiKey?.trim();
+	return trimmedResolvedApiKey || undefined;
+}
 
 export async function createVertexProviderModule(
 	config: GatewayResolvedProviderConfig,
@@ -30,13 +42,14 @@ export async function createVertexProviderModule(
 		return { model: (modelId) => provider(modelId) };
 	}
 
+	const apiKey = await resolveExplicitApiKey(config);
 	const provider = createVertex({
 		project,
 		location,
-		apiKey: await resolveApiKey(config),
 		baseURL: config.baseUrl,
 		headers: config.headers,
 		fetch: config.fetch,
+		...(apiKey ? { apiKey } : {}),
 	});
 	return {
 		model: (modelId) => provider(modelId),

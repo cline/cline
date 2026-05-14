@@ -156,4 +156,45 @@ describe("createAgentModelFromConfig", () => {
 			},
 		});
 	});
+
+	it("forwards cloud provider options into the gateway provider config", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "vertex",
+					modelId: "gemini-3-flash-preview",
+					gcp: {
+						projectId: "test-project",
+						region: "global",
+					},
+				},
+			} satisfies AgentConfig,
+			undefined,
+		);
+
+		const gatewayConfig = (
+			gatewayMock.createGateway.mock.calls as unknown as Array<
+				[
+					{
+						providerConfigs: Array<{
+							options?: Record<string, unknown>;
+						}>;
+					},
+				]
+			>
+		)[0][0];
+
+		expect(gatewayConfig.providerConfigs[0].options).toMatchObject({
+			project: "test-project",
+			projectId: "test-project",
+			region: "global",
+			location: "global",
+		});
+	});
 });
