@@ -9,6 +9,7 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import type { PreparedRemoteConfigCoreIntegration, SessionHistoryRecord } from "@cline/core"
+import { RemoteConfig } from "@cline/shared"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -159,6 +160,10 @@ export class Controller {
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
 	private remoteConfigCoreIntegration?: PreparedRemoteConfigCoreIntegration
+
+	get remoteConfig(): RemoteConfig | undefined {
+		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
+	}
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
