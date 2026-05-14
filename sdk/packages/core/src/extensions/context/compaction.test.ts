@@ -517,6 +517,41 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(JSON.stringify(compacted)).not.toContain("old-tail");
 	});
 
+	it("does not resurrect removed prefix candidates when preserving a compaction summary (CLINE-2185)", () => {
+		const summary = {
+			role: "user",
+			content: "Context summary:\nPrior work",
+			metadata: { kind: "compaction_summary" },
+		} as LlmsProviders.Message;
+		const oldAssistant = {
+			role: "assistant",
+			content: "old assistant prefix ".repeat(1_000),
+		} as LlmsProviders.Message;
+		const messages: LlmsProviders.Message[] = [
+			summary,
+			oldAssistant,
+			{ role: "user", content: "continue the task" },
+			{ role: "assistant", content: "latest assistant" },
+		];
+
+		const compacted = runForcedBasicCompaction(
+			messages,
+			totalJsonTokens(messages) - estimateJsonTokens(oldAssistant) + 10,
+		);
+
+		expect(compacted[0]).toEqual(summary);
+		expect(compacted).toContainEqual({
+			role: "user",
+			content: "continue the task",
+		});
+		expect(compacted).toContainEqual({
+			role: "assistant",
+			content: "latest assistant",
+		});
+		expect(compacted).not.toContainEqual(oldAssistant);
+		expect(JSON.stringify(compacted)).not.toContain("old assistant prefix");
+	});
+
 	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {
 		const codexConfig = resolveSummarizerConfig({
 			activeProviderConfig: {

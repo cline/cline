@@ -139,6 +139,34 @@ function buildBasicCandidates(
 	return candidates;
 }
 
+function reconstructPrefixMessages(
+	compactable: MessageWithMetadata[],
+	initialCandidates: BasicCompactionCandidate[],
+	remainingCandidates: BasicCompactionCandidate[],
+): MessageWithMetadata[] {
+	const initialCandidateIndexes = new Set(
+		initialCandidates.map((candidate) => candidate.index),
+	);
+	const remainingByIndex = new Map(
+		remainingCandidates.map((candidate) => [candidate.index, candidate.message]),
+	);
+	const messages: MessageWithMetadata[] = [];
+	for (let index = 0; index < compactable.length; index += 1) {
+		const remaining = remainingByIndex.get(index);
+		if (remaining) {
+			messages.push(remaining);
+			continue;
+		}
+		if (initialCandidateIndexes.has(index)) {
+			continue;
+		}
+		if (isCompactionSummaryMessage(compactable[index])) {
+			messages.push(compactable[index]);
+		}
+	}
+	return messages;
+}
+
 function updateCandidate(
 	candidates: BasicCompactionCandidate[],
 	index: number,
@@ -527,6 +555,7 @@ export function runBasicCompaction(options: {
 		compactable,
 		options.estimateMessageTokens,
 	);
+	const initialCandidates = candidates.map((candidate) => ({ ...candidate }));
 
 	removeCandidatesByPredicate(
 		candidates,
@@ -588,10 +617,11 @@ export function runBasicCompaction(options: {
 		);
 	}
 
-	const prefixMessages =
-		candidates.length > 0
-			? candidates.map((candidate) => candidate.message)
-			: compactable;
+	const prefixMessages = reconstructPrefixMessages(
+		compactable,
+		initialCandidates,
+		candidates,
+	);
 	const nextMessages = [...prefixMessages, ...finalTail];
 	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
 		return undefined;
