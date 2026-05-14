@@ -148,7 +148,10 @@ function reconstructPrefixMessages(
 		initialCandidates.map((candidate) => candidate.index),
 	);
 	const remainingByIndex = new Map(
-		remainingCandidates.map((candidate) => [candidate.index, candidate.message]),
+		remainingCandidates.map((candidate) => [
+			candidate.index,
+			candidate.message,
+		]),
 	);
 	const messages: MessageWithMetadata[] = [];
 	for (let index = 0; index < compactable.length; index += 1) {
