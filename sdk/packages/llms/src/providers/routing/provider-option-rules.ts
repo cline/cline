@@ -9,6 +9,7 @@ import {
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMoonshotKimiModelIdFallback,
+	modelReasoningDefaultsOn,
 } from "../model-facts";
 import type {
 	MatchedProviderOptionRule,
@@ -37,6 +38,19 @@ function isDeepSeekModelOrProviderDefault(
 ): boolean {
 	return (
 		isDeepSeekFamily(input.context) || input.request.providerId === "deepseek"
+	);
+}
+
+function isOllamaReasoningDefaultOnDisable(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		input.request.providerId === "ollama" &&
+		input.request.reasoning?.enabled === false &&
+		modelReasoningDefaultsOn({
+			request: input.request,
+			context: input.context,
+		})
 	);
 }
 
@@ -234,7 +248,8 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 		"DeepSeek models use thinking.type only for explicit reasoning enabled/disabled.",
 	applies: (input) =>
 		input.request.providerId !== "openrouter" &&
-		isDeepSeekModelOrProviderDefault(input),
+		isDeepSeekModelOrProviderDefault(input) &&
+		!isOllamaReasoningDefaultOnDisable(input),
 	suppresses: { genericThinking: true },
 	build: (input) => {
 		const thinkingType = resolveFamilyThinkingType(input, undefined);
@@ -245,6 +260,28 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 					thinkingType,
 				})
 			: undefined;
+	},
+};
+
+const ollamaReasoningDefaultOnDisableRule: ProviderOptionRule = {
+	id: "provider.ollama.reasoning-default-on.disable-none",
+	phase: "provider-reasoning",
+	description:
+		"Ollama models whose reasoning defaults on need reasoningEffort=none when request reasoning is disabled.",
+	applies: isOllamaReasoningDefaultOnDisable,
+	build: (input) => {
+		const bucketOptions = {
+			reasoningEffort: "none",
+			reasoning: { effort: "none" },
+		};
+		return {
+			...buildProviderAndAliasPatch({
+				providerId: input.request.providerId,
+				providerOptionsKey: input.providerOptionsKey,
+				bucketOptions,
+			}),
+			openaiCompatible: bucketOptions,
+		};
 	},
 };
 
@@ -315,6 +352,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
+	ollamaReasoningDefaultOnDisableRule,
 	nativeZaiNonGlmSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	routedGlmReasoningRule,
