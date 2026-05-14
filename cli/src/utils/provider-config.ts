@@ -18,6 +18,7 @@ export interface ApplyProviderConfigOptions {
 	apiKey?: string
 	modelId?: string // Override default model
 	baseUrl?: string // For OpenAI-compatible providers
+	headers?: Record<string, string> // Custom HTTP headers for OpenAI-compatible providers
 	controller?: Controller
 }
 
@@ -25,7 +26,7 @@ export interface ApplyProviderConfigOptions {
  * Apply provider configuration to state and rebuild API handler if needed
  */
 export async function applyProviderConfig(options: ApplyProviderConfigOptions): Promise<void> {
-	const { providerId, apiKey, modelId, baseUrl, controller } = options
+	const { providerId, apiKey, modelId, baseUrl, headers, controller } = options
 	const stateManager = StateManager.get()
 
 	const config: Record<string, string> = {
@@ -77,6 +78,12 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 
 	// Save via StateManager
 	stateManager.setApiConfiguration(config)
+
+	// Save custom headers separately - it's a nested object, not a flat string value
+	if (headers && Object.keys(headers).length > 0) {
+		stateManager.setGlobalState("openAiHeaders", headers)
+	}
+
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
