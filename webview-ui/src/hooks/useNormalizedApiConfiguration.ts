@@ -1,13 +1,12 @@
+import type { ModelInfo } from "@shared/api"
+import { isMigratedSdkProvider } from "@shared/model-catalog/provider-helpers"
 import { ResolveModelInfoRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
+import type { Mode } from "@shared/storage/types"
 import { useEffect, useMemo, useState } from "react"
 import { type NormalizedApiConfig, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { type ProviderId, useExtensionState } from "@/context/ExtensionStateContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import type { ModelInfo } from "../../../src/shared/api"
-import type { Mode } from "../../../src/shared/storage/types"
-
-const MIGRATED_PROVIDERS = new Set<ProviderId>(["deepseek"])
 
 const unknownModelInfo: ModelInfo = {
 	supportsPromptCache: false,
@@ -23,7 +22,7 @@ function getActiveProviderAndModelId(apiConfiguration: ReturnType<typeof useExte
 export function useNormalizedApiConfiguration(mode: Mode): NormalizedApiConfig {
 	const { apiConfiguration } = useExtensionState()
 	const { provider, modelId } = getActiveProviderAndModelId(apiConfiguration, mode)
-	const isMigrated = MIGRATED_PROVIDERS.has(provider)
+	const isMigrated = isMigratedSdkProvider(provider)
 	const [resolvedInfo, setResolvedInfo] = useState<
 		Awaited<ReturnType<typeof ModelsServiceClient.resolveModelInfo>> | undefined
 	>(undefined)
