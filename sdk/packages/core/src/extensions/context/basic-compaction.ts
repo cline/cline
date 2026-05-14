@@ -420,17 +420,6 @@ function buildTailCandidates(
 }
 
 /**
- * Drop the oldest completed tool_use/tool_result pairs inside the
- * post-CLINE-2136 protected tail when the tail alone exceeds the
- * compaction target. Preserves the typed user prompt, the latest
- * assistant message, and any assistant message carrying an in-flight
- * tool_use (see findInFlightToolUseIdsInTail).
- *
- * Reuses the existing atomic-pair closure (collectAtomicRemovalIndexes)
- * via removeCandidatesByPredicate, so a removal expands across the
- * full tool_use_id graph and we never orphan a half-pair.
- */
-/**
  * Same shape as `removeCandidatesByPredicate` but with one key
  * difference: if the atomic-pair closure of a seed candidate touches
  * ANY candidate that the predicate marks as not-removable, we abort
@@ -487,6 +476,13 @@ function removeTailCandidatesByPredicate<C extends MinimalCandidate>(
 	}
 }
 
+/**
+ * Drop the oldest completed tool_use/tool_result pairs inside the
+ * post-CLINE-2136 protected tail when the tail alone exceeds the
+ * compaction target. Preserves the typed user prompt, the latest
+ * assistant message, and any assistant message carrying an in-flight
+ * tool_use (see findInFlightToolUseIdsInTail).
+ */
 function trimProtectedTail(
 	tail: MessageWithMetadata[],
 	targetTokens: number,
