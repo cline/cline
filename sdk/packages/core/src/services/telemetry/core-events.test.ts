@@ -6,6 +6,7 @@ import {
 	captureCompactionSkipped,
 	captureExtensionActivated,
 	captureProviderConfigured,
+	captureRunCommandsTimeout,
 	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
@@ -76,18 +77,13 @@ describe("captureTelemetryOptOut", () => {
 });
 
 describe("captureProviderConfigured", () => {
-	test("emits user.provider_configured with the provider id as a normal (opt-out-respecting) event", () => {
+	test("emits user.provider_configured with the provider id as a normal opt-out-respecting event", () => {
 		const stub = createTelemetryStub();
 		captureProviderConfigured(stub.telemetry, "anthropic");
 		expect(stub.capture).toHaveBeenCalledTimes(1);
-		// Must NOT be captureRequired — the BYO configure step is not an
-		// essential lifecycle event and should respect telemetry opt-out.
 		expect(stub.captureRequired).not.toHaveBeenCalled();
 		const { event, properties } = captureCallAt(stub, 0);
 		expect(event).toBe("user.provider_configured");
-		// Payload shape mirrors `captureAuthSucceeded`: `{ provider }`,
-		// nothing else. Keep this strict so we don't accidentally leak
-		// `apiKey` / `baseUrl` / model identifiers into the funnel.
 		expect(properties).toEqual({ provider: "anthropic" });
 	});
 
@@ -344,6 +340,54 @@ describe("captureCompactionSkipped", () => {
 
 	test("no-ops when telemetry is undefined", () => {
 		expect(() => captureCompactionSkipped(undefined, baseProps)).not.toThrow();
+	});
+});
+
+describe("captureRunCommandsTimeout", () => {
+	test("emits sdk.tool_timeout with sanitized timeout metadata", () => {
+		const stub = createTelemetryStub();
+		captureRunCommandsTimeout(stub.telemetry, {
+			tool_name: "run_commands",
+			effective_timeout_ms: 1500,
+			timeout_source: "command_parameter",
+			command_count: 2,
+			command_index: 1,
+			duration_ms: 1502,
+			mode: "act",
+			source: "sdk-test",
+			session_id: "session-1",
+			agent_id: "agent-1",
+			conversation_id: "conv-1",
+			run_id: "run-1",
+			iteration: 3,
+			tool_call_id: "tool-call-1",
+		});
+
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT);
+		expect(properties).toEqual({
+			tool_name: "run_commands",
+			effective_timeout_ms: 1500,
+			timeout_source: "command_parameter",
+			command_count: 2,
+			command_index: 1,
+			duration_ms: 1502,
+			mode: "act",
+			source: "sdk-test",
+			session_id: "session-1",
+			agent_id: "agent-1",
+			conversation_id: "conv-1",
+			run_id: "run-1",
+			iteration: 3,
+			tool_call_id: "tool-call-1",
+		});
+		expect(properties).not.toHaveProperty("command");
+		expect(properties).not.toHaveProperty("commands");
+		expect(properties).not.toHaveProperty("stdout");
+		expect(properties).not.toHaveProperty("stderr");
+		expect(properties).not.toHaveProperty("env");
+		expect(properties).not.toHaveProperty("workspace_path");
 	});
 });
 

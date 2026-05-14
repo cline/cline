@@ -17,6 +17,7 @@ import type { ITelemetryService, TelemetryProperties } from "@cline/shared";
 import {
 	captureConversationTurnEvent,
 	captureExtensionActivated,
+	captureRunCommandsTimeout,
 	captureTaskCompleted,
 	captureTaskCreated,
 	captureTaskRestarted,
@@ -220,6 +221,27 @@ async function main() {
 			{ fallback_to_single_root: true, workspace_count: 0 },
 		);
 		dumpEvents(t.events);
+	}
+
+	header("explicit sdk.tool_timeout payload sample (run_commands)");
+	{
+		const t = new CapturingTelemetry();
+		captureRunCommandsTimeout(asITelemetryService(t), {
+			tool_name: "run_commands",
+			effective_timeout_ms: 5000,
+			timeout_source: "command_parameter",
+			command_count: 2,
+			command_index: 1,
+			duration_ms: 5004,
+			mode: "act",
+			source: "smoke",
+			session_id: "session-smoke",
+			agent_id: "agent-smoke",
+			iteration: 1,
+		});
+		dumpEvents(t.events);
+		const dump = JSON.stringify(t.events[0]?.properties ?? {});
+		assertSmoke("run_commands timeout omits raw command field", dump.includes("command"), false);
 	}
 
 	header("explicit captureWorkspacePathResolved payload sample");

@@ -11,6 +11,7 @@ import {
 export interface NormalizedRunCommand {
 	command: string | StructuredCommandInput;
 	timeoutMs: number;
+	timeoutSource: "default_setting" | "command_parameter";
 }
 
 const TOP_LEVEL_TIMEOUT_ERROR =
@@ -215,12 +216,17 @@ function normalizeRunCommandWithTimeout(
 	command: string | StructuredCommandInput,
 	defaultTimeoutMs: number,
 ): NormalizedRunCommand {
+	const timeoutSource =
+		typeof command !== "string" && command.timeout != null
+			? "command_parameter"
+			: "default_setting";
 	return {
 		command:
 			typeof command === "string"
 				? command
 				: normalizeStructuredCommandInput(command),
 		timeoutMs: resolveCommandTimeoutMs(command, defaultTimeoutMs),
+		timeoutSource,
 	};
 }
 

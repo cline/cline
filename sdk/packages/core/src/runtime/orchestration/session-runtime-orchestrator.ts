@@ -753,6 +753,7 @@ export class SessionRuntime {
 				modelSupportsImages:
 					modelInfo?.capabilities?.includes("images") ?? true,
 				...this.config.toolContextMetadata,
+				telemetry: this.config.toolContextMetadata?.telemetry ?? this.telemetry,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),

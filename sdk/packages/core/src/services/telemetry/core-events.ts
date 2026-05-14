@@ -61,6 +61,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		SUBAGENT_COMPLETED: "task.subagent_completed",
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
+		EMERGENCY_TRUNCATION: "task.emergency_truncation",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -72,8 +73,26 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
+		TOOL_TIMEOUT: "sdk.tool_timeout",
 	},
 } as const;
+
+export interface RunCommandsTimeoutTelemetryProperties {
+	tool_name: "run_commands";
+	effective_timeout_ms: number;
+	timeout_source: "default_setting" | "command_parameter";
+	command_count: number;
+	command_index?: number;
+	duration_ms: number;
+	mode?: string;
+	source?: string;
+	session_id?: string;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
@@ -223,14 +242,9 @@ export function captureAuthLoggedOut(
 }
 
 /**
- * Fires when the user finishes configuring a "bring your own provider"
- * (API-key based) provider during onboarding or via settings.
- *
- * Unlike the OAuth/device-code `captureAuth*` events, the configure step is a
- * synchronous local credential save with no network roundtrip, so there is no
- * start/fail counterpart — the credential is validated lazily on the first
- * subsequent API call. Mirrors the `{ provider }` payload shape of
- * {@link captureAuthSucceeded} for funnel consistency.
+ * Records that a user configured a provider credential in settings.
+ * This is a normal opt-out-respecting event because configuration has no
+ * start/fail counterpart and credential validity is checked lazily later.
  */
 export function captureProviderConfigured(
 	telemetry: ITelemetryService | undefined,
@@ -247,6 +261,15 @@ export function captureTelemetryOptOut(
 		CORE_TELEMETRY_EVENTS.USER.TELEMETRY_OPT_OUT,
 		properties,
 	);
+}
+
+export function captureRunCommandsTimeout(
+	telemetry: ITelemetryService | undefined,
+	properties: RunCommandsTimeoutTelemetryProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT, {
+		...properties,
+	});
 }
 
 export function identifyAccount(
@@ -635,6 +658,41 @@ export function captureCompactionSkipped(
 		Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * CLINE-2192 Layer B: emitted when `MessageBuilder.buildForApi` had to
+ * apply emergency truncation to force the outbound request below
+ * `maxInputTokens * CHARS_PER_TOKEN` bytes. This fires only when
+ * Layer A's largest-first heuristic was insufficient (adversarial
+ * inputs, oversized tool_use.input bodies, exotic block layouts).
+ *
+ * Treat any occurrence as a signal that production is operating in
+ * degraded mode — the model is seeing truncated content and the
+ * agent may produce wrong output as a result. The user-visible
+ * `emitStatusNotice("compacted to fit context window", ...)` fires
+ * alongside this event so the operator sees it in the TUI/webview.
+ */
+export interface CaptureEmergencyTruncationProperties {
+	ulid: string;
+	bytesBefore: number;
+	bytesAfter: number;
+	maxInputTokens: number;
+	truncatedBlocks: number;
+	droppedBlocks: number;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureEmergencyTruncation(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureEmergencyTruncationProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.EMERGENCY_TRUNCATION, {
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
