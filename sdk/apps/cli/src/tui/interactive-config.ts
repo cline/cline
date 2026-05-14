@@ -268,7 +268,7 @@ export async function loadInteractiveConfigData(input: {
 	const agents: InteractiveConfigItem[] = [];
 	const plugins: InteractiveConfigItem[] = [];
 	const general = {
-		runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs,
+		runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs ?? 30000,
 	};
 	const mcp: InteractiveConfigItem[] = [];
 	const tools: InteractiveConfigItem[] = [];

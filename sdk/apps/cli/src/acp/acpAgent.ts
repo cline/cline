@@ -26,6 +26,7 @@ import {
 	type ClineCore,
 	Llms,
 	ProviderSettingsManager,
+	readGlobalSettings,
 	SessionSource,
 } from "@cline/core";
 import type { Message } from "@cline/shared";
@@ -533,7 +534,7 @@ export class AcpAgent implements Agent {
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
 			toolPolicies: { "*": { autoApprove: false } },
-			runCommandsTimeoutMs: 30000,
+			runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs ?? 30000,
 			enableSpawnAgent: true,
 			enableAgentTeams: false,
 			enableTools: true,

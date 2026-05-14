@@ -38,7 +38,6 @@ export const GlobalSettingsSchema = z
 			.number()
 			.int()
 			.positive()
-			.optional()
 			.catch(30000)
 			.default(30000),
 	})
