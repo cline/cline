@@ -259,6 +259,16 @@ function collectAtomicRemovalIndexes<C extends MinimalCandidate>(
 	return removalIndexes;
 }
 
+// Unlike removeTailCandidatesByPredicate, this function does NOT check
+// whether every member of an atomic closure satisfies the predicate before
+// removing. That is safe on the prefix path because the four successive
+// predicate calls are role-monotone: each call's predicate either accepts
+// ALL members of any possible closure (because closures only span
+// same-role candidates on the prefix) or accepts NONE. A tool_use in an
+// assistant message is always paired with a tool_result in a user message;
+// the first pass removes only assistant non-last messages and the second
+// removes only non-last-non-first user messages, so a closure can never
+// straddle a protected and an unprotected candidate on the prefix path.
 function removeCandidatesByPredicate<C extends MinimalCandidate>(
 	candidates: C[],
 	predicate: (candidate: C) => boolean,
@@ -367,10 +377,11 @@ function splitLatestTurn(messages: MessageWithMetadata[]): {
 	protectedTail: MessageWithMetadata[];
 } {
 	const lastTurnStartIndex = findLastTurnStartIndex(messages);
-	if (
-		lastTurnStartIndex < 0 ||
-		(lastTurnStartIndex === 0 && !isTurnStartMessage(messages[0]))
-	) {
+	// findLastTurnStartIndex returns 0 as its "not found" sentinel (never -1),
+	// so we detect the sentinel by checking whether messages[0] is actually a
+	// turn-start message. When it is not, there is no typed user prompt in
+	// history and we treat the entire array as compactable with no tail.
+	if (lastTurnStartIndex === 0 && !isTurnStartMessage(messages[0])) {
 		return { compactable: messages, protectedTail: [] };
 	}
 	return {

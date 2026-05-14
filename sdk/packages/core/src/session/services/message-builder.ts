@@ -970,6 +970,11 @@ export class MessageBuilder {
 					continue;
 				}
 				if (block.type === "file") {
+					// Note: transformBlock already applied per-block
+					// truncation to file content (via truncateMiddle at
+					// maxToolResultChars). The candidate here allows Layer A
+					// to apply a second, tighter cut when the aggregate
+					// budget is still exceeded after per-block truncation.
 					candidates.push({
 						byteLength: utf8ByteLength(block.content),
 						get: () => block.content,
