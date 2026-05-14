@@ -4,7 +4,11 @@ import { ResolveModelInfoRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { useEffect, useMemo, useState } from "react"
-import { type NormalizedApiConfig, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import {
+	getModeSpecificFields,
+	type NormalizedApiConfig,
+	normalizeApiConfiguration,
+} from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
@@ -13,9 +17,32 @@ const unknownModelInfo: ModelInfo = {
 }
 
 function getActiveProviderAndModelId(apiConfiguration: ReturnType<typeof useExtensionState>["apiConfiguration"], mode: Mode) {
+	const provider =
+		(mode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
+	const modeFields = getModeSpecificFields(apiConfiguration, mode)
+
+	const providerSpecificModelIds: Partial<Record<string, string | undefined>> = {
+		cline: modeFields.clineModelId,
+		deepseek: modeFields.apiModelId,
+		openai: modeFields.openAiModelId,
+		openrouter: modeFields.openRouterModelId,
+		requesty: modeFields.requestyModelId,
+		litellm: modeFields.liteLlmModelId,
+		"vercel-ai-gateway": modeFields.vercelAiGatewayModelId,
+		groq: modeFields.groqModelId,
+		baseten: modeFields.basetenModelId,
+		huggingface: modeFields.huggingFaceModelId,
+		hicap: modeFields.hicapModelId,
+		aihubmix: modeFields.aihubmixModelId,
+		nousResearch: modeFields.nousResearchModelId,
+		oca: modeFields.ocaModelId,
+		"huawei-cloud-maas": modeFields.huaweiCloudMaasModelId,
+		together: modeFields.togetherModelId,
+	}
+
 	return {
-		provider: (mode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic",
-		modelId: mode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId,
+		provider,
+		modelId: Object.hasOwn(providerSpecificModelIds, provider) ? providerSpecificModelIds[provider] : modeFields.apiModelId,
 	}
 }
 

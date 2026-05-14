@@ -274,24 +274,14 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
-			const fallbackOpenRouterModelId =
-				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
-			const fallbackOpenRouterModelInfo =
-				currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo
 			const clineModelId =
-				(currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId) ||
-				fallbackOpenRouterModelId ||
-				openRouterDefaultModelId
+				currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId
 			const clineModelInfo =
-				(currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo) ||
-				fallbackOpenRouterModelInfo ||
-				openRouterDefaultModelInfo
+				currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: clineModelId,
-				selectedModelInfo: clineModelInfo,
+				selectedModelId: clineModelId || "",
+				selectedModelInfo: clineModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -571,12 +561,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 	const openRouterModelInfo =
 		mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo
 
-	// Backward compatibility: Cline previously stored model selection in OpenRouter keys.
-	const clineModelId =
-		(mode === "plan" ? apiConfiguration.planModeClineModelId : apiConfiguration.actModeClineModelId) || openRouterModelId
-	const clineModelInfo =
-		(mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo) ||
-		openRouterModelInfo
+	const clineModelId = mode === "plan" ? apiConfiguration.planModeClineModelId : apiConfiguration.actModeClineModelId
+	const clineModelInfo = mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo
 
 	return {
 		// Core fields
