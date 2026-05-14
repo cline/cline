@@ -3,6 +3,7 @@ import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { CLAUDE_SONNET_1M_SUFFIX, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isGeminiFlashModel } from "@utils/model-utils"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
@@ -266,6 +267,13 @@ export class VertexHandler implements ApiHandler {
 		if (modelId && modelId in vertexModels) {
 			const id = modelId as VertexModelId
 			return { id, info: vertexModels[id] }
+		}
+		if (modelId?.includes("gemini")) {
+			const fallbackModelId = isGeminiFlashModel(modelId) ? "gemini-3-flash-preview" : vertexDefaultModelId
+			return {
+				id: modelId as VertexModelId,
+				info: vertexModels[fallbackModelId],
+			}
 		}
 		return {
 			id: vertexDefaultModelId,

@@ -1,6 +1,7 @@
 import "should"
 import sinon from "sinon"
 import { GeminiHandler } from "../gemini"
+import { VertexHandler } from "../vertex"
 
 describe("GeminiHandler", () => {
 	afterEach(() => {
@@ -73,6 +74,33 @@ describe("GeminiHandler", () => {
 
 		const requestArgs = generateContentStream.firstCall.args[0] as Record<string, any>
 		requestArgs.config.should.not.have.property("maxOutputTokens")
+	})
+
+	it("preserves custom Gemini Flash model IDs with Flash model metadata", () => {
+		const handler = new GeminiHandler({
+			geminiApiKey: "test-api-key",
+			apiModelId: "gemini-flash-early-exp",
+		})
+
+		const model = handler.getModel()
+
+		model.id.should.equal("gemini-flash-early-exp")
+		model.info.maxTokens!.should.equal(65_536)
+		model.info.thinkingConfig!.supportsThinkingLevel!.should.equal(true)
+	})
+
+	it("preserves custom Vertex Gemini Flash model IDs with Flash model metadata", () => {
+		const handler = new VertexHandler({
+			vertexProjectId: "test-project",
+			vertexRegion: "global",
+			apiModelId: "gemini-flash-early-exp",
+		})
+
+		const model = handler.getModel()
+
+		model.id.should.equal("gemini-flash-early-exp")
+		model.info.maxTokens!.should.equal(65_536)
+		model.info.thinkingConfig!.supportsThinkingLevel!.should.equal(true)
 	})
 
 	it("should emit unique tool call IDs when multiple function calls share one responseId", async () => {

@@ -470,6 +470,13 @@ export class GeminiHandler implements ApiHandler {
 			const id = modelId as GeminiModelId
 			return { id, info: geminiModels[id] }
 		}
+		if (modelId) {
+			const fallbackModelId = isGeminiFlashModel(modelId) ? "gemini-3-flash-preview" : geminiDefaultModelId
+			return {
+				id: modelId as GeminiModelId,
+				info: geminiModels[fallbackModelId],
+			}
+		}
 		return {
 			id: geminiDefaultModelId,
 			info: geminiModels[geminiDefaultModelId],
