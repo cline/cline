@@ -116,6 +116,7 @@ Module.prototype.require = function (id) {
 				}
 			},
 			ProviderSettingsManager,
+			resolveProviderConfig: async () => undefined,
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
@@ -130,6 +131,63 @@ Module.prototype.require = function (id) {
 		return {
 			buildClineSystemPrompt: () => "",
 			createTool: (tool) => tool,
+		}
+	}
+
+	if (id === "@cline/llms") {
+		return {
+			getAllProviders: async () => [],
+			getGeneratedModelsForProvider: () => ({}),
+			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+		}
+	}
+
+	if (id === "vitest") {
+		const assert = require("node:assert/strict")
+		const makeMockFn = (implementation = () => undefined) => {
+			const fn = (...args) => implementation(...args)
+			fn.mock = { calls: [] }
+			const wrapped = (...args) => {
+				wrapped.mock.calls.push(args)
+				return implementation(...args)
+			}
+			wrapped.mock = fn.mock
+			wrapped.mockImplementation = (next) => {
+				implementation = next
+				return wrapped
+			}
+			wrapped.mockResolvedValue = (value) => wrapped.mockImplementation(() => Promise.resolve(value))
+			wrapped.mockReturnValue = (value) => wrapped.mockImplementation(() => value)
+			return wrapped
+		}
+		const expect = (actual) => ({
+			toBe: (expected) => assert.equal(actual, expected),
+			toEqual: (expected) => assert.deepEqual(actual, expected),
+			toBeDefined: () => assert.notEqual(actual, undefined),
+			toBeTruthy: () => assert.ok(actual),
+			toBeGreaterThanOrEqual: (expected) => assert.ok(actual >= expected),
+			toContain: (expected) => assert.ok(actual.includes(expected)),
+			toHaveLength: (expected) => assert.equal(actual.length, expected),
+			not: {
+				toBe: (expected) => assert.notEqual(actual, expected),
+				toContain: (expected) => assert.ok(!actual.includes(expected)),
+			},
+		})
+		return {
+			afterAll: globalThis.after ?? (() => undefined),
+			afterEach: globalThis.afterEach ?? (() => undefined),
+			beforeAll: globalThis.before ?? (() => undefined),
+			beforeEach: globalThis.beforeEach ?? (() => undefined),
+			describe: globalThis.describe ?? (() => undefined),
+			expect,
+			it: globalThis.it ?? (() => undefined),
+			vi: {
+				fn: makeMockFn,
+				mock: () => undefined,
+				mocked: (value) => value,
+				clearAllMocks: () => undefined,
+				restoreAllMocks: () => undefined,
+			},
 		}
 	}
 

@@ -47,6 +47,7 @@ Module.prototype.require = function (path: string) {
 				}
 			},
 			ProviderSettingsManager,
+			resolveProviderConfig: async () => undefined,
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
@@ -62,25 +63,53 @@ Module.prototype.require = function (path: string) {
 			createTool: (tool: unknown) => tool,
 		}
 	}
+	if (path === "@cline/llms") {
+		return {
+			getAllProviders: async () => [],
+			getGeneratedModelsForProvider: () => ({}),
+			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+		}
+	}
 	if (path === "vitest") {
 		const assert = require("node:assert/strict")
+		const makeMockFn = (implementation: (...args: unknown[]) => unknown = () => undefined) => {
+			const fn: any = (...args: unknown[]) => implementation(...args)
+			fn.mockImplementation = (next: (...args: unknown[]) => unknown) => {
+				implementation = next
+				return fn
+			}
+			fn.mockResolvedValue = (value: unknown) => fn.mockImplementation(() => Promise.resolve(value))
+			fn.mockReturnValue = (value: unknown) => fn.mockImplementation(() => value)
+			return fn
+		}
 		const expect = (actual: unknown) => ({
 			toBe: (expected: unknown) => assert.equal(actual, expected),
 			toEqual: (expected: unknown) => assert.deepEqual(actual, expected),
+			toBeDefined: () => assert.notEqual(actual, undefined),
+			toBeTruthy: () => assert.ok(actual),
+			toBeGreaterThanOrEqual: (expected: number) => assert.ok((actual as number) >= expected),
+			toContain: (expected: unknown) => assert.ok((actual as { includes(value: unknown): boolean }).includes(expected)),
 			toHaveLength: (expected: number) => assert.equal((actual as { length: number }).length, expected),
 			not: {
 				toBe: (expected: unknown) => assert.notEqual(actual, expected),
+				toContain: (expected: unknown) =>
+					assert.ok(!(actual as { includes(value: unknown): boolean }).includes(expected)),
 			},
 		})
+		const mochaGlobals = globalThis as any
 		return {
-			afterEach,
-			beforeEach,
-			describe,
+			afterAll: mochaGlobals.after ?? (() => undefined),
+			afterEach: mochaGlobals.afterEach ?? (() => undefined),
+			beforeAll: mochaGlobals.before ?? (() => undefined),
+			beforeEach: mochaGlobals.beforeEach ?? (() => undefined),
+			describe: mochaGlobals.describe ?? (() => undefined),
 			expect,
-			it,
+			it: mochaGlobals.it ?? (() => undefined),
 			vi: {
-				fn: () => () => undefined,
+				fn: makeMockFn,
 				mock: () => undefined,
+				clearAllMocks: () => undefined,
+				restoreAllMocks: () => undefined,
 			},
 		}
 	}
