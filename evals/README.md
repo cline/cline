@@ -51,7 +51,7 @@ Location: `evals/smoke-tests/`
 Quick validation across providers with real LLM calls:
 - 5 curated scenarios
 - 3 trials per test for pass@k metrics
-- Runs via cline CLI with `-s` flags
+- Runs the `cline` CLI with `--config`, `-y`, `-t`, and `-m`
 
 ```bash
 # Set API key (Cline provider)
@@ -104,8 +104,9 @@ With 3 trials:
 
 ## CI Integration
 
-- **PR Gate**: Contract tests + smoke tests (fast, ~3min)
-- **Nightly**: E2E tests with cline-bench (not yet implemented, see TODO)
+- Current PR gate: contract tests only
+- Smoke test CI: temporarily disabled while the workflow is repointed at the SDK CLI
+- Nightly: E2E tests with cline-bench are not yet implemented, see TODO
 
 ## Quick Start
 
