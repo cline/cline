@@ -123,6 +123,21 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toEqual(selection)
 	})
 
+	it("does not combine a generic provider's remembered model info with another provider's active model id", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const geminiProviderId = parseProviderId("gemini")
+		const deepSeekProviderId = parseProviderId("deepseek")
+		const geminiSelection = { providerId: geminiProviderId, modelId: "gemini-3.1-pro-preview", modelInfo: modelInfoA }
+		const deepSeekSelection = { providerId: deepSeekProviderId, modelId: "deepseek-v4-pro", modelInfo: modelInfoB }
+
+		store.commitSelection(geminiProviderId, "act", geminiSelection)
+		store.commitSelection(deepSeekProviderId, "act", deepSeekSelection)
+
+		expect(store.readSelection(geminiProviderId, "act")).toEqual(geminiSelection)
+		expect(store.readSelection(deepSeekProviderId, "act")).toEqual(deepSeekSelection)
+	})
+
 	it("handles normalized nousResearch provider casing for writes and selections", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()

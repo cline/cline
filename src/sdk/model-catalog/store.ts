@@ -1,3 +1,4 @@
+import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import type { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { isSecretKey, isSettingsKey, type SecretKey, type SettingsKey } from "@shared/storage/state-keys"
@@ -102,13 +103,14 @@ const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
 }
 
 // Transitional Phase 1.4 compatibility path for providers that only have a
-// mode-specific model id key today (for example DeepSeek/generic SDK-backed
-// providers). The architecture requires `ModelInfo` to be part of the
-// selection envelope, but the legacy StateManager schema does not yet provide
-// durable `*ModelInfo` keys for every provider. Do not make runtime correctness
-// depend on this in-process map across reloads; replace it with durable
-// selection-envelope storage before runtime reads generic selections directly.
-const selectionInfoMemory = new Map<string, ModelInfo>()
+// mode-specific model id key today (for example DeepSeek/Gemini/generic
+// SDK-backed providers). The architecture requires `ModelInfo` to be part of
+// the selection envelope, but the legacy StateManager schema does not yet
+// provide durable `*ModelInfo` keys for every provider. Keep the full selection
+// keyed by provider+mode so switching between providers that share
+// `*ModeApiModelId` does not combine another provider's current model id with
+// this provider's in-memory model info.
+const selectionMemory = new Map<string, ModelSelection>()
 
 function providerKey(providerId: ProviderId): string {
 	return providerId.toString()
@@ -140,6 +142,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isModelInfo(value: unknown): value is ModelInfo {
 	return isRecord(value) && typeof value.supportsPromptCache === "boolean"
+}
+
+function isKnownModelIdForProvider(providerId: ProviderId, modelId: string): boolean {
+	return Boolean(
+		getGeneratedModelsForProvider(providerId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models[modelId],
+	)
 }
 
 function writeStateKey(key: SecretKey | SettingsKey, value: unknown): void {
@@ -219,7 +227,7 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 		if (modelInfoKey) {
 			updates[modelInfoKey] = selection.modelInfo
 		}
-		selectionInfoMemory.set(memoryKey(providerId, targetMode), selection.modelInfo)
+		selectionMemory.set(memoryKey(providerId, targetMode), { ...selection, providerId })
 	}
 	StateManager.get().setGlobalStateBatch(updates as never)
 }
@@ -235,12 +243,34 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelect
 	const apiConfiguration = StateManager.get().getApiConfiguration()
 	const modelId = apiConfiguration[getModelIdKey(providerId, mode)]
 	const modelInfoKey = getModelInfoKey(providerId, mode)
-	const modelInfo = modelInfoKey ? apiConfiguration[modelInfoKey] : selectionInfoMemory.get(memoryKey(providerId, mode))
+	const rememberedSelection = selectionMemory.get(memoryKey(providerId, mode))
 
-	if (typeof modelId !== "string" || modelId.length === 0 || !isModelInfo(modelInfo)) {
+	if (modelInfoKey) {
+		const modelInfo = apiConfiguration[modelInfoKey]
+		if (typeof modelId !== "string" || modelId.length === 0 || !isModelInfo(modelInfo)) {
+			return undefined
+		}
+		return { providerId, modelId, modelInfo }
+	}
+
+	const activeProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+	const provider = providerForStorage(providerId)
+	if (activeProvider !== provider) {
+		return rememberedSelection
+	}
+
+	if (typeof modelId !== "string" || modelId.length === 0) {
+		return rememberedSelection
+	}
+
+	if (!isKnownModelIdForProvider(providerId, modelId)) {
+		return rememberedSelection
+	}
+
+	if (!rememberedSelection || rememberedSelection.modelId !== modelId) {
 		return undefined
 	}
-	return { providerId, modelId, modelInfo }
+	return rememberedSelection
 }
 
 /**
