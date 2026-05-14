@@ -776,7 +776,9 @@ export class SapAiCoreHandler implements ApiHandler {
 				...convertToOpenAiMessages(messages),
 			]
 
-			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions`
+			// Cohere deployments expose `/chat` instead of `/chat/completions`
+			const chatPath = model.id.startsWith("cohere--") ? "chat" : "chat/completions"
+			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/${chatPath}`
 			payload = {
 				stream: true,
 				model: model.id,
