@@ -112,6 +112,7 @@ describe("ProviderSettingsManager", () => {
 
 		const manager = new ProviderSettingsManager({ filePath, dataDir: tempDir });
 		const providers = await LlmsModels.getAllProviders();
+		const models = await LlmsModels.getModelsForProvider("openai-compatible");
 		const openAiProvider = providers.find(
 			(provider) => provider.id === "openai-compatible",
 		);
@@ -126,6 +127,12 @@ describe("ProviderSettingsManager", () => {
 			id: "openai-compatible",
 			baseUrl: "https://gateway.example.invalid/v1",
 			defaultModelId: "gpt-oss-120b",
+		});
+		expect(models["gpt-oss-120b"]).toMatchObject({
+			id: "gpt-oss-120b",
+			contextWindow: 128000,
+			maxInputTokens: 128000,
+			capabilities: ["streaming", "tools", "images"],
 		});
 	});
 
