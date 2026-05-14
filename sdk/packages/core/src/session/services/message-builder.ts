@@ -24,7 +24,7 @@ const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
 // (per-block at maxToolResultChars and in aggregate at maxTotalTextBytes).
 // Bounded-output tools (ask_question, submit_and_exit) are intentionally
 // excluded. MCP tool names are dynamic and not covered here; see
-// CLINE-2183 for the broader follow-up.
+// the broader compaction hardening follow-up.
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
