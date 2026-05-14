@@ -8,6 +8,7 @@ import {
 } from "./definitions";
 import {
 	INPUT_ARG_CHAR_LIMIT,
+	MAX_RUN_COMMANDS_TIMEOUT_MS,
 	RunCommandsInputSchema,
 	RunCommandsInputUnionSchema,
 	StructuredCommandsInputSchema,
@@ -470,6 +471,12 @@ describe("default run_commands tool", () => {
 				timeout: "120000",
 			}),
 		).toThrow(/number/i);
+		expect(() =>
+			RunCommandsInputUnionSchema.parse({
+				commands: ["echo hi"],
+				timeout: MAX_RUN_COMMANDS_TIMEOUT_MS + 1,
+			}),
+		).toThrow(/less than or equal|too_big|2147483647/i);
 	});
 
 	it("accepts object input with commands as a single string", async () => {
@@ -685,7 +692,7 @@ describe("default run_commands tool", () => {
 			bashTimeoutMs: 30000,
 		});
 
-		expect(tool.timeoutMs).toBeGreaterThanOrEqual(120000);
+		expect(tool.timeoutMs).toBe(MAX_RUN_COMMANDS_TIMEOUT_MS);
 	});
 });
 

@@ -139,15 +139,14 @@ export function resolveRunCommandsTimeoutMs(
 	input: unknown,
 	defaultTimeoutMs: number,
 ): number {
-	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
-
 	if (
-		typeof validate === "object" &&
-		validate !== null &&
-		!Array.isArray(validate) &&
-		"timeout" in validate
+		typeof input === "object" &&
+		input !== null &&
+		!Array.isArray(input) &&
+		"timeout" in input
 	) {
-		return validate.timeout ?? defaultTimeoutMs;
+		const timeout = (input as { timeout?: number }).timeout;
+		return timeout ?? defaultTimeoutMs;
 	}
 
 	return defaultTimeoutMs;

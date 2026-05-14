@@ -102,10 +102,13 @@ const CommandInputSchema = z
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
 
+export const MAX_RUN_COMMANDS_TIMEOUT_MS = 2147483647;
+
 const RunCommandsTimeoutSchema = z
 	.number()
 	.int()
 	.positive()
+	.max(MAX_RUN_COMMANDS_TIMEOUT_MS)
 	.describe(
 		"Optional timeout for the entire run_commands call, in milliseconds. Normally omit this and use the configured default. Only raise it for expected long-running installs/builds/tests, or after a timeout.",
 	);
