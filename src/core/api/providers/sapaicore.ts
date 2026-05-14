@@ -609,6 +609,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		const anthropicModels = [
 			"anthropic--claude-4.5-haiku",
+			"anthropic--claude-4.6-opus",
 			"anthropic--claude-4.5-opus",
 			"anthropic--claude-4.6-sonnet",
 			"anthropic--claude-4.5-sonnet",
