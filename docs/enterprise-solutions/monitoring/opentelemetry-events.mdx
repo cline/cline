@@ -179,6 +179,8 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 |-------|-------------|----------------|
 | `task.summarize_task` | Auto-compaction/summarize triggered for context pressure | conversation_length, estimated_tokens |
 | `task.auto_condense_toggled` | Auto-condense setting toggled | enabled |
+| `task.emergency_truncation` | Provider request payload was aggressively truncated to fit the context-window budget | ulid, bytesBefore, bytesAfter, maxInputTokens, truncatedBlocks, droppedBlocks, provider, modelId |
+| `task.request_overhead_exceeds_budget` | Non-message provider request overhead already exceeded the derived byte budget before messages could be included | ulid, requestBytes, budgetBytes, maxInputTokens, systemPromptBytes, toolsBytes, optionsBytes, provider, modelId |
 
 ### Settings & Features
 

@@ -924,7 +924,8 @@ describe("MessageBuilder", () => {
 		];
 
 		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
-		const content = Array.isArray(result[0].content) ? result[0].content : [];
+		const content =
+			result[0] && Array.isArray(result[0].content) ? result[0].content : [];
 		const rThink = content.find((b) => b.type === "redacted_thinking") as
 			| { type: string; data: string }
 			| undefined;
@@ -1004,6 +1005,169 @@ describe("MessageBuilder", () => {
 		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
 	});
 
+	it("removes older whole blocks before blanking the latest user prompt in emergency truncation (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: "old user context ".repeat(20_000),
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "old signed reasoning".repeat(40_000),
+						signature: "sig-remove-before-latest-user",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "latest user prompt must survive" }],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).not.toContain("sig-remove-before-latest-user");
+		expect(serialized).not.toContain("old signed reasoning");
+		expect(serialized).toContain("latest user prompt must survive");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
+	});
+
+	it("exhausts zeroable and non-zeroable last-assistant blocks before latest-user emergency work (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "old assistant text".repeat(20_000),
+					},
+					{
+						type: "thinking",
+						thinking: "old signed reasoning".repeat(40_000),
+						signature: "sig-mixed-priority",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "latest user stays after mixed old" }],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).not.toContain("old assistant text");
+		expect(serialized).not.toContain("sig-mixed-priority");
+		expect(serialized).not.toContain("old signed reasoning");
+		expect(serialized).toContain("latest user stays after mixed old");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
+	});
+
+	it("can still blank and remove the latest user prompt as the final emergency resort (CLINE-2192)", () => {
+		const notice = vi.fn();
+		const telemetry = { capture: vi.fn() };
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "latest only ".repeat(10_000) }],
+			},
+		];
+
+		const result = builder.buildForApi(messages, {
+			maxRequestBytes: 2,
+			emitStatusNotice: notice,
+			telemetry: telemetry as never,
+			sessionId: "session-1",
+			provider: "anthropic",
+			modelId: "claude-test",
+		});
+
+		expect(result).toEqual([]);
+		expect(notice).toHaveBeenCalledWith(
+			"compacted to fit context window",
+			expect.objectContaining({ kind: "emergency_truncation" }),
+		);
+		expect(telemetry.capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "task.emergency_truncation",
+				properties: expect.objectContaining({
+					droppedBlocks: expect.any(Number),
+					truncatedBlocks: expect.any(Number),
+				}),
+			}),
+		);
+	});
+
+	it("prunes empty string messages created by emergency zeroing (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: "old oversized prompt ".repeat(10_000),
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "latest prompt survives" }],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxRequestBytes: 500 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).not.toContain('"content":""');
+		expect(serialized).not.toContain('"text":""');
+		expect(serialized).toContain("latest prompt survives");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(500);
+	});
+
+	it("removes empty tool results atomically after emergency zeroing (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-empty-result",
+						name: "editor",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-empty-result",
+						content: "oversized result ".repeat(20_000),
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "latest prompt survives" }],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxRequestBytes: 500 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).not.toContain("tool-empty-result");
+		expect(serialized).not.toContain('"content":""');
+		expect(serialized).not.toContain('"text":""');
+		expect(serialized).toContain("latest prompt survives");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(500);
+	});
+
 	it("drops the last assistant before the latest user prompt in the final block-removal pass (CLINE-2192)", () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
@@ -1048,6 +1212,61 @@ describe("MessageBuilder", () => {
 		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
 	});
 
+	it("protects the latest typed prompt when later user messages are tool results (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: "original task ".repeat(12_000),
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "latest typed prompt survives" }],
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "signed reasoning".repeat(25_000),
+						signature: "sig-tool-turn",
+					},
+					{
+						type: "tool_use",
+						id: "tool-with-image",
+						name: "fetch_web_content",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-with-image",
+						content: [
+							{
+								type: "image",
+								data: "SGVsbG8gV29ybGQ=".repeat(1_000),
+								mediaType: "image/png",
+							},
+						],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxRequestBytes: 200 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain("latest typed prompt survives");
+		expect(serialized).not.toContain("sig-tool-turn");
+		expect(serialized).not.toContain("tool-with-image");
+		expect(serialized).not.toContain("original task");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(200);
+	});
+
 	it("preserves image.data intact and removes the block under extreme budget (CLINE-2192)", () => {
 		// image.data is raw base64. Middle-truncating it produces invalid base64.
 		// Layer B must exclude it from string truncation.
@@ -1071,7 +1290,8 @@ describe("MessageBuilder", () => {
 		];
 
 		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
-		const content = Array.isArray(result[0].content) ? result[0].content : [];
+		const content =
+			result[0] && Array.isArray(result[0].content) ? result[0].content : [];
 		const img = content.find((b) => b.type === "image") as
 			| { data: string }
 			| undefined;

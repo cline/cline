@@ -60,6 +60,7 @@ const TRUNCATE_MARKER_DEFAULT = (n: number) =>
 	`\n\n...[truncated ${n} chars]...\n\n`;
 const TRUNCATE_MARKER_BUDGET = (n: number) =>
 	`\n\n...[truncated ${n} chars to fit provider request budget]...\n\n`;
+const LATEST_USER_DROP_PRIORITY = 4;
 
 interface ReadLocator {
 	path: string;
@@ -71,6 +72,10 @@ interface TruncationCandidate {
 	byteLength: number;
 	get(): string;
 	set(value: string): void;
+}
+
+interface EmergencyTruncationCandidate extends TruncationCandidate {
+	priority: number;
 }
 
 /**
@@ -1083,16 +1088,19 @@ export class MessageBuilder {
 	 *
 	 * If still over budget, two passes:
 	 *
-	 *  1. Aggressive middle-truncation of EVERY string-bearing block
+	 *  1. Aggressive middle-truncation of string-bearing blocks
 	 *     (including `tool_use.input` string leaves), dropping the
-	 *     per-block floor to `EMERGENCY_FLOOR_BYTES`. `tool_use_id`,
-	 *     `id`, `call_id`, `name` strings are excluded.
+	 *     per-block floor to `EMERGENCY_FLOOR_BYTES`. This sweeps by
+	 *     preservation priority: shrink zeroable strings at a priority,
+	 *     then remove whole blocks at that same priority, before touching
+	 *     more-protected messages. `tool_use_id`, `id`, `call_id`, `name`
+	 *     strings are excluded.
 	 *  2. If pass 1 didn't fit (extremely unlikely, but possible if
 	 *     the preservation set itself exceeds the budget), drop
 	 *     non-essential blocks (oldest assistant text/thinking
-	 *     blocks first, then oldest tool pairs atomically). The
-	 *     typed prompt (turn-start user) and the last assistant are
-	 *     last in the drop order.
+	 *     blocks first, then oldest tool pairs atomically). Drop
+	 *     order: 0 older assistants, 1 middle users, 2 last assistant,
+	 *     3 first user, 4 typed prompt (last resort).
 	 *
 	 * On any non-zero work performed: emits `task.emergency_truncation`
 	 * telemetry and a status notice so the operator sees the degraded
@@ -1125,43 +1133,80 @@ export class MessageBuilder {
 		});
 
 		// Pass 1: aggressive middle-truncation, EMERGENCY_FLOOR_BYTES floor.
-		const candidates = collectEmergencyCandidates(next);
 		let totalBytes = countProviderRequestBytes(next);
 		let truncatedBlocks = 0;
-		for (const candidate of candidates) {
+		let droppedBlocks = 0;
+		for (
+			let priority = 0;
+			priority <= LATEST_USER_DROP_PRIORITY;
+			priority += 1
+		) {
 			if (totalBytes <= budgetBytes) {
 				break;
 			}
-			const currentBytes = candidate.byteLength;
-			if (currentBytes <= EMERGENCY_FLOOR_BYTES) {
-				continue;
+			if (priority === LATEST_USER_DROP_PRIORITY) {
+				for (
+					let lowerPriority = 0;
+					lowerPriority < LATEST_USER_DROP_PRIORITY;
+					lowerPriority += 1
+				) {
+					droppedBlocks += exhaustPriorityUntilFits(
+						next,
+						budgetBytes,
+						lowerPriority,
+					);
+					totalBytes = countProviderRequestBytes(next);
+					if (totalBytes <= budgetBytes) {
+						break;
+					}
+				}
+				if (totalBytes <= budgetBytes) {
+					break;
+				}
 			}
-			const overflow = totalBytes - budgetBytes;
-			const targetBytes = Math.max(
-				EMERGENCY_FLOOR_BYTES,
-				currentBytes - overflow,
+			const candidates = collectEmergencyCandidates(next).filter(
+				(candidate) => candidate.priority === priority,
 			);
-			const truncated = truncateMiddleToBytes(
-				candidate.get(),
-				targetBytes,
-				TRUNCATE_MARKER_EMERGENCY,
-			);
-			candidate.set(truncated);
-			totalBytes = countProviderRequestBytes(next);
-			truncatedBlocks += 1;
+			for (const candidate of candidates) {
+				if (totalBytes <= budgetBytes) {
+					break;
+				}
+				let didTruncateCandidate = false;
+				while (totalBytes > budgetBytes) {
+					const currentBytes = utf8ByteLength(candidate.get());
+					if (currentBytes <= EMERGENCY_FLOOR_BYTES) {
+						break;
+					}
+					const overflow = totalBytes - budgetBytes;
+					const targetBytes = Math.max(
+						EMERGENCY_FLOOR_BYTES,
+						currentBytes - overflow - 1_024,
+					);
+					if (targetBytes >= currentBytes) {
+						break;
+					}
+					const truncated = truncateMiddleToBytes(
+						candidate.get(),
+						targetBytes,
+						TRUNCATE_MARKER_EMERGENCY,
+					);
+					candidate.set(truncated);
+					totalBytes = countProviderRequestBytes(next);
+					didTruncateCandidate = true;
+				}
+				if (didTruncateCandidate) {
+					truncatedBlocks += 1;
+				}
+			}
 		}
 
 		// Pass 2: if even floor-truncation didn't fit, drop blocks.
-		const droppedBlocks = dropOldestUntilFits(next, budgetBytes);
+		droppedBlocks += dropOldestUntilFits(next, budgetBytes);
 
-		// Block removal can leave messages with content: []. Providers
-		// reject empty content arrays, so prune those messages out.
-		for (let i = next.length - 1; i >= 0; i -= 1) {
-			const m = next[i];
-			if (Array.isArray(m.content) && m.content.length === 0) {
-				next.splice(i, 1);
-			}
-		}
+		// Block removal and string zeroing can leave empty content. Providers
+		// reject empty text blocks, empty string messages, and empty arrays, so
+		// prune them before returning.
+		pruneEmptyTextContent(next);
 
 		const bytesAfter = countProviderRequestBytes(next);
 
@@ -1289,6 +1334,98 @@ function countProviderRequestBytes(messages: Message[]): number {
 		);
 	}
 }
+
+function pruneEmptyTextContent(messages: Message[]): void {
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (
+			let messageIndex = messages.length - 1;
+			messageIndex >= 0;
+			messageIndex -= 1
+		) {
+			const message = messages[messageIndex];
+			if (typeof message.content === "string") {
+				if (message.content.length === 0) {
+					messages.splice(messageIndex, 1);
+					changed = true;
+				}
+				continue;
+			}
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (
+				let blockIndex = message.content.length - 1;
+				blockIndex >= 0;
+				blockIndex -= 1
+			) {
+				const block = message.content[blockIndex];
+				if (block.type === "tool_result") {
+					pruneEmptyToolResultEntries(block);
+					if (isEmptyToolResult(block)) {
+						removeEmptyToolResultAtomically(messages, messageIndex, blockIndex);
+						changed = true;
+						break;
+					}
+				}
+				if (
+					(block.type === "text" && block.text.length === 0) ||
+					(block.type === "file" && block.content.length === 0)
+				) {
+					message.content.splice(blockIndex, 1);
+					changed = true;
+				}
+			}
+			if (Array.isArray(message.content) && message.content.length === 0) {
+				messages.splice(messageIndex, 1);
+				changed = true;
+			}
+		}
+	}
+}
+
+function pruneEmptyToolResultEntries(
+	block: Extract<ContentBlock, { type: "tool_result" }>,
+): void {
+	if (typeof block.content === "string") {
+		return;
+	}
+	for (let index = block.content.length - 1; index >= 0; index -= 1) {
+		const entry = block.content[index];
+		if (
+			(entry.type === "text" && entry.text.length === 0) ||
+			(entry.type === "file" && entry.content.length === 0)
+		) {
+			block.content.splice(index, 1);
+		}
+	}
+}
+
+function isEmptyToolResult(
+	block: Extract<ContentBlock, { type: "tool_result" }>,
+): boolean {
+	return typeof block.content === "string"
+		? block.content.length === 0
+		: block.content.length === 0;
+}
+
+function removeEmptyToolResultAtomically(
+	messages: Message[],
+	messageIndex: number,
+	blockIndex: number,
+): void {
+	const candidate = collectBlockRemovalCandidates(messages).find((entry) =>
+		entry.blocks.some(
+			(block) =>
+				block.messageIndex === messageIndex && block.blockIndex === blockIndex,
+		),
+	);
+	if (candidate) {
+		removeBlocks(messages, candidate.blocks);
+	}
+}
+
 /**
  * CLINE-2192 Layer B: collect every string-bearing block location the
  * brick-wall byte-budget pass may middle-truncate. Strictly wider
@@ -1310,18 +1447,30 @@ function countProviderRequestBytes(messages: Message[]): number {
  *   safe because `collectStringLeaves` only traverses `block.input`,
  *   never the block itself.
  *
- * Order is deterministic: walk message-by-message, block-by-block;
- * within each `tool_use.input`, walk the JSON tree depth-first with
- * lexicographic key order. The final sort is largest-first with
- * insertion-order tiebreaker (same property Layer A uses).
+ * Order is deterministic: lower preservation priority first, then largest
+ * first within that priority, with an insertion-order tiebreaker.
  */
 function collectEmergencyCandidates(
 	messages: Message[],
-): TruncationCandidate[] {
-	const candidates: TruncationCandidate[] = [];
-	for (const message of messages) {
+): EmergencyTruncationCandidate[] {
+	const candidates: EmergencyTruncationCandidate[] = [];
+	const lastAssistantIndex = findLastAssistantMessageIndex(messages);
+	const latestTypedUserIndex = findLatestTypedUserMessageIndex(messages);
+	for (
+		let messageIndex = 0;
+		messageIndex < messages.length;
+		messageIndex += 1
+	) {
+		const message = messages[messageIndex];
+		const priority = getDropPriority(
+			message,
+			messageIndex,
+			lastAssistantIndex,
+			latestTypedUserIndex,
+		);
 		if (typeof message.content === "string") {
 			candidates.push({
+				priority,
 				byteLength: utf8ByteLength(message.content),
 				get: () => message.content as string,
 				set: (value) => {
@@ -1336,6 +1485,7 @@ function collectEmergencyCandidates(
 		for (const block of message.content) {
 			if (block.type === "text") {
 				candidates.push({
+					priority,
 					byteLength: utf8ByteLength(block.text),
 					get: () => block.text,
 					set: (value) => {
@@ -1354,6 +1504,7 @@ function collectEmergencyCandidates(
 			}
 			if (block.type === "file") {
 				candidates.push({
+					priority,
 					byteLength: utf8ByteLength(block.content),
 					get: () => block.content,
 					set: (value) => {
@@ -1372,6 +1523,7 @@ function collectEmergencyCandidates(
 			if (block.type === "tool_result") {
 				if (typeof block.content === "string") {
 					candidates.push({
+						priority,
 						byteLength: utf8ByteLength(block.content),
 						get: () => block.content as string,
 						set: (value) => {
@@ -1382,6 +1534,7 @@ function collectEmergencyCandidates(
 					for (const entry of block.content) {
 						if (entry.type === "text") {
 							candidates.push({
+								priority,
 								byteLength: utf8ByteLength(entry.text),
 								get: () => entry.text,
 								set: (value) => {
@@ -1390,6 +1543,7 @@ function collectEmergencyCandidates(
 							});
 						} else if (entry.type === "file") {
 							candidates.push({
+								priority,
 								byteLength: utf8ByteLength(entry.content),
 								get: () => entry.content,
 								set: (value) => {
@@ -1408,6 +1562,7 @@ function collectEmergencyCandidates(
 			if (block.type === "tool_use") {
 				collectStringLeaves(block.input, (get, set) => {
 					candidates.push({
+						priority,
 						byteLength: utf8ByteLength(get()),
 						get,
 						set,
@@ -1421,6 +1576,7 @@ function collectEmergencyCandidates(
 		.map((candidate, originalIndex) => ({ candidate, originalIndex }))
 		.sort(
 			(l, r) =>
+				l.candidate.priority - r.candidate.priority ||
 				r.candidate.byteLength - l.candidate.byteLength ||
 				l.originalIndex - r.originalIndex,
 		)
@@ -1489,10 +1645,32 @@ function dropOldestUntilFits(messages: Message[], budgetBytes: number): number {
 	let droppedBlocks = 0;
 
 	// Sub-pass 1: zero out string payloads (cheaper than block removal and
-	// preserves JSON shape so the provider can still parse the request).
-	// Candidates are snapshot at entry; set("") mutates in place so later
-	// candidates with get().length === 0 are naturally skipped.
-	const stringCandidates = collectEmergencyCandidates(messages);
+	// preserves JSON shape so the provider can still parse the request). Sweep
+	// by preservation priority so older whole blocks are removed before the
+	// latest user prompt is blanked.
+	for (let priority = 0; priority <= LATEST_USER_DROP_PRIORITY; priority += 1) {
+		droppedBlocks += exhaustPriorityUntilFits(messages, budgetBytes, priority);
+	}
+
+	if (countProviderRequestBytes(messages) <= budgetBytes) {
+		return droppedBlocks;
+	}
+
+	// Sub-pass 2: remove entire blocks.
+	droppedBlocks += removeBlocksUntilFits(messages, budgetBytes);
+
+	return droppedBlocks;
+}
+
+function exhaustPriorityUntilFits(
+	messages: Message[],
+	budgetBytes: number,
+	priority: number,
+): number {
+	let droppedBlocks = 0;
+	const stringCandidates = collectEmergencyCandidates(messages).filter(
+		(candidate) => candidate.priority === priority,
+	);
 	for (const candidate of stringCandidates) {
 		if (countProviderRequestBytes(messages) <= budgetBytes) {
 			break;
@@ -1503,26 +1681,55 @@ function dropOldestUntilFits(messages: Message[], budgetBytes: number): number {
 		candidate.set("");
 		droppedBlocks += 1;
 	}
+	droppedBlocks += removeBlocksAtPriorityUntilFits(
+		messages,
+		budgetBytes,
+		priority,
+	);
+	return droppedBlocks;
+}
 
-	if (countProviderRequestBytes(messages) <= budgetBytes) {
-		return droppedBlocks;
-	}
-
-	// Sub-pass 2: remove entire blocks. Recompute collectBlockRemovalCandidates
-	// after each removal to avoid stale messageIndex/blockIndex references —
-	// splice shifts indices within a message and a frozen candidate list would
-	// silently miss or wrong-remove subsequent blocks.
+function removeBlocksAtPriorityUntilFits(
+	messages: Message[],
+	budgetBytes: number,
+	priority: number,
+): number {
+	let droppedBlocks = 0;
+	// Recompute collectBlockRemovalCandidates after each removal to avoid stale
+	// messageIndex/blockIndex references — splice shifts indices within a message
+	// and a frozen candidate list would silently miss or wrong-remove subsequent
+	// blocks.
 	while (countProviderRequestBytes(messages) > budgetBytes) {
 		const blockCandidates = collectBlockRemovalCandidates(messages);
-		if (blockCandidates.length === 0) {
+		const candidate = blockCandidates.find(
+			(blockCandidate) => blockCandidate.priority === priority,
+		);
+		if (!candidate) {
 			break;
 		}
-		if (!removeBlocks(messages, blockCandidates[0].blocks)) {
+		if (!removeBlocks(messages, candidate.blocks)) {
 			break; // No progress; avoid an infinite loop.
 		}
-		droppedBlocks += blockCandidates[0].blocks.length;
+		droppedBlocks += candidate.blocks.length;
 	}
+	return droppedBlocks;
+}
 
+function removeBlocksUntilFits(
+	messages: Message[],
+	budgetBytes: number,
+): number {
+	let droppedBlocks = 0;
+	for (let priority = 0; priority <= LATEST_USER_DROP_PRIORITY; priority += 1) {
+		droppedBlocks += removeBlocksAtPriorityUntilFits(
+			messages,
+			budgetBytes,
+			priority,
+		);
+		if (countProviderRequestBytes(messages) <= budgetBytes) {
+			break;
+		}
+	}
 	return droppedBlocks;
 }
 
@@ -1544,7 +1751,7 @@ function collectBlockRemovalCandidates(
 	const toolRefs = new Map<string, BlockRef[]>();
 	const candidates: BlockRemovalCandidate[] = [];
 	const lastAssistantIndex = findLastAssistantMessageIndex(messages);
-	const lastUserIndex = findLastUserMessageIndex(messages);
+	const latestTypedUserIndex = findLatestTypedUserMessageIndex(messages);
 
 	for (
 		let messageIndex = 0;
@@ -1592,7 +1799,7 @@ function collectBlockRemovalCandidates(
 				message,
 				messageIndex,
 				lastAssistantIndex,
-				lastUserIndex,
+				latestTypedUserIndex,
 			);
 			if (block.type === "tool_use") {
 				candidates.push({
@@ -1635,7 +1842,7 @@ function getDropPriority(
 	message: Message,
 	messageIndex: number,
 	lastAssistantIndex: number,
-	lastUserIndex: number,
+	latestTypedUserIndex: number,
 ): number {
 	// Lower values are dropped first:
 	// 0 older assistants, 1 middle users, 2 last assistant, 3 first user,
@@ -1646,15 +1853,15 @@ function getDropPriority(
 	if (
 		message.role === "user" &&
 		messageIndex !== 0 &&
-		messageIndex !== lastUserIndex
+		messageIndex !== latestTypedUserIndex
 	) {
 		return 1;
 	}
 	if (message.role === "assistant") {
 		return 2;
 	}
-	if (message.role === "user" && messageIndex === lastUserIndex) {
-		return 4;
+	if (message.role === "user" && messageIndex === latestTypedUserIndex) {
+		return LATEST_USER_DROP_PRIORITY;
 	}
 	return 3;
 }
@@ -1668,13 +1875,30 @@ function findLastAssistantMessageIndex(messages: Message[]): number {
 	return -1;
 }
 
-function findLastUserMessageIndex(messages: Message[]): number {
+function findLatestTypedUserMessageIndex(messages: Message[]): number {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		if (messages[index].role === "user") {
+		if (isTypedUserMessage(messages[index])) {
 			return index;
 		}
 	}
 	return -1;
+}
+
+// Tool results are provider-shaped as role:"user" messages, but they are not
+// typed prompts. The latest typed prompt is the user-authored message we
+// preserve as the final emergency-truncation resort.
+function isTypedUserMessage(message: Message): boolean {
+	if (message.role !== "user") {
+		return false;
+	}
+	if (typeof message.content === "string") {
+		return true;
+	}
+	return (
+		Array.isArray(message.content) &&
+		message.content.length > 0 &&
+		message.content.some((block) => block.type !== "tool_result")
+	);
 }
 
 function removeBlocks(messages: Message[], refs: BlockRef[]): boolean {
