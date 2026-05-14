@@ -501,8 +501,9 @@ describe("MessageBuilder", () => {
 	// CLINE-2191 (Layer A): widen MessageBuilder.collectTruncationCandidates
 	// beyond tool_result content so user text, assistant text, and top-level
 	// file blocks also participate in the aggregate budget. Thinking blocks
-	// are counted but not middle-truncated because their signatures/details
-	// are tied to the original reasoning payload.
+	// are excluded from both the Layer A budget and candidates because their
+	// signatures/details are tied to the original reasoning payload; Layer B
+	// handles them via whole-block removal when a hard guarantee is required.
 	it("truncates user text blocks under the aggregate budget (CLINE-2191)", () => {
 		const builder = new MessageBuilder(50_000, undefined, 500_000);
 		const messages: Message[] = [

@@ -862,8 +862,6 @@ export class MessageBuilder {
 			for (const block of message.content) {
 				if (block.type === "text") {
 					total += utf8ByteLength(block.text);
-				} else if (block.type === "thinking") {
-					total += utf8ByteLength(block.thinking);
 				} else if (block.type === "file") {
 					total += utf8ByteLength(block.content);
 				} else if (block.type === "tool_result") {
