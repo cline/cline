@@ -72,13 +72,14 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	// NOTE: Prompt-injection mitigation cannot be achieved through character-level
-	// filtering at this layer. Prompt injection attacks use ordinary printable text
+// NOTE: Both request.text and request.files are passed through to initTask without
+	// modification. Prompt-injection mitigation cannot be achieved through character-level
+	// filtering at this layer — prompt injection attacks use ordinary printable text
 	// (e.g. "Ignore previous instructions …") that no regex can distinguish from
-	// legitimate input. Stripping control characters would provide no protection
-	// against the actual threat and would create a false sense of security.
-	// Real mitigations require architectural safeguards such as privilege separation,
-	// sandboxed execution environments, and model-level output monitoring.
+	// legitimate input. Stripping control characters from text or file content would
+	// provide no protection against the actual threat and would create a false sense
+	// of security. Real mitigations require architectural safeguards such as privilege
+	// separation, sandboxed execution environments, and model-level output monitoring.
 	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
 	return String.create({ value: taskId || "" })
 }
