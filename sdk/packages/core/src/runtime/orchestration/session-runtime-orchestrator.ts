@@ -880,9 +880,41 @@ export class SessionRuntime {
 					return control;
 				}
 				const messages = control?.messages ?? ctx.request.messages;
+				// Build the same full options that createRuntimePrepareTurn
+				// uses so Layer B observability (status notice + telemetry)
+				// fires on the main hot path, not only when the SDK consumer
+				// supplies a prepareTurn callback.
+				const buildForApiOptions: Parameters<
+					typeof this.messageBuilder.buildForApi
+				>[1] = {
+					maxInputTokens: modelInfo?.maxInputTokens,
+					emitStatusNotice: (message, metadata) => {
+						this.emitLegacyEvent({
+							type: "notice",
+							noticeType: "status",
+							displayRole: "status",
+							message,
+							metadata,
+							agentId: ctx.snapshot.agentId,
+							conversationId: ctx.snapshot.conversationId ?? undefined,
+							parentAgentId: ctx.snapshot.parentAgentId ?? undefined,
+						});
+					},
+					telemetry: this.telemetry,
+					sessionId: this.config.sessionId,
+					provider: this.config.providerId,
+					modelId: this.config.modelId,
+					agentIdentity: {
+						agentId: ctx.snapshot.agentId,
+						conversationId:
+							ctx.snapshot.conversationId ??
+							this.conversation.getConversationId(),
+						parentAgentId: ctx.snapshot.parentAgentId ?? undefined,
+					},
+				};
 				const preparedMessages = await this.prepareMessagesForModelRequest(
 					messages,
-					modelInfo?.maxInputTokens,
+					buildForApiOptions,
 				);
 				return {
 					...control,
@@ -965,11 +997,11 @@ export class SessionRuntime {
 
 	private async prepareMessagesForModelRequest(
 		messages: readonly AgentMessage[],
-		maxInputTokens?: number,
+		options: Parameters<typeof this.messageBuilder.buildForApi>[1] = {},
 	): Promise<AgentMessage[]> {
 		const providerMessages = await this.prepareProviderMessagesForApi(
 			agentMessagesToMessages(messages),
-			{ maxInputTokens },
+			options,
 		);
 		return messagesToAgentMessages(providerMessages);
 	}

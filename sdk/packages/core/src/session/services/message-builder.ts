@@ -1115,6 +1115,16 @@ export class MessageBuilder {
 
 		// Pass 2: if even floor-truncation didn't fit, drop blocks.
 		const droppedBlocks = dropOldestUntilFits(next, budgetBytes);
+
+		// Block removal can leave messages with content: []. Providers
+		// reject empty content arrays, so prune those messages out.
+		for (let i = next.length - 1; i >= 0; i -= 1) {
+			const m = next[i];
+			if (Array.isArray(m.content) && m.content.length === 0) {
+				next.splice(i, 1);
+			}
+		}
+
 		const bytesAfter = countProviderRequestBytes(next);
 
 		if (truncatedBlocks > 0 || droppedBlocks > 0) {
@@ -1245,9 +1255,20 @@ function countProviderRequestBytes(messages: Message[]): number {
  * CLINE-2192 Layer B: collect every string-bearing block location the
  * brick-wall byte-budget pass may middle-truncate. Strictly wider
  * than Layer A's set — it also includes the string leaves inside
- * `tool_use.input`. Keys, numbers, booleans, null, and the reserved
- * identifier fields (`id`, `tool_use_id`, `call_id`, `name`) are
- * excluded.
+ * `tool_use.input`.
+ *
+ * What IS excluded from string truncation:
+ * - `redacted_thinking.data` — Anthropic-encrypted opaque blob; truncation
+ *   produces invalid data. Handled by block removal in pass 2.
+ * - `image.data` and tool-result image entries — raw base64; truncation
+ *   produces invalid base64. Handled by block removal in pass 2.
+ *
+ * What is NOT excluded (intentional in emergency territory):
+ * - String-valued input parameters named `id`, `name`, etc. within
+ *   `tool_use.input`. These are parameter values, not provider-level
+ *   identifiers. The actual block-level `block.id` and `block.name` are
+ *   safe because `collectStringLeaves` only traverses `block.input`,
+ *   never the block itself.
  *
  * Order is deterministic: walk message-by-message, block-by-block;
  * within each `tool_use.input`, walk the JSON tree depth-first with
@@ -1294,13 +1315,10 @@ function collectEmergencyCandidates(
 				continue;
 			}
 			if (block.type === "redacted_thinking") {
-				candidates.push({
-					byteLength: utf8ByteLength(block.data),
-					get: () => block.data,
-					set: (value) => {
-						block.data = value;
-					},
-				});
+				// `data` is an Anthropic-encrypted opaque blob. Middle-
+				// truncating it produces binary garbage that the provider
+				// rejects with a 400. Exclude from string truncation;
+				// collectBlockRemovalCandidates handles whole-block removal.
 				continue;
 			}
 			if (block.type === "file") {
@@ -1314,13 +1332,10 @@ function collectEmergencyCandidates(
 				continue;
 			}
 			if (block.type === "image") {
-				candidates.push({
-					byteLength: utf8ByteLength(block.data),
-					get: () => block.data,
-					set: (value) => {
-						block.data = value;
-					},
-				});
+				// `data` is raw base64. Middle-truncating it produces
+				// invalid base64 that the provider rejects with a 400.
+				// Exclude from string truncation; whole-block removal
+				// is handled by collectBlockRemovalCandidates.
 				continue;
 			}
 			if (block.type === "tool_result") {
@@ -1351,13 +1366,9 @@ function collectEmergencyCandidates(
 								},
 							});
 						} else if (entry.type === "image") {
-							candidates.push({
-								byteLength: utf8ByteLength(entry.data),
-								get: () => entry.data,
-								set: (value) => {
-									entry.data = value;
-								},
-							});
+							// base64 data — same as top-level image blocks,
+							// middle-truncation produces invalid base64. Skip;
+							// whole-block removal is the right lever here.
 						}
 					}
 				}
@@ -1386,11 +1397,15 @@ function collectEmergencyCandidates(
 }
 
 /**
- * Walks `tool_use.input` depth-first with lexicographic key order
- * and invokes the visitor for every string leaf with a `get`/`set`
- * pair that reads/writes the leaf in place. Non-string leaves
- * (numbers, booleans, null) are not visited. Arrays-of-strings ARE
- * visited per-index.
+ * Walks a value (typically `tool_use.input`) depth-first with
+ * lexicographic key order and invokes the visitor for every string
+ * leaf with a `get`/`set` pair that reads/writes the leaf in place.
+ * Non-string leaves (numbers, booleans, null) are not visited.
+ * Arrays-of-strings ARE visited per-index.
+ *
+ * This function is called with `block.input`, never with the block
+ * itself, so block-level fields like `block.id` and `block.name` are
+ * always outside the traversal scope.
  */
 function collectStringLeaves(
 	node: unknown,
@@ -1441,8 +1456,13 @@ function collectStringLeaves(
  */
 function dropOldestUntilFits(messages: Message[], budgetBytes: number): number {
 	let droppedBlocks = 0;
-	const candidates = collectEmergencyCandidates(messages);
-	for (const candidate of candidates) {
+
+	// Sub-pass 1: zero out string payloads (cheaper than block removal and
+	// preserves JSON shape so the provider can still parse the request).
+	// Candidates are snapshot at entry; set("") mutates in place so later
+	// candidates with get().length === 0 are naturally skipped.
+	const stringCandidates = collectEmergencyCandidates(messages);
+	for (const candidate of stringCandidates) {
 		if (countProviderRequestBytes(messages) <= budgetBytes) {
 			break;
 		}
@@ -1457,14 +1477,21 @@ function dropOldestUntilFits(messages: Message[], budgetBytes: number): number {
 		return droppedBlocks;
 	}
 
-	for (const removal of collectBlockRemovalCandidates(messages)) {
-		if (countProviderRequestBytes(messages) <= budgetBytes) {
+	// Sub-pass 2: remove entire blocks. Recompute collectBlockRemovalCandidates
+	// after each removal to avoid stale messageIndex/blockIndex references —
+	// splice shifts indices within a message and a frozen candidate list would
+	// silently miss or wrong-remove subsequent blocks.
+	while (countProviderRequestBytes(messages) > budgetBytes) {
+		const blockCandidates = collectBlockRemovalCandidates(messages);
+		if (blockCandidates.length === 0) {
 			break;
 		}
-		if (removeBlocks(messages, removal.blocks)) {
-			droppedBlocks += removal.blocks.length;
+		if (!removeBlocks(messages, blockCandidates[0].blocks)) {
+			break; // No progress; avoid an infinite loop.
 		}
+		droppedBlocks += blockCandidates[0].blocks.length;
 	}
+
 	return droppedBlocks;
 }
 

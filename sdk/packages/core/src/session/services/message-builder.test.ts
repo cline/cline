@@ -845,4 +845,124 @@ describe("MessageBuilder", () => {
 		expect(notice).not.toHaveBeenCalled();
 		expect(telemetry.capture).not.toHaveBeenCalled();
 	});
+
+	it("preserves redacted_thinking.data intact and removes the block under extreme budget (CLINE-2192)", () => {
+		// redacted_thinking.data is an Anthropic-encrypted blob. Middle-
+		// truncating it would produce invalid data that the provider rejects.
+		// Layer B must exclude it from string-leaf truncation and instead
+		// handle it only via whole-block removal.
+		const encryptedBlob = "encrypted_blob_data".repeat(1_000);
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "redacted_thinking",
+						data: encryptedBlob,
+					},
+					{
+						type: "text",
+						text: "x".repeat(500_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
+		const content = Array.isArray(result[0].content) ? result[0].content : [];
+		const rThink = content.find((b) => b.type === "redacted_thinking") as
+			| { type: string; data: string }
+			| undefined;
+
+		if (rThink !== undefined) {
+			// If the block survived, its data must be intact (not truncated).
+			expect(rThink.data).toBe(encryptedBlob);
+		}
+		// Either way, the serialized result must be within budget.
+		expect(
+			Buffer.byteLength(JSON.stringify(result), "utf8"),
+		).toBeLessThanOrEqual(3_000);
+	});
+
+	it("preserves image.data intact and removes the block under extreme budget (CLINE-2192)", () => {
+		// image.data is raw base64. Middle-truncating it produces invalid base64.
+		// Layer B must exclude it from string truncation.
+		const base64Data = "SGVsbG8gV29ybGQ=".repeat(2_000); // valid-looking base64
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						data: base64Data,
+						mediaType: "image/png",
+					},
+					{
+						type: "text",
+						text: "x".repeat(500_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
+		const content = Array.isArray(result[0].content) ? result[0].content : [];
+		const img = content.find((b) => b.type === "image") as
+			| { data: string }
+			| undefined;
+
+		if (img) {
+			// If the image survived, its base64 data must be intact.
+			expect(img.data).toBe(base64Data);
+		}
+		expect(
+			Buffer.byteLength(JSON.stringify(result), "utf8"),
+		).toBeLessThanOrEqual(3_000);
+	});
+
+	it("removes empty messages left after block removal (CLINE-2192)", () => {
+		// Block-removal can leave content: [] which providers reject.
+		// enforceHardByteBudget must prune these before returning.
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "t1",
+						name: "editor",
+						input: { body: "x".repeat(500_000) },
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 100 });
+		for (const message of result) {
+			if (Array.isArray(message.content)) {
+				expect(message.content.length).toBeGreaterThan(0);
+			}
+		}
+	});
+
+	it("never throws on adversarial or circular-like inputs (CLINE-2192)", () => {
+		// Layer B must degrade gracefully and never throw, even for unusual inputs.
+		const builder = new MessageBuilder();
+		expect(() =>
+			builder.buildForApi(
+				[
+					{ role: "user", content: [] },
+					{ role: "assistant", content: [] },
+					{
+						role: "user",
+						content: [{ type: "text", text: "x".repeat(10_000_000) }],
+					},
+				],
+				{ maxInputTokens: 10 },
+			),
+		).not.toThrow();
+	});
 });
