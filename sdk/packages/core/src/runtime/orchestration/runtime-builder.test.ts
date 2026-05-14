@@ -295,7 +295,7 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).toContain("read_files");
 	});
 
-	it("uses runCommandsTimeoutMs from global settings for run_commands tool and executor", async () => {
+	it("sets outer tool timeoutMs to MAX_RUN_COMMANDS_TIMEOUT_MS regardless of configured runCommandsTimeoutMs", async () => {
 		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-timeout-"));
 		const settingsPath = join(tempRoot, "global-settings.json");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
