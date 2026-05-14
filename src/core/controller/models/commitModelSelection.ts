@@ -1,4 +1,4 @@
-import type { ApiProvider } from "@shared/api"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Empty } from "@/shared/proto/cline/common"
 import { CommitModelSelectionRequest } from "@/shared/proto/cline/models"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
@@ -9,10 +9,6 @@ import {
 	parseProviderIdRequest,
 	toModelSelection,
 } from "./providerCatalogShared"
-
-function providerForStorage(providerId: string): ApiProvider {
-	return (providerId === "nousresearch" ? "nousResearch" : providerId) as ApiProvider
-}
 
 export async function commitModelSelection(
 	controller: ProviderCatalogController,
@@ -26,7 +22,7 @@ export async function commitModelSelection(
 	if (hasProviderCatalogStateController(controller)) {
 		controller.stateManager.setGlobalStateBatch({
 			[`${mode}ModeApiProvider`]: providerId,
-			[getProviderModelIdKey(providerForStorage(providerId.toString()), mode)]: selection.modelId,
+			[getProviderModelIdKey(toLegacyApiProvider(providerId.toString()), mode)]: selection.modelId,
 		})
 	}
 

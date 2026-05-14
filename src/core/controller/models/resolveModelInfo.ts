@@ -4,6 +4,9 @@ import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/prot
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
 import { type ProviderCatalogController, parseProviderIdRequest } from "./providerCatalogShared"
 
+// Intentionally async for the generated gRPC handler contract. The body is
+// synchronous in effect: do not add awaits, model-list refreshes, or cache/store
+// mutations to this chat/status metadata path.
 export async function resolveModelInfo(
 	controller: ProviderCatalogController,
 	request: ResolveModelInfoRequest,
