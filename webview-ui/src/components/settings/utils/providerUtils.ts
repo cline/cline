@@ -381,14 +381,16 @@ export function normalizeApiConfiguration(
 			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
-		case "nvidia":
+		case "nvidia": {
+			const nvidiaModelId =
+				(currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId) ||
+				nvidiaDefaultModelId
 			return {
 				selectedProvider: provider,
-				selectedModelId:
-					(currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId) ||
-					nvidiaDefaultModelId,
-				selectedModelInfo: nvidiaDefaultModelInfo,
+				selectedModelId: nvidiaModelId,
+				selectedModelInfo: nvidiaModelId === nvidiaDefaultModelId ? nvidiaDefaultModelInfo : openAiModelInfoSaneDefaults,
 			}
+		}
 		case "wandb":
 			return getProviderData(wandbModels, wandbDefaultModelId)
 		case "sambanova":

@@ -5,6 +5,7 @@ export const DEFAULT_REQUEST_HEADERS: Record<string, string> = {
 	"X-CLIENT-TYPE": "cline-sdk",
 };
 
+// Keep NVIDIA NIM billing-origin helpers in sync with src/shared/net.ts.
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const NVIDIA_NIM_BILLING_ORIGIN_HEADER = "X-BILLING-INVOKE-ORIGIN";
 export const NVIDIA_NIM_BILLING_ORIGIN_VALUE = "Cline";
