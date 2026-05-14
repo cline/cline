@@ -24,9 +24,9 @@ function setApiConfiguration(apiConfiguration: Record<string, unknown>) {
 	mockUseExtensionState.mockReturnValue({ apiConfiguration } as ReturnType<typeof useExtensionState>)
 }
 
-function deepSeekResponse(modelId: string, contextWindow = 1_000_000) {
+function modelInfoResponse(providerId: string, modelId: string, contextWindow = 1_000_000) {
 	return ResolveModelInfoResponse.create({
-		providerId: "deepseek",
+		providerId,
 		modelId,
 		source: "sdk-known-models",
 		modelInfo: {
@@ -38,6 +38,10 @@ function deepSeekResponse(modelId: string, contextWindow = 1_000_000) {
 			apiFormat: ApiFormat.OPENAI_CHAT,
 		},
 	})
+}
+
+function deepSeekResponse(modelId: string, contextWindow = 1_000_000) {
+	return modelInfoResponse("deepseek", modelId, contextWindow)
 }
 
 describe("useNormalizedApiConfiguration", () => {
@@ -79,6 +83,35 @@ describe("useNormalizedApiConfiguration", () => {
 		expect(result.current.selectedModelInfo.contextWindow).toBe(1_000_000)
 		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "deepseek", modelId: undefined })
 		expect(mockResolveProviderModels).not.toHaveBeenCalled()
+	})
+
+	it("uses Cline-specific model fields instead of stale generic or OpenRouter fields", async () => {
+		setApiConfiguration({
+			actModeApiProvider: "cline",
+			actModeApiModelId: "openai/gpt-5.4",
+			actModeOpenRouterModelId: "anthropic/claude-sonnet-4.5",
+			actModeClineModelId: "anthropic/claude-sonnet-4.6",
+		})
+		mockResolveModelInfo.mockResolvedValue(modelInfoResponse("cline", "anthropic/claude-sonnet-4.6"))
+
+		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
+
+		await waitFor(() => expect(result.current.selectedModelId).toBe("anthropic/claude-sonnet-4.6"))
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "cline", modelId: "anthropic/claude-sonnet-4.6" })
+	})
+
+	it("asks the backend for the Cline default when no Cline-specific model is selected", async () => {
+		setApiConfiguration({
+			actModeApiProvider: "cline",
+			actModeApiModelId: "openai/gpt-5.4",
+			actModeOpenRouterModelId: "anthropic/claude-sonnet-4.5",
+		})
+		mockResolveModelInfo.mockResolvedValue(modelInfoResponse("cline", "anthropic/claude-sonnet-4.6"))
+
+		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
+
+		await waitFor(() => expect(result.current.selectedModelId).toBe("anthropic/claude-sonnet-4.6"))
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "cline", modelId: undefined })
 	})
 
 	it("falls back to legacy normalization for non-migrated providers", () => {

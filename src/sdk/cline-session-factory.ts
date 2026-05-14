@@ -9,6 +9,7 @@
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
 import { type ClineCoreStartInput, type CoreSessionConfig, type ProviderSettings, type StartSessionResult } from "@cline/core"
+import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -253,6 +254,16 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 }
 
 // ---------------------------------------------------------------------------
+// Provider/model defaults
+// ---------------------------------------------------------------------------
+
+const DEFAULT_PROVIDER_ID = "cline"
+
+export function getDefaultModelIdForProvider(providerId: string): string | undefined {
+	return MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.defaultModelId?.trim() || undefined
+}
+
+// ---------------------------------------------------------------------------
 // API key resolution
 // ---------------------------------------------------------------------------
 
@@ -303,24 +314,21 @@ function resolveApiKey(providerId: string, config: ApiConfiguration): string | u
  * Uses mode-specific model ID fields when available, falls back to generic fields.
  */
 function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
-	// Check provider-specific mode model ID fields
+	// Check provider-specific mode model ID fields.
+	// If the provider has a dedicated field, do not fall back to generic
+	// *ModeApiModelId. Those generic slots may contain a stale model from a
+	// previous provider (for example openai/gpt-5.4), which would make the SDK
+	// session use a different model than the Cline provider UI shows.
 	const modelFields = PROVIDER_MODEL_ID_MAP[providerId]
 	if (modelFields) {
 		const field = mode === "plan" ? modelFields.plan : modelFields.act
-		const modelId = config[field] as string | undefined
-		if (modelId) {
-			return modelId
-		}
+		return (config[field] as string | undefined)?.trim() || undefined
 	}
 
-	// Fallback to generic mode model ID fields
+	// Fallback to generic mode model ID fields only for providers without a
+	// dedicated model field.
 	const genericField = mode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
-	const genericModelId = config[genericField] as string | undefined
-	if (genericModelId) {
-		return genericModelId
-	}
-
-	return undefined
+	return (config[genericField] as string | undefined)?.trim() || undefined
 }
 
 /**
@@ -403,8 +411,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		Logger.warn("[SessionFactory] StateManager credential resolution failed:", error)
 	}
 
-	// Fallback: try SDK's ProviderSettingsManager if StateManager didn't yield results
-	if (!providerId || !apiKey) {
+	// Fallback: try SDK's ProviderSettingsManager only when StateManager did not
+	// resolve a provider at all. If the user selected a provider but credentials
+	// are missing, keep that provider/model so the UI can surface the right auth
+	// state instead of silently switching to a previous provider.
+	if (!providerId) {
 		try {
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
@@ -422,9 +433,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 	}
 
-	// Final defaults
-	providerId = providerId ?? "cline"
-	modelId = modelId ?? "openai/gpt-5.4"
+	// Final defaults. Keep this aligned with the provider catalog so the UI and
+	// session factory share one source of truth for default models.
+	providerId = providerId ?? DEFAULT_PROVIDER_ID
+	modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
 	apiKey = apiKey ?? ""
 	const reasoningConfig = resolveProviderReasoningConfig(providerId)
 
