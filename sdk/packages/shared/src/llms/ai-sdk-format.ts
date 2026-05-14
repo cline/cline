@@ -1,3 +1,4 @@
+import { truncateToolOutput } from "../parse/content-limits";
 import { formatFileContentBlock } from "../prompt/format";
 
 /**
@@ -192,7 +193,7 @@ export function toAiSdkToolResultOutput(
 	if (typeof output === "string") {
 		return {
 			type: isError ? "error-text" : "text",
-			value: sanitizeSurrogates(output),
+			value: truncateToolOutput(sanitizeSurrogates(output)),
 		};
 	}
 
@@ -212,7 +213,10 @@ export function toAiSdkToolResultOutput(
 							data: block.data,
 							mediaType: block.mediaType,
 						}
-					: { type: "text", text: sanitizeSurrogates(block.text) },
+					: {
+							type: "text",
+							text: truncateToolOutput(sanitizeSurrogates(block.text)),
+						},
 			),
 		};
 	}
@@ -229,10 +233,11 @@ export function toAiSdkToolResultOutput(
 		const images: AiSdkImageContentBlock[] = [];
 		const stripped = stripImagesFromOutput(output, images);
 		if (images.length > 0) {
-			const headerText =
+			const headerText = truncateToolOutput(
 				typeof stripped === "string"
 					? sanitizeSurrogates(stripped)
-					: JSON.stringify(sanitizeDeepStrings(stripped));
+					: JSON.stringify(sanitizeDeepStrings(stripped)),
+			);
 			return {
 				type: "content",
 				value: [
@@ -253,15 +258,28 @@ export function toAiSdkToolResultOutput(
 		typeof output === "number" ||
 		typeof output === "object"
 	) {
+		const sanitized = sanitizeDeepStrings(output);
+		// Stringify and cap so an object that serializes past the cap can't slip
+		// through; switch to text type so the truncation marker is visible.
+		const serialized = JSON.stringify(sanitized);
+		if (typeof serialized === "string" && serialized.length > 0) {
+			const capped = truncateToolOutput(serialized);
+			if (capped !== serialized) {
+				return {
+					type: isError ? "error-text" : "text",
+					value: capped,
+				};
+			}
+		}
 		return {
 			type: isError ? "error-json" : "json",
-			value: sanitizeDeepStrings(output),
+			value: sanitized,
 		};
 	}
 
 	return {
 		type: isError ? "error-text" : "text",
-		value: sanitizeSurrogates(String(output)),
+		value: truncateToolOutput(sanitizeSurrogates(String(output))),
 	};
 }
 

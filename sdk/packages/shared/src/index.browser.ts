@@ -145,6 +145,10 @@ export {
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
+export {
+	MAX_TOOL_OUTPUT_CHARS,
+	truncateToolOutput,
+} from "./parse/content-limits";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {
 	maskSecret,

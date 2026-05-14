@@ -23,7 +23,11 @@ import type {
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-import { captureSdkError, estimateTokens } from "@cline/shared";
+import {
+	captureSdkError,
+	estimateTokens,
+	truncateToolOutput,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 
 // Local `createUID` helper. The clinee source imports this from
@@ -1276,12 +1280,14 @@ export class AgentRuntime {
 			}
 		}
 
+		const cappedOutput = capToolOutputDeep(result.output);
+
 		const message = createMessage("tool", [
 			{
 				type: "tool-result",
 				toolCallId: prepared.toolCall.toolCallId,
 				toolName: prepared.toolCall.toolName,
-				output: result.output,
+				output: cappedOutput,
 				isError: result.isError,
 			},
 		]);
@@ -1540,4 +1546,30 @@ export type Agent = AgentRuntime;
 
 export function createAgent(config: AgentRuntimeConfig): AgentRuntime {
 	return new AgentRuntime(config);
+}
+
+function capToolOutputDeep(value: unknown): unknown {
+	if (typeof value === "string") {
+		return truncateToolOutput(value);
+	}
+	if (Array.isArray(value)) {
+		return value.map((item) => capToolOutputDeep(item));
+	}
+	if (value !== null && typeof value === "object") {
+		const obj = value as Record<string, unknown>;
+		// Image blocks: base64 data must reach the model intact.
+		if (
+			obj.type === "image" &&
+			typeof obj.data === "string" &&
+			typeof obj.mediaType === "string"
+		) {
+			return value;
+		}
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(obj)) {
+			out[k] = capToolOutputDeep(v);
+		}
+		return out;
+	}
+	return value;
 }

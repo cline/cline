@@ -536,6 +536,103 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("preserved");
 	});
 
+	it("caps strings deep inside structured tool outputs", async () => {
+		const huge = "x".repeat(2 * 1024 * 1024);
+		const structuredOutput = [
+			{ query: "huge.txt", result: huge, success: true },
+		];
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_huge",
+					toolName: "read_files",
+					inputText: '{"files":[{"path":"huge.txt"}]}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				const part = toolMessage.content[0] as {
+					type: string;
+					output: Array<{ query: string; result: string; success: boolean }>;
+				};
+				expect(part.type).toBe("tool-result");
+				expect(part.output).toHaveLength(1);
+				expect(part.output[0].query).toBe("huge.txt");
+				expect(part.output[0].success).toBe(true);
+				expect(part.output[0].result.length).toBeLessThanOrEqual(400 * 1024);
+				expect(part.output[0].result).toContain("[OUTPUT TRUNCATED:");
+				return [
+					{ type: "text-delta", text: "ok" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "read_files",
+					description: "Mimic default read_files shape",
+					inputSchema: { type: "object" },
+					execute: async () => structuredOutput,
+				},
+			],
+		});
+
+		const result = await runtime.run("Read huge");
+		expect(result.status).toBe("completed");
+	});
+
+	it("preserves image content blocks inside structured tool outputs", async () => {
+		const imageBlock = {
+			type: "image",
+			data: "BASE64IMAGEDATA",
+			mediaType: "image/jpeg",
+		};
+		const structuredOutput = [
+			{ query: "/tmp/img.jpg", result: [imageBlock], success: true },
+		];
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_img",
+					toolName: "read_files",
+					inputText: '{"files":[{"path":"/tmp/img.jpg"}]}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				const part = toolMessage.content[0] as {
+					output: Array<{ result: typeof imageBlock[] }>;
+				};
+				expect(part.output[0].result[0]).toEqual(imageBlock);
+				return [
+					{ type: "text-delta", text: "ok" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "read_files",
+					description: "Mimic image read",
+					inputSchema: { type: "object" },
+					execute: async () => structuredOutput,
+				},
+			],
+		});
+
+		const result = await runtime.run("Read image");
+		expect(result.status).toBe("completed");
+	});
+
 	it("requests approval when a tool policy disables auto-approval", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({

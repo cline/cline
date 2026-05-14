@@ -682,6 +682,42 @@ describe("formatMessagesForAiSdk", () => {
 			value: "contents",
 		});
 	});
+
+	it("caps an oversized string tool result before wire format", () => {
+		const huge = "x".repeat(24 * 1024 * 1024);
+		const out = toAiSdkToolResultOutput(huge);
+		expect(out.type).toBe("text");
+		const value = out.value as string;
+		expect(value.length).toBeLessThan(1 * 1024 * 1024);
+		expect(value).toContain("[OUTPUT TRUNCATED:");
+	});
+
+	it("caps oversized text blocks in content array tool result", () => {
+		const huge = "y".repeat(5 * 1024 * 1024);
+		const out = toAiSdkToolResultOutput([{ type: "text", text: huge }]);
+		expect(out.type).toBe("content");
+		const blocks = out.value as Array<{ type: string; text: string }>;
+		expect(blocks).toHaveLength(1);
+		expect(blocks[0].type).toBe("text");
+		expect(blocks[0].text.length).toBeLessThan(1 * 1024 * 1024);
+		expect(blocks[0].text).toContain("[OUTPUT TRUNCATED:");
+	});
+
+	it("converts oversized json output to text with marker", () => {
+		const huge = { payload: "z".repeat(5 * 1024 * 1024) };
+		const out = toAiSdkToolResultOutput(huge);
+		expect(out.type).toBe("text");
+		const value = out.value as string;
+		expect(value.length).toBeLessThan(1 * 1024 * 1024);
+		expect(value).toContain("[OUTPUT TRUNCATED:");
+	});
+
+	it("honors a hard cap on truncated output length", () => {
+		const huge = "q".repeat(2 * 1024 * 1024);
+		const out = toAiSdkToolResultOutput(huge);
+		const value = out.value as string;
+		expect(value.length).toBeLessThanOrEqual(400 * 1024);
+	});
 });
 
 describe("sanitizeSurrogates", () => {
