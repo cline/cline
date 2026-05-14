@@ -1,9 +1,4 @@
-import type {
-	RemoteConfigBundle,
-	RemoteConfigControlPlane,
-	RemoteConfigControlPlaneFetchInput,
-	RemoteConfigManagedInstructionFile,
-} from "@cline/shared/remote-config"
+import type { RemoteConfigBundle } from "@cline/shared"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
@@ -20,6 +15,23 @@ import { isRemoteConfigEnabled } from "./utils"
 export interface SdkRemoteConfigControlPlaneController {
 	accountService: { switchAccount(organizationId: string): Promise<unknown> }
 	stateManager: { setSecret(key: "remoteLiteLlmApiKey", value: string | undefined): unknown }
+}
+
+interface RemoteConfigControlPlaneFetchInput {
+	workspacePath: string
+	rootPath?: string
+	context?: unknown
+	logger?: unknown
+	signal?: AbortSignal
+	now?: number
+}
+
+interface RemoteConfigManagedInstructionFile {
+	id: string
+	name: string
+	kind: "skill"
+	contents: string
+	alwaysEnabled?: boolean
 }
 
 export interface SdkRemoteConfigBundle extends RemoteConfigBundle {
@@ -128,7 +140,7 @@ function skillsToManagedInstructions(remoteConfig: RemoteConfig): RemoteConfigMa
 	}))
 }
 
-export class SdkRemoteConfigControlPlane implements RemoteConfigControlPlane {
+export class SdkRemoteConfigControlPlane {
 	readonly name = "cline-extension-remote-config"
 	private lastConfiguredKeys: ConfiguredAPIKeys = {}
 	private lastRemoteConfig: RemoteConfig | undefined
