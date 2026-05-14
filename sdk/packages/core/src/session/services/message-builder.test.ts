@@ -1004,6 +1004,50 @@ describe("MessageBuilder", () => {
 		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
 	});
 
+	it("drops the last assistant before the latest user prompt in the final block-removal pass (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "old reasoning".repeat(20_000),
+						signature: "sig-old",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						data: "SGVsbG8gV29ybGQ=".repeat(40),
+						mediaType: "image/png",
+					},
+				],
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "last reasoning".repeat(20_000),
+						signature: "sig-last-assistant",
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain("SGVsbG8gV29ybGQ=");
+		expect(serialized).not.toContain("sig-old");
+		expect(serialized).not.toContain("sig-last-assistant");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
+	});
+
 	it("preserves image.data intact and removes the block under extreme budget (CLINE-2192)", () => {
 		// image.data is raw base64. Middle-truncating it produces invalid base64.
 		// Layer B must exclude it from string truncation.

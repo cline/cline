@@ -1544,6 +1544,7 @@ function collectBlockRemovalCandidates(
 	const toolRefs = new Map<string, BlockRef[]>();
 	const candidates: BlockRemovalCandidate[] = [];
 	const lastAssistantIndex = findLastAssistantMessageIndex(messages);
+	const lastUserIndex = findLastUserMessageIndex(messages);
 
 	for (
 		let messageIndex = 0;
@@ -1591,6 +1592,7 @@ function collectBlockRemovalCandidates(
 				message,
 				messageIndex,
 				lastAssistantIndex,
+				lastUserIndex,
 			);
 			if (block.type === "tool_use") {
 				candidates.push({
@@ -1633,15 +1635,26 @@ function getDropPriority(
 	message: Message,
 	messageIndex: number,
 	lastAssistantIndex: number,
+	lastUserIndex: number,
 ): number {
+	// Lower values are dropped first:
+	// 0 older assistants, 1 middle users, 2 last assistant, 3 first user,
+	// 4 latest user (the typed prompt for the current turn).
 	if (message.role === "assistant" && messageIndex !== lastAssistantIndex) {
 		return 0;
 	}
-	if (message.role === "user" && messageIndex !== 0) {
+	if (
+		message.role === "user" &&
+		messageIndex !== 0 &&
+		messageIndex !== lastUserIndex
+	) {
 		return 1;
 	}
 	if (message.role === "assistant") {
 		return 2;
+	}
+	if (message.role === "user" && messageIndex === lastUserIndex) {
+		return 4;
 	}
 	return 3;
 }
@@ -1649,6 +1662,15 @@ function getDropPriority(
 function findLastAssistantMessageIndex(messages: Message[]): number {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		if (messages[index].role === "assistant") {
+			return index;
+		}
+	}
+	return -1;
+}
+
+function findLastUserMessageIndex(messages: Message[]): number {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		if (messages[index].role === "user") {
 			return index;
 		}
 	}

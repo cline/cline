@@ -4,6 +4,7 @@ import {
 	CORE_TELEMETRY_EVENTS,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
+	captureEmergencyTruncation,
 	captureExtensionActivated,
 	captureRequestOverheadExceedsBudget,
 	captureTelemetryOptOut,
@@ -316,6 +317,39 @@ describe("captureCompactionSkipped", () => {
 	});
 });
 
+describe("captureEmergencyTruncation", () => {
+	const baseProps = {
+		ulid: "ulid-1",
+		bytesBefore: 120_000,
+		bytesAfter: 55_000,
+		maxInputTokens: 20_000,
+		truncatedBlocks: 4,
+		droppedBlocks: 1,
+		provider: "anthropic",
+		modelId: "claude-sonnet-4",
+	};
+
+	test("emits task.emergency_truncation with all properties and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureEmergencyTruncation(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(CORE_TELEMETRY_EVENTS.TASK.EMERGENCY_TRUNCATION);
+		expect(event).toBe("task.emergency_truncation");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			captureEmergencyTruncation(undefined, baseProps),
+		).not.toThrow();
+	});
+});
+
 describe("captureRequestOverheadExceedsBudget", () => {
 	const baseProps = {
 		ulid: "ulid-1",
@@ -498,6 +532,23 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureEmergencyTruncation never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		captureEmergencyTruncation(service, {
+			ulid: "ulid-1",
+			bytesBefore: 120_000,
+			bytesAfter: 55_000,
+			maxInputTokens: 20_000,
+			truncatedBlocks: 4,
+			droppedBlocks: 1,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("a correctly-policed adapter drops these events when disabled", () => {
 		// This test layers on top of the previous four to assert the *full*
 		// end-to-end policy: when the adapter is disabled, a real adapter
@@ -568,6 +619,14 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			thresholdRatio: 0.9,
 			durationMs: 17,
 		});
+		captureEmergencyTruncation(service, {
+			ulid: "ulid-1",
+			bytesBefore: 120_000,
+			bytesAfter: 55_000,
+			maxInputTokens: 20_000,
+			truncatedBlocks: 4,
+			droppedBlocks: 1,
+		});
 		expect(observed).toEqual([]);
 		expect(dropped).toEqual([
 			"user.extension_activated",
@@ -576,6 +635,7 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"workspace.path_resolved",
 			"task.compaction_executed",
 			"task.compaction_skipped",
+			"task.emergency_truncation",
 		]);
 	});
 });
