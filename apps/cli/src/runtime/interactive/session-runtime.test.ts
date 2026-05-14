@@ -325,7 +325,9 @@ describe("createInteractiveSessionRuntime", () => {
 				messagesPath: "/tmp/session.messages.json",
 			}),
 			readMessages: vi.fn(),
-			updateSessionCompactionState: vi.fn(),
+			updateSessionCompactionState: vi
+				.fn()
+				.mockResolvedValue({ updated: true }),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),
 			ingestHookEvent: vi.fn().mockResolvedValue(undefined),
@@ -407,7 +409,9 @@ describe("createInteractiveSessionRuntime", () => {
 				}),
 			readMessages: vi.fn().mockResolvedValue(messages),
 			readSessionCompactionState: vi.fn().mockResolvedValue(compactionState),
-			updateSessionCompactionState: vi.fn(),
+			updateSessionCompactionState: vi
+				.fn()
+				.mockResolvedValue({ updated: true }),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),
 			ingestHookEvent: vi.fn().mockResolvedValue(undefined),
@@ -444,14 +448,16 @@ describe("createInteractiveSessionRuntime", () => {
 		const restartInput = manager.start.mock.calls[1]?.[0];
 		expect(restartInput).toMatchObject({
 			initialMessages: messages,
-			initialCompactionState: {
+		});
+		expect(restartInput).not.toHaveProperty("initialCompactionState");
+		expect(manager.updateSessionCompactionState).toHaveBeenCalledWith(
+			secondSessionId,
+			expect.objectContaining({
+				conversation_id: secondSessionId,
 				source_message_count: messages.length,
 				messages: [summaryMessage, tailMessage],
 				system_prompt: "compacted system",
-			},
-		});
-		expect(restartInput.initialCompactionState).not.toHaveProperty(
-			"conversation_id",
+			}),
 		);
 		expect(runtime.getActiveSessionId()).toBe(secondSessionId);
 	});

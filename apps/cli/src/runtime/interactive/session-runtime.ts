@@ -354,14 +354,26 @@ export function createInteractiveSessionRuntime(input: {
 		const projectedMessages = compactionState
 			? projectSessionCompactionState(compactionState, messages)
 			: undefined;
-		const reanchoredCompactionState = projectedMessages
-			? createSessionCompactionState({
-					sourceMessages: messages,
-					compactedMessages: projectedMessages,
-					systemPrompt: compactionState?.system_prompt,
-				})
-			: undefined;
-		await restartWithMessages(messages, undefined, reanchoredCompactionState);
+		await restartWithMessages(messages);
+		if (!projectedMessages || !sessionManager || !activeSessionId) {
+			return;
+		}
+		const reanchoredCompactionState = createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: projectedMessages,
+			conversationId: activeSessionId,
+			systemPrompt: compactionState?.system_prompt,
+		});
+		const updated = await sessionManager.updateSessionCompactionState(
+			activeSessionId,
+			reanchoredCompactionState,
+		);
+		if (!updated.updated) {
+			input.config.logger?.debug?.(
+				"Skipped re-anchoring session compaction state after restart",
+				{ sessionId: activeSessionId },
+			);
+		}
 	};
 
 	const restartEmpty = async (): Promise<void> => {

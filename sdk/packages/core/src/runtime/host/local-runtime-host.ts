@@ -1028,8 +1028,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!target) return undefined;
 		const activeSession = this.sessions.get(target);
 		if (activeSession) {
-			await activeSession.compactionStateWriteQueue?.catch(() => undefined);
-			return activeSession.compactionState;
+			for (;;) {
+				const pendingWrite = activeSession.compactionStateWriteQueue;
+				if (!pendingWrite) {
+					return activeSession.compactionState;
+				}
+				await pendingWrite.catch(() => undefined);
+			}
 		}
 		return await this.invokeOptionalValue<SessionCompactionState>(
 			"readSessionCompactionState",
