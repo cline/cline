@@ -10,17 +10,31 @@
  */
 
 import {
-	CHARS_PER_TOKEN,
 	type ContentBlock,
+	type ITelemetryService,
 	type Message,
 	normalizeUserInput,
 	type TextContent,
 	type ToolResultContent,
 } from "@cline/shared";
+import {
+	captureEmergencyTruncation,
+	type TelemetryAgentIdentityProperties,
+} from "../../services/telemetry/core-events";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+const MESSAGE_BUILDER_CHARS_PER_TOKEN = 3;
+// CLINE-2192 Layer B: when Layer A can't bring the request under the
+// budget (adversarial inputs, oversized tool_use.input bodies, etc.)
+// we drop the floor to this much smaller value and aggressively
+// middle-truncate every string-bearing block until we fit. Small
+// enough to free real budget; large enough that the block still
+// carries some signal.
+const EMERGENCY_FLOOR_BYTES = 256;
+const TRUNCATE_MARKER_EMERGENCY = (n: number) =>
+	`\n\n...[truncated ${n} chars to fit context window]...\n\n`;
 // Tools whose results are large enough to need provider-payload truncation
 // (per-block at maxToolResultChars and in aggregate at maxTotalTextBytes).
 // Bounded-output tools (ask_question, submit_and_exit) are intentionally
@@ -60,6 +74,30 @@ interface TruncationCandidate {
 }
 
 /**
+ * Options for `MessageBuilder.buildForApi`. The Layer A budget knob
+ * (`maxInputTokens`) plus the Layer B observability surface for the
+ * brick-wall byte-budget guarantee (CLINE-2192).
+ */
+export interface BuildForApiOptions {
+	maxInputTokens?: number;
+	/**
+	 * Per-turn status-notice channel. When Layer B's emergency
+	 * truncation fires we emit `"compacted to fit context window"`
+	 * so the TUI/webview surfaces a visible signal to the user.
+	 */
+	emitStatusNotice?: (
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => void;
+	/** Per-session telemetry sink for `task.emergency_truncation`. */
+	telemetry?: ITelemetryService;
+	sessionId?: string;
+	provider?: string;
+	modelId?: string;
+	agentIdentity?: Partial<TelemetryAgentIdentityProperties>;
+}
+
+/**
  * Builds an API-safe message copy without mutating original conversation history.
  */
 export class MessageBuilder {
@@ -85,7 +123,7 @@ export class MessageBuilder {
 
 	buildForApi(
 		messages: Message[],
-		options: { maxInputTokens?: number } = {},
+		options: BuildForApiOptions = {},
 	): Message[] {
 		this.reindex(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
@@ -113,7 +151,23 @@ export class MessageBuilder {
 			return changed ? { ...message, content } : message;
 		});
 
-		return this.truncateToTotalTextBudget(prepared, options.maxInputTokens);
+		const afterLayerA = this.truncateToTotalTextBudget(
+			prepared,
+			options.maxInputTokens,
+		);
+		// CLINE-2192 Layer B: hard guarantee. If Layer A's largest-first
+		// candidate-set heuristic couldn't bring the request under the
+		// budget (adversarial inputs, oversized tool_use.input bodies,
+		// many small blocks below Layer A's floor), drop to the
+		// emergency floor and brick-wall the bytes. Always degrades,
+		// never throws.
+		if (
+			typeof options.maxInputTokens === "number" &&
+			options.maxInputTokens > 0
+		) {
+			return this.enforceHardByteBudget(afterLayerA, options);
+		}
+		return afterLayerA;
 	}
 
 	private transformBlock(
@@ -803,7 +857,7 @@ export class MessageBuilder {
 		// (existing tests, direct constructors) behave identically.
 		const effectiveBudget =
 			typeof maxInputTokens === "number" && maxInputTokens > 0
-				? maxInputTokens * CHARS_PER_TOKEN
+				? maxInputTokens * MESSAGE_BUILDER_CHARS_PER_TOKEN
 				: this.maxTotalTextBytes;
 		if (effectiveBudget <= 0) {
 			return messages;
@@ -986,6 +1040,111 @@ export class MessageBuilder {
 		);
 		return indexed.map(({ candidate }) => candidate);
 	}
+
+	/**
+	 * CLINE-2192 Layer B: the brick-wall byte-budget pass. Runs after
+	 * Layer A. If the input is already under budget this is a no-op
+	 * and the input array is returned unchanged.
+	 *
+	 * If still over budget, two passes:
+	 *
+	 *  1. Aggressive middle-truncation of EVERY string-bearing block
+	 *     (including `tool_use.input` string leaves), dropping the
+	 *     per-block floor to `EMERGENCY_FLOOR_BYTES`. `tool_use_id`,
+	 *     `id`, `call_id`, `name` strings are excluded.
+	 *  2. If pass 1 didn't fit (extremely unlikely, but possible if
+	 *     the preservation set itself exceeds the budget), drop
+	 *     non-essential blocks (oldest assistant text/thinking
+	 *     blocks first, then oldest tool pairs atomically). The
+	 *     typed prompt (turn-start user) and the last assistant are
+	 *     last in the drop order.
+	 *
+	 * On any non-zero work performed: emits `task.emergency_truncation`
+	 * telemetry and a status notice so the operator sees the degraded
+	 * state in the TUI/webview.
+	 */
+	private enforceHardByteBudget(
+		messages: Message[],
+		options: BuildForApiOptions,
+	): Message[] {
+		const budgetBytes =
+			(options.maxInputTokens ?? 0) * MESSAGE_BUILDER_CHARS_PER_TOKEN;
+		if (budgetBytes <= 0) {
+			return messages;
+		}
+		const bytesBefore = countProviderRequestBytes(messages);
+		if (bytesBefore <= budgetBytes) {
+			return messages;
+		}
+
+		// Deep-clone so we don't mutate the input.
+		const next = messages.map((message) => {
+			if (!Array.isArray(message.content)) {
+				return { ...message };
+			}
+			return {
+				...message,
+				content: message.content.map((block) =>
+					cloneContentBlockForMutation(block),
+				),
+			};
+		});
+
+		// Pass 1: aggressive middle-truncation, EMERGENCY_FLOOR_BYTES floor.
+		const candidates = collectEmergencyCandidates(next);
+		let totalBytes = countProviderRequestBytes(next);
+		let truncatedBlocks = 0;
+		for (const candidate of candidates) {
+			if (totalBytes <= budgetBytes) {
+				break;
+			}
+			const currentBytes = candidate.byteLength;
+			if (currentBytes <= EMERGENCY_FLOOR_BYTES) {
+				continue;
+			}
+			const overflow = totalBytes - budgetBytes;
+			const targetBytes = Math.max(
+				EMERGENCY_FLOOR_BYTES,
+				currentBytes - overflow,
+			);
+			const truncated = truncateMiddleToBytes(
+				candidate.get(),
+				targetBytes,
+				TRUNCATE_MARKER_EMERGENCY,
+			);
+			candidate.set(truncated);
+			totalBytes = countProviderRequestBytes(next);
+			truncatedBlocks += 1;
+		}
+
+		// Pass 2: if even floor-truncation didn't fit, drop blocks.
+		const droppedBlocks = dropOldestUntilFits(next, budgetBytes);
+		const bytesAfter = countProviderRequestBytes(next);
+
+		if (truncatedBlocks > 0 || droppedBlocks > 0) {
+			options.emitStatusNotice?.("compacted to fit context window", {
+				kind: "emergency_truncation",
+				maxInputTokens: options.maxInputTokens,
+				bytesBefore,
+				bytesAfter,
+				truncatedBlocks,
+				droppedBlocks,
+			});
+			captureEmergencyTruncation(options.telemetry, {
+				ulid: options.sessionId ?? options.agentIdentity?.conversationId ?? "",
+				bytesBefore,
+				bytesAfter,
+				maxInputTokens: options.maxInputTokens ?? 0,
+				truncatedBlocks,
+				droppedBlocks,
+				provider: options.provider,
+				modelId: options.modelId,
+				...options.agentIdentity,
+			});
+		}
+
+		return next;
+	}
 }
 
 function utf8ByteLength(text: string): number {
@@ -1042,6 +1201,12 @@ function truncateMiddleToBytes(
 }
 
 function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
+	if (block.type === "tool_use") {
+		return {
+			...block,
+			input: cloneJsonLike(block.input) as Record<string, unknown>,
+		};
+	}
 	if (block.type !== "tool_result" || typeof block.content === "string") {
 		return { ...block };
 	}
@@ -1049,4 +1214,412 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 		...block,
 		content: block.content.map((entry) => ({ ...entry })),
 	};
+}
+
+function cloneJsonLike(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map((entry) => cloneJsonLike(entry));
+	}
+	if (value && typeof value === "object") {
+		const result: Record<string, unknown> = {};
+		for (const [key, entry] of Object.entries(value)) {
+			result[key] = cloneJsonLike(entry);
+		}
+		return result;
+	}
+	return value;
+}
+
+function countProviderRequestBytes(messages: Message[]): number {
+	// CLINE-2192: provider payloads include JSON framing, tool names,
+	// tool ids, object keys and scalar arguments — not just string
+	// leaf contents. Counting the JSON-serialized message list is a
+	// conservative byte-budget proxy and is the metric Layer B must
+	// force under `maxInputTokens * MESSAGE_BUILDER_CHARS_PER_TOKEN`.
+	try {
+		return utf8ByteLength(JSON.stringify(messages));
+	} catch {
+		return messages.reduce(
+			(total, message) => total + utf8ByteLength(String(message)),
+			0,
+		);
+	}
+}
+/**
+ * CLINE-2192 Layer B: collect every string-bearing block location the
+ * brick-wall byte-budget pass may middle-truncate. Strictly wider
+ * than Layer A's set — it also includes the string leaves inside
+ * `tool_use.input`. Keys, numbers, booleans, null, and the reserved
+ * identifier fields (`id`, `tool_use_id`, `call_id`, `name`) are
+ * excluded.
+ *
+ * Order is deterministic: walk message-by-message, block-by-block;
+ * within each `tool_use.input`, walk the JSON tree depth-first with
+ * lexicographic key order. The final sort is largest-first with
+ * insertion-order tiebreaker (same property Layer A uses).
+ */
+function collectEmergencyCandidates(
+	messages: Message[],
+): TruncationCandidate[] {
+	const candidates: TruncationCandidate[] = [];
+	for (const message of messages) {
+		if (typeof message.content === "string") {
+			candidates.push({
+				byteLength: utf8ByteLength(message.content),
+				get: () => message.content as string,
+				set: (value) => {
+					message.content = value;
+				},
+			});
+			continue;
+		}
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (const block of message.content) {
+			if (block.type === "text") {
+				candidates.push({
+					byteLength: utf8ByteLength(block.text),
+					get: () => block.text,
+					set: (value) => {
+						block.text = value;
+					},
+				});
+				continue;
+			}
+			if (block.type === "thinking") {
+				candidates.push({
+					byteLength: utf8ByteLength(block.thinking),
+					get: () => block.thinking,
+					set: (value) => {
+						block.thinking = value;
+					},
+				});
+				continue;
+			}
+			if (block.type === "redacted_thinking") {
+				candidates.push({
+					byteLength: utf8ByteLength(block.data),
+					get: () => block.data,
+					set: (value) => {
+						block.data = value;
+					},
+				});
+				continue;
+			}
+			if (block.type === "file") {
+				candidates.push({
+					byteLength: utf8ByteLength(block.content),
+					get: () => block.content,
+					set: (value) => {
+						block.content = value;
+					},
+				});
+				continue;
+			}
+			if (block.type === "image") {
+				candidates.push({
+					byteLength: utf8ByteLength(block.data),
+					get: () => block.data,
+					set: (value) => {
+						block.data = value;
+					},
+				});
+				continue;
+			}
+			if (block.type === "tool_result") {
+				if (typeof block.content === "string") {
+					candidates.push({
+						byteLength: utf8ByteLength(block.content),
+						get: () => block.content as string,
+						set: (value) => {
+							block.content = value;
+						},
+					});
+				} else {
+					for (const entry of block.content) {
+						if (entry.type === "text") {
+							candidates.push({
+								byteLength: utf8ByteLength(entry.text),
+								get: () => entry.text,
+								set: (value) => {
+									entry.text = value;
+								},
+							});
+						} else if (entry.type === "file") {
+							candidates.push({
+								byteLength: utf8ByteLength(entry.content),
+								get: () => entry.content,
+								set: (value) => {
+									entry.content = value;
+								},
+							});
+						} else if (entry.type === "image") {
+							candidates.push({
+								byteLength: utf8ByteLength(entry.data),
+								get: () => entry.data,
+								set: (value) => {
+									entry.data = value;
+								},
+							});
+						}
+					}
+				}
+				continue;
+			}
+			if (block.type === "tool_use") {
+				collectStringLeaves(block.input, (get, set) => {
+					candidates.push({
+						byteLength: utf8ByteLength(get()),
+						get,
+						set,
+					});
+				});
+				continue;
+			}
+		}
+	}
+	return candidates
+		.map((candidate, originalIndex) => ({ candidate, originalIndex }))
+		.sort(
+			(l, r) =>
+				r.candidate.byteLength - l.candidate.byteLength ||
+				l.originalIndex - r.originalIndex,
+		)
+		.map(({ candidate }) => candidate);
+}
+
+/**
+ * Walks `tool_use.input` depth-first with lexicographic key order
+ * and invokes the visitor for every string leaf with a `get`/`set`
+ * pair that reads/writes the leaf in place. Non-string leaves
+ * (numbers, booleans, null) are not visited. Arrays-of-strings ARE
+ * visited per-index.
+ */
+function collectStringLeaves(
+	node: unknown,
+	visit: (get: () => string, set: (value: string) => void) => void,
+): void {
+	if (Array.isArray(node)) {
+		for (let i = 0; i < node.length; i += 1) {
+			const value = node[i];
+			if (typeof value === "string") {
+				visit(
+					() => node[i] as string,
+					(next) => {
+						node[i] = next;
+					},
+				);
+			} else {
+				collectStringLeaves(value, visit);
+			}
+		}
+		return;
+	}
+	if (node && typeof node === "object") {
+		const obj = node as Record<string, unknown>;
+		for (const key of Object.keys(obj).sort()) {
+			const value = obj[key];
+			if (typeof value === "string") {
+				visit(
+					() => obj[key] as string,
+					(next) => {
+						obj[key] = next;
+					},
+				);
+			} else {
+				collectStringLeaves(value, visit);
+			}
+		}
+	}
+}
+
+/**
+ * CLINE-2192 Layer B pass 2: when even floor-truncating every
+ * string leaf still leaves the request over budget, blank out
+ * remaining string-bearing payloads until it fits. This is intentionally
+ * brutal but structured: ids, tool names, object keys, booleans,
+ * numbers, nulls, arrays and object shapes are preserved. A tool call
+ * may fail because an argument string became empty, but the provider
+ * request will fit and the agent can recover in the next turn.
+ */
+function dropOldestUntilFits(messages: Message[], budgetBytes: number): number {
+	let droppedBlocks = 0;
+	const candidates = collectEmergencyCandidates(messages);
+	for (const candidate of candidates) {
+		if (countProviderRequestBytes(messages) <= budgetBytes) {
+			break;
+		}
+		if (candidate.get().length === 0) {
+			continue;
+		}
+		candidate.set("");
+		droppedBlocks += 1;
+	}
+
+	if (countProviderRequestBytes(messages) <= budgetBytes) {
+		return droppedBlocks;
+	}
+
+	for (const removal of collectBlockRemovalCandidates(messages)) {
+		if (countProviderRequestBytes(messages) <= budgetBytes) {
+			break;
+		}
+		if (removeBlocks(messages, removal.blocks)) {
+			droppedBlocks += removal.blocks.length;
+		}
+	}
+	return droppedBlocks;
+}
+
+interface BlockRef {
+	messageIndex: number;
+	blockIndex: number;
+}
+
+interface BlockRemovalCandidate {
+	priority: number;
+	messageIndex: number;
+	blockIndex: number;
+	blocks: BlockRef[];
+}
+
+function collectBlockRemovalCandidates(
+	messages: Message[],
+): BlockRemovalCandidate[] {
+	const toolRefs = new Map<string, BlockRef[]>();
+	const candidates: BlockRemovalCandidate[] = [];
+	const lastAssistantIndex = findLastAssistantMessageIndex(messages);
+
+	for (
+		let messageIndex = 0;
+		messageIndex < messages.length;
+		messageIndex += 1
+	) {
+		const message = messages[messageIndex];
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (
+			let blockIndex = 0;
+			blockIndex < message.content.length;
+			blockIndex += 1
+		) {
+			const block = message.content[blockIndex];
+			if (block.type === "tool_use") {
+				const refs = toolRefs.get(block.id) ?? [];
+				refs.push({ messageIndex, blockIndex });
+				toolRefs.set(block.id, refs);
+			} else if (block.type === "tool_result") {
+				const refs = toolRefs.get(block.tool_use_id) ?? [];
+				refs.push({ messageIndex, blockIndex });
+				toolRefs.set(block.tool_use_id, refs);
+			}
+		}
+	}
+
+	for (
+		let messageIndex = 0;
+		messageIndex < messages.length;
+		messageIndex += 1
+	) {
+		const message = messages[messageIndex];
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (
+			let blockIndex = 0;
+			blockIndex < message.content.length;
+			blockIndex += 1
+		) {
+			const block = message.content[blockIndex];
+			const priority = getDropPriority(
+				message,
+				messageIndex,
+				lastAssistantIndex,
+			);
+			if (block.type === "tool_use") {
+				candidates.push({
+					priority,
+					messageIndex,
+					blockIndex,
+					blocks: toolRefs.get(block.id) ?? [{ messageIndex, blockIndex }],
+				});
+				continue;
+			}
+			if (block.type === "tool_result") {
+				candidates.push({
+					priority,
+					messageIndex,
+					blockIndex,
+					blocks: toolRefs.get(block.tool_use_id) ?? [
+						{ messageIndex, blockIndex },
+					],
+				});
+				continue;
+			}
+			candidates.push({
+				priority,
+				messageIndex,
+				blockIndex,
+				blocks: [{ messageIndex, blockIndex }],
+			});
+		}
+	}
+
+	return candidates.sort(
+		(a, b) =>
+			a.priority - b.priority ||
+			a.messageIndex - b.messageIndex ||
+			a.blockIndex - b.blockIndex,
+	);
+}
+
+function getDropPriority(
+	message: Message,
+	messageIndex: number,
+	lastAssistantIndex: number,
+): number {
+	if (message.role === "assistant" && messageIndex !== lastAssistantIndex) {
+		return 0;
+	}
+	if (message.role === "user" && messageIndex !== 0) {
+		return 1;
+	}
+	if (message.role === "assistant") {
+		return 2;
+	}
+	return 3;
+}
+
+function findLastAssistantMessageIndex(messages: Message[]): number {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		if (messages[index].role === "assistant") {
+			return index;
+		}
+	}
+	return -1;
+}
+
+function removeBlocks(messages: Message[], refs: BlockRef[]): boolean {
+	let didRemove = false;
+	const refsByMessage = new Map<number, number[]>();
+	for (const ref of refs) {
+		const indexes = refsByMessage.get(ref.messageIndex) ?? [];
+		indexes.push(ref.blockIndex);
+		refsByMessage.set(ref.messageIndex, indexes);
+	}
+	for (const [messageIndex, blockIndexes] of refsByMessage) {
+		const message = messages[messageIndex];
+		if (!message || !Array.isArray(message.content)) {
+			continue;
+		}
+		for (const blockIndex of [...new Set(blockIndexes)].sort((a, b) => b - a)) {
+			if (blockIndex >= 0 && blockIndex < message.content.length) {
+				message.content.splice(blockIndex, 1);
+				didRemove = true;
+			}
+		}
+	}
+	return didRemove;
 }

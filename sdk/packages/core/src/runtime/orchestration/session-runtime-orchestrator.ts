@@ -911,9 +911,25 @@ export class SessionRuntime {
 
 		return async (context) => {
 			const messages = agentMessagesToMessagesWithMetadata(context.messages);
+			const buildForApiOptions: Parameters<
+				typeof this.messageBuilder.buildForApi
+			>[1] = {
+				maxInputTokens: modelInfo?.maxInputTokens,
+				emitStatusNotice: context.emitStatusNotice,
+				telemetry: this.telemetry,
+				sessionId: this.config.sessionId,
+				provider: this.config.providerId,
+				modelId: this.config.modelId,
+				agentIdentity: {
+					agentId: context.agentId,
+					conversationId:
+						context.conversationId ?? this.conversation.getConversationId(),
+					parentAgentId: context.parentAgentId ?? undefined,
+				},
+			};
 			const apiMessages = await this.prepareProviderMessagesForApi(
 				messages,
-				modelInfo?.maxInputTokens,
+				buildForApiOptions,
 			);
 			const result = await prepareTurn({
 				agentId: context.agentId,
@@ -953,14 +969,14 @@ export class SessionRuntime {
 	): Promise<AgentMessage[]> {
 		const providerMessages = await this.prepareProviderMessagesForApi(
 			agentMessagesToMessages(messages),
-			maxInputTokens,
+			{ maxInputTokens },
 		);
 		return messagesToAgentMessages(providerMessages);
 	}
 
 	private async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
-		maxInputTokens?: number,
+		options: Parameters<typeof this.messageBuilder.buildForApi>[1] = {},
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;
 		const messageBuilders =
@@ -968,9 +984,7 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		return this.messageBuilder.buildForApi(providerMessages, {
-			maxInputTokens,
-		});
+		return this.messageBuilder.buildForApi(providerMessages, options);
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {

@@ -1,5 +1,5 @@
 import type { Message } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MessageBuilder } from "./message-builder";
 
 describe("MessageBuilder", () => {
@@ -629,7 +629,7 @@ describe("MessageBuilder", () => {
 			: undefined;
 		if (block?.type !== "text") throw new Error("expected text");
 		expect(Buffer.byteLength(block.text, "utf8")).toBeLessThanOrEqual(300_000);
-		expect(block.text).toContain("provider request budget");
+		expect(block.text).toContain("...[truncated");
 	});
 
 	it("falls back to the constructor default budget when maxInputTokens is absent (CLINE-2191)", () => {
@@ -672,5 +672,122 @@ describe("MessageBuilder", () => {
 		const first = JSON.stringify(build());
 		const second = JSON.stringify(build());
 		expect(first).toBe(second);
+	});
+
+	// CLINE-2192 (Layer B): absolute hard guarantee. These tests use
+	// maxInputTokens so MessageBuilder must enforce maxInputTokens * 3
+	// bytes after Layer A.
+	it("truncates tool_use.input string values without corrupting JSON or tool_use_id (CLINE-2192)", () => {
+		const notice = vi.fn();
+		const telemetry = { capture: vi.fn() };
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "editor",
+						input: { body: "x".repeat(1_000_000), nested: { keep: true } },
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, {
+			maxInputTokens: 50_000,
+			emitStatusNotice: notice,
+			telemetry: telemetry as never,
+			sessionId: "session-1",
+			provider: "openrouter",
+			modelId: "anthropic/claude-opus-4.7",
+		});
+		const block = Array.isArray(result[0].content)
+			? result[0].content[0]
+			: undefined;
+		if (block?.type !== "tool_use") throw new Error("expected tool_use");
+
+		expect(block.id).toBe("tool_1");
+		expect(block.name).toBe("editor");
+		expect((block.input.nested as { keep: boolean }).keep).toBe(true);
+		expect((block.input.body as string).length).toBeLessThan(1_000_000);
+		expect(
+			Buffer.byteLength(JSON.stringify(result), "utf8"),
+		).toBeLessThanOrEqual(150_000);
+		expect(JSON.parse(JSON.stringify(block.input))).toEqual(block.input);
+		expect(notice).toHaveBeenCalledWith(
+			"compacted to fit context window",
+			expect.objectContaining({ kind: "emergency_truncation" }),
+		);
+		expect(telemetry.capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "task.emergency_truncation",
+				properties: expect.objectContaining({ ulid: "session-1" }),
+			}),
+		);
+	});
+
+	it("enforces the hard byte budget when Layer A's floor would otherwise keep too many small blocks (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const content = Array.from({ length: 200 }, (_, i) => ({
+			type: "text" as const,
+			text: `${i}:` + "x".repeat(300),
+		}));
+
+		const result = builder.buildForApi(
+			[{ role: "user", content }],
+			{ maxInputTokens: 2_000 }, // 6 KB budget
+		);
+		const serializedBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+		const payloadBytes = (result[0].content as typeof content).reduce(
+			(total, block) => total + Buffer.byteLength(block.text, "utf8"),
+			0,
+		);
+		expect(serializedBytes).toBeLessThanOrEqual(6_000);
+		expect(payloadBytes).toBeLessThanOrEqual(6_000);
+	});
+
+	it("produces deterministic Layer B output for adversarial inputs (CLINE-2192)", () => {
+		const make = () =>
+			new MessageBuilder().buildForApi(
+				[
+					{
+						role: "assistant",
+						content: [
+							{
+								type: "tool_use",
+								id: "deterministic",
+								name: "editor",
+								input: { a: "a".repeat(100_000), b: "b".repeat(100_000) },
+							},
+						],
+					},
+				],
+				{ maxInputTokens: 5_000 },
+			);
+
+		expect(JSON.stringify(make())).toBe(JSON.stringify(make()));
+	});
+
+	it("does not emit emergency_truncation when Layer A alone suffices (CLINE-2192)", () => {
+		const notice = vi.fn();
+		const telemetry = { capture: vi.fn() };
+		new MessageBuilder().buildForApi(
+			[
+				{
+					role: "user",
+					content: [{ type: "text", text: "x".repeat(20_000) }],
+				},
+			],
+			{
+				maxInputTokens: 10_000,
+				emitStatusNotice: notice,
+				telemetry: telemetry as never,
+			},
+		);
+
+		expect(notice).not.toHaveBeenCalled();
+		expect(telemetry.capture).not.toHaveBeenCalled();
 	});
 });
