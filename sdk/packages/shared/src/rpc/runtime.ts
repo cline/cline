@@ -275,7 +275,7 @@ export interface SaveProviderSettingsActionRequest {
 		sessionToken?: string;
 		region?: string;
 		profile?: string;
-		authentication?: "iam" | "api-key" | "profile";
+		authentication?: "iam" | "api-key" | "apikey" | "profile";
 		usePromptCache?: boolean;
 		useCrossRegionInference?: boolean;
 		useGlobalInference?: boolean;

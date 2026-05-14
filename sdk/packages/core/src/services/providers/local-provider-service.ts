@@ -2,6 +2,7 @@ import * as LlmsModels from "@cline/llms";
 import {
 	type AddProviderActionRequest,
 	getClineEnvironmentConfig,
+	type ITelemetryService,
 	isOAuthProviderId,
 	type OAuthProviderId,
 	type ProviderCapability,
@@ -729,6 +730,7 @@ export async function loginLocalProvider(
 	providerId: OAuthProviderId,
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
+	telemetry?: ITelemetryService,
 ): Promise<{
 	access: string;
 	refresh: string;
@@ -749,11 +751,18 @@ export async function loginLocalProvider(
 				existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 			useWorkOSDeviceAuth: true,
 			callbacks,
+			telemetry,
 		});
 	}
 	if (providerId === "oca")
-		return loginOcaOAuth({ mode: existing?.oca?.mode, callbacks });
-	return loginOpenAICodex(callbacks);
+		return loginOcaOAuth({ mode: existing?.oca?.mode, callbacks, telemetry });
+	return loginOpenAICodex({
+		onAuth: callbacks.onAuth,
+		onPrompt: callbacks.onPrompt,
+		onProgress: callbacks.onProgress,
+		onManualCodeInput: callbacks.onManualCodeInput,
+		telemetry,
+	});
 }
 
 export function saveLocalProviderOAuthCredentials(
