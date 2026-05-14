@@ -61,6 +61,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
 		EMERGENCY_TRUNCATION: "task.emergency_truncation",
+		REQUEST_OVERHEAD_EXCEEDS_BUDGET: "task.request_overhead_exceeds_budget",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -653,6 +654,29 @@ export function captureEmergencyTruncation(
 		Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.EMERGENCY_TRUNCATION, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureRequestOverheadExceedsBudgetProperties {
+	ulid: string;
+	requestBytes: number;
+	budgetBytes: number;
+	maxInputTokens: number;
+	systemPromptBytes: number;
+	toolsBytes: number;
+	optionsBytes: number;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureRequestOverheadExceedsBudget(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureRequestOverheadExceedsBudgetProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.REQUEST_OVERHEAD_EXCEEDS_BUDGET, {
 		...properties,
 		timestamp: new Date().toISOString(),
 	});

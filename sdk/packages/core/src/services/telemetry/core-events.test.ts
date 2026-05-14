@@ -5,6 +5,7 @@ import {
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureRequestOverheadExceedsBudget,
 	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
@@ -312,6 +313,42 @@ describe("captureCompactionSkipped", () => {
 
 	test("no-ops when telemetry is undefined", () => {
 		expect(() => captureCompactionSkipped(undefined, baseProps)).not.toThrow();
+	});
+});
+
+describe("captureRequestOverheadExceedsBudget", () => {
+	const baseProps = {
+		ulid: "ulid-1",
+		requestBytes: 80_000,
+		budgetBytes: 60_000,
+		maxInputTokens: 20_000,
+		systemPromptBytes: 50_000,
+		toolsBytes: 25_000,
+		optionsBytes: 500,
+		provider: "anthropic",
+		modelId: "claude-sonnet-4",
+	};
+
+	test("emits task.request_overhead_exceeds_budget with all properties and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureRequestOverheadExceedsBudget(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe(
+			CORE_TELEMETRY_EVENTS.TASK.REQUEST_OVERHEAD_EXCEEDS_BUDGET,
+		);
+		expect(event).toBe("task.request_overhead_exceeds_budget");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof (properties as Record<string, unknown>).timestamp).toBe(
+			"string",
+		);
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			captureRequestOverheadExceedsBudget(undefined, baseProps),
+		).not.toThrow();
 	});
 });
 

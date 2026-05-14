@@ -523,6 +523,154 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("budgets API-safe messages against full model request overhead", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const maxInputTokens = 10_000;
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						maxInputTokens,
+					},
+				},
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const request = {
+			systemPrompt: "system ".repeat(1_600),
+			messages: [
+				{
+					id: "m1",
+					role: "user" as const,
+					content: [
+						{
+							type: "text" as const,
+							text: "x".repeat(100_000),
+						},
+					],
+					createdAt: 1,
+				},
+			],
+			tools: [
+				{
+					name: "wide_tool",
+					description: "tool description ".repeat(350),
+					inputSchema: {
+						type: "object",
+						properties: {
+							body: {
+								type: "string",
+								description: "body description ".repeat(250),
+							},
+						},
+					},
+				},
+			],
+			options: { reasoningEffort: "high" },
+		};
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request,
+		});
+
+		const fullRequestBytes = Buffer.byteLength(
+			JSON.stringify({
+				systemPrompt: request.systemPrompt,
+				messages: result?.messages,
+				tools: request.tools,
+				options: request.options,
+			}),
+			"utf8",
+		);
+		expect(fullRequestBytes).toBeLessThanOrEqual(maxInputTokens * 3);
+		const textPart = result?.messages?.[0]?.content[0];
+		expect(textPart?.type).toBe("text");
+		if (textPart?.type === "text") {
+			expect(textPart.text.length).toBeLessThan(100_000);
+		}
+	});
+
+	it("emits request-overhead telemetry when non-message payload alone exceeds the budget", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const capture = vi.fn();
+		const telemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						maxInputTokens: 1_000,
+					},
+				},
+			}),
+			{ ...deps, telemetry: telemetry as never },
+		);
+		const notices: AgentEvent[] = [];
+		session.subscribeEvents((event) => {
+			notices.push(event);
+		});
+
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "s".repeat(10_000),
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [{ type: "text", text: "x".repeat(10_000) }],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(result?.messages).toEqual([]);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "task.request_overhead_exceeds_budget",
+				properties: expect.objectContaining({
+					requestBytes: expect.any(Number),
+					budgetBytes: 3_000,
+					maxInputTokens: 1_000,
+					systemPromptBytes: 10_000,
+					toolsBytes: expect.any(Number),
+					optionsBytes: expect.any(Number),
+				}),
+			}),
+		);
+		const requestSizeNotices = notices.filter(
+			(event) =>
+				event.type === "notice" &&
+				event.message === "request size exceeds model context window",
+		);
+		expect(requestSizeNotices).toHaveLength(1);
+	});
+
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
 		const prepareTurn = vi.fn(() => ({
 			messages: [

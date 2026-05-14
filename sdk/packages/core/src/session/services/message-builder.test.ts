@@ -783,6 +783,60 @@ describe("MessageBuilder", () => {
 		);
 	});
 
+	it("reserves request overhead when enforcing the hard byte budget (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "x".repeat(100_000) }],
+			},
+		];
+		const maxInputTokens = 10_000;
+		const requestOverheadBytes = 20_000;
+
+		const result = builder.buildForApi(messages, {
+			maxInputTokens,
+			requestOverheadBytes,
+		});
+
+		expect(
+			Buffer.byteLength(JSON.stringify(result), "utf8") + requestOverheadBytes,
+		).toBeLessThanOrEqual(maxInputTokens * 3);
+	});
+
+	it("is idempotent for repeated calls with identical input and budget options (CLINE-2192)", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "editor",
+						input: {
+							body: "x".repeat(120_000),
+							notes: ["a".repeat(20_000), "b".repeat(20_000)],
+						},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: Array.from({ length: 30 }, (_, index) => ({
+					type: "text" as const,
+					text: `${index}:` + "y".repeat(1_000),
+				})),
+			},
+		];
+		const options = { maxInputTokens: 5_000, requestOverheadBytes: 10_000 };
+
+		const first = builder.buildForApi(messages, options);
+		const second = builder.buildForApi(messages, options);
+
+		expect(second).toEqual(first);
+	});
+
 	it("enforces the hard byte budget when Layer A's floor would otherwise keep too many small blocks (CLINE-2192)", () => {
 		const builder = new MessageBuilder();
 		const content = Array.from({ length: 200 }, (_, i) => ({

@@ -25,7 +25,7 @@ import {
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
-const MESSAGE_BUILDER_CHARS_PER_TOKEN = 3;
+export const MESSAGE_BUILDER_CHARS_PER_TOKEN = 3;
 // CLINE-2192 Layer B: when Layer A can't bring the request under the
 // budget (adversarial inputs, oversized tool_use.input bodies, etc.)
 // we drop the floor to this much smaller value and aggressively
@@ -80,6 +80,18 @@ interface TruncationCandidate {
  */
 export interface BuildForApiOptions {
 	maxInputTokens?: number;
+	/**
+	 * Explicit byte budget for the serialized Message[] payload. Callers that
+	 * know the full provider request overhead can pass the remaining
+	 * message-list budget here; it overrides the maxInputTokens-derived budget.
+	 */
+	maxRequestBytes?: number;
+	/**
+	 * Bytes reserved by the caller for non-message request payload. Used with
+	 * maxInputTokens to derive the message-list budget:
+	 * maxInputTokens * MESSAGE_BUILDER_CHARS_PER_TOKEN - requestOverheadBytes.
+	 */
+	requestOverheadBytes?: number;
 	/**
 	 * Per-turn status-notice channel. When Layer B's emergency
 	 * truncation fires we emit `"compacted to fit context window"`
@@ -151,9 +163,10 @@ export class MessageBuilder {
 			return changed ? { ...message, content } : message;
 		});
 
+		const messageBudgetBytes = this.resolveMessageBudgetBytes(options);
 		const afterLayerA = this.truncateToTotalTextBudget(
 			prepared,
-			options.maxInputTokens,
+			messageBudgetBytes,
 		);
 		// CLINE-2192 Layer B: hard guarantee. If Layer A's largest-first
 		// candidate-set heuristic couldn't bring the request under the
@@ -161,13 +174,42 @@ export class MessageBuilder {
 		// many small blocks below Layer A's floor), drop to the
 		// emergency floor and brick-wall the bytes. Always degrades,
 		// never throws.
-		if (
-			typeof options.maxInputTokens === "number" &&
-			options.maxInputTokens > 0
-		) {
-			return this.enforceHardByteBudget(afterLayerA, options);
+		if (messageBudgetBytes !== undefined && messageBudgetBytes >= 0) {
+			return this.enforceHardByteBudget(
+				afterLayerA,
+				options,
+				messageBudgetBytes,
+			);
 		}
 		return afterLayerA;
+	}
+
+	private resolveMessageBudgetBytes(
+		options: BuildForApiOptions,
+	): number | undefined {
+		if (
+			typeof options.maxRequestBytes === "number" &&
+			Number.isFinite(options.maxRequestBytes)
+		) {
+			return Math.max(0, options.maxRequestBytes);
+		}
+		if (
+			typeof options.maxInputTokens !== "number" ||
+			!Number.isFinite(options.maxInputTokens) ||
+			options.maxInputTokens <= 0
+		) {
+			return undefined;
+		}
+		const requestOverheadBytes =
+			typeof options.requestOverheadBytes === "number" &&
+			Number.isFinite(options.requestOverheadBytes)
+				? Math.max(0, options.requestOverheadBytes)
+				: 0;
+		return Math.max(
+			0,
+			options.maxInputTokens * MESSAGE_BUILDER_CHARS_PER_TOKEN -
+				requestOverheadBytes,
+		);
 	}
 
 	private transformBlock(
@@ -849,16 +891,13 @@ export class MessageBuilder {
 
 	private truncateToTotalTextBudget(
 		messages: Message[],
-		maxInputTokens?: number,
+		messageBudgetBytes?: number,
 	): Message[] {
 		// CLINE-2191: when the orchestrator threads the model's actual
 		// maxInputTokens, derive the aggregate cap from it. Otherwise
 		// fall back to the historical 6 MB default so legacy callers
 		// (existing tests, direct constructors) behave identically.
-		const effectiveBudget =
-			typeof maxInputTokens === "number" && maxInputTokens > 0
-				? maxInputTokens * MESSAGE_BUILDER_CHARS_PER_TOKEN
-				: this.maxTotalTextBytes;
+		const effectiveBudget = messageBudgetBytes ?? this.maxTotalTextBytes;
 		if (effectiveBudget <= 0) {
 			return messages;
 		}
@@ -1062,10 +1101,9 @@ export class MessageBuilder {
 	private enforceHardByteBudget(
 		messages: Message[],
 		options: BuildForApiOptions,
+		budgetBytes: number,
 	): Message[] {
-		const budgetBytes =
-			(options.maxInputTokens ?? 0) * MESSAGE_BUILDER_CHARS_PER_TOKEN;
-		if (budgetBytes <= 0) {
+		if (budgetBytes < 0) {
 			return messages;
 		}
 		const bytesBefore = countProviderRequestBytes(messages);

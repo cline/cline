@@ -29,6 +29,7 @@ import {
 	type AgentExtensionRule,
 	type AgentFinishReason,
 	type AgentMessage,
+	type AgentModelRequest,
 	type AgentResult,
 	type AgentRunResult,
 	type AgentRuntimeEvent,
@@ -50,7 +51,11 @@ import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
-import { MessageBuilder } from "../../session/services/message-builder";
+import { captureRequestOverheadExceedsBudget } from "../../services/telemetry/core-events";
+import {
+	MESSAGE_BUILDER_CHARS_PER_TOKEN,
+	MessageBuilder,
+} from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -73,6 +78,57 @@ function formatToolResultError(output: unknown): string {
 		return JSON.stringify(output);
 	} catch {
 		return String(output);
+	}
+}
+
+const REQUEST_BUDGET_SAFETY_MARGIN_BYTES = 256;
+const REQUEST_BUDGET_MAX_ATTEMPTS = 3;
+type MessageBuilderOptions = NonNullable<
+	Parameters<MessageBuilder["buildForApi"]>[1]
+>;
+type RequestBudgetContext = Pick<
+	AgentModelRequest,
+	"systemPrompt" | "tools" | "options"
+>;
+
+function utf8ByteLength(text: string): number {
+	return Buffer.byteLength(text, "utf8");
+}
+
+function countModelRequestBytes(
+	request: Pick<
+		AgentModelRequest,
+		"systemPrompt" | "messages" | "tools" | "options"
+	>,
+): number {
+	try {
+		return utf8ByteLength(
+			JSON.stringify({
+				systemPrompt: request.systemPrompt,
+				messages: request.messages,
+				tools: request.tools,
+				options: request.options,
+			}),
+		);
+	} catch {
+		return Number.POSITIVE_INFINITY;
+	}
+}
+
+function countProviderMessageBytes(messages: MessageWithMetadata[]): number {
+	try {
+		return utf8ByteLength(JSON.stringify(messages));
+	} catch {
+		return Number.POSITIVE_INFINITY;
+	}
+}
+
+function countJsonBytes(value: unknown): number {
+	try {
+		const serialized = JSON.stringify(value);
+		return typeof serialized === "string" ? utf8ByteLength(serialized) : 0;
+	} catch {
+		return Number.POSITIVE_INFINITY;
 	}
 }
 
@@ -880,13 +936,15 @@ export class SessionRuntime {
 					return control;
 				}
 				const messages = control?.messages ?? ctx.request.messages;
+				const tools = control?.tools ?? ctx.request.tools;
+				const options = control?.options
+					? { ...(ctx.request.options ?? {}), ...control.options }
+					: ctx.request.options;
 				// Build the same full options that createRuntimePrepareTurn
 				// uses so Layer B observability (status notice + telemetry)
 				// fires on the main hot path, not only when the SDK consumer
 				// supplies a prepareTurn callback.
-				const buildForApiOptions: Parameters<
-					typeof this.messageBuilder.buildForApi
-				>[1] = {
+				const buildForApiOptions: MessageBuilderOptions = {
 					maxInputTokens: modelInfo?.maxInputTokens,
 					emitStatusNotice: (message, metadata) => {
 						this.emitLegacyEvent({
@@ -915,6 +973,11 @@ export class SessionRuntime {
 				const preparedMessages = await this.prepareMessagesForModelRequest(
 					messages,
 					buildForApiOptions,
+					{
+						systemPrompt: ctx.request.systemPrompt,
+						tools,
+						options,
+					},
 				);
 				return {
 					...control,
@@ -943,10 +1006,14 @@ export class SessionRuntime {
 
 		return async (context) => {
 			const messages = agentMessagesToMessagesWithMetadata(context.messages);
-			const buildForApiOptions: Parameters<
-				typeof this.messageBuilder.buildForApi
-			>[1] = {
+			const buildForApiOptions: MessageBuilderOptions = {
 				maxInputTokens: modelInfo?.maxInputTokens,
+				requestOverheadBytes: countModelRequestBytes({
+					systemPrompt: context.systemPrompt,
+					messages: [],
+					tools: context.tools,
+					options: undefined,
+				}),
 				emitStatusNotice: context.emitStatusNotice,
 				telemetry: this.telemetry,
 				sessionId: this.config.sessionId,
@@ -959,9 +1026,16 @@ export class SessionRuntime {
 					parentAgentId: context.parentAgentId ?? undefined,
 				},
 			};
-			const apiMessages = await this.prepareProviderMessagesForApi(
-				messages,
+			const providerMessages =
+				await this.applyRegisteredMessageBuilders(messages);
+			const apiMessages = this.buildApiMessagesForRequestBudget(
+				providerMessages,
 				buildForApiOptions,
+				{
+					systemPrompt: context.systemPrompt,
+					tools: context.tools,
+					options: undefined,
+				},
 			);
 			const result = await prepareTurn({
 				agentId: context.agentId,
@@ -997,18 +1071,140 @@ export class SessionRuntime {
 
 	private async prepareMessagesForModelRequest(
 		messages: readonly AgentMessage[],
-		options: Parameters<typeof this.messageBuilder.buildForApi>[1] = {},
+		options: MessageBuilderOptions = {},
+		requestBudgetContext?: RequestBudgetContext,
 	): Promise<AgentMessage[]> {
-		const providerMessages = await this.prepareProviderMessagesForApi(
+		const providerMessages = await this.applyRegisteredMessageBuilders(
 			agentMessagesToMessages(messages),
-			options,
 		);
-		return messagesToAgentMessages(providerMessages);
+		return messagesToAgentMessages(
+			this.buildApiMessagesForRequestBudget(
+				providerMessages,
+				options,
+				requestBudgetContext,
+			),
+		);
 	}
 
-	private async prepareProviderMessagesForApi(
+	private buildApiMessagesForRequestBudget(
+		providerMessages: MessageWithMetadata[],
+		options: MessageBuilderOptions,
+		requestBudgetContext: RequestBudgetContext | undefined,
+	): MessageWithMetadata[] {
+		if (
+			requestBudgetContext === undefined ||
+			typeof options.maxInputTokens !== "number" ||
+			!Number.isFinite(options.maxInputTokens) ||
+			options.maxInputTokens <= 0
+		) {
+			return this.messageBuilder.buildForApi(providerMessages, options);
+		}
+
+		const maxRequestBytes =
+			options.maxInputTokens * MESSAGE_BUILDER_CHARS_PER_TOKEN;
+		let requestOverheadBytes = Math.max(
+			0,
+			options.requestOverheadBytes ??
+				countModelRequestBytes({
+					...requestBudgetContext,
+					messages: [],
+				}),
+		);
+		let bufferedNotice:
+			| { message: string; metadata?: Record<string, unknown> }
+			| undefined;
+		let bufferedTelemetry:
+			| Parameters<NonNullable<ITelemetryService>["capture"]>[0]
+			| undefined;
+		const bufferingOptions: MessageBuilderOptions = {
+			...options,
+			emitStatusNotice: (message, metadata) => {
+				bufferedNotice = { message, metadata };
+			},
+			telemetry: options.telemetry
+				? ({
+						capture: (
+							input: Parameters<NonNullable<ITelemetryService>["capture"]>[0],
+						) => {
+							bufferedTelemetry = input;
+						},
+						captureRequired: () => {},
+					} as unknown as ITelemetryService)
+				: undefined,
+		};
+		const flushBufferedEmergencyTruncation = () => {
+			if (bufferedNotice) {
+				options.emitStatusNotice?.(
+					bufferedNotice.message,
+					bufferedNotice.metadata,
+				);
+			}
+			if (bufferedTelemetry) {
+				options.telemetry?.capture(bufferedTelemetry);
+			}
+		};
+		let apiMessages: MessageWithMetadata[] = providerMessages;
+		// Two attempts are sufficient because measured codec/framing delta is
+		// monotonically non-increasing as the message payload shrinks. The third
+		// attempt is a guard for unexpected formatter drift.
+		for (let attempt = 0; attempt < REQUEST_BUDGET_MAX_ATTEMPTS; attempt += 1) {
+			apiMessages = this.messageBuilder.buildForApi(providerMessages, {
+				...bufferingOptions,
+				requestOverheadBytes,
+			});
+			const agentMessages = messagesToAgentMessages(apiMessages);
+			const requestBytes = countModelRequestBytes({
+				...requestBudgetContext,
+				messages: agentMessages,
+			});
+			if (requestBytes <= maxRequestBytes) {
+				flushBufferedEmergencyTruncation();
+				return apiMessages;
+			}
+			const messageBytes = countProviderMessageBytes(apiMessages);
+			if (!Number.isFinite(messageBytes)) {
+				break;
+			}
+			requestOverheadBytes = Math.max(
+				0,
+				requestBytes - messageBytes + REQUEST_BUDGET_SAFETY_MARGIN_BYTES,
+			);
+		}
+
+		const requestBytes = countModelRequestBytes({
+			...requestBudgetContext,
+			messages: messagesToAgentMessages(apiMessages),
+		});
+		flushBufferedEmergencyTruncation();
+		if (requestBytes > maxRequestBytes) {
+			options.emitStatusNotice?.("request size exceeds model context window", {
+				kind: "request_overhead_exceeds_budget",
+				maxInputTokens: options.maxInputTokens,
+				requestBytes,
+				budgetBytes: maxRequestBytes,
+			});
+			captureRequestOverheadExceedsBudget(options.telemetry, {
+				ulid: options.sessionId ?? options.agentIdentity?.conversationId ?? "",
+				requestBytes,
+				budgetBytes: maxRequestBytes,
+				maxInputTokens: options.maxInputTokens,
+				systemPromptBytes:
+					typeof requestBudgetContext.systemPrompt === "string"
+						? utf8ByteLength(requestBudgetContext.systemPrompt)
+						: 0,
+				toolsBytes: countJsonBytes(requestBudgetContext.tools),
+				optionsBytes: countJsonBytes(requestBudgetContext.options),
+				provider: options.provider,
+				modelId: options.modelId,
+				...options.agentIdentity,
+			});
+		}
+
+		return apiMessages;
+	}
+
+	private async applyRegisteredMessageBuilders(
 		messages: MessageWithMetadata[],
-		options: Parameters<typeof this.messageBuilder.buildForApi>[1] = {},
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;
 		const messageBuilders =
@@ -1016,7 +1212,7 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		return this.messageBuilder.buildForApi(providerMessages, options);
+		return providerMessages;
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {
