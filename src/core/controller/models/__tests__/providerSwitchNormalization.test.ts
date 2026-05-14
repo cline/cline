@@ -1,4 +1,4 @@
-import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@clinebot/llms"
+import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { describe, expect, it, vi } from "vitest"
 import type { EffectiveProviderConfig, ProviderConfigStore } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"

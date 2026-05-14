@@ -1,5 +1,5 @@
-import { type ModelCatalogConfig, resolveProviderConfig } from "@clinebot/core"
-import { getAllProviders, type ProviderConfig, type ProviderInfo } from "@clinebot/llms"
+import { type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
+import { getAllProviders, type ProviderConfig, type ProviderInfo } from "@cline/llms"
 import type {
 	CatalogError,
 	Disposable,

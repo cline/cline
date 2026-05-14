@@ -16,9 +16,9 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			"@clinebot/core": path.resolve(__dirname, "src/test/clinebot-core-vitest-stub.ts"),
-			"@clinebot/llms": path.resolve(__dirname, "node_modules/@clinebot/llms/dist/index.js"),
-			"@clinebot/shared": path.resolve(__dirname, "node_modules/@clinebot/shared/dist/index.js"),
+			"@cline/core": path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts"),
+			"@cline/llms": path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js"),
+			"@cline/shared": path.resolve(__dirname, "node_modules/@cline/shared/dist/index.js"),
 			vscode: path.resolve(__dirname, "src/test/vscode-vitest-stub.ts"),
 			"@": path.resolve(__dirname, "src"),
 			"@api": path.resolve(__dirname, "src/core/api"),

@@ -1,7 +1,7 @@
 /**
  * Shape adapter: translates SDK-shaped model metadata into the extension's
  * {@link ModelInfo} shape. This is a boundary translation layer — it does
- * NOT import any SDK runtime (no `@clinebot/core` imports). It validates
+ * NOT import any SDK runtime (no `@cline/core` imports). It validates
  * unknown input and maps documented SDK fields onto `ModelInfo` fields.
  *
  * SDK shape captured by the Phase 2.1 spike (see `tmp/sdk-spike-findings.md`):
