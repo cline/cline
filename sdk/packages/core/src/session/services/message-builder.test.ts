@@ -674,6 +674,28 @@ describe("MessageBuilder", () => {
 		expect(first).toBe(second);
 	});
 
+	it("truncates the current typed-prompt user text when the aggregate budget is tight (CLINE-2191)", () => {
+		// Layer A is unconditional — even the most-recent user message (the
+		// typed prompt) participates in the aggregate budget. This is intentional:
+		// the guarantee is that the request fits, not that any particular block
+		// is preserved. A gigantic typed prompt is unusual but possible.
+		const builder = new MessageBuilder(50_000, undefined, 100_000);
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "u".repeat(4_000_000) }],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[0].content)
+			? result[0].content[0]
+			: undefined;
+		if (block?.type !== "text") throw new Error("expected text");
+		expect(Buffer.byteLength(block.text, "utf8")).toBeLessThanOrEqual(100_000);
+		expect(block.text).toContain("provider request budget");
+	});
+
 	// CLINE-2192 (Layer B): absolute hard guarantee. These tests use
 	// maxInputTokens so MessageBuilder must enforce maxInputTokens * 3
 	// bytes after Layer A.
