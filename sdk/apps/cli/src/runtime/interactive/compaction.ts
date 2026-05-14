@@ -113,7 +113,7 @@ export async function compactInteractiveMessages(input: {
 			},
 		},
 	});
-	if (!result) {
+	if (!result?.messages) {
 		return { compacted: false, messages: input.messages };
 	}
 	return {

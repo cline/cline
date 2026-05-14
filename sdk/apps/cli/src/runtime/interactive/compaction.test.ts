@@ -224,4 +224,31 @@ describe("compactInteractiveMessages", () => {
 			"same count but content should be trimmed",
 		);
 	});
+
+	it("treats system-prompt-only compaction results as not compacted", async () => {
+		const messages = [
+			{
+				role: "user" as const,
+				content: "keep the canonical transcript",
+			},
+		];
+		const config = createConfig();
+		config.compaction = {
+			compact: () => ({
+				systemPrompt: "updated system prompt only",
+			}),
+		};
+
+		const result = await compactInteractiveMessages({
+			config,
+			providerSettingsManager: createProviderSettingsManager(),
+			sessionId: "sess-compact",
+			messages,
+		});
+
+		expect(result).toEqual({
+			compacted: false,
+			messages,
+		});
+	});
 });

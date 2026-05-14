@@ -4593,6 +4593,113 @@ describe("LocalRuntimeHost", () => {
 		expect(persistSessionCompactionState).toHaveBeenCalledTimes(1);
 	});
 
+	it("waits for active compaction writes enqueued while reading state", async () => {
+		const sessionId = "sess-compaction-read-order";
+		const manifest = createManifest(sessionId);
+		const sourceMessages: MessageWithMetadata[] = [
+			{ id: "u1", role: "user", content: "large original" },
+			{ id: "a1", role: "assistant", content: "original answer" },
+		];
+		const newerSourceMessages: MessageWithMetadata[] = [
+			...sourceMessages,
+			{ id: "u2", role: "user", content: "newer tail" },
+		];
+		const firstState = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages: [
+				{ id: "first-summary", role: "user", content: "first summary" },
+			],
+			conversationId: "conv-root-1",
+			updatedAt: "2026-01-01T00:00:01.000Z",
+		});
+		const secondState = createSessionCompactionState({
+			sourceMessages: newerSourceMessages,
+			compactedMessages: [
+				{ id: "second-summary", role: "user", content: "second summary" },
+			],
+			conversationId: "conv-root-1",
+			updatedAt: "2026-01-01T00:00:02.000Z",
+		});
+		let releaseFirstPersist!: () => void;
+		const firstPersist = new Promise<void>((resolve) => {
+			releaseFirstPersist = resolve;
+		});
+		const persistSessionCompactionState = vi
+			.fn()
+			.mockImplementationOnce(() => firstPersist)
+			.mockResolvedValue(undefined);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			readSessionManifest: vi.fn().mockReturnValue(undefined),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-compaction-read-order.json",
+				messagesPath: "/tmp/messages-compaction-read-order.json",
+				compactionPath: "/tmp/compaction-read-order.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			persistSessionCompactionState,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const createAgent = vi.fn(() => ({
+			run: vi.fn(),
+			continue: vi.fn(),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			restore: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue(sourceMessages),
+			messages: sourceMessages,
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				initialMessages: sourceMessages,
+			}),
+		);
+		persistSessionCompactionState.mockClear();
+
+		const firstWrite = manager.updateSessionCompactionState(
+			sessionId,
+			firstState,
+		);
+		await vi.waitFor(() =>
+			expect(persistSessionCompactionState).toHaveBeenCalledTimes(1),
+		);
+		const read = manager.readSessionCompactionState(sessionId);
+		await Promise.resolve();
+		const secondWrite = manager.updateSessionCompactionState(
+			sessionId,
+			secondState,
+		);
+
+		releaseFirstPersist();
+
+		await expect(firstWrite).resolves.toEqual({ updated: true });
+		await expect(secondWrite).resolves.toEqual({ updated: true });
+		await expect(read).resolves.toEqual(secondState);
+		expect(persistSessionCompactionState).toHaveBeenCalledTimes(2);
+	});
+
 	it("rejects active compaction state for a different conversation", async () => {
 		const sessionId = "sess-compaction-wrong-conversation";
 		const manifest = createManifest(sessionId);
