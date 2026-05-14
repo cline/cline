@@ -4289,7 +4289,7 @@ export const sapAiCoreModels = {
 		maxTokens: 32_768,
 		contextWindow: 32_768,
 		supportsImages: true,
-		supportsPromptCache: true,
+		supportsPromptCache: false,
 		description: sapAiCoreModelDescription,
 	},
 	"gpt-4": {
