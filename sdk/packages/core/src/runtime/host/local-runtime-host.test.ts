@@ -4616,6 +4616,119 @@ describe("LocalRuntimeHost", () => {
 		expect(result?.messages).toEqual([...compactedMessages, tailMessage]);
 	});
 
+	it("projects manually updated compaction state when auto compaction is disabled", async () => {
+		const sessionId = "sess-manual-compaction-disabled";
+		const manifest = createManifest(sessionId);
+		const sourceMessages: MessageWithMetadata[] = [
+			{ id: "u1", role: "user", content: "large original" },
+			{ id: "a1", role: "assistant", content: "original answer" },
+		];
+		const compactedMessages: MessageWithMetadata[] = [
+			{ id: "summary", role: "user", content: "manual summary" },
+		];
+		const state = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages,
+			conversationId: "conv-root-1",
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			readSessionManifest: vi.fn().mockReturnValue(undefined),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-manual-disabled.json",
+				messagesPath: "/tmp/messages-manual-disabled.json",
+				compactionPath: "/tmp/compaction-manual-disabled.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			persistSessionCompactionState: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		let capturedPrepareTurn:
+			| NonNullable<AgentConfig["prepareTurn"]>
+			| undefined;
+		const createAgent = vi.fn((config) => {
+			capturedPrepareTurn = config.prepareTurn;
+			return {
+				run: vi.fn(),
+				continue: vi.fn(),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				restore: vi.fn(),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				getMessages: vi.fn().mockReturnValue(sourceMessages),
+				messages: sourceMessages,
+			};
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: {
+						enabled: false,
+					},
+				}),
+				interactive: true,
+				initialMessages: sourceMessages,
+			}),
+		);
+		sessionService.persistSessionCompactionState.mockClear();
+
+		const updated = await manager.updateSessionCompactionState(
+			sessionId,
+			state,
+		);
+
+		expect(updated).toEqual({ updated: true });
+		expect(capturedPrepareTurn).toEqual(expect.any(Function));
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			state,
+		);
+
+		const tailMessage: MessageWithMetadata = {
+			id: "u2",
+			role: "user",
+			content: "follow-up",
+		};
+		const result = await capturedPrepareTurn?.({
+			agentId: "agent-root-1",
+			conversationId: "conv-root-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [...sourceMessages, tailMessage],
+			apiMessages: [...sourceMessages, tailMessage],
+			abortSignal: new AbortController().signal,
+			systemPrompt: "system",
+			tools: [],
+			model: {
+				id: "mock-model",
+				provider: "mock-provider",
+				info: { id: "mock-model", contextWindow: 1_000_000 },
+			},
+		});
+
+		expect(result?.messages).toEqual([...compactedMessages, tailMessage]);
+	});
+
 	it("serializes active compaction writes and refuses stale prefixes", async () => {
 		const sessionId = "sess-compaction-write-order";
 		const manifest = createManifest(sessionId);
@@ -5039,7 +5152,7 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
 	});
 
-	it("ignores persisted compaction state when compaction is disabled", async () => {
+	it("does not preload persisted compaction state when compaction is disabled", async () => {
 		const sessionId = "sess-compaction-disabled";
 		const manifest = createManifest(sessionId);
 		const sourceMessages: MessageWithMetadata[] = [
@@ -5107,7 +5220,25 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.readSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 		);
-		expect(capturedPrepareTurn).toBeUndefined();
+		expect(capturedPrepareTurn).toEqual(expect.any(Function));
+		await expect(
+			capturedPrepareTurn?.({
+				agentId: "agent-root-1",
+				conversationId: "conv-root-1",
+				parentAgentId: null,
+				iteration: 1,
+				messages: sourceMessages,
+				apiMessages: sourceMessages,
+				abortSignal: new AbortController().signal,
+				systemPrompt: "system",
+				tools: [],
+				model: {
+					id: "mock-model",
+					provider: "mock-provider",
+					info: { id: "mock-model", contextWindow: 1_000_000 },
+				},
+			}),
+		).resolves.toBeUndefined();
 	});
 
 	it("resumes without compaction state by running the configured compaction path", async () => {
