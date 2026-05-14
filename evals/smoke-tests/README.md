@@ -16,24 +16,15 @@ These tests catch regressions in:
 # One-time auth setup
 cline auth
 
-# Build CLI from source (after code changes)
-npm run eval:smoke:build
-
 # Run tests (3 trials by default)
 npm run eval:smoke:run
-
-# Or build + run in one command
-npm run eval:smoke
 ```
 
 ## Commands
 
 | Command | What it does |
 |---------|--------------|
-| `npm run eval:smoke:build` | Build/install CLI from source |
 | `npm run eval:smoke:run` | Run tests (uses installed CLI) |
-| `npm run eval:smoke` | Build + run (3 trials) |
-| `npm run eval:smoke:ci` | Build + run (1 trial, for CI) |
 
 ## Options
 
@@ -116,35 +107,16 @@ Shows `pass@1` when trials < 3, `pass@3` otherwise.
 
 ## CI Integration
 
-Smoke tests run automatically via `.github/workflows/cline-evals-regression.yml`.
-
-### Triggers
-
-- Push to `main` (when core code changes)
-- Pull requests
-- Manual dispatch
-
-### Architecture
-
-```
-Build Job (1x)          Test Jobs (5x parallel)       Summarize
-─────────────────       ─────────────────────────     ──────────
-compile-cli             Download artifact             Merge results
-compile-standalone  →   Install CLI               →   Post summary
-Upload artifact         Configure auth
-                        Run single scenario
-```
+Smoke test CI is temporarily disabled while the build step is repointed at the SDK CLI. The remaining root script runs the scenarios against whichever `cline` binary is already on `$PATH`.
 
 ### Required Secrets
 
-- `CLINE_API_KEY` - Cline API key
+- `CLINE_API_KEY` - Cline API key, needed when CI is re-enabled
 
 ### Viewing Results
 
-- Actions tab → "Smoke Tests" workflow
-- View "Summary" for quick results
-- Download "smoke-test-results" artifact for details
+- Local summaries are written under `evals/smoke-tests/results/latest/`
 
 ## TODO
 
-- [ ] **Native tool calling tests**: Add CLI support for `native_tool_call_enabled` setting, then create a scenario that tests Claude 4 with native tool calling enabled (currently only GPT-5 models automatically use native tools via the Responses API)
+- [ ] Native tool calling tests: Add CLI support for `native_tool_call_enabled` setting, then create a scenario that tests Claude 4 with native tool calling enabled (currently only GPT-5 models automatically use native tools via the Responses API)

@@ -742,6 +742,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "minimax.minimax-m2.5",
 		apiKeyEnv: [
+			"AWS_BEARER_TOKEN_BEDROCK",
 			"AWS_REGION",
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",

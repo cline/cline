@@ -20,8 +20,9 @@ command = "chmod +x ./scripts/run-extension-host.sh && ./scripts/run-extension-h
 name = "CLI"
 icon = "run"
 command = '''
-npm run cli:build
-npm run cli:run
+cd sdk
+bun install
+bun run cli
 '''
 
 [[actions]]

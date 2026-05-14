@@ -42,7 +42,7 @@ interface LegacyGlobalState {
 	openAiHeaders?: Record<string, string>;
 	requestTimeoutMs?: number;
 	awsRegion?: string;
-	awsAuthentication?: "iam" | "api-key" | "profile";
+	awsAuthentication?: "iam" | "api-key" | "apikey" | "profile";
 	awsUseProfile?: boolean;
 	awsProfile?: string;
 	awsUseCrossRegionInference?: boolean;
