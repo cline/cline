@@ -15,13 +15,35 @@ import {
 	truncateToolResultContentForCompaction,
 } from "./compaction-shared";
 
-interface BasicCompactionCandidate {
-	index: number;
+/**
+ * Minimum candidate shape that the atomic-pair removal helpers below need.
+ * Both the prefix-compaction candidates (BasicCompactionCandidate) and the
+ * tail-compaction candidates (TailCandidate) extend this; the closure logic
+ * is identical for both.
+ */
+interface MinimalCandidate {
 	message: MessageWithMetadata;
 	estimatedTokens: number;
+}
+
+interface BasicCompactionCandidate extends MinimalCandidate {
+	index: number;
 	isFirstUser: boolean;
 	isLastUser: boolean;
 	isLastAssistant: boolean;
+}
+
+/**
+ * Tail-compaction candidate. Lives inside the post-CLINE-2136 protected
+ * tail (everything from the latest typed user prompt onward). The flags
+ * here drive a stricter preservation predicate than the prefix candidates
+ * use; see runBasicCompaction / trimProtectedTail.
+ */
+interface TailCandidate extends MinimalCandidate {
+	index: number;
+	isTurnStart: boolean;
+	isLastAssistant: boolean;
+	hasInFlightToolUse: boolean;
 }
 
 function sanitizeMessageForBasic(
@@ -154,15 +176,17 @@ function collectToolResultIds(message: MessageWithMetadata): Set<string> {
 	return ids;
 }
 
-function collectToolPairIds(candidate: BasicCompactionCandidate): Set<string> {
+function collectToolPairIds<C extends MinimalCandidate>(
+	candidate: C,
+): Set<string> {
 	return new Set([
 		...collectToolUseIds(candidate.message),
 		...collectToolResultIds(candidate.message),
 	]);
 }
 
-function buildToolPairCandidateIndex(
-	candidates: BasicCompactionCandidate[],
+function buildToolPairCandidateIndex<C extends MinimalCandidate>(
+	candidates: C[],
 ): Map<string, Set<number>> {
 	const indexByToolUseId = new Map<string, Set<number>>();
 	for (let index = 0; index < candidates.length; index += 1) {
@@ -178,8 +202,8 @@ function buildToolPairCandidateIndex(
 	return indexByToolUseId;
 }
 
-function collectAtomicRemovalIndexes(
-	candidates: BasicCompactionCandidate[],
+function collectAtomicRemovalIndexes<C extends MinimalCandidate>(
+	candidates: C[],
 	startIndex: number,
 ): Set<number> {
 	const pairIndex = buildToolPairCandidateIndex(candidates);
@@ -204,9 +228,9 @@ function collectAtomicRemovalIndexes(
 	return removalIndexes;
 }
 
-function removeCandidatesByPredicate(
-	candidates: BasicCompactionCandidate[],
-	predicate: (candidate: BasicCompactionCandidate) => boolean,
+function removeCandidatesByPredicate<C extends MinimalCandidate>(
+	candidates: C[],
+	predicate: (candidate: C) => boolean,
 	targetTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
 ): void {
@@ -324,6 +348,168 @@ function splitLatestTurn(messages: MessageWithMetadata[]): {
 	};
 }
 
+/**
+ * Collect tool_use ids inside the tail that do NOT have a matching
+ * tool_result anywhere in the same tail. These are "in-flight" tool
+ * calls — the model has emitted them but the runtime hasn't recorded
+ * a result yet. We must NEVER fold them into a summary or drop them,
+ * or the provider will reject the next request with "No tool call
+ * found for function call output with call_id ..." (the inverse of
+ * the orphaned-tool_result failure mode CLINE-2136 fixed for the
+ * historical prefix).
+ *
+ * The tail snapshot we receive is the one the agent runtime passes
+ * into prepareTurn BEFORE the next model request. By construction
+ * any tool_result that has already arrived is in `state.messages`,
+ * so a missing result reliably means "in-flight" — not "lost".
+ */
+function findInFlightToolUseIdsInTail(
+	tail: readonly MessageWithMetadata[],
+): Set<string> {
+	const uses = new Set<string>();
+	const results = new Set<string>();
+	for (const message of tail) {
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (const block of message.content) {
+			if (block.type === "tool_use") {
+				uses.add(block.id);
+			}
+			if (block.type === "tool_result") {
+				results.add(block.tool_use_id);
+			}
+		}
+	}
+	for (const id of results) {
+		uses.delete(id);
+	}
+	return uses;
+}
+
+function buildTailCandidates(
+	tail: MessageWithMetadata[],
+	estimateMessageTokens: EstimateMessageTokens,
+	inFlightToolUseIds: Set<string>,
+): TailCandidate[] {
+	const lastAssistantIndex = findLastAssistantIndex(tail);
+	const candidates: TailCandidate[] = [];
+	for (let index = 0; index < tail.length; index += 1) {
+		const sanitized = sanitizeMessageForBasic(tail[index]) ?? tail[index];
+		let hasInFlightToolUse = false;
+		if (Array.isArray(sanitized.content)) {
+			for (const block of sanitized.content) {
+				if (block.type === "tool_use" && inFlightToolUseIds.has(block.id)) {
+					hasInFlightToolUse = true;
+					break;
+				}
+			}
+		}
+		candidates.push({
+			index,
+			message: sanitized,
+			estimatedTokens: estimateMessageTokens(sanitized),
+			// By construction the tail starts at findLastTurnStartIndex,
+			// so the typed user prompt is always at index 0.
+			isTurnStart: index === 0 && isTurnStartMessage(tail[0]),
+			isLastAssistant: index === lastAssistantIndex,
+			hasInFlightToolUse,
+		});
+	}
+	return candidates;
+}
+
+/**
+ * Drop the oldest completed tool_use/tool_result pairs inside the
+ * post-CLINE-2136 protected tail when the tail alone exceeds the
+ * compaction target. Preserves the typed user prompt, the latest
+ * assistant message, and any assistant message carrying an in-flight
+ * tool_use (see findInFlightToolUseIdsInTail).
+ *
+ * Reuses the existing atomic-pair closure (collectAtomicRemovalIndexes)
+ * via removeCandidatesByPredicate, so a removal expands across the
+ * full tool_use_id graph and we never orphan a half-pair.
+ */
+/**
+ * Same shape as `removeCandidatesByPredicate` but with one key
+ * difference: if the atomic-pair closure of a seed candidate touches
+ * ANY candidate that the predicate marks as not-removable, we abort
+ * that seed and move on. This is what makes tail trimming safe:
+ * dropping a tool_result whose matching tool_use is the last
+ * assistant message would otherwise drag the last assistant into
+ * the removal set via the closure, violating the preservation
+ * contract.
+ *
+ * On the prefix path the existing `removeCandidatesByPredicate`
+ * is still used; its closures only group same-role candidates
+ * (e.g. a non-last assistant with its non-last user tool_result),
+ * so the two predicates collapse there and behavior is unchanged.
+ */
+function removeTailCandidatesByPredicate<C extends MinimalCandidate>(
+	candidates: C[],
+	predicate: (candidate: C) => boolean,
+	targetTokens: number,
+	estimateMessageTokens: EstimateMessageTokens,
+): void {
+	let totalTokens = getTotalTokens(
+		candidates.map((candidate) => candidate.message),
+		estimateMessageTokens,
+	);
+	for (
+		let index = 0;
+		index < candidates.length && totalTokens > targetTokens;
+	) {
+		if (!predicate(candidates[index])) {
+			index += 1;
+			continue;
+		}
+		const removalIndexes = collectAtomicRemovalIndexes(candidates, index);
+		let closureRemovable = true;
+		for (const linked of removalIndexes) {
+			if (!predicate(candidates[linked])) {
+				closureRemovable = false;
+				break;
+			}
+		}
+		if (!closureRemovable) {
+			index += 1;
+			continue;
+		}
+		totalTokens -= Array.from(removalIndexes).reduce(
+			(total, removalIndex) => total + candidates[removalIndex].estimatedTokens,
+			0,
+		);
+		for (const removalIndex of Array.from(removalIndexes).sort(
+			(left, right) => right - left,
+		)) {
+			candidates.splice(removalIndex, 1);
+		}
+	}
+}
+
+function trimProtectedTail(
+	tail: MessageWithMetadata[],
+	targetTokens: number,
+	estimateMessageTokens: EstimateMessageTokens,
+): MessageWithMetadata[] {
+	if (tail.length <= 1) {
+		return tail;
+	}
+	const inFlightToolUseIds = findInFlightToolUseIdsInTail(tail);
+	const candidates = buildTailCandidates(
+		tail,
+		estimateMessageTokens,
+		inFlightToolUseIds,
+	);
+	removeTailCandidatesByPredicate(
+		candidates,
+		(c) => !c.isTurnStart && !c.isLastAssistant && !c.hasInFlightToolUse,
+		targetTokens,
+		estimateMessageTokens,
+	);
+	return candidates.map((c) => c.message);
+}
+
 export function runBasicCompaction(options: {
 	context: CoreCompactionContext;
 	estimateMessageTokens: EstimateMessageTokens;
@@ -336,16 +522,15 @@ export function runBasicCompaction(options: {
 	const { compactable, protectedTail } = splitLatestTurn(
 		options.context.messages,
 	);
-	if (compactable.length === 0) {
-		return undefined;
-	}
+	// CLINE-2185: previously this function bailed out when there was
+	// no historical prefix to compact. The tail-trim path below still
+	// needs to run in that case, so we no longer return undefined here.
+	// Instead we build candidates over whatever prefix we have (which
+	// may be empty) and let the prefix passes be no-ops.
 	const candidates = buildBasicCandidates(
 		compactable,
 		options.estimateMessageTokens,
 	);
-	if (candidates.length === 0) {
-		return undefined;
-	}
 
 	removeCandidatesByPredicate(
 		candidates,
@@ -386,9 +571,30 @@ export function runBasicCompaction(options: {
 		options.estimateMessageTokens,
 	);
 
+	// CLINE-2185: the protected tail (the in-flight turn after the user's
+	// latest typed prompt) can itself exceed the compaction target when
+	// the agent has produced many large tool results in a single turn.
+	// Trim oldest completed tool pairs out of the tail while preserving
+	// the typed prompt, the latest assistant message, and any in-flight
+	// tool_use (whose result has not yet arrived). Atomic-pair closure
+	// guarantees no orphaned tool_use/tool_result blocks.
+	const tailTokensBefore = getTotalTokens(
+		protectedTail,
+		options.estimateMessageTokens,
+	);
+	const tailMessagesBefore = protectedTail.length;
+	let finalTail = protectedTail;
+	if (tailTokensBefore > targetTokens) {
+		finalTail = trimProtectedTail(
+			protectedTail,
+			targetTokens,
+			options.estimateMessageTokens,
+		);
+	}
+
 	const nextMessages = [
 		...candidates.map((candidate) => candidate.message),
-		...protectedTail,
+		...finalTail,
 	];
 	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
 		return undefined;
@@ -413,6 +619,9 @@ export function runBasicCompaction(options: {
 		tokensAfter: afterTokens,
 		targetTokens,
 		maxInputTokens: options.context.maxInputTokens,
+		tailTokensBefore,
+		tailMessagesBefore,
+		tailMessagesAfter: finalTail.length,
 	});
 
 	return { messages: nextMessages };

@@ -372,6 +372,124 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compacted).toBe(messages);
 	});
 
+	// CLINE-2185: protected-tail trim. The in-flight turn (everything
+	// from the latest typed user prompt forward) used to be returned
+	// verbatim by runBasicCompaction. That meant a single turn whose
+	// tool calls accumulated large outputs could push the request past
+	// any context window. These tests cover the new tail trim.
+	it("trims completed tool pairs inside the protected tail when the tail alone exceeds the trigger (CLINE-2185)", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Read three files" },
+			assistantToolUseMessage("tail-a"),
+			toolResultMessage("tail-a", "a".repeat(2_000)),
+			assistantToolUseMessage("tail-b"),
+			toolResultMessage("tail-b", "b".repeat(2_000)),
+			assistantToolUseMessage("tail-c"),
+			toolResultMessage("tail-c", "c".repeat(2_000)),
+		];
+
+		// Force a target that fits only the typed prompt + last
+		// completed pair plus a little slack.
+		const compacted = runForcedBasicCompaction(messages, 3_000);
+
+		expectNoOrphanedToolPairs(compacted);
+		const pairs = collectToolPairPresence(compacted);
+		// Oldest two pairs are removed; the most recent pair survives
+		// because the last assistant + its tool_result are preserved.
+		expect(pairs.get("tail-a")).toBeUndefined();
+		expect(pairs.get("tail-b")).toBeUndefined();
+		expect(pairs.get("tail-c")).toEqual({ hasResult: true, hasUse: true });
+		// The typed prompt is always preserved as the turn-start.
+		expect(compacted[0]).toEqual({
+			role: "user",
+			content: "Read three files",
+		});
+	});
+
+	it("preserves an in-flight tool_use whose result has not yet arrived (CLINE-2185)", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Do the work" },
+			assistantToolUseMessage("done-a"),
+			toolResultMessage("done-a", "a".repeat(2_000)),
+			// In-flight: model just emitted this; tool_result not yet
+			// recorded in state.messages.
+			assistantToolUseMessage("inflight-b"),
+		];
+
+		const compacted = runForcedBasicCompaction(messages, 1);
+
+		const pairs = collectToolPairPresence(compacted);
+		// Older completed pair is removed.
+		expect(pairs.get("done-a")).toBeUndefined();
+		// In-flight tool_use is preserved (its tool_result will land
+		// before the next request — dropping it would synthesize the
+		// "Tool execution was interrupted before a result was produced"
+		// failure mode CLINE-2136 fixed for the historical prefix).
+		// We do NOT call expectNoOrphanedToolPairs here because an
+		// in-flight tool_use legitimately has no matching tool_result
+		// at this snapshot in time.
+		expect(pairs.get("inflight-b")).toEqual({
+			hasResult: false,
+			hasUse: true,
+		});
+	});
+
+	it("preserves the typed prompt and the last assistant message under aggressive tail compaction (CLINE-2185)", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Latest typed prompt" },
+			assistantToolUseMessage("only-pair"),
+			toolResultMessage("only-pair", "result body"),
+		];
+
+		const compacted = runForcedBasicCompaction(messages, 1);
+
+		expectNoOrphanedToolPairs(compacted);
+		// Everything in this transcript is in the preservation set:
+		// turn-start user, last assistant, and the matching
+		// tool_result that the closure pulls in with it.
+		expect(compacted).toEqual(messages);
+	});
+
+	it("returns the tail unchanged when the entire tail is in the preservation set (CLINE-2185)", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Begin" },
+			// in-flight: no tool_result yet
+			assistantToolUseMessage("inflight-x"),
+		];
+
+		const compacted = runForcedBasicCompaction(messages, 1);
+
+		// runBasicCompaction returns the original messages array
+		// unchanged when haveMessagesChanged detects no change.
+		expect(compacted).toBe(messages);
+	});
+
+	it("still compacts the historical prefix when the tail is small (CLINE-2185)", () => {
+		const oldAnswer = "Old answer ".repeat(50);
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Old request" },
+			{ role: "assistant", content: oldAnswer },
+			{ role: "user", content: "Read the latest file" },
+			assistantToolUseMessage("tail-a"),
+			toolResultMessage("tail-a", "latest result"),
+		];
+
+		// Pick a budget below the prefix size but well above the
+		// tiny tail, so the prefix pass fires and the tail trim does
+		// not need to do anything.
+		const targetTokens =
+			totalJsonTokens(messages) - estimateJsonTokens(messages[1]) + 10;
+		const compacted = runForcedBasicCompaction(messages, targetTokens);
+
+		// Prefix "Old answer..." is gone; tail intact.
+		expect(compacted).toEqual([
+			{ role: "user", content: "Old request" },
+			{ role: "user", content: "Read the latest file" },
+			assistantToolUseMessage("tail-a"),
+			toolResultMessage("tail-a", "latest result"),
+		]);
+	});
+
 	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {
 		const codexConfig = resolveSummarizerConfig({
 			activeProviderConfig: {
