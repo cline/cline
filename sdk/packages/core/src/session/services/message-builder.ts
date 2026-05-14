@@ -20,6 +20,11 @@ import {
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+// Tools whose results are large enough to need provider-payload truncation
+// (per-block at maxToolResultChars and in aggregate at maxTotalTextBytes).
+// Bounded-output tools (ask_question, submit_and_exit) are intentionally
+// excluded. MCP tool names are dynamic and not covered here; see
+// CLINE-2183 for the broader follow-up.
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
@@ -27,6 +32,10 @@ const TARGET_TOOL_NAMES = new Set([
 	"search_codebase",
 	"bash",
 	"run_commands",
+	"editor",
+	"apply_patch",
+	"fetch_web_content",
+	"skills",
 ]);
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";

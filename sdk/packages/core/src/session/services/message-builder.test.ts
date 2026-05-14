@@ -363,4 +363,142 @@ describe("MessageBuilder", () => {
 			}),
 		]);
 	});
+
+	// CLINE-2183: editor / apply_patch / fetch_web_content / skills were not
+	// in the original TARGET_TOOL_NAMES allowlist, so their tool_results
+	// bypassed both per-block truncation and the aggregate text budget.
+	// A coding-heavy turn could push the outbound request past a model's
+	// context window even with compaction enabled.
+	it("truncates editor tool results above the per-block limit (CLINE-2183)", () => {
+		const builder = new MessageBuilder(100);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "editor",
+						input: { path: "/tmp/example.ts", new_text: "x" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						content: "z".repeat(250),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const content = result[1].content;
+		expect(Array.isArray(content)).toBe(true);
+		const block = Array.isArray(content) ? content[0] : undefined;
+		expect(block?.type).toBe("tool_result");
+		if (block?.type !== "tool_result") {
+			throw new Error("expected tool_result");
+		}
+		expect(
+			typeof block.content === "string" ? block.content.length : 0,
+		).toBeLessThanOrEqual(100);
+		expect(block.content).toContain("...[truncated");
+	});
+
+	it("applies the aggregate text budget across editor / apply_patch / fetch_web_content / skills tool results (CLINE-2183)", () => {
+		// 1 MB total budget against ~6 MB of input across the four newly
+		// covered tools. Use the default TARGET_TOOL_NAMES (omit the
+		// second constructor arg) to exercise the constant change itself.
+		const builder = new MessageBuilder(50_000, undefined, 1_000_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_editor",
+						name: "editor",
+						input: { path: "/tmp/a.ts" },
+					},
+					{
+						type: "tool_use",
+						id: "tool_patch",
+						name: "apply_patch",
+						input: { input: "*** Begin Patch" },
+					},
+					{
+						type: "tool_use",
+						id: "tool_fetch",
+						name: "fetch_web_content",
+						input: { requests: [] },
+					},
+					{
+						type: "tool_use",
+						id: "tool_skills",
+						name: "skills",
+						input: { skill: "noop" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_editor",
+						content: "e".repeat(1_500_000),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_patch",
+						content: "p".repeat(1_500_000),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_fetch",
+						content: "f".repeat(1_500_000),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_skills",
+						content: "s".repeat(1_500_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const totalBytes = result.reduce((sum, message) => {
+			if (typeof message.content === "string") {
+				return sum + Buffer.byteLength(message.content, "utf8");
+			}
+			return (
+				sum +
+				message.content.reduce((inner, block) => {
+					if (block.type !== "tool_result") {
+						return inner;
+					}
+					return (
+						inner +
+						(typeof block.content === "string"
+							? Buffer.byteLength(block.content, "utf8")
+							: 0)
+					);
+				}, 0)
+			);
+		}, 0);
+
+		// Either path is acceptable: the per-block truncator
+		// (`...[truncated N chars]...`) or the aggregate-budget
+		// truncator (`...[truncated N chars to fit provider request
+		// budget]...`) must have fired and pulled the request well
+		// below the configured 1 MB budget. Before CLINE-2183 neither
+		// fired for these tools and totalBytes was ~6 MB.
+		expect(totalBytes).toBeLessThanOrEqual(1_000_000);
+		expect(JSON.stringify(result)).toContain("...[truncated");
+	});
 });
