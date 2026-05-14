@@ -38,6 +38,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_SUCCEEDED: "user.auth_succeeded",
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
+		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
 	TASK: {
@@ -219,6 +220,23 @@ export function captureAuthLoggedOut(
 		provider,
 		reason,
 	});
+}
+
+/**
+ * Fires when the user finishes configuring a "bring your own provider"
+ * (API-key based) provider during onboarding or via settings.
+ *
+ * Unlike the OAuth/device-code `captureAuth*` events, the configure step is a
+ * synchronous local credential save with no network roundtrip, so there is no
+ * start/fail counterpart — the credential is validated lazily on the first
+ * subsequent API call. Mirrors the `{ provider }` payload shape of
+ * {@link captureAuthSucceeded} for funnel consistency.
+ */
+export function captureProviderConfigured(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.PROVIDER_CONFIGURED, { provider });
 }
 
 export function captureTelemetryOptOut(
