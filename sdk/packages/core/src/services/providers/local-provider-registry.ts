@@ -25,6 +25,9 @@ export const StoredModelEntrySchema = z
 	.object({
 		id: z.string().optional(),
 		name: z.string().optional(),
+		maxTokens: z.number().optional(),
+		contextWindow: z.number().optional(),
+		maxInputTokens: z.number().optional(),
 		capabilities: z.array(ModelCapabilitySchema).optional(),
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
@@ -246,6 +249,9 @@ function toStoredModelInfo(
 	return {
 		id: modelId,
 		name: model?.name ?? modelId,
+		maxTokens: model?.maxTokens,
+		contextWindow: model?.contextWindow,
+		maxInputTokens: model?.maxInputTokens,
 		capabilities: capabilities.size > 0 ? [...capabilities] : undefined,
 	};
 }
@@ -401,16 +407,19 @@ export function registerCustomProvider(
 		undefined,
 	);
 	const normalizedModels = Object.fromEntries(
-		modelEntries.map(({ id, model }) => [
-			id,
-			{
+		modelEntries.map(({ id, model }) => {
+			const storedInfo = toStoredModelInfo(id, model);
+			return [
 				id,
-				name: model.name ?? id,
-				capabilities:
-					modelCapabilities.length > 0 ? modelCapabilities : undefined,
-				status: "active" as const,
-			},
-		]),
+				{
+					...storedInfo,
+					capabilities:
+						storedInfo.capabilities ??
+						(modelCapabilities.length > 0 ? modelCapabilities : undefined),
+					status: "active" as const,
+				},
+			];
+		}),
 	);
 
 	LlmsModels.registerProvider({

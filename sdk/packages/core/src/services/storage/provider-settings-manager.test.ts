@@ -115,6 +115,8 @@ describe("ProviderSettingsManager", () => {
 		const openAiProvider = providers.find(
 			(provider) => provider.id === "openai-compatible",
 		);
+		const openAiModels =
+			await LlmsModels.getModelsForProvider("openai-compatible");
 
 		expect(manager.getProviderSettings("openai-compatible")).toEqual({
 			provider: "openai-compatible",
@@ -126,6 +128,12 @@ describe("ProviderSettingsManager", () => {
 			id: "openai-compatible",
 			baseUrl: "https://gateway.example.invalid/v1",
 			defaultModelId: "gpt-oss-120b",
+		});
+		expect(openAiModels["gpt-oss-120b"]).toMatchObject({
+			id: "gpt-oss-120b",
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			capabilities: ["streaming", "tools", "images"],
 		});
 	});
 

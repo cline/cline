@@ -157,7 +157,9 @@ interface LegacyProviderStorage {
 	secrets: LegacySecrets;
 }
 
-const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai-compatible";
+const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
+const OPENAI_COMPATIBLE_PROVIDER_ID =
+	LlmsModels.BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
 const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
 
 export interface MigrateLegacyProviderSettingsOptions {
@@ -260,8 +262,8 @@ function resolveLegacyStorage(
 }
 
 function resolveMigratedProviderId(providerId: string): string {
-	if (providerId === "openai") {
-		return LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID;
+	if (providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
+		return OPENAI_COMPATIBLE_PROVIDER_ID;
 	}
 	return providerId;
 }
@@ -481,7 +483,10 @@ function buildLegacyProviderSettings(
 			// Failed to parse stored cline auth data
 		}
 	}
-	if (providerId === "openai" && legacyGlobalState.openAiHeaders) {
+	if (
+		providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID &&
+		legacyGlobalState.openAiHeaders
+	) {
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
@@ -512,7 +517,7 @@ function buildLegacyProviderSettings(
 		};
 	}
 	if (
-		providerId === "openai" &&
+		providerId === LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID &&
 		(legacyGlobalState.azureApiVersion ||
 			legacyGlobalState.azureIdentity !== undefined)
 	) {
@@ -600,7 +605,7 @@ function resolveLegacyCustomProviderRegistration(
 	providerId: string,
 	settings: ProviderSettings,
 ): StoredModelsFile["providers"][string] | undefined {
-	if (providerId !== LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
+	if (providerId !== OPENAI_COMPATIBLE_PROVIDER_ID) {
 		return undefined;
 	}
 	if (!settings.baseUrl || !settings.model) {
@@ -641,7 +646,9 @@ function collectCandidateProviderIds(
 	if (trimNonEmpty(legacySecrets.apiKey)) candidates.add("anthropic");
 	if (trimNonEmpty(legacySecrets.openRouterApiKey))
 		candidates.add("openrouter");
-	if (trimNonEmpty(legacySecrets.openAiApiKey)) candidates.add("openai");
+	if (trimNonEmpty(legacySecrets.openAiApiKey)) {
+		candidates.add(LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID);
+	}
 	if (trimNonEmpty(legacySecrets.openAiNativeApiKey))
 		candidates.add("openai-native");
 	if (trimNonEmpty(legacySecrets["openai-codex-oauth-credentials"]))
