@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
-import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import {
+	INPUT_ARG_CHAR_LIMIT,
+	RunCommandsInputSchema,
+	RunCommandsInputUnionSchema,
+	StructuredCommandsInputSchema,
+} from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 function createMockSkillsExecutor(
@@ -409,6 +415,63 @@ describe("default apply_patch tool", () => {
 });
 
 describe("default run_commands tool", () => {
+	it("accepts top-level timeout in object schema payloads", () => {
+		expect(
+			RunCommandsInputSchema.parse({
+				commands: ["echo hi"],
+				timeout: 120000,
+			}),
+		).toEqual({ commands: ["echo hi"], timeout: 120000 });
+
+		expect(
+			StructuredCommandsInputSchema.parse({
+				commands: ["echo hi"],
+				timeout: 120000,
+			}),
+		).toEqual({ commands: ["echo hi"], timeout: 120000 });
+	});
+
+	it("preserves legacy run_commands payload forms while allowing timeout on object variants", () => {
+		expect(RunCommandsInputUnionSchema.parse({ commands: ["echo hi"] })).toEqual({
+			commands: ["echo hi"],
+		});
+		expect(RunCommandsInputUnionSchema.parse({ commands: "echo hi" })).toEqual({
+			commands: "echo hi",
+		});
+		expect(RunCommandsInputUnionSchema.parse({ command: "echo hi" })).toEqual({
+			command: "echo hi",
+		});
+		expect(RunCommandsInputUnionSchema.parse({ cmd: "echo hi" })).toEqual({
+			cmd: "echo hi",
+		});
+		expect(RunCommandsInputUnionSchema.parse(["echo hi"])).toEqual(["echo hi"]);
+		expect(RunCommandsInputUnionSchema.parse("echo hi")).toBe("echo hi");
+		expect(
+			RunCommandsInputUnionSchema.parse({
+				commands: ["echo hi"],
+				timeout: 120000,
+			}),
+		).toEqual({ commands: ["echo hi"], timeout: 120000 });
+	});
+
+	it("rejects invalid timeout values with useful validation errors", () => {
+		expect(() =>
+			RunCommandsInputUnionSchema.parse({ commands: ["echo hi"], timeout: 0 }),
+		).toThrow(/>0|positive/i);
+		expect(() =>
+			RunCommandsInputUnionSchema.parse({ commands: ["echo hi"], timeout: -1 }),
+		).toThrow(/>0|positive/i);
+		expect(() =>
+			RunCommandsInputUnionSchema.parse({ commands: ["echo hi"], timeout: 12.5 }),
+		).toThrow(/integer|int/i);
+		expect(() =>
+			RunCommandsInputUnionSchema.parse({
+				commands: ["echo hi"],
+				timeout: "120000",
+			}),
+		).toThrow(/number/i);
+	});
+
 	it("accepts object input with commands as a single string", async () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>
 			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
@@ -437,6 +500,7 @@ describe("default run_commands tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			30000,
 		);
 	});
 
@@ -463,12 +527,14 @@ describe("default run_commands tool", () => {
 			"pwd",
 			process.cwd(),
 			expect.objectContaining({ iteration: 1 }),
+			30000,
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			2,
 			"git status --short",
 			process.cwd(),
 			expect.objectContaining({ iteration: 2 }),
+			30000,
 		);
 	});
 
@@ -513,6 +579,7 @@ describe("default run_commands tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			30000,
 		);
 	});
 
@@ -549,7 +616,76 @@ describe("default run_commands tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			30000,
 		);
+	});
+
+	it("uses configured timeout by default and lets per-call timeout override it", async () => {
+		const execute = vi.fn(async (command: string | { command: string }) =>
+			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
+		);
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 45000 });
+
+		await tool.execute({ commands: ["echo default"] }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+		await tool.execute({ commands: ["echo override"], timeout: 120000 } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"echo default",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+			45000,
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			"echo override",
+			process.cwd(),
+			expect.objectContaining({ iteration: 2 }),
+			120000,
+		);
+	});
+
+	it("reports the effective timeout when a command times out", async () => {
+		const execute = vi.fn(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			return "done";
+		});
+		const tool = createBashTool(execute, { bashTimeoutMs: 10 });
+
+		const result = await tool.execute(
+			{ commands: ["echo slow"], timeout: 5 } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "echo slow",
+				result: "",
+				error:
+					"Command failed: Command timed out after 5ms (effective timeout for this run_commands call)",
+				success: false,
+			},
+		]);
+	});
+
+	it("sets the outer tool timeout high enough to avoid killing larger per-call overrides early", () => {
+		const tool = createWindowsShellTool(vi.fn(async () => "ok"), {
+			bashTimeoutMs: 30000,
+		});
+
+		expect(tool.timeoutMs).toBeGreaterThanOrEqual(120000);
 	});
 });
 

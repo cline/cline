@@ -135,6 +135,24 @@ export function normalizeRunCommandsInput(
 	return [validate];
 }
 
+export function resolveRunCommandsTimeoutMs(
+	input: unknown,
+	defaultTimeoutMs: number,
+): number {
+	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
+
+	if (
+		typeof validate === "object" &&
+		validate !== null &&
+		!Array.isArray(validate) &&
+		"timeout" in validate
+	) {
+		return validate.timeout ?? defaultTimeoutMs;
+	}
+
+	return defaultTimeoutMs;
+}
+
 export function formatRunCommandQuery(
 	command: string | StructuredCommandInput,
 ): string {

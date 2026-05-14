@@ -187,8 +187,9 @@ export function createBashExecutor(
 		combineOutput = true,
 	} = options;
 
-	return (command, cwd, context) => {
+	return (command, cwd, context, timeoutOverrideMs) => {
 		const isStructured = typeof command !== "string";
+		const effectiveTimeoutMs = timeoutOverrideMs ?? timeoutMs;
 		return spawnAndCollect(
 			{
 				executable: isStructured ? command.command : shell,
@@ -199,7 +200,7 @@ export function createBashExecutor(
 				env,
 			},
 			context,
-			timeoutMs,
+			effectiveTimeoutMs,
 			maxOutputBytes,
 			combineOutput,
 		);

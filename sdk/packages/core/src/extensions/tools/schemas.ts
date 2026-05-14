@@ -102,6 +102,14 @@ const CommandInputSchema = z
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
 
+const RunCommandsTimeoutSchema = z
+	.number()
+	.int()
+	.positive()
+	.describe(
+		"Optional timeout for the entire run_commands call, in milliseconds. Normally omit this and use the configured default. Only raise it for expected long-running installs/builds/tests, or after a timeout.",
+	);
+
 /**
  * Schema for run_commands tool input
  */
@@ -109,6 +117,7 @@ export const RunCommandsInputSchema = z.object({
 	commands: z
 		.array(CommandInputSchema)
 		.describe("Array of shell commands to execute"),
+	timeout: RunCommandsTimeoutSchema.optional(),
 });
 
 /**
@@ -116,9 +125,9 @@ export const RunCommandsInputSchema = z.object({
  */
 export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
-	z.object({ commands: CommandInputSchema }),
-	z.object({ command: CommandInputSchema }),
-	z.object({ cmd: CommandInputSchema }),
+	z.object({ commands: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
+	z.object({ command: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
+	z.object({ cmd: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
 	z.array(z.string()),
 	z.string(),
 ]);
@@ -147,6 +156,7 @@ export const StructuredCommandsInputSchema = z.object({
 		.describe(
 			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
 		),
+	timeout: RunCommandsTimeoutSchema.optional(),
 });
 
 /**
@@ -155,11 +165,14 @@ export const StructuredCommandsInputSchema = z.object({
 export const StructuredCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
 	StructuredCommandsInputSchema,
-	z.object({ commands: StructuredCommandEntrySchema }),
+	z.object({
+		commands: StructuredCommandEntrySchema,
+		timeout: RunCommandsTimeoutSchema.optional(),
+	}),
 	z.array(StructuredCommandInputSchema),
 	StructuredCommandInputSchema,
-	z.object({ command: CommandInputSchema }),
-	z.object({ cmd: CommandInputSchema }),
+	z.object({ command: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
+	z.object({ cmd: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
 	z.array(z.string()),
 	z.string(),
 ]);
