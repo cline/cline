@@ -10,7 +10,32 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 // "context_engineering_is_the_way_to_go" or "skip_thought_signature_validator" in the thought signature field to skip validation.
 const GEMINI_DUMMY_THOUGHT_SIGNATURE = "skip_thought_signature_validator"
 
-export function convertAnthropicContentToGemini(content: string | ClineStorageMessage["content"]): Part[] {
+type GeminiToolNameById = Map<string, string>
+
+function rememberGeminiToolUse(toolNameById: GeminiToolNameById | undefined, block: Anthropic.ToolUseBlockParam) {
+	if (!toolNameById) {
+		return
+	}
+
+	if (block.id) {
+		toolNameById.set(block.id, block.name)
+	}
+
+	const callId = (block as { call_id?: string }).call_id
+	if (callId) {
+		toolNameById.set(callId, block.name)
+	}
+}
+
+function getGeminiFunctionResponseName(block: Anthropic.ToolResultBlockParam, toolNameById: GeminiToolNameById | undefined) {
+	const callId = (block as { call_id?: string }).call_id
+	return toolNameById?.get(block.tool_use_id) ?? (callId ? toolNameById?.get(callId) : undefined) ?? block.tool_use_id
+}
+
+export function convertAnthropicContentToGemini(
+	content: string | ClineStorageMessage["content"],
+	toolNameById?: GeminiToolNameById,
+): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content }]
 	}
@@ -30,8 +55,10 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 						},
 					}
 				case "tool_use":
+					rememberGeminiToolUse(toolNameById, block)
 					return {
 						functionCall: {
+							id: block.id,
 							name: block.name,
 							args: block.input as Record<string, unknown>,
 						},
@@ -39,9 +66,14 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 						thoughtSignature: block.signature || GEMINI_DUMMY_THOUGHT_SIGNATURE,
 					}
 				case "tool_result":
+					const name = getGeminiFunctionResponseName(block, toolNameById)
+					if (!name) {
+						throw new Error("Cannot convert Gemini tool result without a matching function name")
+					}
 					return {
 						functionResponse: {
-							name: block.tool_use_id,
+							id: block.tool_use_id,
+							name,
 							response: {
 								result: block.content,
 							},
@@ -60,11 +92,19 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 		.filter((part): part is Part => part !== undefined) // Filter out unsupported blocks
 }
 
-export function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam): Content {
+export function convertAnthropicMessageToGemini(
+	message: Anthropic.Messages.MessageParam,
+	toolNameById?: GeminiToolNameById,
+): Content {
 	return {
 		role: message.role === "assistant" ? "model" : "user",
-		parts: convertAnthropicContentToGemini(message.content),
+		parts: convertAnthropicContentToGemini(message.content, toolNameById),
 	}
+}
+
+export function convertAnthropicMessagesToGemini(messages: Anthropic.Messages.MessageParam[]): Content[] {
+	const toolNameById: GeminiToolNameById = new Map()
+	return messages.map((message) => convertAnthropicMessageToGemini(message, toolNameById))
 }
 
 /*

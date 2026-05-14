@@ -6,7 +6,7 @@ import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { convertAnthropicMessagesToGemini } from "../transform/gemini-format"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -285,7 +285,7 @@ export class AIhubmixHandler implements ApiHandler {
 		const client = this.ensureGeminiClient()
 		const modelId = this.options.modelId || "gemini-2.0-flash-exp"
 
-		const contents = messages.map(convertAnthropicMessageToGemini)
+		const contents = convertAnthropicMessagesToGemini(messages)
 
 		const requestConfig: GenerateContentConfig = {
 			systemInstruction: systemPrompt,

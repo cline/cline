@@ -16,7 +16,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { convertAnthropicMessagesToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
@@ -148,7 +148,7 @@ export class GeminiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
-		const contents = messages.map(convertAnthropicMessageToGemini)
+		const contents = convertAnthropicMessagesToGemini(messages)
 		// Gemini may emit multiple function calls under the same responseId and without functionCall.id.
 		// Track a local sequence so each emitted tool call has a stable unique ID.
 		const responseToolCallCount = new Map<string, number>()
