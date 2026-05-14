@@ -8,6 +8,7 @@ describe("model catalog provider helpers", () => {
 	})
 
 	it("centralizes migrated SDK provider membership", () => {
+		expect(isMigratedSdkProvider("cline")).toBe(true)
 		expect(isMigratedSdkProvider("deepseek")).toBe(true)
 		expect(isMigratedSdkProvider("anthropic")).toBe(false)
 		expect(isMigratedSdkProvider(undefined)).toBe(false)

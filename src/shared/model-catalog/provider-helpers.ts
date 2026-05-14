@@ -8,7 +8,7 @@ const SDK_PROVIDER_ID_TO_LEGACY_API_PROVIDER: Partial<Record<string, ApiProvider
 	nousresearch: "nousResearch",
 } satisfies Partial<Record<string, ApiProvider>>
 
-export const MIGRATED_SDK_PROVIDER_IDS = new Set<string>(["deepseek"])
+export const MIGRATED_SDK_PROVIDER_IDS = new Set<string>(["cline", "deepseek"])
 
 export function isMigratedSdkProvider(providerId: string | undefined): boolean {
 	return Boolean(providerId && MIGRATED_SDK_PROVIDER_IDS.has(providerId))

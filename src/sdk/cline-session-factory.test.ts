@@ -7,6 +7,7 @@ import {
 	buildResumeSessionInput,
 	buildStartSessionInput,
 	createHistoryItemFromSession,
+	getDefaultModelIdForProvider,
 	getHistoryItemById,
 	normalizeProviderReasoningSettings,
 	updateHistoryItem,
@@ -46,6 +47,20 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 		...overrides,
 	}
 }
+
+// ---------------------------------------------------------------------------
+// provider/model defaults
+// ---------------------------------------------------------------------------
+
+describe("getDefaultModelIdForProvider", () => {
+	it("uses the SDK provider catalog for the Cline default model", () => {
+		expect(getDefaultModelIdForProvider("cline")).toBe("anthropic/claude-sonnet-4.6")
+	})
+
+	it("returns undefined for unknown providers", () => {
+		expect(getDefaultModelIdForProvider("unknown-provider")).toBeUndefined()
+	})
+})
 
 // ---------------------------------------------------------------------------
 // buildStartSessionInput
