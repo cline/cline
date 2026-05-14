@@ -490,6 +490,33 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
+	it("preserves an existing compaction summary when the prefix has no basic candidates (CLINE-2185)", () => {
+		const summary = {
+			role: "user",
+			content: "Context summary:\nPrior work",
+			metadata: { kind: "compaction_summary" },
+		} as LlmsProviders.Message;
+		const compacted = runForcedBasicCompaction(
+			[
+				summary,
+				{ role: "user", content: "continue the task" },
+				assistantToolUseMessage("old-tail", [
+					{ type: "text", text: "old tool call".repeat(100) },
+				]),
+				toolResultMessage("old-tail", "old result".repeat(1_000)),
+				{ role: "assistant", content: "latest assistant" },
+			],
+			1_500,
+		);
+
+		expect(compacted[0]).toEqual(summary);
+		expect(compacted).toContainEqual({
+			role: "user",
+			content: "continue the task",
+		});
+		expect(JSON.stringify(compacted)).not.toContain("old-tail");
+	});
+
 	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {
 		const codexConfig = resolveSummarizerConfig({
 			activeProviderConfig: {

@@ -588,10 +588,11 @@ export function runBasicCompaction(options: {
 		);
 	}
 
-	const nextMessages = [
-		...candidates.map((candidate) => candidate.message),
-		...finalTail,
-	];
+	const prefixMessages =
+		candidates.length > 0
+			? candidates.map((candidate) => candidate.message)
+			: compactable;
+	const nextMessages = [...prefixMessages, ...finalTail];
 	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
 		return undefined;
 	}
