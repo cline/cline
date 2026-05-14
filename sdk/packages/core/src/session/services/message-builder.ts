@@ -10,6 +10,7 @@
  */
 
 import {
+	CHARS_PER_TOKEN,
 	type ContentBlock,
 	type Message,
 	normalizeUserInput,
@@ -82,7 +83,10 @@ export class MessageBuilder {
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
 	) {}
 
-	buildForApi(messages: Message[]): Message[] {
+	buildForApi(
+		messages: Message[],
+		options: { maxInputTokens?: number } = {},
+	): Message[] {
 		this.reindex(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
 
@@ -109,7 +113,7 @@ export class MessageBuilder {
 			return changed ? { ...message, content } : message;
 		});
 
-		return this.truncateToTotalTextBudget(prepared);
+		return this.truncateToTotalTextBudget(prepared, options.maxInputTokens);
 	}
 
 	private transformBlock(
@@ -789,13 +793,24 @@ export class MessageBuilder {
 		);
 	}
 
-	private truncateToTotalTextBudget(messages: Message[]): Message[] {
-		if (this.maxTotalTextBytes <= 0) {
+	private truncateToTotalTextBudget(
+		messages: Message[],
+		maxInputTokens?: number,
+	): Message[] {
+		// CLINE-2191: when the orchestrator threads the model's actual
+		// maxInputTokens, derive the aggregate cap from it. Otherwise
+		// fall back to the historical 6 MB default so legacy callers
+		// (existing tests, direct constructors) behave identically.
+		const effectiveBudget =
+			typeof maxInputTokens === "number" && maxInputTokens > 0
+				? maxInputTokens * CHARS_PER_TOKEN
+				: this.maxTotalTextBytes;
+		if (effectiveBudget <= 0) {
 			return messages;
 		}
 
 		let totalBytes = this.countMessageTextBytes(messages);
-		if (totalBytes <= this.maxTotalTextBytes) {
+		if (totalBytes <= effectiveBudget) {
 			return messages;
 		}
 
@@ -813,14 +828,14 @@ export class MessageBuilder {
 
 		const candidates = this.collectTruncationCandidates(next);
 		for (const candidate of candidates) {
-			if (totalBytes <= this.maxTotalTextBytes) {
+			if (totalBytes <= effectiveBudget) {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
 			if (currentBytes <= MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES) {
 				continue;
 			}
-			const overflow = totalBytes - this.maxTotalTextBytes;
+			const overflow = totalBytes - effectiveBudget;
 			const targetBytes = Math.max(
 				MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
 				currentBytes - overflow,
@@ -878,6 +893,47 @@ export class MessageBuilder {
 				continue;
 			}
 			for (const block of message.content) {
+				// CLINE-2191: also collect candidates for the block types
+				// that previously bypassed the aggregate budget. These
+				// share the existing `MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES`
+				// floor; truncating below that loses too much signal.
+				//
+				// `redacted_thinking` is intentionally skipped — its
+				// content is a fixed placeholder. `tool_use` and its
+				// `input` body are skipped here too; a JSON-aware
+				// structural truncator that can drill into values
+				// without corrupting `tool_use_id`s or breaking JSON
+				// shape is the responsibility of Layer B (CLINE-2192).
+				if (block.type === "text") {
+					candidates.push({
+						byteLength: utf8ByteLength(block.text),
+						get: () => block.text,
+						set: (value) => {
+							block.text = value;
+						},
+					});
+					continue;
+				}
+				if (block.type === "thinking") {
+					candidates.push({
+						byteLength: utf8ByteLength(block.thinking),
+						get: () => block.thinking,
+						set: (value) => {
+							block.thinking = value;
+						},
+					});
+					continue;
+				}
+				if (block.type === "file") {
+					candidates.push({
+						byteLength: utf8ByteLength(block.content),
+						get: () => block.content,
+						set: (value) => {
+							block.content = value;
+						},
+					});
+					continue;
+				}
 				if (block.type !== "tool_result") {
 					continue;
 				}
@@ -916,7 +972,19 @@ export class MessageBuilder {
 				}
 			}
 		}
-		return candidates.sort((l, r) => r.byteLength - l.byteLength);
+		// CLINE-2191: deterministic tiebreaker on insertion order so
+		// the same input always produces the same truncation output.
+		// Layer B (CLINE-2192) will rely on this same invariant.
+		const indexed = candidates.map((candidate, originalIndex) => ({
+			candidate,
+			originalIndex,
+		}));
+		indexed.sort(
+			(l, r) =>
+				r.candidate.byteLength - l.candidate.byteLength ||
+				l.originalIndex - r.originalIndex,
+		);
+		return indexed.map(({ candidate }) => candidate);
 	}
 }
 

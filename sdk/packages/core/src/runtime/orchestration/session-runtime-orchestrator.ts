@@ -754,7 +754,7 @@ export class SessionRuntime {
 					modelInfo?.capabilities?.includes("images") ?? true,
 				...this.config.toolContextMetadata,
 			},
-			hooks: this.createRuntimeHooks(),
+			hooks: this.createRuntimeHooks(modelInfo),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
 			systemPrompt,
@@ -863,7 +863,9 @@ export class SessionRuntime {
 		this.extensionsInitialized = true;
 	}
 
-	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {
+	private createRuntimeHooks(
+		modelInfo: ModelInfo | undefined,
+	): Partial<AgentRuntimeHooks> {
 		const hooks = mergeRuntimeHooks([
 			this.config.hooks,
 			...this.contributionRegistry
@@ -878,8 +880,10 @@ export class SessionRuntime {
 					return control;
 				}
 				const messages = control?.messages ?? ctx.request.messages;
-				const preparedMessages =
-					await this.prepareMessagesForModelRequest(messages);
+				const preparedMessages = await this.prepareMessagesForModelRequest(
+					messages,
+					modelInfo?.maxInputTokens,
+				);
 				return {
 					...control,
 					messages: preparedMessages,
@@ -907,7 +911,10 @@ export class SessionRuntime {
 
 		return async (context) => {
 			const messages = agentMessagesToMessagesWithMetadata(context.messages);
-			const apiMessages = await this.prepareProviderMessagesForApi(messages);
+			const apiMessages = await this.prepareProviderMessagesForApi(
+				messages,
+				modelInfo?.maxInputTokens,
+			);
 			const result = await prepareTurn({
 				agentId: context.agentId,
 				conversationId:
@@ -942,15 +949,18 @@ export class SessionRuntime {
 
 	private async prepareMessagesForModelRequest(
 		messages: readonly AgentMessage[],
+		maxInputTokens?: number,
 	): Promise<AgentMessage[]> {
 		const providerMessages = await this.prepareProviderMessagesForApi(
 			agentMessagesToMessages(messages),
+			maxInputTokens,
 		);
 		return messagesToAgentMessages(providerMessages);
 	}
 
 	private async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
+		maxInputTokens?: number,
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;
 		const messageBuilders =
@@ -958,7 +968,9 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		return this.messageBuilder.buildForApi(providerMessages);
+		return this.messageBuilder.buildForApi(providerMessages, {
+			maxInputTokens,
+		});
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {
