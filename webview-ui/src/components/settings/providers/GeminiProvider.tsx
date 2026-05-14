@@ -1,13 +1,14 @@
-import { geminiModels } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
-import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 /**
  * Props for the GeminiProvider component
@@ -23,11 +24,29 @@ interface GeminiProviderProps {
  */
 export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: GeminiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels("gemini")
+	const { config, commitSelection } = useProviderConfig("gemini")
+	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
+	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
+	const selectedModel: ModelPickerSelection =
+		committedSelection?.modelInfo !== undefined
+			? {
+					providerId: "gemini",
+					modelId: committedSelection.modelId,
+					modelInfo: fromProtobufModelInfo(committedSelection.modelInfo),
+				}
+			: {
+					providerId: "gemini",
+					modelId: fallbackModelId,
+					modelInfo: models[fallbackModelId] ?? openAiModelInfoSafeDefaults,
+				}
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId)
+	const handleModelSelect = (selection: ModelPickerSelection) => {
+		void commitSelection(currentMode, selection).catch((err) =>
+			console.error("Failed to commit Gemini model selection:", err),
+		)
+	}
 
 	return (
 		<div>
@@ -47,22 +66,21 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 
 			{showModelOptions && (
 				<>
-					<ModelSelector
-						label="Model"
-						models={geminiModels}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
-						selectedModelId={selectedModelId}
+					<ModelPickerWithManualEntry
+						allowsCustomIds={false}
+						error={error}
+						isLoading={isLoading}
+						isStale={isStale}
+						models={models}
+						onSelect={handleModelSelect}
+						selectedModel={selectedModel}
 					/>
 
-					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
-
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModel.modelInfo}
+						selectedModelId={selectedModel.modelId}
+					/>
 				</>
 			)}
 		</div>

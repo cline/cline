@@ -30,6 +30,21 @@ describe("normalizeProviderSwitchModel", () => {
 		expect(normalized.actModeApiModelId).toBe(defaultModelId)
 	})
 
+	it("uses the SDK default when switching to Gemini with a stale DeepSeek model id", () => {
+		const providerId = parseProviderId("gemini")
+		const defaultModelId = MODEL_COLLECTIONS_BY_PROVIDER_ID.gemini.provider.defaultModelId
+		const store = makeStore({ providerId })
+
+		const normalized = normalizeProviderSwitchModel(
+			store,
+			{ actModeApiProvider: "deepseek", actModeApiModelId: "deepseek-v4-flash" },
+			{ actModeApiProvider: "gemini", actModeApiModelId: undefined },
+		)
+
+		expect(normalized.actModeApiProvider).toBe("gemini")
+		expect(normalized.actModeApiModelId).toBe(defaultModelId)
+	})
+
 	it("restores a previously committed DeepSeek selection before falling back to SDK default", () => {
 		const providerId = parseProviderId("deepseek")
 		const store = makeStore({ providerId })
