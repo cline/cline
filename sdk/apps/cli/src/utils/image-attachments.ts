@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { resolveExistingFilePath } from "@cline/shared";
+import { resolveExistingFilePath } from "@cline/shared/storage";
 
 const IMAGE_EXTENSIONS = new Set([
 	".png",
@@ -13,9 +13,6 @@ const IMAGE_EXTENSIONS = new Set([
 
 /**
  * Resolve a possibly-mangled image path to an actual on-disk file.
- *
- * Thin wrapper around the shared `resolveExistingFilePath`, kept as a
- * named export for callers in the CLI image-paste pipeline.
  */
 export function resolveExistingImagePath(filePath: string): string | undefined {
 	return resolveExistingFilePath(filePath);

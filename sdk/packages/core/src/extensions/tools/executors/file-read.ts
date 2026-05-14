@@ -6,7 +6,8 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { type AgentToolContext, resolveExistingFilePath } from "@cline/shared";
+import type { AgentToolContext } from "@cline/shared";
+import { resolveExistingFilePath } from "@cline/shared/storage";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
 
