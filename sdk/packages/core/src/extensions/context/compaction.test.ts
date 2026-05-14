@@ -34,6 +34,16 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 	);
 }
 
+function totalEstimatedTokens(
+	messages: LlmsProviders.Message[],
+	estimateMessageTokens: (message: LlmsProviders.Message) => number,
+): number {
+	return messages.reduce(
+		(total, message) => total + estimateMessageTokens(message),
+		0,
+	);
+}
+
 function runForcedBasicCompaction(
 	messages: LlmsProviders.Message[],
 	targetTokens: number,
@@ -550,6 +560,49 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 		expect(compacted).not.toContainEqual(oldAssistant);
 		expect(JSON.stringify(compacted)).not.toContain("old assistant prefix");
+	});
+
+	it("budgets the historical prefix against the preserved tail during basic compaction", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Initial task " + "i".repeat(4_000) },
+			{ role: "user", content: "Latest request " + "u".repeat(200) },
+			{
+				role: "assistant",
+				content: "Latest assistant state " + "a".repeat(900),
+			},
+		];
+		const targetTokens = 520;
+		const estimateMessageTokens = createTokenEstimator();
+		const result = runBasicCompaction({
+			context: {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				messages,
+				model: {
+					id: "mock-model",
+					provider: "anthropic",
+					info: { id: "mock-model", maxInputTokens: targetTokens },
+				},
+				maxInputTokens: targetTokens,
+				triggerTokens: targetTokens,
+				thresholdRatio: 1,
+				utilizationRatio: 2,
+			},
+			estimateMessageTokens,
+		});
+
+		expect(result?.messages).toBeDefined();
+		const compacted = result?.messages ?? [];
+		expect(compacted.at(-2)).toEqual(messages[1]);
+		expect(compacted.at(-1)).toEqual(messages[2]);
+		const prefix = compacted[0];
+		expect(typeof prefix?.content).toBe("string");
+		expect((prefix?.content as string).length).toBeLessThan(1_200);
+		expect(totalEstimatedTokens(compacted, estimateMessageTokens)).toBeLessThan(
+			totalEstimatedTokens(messages, estimateMessageTokens),
+		);
 	});
 
 	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {

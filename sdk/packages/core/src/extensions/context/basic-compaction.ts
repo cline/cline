@@ -262,13 +262,13 @@ function collectAtomicRemovalIndexes<C extends MinimalCandidate>(
 // Unlike removeTailCandidatesByPredicate, this function does NOT check
 // whether every member of an atomic closure satisfies the predicate before
 // removing. That is safe on the prefix path because the four successive
-// predicate calls are role-monotone: each call's predicate either accepts
-// ALL members of any possible closure (because closures only span
-// same-role candidates on the prefix) or accepts NONE. A tool_use in an
-// assistant message is always paired with a tool_result in a user message;
-// the first pass removes only assistant non-last messages and the second
-// removes only non-last-non-first user messages, so a closure can never
-// straddle a protected and an unprotected candidate on the prefix path.
+// predicate calls protect only typed turn-start user messages. Prefix
+// tool_result messages are tool-result-only, so they are never first/last
+// typed users; if a removable assistant tool_use closure pulls in its
+// matching user tool_result, that user message is also removable on the
+// prefix path. The stricter closure-safety check is still required for
+// protected-tail trimming, where the last assistant message may share a
+// closure with an otherwise removable tool_result.
 function removeCandidatesByPredicate<C extends MinimalCandidate>(
 	candidates: C[],
 	predicate: (candidate: C) => boolean,
@@ -363,6 +363,47 @@ function trimCandidatesToBudget(
 			estimateMessageTokens,
 		);
 	}
+}
+
+function compactBasicCandidatesToBudget(
+	candidates: BasicCompactionCandidate[],
+	targetTokens: number,
+	estimateMessageTokens: EstimateMessageTokens,
+): void {
+	removeCandidatesByPredicate(
+		candidates,
+		(candidate) =>
+			candidate.message.role === "assistant" && !candidate.isLastAssistant,
+		targetTokens,
+		estimateMessageTokens,
+	);
+	removeCandidatesByPredicate(
+		candidates,
+		(candidate) =>
+			candidate.message.role === "user" &&
+			!candidate.isFirstUser &&
+			!candidate.isLastUser,
+		targetTokens,
+		estimateMessageTokens,
+	);
+	removeCandidatesByPredicate(
+		candidates,
+		(candidate) =>
+			candidate.message.role === "assistant" && candidate.isLastAssistant,
+		targetTokens,
+		estimateMessageTokens,
+	);
+	removeCandidatesByPredicate(
+		candidates,
+		(candidate) =>
+			candidate.message.role === "user" &&
+			candidate.isLastUser &&
+			!candidate.isFirstUser,
+		targetTokens,
+		estimateMessageTokens,
+	);
+
+	trimCandidatesToBudget(candidates, targetTokens, estimateMessageTokens);
 }
 
 function haveMessagesChanged(
@@ -472,9 +513,9 @@ function buildTailCandidates(
  * contract.
  *
  * On the prefix path the existing `removeCandidatesByPredicate`
- * is still used; its closures only group same-role candidates
- * (e.g. a non-last assistant with its non-last user tool_result),
- * so the two predicates collapse there and behavior is unchanged.
+ * is still used because a closure can only pull in user tool_result
+ * messages that are not typed turn starts. The tail has stronger
+ * preservation rules, so it needs this explicit closure check.
  */
 function removeTailCandidatesByPredicate<C extends MinimalCandidate>(
 	candidates: C[],
@@ -571,45 +612,6 @@ export function runBasicCompaction(options: {
 	);
 	const initialCandidates = candidates.map((candidate) => ({ ...candidate }));
 
-	removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "assistant" && !candidate.isLastAssistant,
-		targetTokens,
-		options.estimateMessageTokens,
-	);
-	removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "user" &&
-			!candidate.isFirstUser &&
-			!candidate.isLastUser,
-		targetTokens,
-		options.estimateMessageTokens,
-	);
-	removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "assistant" && candidate.isLastAssistant,
-		targetTokens,
-		options.estimateMessageTokens,
-	);
-	removeCandidatesByPredicate(
-		candidates,
-		(candidate) =>
-			candidate.message.role === "user" &&
-			candidate.isLastUser &&
-			!candidate.isFirstUser,
-		targetTokens,
-		options.estimateMessageTokens,
-	);
-
-	trimCandidatesToBudget(
-		candidates,
-		targetTokens,
-		options.estimateMessageTokens,
-	);
-
 	// CLINE-2185: the protected tail (the in-flight turn after the user's
 	// latest typed prompt) can itself exceed the compaction target when
 	// the agent has produced many large tool results in a single turn.
@@ -627,6 +629,41 @@ export function runBasicCompaction(options: {
 		finalTail = trimProtectedTail(
 			protectedTail,
 			targetTokens,
+			options.estimateMessageTokens,
+		);
+	}
+	const finalTailTokens = getTotalTokens(
+		finalTail,
+		options.estimateMessageTokens,
+	);
+	const prefixTargetTokens = Math.max(1, targetTokens - finalTailTokens);
+	// The final transcript is prefix + protected tail. Budgeting each half
+	// independently can still return an over-target result, so compact the
+	// historical prefix against the remaining budget after tail preservation.
+	compactBasicCandidatesToBudget(
+		candidates,
+		prefixTargetTokens,
+		options.estimateMessageTokens,
+	);
+	for (let attempt = 0; attempt < 4; attempt += 1) {
+		const totalAfter = getTotalTokens(
+			[...candidates.map((candidate) => candidate.message), ...finalTail],
+			options.estimateMessageTokens,
+		);
+		if (totalAfter <= targetTokens || candidates.length === 0) {
+			break;
+		}
+		const prefixTokens = getTotalTokens(
+			candidates.map((candidate) => candidate.message),
+			options.estimateMessageTokens,
+		);
+		const adjustedPrefixTarget = Math.max(
+			1,
+			prefixTokens - (totalAfter - targetTokens) - 1,
+		);
+		compactBasicCandidatesToBudget(
+			candidates,
+			adjustedPrefixTarget,
 			options.estimateMessageTokens,
 		);
 	}
