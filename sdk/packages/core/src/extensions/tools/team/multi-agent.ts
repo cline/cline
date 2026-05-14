@@ -889,7 +889,10 @@ export class AgentTeamsRuntime {
 			role: config.role,
 			teammate: {
 				rolePrompt: config.systemPrompt,
+				providerId: config.providerId,
 				modelId: config.modelId,
+				thinking: config.thinking,
+				reasoningEffort: config.reasoningEffort,
 				maxIterations: config.maxIterations,
 				runtimeAgentId: agent.getAgentId(),
 				conversationId: agent.getConversationId(),

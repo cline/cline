@@ -26,6 +26,8 @@ import {
 	type TeamFinalizeOutcomeInput,
 	TeamFinalizeOutcomeInputSchema,
 	TeamFinalizeOutcomeToolResultSchema,
+	type TeamListModelsInput,
+	TeamListModelsInputSchema,
 	type TeamListOutcomesInput,
 	TeamListOutcomesInputSchema,
 	type TeamListRunsInput,
@@ -74,6 +76,7 @@ import {
 import {
 	buildDelegatedAgentConfig,
 	type DelegatedAgentConfigProvider,
+	type DelegatedAgentConnectionConfig,
 	type DelegatedAgentRuntimeConfig,
 } from "./delegated-agent";
 import type { AgentTeamsRuntime } from "./multi-agent";
@@ -163,10 +166,47 @@ function assertAwaitedRunSucceeded(run: TeamRunRecord): void {
 
 export type TeamTeammateRuntimeConfig = DelegatedAgentRuntimeConfig;
 
+export interface TeamModelListItem {
+	id: string;
+	name?: string;
+	supportsAttachments?: boolean;
+	supportsVision?: boolean;
+	supportsReasoning?: boolean;
+}
+
+export interface TeamProviderListItem {
+	id: string;
+	name: string;
+	enabled: boolean;
+	defaultModelId?: string;
+	models?: number | null;
+	modelList?: TeamModelListItem[];
+}
+
+export interface TeamModelCatalogResult {
+	providers: TeamProviderListItem[];
+	settingsPath?: string;
+}
+
+export interface TeamConnectionConfigRequest {
+	providerId?: string;
+	modelId?: string;
+	thinking?: boolean;
+	reasoningEffort?: DelegatedAgentConnectionConfig["reasoningEffort"];
+}
+
+export interface TeamModelConfigProvider {
+	listModels(input: TeamListModelsInput): Promise<TeamModelCatalogResult>;
+	resolveConnectionConfig(
+		input: TeamConnectionConfigRequest,
+	): Promise<DelegatedAgentConnectionConfig>;
+}
+
 export interface CreateAgentTeamsToolsOptions {
 	runtime: AgentTeamsRuntime;
 	requesterId: string;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
+	modelConfigProvider?: TeamModelConfigProvider;
 	createBaseTools?: () => AgentTool[];
 	allowSpawn?: boolean;
 	includeSpawnTool?: boolean;
@@ -177,6 +217,7 @@ export interface CreateAgentTeamsToolsOptions {
 export interface BootstrapAgentTeamsOptions {
 	runtime: AgentTeamsRuntime;
 	teammateConfigProvider: DelegatedAgentConfigProvider;
+	modelConfigProvider?: TeamModelConfigProvider;
 	createBaseTools?: () => AgentTool[];
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
@@ -194,6 +235,7 @@ export interface BootstrapAgentTeamsResult {
 
 export const TEAM_TOOL_NAMES = [
 	"team_spawn_teammate",
+	"team_list_models",
 	"team_shutdown_teammate",
 	"team_status",
 	"team_task",
@@ -218,7 +260,7 @@ function spawnTeamTeammate(
 		requesterId: string;
 		spec: TeamTeammateSpec;
 	},
-): void {
+): Promise<void> | void {
 	const teammateTools: AgentTool[] = [];
 	if (options.createBaseTools) {
 		teammateTools.push(...options.createBaseTools());
@@ -228,22 +270,47 @@ function spawnTeamTeammate(
 			runtime: options.runtime,
 			requesterId: options.spec.agentId,
 			teammateConfigProvider: options.teammateConfigProvider,
+			modelConfigProvider: options.modelConfigProvider,
 			createBaseTools: options.createBaseTools,
 			allowSpawn: false,
 		}),
 	);
-	options.runtime.spawnTeammate({
-		agentId: options.spec.agentId,
-		config: buildDelegatedAgentConfig({
-			kind: "teammate",
-			prompt: options.spec.rolePrompt,
-			role: options.spec.rolePrompt,
-			configProvider: options.teammateConfigProvider,
-			tools: teammateTools,
-			maxIterations: options.spec.maxIterations,
-			cwd: options.teammateConfigProvider.getRuntimeConfig().cwd,
-		}),
-	});
+	const spawn = async () => {
+		const connectionConfig = options.modelConfigProvider
+			? await options.modelConfigProvider.resolveConnectionConfig({
+					providerId: options.spec.providerId,
+					modelId: options.spec.modelId,
+					thinking: options.spec.thinking,
+					reasoningEffort: options.spec.reasoningEffort,
+				})
+			: {
+					...options.teammateConfigProvider.getConnectionConfig(),
+					...(options.spec.providerId
+						? { providerId: options.spec.providerId }
+						: {}),
+					...(options.spec.modelId ? { modelId: options.spec.modelId } : {}),
+					...(options.spec.thinking !== undefined
+						? { thinking: options.spec.thinking }
+						: {}),
+					...(options.spec.reasoningEffort
+						? { reasoningEffort: options.spec.reasoningEffort }
+						: {}),
+				};
+		options.runtime.spawnTeammate({
+			agentId: options.spec.agentId,
+			config: buildDelegatedAgentConfig({
+				kind: "teammate",
+				prompt: options.spec.rolePrompt,
+				role: options.spec.rolePrompt,
+				configProvider: options.teammateConfigProvider,
+				connectionConfig,
+				tools: teammateTools,
+				maxIterations: options.spec.maxIterations,
+				cwd: options.teammateConfigProvider.getRuntimeConfig().cwd,
+			}),
+		});
+	};
+	return spawn();
 }
 
 export function bootstrapAgentTeams(
@@ -256,6 +323,7 @@ export function bootstrapAgentTeams(
 		runtime: options.runtime,
 		requesterId: leadAgentId,
 		teammateConfigProvider: options.teammateConfigProvider,
+		modelConfigProvider: options.modelConfigProvider,
 		createBaseTools: options.createBaseTools,
 		allowSpawn: true,
 		includeSpawnTool: options.includeLeadSpawnTool,
@@ -268,10 +336,11 @@ export function bootstrapAgentTeams(
 		if (options.runtime.isTeammateActive(spec.agentId)) {
 			continue;
 		}
-		spawnTeamTeammate({
+		void spawnTeamTeammate({
 			runtime: options.runtime,
 			requesterId: leadAgentId,
 			teammateConfigProvider: options.teammateConfigProvider,
+			modelConfigProvider: options.modelConfigProvider,
 			createBaseTools: options.createBaseTools,
 			spec,
 		});
@@ -313,11 +382,17 @@ export function createAgentTeamsTools(
 					const spec: TeamTeammateSpec = {
 						agentId: validatedInput.agentId,
 						rolePrompt: validatedInput.rolePrompt,
+						providerId: validatedInput.providerId,
+						modelId: validatedInput.modelId,
+						thinking: validatedInput.thinking,
+						reasoningEffort: validatedInput.reasoningEffort,
+						maxIterations: validatedInput.maxIterations,
 					};
-					spawnTeamTeammate({
+					await spawnTeamTeammate({
 						runtime: options.runtime,
 						requesterId: options.requesterId,
 						teammateConfigProvider: options.teammateConfigProvider,
+						modelConfigProvider: options.modelConfigProvider,
 						createBaseTools: options.createBaseTools,
 						spec,
 					});
@@ -339,6 +414,52 @@ export function createAgentTeamsTools(
 			}) as AgentTool,
 		);
 	}
+
+	tools.push(
+		createTool<TeamListModelsInput, TeamModelCatalogResult>({
+			name: "team_list_models",
+			description:
+				"List providers and models available for spawning teammates. Use providerId to filter; refresh=true may query provider model sources.",
+			inputSchema: zodToJsonSchema(TeamListModelsInputSchema),
+			execute: async (input) => {
+				const validatedInput = validateWithZod(
+					TeamListModelsInputSchema,
+					input,
+				);
+				if (options.modelConfigProvider) {
+					return options.modelConfigProvider.listModels(validatedInput);
+				}
+
+				const runtimeConfig = options.teammateConfigProvider.getRuntimeConfig();
+				const connectionConfig =
+					options.teammateConfigProvider.getConnectionConfig();
+				const modelIds = Object.keys(connectionConfig.knownModels ?? {});
+				const modelList = modelIds.length
+					? modelIds.map((id) => ({
+							id,
+							name: connectionConfig.knownModels?.[id]?.name ?? id,
+						}))
+					: [
+							{
+								id: connectionConfig.modelId,
+								name: connectionConfig.modelId,
+							},
+						];
+				return {
+					providers: [
+						{
+							id: connectionConfig.providerId,
+							name: connectionConfig.providerId,
+							enabled: true,
+							defaultModelId: runtimeConfig.modelId,
+							models: modelList.length,
+							modelList,
+						},
+					],
+				};
+			},
+		}) as AgentTool,
+	);
 
 	if (!includeManagementTools) {
 		return tools;

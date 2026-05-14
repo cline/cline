@@ -136,9 +136,12 @@ describe("createAgentTeamsTools schema surface", () => {
 			onLeadToolsUnlocked,
 		});
 
-		expect(tools.map((tool) => tool.name)).toEqual(["team_spawn_teammate"]);
+		expect(tools.map((tool) => tool.name)).toEqual([
+			"team_spawn_teammate",
+			"team_list_models",
+		]);
 
-		const spawn = tools[0];
+		const spawn = tools.find((tool) => tool.name === "team_spawn_teammate");
 		await expect(
 			spawn?.execute(
 				{
@@ -507,6 +510,112 @@ describe("createAgentTeamsTools runtime behavior", () => {
 				}),
 			}),
 		);
+	});
+
+	it("applies optional provider/model/reasoning overrides when spawning teammates", async () => {
+		const spawnTeammate = vi.fn();
+		const runtime = {
+			getMemberRole: vi.fn(() => "lead"),
+			isTeammateActive: vi.fn(() => false),
+			spawnTeammate,
+		} as unknown as AgentTeamsRuntime;
+		const modelConfigProvider = {
+			listModels: vi.fn(),
+			resolveConnectionConfig: vi.fn(async () => ({
+				providerId: "openai-native",
+				modelId: "gpt-5.3-codex",
+				apiKey: "openai-key",
+				thinking: true,
+				reasoningEffort: "high" as const,
+			})),
+		};
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			modelConfigProvider,
+			createBaseTools: () => [],
+			includeManagementTools: false,
+		});
+		const spawnTool = tools.find((tool) => tool.name === "team_spawn_teammate");
+
+		await spawnTool?.execute(
+			{
+				agentId: "coder",
+				rolePrompt: "Implement focused edits.",
+				providerId: "openai-native",
+				modelId: "gpt-5.3-codex",
+				thinking: true,
+				reasoningEffort: "high",
+				maxIterations: 9,
+			},
+			{ agentId: "lead", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(modelConfigProvider.resolveConnectionConfig).toHaveBeenCalledWith({
+			providerId: "openai-native",
+			modelId: "gpt-5.3-codex",
+			thinking: true,
+			reasoningEffort: "high",
+		});
+		expect(spawnTeammate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentId: "coder",
+				config: expect.objectContaining({
+					providerId: "openai-native",
+					modelId: "gpt-5.3-codex",
+					apiKey: "openai-key",
+					thinking: true,
+					reasoningEffort: "high",
+					maxIterations: 9,
+				}),
+			}),
+		);
+	});
+
+	it("lists teammate models through the injected model config provider", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const modelConfigProvider = {
+			listModels: vi.fn(async () => ({
+				providers: [
+					{
+						id: "cline",
+						name: "Cline",
+						enabled: true,
+						defaultModelId: "anthropic/claude-sonnet-4.6",
+						models: 1,
+						modelList: [
+							{ id: "anthropic/claude-sonnet-4.6", supportsReasoning: true },
+						],
+					},
+				],
+				settingsPath: "/tmp/providers.json",
+			})),
+			resolveConnectionConfig: vi.fn(),
+		};
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			modelConfigProvider,
+		});
+		const listModels = tools.find((tool) => tool.name === "team_list_models");
+
+		await expect(
+			listModels?.execute(
+				{ providerId: "cline", refresh: true },
+				{ agentId: "lead", conversationId: "conv-1", iteration: 1 },
+			),
+		).resolves.toMatchObject({
+			providers: [
+				{ id: "cline", modelList: [{ id: "anthropic/claude-sonnet-4.6" }] },
+			],
+		});
+		expect(modelConfigProvider.listModels).toHaveBeenCalledWith({
+			providerId: "cline",
+			refresh: true,
+		});
 	});
 
 	it("injects workspace metadata into cline teammate system prompt", async () => {

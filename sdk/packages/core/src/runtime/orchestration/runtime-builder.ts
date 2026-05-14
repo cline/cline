@@ -30,12 +30,14 @@ import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
 	createDelegatedAgentConfigProvider,
+	createLocalTeamModelConfigProvider,
 	type TeamEvent,
 } from "../../extensions/tools/team";
 import {
 	filterDisabledTools,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { createLocalTeamStore } from "../../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../../types/config";
 import type {
@@ -423,6 +425,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
 		});
+		const teamModelConfigProvider = normalized.enableAgentTeams
+			? createLocalTeamModelConfigProvider({
+					manager: new ProviderSettingsManager(),
+					fallbackConfigProvider: delegatedAgentConfigProvider,
+				})
+			: undefined;
 		if (!this.teamRuntimeEntries.has(registryKey)) {
 			this.teamRuntimeEntries.set(registryKey, {
 				delegatedAgentConfigProvider,
@@ -456,7 +464,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								const spec: TeamTeammateSpec = {
 									agentId: event.agentId,
 									rolePrompt: event.teammate.rolePrompt,
+									providerId: event.teammate.providerId,
 									modelId: event.teammate.modelId,
+									thinking: event.teammate.thinking,
+									reasoningEffort: event.teammate.reasoningEffort,
 									maxIterations: event.teammate.maxIterations,
 								};
 								teammateSpecs.set(spec.agentId, spec);
@@ -496,6 +507,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					restoredTeammates: restoredTeammateSpecs,
 					includeLeadSpawnTool: true,
 					includeLeadManagementTools: true,
+					modelConfigProvider: teamModelConfigProvider,
 					onLeadToolsUnlocked: (teamTools) => {
 						pendingLeadTeamTools = teamTools;
 						leadAgentInstance?.addTools(teamTools);

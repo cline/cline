@@ -27,6 +27,8 @@ export type DelegatedAgentConnectionConfig = Pick<
 	| "providerConfig"
 	| "knownModels"
 	| "thinking"
+	| "reasoningEffort"
+	| "thinkingBudgetTokens"
 >;
 
 export interface DelegatedAgentRuntimeConfig
@@ -69,6 +71,7 @@ export interface BuildDelegatedAgentConfigOptions {
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	role?: string;
 	cwd?: string;
+	connectionConfig?: DelegatedAgentConnectionConfig;
 }
 
 export function createDelegatedAgentConfigProvider(
@@ -87,6 +90,8 @@ export function createDelegatedAgentConfigProvider(
 			providerConfig: runtimeConfig.providerConfig,
 			knownModels: runtimeConfig.knownModels,
 			thinking: runtimeConfig.thinking,
+			reasoningEffort: runtimeConfig.reasoningEffort,
+			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
 		}),
 		updateConnectionDefaults: (overrides) => {
 			runtimeConfig = {
@@ -107,7 +112,8 @@ export function buildDelegatedAgentConfig(
 			: buildSubAgentSystemPrompt(options.prompt, runtimeConfig);
 
 	return {
-		...options.configProvider.getConnectionConfig(),
+		...(options.connectionConfig ??
+			options.configProvider.getConnectionConfig()),
 		systemPrompt,
 		tools: options.tools,
 		maxIterations: options.maxIterations ?? runtimeConfig.maxIterations,

@@ -7,6 +7,7 @@ export {
 	type DelegatedAgentKind,
 	type DelegatedAgentRuntimeConfig,
 } from "./delegated-agent";
+export { createLocalTeamModelConfigProvider } from "./model-config-provider";
 
 // =============================================================================
 // Spawn Agent Tool
@@ -50,5 +51,10 @@ export {
 	createAgentTeamsTools,
 	reviveTeamStateDates,
 	sanitizeTeamName,
+	type TeamConnectionConfigRequest,
+	type TeamModelCatalogResult,
+	type TeamModelConfigProvider,
+	type TeamModelListItem,
+	type TeamProviderListItem,
 	type TeamTeammateRuntimeConfig,
 } from "./team-tools";

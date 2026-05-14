@@ -6,6 +6,8 @@
 
 import { z } from "zod";
 
+const TeamReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
+
 export const DEFAULT_OUTCOME_REQUIRED_SECTIONS = [
 	"current_state",
 	"boundary_analysis",
@@ -48,7 +50,10 @@ const TeamMemberSnapshotSchema = z.object({
 export const TeamTeammateSpecSchema = z.object({
 	agentId: z.string(),
 	rolePrompt: z.string(),
+	providerId: z.string().optional(),
 	modelId: z.string().optional(),
+	thinking: z.boolean().optional(),
+	reasoningEffort: TeamReasoningEffortSchema.optional(),
 	maxIterations: z.number().optional(),
 });
 
@@ -66,8 +71,35 @@ export const TeamSpawnTeammateInputSchema = z
 			.string()
 			.min(1)
 			.describe("System prompt describing teammate role"),
+		providerId: nullableOptional(z.string().min(1)).describe(
+			"Optional provider ID for this teammate; defaults to the lead provider",
+		),
+		modelId: nullableOptional(z.string().min(1)).describe(
+			"Optional model ID for this teammate; defaults to the lead model",
+		),
+		thinking: nullableOptional(z.boolean()).describe(
+			"Optional reasoning/thinking toggle for capable models",
+		),
+		reasoningEffort: nullableOptional(TeamReasoningEffortSchema).describe(
+			"Optional reasoning effort for capable models",
+		),
+		maxIterations: nullableOptional(z.number().positive()).describe(
+			"Optional max loop iterations for this teammate",
+		),
 	})
 	.strict();
+
+export const TeamListModelsInputSchema = z.object({
+	providerId: nullableOptional(z.string().min(1)).describe(
+		"Optional provider ID to filter models; omit to list all known providers",
+	),
+	includeDisabledProviders: nullableOptional(z.boolean()).describe(
+		"Include providers without saved settings; defaults to true",
+	),
+	refresh: nullableOptional(z.boolean()).describe(
+		"Try refreshing model data from provider source before listing; defaults to false",
+	),
+});
 
 export const TeamShutdownTeammateInputSchema = z.object({
 	agentId: z.string().min(1).describe("Teammate identifier"),
@@ -237,6 +269,7 @@ export const TeamListOutcomesInputSchema = z.object({});
 export type TeamSpawnTeammateInput = z.infer<
 	typeof TeamSpawnTeammateInputSchema
 >;
+export type TeamListModelsInput = z.infer<typeof TeamListModelsInputSchema>;
 export type TeamShutdownTeammateInput = z.infer<
 	typeof TeamShutdownTeammateInputSchema
 >;
