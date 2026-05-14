@@ -38,6 +38,7 @@ Environment variable configuration bypasses user telemetry settings and will exp
 | `CLINE_OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP protocol | `"grpc"`, `"http/json"`, or `"http/protobuf"` |
 | `CLINE_OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint (applies to both metrics and logs) | URL with optional port |
 | `CLINE_OTEL_EXPORTER_OTLP_HEADERS` | Authentication headers (comma-separated `key=value` pairs) | `"key=value,key2=value2"` |
+| `CLINE_OTEL_RESOURCE_ATTRIBUTES` | Resource attributes sent with telemetry (comma-separated `key=value` pairs) | `"key=value,key2=value2"` |
 | `CLINE_OTEL_EXPORTER_OTLP_INSECURE` | Disable TLS for gRPC (local development only) | `"true"` |
 
 ### Advanced OTLP Configuration

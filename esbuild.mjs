@@ -164,6 +164,9 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
 if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {
 	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_HEADERS"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS)
 }
+if (process.env.OTEL_RESOURCE_ATTRIBUTES) {
+	buildEnvVars["process.env.OTEL_RESOURCE_ATTRIBUTES"] = JSON.stringify(process.env.OTEL_RESOURCE_ATTRIBUTES)
+}
 if (process.env.OTEL_METRIC_EXPORT_INTERVAL) {
 	buildEnvVars["process.env.OTEL_METRIC_EXPORT_INTERVAL"] = JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL)
 }

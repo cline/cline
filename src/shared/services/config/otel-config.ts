@@ -1,6 +1,6 @@
 import { parseKeyPairsIntoRecord } from "@opentelemetry/core"
 import { BUILD_CONSTANTS } from "@/shared/constants"
-import { RemoteConfigFields } from "@/shared/storage/state-keys"
+import type { RemoteConfigFields } from "@/shared/storage/state-keys"
 
 export interface OpenTelemetryClientConfig {
 	/**
@@ -34,6 +34,11 @@ export interface OpenTelemetryClientConfig {
 	 * General OTLP headers
 	 */
 	otlpHeaders?: Record<string, string>
+
+	/**
+	 * Resource attributes applied to all OTEL telemetry.
+	 */
+	resourceAttributes?: Record<string, string>
 
 	/**
 	 * Metrics-specific OTLP protocol
@@ -95,9 +100,12 @@ export interface OpenTelemetryClientValidConfig extends OpenTelemetryClientConfi
 	enabled: true
 }
 
-const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
+function isTestEnv(): boolean {
+	return process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
+}
 
 export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>): OpenTelemetryClientConfig {
+	// Resource attributes are environment-driven OTEL metadata and are not currently modeled in remote config.
 	return {
 		enabled: !!settings.openTelemetryEnabled,
 		metricsExporter: settings.openTelemetryMetricsExporter,
@@ -134,6 +142,9 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 		otlpHeaders: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_HEADERS
 			? parseKeyPairsIntoRecord(BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_HEADERS)
 			: undefined,
+		resourceAttributes: BUILD_CONSTANTS.OTEL_RESOURCE_ATTRIBUTES
+			? parseKeyPairsIntoRecord(BUILD_CONSTANTS.OTEL_RESOURCE_ATTRIBUTES)
+			: undefined,
 	}
 }
 
@@ -153,6 +164,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  * - CLINE_OTEL_EXPORTER_OTLP_PROTOCOL: "grpc", "http/json", or "http/protobuf"
  * - CLINE_OTEL_EXPORTER_OTLP_ENDPOINT: OTLP collector endpoint (if not using specific endpoints)
  * - CLINE_OTEL_EXPORTER_OTLP_HEADERS: Comma-separated key-value pairs (e.g., "key1=value1,key2=value2")
+ * - CLINE_OTEL_RESOURCE_ATTRIBUTES: Comma-separated resource attributes (e.g., "key1=value1,key2=value2")
  * - CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: Metrics-specific protocol override
  * - CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: Metrics-specific endpoint override
  * - CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: Logs-specific protocol override
@@ -194,12 +206,15 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 		otlpHeaders: process.env.CLINE_OTEL_EXPORTER_OTLP_HEADERS
 			? parseKeyPairsIntoRecord(process.env.CLINE_OTEL_EXPORTER_OTLP_HEADERS)
 			: undefined,
+		resourceAttributes: process.env.CLINE_OTEL_RESOURCE_ATTRIBUTES
+			? parseKeyPairsIntoRecord(process.env.CLINE_OTEL_RESOURCE_ATTRIBUTES)
+			: undefined,
 	}
 }
 
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
 	// Disable in test environment to enable mocking and stubbing
-	if (isTestEnv) {
+	if (isTestEnv()) {
 		return false
 	}
 

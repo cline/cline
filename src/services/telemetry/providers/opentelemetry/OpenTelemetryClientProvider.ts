@@ -5,7 +5,7 @@ import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
-import { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import type { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
 import { Logger } from "@/shared/services/Logger"
 import {
 	createConsoleLogExporter,
@@ -18,6 +18,14 @@ import {
  * OpenTelemetry client provider.
  * Manages meter and logger providers for telemetry collection.
  */
+export function createOpenTelemetryResource(config: Pick<OpenTelemetryClientValidConfig, "resourceAttributes">): Resource {
+	return new Resource({
+		...config.resourceAttributes,
+		[ATTR_SERVICE_NAME]: "cline",
+		[ATTR_SERVICE_VERSION]: ExtensionRegistryInfo.version,
+	})
+}
+
 export class OpenTelemetryClientProvider {
 	readonly meterProvider: MeterProvider | null = null
 	readonly loggerProvider: LoggerProvider | null = null
@@ -52,14 +60,19 @@ export class OpenTelemetryClientProvider {
 			const headerCount = Object.keys(config.otlpHeaders).length
 			// In debug mode, show that headers are configured and their total length
 			Logger.log(`[OTEL DEBUG]   - OTLP Headers: ${headerCount} headers configured`)
+		}
+
+		if (isDebugMode && config.resourceAttributes) {
+			const resourceAttributeCount = Object.keys(config.resourceAttributes).length
+			Logger.log(`[OTEL DEBUG]   - Resource Attributes: ${resourceAttributeCount} configured`)
+		}
+
+		if (isDebugMode) {
 			Logger.log("[OTEL DEBUG] ================================================")
 		}
 
-		// Create resource with service information
-		const resource = new Resource({
-			[ATTR_SERVICE_NAME]: "cline",
-			[ATTR_SERVICE_VERSION]: ExtensionRegistryInfo.version,
-		})
+		// Create resource with service information and user-configured attributes
+		const resource = createOpenTelemetryResource(config)
 
 		// Initialize metrics if configured
 		if (this.config.metricsExporter) {
