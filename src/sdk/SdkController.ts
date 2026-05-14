@@ -9,7 +9,7 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import type { PreparedRemoteConfigCoreIntegration, SessionHistoryRecord } from "@cline/core"
-import { RemoteConfig } from "@cline/shared"
+import type { RemoteConfig, RemoteConfigBundle } from "@cline/shared"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -170,6 +170,10 @@ export class Controller {
 
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
+	}
+
+	get remoteConfigBundle(): RemoteConfigBundle | undefined {
+		return this.remoteConfigCoreIntegration?.prepared.bundle
 	}
 
 	constructor(readonly context: ClineExtensionContext) {

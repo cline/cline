@@ -216,11 +216,13 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	const remoteCfgSettings = useRemoteConfigSettings(isVisible)
-	const remoteRules = remoteCfgSettings.filter((s) => s.type === "rule")
-	const remoteWorkflows = remoteCfgSettings.filter((s) => s.type === "workflow")
+	const remoteConfigSettings = useRemoteConfigSettings(isVisible)
+	const remoteRules = remoteConfigSettings.filter((s) => s.type === "rule")
+	const remoteWorkflows = remoteConfigSettings.filter((s) => s.type === "workflow")
+	const remoteSkills = remoteConfigSettings.filter((s) => s.type === "skill")
 	const hasRemoteRules = remoteRules.length > 0
 	const hasRemoteWorkflows = remoteWorkflows.length > 0
+	const hasRemoteSkills = remoteSkills.length > 0
 
 	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
@@ -441,13 +443,17 @@ const ClineRulesToggleModal: React.FC = () => {
 						</div>
 
 						{/* Remote config banner */}
-						{(currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows) ? (
+						{(currentView === "rules" && hasRemoteRules) ||
+						(currentView === "workflows" && hasRemoteWorkflows) ||
+						(currentView === "skills" && hasRemoteSkills) ? (
 							<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 								<i className="codicon codicon-lock text-sm" />
 								<span className="text-base">
 									{currentView === "rules"
 										? "Your organization manages some rules"
-										: "Your organization manages some workflows"}
+										: currentView === "workflows"
+											? "Your organization manages some workflows"
+											: "Your organization manages some skills"}
 								</span>
 							</div>
 						) : null}
@@ -736,25 +742,27 @@ const ClineRulesToggleModal: React.FC = () => {
 						) : currentView === "skills" ? (
 							<>
 								{/* Enterprise Skills Section (remote) */}
-								{globalSkills.some((s) => s.path.startsWith("remote:")) && (
+								{hasRemoteSkills && (
 									<div className="mb-3">
 										<div className="text-sm font-normal mb-2">Enterprise Skills</div>
 										<div className="flex flex-col gap-0">
-											{globalSkills
-												.filter((s) => s.path.startsWith("remote:"))
+											{remoteSkills
 												.sort((a, b) => a.name.localeCompare(b.name))
-												.map((skill) => (
-													<RuleRow
-														alwaysEnabled={skill.alwaysEnabled}
-														enabled={skill.enabled}
-														isGlobal={true}
-														isRemote={true}
-														key={skill.path}
-														rulePath={skill.name}
-														ruleType="skill"
-														toggleRule={(_path, enabled) => toggleSkill(true, skill.path, enabled)}
-													/>
-												))}
+												.map((skill) => {
+													const enabled = skill.locked || skill.enabled
+													return (
+														<RuleRow
+															alwaysEnabled={skill.locked}
+															enabled={enabled}
+															isGlobal={true}
+															isRemote={true}
+															key={skill.name}
+															rulePath={skill.name}
+															ruleType="skill"
+															toggleRule={skill.toggle}
+														/>
+													)
+												})}
 										</div>
 									</div>
 								)}
