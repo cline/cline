@@ -1296,6 +1296,8 @@ function countProviderRequestBytes(messages: Message[]): number {
  * `tool_use.input`.
  *
  * What IS excluded from string truncation:
+ * - `thinking.thinking` — signatures/details are tied to the original
+ *   reasoning payload. Handled by block removal in pass 2.
  * - `redacted_thinking.data` — Anthropic-encrypted opaque blob; truncation
  *   produces invalid data. Handled by block removal in pass 2.
  * - `image.data` and tool-result image entries — raw base64; truncation
@@ -1342,21 +1344,12 @@ function collectEmergencyCandidates(
 				});
 				continue;
 			}
-			if (block.type === "thinking") {
-				candidates.push({
-					byteLength: utf8ByteLength(block.thinking),
-					get: () => block.thinking,
-					set: (value) => {
-						block.thinking = value;
-					},
-				});
-				continue;
-			}
-			if (block.type === "redacted_thinking") {
-				// `data` is an Anthropic-encrypted opaque blob. Middle-
-				// truncating it produces binary garbage that the provider
-				// rejects with a 400. Exclude from string truncation;
-				// collectBlockRemovalCandidates handles whole-block removal.
+			if (block.type === "thinking" || block.type === "redacted_thinking") {
+				// `thinking` signatures/details and `redacted_thinking.data`
+				// are paired with the original payload. Middle-truncating
+				// either can make the provider reject the request. Exclude
+				// from string truncation; collectBlockRemovalCandidates
+				// handles whole-block removal.
 				continue;
 			}
 			if (block.type === "file") {

@@ -939,6 +939,71 @@ describe("MessageBuilder", () => {
 		).toBeLessThanOrEqual(3_000);
 	});
 
+	it("preserves thinking content and signature during Layer B string truncation (CLINE-2192)", () => {
+		const thinkingText = "reasoning".repeat(2_000);
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: thinkingText,
+						signature: "sig-1",
+					},
+					{
+						type: "text",
+						text: "x".repeat(500_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 10_000 });
+		const content = Array.isArray(result[0].content) ? result[0].content : [];
+		const thinking = content.find((b) => b.type === "thinking") as
+			| { thinking: string; signature?: string }
+			| undefined;
+		const text = content.find((b) => b.type === "text") as
+			| { text: string }
+			| undefined;
+
+		expect(thinking?.thinking).toBe(thinkingText);
+		expect(thinking?.signature).toBe("sig-1");
+		expect(text?.text).toContain("context window");
+		expect(
+			Buffer.byteLength(JSON.stringify(result), "utf8"),
+		).toBeLessThanOrEqual(30_000);
+	});
+
+	it("removes oversized thinking blocks whole instead of truncating signed content (CLINE-2192)", () => {
+		const thinkingText = "reasoning".repeat(50_000);
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: thinkingText,
+						signature: "sig-oversized",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "keep going" }],
+			},
+		];
+
+		const result = builder.buildForApi(messages, { maxInputTokens: 1_000 });
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).not.toContain("sig-oversized");
+		expect(serialized).not.toContain("reasoningreasoning");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(3_000);
+	});
+
 	it("preserves image.data intact and removes the block under extreme budget (CLINE-2192)", () => {
 		// image.data is raw base64. Middle-truncating it produces invalid base64.
 		// Layer B must exclude it from string truncation.
