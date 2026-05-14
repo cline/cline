@@ -7,12 +7,17 @@ export default defineConfig({
 			"src/sdk/**/*.test.ts",
 			"src/core/storage/remote-config/**/*.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
+			"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",
+			"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 		],
 		environment: "node",
 	},
 	resolve: {
 		alias: {
+			"@clinebot/core": path.resolve(__dirname, "src/test/clinebot-core-vitest-stub.ts"),
+			"@clinebot/llms": path.resolve(__dirname, "node_modules/@clinebot/llms/dist/index.js"),
+			"@clinebot/shared": path.resolve(__dirname, "node_modules/@clinebot/shared/dist/index.js"),
 			vscode: path.resolve(__dirname, "src/test/vscode-vitest-stub.ts"),
 			"@": path.resolve(__dirname, "src"),
 			"@api": path.resolve(__dirname, "src/core/api"),

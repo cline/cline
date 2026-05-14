@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type {
 	EffectiveProviderConfig,
 	Mode,
@@ -22,10 +22,25 @@ import {
 	WriteProviderConfigPatch,
 } from "@/shared/proto/cline/models"
 import { fromProtobufModelInfo, toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
+import type { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 
 export interface ProviderCatalogController {
 	getProviderConfigStore(): ProviderConfigStore
 	getProviderCatalog(): ProviderCatalog
+}
+
+export interface ProviderCatalogStateController extends ProviderCatalogController {
+	stateManager: {
+		setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void
+		getApiConfiguration?(): ApiConfiguration
+	}
+}
+
+export function hasProviderCatalogStateController(
+	controller: ProviderCatalogController,
+): controller is ProviderCatalogStateController {
+	const candidate = controller as { stateManager?: { setGlobalStateBatch?: unknown } }
+	return typeof candidate.stateManager?.setGlobalStateBatch === "function"
 }
 
 export function parseProviderIdRequest(rawProviderId: string | undefined, fieldName = "provider_id"): ProviderId {

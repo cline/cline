@@ -13,6 +13,7 @@ import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
+import { normalizeProviderSwitchModel } from "../models/providerSwitchNormalization"
 
 /**
  * Updates multiple extension settings in a single request
@@ -43,12 +44,18 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 			}
 
-			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
+			const normalizedApiConfiguration = normalizeProviderSwitchModel(
+				controller.getProviderConfigStore(),
+				controller.stateManager.getApiConfiguration(),
+				convertedApiConfigurationFromProto,
+			)
+
+			controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
 
 			if (controller.task) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 				const apiConfigForHandler = {
-					...convertedApiConfigurationFromProto,
+					...normalizedApiConfiguration,
 					ulid: controller.task.ulid,
 				}
 				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
