@@ -1,5 +1,16 @@
 # Cline CLI Changelog
 
+## 3.0.3
+
+- Add `--worktree` flag that auto-creates a fresh git worktree under `~/.cline/worktrees/` and runs the task there. Works with `--taskId` and `--continue` so you can resume a task in an isolated worktree to try a different approach.
+- Show session status in the CLI history view and refresh status rows in place while the standalone history TUI is open.
+- Restore the OpenAI compatible provider in the auth flow and preserve stored model metadata when configuring or migrating OpenAI-compatible providers.
+- Fix dropped macOS screenshots when pasting them into the TUI or asking the agent to read them: paths containing U+202F (narrow no-break space) and other Unicode variants now resolve to the real file instead of failing with ENOENT.
+- Accept bearer token auth for AWS Bedrock and map AWS profiles correctly when configuring the Bedrock gateway.
+- Honor `--thinking none` for Ollama models that ship with reasoning enabled by default.
+- Recover from detached hub event errors instead of crashing the session.
+- Refine the shared system prompt with clearer guidance on tool output formatting, unsupported file reads, long-running shell commands, and final verification before completing a task.
+
 ## 3.0.2
 
 - Fix token count display showing inflated numbers in the TUI.
