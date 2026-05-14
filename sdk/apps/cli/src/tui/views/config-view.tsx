@@ -388,7 +388,6 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				label: "Auto-approve all",
 			});
 			r.push({ kind: "toggle", id: "verbose", label: "Verbose" });
-		} else if (activeTab === "advanced") {
 			r.push({
 				kind: "toggle",
 				id: "run-commands-timeout",

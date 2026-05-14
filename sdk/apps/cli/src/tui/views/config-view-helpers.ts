@@ -24,7 +24,6 @@ const CONFIG_TABS: InteractiveConfigTab[] = [
 	"plugins",
 	"agents",
 	"hooks",
-	"advanced",
 ];
 
 export function getConfigTabs(): InteractiveConfigTab[] {
@@ -53,8 +52,6 @@ export function toTabLabel(tab: InteractiveConfigTab): string {
 	switch (tab) {
 		case "general":
 			return "General";
-		case "advanced":
-			return "Advanced";
 		case "tools":
 			return "Tools";
 		case "plugins":
@@ -106,7 +103,6 @@ export function resolveActiveConfigItems(
 ): InteractiveConfigItem[] {
 	switch (configTab) {
 		case "general":
-		case "advanced":
 			return [];
 		case "tools":
 			return sortBySourceThenName(configData.tools);

@@ -4,13 +4,11 @@ import {
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
-	getConfigTabs,
 	isInlineConfigAction,
 	isToggleableConfigItem,
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
 	resolveInitialConfigTab,
-	toTabLabel,
 } from "./config-view-helpers";
 
 function createItem(
@@ -82,13 +80,8 @@ describe("config view helpers", () => {
 	});
 
 	it("supports restoring and advancing the active settings tab", () => {
-		expect(getConfigTabs()).toContain("advanced");
-		expect(toTabLabel("advanced")).toBe("Advanced");
 		expect(resolveInitialConfigTab("skills")).toBe("skills");
 		expect(resolveInitialConfigTab(undefined)).toBe("general");
-		expect(getAdjacentConfigTab("hooks", "right")).toBe("advanced");
-		expect(getAdjacentConfigTab("advanced", "left")).toBe("hooks");
-		expect(getAdjacentConfigTab("advanced", "right")).toBe("general");
 		expect(getAdjacentConfigTab("mcp", "right")).toBe("skills");
 		expect(getAdjacentConfigTab("skills", "left")).toBe("mcp");
 	});
