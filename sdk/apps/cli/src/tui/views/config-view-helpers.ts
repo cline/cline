@@ -17,6 +17,7 @@ export type ConfigAction =
 
 const CONFIG_TABS: InteractiveConfigTab[] = [
 	"general",
+	"advanced",
 	"mcp",
 	"skills",
 	"rules",
@@ -52,6 +53,8 @@ export function toTabLabel(tab: InteractiveConfigTab): string {
 	switch (tab) {
 		case "general":
 			return "General";
+		case "advanced":
+			return "Advanced";
 		case "tools":
 			return "Tools";
 		case "plugins":
@@ -103,6 +106,7 @@ export function resolveActiveConfigItems(
 ): InteractiveConfigItem[] {
 	switch (configTab) {
 		case "general":
+		case "advanced":
 			return [];
 		case "tools":
 			return sortBySourceThenName(configData.tools);
