@@ -27,15 +27,7 @@ export async function refreshHicapModels(controller: Controller, _request: Empty
 
 	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
-		// Get the Hicap API key from the controller's state
-		const hicapApiKey = controller.stateManager.getSecretKey("hicapApiKey")
-
-		const response = await axios.get("https://api.hicap.ai/v2/openai/models", {
-			headers: {
-				"api-key": hicapApiKey,
-			},
-			...getAxiosSettings(),
-		})
+		const response = await axios.get("https://api.hicap.ai/v1/models/all", { ...getAxiosSettings() })
 
 		if (response.data?.data) {
 			const rawModels = response.data.data
