@@ -6,15 +6,25 @@ export async function getRemoteConfigSettings(controller: Controller, _request: 
 		type: RemoteConfigType.RULE,
 		name: rule.name,
 		content: rule.contents,
-		enabled: true, // TODO: Implement actual enabled state based on controller state
-		locked: rule.alwaysEnabled,
+		enabled: true, // TODO: Implement actual enabled state when toggle support is wired up
+		locked: Boolean(rule.alwaysEnabled),
 	}))
 	const globalWorkflows: RemoteConfigSetting[] = (controller.remoteConfig?.globalWorkflows || []).map((workflow) => ({
 		type: RemoteConfigType.WORKFLOW,
 		name: workflow.name,
 		content: workflow.contents,
-		enabled: true, // TODO: Implement actual enabled state based on controller state
-		locked: workflow.alwaysEnabled,
+		enabled: true, // TODO: Implement actual enabled state when toggle support is wired up
+		locked: Boolean(workflow.alwaysEnabled),
 	}))
-	return RemoteConfigSettingsResponse.create({ settings: [...globalRules, ...globalWorkflows] })
+	const managedSkills: RemoteConfigSetting[] = (controller.remoteConfigBundle?.managedInstructions || [])
+		.filter((instruction) => instruction.kind === "skill")
+		.map((skill) => ({
+			type: RemoteConfigType.SKILL,
+			name: skill.name,
+			content: skill.contents,
+			enabled: true, // TODO: Implement actual enabled state when toggle support is wired up
+			locked: Boolean(skill.alwaysEnabled),
+		}))
+
+	return RemoteConfigSettingsResponse.create({ settings: [...globalRules, ...globalWorkflows, ...managedSkills] })
 }
