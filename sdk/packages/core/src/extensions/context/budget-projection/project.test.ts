@@ -114,12 +114,9 @@ describe("buildBudgetProjection", () => {
 		});
 
 		expect(JSON.stringify(result.messages)).toContain("live-image");
-		expect(result.actions).toEqual(
+		expect(result.actions).not.toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({
-					kind: "preserved",
-					reason: "protected_live_tail",
-				}),
+				expect.objectContaining({ kind: "dropped_block" }),
 			]),
 		);
 	});
@@ -292,7 +289,7 @@ describe("buildBudgetProjection", () => {
 		);
 	});
 
-	it("clears thinking blocks after the message text budget is exhausted", () => {
+	it("drops thinking blocks instead of mutating provider-native reasoning", () => {
 		const result = buildBudgetProjection({
 			messages: [
 				{ role: "user", content: "latest typed prompt" },
@@ -313,6 +310,54 @@ describe("buildBudgetProjection", () => {
 			(message) => message.role === "assistant",
 		);
 		expect(JSON.stringify(assistant)).not.toContain("b".repeat(100));
+		expect(JSON.stringify(assistant)).not.toContain("\"thinking\"");
+		expect(result.actions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "dropped_block",
+					reason: "unsafe_to_truncate",
+				}),
+			]),
+		);
 	});
 
+	it("drops nested unsafe tool-result blocks outside the protected tail", () => {
+		const result = buildBudgetProjection({
+			messages: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool_old",
+							content: [
+								{ type: "text", text: "old output" },
+								{
+									type: "image",
+									data: "old-image-data",
+									mediaType: "image/png",
+								},
+							],
+						},
+					],
+				},
+				{ role: "user", content: "latest typed prompt" },
+			],
+			targetTokens: 1_000,
+			policyIntent: "agentic_summary",
+			estimateMessageTokens: estimateChars,
+		});
+
+		const serialized = JSON.stringify(result.messages);
+		expect(serialized).toContain("old output");
+		expect(serialized).not.toContain("old-image-data");
+		expect(result.actions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "dropped_block",
+					reason: "unsafe_to_truncate",
+				}),
+			]),
+		);
+	});
 });
