@@ -502,7 +502,7 @@
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.25.1",
+		"@modelcontextprotocol/sdk": "^1.26.0",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/core": "^2.1.0",
 		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
@@ -581,10 +581,10 @@
 		"turndown": "^7.2.0",
 		"ulid": "^2.4.0",
 		"undici": "^7.16.0",
-		"uuid": "^11.1.0",
+		"uuid": "^11.1.1",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.24.2"
+		"zod": "^4.4.0"
 	},
 	"overrides": {
 		"tar-fs": ">=3.1.1",
@@ -592,10 +592,11 @@
 		"vite": "^7.1.11",
 		"js-yaml": "^4.1.1",
 		"serialize-javascript": ">=7.0.3",
-		"protobufjs": "7.5.5",
+		"protobufjs": "7.5.6",
 		"mocha": {
 			"diff": ">=8.0.3"
-		}
+		},
+		"brace-expansion@<1.1.13": "1.1.13"
 	},
 	"c8": {
 		"reporter": [
