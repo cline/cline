@@ -1,5 +1,6 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
+import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
@@ -19,7 +20,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
-	const { isLoginLoading, handleSignIn } = useClineSignIn()
+	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
 
 	const renderErrorContent = () => {
 		switch (errorType) {
@@ -90,6 +91,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 										</span>
 									)}
 								</Button>
+								<ClineAuthStatus message={authStatusMessage} />
 							</div>
 						) : (
 							// Don't show sign in button after the user has logged in, just ask them to retry

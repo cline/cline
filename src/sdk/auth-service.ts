@@ -460,11 +460,11 @@ export class AuthService {
 			return ProtoString.create({ value: "Already authenticated" })
 		}
 
-		let resolveAuthUrl!: (url: string) => void
-		let rejectAuthUrl!: (error: unknown) => void
-		const authUrlPromise = new Promise<string>((resolve, reject) => {
-			resolveAuthUrl = resolve
-			rejectAuthUrl = reject
+		let resolveAuthMessage!: (message: string) => void
+		let rejectAuthMessage!: (error: unknown) => void
+		const authMessagePromise = new Promise<string>((resolve, reject) => {
+			resolveAuthMessage = resolve
+			rejectAuthMessage = reject
 		})
 
 		void (async () => {
@@ -472,18 +472,16 @@ export class AuthService {
 				const apiBaseUrl = ClineEnv.config().apiBaseUrl
 				const credentials = await loginClineOAuth({
 					apiBaseUrl,
-					// Fetch login URLs via redirect to support production/staging/local environments.
-					useWorkOSDeviceAuth: false,
+					// Use WorkOS device auth so the browser confirmation code can be surfaced in the extension.
+					useWorkOSDeviceAuth: true,
 					headers: await buildBasicClineHeaders(),
 					callbacks: createOAuthClientCallbacks({
 						onOutput: (message) => {
-							if (/^https?:\/\//.test(message)) {
-								resolveAuthUrl(message)
-							}
+							resolveAuthMessage(message)
 						},
 						onPrompt: async (prompt) => prompt.defaultValue ?? "",
 						openUrl: async (url: string) => {
-							resolveAuthUrl(url)
+							resolveAuthMessage(url)
 							await openExternal(url)
 						},
 						onOpenUrlError: ({ url, error }) => {
@@ -512,13 +510,13 @@ export class AuthService {
 					Logger.error("[SdkAuthService] Banner update failed after login", error)
 				})
 			} catch (error) {
-				rejectAuthUrl(error)
+				rejectAuthMessage(error)
 				Logger.error("[SdkAuthService] Cline OAuth login failed:", error)
 			}
 		})()
 
 		const { String: ProtoString } = await import("@shared/proto/cline/common")
-		return ProtoString.create({ value: await authUrlPromise })
+		return ProtoString.create({ value: await authMessagePromise })
 	}
 
 	/**
