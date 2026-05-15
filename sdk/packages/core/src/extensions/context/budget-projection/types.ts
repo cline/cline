@@ -87,6 +87,7 @@ export interface BudgetProjectionOptions {
 }
 
 export interface BudgetProjectionResult {
+	status: "ok" | "failed";
 	messages: MessageWithMetadata[];
 	actions: BudgetAction[];
 	liveTailHandling: LiveTailHandling;
