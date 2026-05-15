@@ -135,16 +135,22 @@ export const RunCommandsInputUnionSchema = z.union([
 	z.string(),
 ]);
 
-export const StructuredCommandInputSchema = z.object({
-	command: z
-		.string()
-		.min(1)
-		.describe("The executable to run directly without shell parsing."),
-	args: z
-		.array(z.string())
-		.optional()
-		.describe("Optional argv list passed directly to the executable."),
-}).strict();
+export const StructuredCommandInputSchema = z
+	.object({
+		command: z
+			.string()
+			.min(1)
+			.describe("The executable to run directly without shell parsing."),
+		args: z
+			.array(z.string())
+			.optional()
+			.describe("Optional argv list passed directly to the executable."),
+	})
+	.catchall(z.any())
+	.refine((input) => !("timeout" in input), {
+		message:
+			"Per-command timeout is not supported; provide timeout at the top level.",
+	});
 
 const DirectStructuredCommandInputSchema = z.object({
 	command: z

@@ -113,6 +113,14 @@ export function normalizeRunCommandsInput(
 	return normalizeValidatedRunCommandsInput(validate);
 }
 
+function normalizeStructuredCommandInput(
+	command: StructuredCommandInput,
+): StructuredCommandInput {
+	return command.args === undefined
+		? { command: command.command }
+		: { command: command.command, args: command.args };
+}
+
 export function normalizeValidatedRunCommandsInput(
 	validate: ReturnType<typeof StructuredCommandsInputUnionSchema.parse>,
 ): Array<string | StructuredCommandInput> {
@@ -121,17 +129,28 @@ export function normalizeValidatedRunCommandsInput(
 	}
 
 	if (Array.isArray(validate)) {
-		return validate;
+		return validate.map((command) =>
+			typeof command === "string"
+				? command
+				: normalizeStructuredCommandInput(command),
+		);
 	}
 
 	if ("commands" in validate) {
-		return Array.isArray(validate.commands)
+		const commands = Array.isArray(validate.commands)
 			? validate.commands
 			: [validate.commands];
+		return commands.map((command) =>
+			typeof command === "string"
+				? command
+				: normalizeStructuredCommandInput(command),
+		);
 	}
 
 	if ("command" in validate) {
-		return "args" in validate ? [validate] : [validate.command];
+		return "args" in validate
+			? [normalizeStructuredCommandInput(validate)]
+			: [validate.command];
 	}
 
 	if ("cmd" in validate) {

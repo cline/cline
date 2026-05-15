@@ -495,6 +495,11 @@ describe("default run_commands tool", () => {
 			]).success,
 		).toBe(false);
 		expect(
+			StructuredCommandsInputUnionSchema.safeParse({
+				commands: [{ command: "echo", args: ["hi"], cwd: "/tmp" }],
+			}).success,
+		).toBe(true);
+		expect(
 			StructuredCommandsInputUnionSchema.parse({
 				command: "echo",
 				args: ["hi"],
@@ -588,6 +593,7 @@ describe("default run_commands tool", () => {
 				commands: {
 					command: "node",
 					args: ["-e", "console.log('ok')"],
+					cwd: "/tmp",
 				},
 			} as never,
 			{
