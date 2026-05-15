@@ -44,10 +44,15 @@ interface BaseBudgetAction {
 	finalSize: number;
 }
 
-export interface BudgetMutationAction extends BaseBudgetAction {
-	kind: Exclude<BudgetActionKind, "preserved">;
-	reason: BudgetActionReason;
-}
+export type BudgetMutationAction =
+	| (BaseBudgetAction & {
+			kind: "truncated_text";
+			reason: Extract<BudgetActionReason, "over_budget">;
+	  })
+	| (BaseBudgetAction & {
+			kind: "dropped_block" | "dropped_message";
+			reason: Exclude<BudgetActionReason, "protected_live_tail">;
+	  });
 
 export interface BudgetPreservedAction extends BaseBudgetAction {
 	kind: "preserved";
@@ -59,8 +64,12 @@ export interface BudgetPreservedAction extends BaseBudgetAction {
 
 export type BudgetAction = BudgetMutationAction | BudgetPreservedAction;
 
+export type BudgetProjectionWarningCode =
+	| "budget_impossible"
+	| "budget_unachievable_with_protections";
+
 export interface BudgetProjectionWarning {
-	code: string;
+	code: BudgetProjectionWarningCode;
 	message: string;
 	path?: BudgetPath;
 }
