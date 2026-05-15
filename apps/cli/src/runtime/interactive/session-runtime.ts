@@ -594,11 +594,7 @@ export function createInteractiveSessionRuntime(input: {
 			result.compactionState,
 		);
 		if (!updated.updated) {
-			return {
-				messagesBefore,
-				messagesAfter: messagesBefore,
-				compacted: false,
-			};
+			throw new Error("Compaction could not be saved. Try again.");
 		}
 		return {
 			messagesBefore,

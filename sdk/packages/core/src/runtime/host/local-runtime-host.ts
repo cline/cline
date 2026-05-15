@@ -50,7 +50,10 @@ import {
 	sumUsageTotals,
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
-import type { SessionCompactionState } from "../../session/models/session-compaction";
+import {
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
@@ -1023,12 +1026,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const existing = activeSession ?? sessionRecord;
 		if (!existing) return { updated: false };
 		if (
-			!this.isCompactionStateForSession(
+			!(await this.canPersistCompactionState(
 				target,
 				state,
 				activeSession,
 				sessionRecord,
-			)
+			))
 		) {
 			return { updated: false };
 		}
@@ -1091,11 +1094,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 			: false;
 	}
 
+	private async canPersistCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+		activeSession?: ActiveSession,
+		sessionRecord?: SessionRecord,
+	): Promise<boolean> {
+		if (!state.conversation_id?.trim()) {
+			return false;
+		}
+		if (
+			!this.isCompactionStateForSession(
+				sessionId,
+				state,
+				activeSession,
+				sessionRecord,
+			)
+		) {
+			return false;
+		}
+		const sourceMessages =
+			activeSession?.agent.getMessages() ??
+			(await this.readSessionMessages(sessionId));
+		return projectSessionCompactionState(state, sourceMessages) !== undefined;
+	}
+
 	private async persistActiveSessionCompactionState(
 		session: ActiveSession,
 		state: SessionCompactionState,
 	): Promise<{ updated: boolean }> {
-		if (!this.isCompactionStateForSession(session.sessionId, state, session)) {
+		if (!(await this.canPersistCompactionState(session.sessionId, state, session))) {
 			return { updated: false };
 		}
 		return await this.enqueueCompactionStateWrite(session, async () => {
