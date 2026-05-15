@@ -1,4 +1,4 @@
-name: E2E Tests
+name: ext-vscode-test-e2e
 
 on:
     push:

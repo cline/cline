@@ -1,4 +1,4 @@
-name: Tests
+name: ext-vscode-test
 
 on:
     push:

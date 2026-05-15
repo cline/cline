@@ -1,4 +1,4 @@
-name: "Publish Release"
+name: ext-vscode-publish-stable
 
 on:
     workflow_dispatch:
@@ -29,7 +29,7 @@ permissions:
 
 jobs:
     test:
-        uses: ./.github/workflows/test.yml
+        uses: ./.github/workflows/ext-vscode-test.yml
 
     publish:
         needs: test

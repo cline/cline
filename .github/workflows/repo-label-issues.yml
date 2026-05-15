@@ -1,4 +1,4 @@
-name: Auto-label Issues
+name: repo-label-issues
 
 on:
   issues:
@@ -15,7 +15,7 @@ jobs:
           script: |
             const body = context.payload.issue.body || '';
             const labels = context.payload.issue.labels.map(l => l.name);
-            
+
             // Check if JetBrains Plugin is selected
             if (body.match(/###\s*Plugin Type\s*\n+JetBrains Plugin/i)) {
               if (!labels.includes('JetBrains')) {

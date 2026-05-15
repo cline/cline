@@ -1,4 +1,4 @@
-name: Publish Main SDK Packages
+name: sdk-publish
 
 on:
   workflow_dispatch:
