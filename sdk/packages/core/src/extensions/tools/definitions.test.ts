@@ -918,7 +918,9 @@ describe("default run_commands tool", () => {
 		);
 
 		expect(telemetry.capture).toHaveBeenCalled();
-		const timeoutCalls = (telemetry.capture as ReturnType<typeof vi.fn>).mock.calls
+		const timeoutCalls = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls
 			.map((call) => call[0])
 			.filter((event) => event.event === "sdk.tool_timeout");
 		expect(timeoutCalls).toHaveLength(2);
@@ -949,6 +951,74 @@ describe("default run_commands tool", () => {
 			expect(payload).not.toContain("env");
 			expect(call.properties).not.toHaveProperty("timeout_origin");
 		}
+	});
+
+	it("emits timeout telemetry for default-setting timeouts", async () => {
+		const execute = vi.fn(
+			async (): Promise<string> =>
+				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
+		);
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 5 });
+		const telemetry = createTelemetryStub();
+
+		await tool.execute({ commands: ["echo slow"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { telemetry },
+		});
+
+		const timeoutCalls = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls
+			.map((call) => call[0])
+			.filter((event) => event.event === "sdk.tool_timeout");
+		expect(timeoutCalls).toHaveLength(1);
+		expect(timeoutCalls[0]?.properties).toMatchObject({
+			effective_timeout_ms: 5,
+			timeout_source: "default_setting",
+		});
+		expect(timeoutCalls[0]?.properties).not.toHaveProperty("timeout_origin");
+	});
+
+	it("emits timeout telemetry for TimeoutError without matching plain error text", async () => {
+		const executorTimeout = vi.fn(async () => {
+			throw new TimeoutError("Command timed out after 5000ms");
+		});
+		const plainFailure = vi.fn(async () => {
+			throw new Error("Command timed out after 5000ms");
+		});
+		const telemetry = createTelemetryStub();
+
+		await createWindowsShellTool(executorTimeout, {
+			bashTimeoutMs: 5000,
+		}).execute({ commands: ["echo timeout"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { telemetry },
+		});
+		await createWindowsShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
+			{ commands: ["echo not-timeout"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				metadata: { telemetry },
+			},
+		);
+
+		const timeoutCalls = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls
+			.map((call) => call[0])
+			.filter((event) => event.event === "sdk.tool_timeout");
+		expect(timeoutCalls).toHaveLength(1);
+		expect(timeoutCalls[0]?.properties).toMatchObject({
+			effective_timeout_ms: 5000,
+			timeout_source: "default_setting",
+		});
+		expect(timeoutCalls[0]?.properties).not.toHaveProperty("timeout_origin");
 	});
 
 	it("does not emit timeout telemetry for normal command success", async () => {
@@ -988,9 +1058,9 @@ describe("default run_commands tool", () => {
 			(telemetry.capture as ReturnType<typeof vi.fn>).mock.calls
 				.map((call) => call[0])
 				.filter((event) => event.event === "sdk.tool_timeout"),
-			).toEqual([]);
-		});
+		).toEqual([]);
 	});
+});
 
 describe("default read_files tool", () => {
 	it("normalizes ranged file requests and passes them to the executor", async () => {

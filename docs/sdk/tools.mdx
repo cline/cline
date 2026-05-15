@@ -22,6 +22,33 @@ Tools are functions the model can call during execution. Tools consist of a name
 | `ask_question` | Ask the user for input |
 | `submit_and_exit` | Submit a final answer and stop |
 
+### `run_commands` timeout
+
+`run_commands` accepts an optional per-command `timeout` in milliseconds on structured command entries. Plain string commands use the configured default.
+
+```json
+{
+  "commands": [{ "command": "bun", "args": ["install"], "timeout": 120000 }]
+}
+```
+
+Defaults and bounds:
+
+- default: `30000` ms
+- minimum: `1000` ms
+- maximum: `3600000` ms
+- type: integer milliseconds
+- scope: per structured command entry
+
+Do not put `timeout` at the top level of the tool call. The `commands` array runs concurrently, so each command resolves its own timeout from `command.timeout` or the configured default.
+
+```json
+{
+  "commands": ["bun install"],
+  "timeout": 120000
+}
+```
+
 ### `run_commands` timeout telemetry
 
 When the built-in `run_commands` tool hits a timeout, the SDK emits a dedicated telemetry event:
