@@ -430,16 +430,16 @@ export function createInteractiveSessionRuntime(input: {
 		if (!manager || !sourceSessionId) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
+		const messages = (await manager.readMessages(sourceSessionId)) ?? [];
+		const messagesBefore = messages.length;
+		if (messagesBefore === 0) {
+			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
+		}
 		const sessionRecord = await manager.get(sourceSessionId);
 		if (sessionRecord?.status === "running") {
 			throw new Error(
 				"Cannot compact while the current turn is running. Wait for it to finish or abort it first.",
 			);
-		}
-		const messages = (await manager.readMessages(sourceSessionId)) ?? [];
-		const messagesBefore = messages.length;
-		if (messagesBefore === 0) {
-			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
 		let result: Awaited<ReturnType<typeof compactInteractiveMessages>>;
 		const abortController = new AbortController();
@@ -477,7 +477,7 @@ export function createInteractiveSessionRuntime(input: {
 		);
 		if (!updated.updated) {
 			throw new Error(
-				`Failed to update compaction state for ${sourceSessionId}.`,
+				"Compaction could not be saved; canonical history was left unchanged. Try /compact again.",
 			);
 		}
 		return {

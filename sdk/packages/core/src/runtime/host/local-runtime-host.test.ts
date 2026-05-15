@@ -4151,6 +4151,7 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
+				conversation_id: sessionId,
 				source_message_count: canonicalMessages.length,
 				messages: compactedMessages,
 			}),
@@ -4170,7 +4171,7 @@ describe("LocalRuntimeHost", () => {
 		const state = createSessionCompactionState({
 			sourceMessages,
 			compactedMessages,
-			conversationId: "conv-root-1",
+			conversationId: sessionId,
 		});
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -5198,7 +5199,10 @@ describe("LocalRuntimeHost", () => {
 		expect(result?.messages).toEqual(compactedMessages);
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
-			expect.objectContaining({ messages: compactedMessages }),
+			expect.objectContaining({
+				conversation_id: sessionId,
+				messages: compactedMessages,
+			}),
 		);
 	});
 

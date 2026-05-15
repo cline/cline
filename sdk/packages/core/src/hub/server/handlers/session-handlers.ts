@@ -45,6 +45,34 @@ function getCapabilityOwnerClientId(
 	return typeof owner === "string" && owner.trim() ? owner.trim() : undefined;
 }
 
+function authorizeSessionCompactionAccess(input: {
+	sessionId: string;
+	session: { metadata?: unknown };
+	ctx: HubTransportContext;
+	clientId: string;
+	envelope: HubCommandEnvelope;
+}): HubReplyEnvelope | undefined {
+	const ownerClientId =
+		getCapabilityOwnerClientId(
+			input.session.metadata as Record<string, unknown> | undefined,
+		) ?? input.ctx.sessionState.get(input.sessionId)?.createdByClientId;
+	if (!ownerClientId) {
+		return errorReply(
+			input.envelope,
+			"session_wrong_client",
+			`Session ${input.sessionId} has no authorized owner`,
+		);
+	}
+	if (ownerClientId !== input.clientId) {
+		return errorReply(
+			input.envelope,
+			"session_wrong_client",
+			`Session ${input.sessionId} is owned by ${ownerClientId}`,
+		);
+	}
+	return undefined;
+}
+
 export async function handleSessionCreate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -128,9 +156,7 @@ export async function handleSessionCreate(
 		cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
 		contributionCount: clientContributions.length,
 	});
-	if (clientContributions.length > 0) {
-		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
-	}
+	setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 	const requestedSessionId =
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
@@ -388,9 +414,7 @@ export async function handleSessionRestore(
 		const clientContributions = parseHubClientContributions(
 			runtimeOptions.clientContributions,
 		);
-		if (clientContributions.length > 0) {
-			setCapabilityOwner(metadata as Record<string, unknown>, clientId);
-		}
+		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 		const requestedSessionId =
 			typeof sessionConfig?.sessionId === "string"
 				? sessionConfig.sessionId.trim()
@@ -731,6 +755,17 @@ export async function handleSessionCompactionGet(
 			`Unknown session: ${sessionId}`,
 		);
 	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const unauthorized = authorizeSessionCompactionAccess({
+		sessionId,
+		session,
+		ctx,
+		clientId,
+		envelope,
+	});
+	if (unauthorized) {
+		return unauthorized;
+	}
 	const state = await ctx.sessionHost.readSessionCompactionState(sessionId);
 	return okReply(envelope, { sessionId, state });
 }
@@ -803,16 +838,15 @@ export async function handleSessionCompactionUpdate(
 			`Unknown session: ${sessionId}`,
 		);
 	}
-	const ownerClientId =
-		getCapabilityOwnerClientId(
-			session.metadata as Record<string, unknown> | undefined,
-		) ?? ctx.sessionState.get(sessionId)?.createdByClientId;
-	if (ownerClientId && ownerClientId !== clientId) {
-		return errorReply(
-			envelope,
-			"session_wrong_client",
-			`Session ${sessionId} is owned by ${ownerClientId}`,
-		);
+	const unauthorized = authorizeSessionCompactionAccess({
+		sessionId,
+		session,
+		ctx,
+		clientId,
+		envelope,
+	});
+	if (unauthorized) {
+		return unauthorized;
 	}
 	const payload =
 		envelope.payload && typeof envelope.payload === "object"
