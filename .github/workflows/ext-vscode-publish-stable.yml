@@ -88,7 +88,7 @@ jobs:
                       echo "Tag '$TAG' already exists at tested SHA. Continuing."
                     else
                       git config user.name "github-actions[bot]"
-                      git config user.email "github-actions[bot]@users.noreply.github.com"
+                      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                       git tag -a "$TAG" -m "VS Code ${TAG}" "$TESTED_SHA"
                       git push origin "$TAG_REF"
                       echo "Created and pushed tag '$TAG' from tested SHA $TESTED_SHA."

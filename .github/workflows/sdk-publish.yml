@@ -237,7 +237,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
 
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           for PKG in shared llms agents core sdk; do
             TAG="v${VERSION}-sdk-${PKG}"
@@ -260,7 +260,7 @@ jobs:
           TAG="v${BASE_VERSION}-sdk-nightly.${TIMESTAMP}"
 
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "SDK nightly ${NIGHTLY_VERSION} from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
           git push origin "refs/tags/${TAG}"
 

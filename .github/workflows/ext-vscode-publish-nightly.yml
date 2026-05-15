@@ -101,7 +101,7 @@ jobs:
           TAG="v${BASE_VERSION}-vscode-nightly.${TIMESTAMP}"
 
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "VS Code nightly from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
           # Use an explicit HTTPS remote with GH_TOKEN because checkout was run with
           # persist-credentials: false, so actions/checkout did not persist a git credential helper.
