@@ -18,7 +18,7 @@ function config(providerId = "deepseek", baseUrl = "https://api.deepseek.com/v1"
 		providerId,
 		baseUrl,
 		headers: {},
-		hasApiKey: false,
+		apiKeyLength: 0,
 		hasAccessToken: false,
 		hasRefreshToken: false,
 	})
@@ -64,7 +64,7 @@ describe("useProviderConfig", () => {
 				ProviderConfigResponse.create({
 					providerId: "deepseek",
 					headers: {},
-					hasApiKey: false,
+					apiKeyLength: 0,
 					hasAccessToken: false,
 					hasRefreshToken: false,
 					actSelection: {

@@ -1,24 +1,33 @@
-import { type ApiConfiguration, openAiModelInfoSafeDefaults } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
-import { type ProviderId, useExtensionState } from "@/context/ExtensionStateContext"
+import { type ProviderId } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
-type StringApiConfigurationKey = Exclude<
-	{
-		[K in keyof ApiConfiguration]: ApiConfiguration[K] extends string | undefined ? K : never
-	}[keyof ApiConfiguration],
-	undefined
->
+const SAVED_API_KEY_MASK_CHARACTER = "•"
+
+function maskedKey(apiKeyLength: number | undefined): string {
+	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))
+}
+
+function sanitizeApiKeyInput(value: string, savedMask: string): string | undefined {
+	if (!savedMask || !value.includes(SAVED_API_KEY_MASK_CHARACTER)) {
+		return value
+	}
+
+	if (value === savedMask) {
+		return undefined
+	}
+
+	return value.split(SAVED_API_KEY_MASK_CHARACTER).join("")
+}
 
 export interface GenericProviderBaseUrlFieldConfig {
-	field: StringApiConfigurationKey
 	label?: string
 	placeholder?: string
 }
@@ -26,17 +35,12 @@ export interface GenericProviderBaseUrlFieldConfig {
 export interface GenericProviderSettingsProps {
 	providerId: ProviderId
 	providerName: string
-	apiKeyField: StringApiConfigurationKey
 	signupUrl?: string
 	baseUrlField?: GenericProviderBaseUrlFieldConfig
 	allowsCustomIds: boolean
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
-}
-
-function stringValue(value: unknown): string {
-	return typeof value === "string" ? value : ""
 }
 
 /**
@@ -48,7 +52,6 @@ function stringValue(value: unknown): string {
 export const GenericProviderSettings = ({
 	providerId,
 	providerName,
-	apiKeyField,
 	signupUrl,
 	baseUrlField,
 	allowsCustomIds,
@@ -56,12 +59,11 @@ export const GenericProviderSettings = ({
 	isPopup,
 	currentMode,
 }: GenericProviderSettingsProps) => {
-	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(providerId)
-	const { config, commitSelection } = useProviderConfig(providerId)
+	const { config, write, commitSelection } = useProviderConfig(providerId)
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
+
 	const selectedModel: ModelPickerSelection =
 		committedSelection?.modelInfo !== undefined
 			? {
@@ -81,20 +83,36 @@ export const GenericProviderSettings = ({
 		)
 	}
 
+	const savedApiKeyMask = maskedKey(config?.apiKeyLength)
+
+	const handleApiKeyChanged = (value: string) => {
+		const apiKey = sanitizeApiKeyInput(value, savedApiKeyMask)
+
+		if (apiKey === undefined) {
+			return
+		}
+
+		void write({ apiKey }).catch((err) => console.error(`Failed to update ${providerName} API key:`, err))
+	}
+	const handleBaseUrlChange = (value: string) => {
+		void write({ baseUrl: value }).catch((err) => console.error(`Failed to update ${providerName} base URL:`, err))
+	}
+
 	return (
 		<div>
 			<ApiKeyField
-				initialValue={stringValue(apiConfiguration?.[apiKeyField])}
-				onChange={(value) => handleFieldChange(apiKeyField, value)}
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChanged}
+				placeholder="Enter API Key..."
 				providerName={providerName}
 				signupUrl={signupUrl}
 			/>
 
 			{baseUrlField && (
 				<BaseUrlField
-					initialValue={stringValue(apiConfiguration?.[baseUrlField.field]) || undefined}
+					initialValue={config?.baseUrl}
 					label={baseUrlField.label}
-					onChange={(value) => handleFieldChange(baseUrlField.field, value)}
+					onChange={handleBaseUrlChange}
 					placeholder={baseUrlField.placeholder}
 				/>
 			)}

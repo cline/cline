@@ -1,15 +1,9 @@
 import { ApiFormat } from "@shared/proto/cline/models"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { GenericProviderSettings } from "./GenericProviderSettings"
-
-vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: vi.fn(),
-}))
 
 vi.mock("@/hooks/useProviderModels", () => ({
 	useProviderModels: vi.fn(),
@@ -19,22 +13,10 @@ vi.mock("@/hooks/useProviderConfig", () => ({
 	useProviderConfig: vi.fn(),
 }))
 
-vi.mock("../utils/useApiConfigurationHandlers", () => ({
-	useApiConfigurationHandlers: vi.fn(),
-}))
-
 describe("GenericProviderSettings", () => {
 	it("renders catalog-backed provider settings and commits full model selections", async () => {
 		const commitSelection = vi.fn(async () => undefined)
-		vi.mocked(useExtensionState).mockReturnValue({
-			apiConfiguration: { deepSeekApiKey: "existing-key" },
-		} as ReturnType<typeof useExtensionState>)
-		vi.mocked(useApiConfigurationHandlers).mockReturnValue({
-			handleFieldChange: vi.fn(),
-			handleFieldsChange: vi.fn(),
-			handleModeFieldChange: vi.fn(),
-			handleModeFieldsChange: vi.fn(),
-		})
+		const write = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
 			models: {
 				"deepseek-chat": { name: "DeepSeek Chat", supportsPromptCache: true, contextWindow: 128_000 },
@@ -54,14 +36,13 @@ describe("GenericProviderSettings", () => {
 		})
 		vi.mocked(useProviderConfig).mockReturnValue({
 			config: undefined,
-			write: vi.fn(),
+			write,
 			commitSelection,
 		})
 
 		render(
 			<GenericProviderSettings
 				allowsCustomIds={false}
-				apiKeyField="deepSeekApiKey"
 				currentMode="act"
 				providerId="deepseek"
 				providerName="DeepSeek"
@@ -82,17 +63,117 @@ describe("GenericProviderSettings", () => {
 		expect(useProviderConfig).toHaveBeenCalledWith("deepseek")
 	})
 
-	it("can render and update an optional base URL field", async () => {
-		const handleFieldChange = vi.fn()
-		vi.mocked(useExtensionState).mockReturnValue({
-			apiConfiguration: { geminiApiKey: "", geminiBaseUrl: "https://custom.example" },
-		} as ReturnType<typeof useExtensionState>)
-		vi.mocked(useApiConfigurationHandlers).mockReturnValue({
-			handleFieldChange,
-			handleFieldsChange: vi.fn(),
-			handleModeFieldChange: vi.fn(),
-			handleModeFieldsChange: vi.fn(),
+	it("shows saved API keys as masked and does not clear them on mount", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
 		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 12 } as any, write, commitSelection: vi.fn() })
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByDisplayValue("••••••••••••")
+		await new Promise((resolve) => setTimeout(resolve, 150))
+		expect(write).not.toHaveBeenCalled()
+
+		fireEvent.input(apiKeyInput, { target: { value: "new-secret" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "new-secret" }))
+	})
+
+	it("does not persist mask characters when editing a saved API key", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 7 } as any, write, commitSelection: vi.fn() })
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		fireEvent.input(screen.getByDisplayValue("•••••••"), { target: { value: "•••••••f" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "f" }), { timeout: 1_000 })
+		expect(write).not.toHaveBeenCalledWith({ apiKey: "•••••••f" })
+	})
+
+	it("does not replace in-progress API key typing when saved key length rerenders", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 0 } as any, write, commitSelection: vi.fn() })
+
+		const { rerender } = render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.focus(apiKeyInput)
+		fireEvent.input(apiKeyInput, { target: { value: "max" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "max" }))
+
+		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 3 } as any, write, commitSelection: vi.fn() })
+		rerender(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		expect(apiKeyInput).toHaveValue("max")
+
+		fireEvent.input(apiKeyInput, { target: { value: "maxpaulus" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "maxpaulus" }))
+		expect(write).not.toHaveBeenCalledWith({ apiKey: "lus" })
+	})
+
+	it("can render and update an optional base URL field through provider config", async () => {
+		const write = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
 			models: {
 				"gemini-3.1-pro-preview": {
@@ -109,14 +190,16 @@ describe("GenericProviderSettings", () => {
 			refresh: vi.fn(),
 			fingerprint: "fingerprint",
 		})
-		vi.mocked(useProviderConfig).mockReturnValue({ config: undefined, write: vi.fn(), commitSelection: vi.fn() })
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: { baseUrl: "https://custom.example", apiKeyLength: 0 } as any,
+			write,
+			commitSelection: vi.fn(),
+		})
 
 		render(
 			<GenericProviderSettings
 				allowsCustomIds={false}
-				apiKeyField="geminiApiKey"
 				baseUrlField={{
-					field: "geminiBaseUrl",
 					label: "Use custom base URL",
 					placeholder: "Default: https://generativelanguage.googleapis.com",
 				}}
@@ -130,6 +213,6 @@ describe("GenericProviderSettings", () => {
 		const baseUrlInput = screen.getByPlaceholderText("Default: https://generativelanguage.googleapis.com")
 		fireEvent.input(baseUrlInput, { target: { value: "https://new.example" } })
 
-		await waitFor(() => expect(handleFieldChange).toHaveBeenCalledWith("geminiBaseUrl", "https://new.example"))
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "https://new.example" }))
 	})
 })

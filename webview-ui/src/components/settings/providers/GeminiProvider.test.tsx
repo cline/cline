@@ -53,7 +53,7 @@ describe("GeminiProvider", () => {
 			config: {
 				providerId: "gemini",
 				headers: {},
-				hasApiKey: false,
+				apiKeyLength: 0,
 				hasAccessToken: false,
 				hasRefreshToken: false,
 				actSelection: {

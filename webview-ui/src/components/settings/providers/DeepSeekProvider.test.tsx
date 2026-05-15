@@ -49,7 +49,7 @@ describe("DeepSeekProvider", () => {
 			config: {
 				providerId: "deepseek",
 				headers: {},
-				hasApiKey: false,
+				apiKeyLength: 0,
 				hasAccessToken: false,
 				hasRefreshToken: false,
 				actSelection: {

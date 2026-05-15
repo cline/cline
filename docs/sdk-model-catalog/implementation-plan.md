@@ -400,7 +400,7 @@ Uncomment each and confirm the call site compiles against the contract. If anyth
 - Edit `proto/cline/models.proto`. Add:
   - `rpc listProviders(Empty) returns (ProviderListingsResponse);`
   - `rpc resolveProviderModels(ResolveProviderModelsRequest) returns (ProviderModelsResponse);` (carries `provider_id`, `force_refresh`, returns models + default + source + `config_fingerprint`)
-  - `rpc readProviderConfig(StringRequest) returns (ProviderConfigResponse);` (provider_id; returns redacted effective config — fields safe to display, with secrets booleanized to `has_api_key`/`has_access_token`)
+  - `rpc readProviderConfig(StringRequest) returns (ProviderConfigResponse);` (provider_id; returns redacted effective config — fields safe to display, with secrets summarized as `api_key_length`/`has_access_token`)
   - `rpc writeProviderConfig(WriteProviderConfigRequest) returns (ProviderConfigResponse);` (provider_id + patch; returns the updated redacted config)
   - `rpc commitModelSelection(CommitModelSelectionRequest) returns (Empty);` (provider_id, mode, model_id, model_info)
 - The `ProviderModelsResponse` carries full `ModelInfo` (context window, pricing, capabilities). **This is the lesson from Max's commit: the proto must not impoverish the data.**
