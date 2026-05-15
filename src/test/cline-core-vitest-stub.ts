@@ -65,7 +65,12 @@ export async function resolveProviderConfig(
 ) {
 	const knownModels = getGeneratedModelsForProvider(providerId)
 	const requestedModelId = providerConfig?.modelId?.trim()
-	const defaultModelId = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.defaultModelId
+	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
+	const manifestDefaultModelId = collection?.provider.defaultModelId
+	const defaultModelId =
+		manifestDefaultModelId && knownModels[manifestDefaultModelId]
+			? manifestDefaultModelId
+			: Object.keys(knownModels)[0] || Object.keys(collection?.models ?? {})[0]
 	const modelId = requestedModelId && knownModels[requestedModelId] ? requestedModelId : defaultModelId
 	return { modelId, knownModels }
 }

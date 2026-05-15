@@ -9,7 +9,7 @@
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
 import { type ClineCoreStartInput, type CoreSessionConfig, type ProviderSettings, type StartSessionResult } from "@cline/core"
-import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -260,7 +260,18 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 const DEFAULT_PROVIDER_ID = "cline"
 
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
-	return MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.defaultModelId?.trim() || undefined
+	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
+	if (!collection) {
+		return undefined
+	}
+
+	const generatedModels = getGeneratedModelsForProvider(providerId)
+	const defaultModelId = collection.provider.defaultModelId?.trim()
+	if (defaultModelId && (generatedModels[defaultModelId] || collection.models?.[defaultModelId])) {
+		return defaultModelId
+	}
+
+	return Object.keys(generatedModels)[0] || Object.keys(collection.models ?? {})[0] || undefined
 }
 
 // ---------------------------------------------------------------------------
