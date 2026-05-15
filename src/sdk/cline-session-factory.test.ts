@@ -57,6 +57,10 @@ describe("getDefaultModelIdForProvider", () => {
 		expect(getDefaultModelIdForProvider("cline")).toBe("anthropic/claude-sonnet-4.6")
 	})
 
+	it("falls back to the first generated model when the SDK manifest default is not in the model catalog", () => {
+		expect(getDefaultModelIdForProvider("gemini")).toBe("gemini-3.1-flash-lite")
+	})
+
 	it("returns undefined for unknown providers", () => {
 		expect(getDefaultModelIdForProvider("unknown-provider")).toBeUndefined()
 	})
