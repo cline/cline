@@ -17,6 +17,7 @@ interface ProjectionPolicy {
 	protectLatestTypedUser: boolean;
 	protectLiveTailFromDrop: boolean;
 	dropUnsafeOutsideLiveTail: boolean;
+	dropThinkingBlocks: boolean;
 }
 
 function resolveProjectionPolicy(
@@ -29,12 +30,14 @@ function resolveProjectionPolicy(
 				protectLatestTypedUser: true,
 				protectLiveTailFromDrop: true,
 				dropUnsafeOutsideLiveTail: true,
+				dropThinkingBlocks: true,
 			};
 		case "normal_provider_request":
 			return {
 				protectLatestTypedUser: true,
 				protectLiveTailFromDrop: true,
 				dropUnsafeOutsideLiveTail: false,
+				dropThinkingBlocks: false,
 			};
 	}
 }
@@ -148,6 +151,23 @@ function isUnsafeBlock(block: ContentBlock): boolean {
 	return block.type === "image" || block.type === "redacted_thinking";
 }
 
+function isNestedUnsafeToolResultBlock(
+	block: Extract<ToolResultContent["content"], unknown[]>[number],
+): boolean {
+	return block.type === "image";
+}
+
+function shouldDropWholeBlock(
+	block: ContentBlock,
+	policy: ProjectionPolicy,
+	isProtected: boolean,
+): boolean {
+	if (policy.dropThinkingBlocks && block.type === "thinking") {
+		return true;
+	}
+	return policy.dropUnsafeOutsideLiveTail && !isProtected && isUnsafeBlock(block);
+}
+
 function pruneEmptyMessages(
 	messages: MessageWithMetadata[],
 	originalIndexes: number[],
@@ -178,6 +198,67 @@ function dropUnsafeBlocks(
 	originalIndexes: number[],
 	actions: BudgetAction[],
 	protectedStartIndex: number,
+	policy: ProjectionPolicy,
+): MessageWithMetadata[] {
+	return messages.map((message, messageIndex) => {
+		if (!Array.isArray(message.content)) {
+			return message;
+		}
+		let changed = false;
+		const protectedBlock =
+			protectedStartIndex >= 0 && messageIndex >= protectedStartIndex;
+		const content = message.content.flatMap((block, blockIndex) => {
+			if (shouldDropWholeBlock(block, policy, protectedBlock)) {
+				changed = true;
+				actions.push({
+					kind: "dropped_block",
+					path: { messageIndex: originalIndexes[messageIndex], blockIndex },
+					reason: "unsafe_to_truncate",
+					originalSize: safeJsonSize(block),
+					finalSize: 0,
+				});
+				return [];
+			}
+			if (block.type === "tool_result" && Array.isArray(block.content)) {
+				const nestedContent = block.content.filter((nestedBlock) => {
+					if (
+						policy.dropUnsafeOutsideLiveTail &&
+						!protectedBlock &&
+						isNestedUnsafeToolResultBlock(nestedBlock)
+					) {
+						return false;
+					}
+					return true;
+				});
+				if (nestedContent.length !== block.content.length) {
+					changed = true;
+					const nextBlock = { ...block, content: nestedContent };
+					actions.push({
+						kind: "dropped_block",
+						path: { messageIndex: originalIndexes[messageIndex], blockIndex },
+						reason: "unsafe_to_truncate",
+						originalSize: safeJsonSize(block),
+						finalSize: safeJsonSize(nextBlock),
+					});
+					return [nextBlock];
+				}
+			}
+			if (!isUnsafeBlock(block)) {
+				return [block];
+			}
+			if (protectedBlock) {
+				return [block];
+			}
+			return [block];
+		});
+		return changed ? { ...message, content } : message;
+	});
+}
+
+function dropThinkingBlocks(
+	messages: MessageWithMetadata[],
+	originalIndexes: number[],
+	actions: BudgetAction[],
 ): MessageWithMetadata[] {
 	return messages.map((message, messageIndex) => {
 		if (!Array.isArray(message.content)) {
@@ -185,17 +266,7 @@ function dropUnsafeBlocks(
 		}
 		let changed = false;
 		const content = message.content.filter((block, blockIndex) => {
-			if (!isUnsafeBlock(block)) {
-				return true;
-			}
-			if (protectedStartIndex >= 0 && messageIndex >= protectedStartIndex) {
-				actions.push({
-					kind: "preserved",
-					path: { messageIndex: originalIndexes[messageIndex], blockIndex },
-					reason: "protected_live_tail",
-					originalSize: safeJsonSize(block),
-					finalSize: safeJsonSize(block),
-				});
+			if (block.type !== "thinking") {
 				return true;
 			}
 			changed = true;
@@ -211,6 +282,7 @@ function dropUnsafeBlocks(
 		return changed ? { ...message, content } : message;
 	});
 }
+
 
 function truncateText(text: string, maxChars: number): string {
 	if (maxChars <= 0) {
@@ -293,9 +365,6 @@ function truncateMessageText(
 				if (block.type === "file") {
 					return { ...block, content: "" };
 				}
-				if (block.type === "thinking") {
-					return { ...block, thinking: "" };
-				}
 				return block;
 			}
 			if (block.type === "text") {
@@ -307,11 +376,6 @@ function truncateMessageText(
 				const content = truncateText(block.content, remaining);
 				remaining -= content.length;
 				return { ...block, content };
-			}
-			if (block.type === "thinking") {
-				const thinking = truncateText(block.thinking, remaining);
-				remaining -= thinking.length;
-				return { ...block, thinking };
 			}
 			if (block.type === "tool_result") {
 				const content = truncateToolResultContent(block.content, remaining);
@@ -331,7 +395,6 @@ function hasTruncatableText(message: MessageWithMetadata): boolean {
 		(block) =>
 			block.type === "text" ||
 			block.type === "file" ||
-			block.type === "thinking" ||
 			block.type === "tool_result",
 	);
 }
@@ -389,42 +452,41 @@ export function buildBudgetProjection(
 
 	let messages = cloneMessages(options.messages);
 	let originalIndexes = messages.map((_, index) => index);
+	const protectedStartIndex = policy.protectLatestTypedUser
+		? findLatestTypedUserMessageIndex(messages)
+		: -1;
+	if (policy.dropThinkingBlocks) {
+		const prunedThinking = pruneEmptyMessages(
+			dropThinkingBlocks(messages, originalIndexes, actions),
+			originalIndexes,
+			actions,
+		);
+		messages = prunedThinking.messages;
+		originalIndexes = prunedThinking.originalIndexes;
+	}
+	if (policy.dropUnsafeOutsideLiveTail) {
+		const prunedUnsafe = pruneEmptyMessages(
+			dropUnsafeBlocks(
+				messages,
+				originalIndexes,
+				actions,
+				protectedStartIndex,
+				policy,
+			),
+			originalIndexes,
+			actions,
+		);
+		messages = prunedUnsafe.messages;
+		originalIndexes = prunedUnsafe.originalIndexes;
+	}
 	let estimatedTokens = totalTokens(messages, options.estimateMessageTokens);
 	if (estimatedTokens <= options.targetTokens) {
 		return {
 			status: "ok",
 			messages,
 			actions,
-			liveTailHandling: "included_verbatim",
-			estimatedTokens,
-			warnings,
-		};
-	}
-
-	const protectedStartIndex = policy.protectLatestTypedUser
-		? findLatestTypedUserMessageIndex(messages)
-		: -1;
-	const pruned = pruneEmptyMessages(
-		policy.dropUnsafeOutsideLiveTail
-			? dropUnsafeBlocks(
-					messages,
-					originalIndexes,
-					actions,
-					protectedStartIndex,
-				)
-			: messages,
-		originalIndexes,
-		actions,
-	);
-	messages = pruned.messages;
-	originalIndexes = pruned.originalIndexes;
-	estimatedTokens = totalTokens(messages, options.estimateMessageTokens);
-	if (estimatedTokens <= options.targetTokens) {
-		return {
-			status: "ok",
-			messages,
-			actions,
-			liveTailHandling: "included_degraded",
+			liveTailHandling:
+				actions.length > 0 ? "included_degraded" : "included_verbatim",
 			estimatedTokens,
 			warnings,
 		};
