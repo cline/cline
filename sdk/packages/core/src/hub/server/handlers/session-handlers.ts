@@ -42,6 +42,10 @@ function getCapabilityOwnerClientId(
 	ctx: HubTransportContext,
 	sessionId: string,
 ): string | undefined {
+	// Compaction sidecar access is intentionally tied to live hub session
+	// ownership, not mutable persisted metadata. Sessions restored after the
+	// hub forgets their live owner must be recreated or backfilled before using
+	// these owner-scoped sidecar endpoints.
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 

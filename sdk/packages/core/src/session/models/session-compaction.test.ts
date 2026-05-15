@@ -111,4 +111,18 @@ describe("session compaction state", () => {
 			]),
 		).toBeUndefined();
 	});
+
+	it("rejects malformed sidecar timestamps", () => {
+		const state = parseSessionCompactionState({
+			version: 1,
+			updated_at: "not-a-date",
+			source_message_count: 1,
+			source_prefix_hash: "sha256:test",
+			messages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+		});
+
+		expect(state).toBeUndefined();
+	});
 });

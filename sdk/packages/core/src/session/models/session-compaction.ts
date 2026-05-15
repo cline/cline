@@ -24,7 +24,7 @@ const MessageWithMetadataSchema = z.custom<MessageWithMetadata>(
 
 export const SessionCompactionStateSchema = z.object({
 	version: z.literal(1),
-	updated_at: z.string().min(1),
+	updated_at: z.string().datetime(),
 	conversation_id: z.string().min(1).optional(),
 	source_message_count: z.number().int().nonnegative(),
 	source_prefix_hash: z.string().min(1).optional(),
