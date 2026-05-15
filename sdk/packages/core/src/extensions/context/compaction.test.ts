@@ -1459,7 +1459,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages.length).toBeLessThan(4);
 	});
 
-	it("preserves user image blocks during basic compaction sanitization", () => {
+	it("drops old user image blocks during basic compaction sanitization", () => {
 		const messages: LlmsProviders.Message[] = [
 			{
 				role: "user",
@@ -1495,7 +1495,6 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages).toBeDefined();
 		expect(result?.messages[0]?.content).toEqual([
 			{ type: "text", text: "Older user turn" },
-			{ type: "image", data: "abc", mediaType: "image/png" },
 		]);
 		expect(result?.messages.at(-1)).toEqual({
 			role: "user",
