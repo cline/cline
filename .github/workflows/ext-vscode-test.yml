@@ -52,7 +52,7 @@ jobs:
                           - '.mocharc.json'
                           - '.nycrc*.json'
                           - '.vscode-test.mjs'
-                          - '.github/workflows/test.yml'
+                          - '.github/workflows/ext-vscode-test.yml'
                       testing_platform:
                           - 'src/**'
                           - 'proto/**'
@@ -66,7 +66,7 @@ jobs:
                           - 'scripts/download-ripgrep.mjs'
                           - 'scripts/package-standalone.mjs'
                           - 'scripts/testing-platform-orchestrator.ts'
-                          - '.github/workflows/test.yml'
+                          - '.github/workflows/ext-vscode-test.yml'
 
     quality-checks:
         needs: detect-changes

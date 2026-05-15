@@ -52,7 +52,7 @@ jobs:
                           - '.mocharc.json'
                           - '.vscode-test.mjs'
                           - 'playwright*.ts'
-                          - '.github/workflows/e2e.yml'
+                          - '.github/workflows/ext-vscode-test-e2e.yml'
 
     matrix_prep:
         needs: detect-changes
