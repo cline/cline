@@ -83,6 +83,13 @@ export interface CoreCompactionSummarizerConfig {
 	apiKey?: string;
 	baseUrl?: string;
 	headers?: Record<string, string>;
+	/**
+	 * Optional pre-resolved model metadata for the summarizer. Supplying either
+	 * this or `knownModels` lets agentic compaction budget summary input against
+	 * the summarizer model's actual context window instead of falling back to the
+	 * active model's window.
+	 */
+	modelInfo?: ModelInfo;
 	knownModels?: Record<string, ModelInfo>;
 	providerConfig?: ProviderConfig;
 	maxOutputTokens?: number;
