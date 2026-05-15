@@ -1,6 +1,6 @@
 import { Mode } from "@shared/storage/types"
 import { GenericProviderSettings } from "./GenericProviderSettings"
-import { GENERIC_PROVIDER_SETTINGS } from "./providerSettingsRegistry"
+import { getFallbackGenericProviderSettings } from "./providerSettingsRegistry"
 
 /**
  * Props for the GeminiProvider component
@@ -17,7 +17,7 @@ interface GeminiProviderProps {
 export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: GeminiProviderProps) => {
 	return (
 		<GenericProviderSettings
-			{...GENERIC_PROVIDER_SETTINGS.gemini}
+			{...getFallbackGenericProviderSettings("gemini")}
 			currentMode={currentMode}
 			isPopup={isPopup}
 			showModelOptions={showModelOptions}

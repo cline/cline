@@ -10,6 +10,7 @@ import { normalizeApiConfiguration } from "@/components/settings/utils/providerU
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderListings } from "@/hooks/useProviderListings"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
@@ -101,7 +102,12 @@ const ApiOptions = ({
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
-	const genericProviderSettings = getGenericProviderSettings(selectedProvider)
+	const { providers: catalogProviderListings } = useProviderListings()
+	const catalogProviderListing = useMemo(
+		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
+		[catalogProviderListings, selectedProvider],
+	)
+	const genericProviderSettings = getGenericProviderSettings(selectedProvider, catalogProviderListing)
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -426,11 +432,11 @@ const ApiOptions = ({
 				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
+			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && !genericProviderSettings && (
 				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "sambanova" && (
+			{apiConfiguration && selectedProvider === "sambanova" && !genericProviderSettings && (
 				<SambanovaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
@@ -446,16 +452,16 @@ const ApiOptions = ({
 				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "fireworks" && (
+			{apiConfiguration && selectedProvider === "fireworks" && !genericProviderSettings && (
 				<FireworksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
 
-			{apiConfiguration && selectedProvider === "groq" && (
+			{apiConfiguration && selectedProvider === "groq" && !genericProviderSettings && (
 				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
-			{apiConfiguration && selectedProvider === "baseten" && (
+			{apiConfiguration && selectedProvider === "baseten" && !genericProviderSettings && (
 				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
@@ -474,11 +480,11 @@ const ApiOptions = ({
 				<MoonshotProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "huggingface" && (
+			{apiConfiguration && selectedProvider === "huggingface" && !genericProviderSettings && (
 				<HuggingFaceProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "nebius" && (
+			{apiConfiguration && selectedProvider === "nebius" && !genericProviderSettings && (
 				<NebiusProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
@@ -490,7 +496,7 @@ const ApiOptions = ({
 				<XaiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "cerebras" && (
+			{apiConfiguration && selectedProvider === "cerebras" && !genericProviderSettings && (
 				<CerebrasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 

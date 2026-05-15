@@ -1,6 +1,6 @@
 import { Mode } from "@shared/storage/types"
 import { GenericProviderSettings } from "./GenericProviderSettings"
-import { GENERIC_PROVIDER_SETTINGS } from "./providerSettingsRegistry"
+import { getFallbackGenericProviderSettings } from "./providerSettingsRegistry"
 
 /**
  * Props for the DeepSeekProvider component
@@ -17,7 +17,7 @@ interface DeepSeekProviderProps {
 export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: DeepSeekProviderProps) => {
 	return (
 		<GenericProviderSettings
-			{...GENERIC_PROVIDER_SETTINGS.deepseek}
+			{...getFallbackGenericProviderSettings("deepseek")}
 			currentMode={currentMode}
 			isPopup={isPopup}
 			showModelOptions={showModelOptions}
