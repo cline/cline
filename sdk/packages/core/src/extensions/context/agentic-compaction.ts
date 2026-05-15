@@ -7,6 +7,10 @@ import type {
 } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 import {
+	buildBudgetProjection,
+	type BudgetProjectionResult,
+} from "./budget-projection";
+import {
 	buildSummaryMessage,
 	buildSummaryRequest,
 	type EstimateMessageTokens,
@@ -19,6 +23,43 @@ import {
 	resolveSummarizerConfig,
 	serializeConversation,
 } from "./compaction-shared";
+
+const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
+
+function resolveProviderMaxInputTokens(
+	providerConfig: ProviderConfig,
+): number | undefined {
+	const explicit = providerConfig.maxInputTokens;
+	if (typeof explicit === "number" && Number.isFinite(explicit)) {
+		return explicit;
+	}
+	const modelInfoLimit =
+		providerConfig.modelInfo?.maxInputTokens ??
+		providerConfig.modelInfo?.contextWindow;
+	if (typeof modelInfoLimit === "number" && Number.isFinite(modelInfoLimit)) {
+		return modelInfoLimit;
+	}
+	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
+	const knownModelLimit =
+		knownModelInfo?.maxInputTokens ?? knownModelInfo?.contextWindow;
+	if (typeof knownModelLimit === "number" && Number.isFinite(knownModelLimit)) {
+		return knownModelLimit;
+	}
+	return undefined;
+}
+
+export function buildAgenticSummaryInputBudget(options: {
+	messages: CoreCompactionContext["messages"];
+	targetTokens: number;
+	estimateMessageTokens: EstimateMessageTokens;
+}): BudgetProjectionResult {
+	return buildBudgetProjection({
+		messages: options.messages,
+		targetTokens: Math.max(1, options.targetTokens),
+		policyIntent: "agentic_summary",
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+}
 
 async function generateSummary(options: {
 	providerConfig: ProviderConfig;
@@ -93,7 +134,51 @@ export async function runAgenticCompaction(options: {
 	}
 
 	const fileOps = extractFileOps(messagesToSummarize);
-	const conversationText = serializeConversation(newMessagesToFold);
+	const summarizerProviderConfig = resolveSummarizerConfig({
+		activeProviderConfig: options.providerConfig,
+		summarizer: options.summarizer,
+	});
+	const summarizerInputLimit =
+		resolveProviderMaxInputTokens(summarizerProviderConfig) ??
+		Math.max(
+			options.context.maxInputTokens,
+			options.context.triggerTokens,
+			MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
+		);
+	const summaryRequestOverheadTokens = estimateTokens(
+		buildSummaryRequest({
+			previousSummary,
+			conversationText: "",
+			fileOps,
+		}).length,
+	);
+	const availableSummaryInputTokens =
+		summarizerInputLimit - summaryRequestOverheadTokens;
+	if (availableSummaryInputTokens <= 0) {
+		options.logger?.debug("Skipped agentic compaction: summarizer budget exhausted", {
+			summarizerProviderId: summarizerProviderConfig.providerId,
+			summarizerModelId: summarizerProviderConfig.modelId,
+			summarizerInputLimit,
+			summaryRequestOverheadTokens,
+		});
+		return undefined;
+	}
+	const summaryInputBudget = buildAgenticSummaryInputBudget({
+		messages: newMessagesToFold,
+		targetTokens: availableSummaryInputTokens,
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+	if (summaryInputBudget.status === "failed") {
+		options.logger?.debug("Skipped agentic compaction: summary input budget failed", {
+			budgetWarnings: summaryInputBudget.warnings.map(
+				(warning) => warning.code,
+			),
+			summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
+			targetTokens: availableSummaryInputTokens,
+		});
+		return undefined;
+	}
+	const conversationText = serializeConversation(summaryInputBudget.messages);
 	const summaryRequest = buildSummaryRequest({
 		previousSummary,
 		conversationText,
@@ -108,14 +193,20 @@ export async function runAgenticCompaction(options: {
 		summaryRequestChars: summaryRequest.length,
 		summaryRequestEstimatedTokens: estimateTokens(summaryRequest.length),
 		newMessagesJsonChars: safeJsonSize(newMessagesToFold),
+		summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
+		summaryInputActions: summaryInputBudget.actions.length,
+		summaryInputWarnings: summaryInputBudget.warnings.map(
+			(warning) => warning.code,
+		),
+		summaryRequestOverheadTokens,
+		summarizerProviderId: summarizerProviderConfig.providerId,
+		summarizerModelId: summarizerProviderConfig.modelId,
+		summarizerInputLimit,
 		maxInputTokens: options.context.maxInputTokens,
 		triggerTokens: options.context.triggerTokens,
 	});
 	const rawSummary = await generateSummary({
-		providerConfig: resolveSummarizerConfig({
-			activeProviderConfig: options.providerConfig,
-			summarizer: options.summarizer,
-		}),
+		providerConfig: summarizerProviderConfig,
 		request: summaryRequest,
 		logger: options.logger,
 	});
