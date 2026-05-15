@@ -268,5 +268,13 @@ export async function runAgenticCompaction(options: {
 		tokensAfter,
 		maxInputTokens: options.context.maxInputTokens,
 	});
-	return { messages: resultMessages };
+	return {
+		messages: resultMessages,
+		budget: {
+			policyIntent: "agentic_summary",
+			actionCount: summaryInputBudget.actions.length,
+			warningCount: summaryInputBudget.warnings.length,
+			liveTailHandling: summaryInputBudget.liveTailHandling,
+		},
+	};
 }

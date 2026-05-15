@@ -67,6 +67,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		SUBAGENT_COMPLETED: "task.subagent_completed",
 		COMPACTION_EXECUTED: "task.compaction_executed",
 		COMPACTION_SKIPPED: "task.compaction_skipped",
+		COMPACTION_BUDGET_EMERGENCY: "task.compaction_budget_emergency",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -689,6 +690,29 @@ export function captureCompactionSkipped(
 		Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureCompactionBudgetEmergencyProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	policyIntent: string;
+	actionCount: number;
+	warningCount: number;
+	liveTailHandling: string;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionBudgetEmergency(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionBudgetEmergencyProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_BUDGET_EMERGENCY, {
 		...properties,
 		timestamp: new Date().toISOString(),
 	});

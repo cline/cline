@@ -73,8 +73,32 @@ export interface CoreCompactionContext {
 	utilizationRatio: number;
 }
 
+// Mirrors BudgetPolicyIntent in extensions/context/budget-projection/types.ts.
+// Keep this public API type decoupled from the internal projection module.
+export type CoreCompactionBudgetPolicyIntent =
+	| "agentic_summary"
+	| "basic_compaction_projection"
+	| "normal_provider_request";
+
+// Mirrors LiveTailHandling in extensions/context/budget-projection/types.ts.
+// Keep this public API type decoupled from the internal projection module.
+export type CoreCompactionLiveTailHandling =
+	| "included_verbatim"
+	| "included_degraded"
+	| "summarized_as_context"
+	| "omitted_with_warning"
+	| "preserved_out_of_band";
+
+export interface CoreCompactionBudgetMetadata {
+	policyIntent: CoreCompactionBudgetPolicyIntent;
+	actionCount: number;
+	warningCount: number;
+	liveTailHandling: CoreCompactionLiveTailHandling;
+}
+
 export interface CoreCompactionResult {
 	messages: MessageWithMetadata[];
+	budget?: CoreCompactionBudgetMetadata;
 }
 
 export interface CoreCompactionSummarizerConfig {
