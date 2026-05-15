@@ -642,7 +642,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		]
 
 		const perplexityModels = ["sonar-pro", "sonar"]
-		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
 		const hostedModels = [
 			"mistralai--mistral-medium-instruct",
 			"mistralai--mistral-large-instruct",
