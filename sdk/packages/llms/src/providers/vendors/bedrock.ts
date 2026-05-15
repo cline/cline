@@ -23,6 +23,24 @@ const NON_BEDROCK_API_KEY_ENV = new Set([
 	"AWS_PROFILE",
 ]);
 
+function withTemporaryAwsRegion<R>(
+	region: string | undefined,
+	fn: () => Promise<R>,
+): Promise<R> {
+	if (!region) return fn();
+
+	const previousAwsRegion = process.env.AWS_REGION;
+	process.env.AWS_REGION = region;
+
+	return Promise.resolve(fn()).finally(() => {
+		if (previousAwsRegion === undefined) {
+			delete process.env.AWS_REGION;
+		} else {
+			process.env.AWS_REGION = previousAwsRegion;
+		}
+	});
+}
+
 export async function createBedrockProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
@@ -101,10 +119,12 @@ function resolveCredentialProvider(
 
 	if (options.authentication === "profile" || options.hasProfile) {
 		const profile = readOptionalString(config.options?.profile);
-		return fromNodeProviderChain({
+		const region = readOptionalString(config.options?.region);
+		const providerChain = fromNodeProviderChain({
 			ignoreCache: true,
 			...(profile ? { profile } : {}),
 		});
+		return () => withTemporaryAwsRegion(region, () => providerChain());
 	}
 
 	if (options.hasDirectCredentials) {
