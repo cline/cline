@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.83.0]
+
+### Fixed
+
+- Show a clear "Searching..." state in the @-mention file picker
+- Improve @-mention file search performance
+- Allow `write_to_file` to create or overwrite files with empty content.
+- Fix validation failures for MCP servers that require an object.
+- Enable OpenRouter prompt cache control for Qwen models.
+- Update Axios and SAP Connectivity dependencies
+
+### Changed
+
+- Use the VS Code-specific `README.marketplace.md` when packaging and publishing the VS Code extension
+- Add telemetry to @-mention search to help diagnose local, remote, and multi-root workspace search behavior.
+
 ## [3.82.0]
 
 ### Added

@@ -1,0 +1,39 @@
+{
+	"name": "cline-agent-squad-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Background Subagents Plugin for Cline",
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf node_modules dist"
+	},
+	"exports": {
+		".": "./index.ts"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./index.ts"
+				],
+				"capabilities": [
+					"hooks",
+					"tools"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		}
+	},
+	"dependencies": {
+		"yaml": "^2.8.1",
+		"zod": "^4.1.5"
+	}
+}

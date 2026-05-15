@@ -1,0 +1,218 @@
+import type { AgentEvent, TeamEvent } from "@cline/core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { handleEvent, handleTeamEvent } from "./events";
+import { setCurrentOutputMode } from "./output";
+import type { Config } from "./types";
+
+describe("handleEvent text formatting", () => {
+	let output = "";
+
+	beforeEach(() => {
+		output = "";
+		setCurrentOutputMode("text");
+		vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+			output += String(chunk);
+			return true;
+		});
+	});
+
+	it("adds a ⎿ before text that follows a tool block", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				input: { path: "/tmp/demo.txt" },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				output: "ok",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "text",
+				text: "Now let me check this file.",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain(
+			`\x1b[36m[read_files]\x1b[0m {"path":"/tmp/demo.txt"}`,
+		);
+		expect(output).toMatch(/⎿.*ok/s);
+	});
+
+	it("prints adjacent tool starts on separate lines", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "run_commands",
+				input: { commands: ["echo one"] },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				input: { file_paths: ["/tmp/demo.txt"] },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toMatch(/\[run_commands\].*\n.*\[read_files\]/s);
+	});
+
+	it("does not echo ask_question through the generic tool renderer", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "ask_question",
+				input: {
+					question: "How can I best assist you today?",
+					options: [
+						"Help me understand or analyze code in a repository",
+						"Help me create or edit files",
+					],
+				},
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "ask_question",
+				output: "Help me create or edit files",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toBe("");
+	});
+
+	it("prints tool errors inline", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "team_task",
+				input: { action: "create", title: "Draft haiku" },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "team_task",
+				error:
+					'✖ Field "status" is not allowed when action=create\n  → at status',
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain(`\x1b[36m[team_task]\x1b[0m create`);
+		expect(output).toContain("error:");
+		expect(output).toContain(
+			'Field "status" is not allowed when action=create',
+		);
+		expect(output).toContain("→ at status");
+	});
+
+	it("prints completed done events as finished in verbose mode", () => {
+		handleEvent(
+			{
+				type: "done",
+				reason: "completed",
+				iterations: 5,
+				text: "ok",
+			} as unknown as AgentEvent,
+			{ verbose: true } as Config,
+		);
+
+		expect(output).toContain("── finished (5 iterations) ──");
+		expect(output).not.toContain("── aborted (5 iterations) ──");
+	});
+
+	it("prints aborted done events as aborted in verbose mode", () => {
+		handleEvent(
+			{
+				type: "done",
+				reason: "aborted",
+				iterations: 2,
+				text: "aborted",
+			} as unknown as AgentEvent,
+			{ verbose: true } as Config,
+		);
+
+		expect(output).toContain("── aborted (2 iterations) ──");
+	});
+
+	it("suppresses heartbeat-only team progress messages", () => {
+		handleTeamEvent({
+			type: "run_progress",
+			run: {
+				id: "run_00001",
+				agentId: "worker-1",
+			},
+			message: "heartbeat",
+		} as unknown as TeamEvent);
+
+		expect(output).toBe("");
+	});
+
+	it("marks queued and started team runs as active", () => {
+		handleTeamEvent({
+			type: "run_queued",
+			run: {
+				id: "run_00001",
+				agentId: "worker-1",
+			},
+		} as unknown as TeamEvent);
+		handleTeamEvent({
+			type: "run_started",
+			run: {
+				id: "run_00001",
+				agentId: "worker-1",
+			},
+		} as unknown as TeamEvent);
+
+		expect(output).toContain("queued");
+		expect(output).toContain("started");
+		expect(output).toContain("...");
+		// Consecutive team events should not have blank lines between them
+		expect(output).not.toMatch(/\n\n/);
+	});
+
+	it("closes inline reasoning before team events and terminates the line", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "reasoning",
+				reasoning: "Investigating",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleTeamEvent({
+			type: "run_started",
+			run: {
+				id: "run_00001",
+				agentId: "worker-1",
+			},
+		} as unknown as TeamEvent);
+
+		expect(output).toMatch(/Investigating.*\n.*\[team run\].*started.*\n$/s);
+	});
+});

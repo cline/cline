@@ -1,0 +1,21 @@
+{
+	"version": "v1",
+	"providerSettings": {},
+	"telemetryEnabled": true,
+	"mcpMarketplaceEnabled": true,
+	"yoloModeAllowed": true,
+	"openTelemetryEnabled": false,
+	"openTelemetryOtlpInsecure": false,
+	"enterpriseTelemetry": {
+		"promptUploading": {
+			"enabled": true,
+			"type": "s3_access_keys",
+			"s3AccessSettings": {
+				"bucket": "cline-tasks",
+				"accessKeyId": "fake",
+				"secretAccessKey": "fake",
+				"region": "us-west-2"
+			}
+		}
+	}
+}

@@ -1,0 +1,801 @@
+import { existsSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import {
+	buildWorkspaceMetadata,
+	type ClineCore,
+	type CoreSessionConfig,
+	type SessionPendingPrompt,
+	SessionSource,
+	splitCoreSessionConfig,
+} from "@cline/core";
+import type { Message } from "@cline/llms";
+import { buildClineSystemPrompt } from "@cline/shared";
+import { emitChunk, nowMs, sendEvent } from "./context";
+import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import type {
+	ChatSessionCommandRequest,
+	JsonRecord,
+	LiveSession,
+	PromptInQueue,
+	SidecarContext,
+} from "./types";
+
+// ---------------------------------------------------------------------------
+// Session data helpers
+// ---------------------------------------------------------------------------
+
+function readPersistedChatMessages(sessionId: string): unknown[] | null {
+	const path = join(
+		sharedSessionDataDir(),
+		sessionId,
+		`${sessionId}.messages.json`,
+	);
+	if (!existsSync(path)) return null;
+	try {
+		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
+			| { messages?: unknown[] }
+			| unknown[];
+		if (Array.isArray(parsed)) return parsed;
+		return Array.isArray(parsed.messages) ? parsed.messages : null;
+	} catch {
+		return null;
+	}
+}
+
+function readSessionMetadataTitle(sessionId: string): string | undefined {
+	const manifest = readSessionManifest(sessionId);
+	const metadata =
+		manifest?.metadata && typeof manifest.metadata === "object"
+			? (manifest.metadata as JsonRecord)
+			: undefined;
+	const title = metadata?.title;
+	return typeof title === "string" ? title.trim() || undefined : undefined;
+}
+
+function readSessionMetadata(sessionId: string): JsonRecord | undefined {
+	const manifest = readSessionManifest(sessionId);
+	return manifest?.metadata && typeof manifest.metadata === "object"
+		? (manifest.metadata as JsonRecord)
+		: undefined;
+}
+
+function derivePromptFromMessages(messages: unknown[]): string {
+	for (const msg of messages) {
+		if (!msg || typeof msg !== "object") continue;
+		const m = msg as JsonRecord;
+		if (m.role !== "user") continue;
+		if (typeof m.content === "string") {
+			const line = m.content.trim().split("\n")[0]?.trim();
+			if (line) return line.slice(0, 200);
+		}
+	}
+	return "";
+}
+
+// ---------------------------------------------------------------------------
+// Live session factory
+// ---------------------------------------------------------------------------
+
+function createLiveSession(
+	config: JsonRecord,
+	overrides?: Partial<LiveSession>,
+): LiveSession {
+	return {
+		config,
+		messages: overrides?.messages ?? [],
+		promptsInQueue: overrides?.promptsInQueue ?? [],
+		busy: false,
+		startedAt: nowMs(),
+		status: overrides?.status ?? "idle",
+		prompt: overrides?.prompt,
+		title: overrides?.title,
+		attachedViaHub: overrides?.attachedViaHub ?? false,
+	};
+}
+
+function isoTimestampToMs(
+	value: string | null | undefined,
+): number | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const parsed = Date.parse(value);
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+	return {
+		sessionId: config.sessionId ?? config.session_id,
+		providerId: config.provider ?? config.providerId ?? "",
+		modelId: config.model ?? config.modelId ?? "",
+		mode: config.mode ?? "act",
+		apiKey: config.apiKey ?? config.api_key ?? "",
+		workspaceRoot: config.workspaceRoot ?? config.workspace_root ?? "",
+		cwd: config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
+		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
+		maxIterations: config.maxIterations ?? config.max_iterations,
+		enableTools: config.enableTools ?? config.enable_tools ?? true,
+		enableSpawnAgent:
+			config.enableSpawn ??
+			config.enableSpawnAgent ??
+			config.enable_spawn ??
+			false,
+		enableAgentTeams:
+			config.enableTeams ??
+			config.enableAgentTeams ??
+			config.enable_teams ??
+			false,
+		teamName: config.teamName ?? config.team_name,
+		missionLogIntervalSteps:
+			config.missionStepInterval ?? config.missionLogIntervalSteps,
+		missionLogIntervalMs:
+			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
+		checkpoint: { enabled: true },
+		sessions: config.sessions,
+		initialMessages: config.initialMessages,
+	};
+}
+
+async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
+	const cwd = String(
+		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
+	).trim();
+	if (!cwd) {
+		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
+	}
+	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	const mode = config.autoApproveTools
+		? "yolo"
+		: config.mode === "plan"
+			? "plan"
+			: "act";
+	const metadata = await buildWorkspaceMetadata(cwd);
+	const inlineRules =
+		typeof config.rules === "string" && config.rules.trim().length > 0
+			? config.rules
+			: undefined;
+	return buildClineSystemPrompt({
+		ide: "Terminal Shell",
+		workspaceRoot: cwd,
+		workspaceName: basename(cwd),
+		metadata,
+		rules: inlineRules,
+		mode,
+		providerId: providerId || undefined,
+		overridePrompt:
+			typeof config.systemPrompt === "string" &&
+			config.systemPrompt.trim().length > 0
+				? config.systemPrompt
+				: typeof config.system_prompt === "string" &&
+						config.system_prompt.trim().length > 0
+					? config.system_prompt
+					: undefined,
+		platform: process.platform || "unknown",
+	});
+}
+
+function resolveToolPolicies(
+	config: JsonRecord,
+): { "*": { autoApprove: boolean } } | undefined {
+	return {
+		"*": {
+			autoApprove: config.autoApproveTools !== false,
+		},
+	};
+}
+
+function sendPromptsInQueueSnapshot(
+	ctx: SidecarContext,
+	sessionId: string,
+): void {
+	const session = ctx.liveSessions.get(sessionId);
+	sendEvent(ctx, "prompts_in_queue_state", {
+		sessionId,
+		items: session?.promptsInQueue ?? [],
+	});
+}
+
+function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
+	return {
+		id: item.id,
+		prompt: item.prompt,
+		steer: item.delivery === "steer",
+		attachmentCount: item.attachmentCount,
+	};
+}
+
+function applyPendingPrompts(
+	ctx: SidecarContext,
+	sessionId: string,
+	prompts: SessionPendingPrompt[],
+): PromptInQueue[] {
+	const mapped = prompts.map(mapPendingPrompt).filter((item) => item.id);
+	const session = ctx.liveSessions.get(sessionId);
+	if (session) {
+		session.promptsInQueue = mapped;
+	}
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+	return mapped;
+}
+
+function getSessionManager(ctx: SidecarContext): ClineCore {
+	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
+	return ctx.sessionManager;
+}
+
+// ---------------------------------------------------------------------------
+// Chat session action handlers
+// ---------------------------------------------------------------------------
+
+async function handleStart(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	if (!request.config) throw new Error("config is required");
+	const manager = getSessionManager(ctx);
+	const systemPrompt = await resolveSystemPrompt(request.config);
+	const requestedSessionId = String(
+		request.config.sessionId ?? request.config.session_id ?? "",
+	).trim();
+	const initialMessages =
+		Array.isArray(request.config.initialMessages) &&
+		request.config.initialMessages.length > 0
+			? request.config.initialMessages
+			: requestedSessionId
+				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
+				: undefined;
+	const coreConfig: JsonRecord = {
+		...buildCoreSessionConfig(request.config),
+		systemPrompt,
+		...(initialMessages ? { initialMessages } : {}),
+	};
+	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
+	// provided to start(), the local runtime host runs the full agent turn
+	// synchronously inside start(). We always start the session idle and let
+	// the frontend call the separate "send" action to dispatch the prompt.
+	// This avoids a double-execution bug where start() would run the turn AND
+	// the subsequent manager.send() fire-and-forget would run it again.
+	console.error(
+		`[sidecar:handleStart] calling manager.start provider=${coreConfig.providerId} model=${coreConfig.modelId}`,
+	);
+	const startResult = await manager.start({
+		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
+		source: SessionSource.DESKTOP,
+		interactive: true,
+		...(initialMessages
+			? { initialMessages: initialMessages as Message[] }
+			: {}),
+		toolPolicies: resolveToolPolicies(request.config),
+	});
+	const sessionId = startResult.sessionId;
+	console.error(`[sidecar:handleStart] session started sessionId=${sessionId}`);
+	const session = createLiveSession(request.config, {
+		messages: initialMessages,
+		prompt: initialMessages
+			? derivePromptFromMessages(initialMessages)
+			: undefined,
+		title: requestedSessionId
+			? readSessionMetadataTitle(requestedSessionId)
+			: undefined,
+		status: "idle",
+	});
+	ctx.liveSessions.set(sessionId, session);
+	return { sessionId };
+}
+
+async function handleAttach(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) {
+		throw new Error("sessionId is required");
+	}
+
+	const manager = getSessionManager(ctx);
+	const session = await manager.get(sessionId);
+	if (!session) {
+		throw new Error(`Session ${sessionId} not found`);
+	}
+
+	const metadata =
+		session.metadata && typeof session.metadata === "object"
+			? (session.metadata as JsonRecord)
+			: undefined;
+	const existing = ctx.liveSessions.get(sessionId);
+	if (ctx.hubClient) {
+		await ctx.hubClient.command("session.attach", { sessionId }, sessionId);
+	}
+	const attachedConfig: JsonRecord = {
+		...(existing?.config ?? {}),
+		...(request.config ?? {}),
+		sessionId,
+		provider: session.provider || existing?.config.provider || "",
+		model: session.model || existing?.config.model || "",
+		cwd:
+			session.cwd ||
+			session.workspaceRoot ||
+			String(request.config?.cwd ?? "").trim() ||
+			String(existing?.config.cwd ?? "").trim(),
+		workspaceRoot:
+			session.workspaceRoot ||
+			session.cwd ||
+			String(request.config?.workspaceRoot ?? "").trim() ||
+			String(existing?.config.workspaceRoot ?? "").trim(),
+	};
+	ctx.liveSessions.set(
+		sessionId,
+		createLiveSession(attachedConfig, {
+			messages: existing?.messages ?? [],
+			promptsInQueue: existing?.promptsInQueue ?? [],
+			status: session.status,
+			prompt:
+				session.prompt ||
+				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
+				existing?.prompt,
+			title:
+				(typeof metadata?.title === "string" ? metadata.title : undefined) ||
+				existing?.title,
+			endedAt: isoTimestampToMs(session.endedAt),
+			attachedViaHub: true,
+		}),
+	);
+
+	return {
+		sessionId,
+		status: session.status,
+		provider: session.provider,
+		model: session.model,
+		cwd: session.cwd,
+		workspaceRoot: session.workspaceRoot,
+		prompt: session.prompt,
+		metadata,
+	};
+}
+
+async function handleSend(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const prompt = request.prompt?.trim();
+	if (!prompt) throw new Error("prompt is required");
+	const manager = getSessionManager(ctx);
+	const session = ctx.liveSessions.get(sessionId);
+
+	// Determine effective delivery mode.
+	// When the session is busy and no explicit delivery was requested, queue it
+	// via Core so that Core's own pending-prompts mechanism handles draining.
+	// This avoids a sidecar-only local queue that never calls manager.send().
+	let delivery = request.delivery;
+	if (!delivery && session?.busy) {
+		delivery = "queue";
+	}
+
+	if (delivery === "queue") {
+		if (session) {
+			session.prompt = prompt;
+		}
+		// Delegate queuing to Core — it will drain the prompt once the current
+		// turn finishes and emit pending_prompts / pending_prompt_submitted events.
+		await manager.send({
+			sessionId,
+			prompt,
+			delivery: "queue",
+			userImages: request.attachments?.userImages,
+		});
+		const prompts = await manager.pendingPrompts.list({ sessionId });
+		return {
+			sessionId,
+			ok: true,
+			queued: true,
+			promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+		};
+	}
+
+	if (session) {
+		session.prompt = prompt;
+		session.busy = true;
+		session.status = "running";
+	}
+	try {
+		console.error(
+			`[sidecar:handleSend] calling manager.send sessionId=${sessionId} prompt=${prompt.slice(0, 80)}`,
+		);
+		const result = await manager.send({
+			sessionId,
+			prompt,
+			delivery,
+			userImages: request.attachments?.userImages,
+		});
+		console.error(
+			`[sidecar:handleSend] manager.send resolved sessionId=${sessionId} finishReason=${result?.finishReason} textLen=${result?.text?.length ?? 0}`,
+		);
+		if (session) {
+			session.busy = false;
+			session.status = "idle";
+			if (result?.messages) session.messages = result.messages as unknown[];
+		}
+		return {
+			sessionId,
+			ok: true,
+			result: result
+				? {
+						text: result.text,
+						finishReason: result.finishReason,
+						messages: result.messages,
+						usage: result.usage,
+						iterations: result.iterations,
+						toolCalls: result.toolCalls,
+					}
+				: undefined,
+		};
+	} catch (error) {
+		console.error(
+			`[sidecar:handleSend] manager.send THREW sessionId=${sessionId} error=${error instanceof Error ? error.message : String(error)}`,
+		);
+		if (session) {
+			session.busy = false;
+			session.status = "error";
+		}
+		emitChunk(
+			ctx,
+			sessionId,
+			"chat_core_log",
+			JSON.stringify({
+				level: "error",
+				message: error instanceof Error ? error.message : String(error),
+			}),
+		);
+		return {
+			sessionId,
+			ok: true,
+			result: {
+				finishReason: "error",
+				text: error instanceof Error ? error.message : String(error),
+			},
+		};
+	}
+}
+
+async function handleStop(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	await getSessionManager(ctx).stop(sessionId);
+	const session = ctx.liveSessions.get(sessionId);
+	if (session) {
+		session.busy = false;
+		session.status = "stopped";
+	}
+	return { sessionId, ok: true };
+}
+
+async function handleAbort(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	await getSessionManager(ctx).abort(sessionId, "user_abort");
+	const session = ctx.liveSessions.get(sessionId);
+	if (session) {
+		session.busy = false;
+		session.status = "aborted";
+	}
+	return { sessionId, ok: true };
+}
+
+async function handleFork(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) throw new Error("sessionId is required");
+	const manager = getSessionManager(ctx);
+	const sourceMessages =
+		readPersistedChatMessages(sourceSessionId) ??
+		ctx.liveSessions.get(sourceSessionId)?.messages;
+	if (!sourceMessages?.length) {
+		throw new Error(`No messages found for session ${sourceSessionId}`);
+	}
+
+	const sourceSession = await manager.get(sourceSessionId);
+	const sourceMetadata =
+		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
+			? (sourceSession.metadata as JsonRecord)
+			: undefined) ?? readSessionMetadata(sourceSessionId);
+	const liveConfig = ctx.liveSessions.get(sourceSessionId)?.config;
+	const forkConfig: JsonRecord = {
+		...(liveConfig ?? {}),
+		...(request.config ?? {}),
+		sessionId: undefined,
+		provider:
+			sourceSession?.provider ||
+			liveConfig?.provider ||
+			request.config?.provider ||
+			request.config?.providerId ||
+			"",
+		model:
+			sourceSession?.model ||
+			liveConfig?.model ||
+			request.config?.model ||
+			request.config?.modelId ||
+			"",
+		cwd:
+			sourceSession?.cwd ||
+			sourceSession?.workspaceRoot ||
+			liveConfig?.cwd ||
+			request.config?.cwd ||
+			request.config?.workspaceRoot ||
+			request.config?.workspace_root ||
+			"",
+		workspaceRoot:
+			sourceSession?.workspaceRoot ||
+			sourceSession?.cwd ||
+			liveConfig?.workspaceRoot ||
+			request.config?.workspaceRoot ||
+			request.config?.workspace_root ||
+			request.config?.cwd ||
+			"",
+	};
+	const checkpointMetadata =
+		sourceMetadata?.checkpoint !== undefined
+			? { checkpoints: sourceMetadata.checkpoint }
+			: {};
+	const forkMetadata: JsonRecord = {
+		...(sourceMetadata ?? {}),
+		fork: {
+			forkedFromSessionId: sourceSessionId,
+			forkedAt: new Date().toISOString(),
+			source: sourceSession?.source ?? "desktop",
+			...checkpointMetadata,
+		},
+	};
+	const systemPrompt = await resolveSystemPrompt(forkConfig);
+	const startResult = await manager.start({
+		...splitCoreSessionConfig(
+			buildCoreSessionConfig({
+				...forkConfig,
+				systemPrompt,
+				initialMessages: sourceMessages,
+			}) as unknown as CoreSessionConfig,
+		),
+		source: SessionSource.DESKTOP,
+		interactive: true,
+		initialMessages: sourceMessages as Message[],
+		sessionMetadata: forkMetadata,
+		toolPolicies: resolveToolPolicies(forkConfig),
+	});
+	const newSessionId = startResult.sessionId;
+	ctx.liveSessions.delete(sourceSessionId);
+	ctx.liveSessions.set(
+		newSessionId,
+		createLiveSession(forkConfig, {
+			messages: sourceMessages,
+			prompt: derivePromptFromMessages(sourceMessages),
+			title: readSessionMetadataTitle(sourceSessionId),
+			status: "idle",
+		}),
+	);
+	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+	sendPromptsInQueueSnapshot(ctx, newSessionId);
+	let messages: unknown[] = sourceMessages;
+	try {
+		const read = await manager.readMessages(newSessionId);
+		if (read?.length > 0) messages = read;
+	} catch {}
+	return {
+		sessionId: newSessionId,
+		forkedFromSessionId: sourceSessionId,
+		messages,
+	};
+}
+
+async function handleReset(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (sessionId) {
+		const session = ctx.liveSessions.get(sessionId);
+		if (
+			session?.busy ||
+			session?.status === "starting" ||
+			session?.status === "running" ||
+			session?.status === "stopping"
+		) {
+			await getSessionManager(ctx).stop(sessionId);
+		}
+		ctx.liveSessions.delete(sessionId);
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+	}
+	return { sessionId: request.sessionId, ok: true };
+}
+
+async function handleRestoreCheckpoint(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) throw new Error("sessionId is required");
+	const runCount = request.checkpointRunCount;
+	if (
+		typeof runCount !== "number" ||
+		!Number.isInteger(runCount) ||
+		runCount < 1
+	)
+		throw new Error("checkpointRunCount must be a positive integer");
+	if (!request.config)
+		throw new Error("config is required to restore a checkpoint");
+	const cwd =
+		(typeof request.config.cwd === "string" && request.config.cwd.trim()) ||
+		(typeof request.config.workspaceRoot === "string" &&
+			request.config.workspaceRoot.trim()) ||
+		"";
+	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
+	const manager = getSessionManager(ctx);
+	const restored = await manager.restore({
+		sessionId: sourceSessionId,
+		checkpointRunCount: runCount,
+		cwd,
+		restore: { messages: true, workspace: true },
+		start: {
+			...splitCoreSessionConfig(
+				buildCoreSessionConfig({
+					...request.config,
+					systemPrompt: await resolveSystemPrompt(request.config),
+				}) as unknown as CoreSessionConfig,
+			),
+			source: SessionSource.DESKTOP,
+			interactive: true,
+			toolPolicies: resolveToolPolicies(request.config),
+		},
+	});
+	const sessionId = restored.sessionId;
+	const restoredMessages = restored.messages;
+	if (!sessionId || !restoredMessages) {
+		throw new Error("Checkpoint restore did not return a new session");
+	}
+	ctx.liveSessions.delete(sourceSessionId);
+	ctx.liveSessions.set(
+		sessionId,
+		createLiveSession(request.config, {
+			messages: restoredMessages,
+			prompt: derivePromptFromMessages(restoredMessages),
+			title: readSessionMetadataTitle(sourceSessionId),
+			status: "idle",
+		}),
+	);
+	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+	let messages: unknown[] = restoredMessages;
+	try {
+		const read = await manager.readMessages(sessionId);
+		if (read?.length > 0) messages = read;
+	} catch {}
+	return {
+		sessionId,
+		messages,
+		restoredCheckpoint: restored.checkpoint,
+	};
+}
+
+async function handlePendingPrompts(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const prompts = await getSessionManager(ctx).pendingPrompts.list({
+		sessionId,
+	});
+	return {
+		sessionId,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+	};
+}
+
+async function handleSteerPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	const promptId = request.promptId?.trim();
+	if (!sessionId || !promptId)
+		throw new Error("sessionId and promptId are required");
+	const manager = getSessionManager(ctx);
+	const result = await manager.pendingPrompts.update({
+		sessionId,
+		promptId,
+		delivery: "steer",
+	});
+	return {
+		sessionId,
+		updated: result.updated === true,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
+	};
+}
+
+async function handleUpdatePendingPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	const promptId = request.promptId?.trim();
+	const prompt = request.prompt?.trim();
+	if (!sessionId || !promptId) {
+		throw new Error("sessionId and promptId are required");
+	}
+	if (!prompt) {
+		throw new Error("prompt is required");
+	}
+	const manager = getSessionManager(ctx);
+	const result = await manager.pendingPrompts.update({
+		sessionId,
+		promptId,
+		prompt,
+	});
+	return {
+		sessionId,
+		updated: result.updated === true,
+		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
+	};
+}
+
+async function handleRemovePendingPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	const promptId = request.promptId?.trim();
+	if (!sessionId || !promptId) {
+		throw new Error("sessionId and promptId are required");
+	}
+	const manager = getSessionManager(ctx);
+	const result = await manager.pendingPrompts.delete({
+		sessionId,
+		promptId,
+	});
+	return {
+		sessionId,
+		removed: result.removed === true,
+		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Action dispatch
+// ---------------------------------------------------------------------------
+
+const ACTION_HANDLERS: Record<
+	string,
+	(ctx: SidecarContext, req: ChatSessionCommandRequest) => Promise<unknown>
+> = {
+	start: handleStart,
+	attach: handleAttach,
+	send: handleSend,
+	stop: handleStop,
+	abort: handleAbort,
+	fork: handleFork,
+	reset: handleReset,
+	restore_checkpoint: handleRestoreCheckpoint,
+	pending_prompts: handlePendingPrompts,
+	steer_prompt: handleSteerPrompt,
+	update_pending_prompt: handleUpdatePendingPrompt,
+	remove_pending_prompt: handleRemovePendingPrompt,
+};
+
+export async function handleChatSessionCommand(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const handler = ACTION_HANDLERS[request.action];
+	if (!handler) throw new Error("unsupported action");
+	return handler(ctx, request);
+}

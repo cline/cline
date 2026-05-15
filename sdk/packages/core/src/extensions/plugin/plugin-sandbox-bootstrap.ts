@@ -1,0 +1,668 @@
+/**
+ * Bootstrap script for the plugin sandbox subprocess.
+ *
+ * This file runs inside an isolated Node.js child process spawned by
+ * {@link SubprocessSandbox}. It receives RPC calls over IPC and dynamically
+ * imports plugin modules, wiring up their contributions (tools, commands,
+ * message builders, providers) and lifecycle hooks.
+ *
+ * Because it executes in a separate process it must stay bundle-safe and only
+ * depend on local helpers that can be inlined into the sandbox build.
+ */
+
+import {
+	type AutomationEventEnvelope,
+	normalizePluginManifest,
+	type PluginManifest,
+} from "@cline/shared";
+import { importPluginModule } from "./plugin-module-import";
+import {
+	matchesPluginManifestTargeting,
+	type PluginTargeting,
+} from "./plugin-targeting";
+
+// ---------------------------------------------------------------------------
+// Types (intentionally minimal – mirrors only what the RPC protocol needs)
+// ---------------------------------------------------------------------------
+
+interface PluginTool {
+	name: string;
+	description?: string;
+	inputSchema?: unknown;
+	timeoutMs?: number;
+	retryable?: boolean;
+	execute: (input: unknown, context: unknown) => Promise<unknown>;
+}
+
+interface PluginCommand {
+	name: string;
+	description?: string;
+	handler?: (input: string) => Promise<string>;
+}
+
+interface PluginMessageBuilder {
+	name: string;
+	build: (message: unknown[]) => unknown[]; // Message[]
+}
+
+interface PluginProvider {
+	name: string;
+	description?: string;
+	metadata?: Record<string, unknown>;
+}
+
+interface PluginAutomationEventType {
+	eventType: string;
+	source: string;
+	description?: string;
+	attributesSchema?: Record<string, unknown>;
+	payloadSchema?: Record<string, unknown>;
+	examples?: AutomationEventEnvelope[];
+	metadata?: Record<string, unknown>;
+}
+
+interface PluginApi {
+	registerTool(tool: PluginTool): void;
+	registerCommand(command: PluginCommand): void;
+	registerMessageBuilder(builder: PluginMessageBuilder): void;
+	registerProvider(provider: PluginProvider): void;
+	registerAutomationEventType(eventType: PluginAutomationEventType): void;
+}
+
+interface PluginSetupCtx {
+	session?: unknown;
+	client?: unknown;
+	user?: unknown;
+	workspaceInfo?: unknown;
+	automation?: {
+		ingestEvent(event: AutomationEventEnvelope): void | Promise<void>;
+	};
+	logger?: {
+		debug(message: string, metadata?: Record<string, unknown>): void;
+		log(message: string, metadata?: Record<string, unknown>): void;
+		error(message: string, metadata?: Record<string, unknown>): void;
+	};
+}
+
+interface PluginModule {
+	name: string;
+	manifest: PluginManifest;
+	setup?: (api: PluginApi, ctx: PluginSetupCtx) => void | Promise<void>;
+	hooks?: Record<string, (ctx: unknown) => unknown | Promise<unknown>>;
+}
+
+interface ContributionDescriptor {
+	id: string;
+	name: string;
+	description?: string;
+	inputSchema?: unknown;
+	timeoutMs?: number;
+	retryable?: boolean;
+	value?: string;
+	defaultValue?: boolean | string | number;
+	metadata?: Record<string, unknown>;
+}
+
+interface AutomationEventTypeDescriptor {
+	id: string;
+	eventType: string;
+	source: string;
+	description?: string;
+	attributesSchema?: Record<string, unknown>;
+	payloadSchema?: Record<string, unknown>;
+	examples?: AutomationEventEnvelope[];
+	metadata?: Record<string, unknown>;
+}
+
+interface PluginDescriptor {
+	pluginId: string;
+	pluginPath: string;
+	name: string;
+	manifest: PluginManifest;
+	hooks?: string[];
+	contributions: {
+		tools: ContributionDescriptor[];
+		commands: ContributionDescriptor[];
+		messageBuilders: ContributionDescriptor[];
+		providers: ContributionDescriptor[];
+		automationEventTypes: AutomationEventTypeDescriptor[];
+		shortcuts?: ContributionDescriptor[];
+		flags?: ContributionDescriptor[];
+	};
+}
+
+interface PluginInitializationFailure {
+	pluginPath: string;
+	pluginName?: string;
+	phase: "load" | "setup";
+	message: string;
+	stack?: string;
+}
+
+interface PluginInitializationWarning {
+	type: "duplicate_plugin_override";
+	pluginPath: string;
+	pluginName: string;
+	overriddenPluginPath: string;
+	message: string;
+}
+
+interface InitializeResult {
+	plugins: PluginDescriptor[];
+	failures: PluginInitializationFailure[];
+	warnings: PluginInitializationWarning[];
+}
+
+interface PluginState {
+	plugin: PluginModule;
+	handlers: {
+		tools: Map<string, PluginTool["execute"]>;
+		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
+		messageBuilders: Map<string, PluginMessageBuilder["build"]>;
+	};
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function hasValidStringArray(value: unknown): value is string[] {
+	return (
+		Array.isArray(value) && value.every((entry) => typeof entry === "string")
+	);
+}
+
+function assertValidPluginModule(
+	plugin: unknown,
+	pluginPath: string,
+): asserts plugin is PluginModule {
+	if (!isObject(plugin)) {
+		throw new Error(`Invalid plugin module: ${pluginPath}`);
+	}
+	if (typeof plugin.name !== "string" || !plugin.name) {
+		throw new Error(`Invalid plugin name: ${pluginPath}`);
+	}
+	if (!isObject(plugin.manifest)) {
+		throw new Error(`Invalid plugin manifest: ${pluginPath}`);
+	}
+	if (
+		Object.hasOwn(plugin.manifest, "providerIds") &&
+		!hasValidStringArray(plugin.manifest.providerIds)
+	) {
+		throw new Error(`Invalid plugin manifest.providerIds: ${pluginPath}`);
+	}
+	if (
+		Object.hasOwn(plugin.manifest, "modelIds") &&
+		!hasValidStringArray(plugin.manifest.modelIds)
+	) {
+		throw new Error(`Invalid plugin manifest.modelIds: ${pluginPath}`);
+	}
+}
+
+function assertValidPluginSetupCtx(
+	ctx: unknown,
+): asserts ctx is PluginSetupCtx {
+	if (!isObject(ctx)) {
+		throw new Error("Plugin setup context must be an object");
+	}
+	if (ctx.session !== undefined && !isObject(ctx.session)) {
+		throw new Error("Plugin setup context session must be an object");
+	}
+	if (ctx.client !== undefined && !isObject(ctx.client)) {
+		throw new Error("Plugin setup context client must be an object");
+	}
+	if (ctx.user !== undefined && !isObject(ctx.user)) {
+		throw new Error("Plugin setup context user must be an object");
+	}
+	if (ctx.workspaceInfo !== undefined && !isObject(ctx.workspaceInfo)) {
+		throw new Error("Plugin setup context workspaceInfo must be an object");
+	}
+	if (ctx.automation !== undefined && !isObject(ctx.automation)) {
+		throw new Error("Plugin setup context automation must be an object");
+	}
+	if (
+		ctx.automation !== undefined &&
+		typeof ctx.automation.ingestEvent !== "function"
+	) {
+		throw new Error(
+			"Plugin setup context automation.ingestEvent must be a function",
+		);
+	}
+	if (ctx.logger !== undefined && !isObject(ctx.logger)) {
+		throw new Error("Plugin setup context logger must be an object");
+	}
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let pluginCounter = 0;
+const pluginState = new Map<string, PluginState>();
+const contributionCounters = new Map<string, number>();
+
+// ---------------------------------------------------------------------------
+// IPC helpers
+// ---------------------------------------------------------------------------
+
+function toErrorPayload(error: unknown): { message: string; stack?: string } {
+	const message = error instanceof Error ? error.message : String(error);
+	const stack = error instanceof Error ? error.stack : undefined;
+	return { message, stack };
+}
+
+function sendResponse(
+	id: string,
+	ok: boolean,
+	result: unknown,
+	error?: { message: string; stack?: string },
+): void {
+	if (!process.send) return;
+	process.send({ type: "response", id, ok, result, error });
+}
+
+function emitEvent(name: string, payload?: unknown): void {
+	if (!process.send) return;
+	process.send({ type: "event", name, payload });
+}
+
+// Expose event emitter to plugins.
+(globalThis as Record<string, unknown>).__clinePluginHost = { emitEvent };
+
+/**
+ * Session workspace env — populated by `initialize()` and available to any
+ * plugin code that executes before the setup hook, or cannot use hook context.
+ * Prefer using PluginSetupCtx from the setup function when possible.
+ */
+(globalThis as Record<string, unknown>).__clineSessionEnv = {
+	cwd: undefined as string | undefined,
+	workspaceInfo: undefined as unknown,
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function sanitizeObject(value: unknown): Record<string, unknown> {
+	if (!value || typeof value !== "object") return {};
+	return value as Record<string, unknown>;
+}
+
+function sanitizeLogMetadata(
+	value: unknown,
+): Record<string, unknown> | undefined {
+	if (!value || typeof value !== "object") {
+		return undefined;
+	}
+	const metadata = { ...(value as Record<string, unknown>) };
+	if (metadata.error instanceof Error) {
+		metadata.error = {
+			name: metadata.error.name,
+			message: metadata.error.message,
+			stack: metadata.error.stack,
+		};
+	}
+	return metadata;
+}
+
+function createPluginLogger(
+	pluginName: string,
+): NonNullable<PluginSetupCtx["logger"]> {
+	const emitLog = (
+		level: "debug" | "log" | "error",
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => {
+		emitEvent("plugin_log", {
+			level,
+			pluginName,
+			message,
+			metadata: sanitizeLogMetadata(metadata),
+		});
+	};
+	return {
+		debug: (message, metadata) => emitLog("debug", message, metadata),
+		log: (message, metadata) => emitLog("log", message, metadata),
+		error: (message, metadata) => emitLog("error", message, metadata),
+	};
+}
+
+function makeId(pluginId: string, prefix: string): string {
+	const key = `${pluginId}:${prefix}`;
+	const next = (contributionCounters.get(key) ?? 0) + 1;
+	contributionCounters.set(key, next);
+	return `${pluginId}_${prefix}_${next}`;
+}
+
+function normalizeAutomationEventType(
+	eventType: PluginAutomationEventType,
+): PluginAutomationEventType {
+	const normalizedEventType =
+		typeof eventType.eventType === "string" ? eventType.eventType.trim() : "";
+	const source =
+		typeof eventType.source === "string" ? eventType.source.trim() : "";
+	if (!normalizedEventType) {
+		throw new Error("Automation event type contribution requires eventType");
+	}
+	if (!source) {
+		throw new Error("Automation event type contribution requires source");
+	}
+	return {
+		...eventType,
+		eventType: normalizedEventType,
+		source,
+		examples: eventType.examples ? [...eventType.examples] : undefined,
+		metadata: eventType.metadata
+			? sanitizeObject(eventType.metadata)
+			: undefined,
+	};
+}
+
+function getPlugin(pluginId: string): PluginState {
+	const state = pluginState.get(pluginId);
+	if (!state) {
+		throw new Error(`Unknown sandbox plugin id: ${pluginId}`);
+	}
+	return state;
+}
+
+// ---------------------------------------------------------------------------
+// RPC methods
+// ---------------------------------------------------------------------------
+
+async function initialize(args: {
+	pluginPaths?: string[];
+	exportName?: string;
+	providerId?: string;
+	modelId?: string;
+	cwd?: string;
+	session?: unknown;
+	client?: unknown;
+	user?: unknown;
+	workspaceInfo?: unknown;
+	loggerEnabled?: boolean;
+}): Promise<InitializeResult> {
+	pluginState.clear();
+	pluginCounter = 0;
+	contributionCounters.clear();
+
+	// Apply the session's working directory so that process.cwd() and relative
+	// path resolution inside plugins reflect the correct workspace, not the
+	// host process's cwd (which may differ when --cwd was used without calling
+	// process.chdir() on the host side).
+	if (args.cwd) {
+		try {
+			process.chdir(args.cwd);
+		} catch {
+			// Ignore — best-effort; path may not exist in unusual environments.
+		}
+	}
+
+	// Keep the global escape-hatch in sync with the active session.
+	const sessionEnv = (globalThis as Record<string, unknown>)
+		.__clineSessionEnv as Record<string, unknown>;
+	if (sessionEnv) {
+		sessionEnv.cwd = args.cwd;
+		sessionEnv.workspaceInfo = args.workspaceInfo;
+	}
+
+	const descriptors: PluginDescriptor[] = [];
+	const failures: PluginInitializationFailure[] = [];
+	const warnings: PluginInitializationWarning[] = [];
+	const exportName = args.exportName || "plugin";
+	const pluginIndexByName = new Map<string, number>();
+	const targeting: PluginTargeting = {
+		providerId: args.providerId,
+		modelId: args.modelId,
+	};
+
+	for (const pluginPath of args.pluginPaths || []) {
+		let plugin: PluginModule | undefined;
+		try {
+			const moduleExports = await importPluginModule(pluginPath);
+			plugin = (moduleExports.default ??
+				moduleExports[exportName]) as unknown as PluginModule;
+			assertValidPluginModule(plugin, pluginPath);
+			plugin.manifest = normalizePluginManifest(plugin.manifest);
+			if (!matchesPluginManifestTargeting(plugin.manifest, targeting)) {
+				continue;
+			}
+
+			const pluginId = `plugin_${++pluginCounter}`;
+			const contributions: PluginDescriptor["contributions"] = {
+				tools: [],
+				commands: [],
+				messageBuilders: [],
+				providers: [],
+				automationEventTypes: [],
+				shortcuts: [],
+				flags: [],
+			};
+			const handlers: PluginState["handlers"] = {
+				tools: new Map(),
+				commands: new Map(),
+				messageBuilders: new Map(),
+			};
+
+			const api: PluginApi = {
+				registerTool: (tool) => {
+					const id = makeId(pluginId, "tool");
+					handlers.tools.set(id, tool.execute);
+					contributions.tools.push({
+						id,
+						name: tool.name,
+						description: tool.description,
+						inputSchema: tool.inputSchema,
+						timeoutMs: tool.timeoutMs,
+						retryable: tool.retryable,
+					});
+				},
+				registerCommand: (command) => {
+					const id = makeId(pluginId, "command");
+					if (typeof command.handler === "function") {
+						handlers.commands.set(id, command.handler);
+					}
+					contributions.commands.push({
+						id,
+						name: command.name,
+						description: command.description,
+					});
+				},
+				registerMessageBuilder: (builder) => {
+					const id = makeId(pluginId, "builder");
+					handlers.messageBuilders.set(id, builder.build);
+					contributions.messageBuilders.push({ id, name: builder.name });
+				},
+				registerProvider: (provider) => {
+					contributions.providers.push({
+						id: makeId(pluginId, "provider"),
+						name: provider.name,
+						description: provider.description,
+						metadata: sanitizeObject(provider.metadata),
+					});
+				},
+				registerAutomationEventType: (eventType) => {
+					contributions.automationEventTypes.push({
+						id: makeId(pluginId, "automation_event"),
+						...normalizeAutomationEventType(eventType),
+					});
+				},
+			};
+
+			if (typeof plugin.setup === "function") {
+				try {
+					const setupCtx = {
+						session: args.session,
+						client: args.client,
+						user: args.user,
+						workspaceInfo: args.workspaceInfo,
+						...(args.loggerEnabled
+							? { logger: createPluginLogger(plugin.name) }
+							: {}),
+						...(plugin.manifest.capabilities.includes("automationEvents")
+							? {
+									automation: {
+										ingestEvent: (event: AutomationEventEnvelope) => {
+											emitEvent("automation_event", event);
+										},
+									},
+								}
+							: {}),
+					};
+					assertValidPluginSetupCtx(setupCtx);
+					await plugin.setup(api, setupCtx);
+				} catch (error) {
+					failures.push({
+						pluginPath,
+						pluginName: plugin.name,
+						phase: "setup",
+						message: error instanceof Error ? error.message : String(error),
+						stack: error instanceof Error ? error.stack : undefined,
+					});
+					continue;
+				}
+			}
+
+			const previousIndex = pluginIndexByName.get(plugin.name);
+			if (previousIndex !== undefined) {
+				const previous = descriptors[previousIndex];
+				if (!previous) {
+					pluginIndexByName.delete(plugin.name);
+				} else {
+					warnings.push({
+						type: "duplicate_plugin_override",
+						pluginName: plugin.name,
+						pluginPath,
+						overriddenPluginPath: previous.pluginPath,
+						message: `Plugin "${plugin.name}" from ${pluginPath} overrides ${previous.pluginPath}`,
+					});
+					pluginState.delete(previous.pluginId);
+					descriptors.splice(previousIndex, 1);
+					pluginIndexByName.clear();
+					for (const [index, descriptor] of descriptors.entries()) {
+						pluginIndexByName.set(descriptor.name, index);
+					}
+				}
+			}
+
+			pluginState.set(pluginId, { plugin, handlers });
+			pluginIndexByName.set(plugin.name, descriptors.length);
+			descriptors.push({
+				pluginId,
+				pluginPath,
+				name: plugin.name,
+				manifest: plugin.manifest,
+				hooks: plugin.hooks
+					? Object.entries(plugin.hooks)
+							.filter(([, hook]) => typeof hook === "function")
+							.map(([name]) => name)
+					: undefined,
+				contributions,
+			});
+		} catch (error) {
+			failures.push({
+				pluginPath,
+				pluginName: plugin?.name,
+				phase: "load",
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+			});
+		}
+	}
+
+	return { plugins: descriptors, failures, warnings };
+}
+
+async function invokeHook(args: {
+	pluginId: string;
+	hookName: string;
+	payload: unknown;
+}): Promise<unknown> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.plugin.hooks?.[args.hookName];
+	if (typeof handler !== "function") {
+		return undefined;
+	}
+	return await (handler as (payload: unknown) => Promise<unknown>)(
+		args.payload,
+	);
+}
+
+async function executeTool(args: {
+	pluginId: string;
+	contributionId: string;
+	input: unknown;
+	context: unknown;
+}): Promise<unknown> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.handlers.tools.get(args.contributionId);
+	if (typeof handler !== "function") {
+		throw new Error("Unknown sandbox tool contribution");
+	}
+	return await handler(args.input, args.context);
+}
+
+async function executeCommand(args: {
+	pluginId: string;
+	contributionId: string;
+	input: string;
+}): Promise<string> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.handlers.commands.get(args.contributionId);
+	if (typeof handler !== "function") {
+		return "";
+	}
+	return await handler(args.input);
+}
+
+async function buildMessages(args: {
+	pluginId: string;
+	contributionId: string;
+	messages: unknown[];
+}): Promise<unknown[]> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.handlers.messageBuilders.get(args.contributionId);
+	if (typeof handler !== "function") {
+		return [];
+	}
+	return await handler(args.messages);
+}
+
+// ---------------------------------------------------------------------------
+// Message dispatch
+// ---------------------------------------------------------------------------
+
+const methods: Record<string, (args: never) => Promise<unknown>> = {
+	initialize,
+	invokeHook,
+	executeTool,
+	executeCommand,
+	buildMessages,
+};
+
+process.on(
+	"message",
+	async (message: {
+		type: string;
+		id: string;
+		method: string;
+		args?: unknown;
+	}) => {
+		if (!message || message.type !== "call") {
+			return;
+		}
+		const method = methods[message.method];
+		if (!method) {
+			sendResponse(message.id, false, undefined, {
+				message: `Unknown method: ${String(message.method)}`,
+			});
+			return;
+		}
+		try {
+			const result = await method((message.args || {}) as never);
+			sendResponse(message.id, true, result);
+		} catch (error) {
+			sendResponse(message.id, false, undefined, toErrorPayload(error));
+		}
+	},
+);

@@ -1,0 +1,80 @@
+{
+	"name": "@cline/core",
+	"description": "Cline Core SDK for Node Runtime",
+	"version": "0.0.41",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/core"
+	},
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./hub": {
+			"types": "./dist/hub/index.d.ts",
+			"import": "./dist/hub/index.js"
+		},
+		"./hub/daemon-entry": {
+			"types": "./dist/hub/daemon/entry.d.ts",
+			"import": "./dist/hub/daemon/entry.js"
+		},
+		"./telemetry": {
+			"types": "./dist/services/telemetry/index.d.ts",
+			"import": "./dist/services/telemetry/index.js"
+		}
+	},
+	"scripts": {
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit && bun run typecheck:smoke",
+		"typecheck:smoke": "bun tsc -p tsconfig.smoke.json --noEmit",
+		"test": "bun run test:unit && bun run test:e2e",
+		"test:live": "vitest run --config vitest.config.ts src/extensions/context/compaction.live.test.ts",
+		"test:unit": "vitest run --config vitest.config.ts",
+		"test:e2e": "vitest run --config vitest.e2e.config.ts",
+		"verify:routines": "zsh -lc 'bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
+		"test:watch": "vitest --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@cline/agents": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"@cline/llms": "workspace:*",
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/api-logs": "^0.214.0",
+		"@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
+		"@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+		"@opentelemetry/resources": "^2.6.1",
+		"@opentelemetry/sdk-logs": "^0.214.0",
+		"@opentelemetry/sdk-metrics": "^2.6.1",
+		"@opentelemetry/sdk-trace-base": "^2.6.1",
+		"@opentelemetry/sdk-trace-node": "^2.6.1",
+		"@opentelemetry/semantic-conventions": "^1.40.0",
+		"jiti": "^1.21.7",
+		"node-machine-id": "^1.1.12",
+		"nanoid": "^5.1.7",
+		"simple-git": "3.36.0",
+		"ws": "^8.20.0",
+		"yaml": "^2.8.2",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@types/ws": "^8.18.1"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [
+		"dist",
+		"!dist/**/*.d.ts.map"
+	]
+}

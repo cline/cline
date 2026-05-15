@@ -1,109 +1,150 @@
 ---
-title: "MCP Overview"
-description: "Learn about Model Context Protocol (MCP) servers, their capabilities, and how Cline can help build and use them. MCP standardizes how applications provide context to LLMs, acting like a USB-C port for AI applications."
+title: "MCP"
+sidebarTitle: "MCP"
+description: "Add, configure, and use MCP servers in Cline."
 ---
 
-## Quick Links
+MCP (Model Context Protocol) lets Cline use external tools and data sources through MCP servers.
 
--   [Adding and Configuring MCP Servers](/mcp/adding-and-configuring-servers)
--   [Building Custom MCP Servers from Scratch](/mcp/mcp-server-development-protocol)
+## What MCP gives you
 
-## Overview
+- Connect Cline to external APIs and services
+- Add custom tools beyond built-in Cline tools
+- Use either local servers or remote hosted servers
 
-Model Context Protocol is an open protocol that standardizes how applications provide context to LLMs. Think of MCP like a USB-C port for AI applications; it provides a standardized way to connect AI models to different data sources and tools. MCP servers act as intermediaries between large language models (LLMs), such as Claude, and external tools or data sources. They are small programs that expose functionalities to LLMs, enabling them to interact with the outside world through the MCP. An MCP server is essentially like an API that an LLM can use.
+## Quick start
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/mcp-diagram.png"
-		alt="MCP diagram showing how MCP servers connect LLMs to external tools and data sources"
-	/>
-</Frame>
+1. Open **MCP Servers** in Cline
+2. Add a server (from Marketplace or manually)
+3. Configure credentials/environment variables
+4. Verify tools appear and test one tool call
 
-## Key Concepts
+## Add servers
 
-MCP servers define a set of "**tools,**" which are functions the LLM can execute. These tools offer a wide range of capabilities.
+### Option 1: Marketplace
 
-**Here's how MCP works:**
+Use Cline's MCP Marketplace for one-click install when available.
+1. In the Cline panel, click the MCP Servers icon (stacked server icon in the top toolbar).
+2. Open the Marketplace tab.
 
--   **MCP hosts** discover the capabilities of connected servers and load their tools, prompts, and resources.
--   **Resources** provide consistent access to read-only data, akin to file paths or database queries.
--   **Security** is ensured as servers isolate credentials and sensitive data. Interactions require explicit user approval.
+### Option 2: Manual config
 
-## Use Cases
+Edit your MCP config file and add either:
 
-The potential of MCP servers is vast. They can be used for a variety of purposes.
+- **CLI:** `~/.cline/mcp.json`
+- **IDE extensions:**
+  1. In the Cline panel, click the **MCP Servers** icon (stacked server icon in the top toolbar).
+  2. Open the **Configure** tab.
+  3. Click **Configure MCP Servers** (button near the bottom).
+  4. This opens the MCP settings JSON used by the extension; add/update entries under `mcpServers`.
+  - If you're adding a hosted endpoint (instead of editing JSON directly), use the **Remote Servers** tab:
+    1. Enter **Server Name** (any unique label).
+    2. Enter **Server URL** (full endpoint URL).
+    3. Choose **Transport Type**:
+       - **Streamable HTTP** (recommended)
+       - **SSE (Legacy)**
+    4. Click **Add Server**.
 
-**Here are some concrete examples of how MCP servers can be used:**
+  - Server config shape:
+    - **Local (STDIO)** server using `command` + `args`
+    - **Remote (HTTP/SSE)** server using `url`
 
--   **Web Services and API Integration:**
-    -   Monitor GitHub repositories for new issues
-    -   Post updates to Twitter based on specific triggers
-    -   Retrieve real-time weather data for location-based services
--   **Browser Automation:**
-    -   Automate web application testing
-    -   Scrape e-commerce sites for price comparisons
-    -   Generate screenshots for website monitoring
--   **Database Queries:**
-    -   Generate weekly sales reports
-    -   Analyze customer behavior patterns
-    -   Create real-time dashboards for business metrics
--   **Project and Task Management:**
-    -   Automate Jira ticket creation based on code commits
-    -   Generate weekly progress reports
-    -   Create task dependencies based on project requirements
--   **Codebase Documentation:**
-    -   Generate API documentation from code comments
-    -   Create architecture diagrams from code structure
-    -   Maintain up-to-date README files
+### CLI MCP wizard
 
-## Getting Started
+From CLI, run:
 
-Cline does not come with any pre-installed MCP servers. You'll need to find and install them separately.
+```bash
+cline mcp
+```
 
-**Choose the right approach for your needs:**
+The wizard supports:
 
--   **Community Repositories:** Check for community-maintained lists of MCP servers on GitHub. See [Adding and Configuring Servers](/mcp/adding-and-configuring-servers)
--   **Cline Marketplace:** Install one from Cline's [MCP Marketplace](/mcp/mcp-marketplace)
--   **Ask Cline:** You can ask Cline to help you find or create MCP servers
--   **Build Your Own:** Create custom MCP servers using the [MCP SDK](https://github.com/modelcontextprotocol/)
--   **Customize Existing Servers:** Modify existing servers to fit your specific requirements
+| Action | Description |
+|---|---|
+| List servers | Show configured servers and enabled/disabled status |
+| Add server | Create a new MCP server entry |
+| Edit server | Modify an existing server |
+| Enable/Disable | Toggle a server without deleting it |
+| Delete server | Remove a server permanently |
 
-## Integration with Cline
+When adding a server, the CLI prompts for server name, transport type, command/args (for stdio), or URL/headers (for remote transports).
 
-MCP servers work with both the **Cline VS Code extension** and the **[Cline CLI](/cline-cli/overview)**. If you use the CLI, see [MCP Server Configuration for the CLI](/cline-cli/configuration#mcp-server-configuration) to get set up.
+## Configuration examples
 
-Cline simplifies the building and use of MCP servers through its AI capabilities.
+### Local server (STDIO)
 
-### Building MCP Servers
+```json
+{
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "API_KEY": "your_api_key"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
--   **Natural language understanding:** Instruct Cline in natural language to build an MCP server by describing its functionalities. Cline will interpret your instructions and generate the necessary code.
--   **Cloning and building servers:** Cline can clone existing MCP server repositories from GitHub and build them automatically.
--   **Configuration and dependency management:** Cline handles configuration files, environment variables, and dependencies.
--   **Troubleshooting and debugging:** Cline helps identify and resolve errors during development.
+### Remote server (HTTP/SSE)
 
-### Using MCP Servers
+```json
+{
+  "mcpServers": {
+    "remote-server": {
+      "url": "https://example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
--   **Tool execution:** Cline seamlessly integrates with MCP servers, allowing you to execute their defined tools.
--   **Context-aware interactions:** Cline can intelligently suggest using relevant tools based on conversation context.
--   **Dynamic integrations:** Combine multiple MCP server capabilities for complex tasks. For example, Cline could use a GitHub server to get data and a Notion server to create a formatted report.
+## Transport types
 
-## Security Considerations
+- **STDIO**: local process, lower latency, simpler local setup
+- **Remote HTTP/SSE**: hosted endpoint, centralized deployment, supports multi-client usage
 
-When working with MCP servers, it's important to follow security best practices:
+Use STDIO for local tools and remote transport for shared hosted services.
 
--   **Authentication:** Always use secure authentication methods for API access
--   **Environment Variables:** Store sensitive information in environment variables
--   **Access Control:** Limit server access to authorized users only
--   **Data Validation:** Validate all inputs to prevent injection attacks
--   **Logging:** Implement secure logging practices without exposing sensitive data
+## Managing servers
 
-## Resources
+In MCP settings you can:
 
-There are various resources available for finding and learning about MCP servers.
+- Enable/disable servers
+- Restart unresponsive servers
+- Set request timeouts
+- Remove servers
 
-**Here are some links to resources for finding and learning about MCP servers:**
+## Security basics
 
--   **GitHub Repositories:** [https://github.com/modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) and [https://github.com/punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
--   **Online Directories:** [https://mcpservers.org/](https://mcpservers.org/), [https://mcp.so/](https://mcp.so/), and [https://glama.ai/mcp/servers](https://glama.ai/mcp/servers)
--   **PulseMCP:** [https://www.pulsemcp.com/](https://www.pulsemcp.com/)
--   **YouTube Tutorial (AI-Driven Coder):** A video guide for building and using MCP servers: [https://www.youtube.com/watch?v=b5pqTNiuuJg](https://www.youtube.com/watch?v=b5pqTNiuuJg)
+- Only install servers you trust
+- Store secrets in environment variables
+- Limit `autoApprove` to safe tools
+- Review tool calls before approval
+
+## Troubleshooting
+
+| Issue | Fix |
+|---|---|
+| Server won't connect | Verify command/URL, server process status, and port |
+| Missing tools | Confirm server started successfully and tools are exposed |
+| Auth errors | Re-check API keys/tokens and required headers |
+| Timeout errors | Increase MCP timeout and test server response directly |
+
+## CLI
+
+MCP also works in Cline CLI. Configure servers in CLI MCP settings and use the same server definitions.
+
+You can also list servers non-interactively:
+
+```bash
+cline config mcp
+cline config mcp --json
+```
