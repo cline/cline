@@ -88,6 +88,43 @@ describe("provider readiness", () => {
 				provider: "bedrock",
 				aws: { profile: "default" },
 			} satisfies ProviderSettings),
+		).toBe(false);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
+				apiKey: "bedrock-api-key",
+			} satisfies ProviderSettings),
+		).toBe(false);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
+				apiKey: "bedrock-api-key",
+				aws: { region: "us-east-1", authentication: "api-key" },
+			} satisfies ProviderSettings),
+		).toBe(true);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
+				aws: { profile: "default", region: "us-west-2" },
+			} satisfies ProviderSettings),
+		).toBe(true);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
+				aws: { authentication: "iam", region: "us-east-1" },
+			} satisfies ProviderSettings),
+		).toBe(true);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
+				aws: { authentication: "profile", region: "us-east-1" },
+			} satisfies ProviderSettings),
+		).toBe(true);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
+				aws: { accessKey: "access", secretKey: "secret", region: "us-east-1" },
+			} satisfies ProviderSettings),
 		).toBe(true);
 		expect(
 			isProviderSettingsUsable("vertex", {

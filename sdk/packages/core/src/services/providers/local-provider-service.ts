@@ -804,10 +804,17 @@ export function resolveLocalClineAuthToken(
 
 // --- Provider configuration fields (UI projection) -------------------------
 
-export type ProviderConfigFieldKey = "apiKey" | "baseUrl";
+export type ProviderConfigFieldKey =
+	| "apiKey"
+	| "baseUrl"
+	| "awsRegion"
+	| "awsProfile";
 
 export interface ProviderConfigFieldRequirement {
 	defaultValue?: string;
+	label?: string;
+	placeholder?: string;
+	optional?: boolean;
 }
 
 export interface ProviderConfigFields {
@@ -816,6 +823,8 @@ export interface ProviderConfigFields {
 	fields: Partial<
 		Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
 	>;
+	/** Optional description shown above the fields (e.g. AWS region auto-fill hint). */
+	description?: string;
 }
 
 const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
@@ -867,6 +876,32 @@ export function getProviderConfigFields(
 	if (collection?.provider.capabilities?.includes("local-auth")) {
 		return { providerId: id, authMethod: "local", fields: {} };
 	}
+
+	if (id === "bedrock") {
+		return {
+			providerId: id,
+			authMethod: "api-key",
+			description:
+				"AWS region is required for Bedrock. It can be auto-filled from AWS_REGION, AWS_DEFAULT_REGION, or ~/.aws/config.",
+			fields: {
+				awsRegion: {
+					label: "AWS Region",
+					placeholder: "us-east-1",
+				},
+				apiKey: {
+					label: "AWS Bedrock API Key (optional)",
+					placeholder: "Leave blank to use AWS profile/default chain",
+					optional: true,
+				},
+				awsProfile: {
+					label: "AWS Profile Name (optional)",
+					placeholder: "default",
+					optional: true,
+				},
+			},
+		};
+	}
+
 	const defaultBaseUrl = collection?.provider.baseUrl;
 	const fields: ProviderConfigFields["fields"] = { apiKey: {} };
 	if (shouldExposeBaseUrlField(id, collection)) {

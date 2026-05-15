@@ -1,3 +1,4 @@
+import type { ProviderConfigFieldKey } from "@cline/core";
 import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ClineModelPickerEntry } from "../../components/model-selector/cline-model-picker";
@@ -24,9 +25,9 @@ export function useOnboardingKeyboard(input: {
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
 	resetByoFields: () => void;
-	byoFields: { apiKey?: unknown; baseUrl?: unknown };
-	byoFocusedField: "apiKey" | "baseUrl";
-	setByoFocusedField: (field: "apiKey" | "baseUrl") => void;
+	byoFields: Partial<Record<string, unknown>>;
+	byoFocusedField: string;
+	setByoFocusedField: Dispatch<SetStateAction<ProviderConfigFieldKey>>;
 	setDeviceUserCode: (value: string) => void;
 	setDeviceVerifyUrl: (value: string) => void;
 	setDeviceError: (value: string) => void;
@@ -43,6 +44,7 @@ export function useOnboardingKeyboard(input: {
 	loadModelsForProvider: (providerId: string) => void;
 	saveClineModelSelection: (modelId: string, modelName: string) => void;
 	saveCodexCliConfig: () => void;
+	saveByoConfig: () => void;
 	saveModelSelection: () => void;
 	saveThinkingLevel: (level: ThinkingLevel) => void;
 }) {
@@ -178,7 +180,7 @@ export function useOnboardingKeyboard(input: {
 
 		if (input.step === "byo_apikey") {
 			if (key.name === "tab") {
-				const visible = (["baseUrl", "apiKey"] as const).filter(
+				const visible = Object.keys(input.byoFields).filter(
 					(k) => input.byoFields[k] !== undefined,
 				);
 				if (visible.length > 1) {
@@ -187,7 +189,7 @@ export function useOnboardingKeyboard(input: {
 						? (idx - 1 + visible.length) % visible.length
 						: (idx + 1) % visible.length;
 					const next = visible[nextIdx];
-					if (next) input.setByoFocusedField(next);
+					if (next) input.setByoFocusedField(next as ProviderConfigFieldKey);
 				}
 			}
 			return;
