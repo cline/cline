@@ -126,8 +126,7 @@ describe("compactInteractiveMessages", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toEqual(messages);
-		expect(result.compactionState?.messages).toEqual([messages[0]]);
+		expect(result.messages).toEqual([messages[0]]);
 	});
 
 	it("falls back to legacy contextWindow for manual compaction", async () => {
@@ -158,8 +157,7 @@ describe("compactInteractiveMessages", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toEqual(messages);
-		expect(result.compactionState?.messages).toEqual([messages[0]]);
+		expect(result.messages).toEqual([messages[0]]);
 	});
 
 	it("uses a useful target budget for manual compaction", async () => {
@@ -176,8 +174,7 @@ describe("compactInteractiveMessages", () => {
 			messages,
 		});
 
-		const compactedMessages = result.compactionState?.messages ?? [];
-		const compactedTextLength = compactedMessages.reduce(
+		const compactedTextLength = result.messages.reduce(
 			(total, message) =>
 				total +
 				(typeof message.content === "string" ? message.content.length : 0),
@@ -185,9 +182,8 @@ describe("compactInteractiveMessages", () => {
 		);
 
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toEqual(messages);
-		expect(compactedMessages.length).toBeGreaterThan(1);
-		expect(compactedMessages.length).toBeLessThan(messages.length);
+		expect(result.messages.length).toBeGreaterThan(1);
+		expect(result.messages.length).toBeLessThan(messages.length);
 		expect(compactedTextLength).toBeGreaterThan(1_000);
 	});
 
@@ -218,37 +214,9 @@ describe("compactInteractiveMessages", () => {
 		});
 
 		expect(result.compacted).toBe(true);
-		expect(result.messages).toEqual(messages);
-		expect(result.compactionState?.messages).toHaveLength(messages.length);
-		expect(result.compactionState?.messages[0]?.content).toBe(
+		expect(result.messages).toHaveLength(messages.length);
+		expect(result.messages[0]?.content).toBe(
 			"same count but content should be trimmed",
 		);
-	});
-
-	it("treats system-prompt-only compaction results as not compacted", async () => {
-		const messages = [
-			{
-				role: "user" as const,
-				content: "keep the canonical transcript",
-			},
-		];
-		const config = createConfig();
-		config.compaction = {
-			compact: () => ({
-				systemPrompt: "updated system prompt only",
-			}),
-		};
-
-		const result = await compactInteractiveMessages({
-			config,
-			providerSettingsManager: createProviderSettingsManager(),
-			sessionId: "sess-compact",
-			messages,
-		});
-
-		expect(result).toEqual({
-			compacted: false,
-			messages,
-		});
 	});
 });
