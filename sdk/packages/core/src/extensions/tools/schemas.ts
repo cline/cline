@@ -178,7 +178,6 @@ export const StructuredCommandsInputUnionSchema = z.union([
 	}),
 	DirectStructuredCommandInputSchema,
 	z.array(StructuredCommandInputSchema),
-	StructuredCommandInputSchema,
 	z.object({ cmd: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
 	z.array(z.string()),
 	z.string(),
