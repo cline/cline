@@ -752,8 +752,6 @@ export class AgentRuntime {
 			options: this.config.modelOptions,
 		};
 
-		request = await this.prepareTurnForModelRequest(request);
-
 		if (this.state.iteration > 1) {
 			const pendingUserMessage = await this.consumePendingUserMessage();
 			if (pendingUserMessage) {
@@ -766,6 +764,8 @@ export class AgentRuntime {
 				};
 			}
 		}
+
+		request = await this.prepareTurnForModelRequest(request);
 
 		for (const hook of this.hooks.beforeModel) {
 			const result = (await hook({

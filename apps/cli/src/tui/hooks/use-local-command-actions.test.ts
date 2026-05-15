@@ -161,7 +161,7 @@ describe("formatCompactionStatus", () => {
 				messagesAfter: 300,
 				compacted: true,
 			}),
-		).toBe("Compacted context; message count stayed at 300.");
+		).toBe("Compacted context; message count stayed at 300 messages.");
 	});
 
 	it("reports empty sessions separately", () => {

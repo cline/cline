@@ -902,7 +902,7 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(0);
 	});
 
-	it("runs prepareTurn before beforeModel and persists rewritten messages", async () => {
+	it("runs prepareTurn before beforeModel without overwriting canonical messages", async () => {
 		const compactedMessage: AgentMessage = {
 			id: "msg_compacted",
 			role: "user",
@@ -955,7 +955,10 @@ describe("AgentRuntime", () => {
 		expect(prepareTurn).toHaveBeenCalledTimes(1);
 		expect(beforeModel).toHaveBeenCalledTimes(1);
 		expect(notices).toEqual(["auto-compacting"]);
-		expect(result.messages[0]).toEqual(compactedMessage);
+		expect(result.messages[0]).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "large context" }],
+		});
 		expect(result.messages).toHaveLength(2);
 		expect(model.requests).toHaveLength(1);
 	});
