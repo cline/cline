@@ -649,6 +649,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"mistralai--mistral-small-instruct",
 			"mistralai--mistral-small",
 			"cohere--command-a-reasoning",
+			]
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-image", "gemini-2.5-pro"]
 		const novaModels = ["amazon--nova-pro", "amazon--nova-lite", "amazon--nova-micro"]
 		const converseStreamModels = [
