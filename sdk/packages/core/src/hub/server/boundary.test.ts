@@ -4,6 +4,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "../server";
 import {
@@ -855,6 +856,139 @@ describe("HubServerTransport boundaries", () => {
 			error: { code: "session_wrong_client" },
 		});
 		expect(readSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("returns compaction sidecar state to the server-owned session client", async () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+		const readSessionCompactionState = vi.fn().mockResolvedValue(state);
+		const transport = createTransport({
+			sessionHost: { readSessionCompactionState },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-get",
+			command: "session.compaction.get",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { sessionId: "session-1", state },
+		});
+		expect(readSessionCompactionState).toHaveBeenCalledWith("session-1");
+	});
+
+	it("rejects invalid compaction sidecar updates before calling the session host", async () => {
+		const updateSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: { updateSessionCompactionState },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-update-invalid",
+			command: "session.compaction.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { state: { version: 1, messages: "bad" } },
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "invalid_compaction_state" },
+		});
+		expect(updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("publishes session updates after successful compaction sidecar updates", async () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+		const updateSessionCompactionState = vi
+			.fn()
+			.mockResolvedValue({ updated: true });
+		const transport = createTransport({
+			sessionHost: { updateSessionCompactionState },
+		});
+		const ctx = getContext(transport);
+		const events: HubEventEnvelope[] = [];
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		transport.subscribe("owner-client", (event) => events.push(event));
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-update",
+			command: "session.compaction.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { state },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { updated: true },
+		});
+		expect(updateSessionCompactionState).toHaveBeenCalledWith(
+			"session-1",
+			state,
+		);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					event: "session.updated",
+					sessionId: "session-1",
+				}),
+			]),
+		);
+	});
+
+	it("does not publish session updates when compaction sidecar update is stale", async () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+		const updateSessionCompactionState = vi
+			.fn()
+			.mockResolvedValue({ updated: false });
+		const transport = createTransport({
+			sessionHost: { updateSessionCompactionState },
+		});
+		const ctx = getContext(transport);
+		const events: HubEventEnvelope[] = [];
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		transport.subscribe("owner-client", (event) => events.push(event));
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-stale",
+			command: "session.compaction.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { state },
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			payload: { updated: false },
+		});
+		expect(events).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ event: "session.updated" }),
+			]),
+		);
 	});
 
 	it("cancels pending capability requests when a run is aborted", async () => {

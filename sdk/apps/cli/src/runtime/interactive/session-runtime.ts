@@ -393,6 +393,12 @@ export function createInteractiveSessionRuntime(input: {
 		if (messages.length === 0) {
 			throw new Error("Cannot fork an empty session.");
 		}
+		const compactionState = await manager
+			.readSessionCompactionState(forkedFromSessionId)
+			.catch(() => undefined);
+		const projectedMessages = compactionState
+			? projectSessionCompactionState(compactionState, messages)
+			: undefined;
 		await manager.stop(forkedFromSessionId);
 		const forkMetadata = buildForkSessionMetadata({
 			forkedFromSessionId,
@@ -401,6 +407,24 @@ export function createInteractiveSessionRuntime(input: {
 			messages,
 		});
 		await startFreshSession(messages, forkMetadata);
+		if (projectedMessages && activeSessionId) {
+			const reanchoredCompactionState = createSessionCompactionState({
+				sourceMessages: messages,
+				compactedMessages: projectedMessages,
+				conversationId: activeSessionId,
+				systemPrompt: compactionState?.system_prompt,
+			});
+			const updated = await manager.updateSessionCompactionState(
+				activeSessionId,
+				reanchoredCompactionState,
+			);
+			if (!updated.updated) {
+				input.config.logger?.log?.(
+					"Skipped re-anchoring session compaction state after fork",
+					{ sessionId: activeSessionId },
+				);
+			}
+		}
 		return { forkedFromSessionId, newSessionId: activeSessionId };
 	};
 
