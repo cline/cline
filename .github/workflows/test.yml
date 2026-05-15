@@ -4,11 +4,29 @@ on:
     push:
         branches:
             - main
+        paths-ignore:
+            - "docs/**"
+            - "locales/**"
+            - "**/*.md"
+            - "assets/**"
+            - ".github/ISSUE_TEMPLATE/**"
+            - "walkthrough/**"
     workflow_dispatch:
     pull_request:
         branches:
             - main
+        paths-ignore:
+            - "docs/**"
+            - "locales/**"
+            - "**/*.md"
+            - "assets/**"
+            - ".github/ISSUE_TEMPLATE/**"
+            - "walkthrough/**"
     workflow_call:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.event_name, github.ref) }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Set default permissions for all jobs
 permissions:
@@ -16,6 +34,7 @@ permissions:
 
 jobs:
     quality-checks:
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         runs-on: ubuntu-latest
         name: Quality Checks
         steps:
