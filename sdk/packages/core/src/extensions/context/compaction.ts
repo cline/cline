@@ -1,4 +1,5 @@
 import {
+	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	type TelemetryCompactionStrategy,
@@ -417,6 +418,31 @@ export function createContextCompactionPrepareTurn(
 				modelId: config.modelId,
 				...telemetryIdentity,
 			});
+			if (
+				result.budget &&
+				(result.budget.actionCount > 0 || result.budget.warningCount > 0)
+			) {
+				captureCompactionBudgetEmergency(config.telemetry, {
+					ulid: telemetryUlid,
+					strategy: telemetryStrategy,
+					mode,
+					policyIntent: result.budget.policyIntent,
+					actionCount: result.budget.actionCount,
+					warningCount: result.budget.warningCount,
+					liveTailHandling: result.budget.liveTailHandling,
+					provider: config.providerId,
+					modelId: config.modelId,
+					...telemetryIdentity,
+				});
+				context.emitStatusNotice?.("compaction-budget-adjusted", {
+					kind: "compaction_budget_emergency",
+					reason: "compaction_budget_emergency",
+					iteration: context.iteration,
+					policyIntent: result.budget.policyIntent,
+					actionCount: result.budget.actionCount,
+					warningCount: result.budget.warningCount,
+				});
+			}
 		} else {
 			captureCompactionSkipped(config.telemetry, {
 				ulid: telemetryUlid,

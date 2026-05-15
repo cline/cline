@@ -438,5 +438,13 @@ export function runBasicCompaction(options: {
 		maxInputTokens: options.context.maxInputTokens,
 	});
 
-	return { messages: resultMessages };
+	return {
+		messages: resultMessages,
+		budget: {
+			policyIntent: "basic_compaction_projection",
+			actionCount: budgeted.actions.length,
+			warningCount: budgeted.warnings.length,
+			liveTailHandling: budgeted.liveTailHandling,
+		},
+	};
 }
