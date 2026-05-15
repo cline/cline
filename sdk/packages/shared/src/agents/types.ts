@@ -162,7 +162,9 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 		| "completion_without_submit"
 		| "tool_execution_failed"
 		| "mistake_limit"
-		| "auto_compaction";
+		| "auto_compaction"
+		| "manual_compaction"
+		| "compaction_budget_emergency";
 	metadata?: Record<string, unknown>;
 }
 
