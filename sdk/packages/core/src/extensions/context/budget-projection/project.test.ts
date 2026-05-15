@@ -291,4 +291,28 @@ describe("buildBudgetProjection", () => {
 			]),
 		);
 	});
+
+	it("clears thinking blocks after the message text budget is exhausted", () => {
+		const result = buildBudgetProjection({
+			messages: [
+				{ role: "user", content: "latest typed prompt" },
+				{
+					role: "assistant",
+					content: [
+						{ type: "text", text: "a".repeat(1_000) },
+						{ type: "thinking", thinking: "b".repeat(1_000) },
+					],
+				},
+			],
+			targetTokens: 190,
+			policyIntent: "agentic_summary",
+			estimateMessageTokens: estimateChars,
+		});
+
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(JSON.stringify(assistant)).not.toContain("b".repeat(100));
+	});
+
 });
