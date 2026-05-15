@@ -1,6 +1,6 @@
 # This workflow will only label and/or close 30 issues at a time in order to avoid exceeding a rate limit.
 # More info: https://docs.github.com/en/actions/use-cases-and-examples/project-management/closing-inactive-issues
-name: Close inactive issues
+name: repo-stale-issues
 on:
     schedule:
         - cron: "30 1 * * *"

@@ -1,4 +1,7 @@
-name: "Publish New SDK Extension Nightly"
+# TODO: Fold this workflow's SDK login changes into ext-vscode-publish-nightly.yml
+# and delete this file. Pinned to dpc/sdk-migration-simpler-login while Max is iterating.
+# Owner: Max Paulus
+name: ext-vscode-publish-nightly-sdk
 
 on:
     schedule:
