@@ -32,7 +32,8 @@ function resolveProviderSwitchModelId(
 	currentModelId: string | undefined,
 ): string {
 	const generatedModels = getGeneratedModelsForProvider(providerId)
-	const collectionModels = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models ?? {}
+	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
+	const collectionModels = collection?.models ?? {}
 	if (currentModelId && (generatedModels[currentModelId] || collectionModels[currentModelId])) {
 		return currentModelId
 	}
@@ -42,7 +43,12 @@ function resolveProviderSwitchModelId(
 		return selection.modelId
 	}
 
-	return MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.defaultModelId?.trim() || Object.keys(generatedModels)[0] || ""
+	const sdkDefaultModelId = collection?.provider.defaultModelId?.trim()
+	if (sdkDefaultModelId && (generatedModels[sdkDefaultModelId] || collectionModels[sdkDefaultModelId])) {
+		return sdkDefaultModelId
+	}
+
+	return Object.keys(generatedModels)[0] || Object.keys(collectionModels)[0] || ""
 }
 
 /**
