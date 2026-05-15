@@ -121,6 +121,36 @@ describe("buildBudgetProjection", () => {
 		);
 	});
 
+	it("protects latest typed user after thinking-only messages are pruned", () => {
+		const result = buildBudgetProjection({
+			messages: [
+				{ role: "user", content: "old task" },
+				{
+					role: "assistant",
+					content: [{ type: "thinking", thinking: "discard me" }],
+				},
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "what is in this image?" },
+						{
+							type: "image",
+							data: "live-image",
+							mediaType: "image/png",
+						},
+					],
+				},
+			],
+			targetTokens: 1_000,
+			policyIntent: "agentic_summary",
+			estimateMessageTokens: estimateChars,
+		});
+
+		const serialized = JSON.stringify(result.messages);
+		expect(serialized).toContain("live-image");
+		expect(serialized).not.toContain("discard me");
+	});
+
 	it("keeps tool-use and tool-result pairs coherent when dropping history", () => {
 		const result = buildBudgetProjection({
 			messages: [
