@@ -694,7 +694,7 @@ oca:internal:https://...:authPresent=true
 
 Never include raw secrets in cache keys or logs. Use:
 
-- boolean `hasApiKey`, or
+- numeric `apiKeyLength`, or
 - short hash of key/token if different keys may expose different private models.
 
 For private/authenticated model lists, a short hash is safer than a boolean because model access can differ by account/API key.

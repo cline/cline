@@ -5,7 +5,6 @@ describe("providerSettingsRegistry", () => {
 	it("registers DeepSeek as a generic catalog-backed provider without base URL", () => {
 		expect(getGenericProviderSettings("deepseek")).toEqual({
 			allowsCustomIds: false,
-			apiKeyField: "deepSeekApiKey",
 			providerId: "deepseek",
 			providerName: "DeepSeek",
 			signupUrl: "https://www.deepseek.com/",
@@ -15,9 +14,7 @@ describe("providerSettingsRegistry", () => {
 	it("registers Gemini with its custom base URL field", () => {
 		expect(getGenericProviderSettings("gemini")).toEqual({
 			allowsCustomIds: false,
-			apiKeyField: "geminiApiKey",
 			baseUrlField: {
-				field: "geminiBaseUrl",
 				label: "Use custom base URL",
 				placeholder: "Default: https://generativelanguage.googleapis.com",
 			},

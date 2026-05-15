@@ -189,7 +189,7 @@ message ProviderConfigResponse {
   optional string api_line = 3;
   map<string, string> headers = 4;
   optional string region = 5;
-  bool has_api_key = 6;
+  int64 api_key_length = 6;
   bool has_access_token = 7;
   bool has_refresh_token = 8;
   optional string account_id = 9;
