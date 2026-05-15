@@ -21,7 +21,11 @@ git checkout main && git pull origin main
 Get the latest release tag:
 
 ```bash
-git tag --sort=-v:refname | head -1
+LAST_TAG=$(git tag --list 'v*-vscode' --sort=-v:refname | head -1)
+if [ -z "$LAST_TAG" ]; then
+  LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+fi
+echo "$LAST_TAG"
 ```
 
 ## Step 2: Present Commits Since Last Release
@@ -29,15 +33,22 @@ git tag --sort=-v:refname | head -1
 Show all commits on main since the last release tag:
 
 ```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
+LAST_TAG=$(git tag --list 'v*-vscode' --sort=-v:refname | head -1)
+if [ -z "$LAST_TAG" ]; then
+  LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+fi
 git log ${LAST_TAG}..HEAD --oneline --format="%h %s (%an)"
 ```
 
 Also get the commit messages already on the tag (to identify previously cherry-picked commits). Note: Run these as separate commands to avoid shell parsing issues with parentheses in author names:
 
 ```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
-PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
+get_vscode_release_tags() {
+  git tag --list 'v*-vscode' --sort=-v:refname
+  git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'
+}
+LAST_TAG=$(get_vscode_release_tags | head -1)
+PREV_TAG=$(get_vscode_release_tags | head -2 | tail -1)
 ```
 
 ```bash
@@ -64,7 +75,10 @@ Build a mental model of what these changes do for the changelog.
 Parse the current version from package.json and the last tag:
 
 ```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
+LAST_TAG=$(git tag --list 'v*-vscode' --sort=-v:refname | head -1)
+if [ -z "$LAST_TAG" ]; then
+  LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+fi
 echo "Last release: $LAST_TAG"
 cat package.json | grep '"version"'
 ```
@@ -120,7 +134,10 @@ git push origin main
 Checkout the last release tag (detached HEAD):
 
 ```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
+LAST_TAG=$(git tag --list 'v*-vscode' --sort=-v:refname | head -1)
+if [ -z "$LAST_TAG" ]; then
+  LAST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+fi
 git checkout $LAST_TAG
 ```
 
@@ -146,10 +163,10 @@ After all cherry-picks are applied successfully:
 
 ```bash
 # Tag the new release
-git tag v{VERSION}
+git tag -a v{VERSION}-vscode -m "VS Code v{VERSION}"
 
 # Push the tag to remote
-git push origin v{VERSION}
+git push origin refs/tags/v{VERSION}-vscode
 ```
 
 ## Step 8: Return to Main and Summary
@@ -171,12 +188,12 @@ VS Code Hotfix v{VERSION} Published
 
 Present a final summary:
 - New version: v{VERSION}
-- Tag pushed: yes
+- Tag pushed: v{VERSION}-vscode
 - Commits included: (list them)
 - Slack message copied to clipboard: yes
 
 Remind the user to:
-1. Manually trigger the publish release GitHub Action at: https://github.com/cline/cline/actions/workflows/ext-vscode-publish-stable.yml (paste `v{VERSION}` as the tag)
+1. Manually trigger the publish release GitHub Action at: https://github.com/cline/cline/actions/workflows/ext-vscode-publish-stable.yml (paste `v{VERSION}-vscode` as the tag)
 2. Post the Slack message to announce the hotfix
 
 ## Important Notes

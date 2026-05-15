@@ -79,7 +79,7 @@ cline auth         # authenticate a provider
 
 Every release starts by preparing one release commit from the code you want to publish:
 
-1. Draft user-facing release notes from the commits since the last `cli-vX.Y.Z` tag.
+1. Draft user-facing release notes from the commits since the last `vX.Y.Z-cli` tag.
 2. Choose the release version. Because this publishes over the existing `cline` package, the version must be greater than the current published `cline` version. The handoff release is `3.0.0`.
 3. Update `apps/cli/package.json`.
 4. Add the approved notes to `apps/cli/CHANGELOG.md`.
@@ -93,12 +93,12 @@ Then publish that release commit with one of these paths.
 Use this path for normal releases.
 
 ```bash
-git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
-git push origin refs/tags/cli-vX.Y.Z
-gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+git tag -a vX.Y.Z-cli -m "CLI vX.Y.Z"
+git push origin refs/tags/vX.Y.Z-cli
+gh workflow run cli-publish.yml -f publish_target=main -f git_tag=vX.Y.Z-cli -f confirm_publish=publish
 ```
 
-This path requires the release commit to be on `main` and the matching `cli-vX.Y.Z` tag to exist before the workflow runs. The workflow checks out the tag, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
+This path requires the release commit to be on `main` and the matching `vX.Y.Z-cli` tag to exist before the workflow runs. The workflow checks out the tag, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
 
 ### Publish Locally
 
@@ -109,10 +109,10 @@ Start from a clean checkout at the release commit:
 ```bash
 gh auth status
 npm whoami
-git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
-git push origin refs/tags/cli-vX.Y.Z
+git tag -a vX.Y.Z-cli -m "CLI vX.Y.Z"
+git push origin refs/tags/vX.Y.Z-cli
 bun release cli
-gh release create cli-vX.Y.Z --verify-tag --title "CLI vX.Y.Z" --notes "Paste the approved release notes here."
+gh release create vX.Y.Z-cli --verify-tag --title "CLI vX.Y.Z" --notes "Paste the approved release notes here."
 ```
 
 The release helper checks the working tree, verifies the tag points at `HEAD` locally and on `origin`, runs tests, builds all platform packages, and publishes the platform packages plus the generated `cline` wrapper package to npm. The package version and tag must match.
@@ -128,9 +128,9 @@ bun release cli --tag next
 The GitHub workflow at `.github/workflows/cli-publish.yml` automates publishing:
 
 - Main releases are manual. Select `publish_target=main` and set `confirm_publish=publish`.
-- Main releases require `git_tag=cli-vX.Y.Z`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
+- Main releases require `git_tag=vX.Y.Z-cli`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
 - Nightly releases run on a schedule or manually with `publish_target=nightly`.
-- Nightly releases publish `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skip if there were no commits in the last 24 hours unless forced.
+- Nightly releases publish `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag, create a `vX.Y.Z-cli-nightly.TIMESTAMP` git tag, and skip if there were no commits in the last 24 hours unless forced.
 
 CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package before relying on the workflow.
 

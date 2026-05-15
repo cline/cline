@@ -36,8 +36,8 @@ Confirm the release version with the maintainer (patch/minor/major).
 git add CHANGELOG.md package.json package-lock.json
 git commit -m "v<version> Release Notes"
 git push origin main
-git tag v<version>
-git push origin v<version>
+git tag -a v<version>-vscode -m "VS Code v<version>"
+git push origin refs/tags/v<version>-vscode
 ```
 
 ### 4) Trigger publish workflow
@@ -45,15 +45,15 @@ git push origin v<version>
 Tell the maintainer to run:
 https://github.com/cline/cline/actions/workflows/ext-vscode-publish-stable.yml
 
-Use `v<version>` as the release tag.
+Use `v<version>-vscode` as the release tag.
 
 ### 5) Update GitHub release notes
 
 After publish completes:
 
 ```bash
-gh release view v<version> --json body --jq '.body'
-gh release edit v<version> --notes "<final curated release notes>"
+gh release view v<version>-vscode --json body --jq '.body'
+gh release edit v<version>-vscode --notes "<final curated release notes>"
 ```
 
 ### 6) Final summary
