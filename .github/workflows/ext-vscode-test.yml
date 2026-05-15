@@ -13,9 +13,66 @@ on:
 # Set default permissions for all jobs
 permissions:
     contents: read # Needed to check out code
+    pull-requests: read # Needed for changed-file detection on pull requests
 
 jobs:
+    detect-changes:
+        runs-on: ubuntu-latest
+        name: Detect Changes
+        outputs:
+            vscode: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.vscode == 'true' }}
+            testing_platform: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.testing_platform == 'true' }}
+        steps:
+            - id: force
+              if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+              run: echo "run_all=true" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/checkout@v4
+              if: steps.force.outputs.run_all != 'true'
+
+            - uses: dorny/paths-filter@v3
+              if: steps.force.outputs.run_all != 'true'
+              id: filter
+              with:
+                  filters: |
+                      vscode:
+                          - 'src/**'
+                          - 'webview-ui/**'
+                          - 'proto/**'
+                          - 'tests/**'
+                          - 'scripts/**'
+                          - 'standalone/**'
+                          - 'assets/**'
+                          - 'walkthrough/**'
+                          - 'package.json'
+                          - 'package-lock.json'
+                          - 'buf.yaml'
+                          - 'tsconfig*.json'
+                          - 'biome.jsonc'
+                          - 'esbuild.mjs'
+                          - '.mocharc.json'
+                          - '.nycrc*.json'
+                          - '.vscode-test.mjs'
+                          - 'test-setup.js'
+                          - '.github/workflows/ext-vscode-test.yml'
+                      testing_platform:
+                          - 'src/**'
+                          - 'proto/**'
+                          - 'standalone/**'
+                          - 'testing-platform/**'
+                          - 'tests/specs/**'
+                          - 'package.json'
+                          - 'package-lock.json'
+                          - 'buf.yaml'
+                          - 'tsconfig*.json'
+                          - 'esbuild.mjs'
+                          - '.vscodeignore'
+                          - 'scripts/**'
+                          - '.github/workflows/ext-vscode-test.yml'
+
     quality-checks:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         name: Quality Checks
         steps:
@@ -42,8 +99,9 @@ jobs:
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
 
-    test:
-        needs: quality-checks
+    vscode-test:
+        needs: [detect-changes, quality-checks]
+        if: needs.detect-changes.outputs.vscode == 'true'
         env:
             VSCODE_TEST_VERSION: 1.103.0
         strategy:
@@ -51,7 +109,7 @@ jobs:
             matrix:
                 os: [ubuntu-latest, windows-latest]
         runs-on: ${{ matrix.os }}
-        name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
+        name: ${{ matrix.os == 'ubuntu-latest' && 'vscode test' || format('vscode test ({0})', matrix.os) }}
         defaults:
             run:
                 shell: bash
@@ -147,7 +205,8 @@ jobs:
                       webview-ui/coverage/lcov.info
 
     test-platform-integration:
-        needs: quality-checks
+        needs: [detect-changes, quality-checks]
+        if: needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -190,8 +249,55 @@ jobs:
                 name: test-platform-integration-core-coverage
                 path: coverage/**/lcov.info
 
+    # Keep the required "test" check as a tiny aggregate gate instead of the conditional
+    # VS Code matrix. GitHub treats conditionally skipped jobs as successful required
+    # checks, so the gate below preserves the old required check name while making sure
+    # whichever filtered test jobs were selected actually passed.
+    test:
+        needs: [detect-changes, quality-checks, vscode-test, test-platform-integration]
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-latest
+        name: test
+        steps:
+            - name: Verify selected test jobs
+              env:
+                  DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
+                  QUALITY_CHECKS_RESULT: ${{ needs.quality-checks.result }}
+                  VSCODE_CHANGED: ${{ needs.detect-changes.outputs.vscode }}
+                  TESTING_PLATFORM_CHANGED: ${{ needs.detect-changes.outputs.testing_platform }}
+                  VSCODE_TEST_RESULT: ${{ needs.vscode-test.result }}
+                  TEST_PLATFORM_RESULT: ${{ needs.test-platform-integration.result }}
+              run: |
+                  if [ "$DETECT_CHANGES_RESULT" != "success" ]; then
+                    echo "detect-changes did not succeed: $DETECT_CHANGES_RESULT"
+                    exit 1
+                  fi
+
+                  if [ "$VSCODE_CHANGED" != "true" ] && [ "$TESTING_PLATFORM_CHANGED" != "true" ]; then
+                    echo "No root test paths changed; skipping root test requirements."
+                    exit 0
+                  fi
+
+                  if [ "$QUALITY_CHECKS_RESULT" != "success" ]; then
+                    echo "quality-checks did not succeed: $QUALITY_CHECKS_RESULT"
+                    exit 1
+                  fi
+
+                  if [ "$VSCODE_CHANGED" = "true" ] && [ "$VSCODE_TEST_RESULT" != "success" ]; then
+                    echo "vscode-test did not succeed: $VSCODE_TEST_RESULT"
+                    exit 1
+                  fi
+
+                  if [ "$TESTING_PLATFORM_CHANGED" = "true" ] && [ "$TEST_PLATFORM_RESULT" != "success" ]; then
+                    echo "test-platform-integration did not succeed: $TEST_PLATFORM_RESULT"
+                    exit 1
+                  fi
+
+                  echo "Selected root test jobs passed."
+
     qlty:
-        needs: [test, test-platform-integration]
+        needs: [detect-changes, quality-checks, vscode-test, test-platform-integration]
+        if: ${{ !cancelled() && needs.quality-checks.result == 'success' && (needs.vscode-test.result == 'success' || needs.vscode-test.result == 'skipped') && (needs.test-platform-integration.result == 'success' || needs.test-platform-integration.result == 'skipped') && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true') }}
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
@@ -199,12 +305,14 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Download unit tests coverage reports
+              if: needs.detect-changes.outputs.vscode == 'true'
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
                   path: .
 
             - name: Upload core unit tests coverage to Qlty
+              if: needs.detect-changes.outputs.vscode == 'true'
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
@@ -214,6 +322,7 @@ jobs:
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
+              if: needs.detect-changes.outputs.vscode == 'true'
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
@@ -224,6 +333,7 @@ jobs:
                   add-prefix: webview-ui/
 
             - name: Download test platform integration core coverage artifact
+              if: needs.detect-changes.outputs.testing_platform == 'true'
               uses: actions/download-artifact@v4
               continue-on-error: true
               id: download-integration-coverage
@@ -232,7 +342,7 @@ jobs:
                 path: integration-core-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
-              if: steps.download-integration-coverage.outcome == 'success'
+              if: needs.detect-changes.outputs.testing_platform == 'true' && steps.download-integration-coverage.outcome == 'success'
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
