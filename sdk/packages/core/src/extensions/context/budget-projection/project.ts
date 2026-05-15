@@ -452,9 +452,6 @@ export function buildBudgetProjection(
 
 	let messages = cloneMessages(options.messages);
 	let originalIndexes = messages.map((_, index) => index);
-	const protectedStartIndex = policy.protectLatestTypedUser
-		? findLatestTypedUserMessageIndex(messages)
-		: -1;
 	if (policy.dropThinkingBlocks) {
 		const prunedThinking = pruneEmptyMessages(
 			dropThinkingBlocks(messages, originalIndexes, actions),
@@ -464,6 +461,9 @@ export function buildBudgetProjection(
 		messages = prunedThinking.messages;
 		originalIndexes = prunedThinking.originalIndexes;
 	}
+	const protectedStartIndex = policy.protectLatestTypedUser
+		? findLatestTypedUserMessageIndex(messages)
+		: -1;
 	if (policy.dropUnsafeOutsideLiveTail) {
 		const prunedUnsafe = pruneEmptyMessages(
 			dropUnsafeBlocks(
