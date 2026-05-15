@@ -13,9 +13,64 @@ on:
 # Set default permissions for all jobs
 permissions:
     contents: read # Needed to check out code
+    pull-requests: read # Needed for changed-file detection on pull requests
 
 jobs:
+    detect-changes:
+        runs-on: ubuntu-latest
+        name: Detect Changes
+        outputs:
+            vscode: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.vscode == 'true' }}
+            testing_platform: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.testing_platform == 'true' }}
+        steps:
+            - id: force
+              if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+              run: echo "run_all=true" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/checkout@v4
+              if: steps.force.outputs.run_all != 'true'
+
+            - uses: dorny/paths-filter@v3
+              if: steps.force.outputs.run_all != 'true'
+              id: filter
+              with:
+                  filters: |
+                      vscode:
+                          - 'src/**'
+                          - 'webview-ui/**'
+                          - 'proto/**'
+                          - 'tests/**'
+                          - 'scripts/**'
+                          - 'standalone/**'
+                          - 'assets/**'
+                          - 'walkthrough/**'
+                          - 'package.json'
+                          - 'package-lock.json'
+                          - 'tsconfig*.json'
+                          - 'biome.jsonc'
+                          - 'esbuild.mjs'
+                          - '.mocharc.json'
+                          - '.nycrc*.json'
+                          - '.vscode-test.mjs'
+                          - '.github/workflows/test.yml'
+                      testing_platform:
+                          - 'src/**'
+                          - 'proto/**'
+                          - 'standalone/**'
+                          - 'testing-platform/**'
+                          - 'tests/specs/**'
+                          - 'package.json'
+                          - 'package-lock.json'
+                          - 'tsconfig*.json'
+                          - 'esbuild.mjs'
+                          - 'scripts/download-ripgrep.mjs'
+                          - 'scripts/package-standalone.mjs'
+                          - 'scripts/testing-platform-orchestrator.ts'
+                          - '.github/workflows/test.yml'
+
     quality-checks:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         name: Quality Checks
         steps:
@@ -43,7 +98,8 @@ jobs:
               run: npm run ci:check-all
 
     test:
-        needs: quality-checks
+        needs: [detect-changes, quality-checks]
+        if: needs.detect-changes.outputs.vscode == 'true'
         env:
             VSCODE_TEST_VERSION: 1.103.0
         strategy:
@@ -147,7 +203,8 @@ jobs:
                       webview-ui/coverage/lcov.info
 
     test-platform-integration:
-        needs: quality-checks
+        needs: [detect-changes, quality-checks]
+        if: needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -191,7 +248,8 @@ jobs:
                 path: coverage/**/lcov.info
 
     qlty:
-        needs: [test, test-platform-integration]
+        needs: [detect-changes, quality-checks, test, test-platform-integration]
+        if: ${{ always() && needs.quality-checks.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.test-platform-integration.result == 'success' || needs.test-platform-integration.result == 'skipped') && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true') }}
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
@@ -199,12 +257,14 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Download unit tests coverage reports
+              if: needs.detect-changes.outputs.vscode == 'true'
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
                   path: .
 
             - name: Upload core unit tests coverage to Qlty
+              if: needs.detect-changes.outputs.vscode == 'true'
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
@@ -214,6 +274,7 @@ jobs:
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
+              if: needs.detect-changes.outputs.vscode == 'true'
               uses: qltysh/qlty-action/coverage@v2
               with:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
@@ -224,6 +285,7 @@ jobs:
                   add-prefix: webview-ui/
 
             - name: Download test platform integration core coverage artifact
+              if: needs.detect-changes.outputs.testing_platform == 'true'
               uses: actions/download-artifact@v4
               continue-on-error: true
               id: download-integration-coverage
@@ -232,7 +294,7 @@ jobs:
                 path: integration-core-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
-              if: steps.download-integration-coverage.outcome == 'success'
+              if: needs.detect-changes.outputs.testing_platform == 'true' && steps.download-integration-coverage.outcome == 'success'
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
