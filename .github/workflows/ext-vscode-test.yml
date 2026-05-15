@@ -249,7 +249,7 @@ jobs:
 
     qlty:
         needs: [detect-changes, quality-checks, test, test-platform-integration]
-        if: ${{ always() && needs.quality-checks.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.test-platform-integration.result == 'success' || needs.test-platform-integration.result == 'skipped') && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true') }}
+        if: always() && needs.quality-checks.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.test-platform-integration.result == 'success' || needs.test-platform-integration.result == 'skipped') && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true')
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
