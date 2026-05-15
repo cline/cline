@@ -2077,7 +2077,7 @@ function failedStructuredToolTurnEvents(): AgentRuntimeEvent[] {
 }
 
 describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
-	it("aborts after maxConsecutiveMistakes failed-tool turns", async () => {
+	it("aborts after maxConsecutiveMistakes failed-tool turns without a new user turn", async () => {
 		const { deps, abortCalls } = makeScriptedRuntime({
 			events: failedToolTurnEvents(),
 		});
@@ -2088,9 +2088,23 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.run("one");
 		// First failed turn — counter 1 < 2, no abort yet.
 		expect(abortCalls).toHaveLength(0);
-		await session.continue("two");
+		await session.continue();
 		// Second failed turn — counter reaches 2, tracker calls abort.
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("resets mistake tracking when continue() carries a new user turn", async () => {
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: failedToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({ execution: { maxConsecutiveMistakes: 2 } }),
+			deps,
+		);
+		await session.run("one");
+		expect(abortCalls).toHaveLength(0);
+		await session.continue("two");
+		expect(abortCalls).toHaveLength(0);
 	});
 
 	it("serializes structured tool errors in mistake details", async () => {
