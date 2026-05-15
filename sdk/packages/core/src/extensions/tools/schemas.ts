@@ -146,7 +146,15 @@ export const StructuredCommandInputSchema = z.object({
 		.describe("Optional argv list passed directly to the executable."),
 }).strict();
 
-const DirectStructuredCommandInputSchema = StructuredCommandInputSchema.extend({
+const DirectStructuredCommandInputSchema = z.object({
+	command: z
+		.string()
+		.min(1)
+		.describe("The executable to run directly without shell parsing."),
+	args: z
+		.array(z.string())
+		.optional()
+		.describe("Optional argv list passed directly to the executable."),
 	timeout: RunCommandsTimeoutSchema.optional(),
 });
 

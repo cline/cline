@@ -499,6 +499,7 @@ describe("default run_commands tool", () => {
 				command: "echo",
 				args: ["hi"],
 				timeout: 120000,
+				cwd: "/tmp",
 			}),
 		).toEqual({
 			command: "echo",
@@ -686,6 +687,20 @@ describe("default run_commands tool", () => {
 			expect.objectContaining({ iteration: 2 }),
 			120000,
 		);
+	});
+
+	it("validates Windows shell timeout before resolving the effective timeout", async () => {
+		const execute = vi.fn(async () => "ran");
+		const tool = createWindowsShellTool(execute);
+
+		await expect(
+			tool.execute({ commands: ["echo invalid"], timeout: 1.5 } as never, {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		).rejects.toThrow(/invalid input/i);
+		expect(execute).not.toHaveBeenCalled();
 	});
 
 	it("reports the effective timeout when a command times out", async () => {

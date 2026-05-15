@@ -110,6 +110,12 @@ export function normalizeRunCommandsInput(
 ): Array<string | StructuredCommandInput> {
 	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
 
+	return normalizeValidatedRunCommandsInput(validate);
+}
+
+export function normalizeValidatedRunCommandsInput(
+	validate: ReturnType<typeof StructuredCommandsInputUnionSchema.parse>,
+): Array<string | StructuredCommandInput> {
 	if (typeof validate === "string") {
 		return [validate];
 	}

@@ -17,7 +17,7 @@ import {
 	getEditorSizeError,
 	getReadFileRangeError,
 	normalizeReadFileRequests,
-	normalizeRunCommandsInput,
+	normalizeValidatedRunCommandsInput,
 	resolveRunCommandsTimeoutMs,
 	withTimeout,
 } from "./helpers";
@@ -43,6 +43,7 @@ import {
 	SkillsInputSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputSchema,
+	StructuredCommandsInputUnionSchema,
 	MAX_RUN_COMMANDS_TIMEOUT_MS,
 	type SubmitInput,
 	SubmitInputSchema,
@@ -290,8 +291,9 @@ export function createWindowsShellTool(
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const timeoutMs = resolveRunCommandsTimeoutMs(input, defaultTimeoutMs);
-			const commands = normalizeRunCommandsInput(input);
+			const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
+			const timeoutMs = resolveRunCommandsTimeoutMs(validate, defaultTimeoutMs);
+			const commands = normalizeValidatedRunCommandsInput(validate);
 
 			return Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
