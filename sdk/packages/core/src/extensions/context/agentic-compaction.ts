@@ -138,13 +138,34 @@ export async function runAgenticCompaction(options: {
 		activeProviderConfig: options.providerConfig,
 		summarizer: options.summarizer,
 	});
-	const summarizerInputLimit =
-		resolveProviderMaxInputTokens(summarizerProviderConfig) ??
-		Math.max(
-			options.context.maxInputTokens,
-			options.context.triggerTokens,
-			MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
+	const resolvedSummarizerInputLimit = resolveProviderMaxInputTokens(
+		summarizerProviderConfig,
+	);
+	const canUseActiveContextLimit = options.summarizer === undefined;
+	const activeCompactionInputLimit = Math.max(
+		options.context.maxInputTokens,
+		options.context.triggerTokens,
+		MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
+	);
+	if (
+		resolvedSummarizerInputLimit === undefined &&
+		!canUseActiveContextLimit
+	) {
+		options.logger?.log(
+			"Agentic compaction summarizer has no known input limit; using conservative summary budget",
+			{
+				severity: "warn",
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				fallbackInputLimit: MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
+			},
 		);
+	}
+	const summarizerInputLimit =
+		resolvedSummarizerInputLimit ??
+		(canUseActiveContextLimit
+			? activeCompactionInputLimit
+			: MIN_AGENTIC_SUMMARY_INPUT_TOKENS);
 	const summaryRequestOverheadTokens = estimateTokens(
 		buildSummaryRequest({
 			previousSummary,
@@ -169,13 +190,19 @@ export async function runAgenticCompaction(options: {
 		estimateMessageTokens: options.estimateMessageTokens,
 	});
 	if (summaryInputBudget.status === "failed") {
-		options.logger?.debug("Skipped agentic compaction: summary input budget failed", {
-			budgetWarnings: summaryInputBudget.warnings.map(
-				(warning) => warning.code,
-			),
-			summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
-			targetTokens: availableSummaryInputTokens,
-		});
+		options.logger?.log(
+			"Skipped agentic compaction: summary input budget failed",
+			{
+				severity: "warn",
+				budgetWarnings: summaryInputBudget.warnings.map(
+					(warning) => warning.code,
+				),
+				summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
+				targetTokens: availableSummaryInputTokens,
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+			},
+		);
 		return undefined;
 	}
 	const conversationText = serializeConversation(summaryInputBudget.messages);
