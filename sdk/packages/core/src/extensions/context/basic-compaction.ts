@@ -3,6 +3,7 @@ import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
 } from "../../types/config";
+import { buildBudgetProjection } from "./budget-projection";
 import {
 	type EstimateMessageTokens,
 	findFirstUserMessageIndex,
@@ -390,7 +391,23 @@ export function runBasicCompaction(options: {
 		...candidates.map((candidate) => candidate.message),
 		...protectedTail,
 	];
-	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
+	const budgeted = buildBudgetProjection({
+		messages: nextMessages,
+		targetTokens,
+		policyIntent: "basic_compaction_projection",
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+	if (budgeted.status === "failed") {
+		options.logger?.debug("Basic compaction returned best-effort projection", {
+			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
+			projectedTokens: budgeted.estimatedTokens,
+			targetTokens,
+			maxInputTokens: options.context.maxInputTokens,
+		});
+	}
+	const resultMessages = budgeted.messages;
+
+	if (!haveMessagesChanged(options.context.messages, resultMessages)) {
 		return undefined;
 	}
 
@@ -402,18 +419,20 @@ export function runBasicCompaction(options: {
 		options.estimateMessageTokens,
 	);
 	const afterTokens = getTotalTokens(
-		nextMessages,
+		resultMessages,
 		options.estimateMessageTokens,
 	);
 	options.logger?.debug("Performed basic compaction", {
 		messagesBefore: options.context.messages.length,
-		messagesAfter: nextMessages.length,
-		messagesRemoved: options.context.messages.length - nextMessages.length,
+		messagesAfter: resultMessages.length,
+		messagesRemoved: options.context.messages.length - resultMessages.length,
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
+		budgetActions: budgeted.actions.length,
+		budgetWarnings: budgeted.warnings.map((warning) => warning.code),
 		targetTokens,
 		maxInputTokens: options.context.maxInputTokens,
 	});
 
-	return { messages: nextMessages };
+	return { messages: resultMessages };
 }
