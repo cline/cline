@@ -1,10 +1,12 @@
 import type * as LlmsProviders from "@cline/llms";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoreCompactionContext } from "../../types/config";
+import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import { createContextCompactionPrepareTurn } from "./compaction";
 import {
 	createTokenEstimator,
+	estimateTokens,
 	resolveSummarizerConfig,
 	serializeMessage,
 	TOOL_RESULT_CHAR_LIMIT,
@@ -396,6 +398,23 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(anthropicConfig.maxOutputTokens).toBe(1_024);
 	});
 
+	it("preserves summarizer modelInfo without a nested providerConfig", () => {
+		const resolved = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+				modelInfo: { id: "primary-model", maxInputTokens: 100_000 },
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxInputTokens: 600 },
+			},
+		});
+
+		expect(resolved.modelInfo?.maxInputTokens).toBe(600);
+	});
+
 	it("summarizes older messages and keeps recent messages", async () => {
 		const emitStatusNotice = vi.fn();
 		createHandlerMock.mockReturnValue({
@@ -648,6 +667,42 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(summarizerPrompt.length).toBeLessThan(longToolOutput.length);
 	});
 
+	it("budgets agentic summary input before serialization", () => {
+		const result = buildAgenticSummaryInputBudget({
+			messages: [
+				{ role: "user", content: "Run a large command" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool-large",
+							name: "execute_command",
+							input: { command: "print-large-output" },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-large",
+							content: "x".repeat(50_000),
+						},
+					],
+				},
+				{ role: "user", content: "Latest typed prompt" },
+			],
+			targetTokens: 400,
+			estimateMessageTokens: estimateJsonTokens,
+		});
+
+		expect(result.estimatedTokens).toBeLessThanOrEqual(400);
+		expect(JSON.stringify(result.messages)).toContain("Latest typed prompt");
+		expect(result.actions.length).toBeGreaterThan(0);
+	});
+
 	it("never lands the agentic cut in the middle of a tool pair", async () => {
 		// Repro for the "No tool call found for function call output" provider
 		// error: findCutIndex used to walk back by token budget and could land
@@ -820,6 +875,79 @@ describe("createContextCompactionPrepareTurn", () => {
 				thinking: false,
 			}),
 		);
+	});
+
+	it("budgets agentic summary input against the configured summarizer context window", async () => {
+		let summaryRequest = "";
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn((_system: string, messages: LlmsProviders.Message[]) => {
+				summaryRequest = String(messages[0]?.content ?? "");
+				return streamChunks([
+					{ type: "text", id: "summary-small", text: "## Goal\nSummarized" },
+					{ type: "done", id: "summary-small", success: true },
+				]);
+			}),
+		});
+
+		const summarizerLimit = 600;
+		const oversizedAssistant = "assistant details ".repeat(5_000);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "primary-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+				modelInfo: { id: "primary-model", maxInputTokens: 10_000 },
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+				reserveTokens: 5,
+				summarizer: {
+					providerId: "openai",
+					modelId: "small-summary",
+					modelInfo: {
+						id: "small-summary",
+						maxInputTokens: summarizerLimit,
+					},
+				},
+			},
+			logger: undefined,
+		});
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old request" },
+				{ role: "assistant", content: oversizedAssistant },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old request" },
+				{ role: "assistant", content: oversizedAssistant },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "primary-model",
+				provider: "anthropic",
+				info: { id: "primary-model", maxInputTokens: 10_000 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		expect(estimateTokens(summaryRequest.length)).toBeLessThanOrEqual(
+			summarizerLimit,
+		);
+		expect(summaryRequest).not.toContain(oversizedAssistant);
 	});
 
 	it("uses basic compaction without calling the summarizer", async () => {
