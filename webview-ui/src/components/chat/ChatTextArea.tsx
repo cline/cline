@@ -251,6 +251,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
+		const [unsupportedFileErrorMessage, setUnsupportedFileErrorMessage] = useState(
+			"Files other than images are currently disabled",
+		)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -903,6 +906,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					} else {
 						console.warn("No valid images were processed")
 					}
+				} else if (!supportsImages && imageItems.length > 0) {
+					e.preventDefault()
+					showUnsupportedFileErrorMessage("The selected model does not support images")
 				}
 			},
 			[
@@ -1111,8 +1117,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [apiConfiguration, mode])
 
 		// Function to show error message for unsupported files for drag and drop
-		const showUnsupportedFileErrorMessage = () => {
+		const showUnsupportedFileErrorMessage = (
+			message = "Files other than images are currently disabled",
+		) => {
 			// Show error message for unsupported files
+			setUnsupportedFileErrorMessage(message)
 			setShowUnsupportedFileError(true)
 
 			// Clear any existing timer
@@ -1266,6 +1275,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			})
 
 			if (shouldDisableFilesAndImages || !supportsImages || imageFiles.length === 0) {
+				if (!supportsImages && imageFiles.length > 0) {
+					showUnsupportedFileErrorMessage("The selected model does not support images")
+				}
 				return
 			}
 
@@ -1358,7 +1370,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					)}
 					{showUnsupportedFileError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
+							<span className="text-error font-bold text-xs">{unsupportedFileErrorMessage}</span>
 						</div>
 					)}
 					{showSlashCommandsMenu && (
