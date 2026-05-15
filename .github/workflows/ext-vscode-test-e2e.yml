@@ -24,7 +24,7 @@ jobs:
             e2e: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.e2e == 'true' }}
         steps:
             - id: force
-              if: github.event_name == 'workflow_dispatch'
+              if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
               run: echo "run_all=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4

@@ -24,7 +24,7 @@ jobs:
             testing_platform: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.testing_platform == 'true' }}
         steps:
             - id: force
-              if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+              if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
               run: echo "run_all=true" >> "$GITHUB_OUTPUT"
 
             - uses: actions/checkout@v4
