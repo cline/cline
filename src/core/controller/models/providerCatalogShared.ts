@@ -128,7 +128,7 @@ export function toRedactedProviderConfigResponse(
 		apiLine: config.apiLine,
 		headers: config.headers ?? {},
 		region: config.region,
-		hasApiKey: Boolean(config.apiKey),
+		apiKeyLength: config.apiKey?.length ?? 0,
 		hasAccessToken: Boolean(config.auth?.accessToken),
 		hasRefreshToken: Boolean(config.auth?.refreshToken),
 		accountId: config.auth?.accountId,

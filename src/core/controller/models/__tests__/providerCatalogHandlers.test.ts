@@ -151,7 +151,7 @@ describe("provider model catalog handlers", () => {
 		expect(response).toMatchObject({
 			providerId: "cline",
 			baseUrl: "https://api.example.com/v1",
-			hasApiKey: true,
+			apiKeyLength: "SECRET_SENTINEL_API_KEY".length,
 			hasAccessToken: true,
 			hasRefreshToken: true,
 			accountId: "acct-1",
@@ -179,7 +179,7 @@ describe("provider model catalog handlers", () => {
 			apiKey: "SECRET_SENTINEL_OLLAMA",
 			baseUrl: "http://localhost:11434/v1",
 		})
-		expect(response.hasApiKey).toBe(true)
+		expect(response.apiKeyLength).toBe("SECRET_SENTINEL_OLLAMA".length)
 		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL")
 	})
 

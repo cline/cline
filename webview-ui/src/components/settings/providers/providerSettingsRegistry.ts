@@ -5,19 +5,12 @@ type GenericProviderSettingsConfig = Omit<GenericProviderSettingsProps, "current
 export const GENERIC_PROVIDER_SETTINGS = {
 	deepseek: {
 		allowsCustomIds: false,
-		apiKeyField: "deepSeekApiKey",
 		providerId: "deepseek",
 		providerName: "DeepSeek",
 		signupUrl: "https://www.deepseek.com/",
 	},
 	gemini: {
 		allowsCustomIds: false,
-		apiKeyField: "geminiApiKey",
-		baseUrlField: {
-			field: "geminiBaseUrl",
-			label: "Use custom base URL",
-			placeholder: "Default: https://generativelanguage.googleapis.com",
-		},
 		providerId: "gemini",
 		providerName: "Gemini",
 		signupUrl: "https://aistudio.google.com/apikey",
