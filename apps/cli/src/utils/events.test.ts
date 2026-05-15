@@ -1,8 +1,44 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleEvent, handleTeamEvent } from "./events";
+import {
+	handleEvent,
+	handleTeamEvent,
+	resolveStatusNoticeLabel,
+} from "./events";
 import { setCurrentOutputMode } from "./output";
 import type { Config } from "./types";
+
+describe("resolveStatusNoticeLabel", () => {
+	it("maps compaction status reasons to stable labels", () => {
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message: "auto-compacting",
+				reason: "auto_compaction",
+			} as AgentEvent),
+		).toBe("auto-compacting");
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message: "manual",
+				reason: "manual_compaction",
+			} as AgentEvent),
+		).toBe("compacting");
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message: "compaction-budget-adjusted",
+				reason: "compaction_budget_emergency",
+			} as AgentEvent),
+		).toBe("context budget adjusted");
+	});
+});
 
 describe("handleEvent text formatting", () => {
 	let output = "";
