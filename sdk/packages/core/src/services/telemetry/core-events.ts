@@ -6,6 +6,10 @@ import {
 	SDK_ERROR_TELEMETRY_EVENT,
 	type TelemetryProperties,
 } from "@cline/shared";
+import type {
+	CoreCompactionBudgetPolicyIntent,
+	CoreCompactionLiveTailHandling,
+} from "../../types/config";
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
@@ -698,10 +702,10 @@ export interface CaptureCompactionBudgetEmergencyProperties {
 	ulid: string;
 	strategy: TelemetryCompactionStrategy;
 	mode: TelemetryCompactionMode;
-	policyIntent: string;
+	policyIntent: CoreCompactionBudgetPolicyIntent;
 	actionCount: number;
 	warningCount: number;
-	liveTailHandling: string;
+	liveTailHandling: CoreCompactionLiveTailHandling;
 	provider?: string;
 	modelId?: string;
 }
