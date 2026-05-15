@@ -46,11 +46,13 @@ jobs:
                           - 'walkthrough/**'
                           - 'package.json'
                           - 'package-lock.json'
+                          - 'buf.yaml'
                           - 'tsconfig*.json'
                           - 'biome.jsonc'
                           - 'esbuild.mjs'
                           - '.mocharc.json'
                           - '.vscode-test.mjs'
+                          - '.vscodeignore'
                           - 'playwright*.ts'
                           - '.github/workflows/ext-vscode-test-e2e.yml'
 
