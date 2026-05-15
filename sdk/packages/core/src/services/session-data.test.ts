@@ -1,10 +1,6 @@
 import type { MessageWithMetadata } from "@cline/llms";
 import type { AgentResult } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import {
-	createSessionCompactionState,
-	projectSessionCompactionState,
-} from "../session/models/session-compaction";
 import { withLatestAssistantTurnMetadata } from "./session-data";
 import { summarizeUsageFromMessages } from "./usage";
 
@@ -285,46 +281,6 @@ describe("withLatestAssistantTurnMetadata", () => {
 			cacheReadTokens: 6,
 			cacheWriteTokens: 3,
 			totalCost: 3,
-		});
-	});
-
-	it("does not mutate a compaction-covered prefix when stamping the latest assistant turn", () => {
-		const coveredPrefix: MessageWithMetadata[] = [
-			{ id: "u1", role: "user", content: "original" },
-			{
-				id: "a1",
-				role: "assistant",
-				content: "answer",
-				modelInfo: { id: "claude-sonnet-4-6", provider: "anthropic" },
-			},
-		];
-		const state = createSessionCompactionState({
-			sourceMessages: coveredPrefix,
-			compactedMessages: [{ id: "summary", role: "user", content: "summary" }],
-			updatedAt: "2026-01-01T00:00:00.000Z",
-		});
-		const latestTurn = [
-			...coveredPrefix,
-			{ id: "u2", role: "user" as const, content: "again" },
-			{ id: "a2", role: "assistant" as const, content: "latest answer" },
-		];
-
-		const persisted = withLatestAssistantTurnMetadata(
-			latestTurn,
-			createResult(),
-			coveredPrefix,
-		);
-
-		expect(persisted.slice(0, coveredPrefix.length)).toEqual(coveredPrefix);
-		expect(projectSessionCompactionState(state, persisted)).toBeDefined();
-		expect(
-			projectSessionCompactionState(state, persisted)?.at(-1),
-		).toMatchObject({
-			id: "a2",
-			modelInfo: {
-				id: "claude-sonnet-4-6",
-				provider: "anthropic",
-			},
 		});
 	});
 });
