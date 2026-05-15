@@ -39,23 +39,30 @@ function setCapabilityOwner(
 }
 
 function getCapabilityOwnerClientId(
-	metadata: Record<string, unknown> | undefined,
+	ctx: HubTransportContext,
+	sessionId: string,
 ): string | undefined {
-	const owner = metadata?.[CAPABILITY_OWNER_METADATA_KEY];
-	return typeof owner === "string" && owner.trim() ? owner.trim() : undefined;
+	return ctx.sessionState.get(sessionId)?.createdByClientId;
+}
+
+function stripServerOwnedSessionMetadata(
+	metadata: Record<string, JsonValue | undefined> | undefined,
+): Record<string, JsonValue | undefined> | undefined {
+	if (!metadata || !(CAPABILITY_OWNER_METADATA_KEY in metadata)) {
+		return metadata;
+	}
+	const sanitized = { ...metadata };
+	delete sanitized[CAPABILITY_OWNER_METADATA_KEY];
+	return sanitized;
 }
 
 function authorizeSessionCompactionAccess(input: {
 	sessionId: string;
-	session: { metadata?: unknown };
-	ctx: HubTransportContext;
-	clientId: string;
-	envelope: HubCommandEnvelope;
-}): HubReplyEnvelope | undefined {
-	const ownerClientId =
-		getCapabilityOwnerClientId(
-			input.session.metadata as Record<string, unknown> | undefined,
-		) ?? input.ctx.sessionState.get(input.sessionId)?.createdByClientId;
+		ctx: HubTransportContext;
+		clientId: string;
+		envelope: HubCommandEnvelope;
+	}): HubReplyEnvelope | undefined {
+	const ownerClientId = getCapabilityOwnerClientId(input.ctx, input.sessionId);
 	if (!ownerClientId) {
 		return errorReply(
 			input.envelope,
@@ -651,13 +658,7 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
-	const [existingSession] = await Promise.all([
-		readHubSessionRecord(ctx, sessionId),
-	]);
-	const ownerClientId =
-		getCapabilityOwnerClientId(
-			existingSession?.metadata as Record<string, unknown> | undefined,
-		) ?? clientId;
+	const ownerClientId = getCapabilityOwnerClientId(ctx, sessionId) ?? clientId;
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
@@ -758,7 +759,6 @@ export async function handleSessionCompactionGet(
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,
-		session,
 		ctx,
 		clientId,
 		envelope,
@@ -790,7 +790,9 @@ export async function handleSessionUpdate(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const metadata = asPlainRecord(envelope.payload?.metadata);
+	const metadata = stripServerOwnedSessionMetadata(
+		asPlainRecord(envelope.payload?.metadata),
+	);
 	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
@@ -840,7 +842,6 @@ export async function handleSessionCompactionUpdate(
 	}
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,
-		session,
 		ctx,
 		clientId,
 		envelope,

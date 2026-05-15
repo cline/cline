@@ -307,7 +307,7 @@ export function createInteractiveSessionRuntime(input: {
 			reanchoredCompactionState,
 		);
 		if (!updated.updated) {
-			input.config.logger?.debug?.(
+			input.config.logger?.log?.(
 				"Skipped re-anchoring session compaction state after restart",
 				{ sessionId: activeSessionId },
 			);
@@ -476,13 +476,15 @@ export function createInteractiveSessionRuntime(input: {
 			result.compactionState,
 		);
 		if (!updated.updated) {
-			throw new Error(
-				"Compaction could not be saved; canonical history was left unchanged. Try /compact again.",
-			);
+			return {
+				messagesBefore,
+				messagesAfter: messagesBefore,
+				compacted: false,
+			};
 		}
 		return {
 			messagesBefore,
-			messagesAfter: result.messages.length,
+			messagesAfter: result.canonicalMessages.length,
 			workingContextMessagesAfter: result.compactionState?.messages.length,
 			compacted: true,
 		};

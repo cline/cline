@@ -57,7 +57,7 @@ export async function compactInteractiveMessages(input: {
 	abortSignal?: AbortSignal;
 }): Promise<{
 	compacted: boolean;
-	messages: Message[];
+	canonicalMessages: Message[];
 	compactionState?: SessionCompactionState;
 }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
@@ -88,7 +88,7 @@ export async function compactInteractiveMessages(input: {
 		{ mode: "manual" },
 	);
 	if (!compact) {
-		return { compacted: false, messages: input.messages };
+		return { compacted: false, canonicalMessages: input.messages };
 	}
 	// Manual compaction intentionally summarizes the full canonical transcript
 	// instead of reusing a prior sidecar summary, which avoids summary-of-summary
@@ -114,11 +114,11 @@ export async function compactInteractiveMessages(input: {
 		},
 	});
 	if (!result?.messages) {
-		return { compacted: false, messages: input.messages };
+		return { compacted: false, canonicalMessages: input.messages };
 	}
 	return {
 		compacted: true,
-		messages: input.messages,
+		canonicalMessages: input.messages,
 		compactionState: createSessionCompactionState({
 			sourceMessages: input.messages,
 			compactedMessages: result.messages,

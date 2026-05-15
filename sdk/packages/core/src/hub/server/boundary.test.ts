@@ -796,6 +796,67 @@ describe("HubServerTransport boundaries", () => {
 		expect(ctx.pendingCapabilityRequests.has("capreq-1")).toBe(true);
 	});
 
+	it("does not let session metadata updates overwrite server-owned compaction owner", async () => {
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const transport = createTransport({
+			sessionHost: {
+				updateSession,
+			},
+		});
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-update",
+			command: "session.update",
+			clientId: "attacker-client",
+			sessionId: "session-1",
+			payload: {
+				metadata: {
+					hubCapabilityOwnerClientId: "attacker-client",
+					title: "safe title",
+				},
+			},
+		});
+
+		expect(updateSession).toHaveBeenCalledWith("session-1", {
+			metadata: { title: "safe title" },
+		});
+	});
+
+	it("authorizes compaction sidecar access from server session state, not mutable metadata", async () => {
+		const readSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "completed",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+					metadata: { hubCapabilityOwnerClientId: "attacker-client" },
+				}),
+				readSessionCompactionState,
+			},
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact",
+			command: "session.compaction.get",
+			clientId: "attacker-client",
+			sessionId: "session-1",
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "session_wrong_client" },
+		});
+		expect(readSessionCompactionState).not.toHaveBeenCalled();
+	});
+
 	it("cancels pending capability requests when a run is aborted", async () => {
 		const abort = vi.fn().mockResolvedValue(undefined);
 		const transport = createTransport({
