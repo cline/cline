@@ -13,6 +13,7 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.cline/enterprise
 .venv
 .actrc
 CLAUDE.local.md
