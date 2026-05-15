@@ -11,6 +11,7 @@ const HOST_REQUIRE = createRequire(import.meta.url);
 const WORKSPACE_ROOT = resolve(MODULE_DIR, "..", "..", "..", "..", "..");
 const WORKSPACE_ALIASES = collectWorkspaceAliases(WORKSPACE_ROOT);
 const HOST_PROVIDED_SDK_SPECIFIERS = [
+	"@cline/sdk",
 	"@cline/agents",
 	"@cline/core",
 	"@cline/core/hub",

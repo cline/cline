@@ -41,6 +41,14 @@ const expectedPlatformPackages = [
 	"@cline/cli-windows-x64",
 ] as const;
 
+const hostSdkPackages = [
+	{ name: "@cline/sdk", directory: "sdk" },
+	{ name: "@cline/core", directory: "core" },
+	{ name: "@cline/agents", directory: "agents" },
+	{ name: "@cline/llms", directory: "llms" },
+	{ name: "@cline/shared", directory: "shared" },
+] as const;
+
 interface PlatformPackageManifest {
 	name: string;
 	version: string;
@@ -66,6 +74,26 @@ function isPlatformPackageManifest(
 		typeof value.version === "string" &&
 		isStringArray(value.os)
 	);
+}
+
+function readPackageVersion(name: string, packageJsonPath: string): string {
+	const pkg: unknown = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+	if (!isRecord(pkg) || pkg.name !== name || typeof pkg.version !== "string") {
+		console.error(`Invalid package manifest for ${name}: ${packageJsonPath}`);
+		process.exit(1);
+	}
+	return pkg.version;
+}
+
+function buildHostSdkDependencies(): Record<string, string> {
+	const dependencies: Record<string, string> = {};
+	for (const pkg of hostSdkPackages) {
+		dependencies[pkg.name] = readPackageVersion(
+			pkg.name,
+			join(cliDir, "../../packages", pkg.directory, "package.json"),
+		);
+	}
+	return dependencies;
 }
 
 function removePackedTarballs(dir: string): void {
@@ -175,6 +203,7 @@ if (sourceVersion !== version) {
 }
 const sourceRepository =
 	"repository" in sourcePkgRecord ? sourcePkgRecord.repository : undefined;
+const hostSdkDependencies = buildHostSdkDependencies();
 
 console.log(`Publishing ${wrapperPackageName} v${version}`);
 console.log(`  Tag: ${npmTag}`);
@@ -270,6 +299,7 @@ const wrapperPackageJson = {
 	scripts: {
 		postinstall: "node ./postinstall.mjs || true",
 	},
+	dependencies: hostSdkDependencies,
 	optionalDependencies: binaries,
 };
 
