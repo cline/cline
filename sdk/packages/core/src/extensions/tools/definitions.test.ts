@@ -12,6 +12,7 @@ import {
 	RunCommandsInputSchema,
 	RunCommandsInputUnionSchema,
 	StructuredCommandsInputSchema,
+	StructuredCommandsInputUnionSchema,
 } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
@@ -477,6 +478,12 @@ describe("default run_commands tool", () => {
 				timeout: MAX_RUN_COMMANDS_TIMEOUT_MS + 1,
 			}),
 		).toThrow(/less than or equal|too_big|2147483647/i);
+		expect(() =>
+			StructuredCommandsInputUnionSchema.parse({
+				command: "echo hi",
+				timeout: -1,
+			}),
+		).toThrow(/>0|positive/i);
 	});
 
 	it("accepts object input with commands as a single string", async () => {

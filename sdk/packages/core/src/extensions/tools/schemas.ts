@@ -144,6 +144,7 @@ export const StructuredCommandInputSchema = z.object({
 		.array(z.string())
 		.optional()
 		.describe("Optional argv list passed directly to the executable."),
+	timeout: RunCommandsTimeoutSchema.optional(),
 });
 
 export const StructuredCommandEntrySchema = z.union([
