@@ -36,17 +36,34 @@ export function getEditorSizeError(input: EditFileInput): string | null {
 /**
  * Create a timeout-wrapped promise
  */
+export class TimeoutError extends Error {
+	readonly isTimeout = true;
+}
+
 export function withTimeout<T>(
 	promise: Promise<T>,
 	ms: number,
 	message: string,
 ): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new Error(message)), ms);
-		}),
-	]);
+	return new Promise<T>((resolve, reject) => {
+		let settled = false;
+		const timeout = setTimeout(() => {
+			settle(() => reject(new TimeoutError(message)));
+		}, ms);
+		const settle = (callback: () => void) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeout);
+			callback();
+		};
+
+		promise.then(
+			(value) => settle(() => resolve(value)),
+			(error: unknown) => settle(() => reject(error)),
+		);
+	});
 }
 
 export function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {

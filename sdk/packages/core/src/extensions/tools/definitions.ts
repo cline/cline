@@ -282,7 +282,7 @@ export function createWindowsShellTool(
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
 		name: "run_commands",
 		description:
-			"Run shell commands from the root of the workspacein Windows environment. " +
+			"Run shell commands from the root of the workspace in a Windows environment. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
 			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. " +
 			"An optional top-level timeout may be provided in milliseconds, but it should normally be omitted in favor of the configured default and only raised for expected long-running installs/builds/tests or after a timeout.",

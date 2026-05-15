@@ -42,6 +42,10 @@ export function createSessionSpawnTool(
 			? createBuiltinTools({
 					cwd: config.cwd,
 					...ToolPresets[resolveToolPresetName({ mode: config.mode })],
+					bashTimeoutMs: config.runCommandsTimeoutMs,
+					executorOptions: {
+						bash: { timeoutMs: config.runCommandsTimeoutMs },
+					},
 					executors: toolExecutors,
 				})
 			: [];

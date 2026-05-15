@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	createBashTool,
+	createBuiltinTools,
 	createDefaultTools,
 	createReadFilesTool,
 	createSkillsTool,
 	createWindowsShellTool,
-} from "./definitions";
+} from ".";
+import { withTimeout } from "./helpers";
 import {
 	INPUT_ARG_CHAR_LIMIT,
 	MAX_RUN_COMMANDS_TIMEOUT_MS,
@@ -417,6 +419,53 @@ describe("default apply_patch tool", () => {
 });
 
 describe("default run_commands tool", () => {
+	it("clears wrapper timers after fast commands resolve", async () => {
+		vi.useFakeTimers();
+		try {
+			await withTimeout(Promise.resolve("ok"), MAX_RUN_COMMANDS_TIMEOUT_MS, "slow");
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("uses executorOptions bash timeout as the built-in tool wrapper default", async () => {
+		const execute = vi.fn(async () => "ran");
+		const tools = createBuiltinTools({
+			enableReadFiles: false,
+			enableSearch: false,
+			enableBash: true,
+			enableWebFetch: false,
+			enableEditor: false,
+			enableSkills: false,
+			enableAskQuestion: false,
+			executorOptions: {
+				bash: { timeoutMs: 60000 },
+			},
+			executors: {
+				bash: execute,
+			},
+		});
+		const tool = tools.find((candidate) => candidate.name === "run_commands");
+		expect(tool).toBeDefined();
+		if (!tool) {
+			throw new Error("Expected run_commands tool.");
+		}
+
+		await tool.execute({ commands: ["echo hi"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+
+		expect(execute).toHaveBeenCalledWith(
+			"echo hi",
+			process.cwd(),
+			expect.objectContaining({ agentId: "agent-1" }),
+			60000,
+		);
+	});
+
 	it("accepts top-level timeout in object schema payloads", () => {
 		expect(
 			RunCommandsInputSchema.parse({
