@@ -260,6 +260,21 @@ function truncateToolResultContent(
 	});
 }
 
+function toolResultTextLength(content: ToolResultContent["content"]): number {
+	if (typeof content === "string") {
+		return content.length;
+	}
+	return content.reduce((total, block) => {
+		if (block.type === "text") {
+			return total + block.text.length;
+		}
+		if (block.type === "file") {
+			return total + block.content.length;
+		}
+		return total;
+	}, 0);
+}
+
 function truncateMessageText(
 	message: MessageWithMetadata,
 	maxChars: number,
@@ -269,17 +284,20 @@ function truncateMessageText(
 	}
 	let remaining = maxChars;
 	return {
-			...message,
-			content: message.content.map((block) => {
-				if (remaining <= 0) {
-					if (block.type === "text") {
-						return { ...block, text: "" };
-					}
-					if (block.type === "file") {
-						return { ...block, content: "" };
-					}
-					return block;
+		...message,
+		content: message.content.map((block) => {
+			if (remaining <= 0) {
+				if (block.type === "text") {
+					return { ...block, text: "" };
 				}
+				if (block.type === "file") {
+					return { ...block, content: "" };
+				}
+				if (block.type === "thinking") {
+					return { ...block, thinking: "" };
+				}
+				return block;
+			}
 			if (block.type === "text") {
 				const text = truncateText(block.text, remaining);
 				remaining -= text.length;
@@ -297,7 +315,7 @@ function truncateMessageText(
 			}
 			if (block.type === "tool_result") {
 				const content = truncateToolResultContent(block.content, remaining);
-				remaining -= safeJsonSize(content);
+				remaining -= toolResultTextLength(content);
 				return { ...block, content };
 			}
 			return block;
