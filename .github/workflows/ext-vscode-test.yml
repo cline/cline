@@ -67,9 +67,7 @@ jobs:
                           - 'tsconfig*.json'
                           - 'esbuild.mjs'
                           - '.vscodeignore'
-                          - 'scripts/download-ripgrep.mjs'
-                          - 'scripts/package-standalone.mjs'
-                          - 'scripts/testing-platform-orchestrator.ts'
+                          - 'scripts/**'
                           - '.github/workflows/ext-vscode-test.yml'
 
     quality-checks:
