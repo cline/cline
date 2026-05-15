@@ -644,6 +644,9 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		if (userMessage !== undefined) {
+			this.resetConversationBoundaryTrackers();
+		}
 		return this.executeRun({
 			userMessage,
 			userImages,
