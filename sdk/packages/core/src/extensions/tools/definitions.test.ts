@@ -484,6 +484,27 @@ describe("default run_commands tool", () => {
 				timeout: -1,
 			}),
 		).toThrow(/>0|positive/i);
+		expect(
+			StructuredCommandsInputUnionSchema.safeParse({
+				commands: [{ command: "echo", timeout: 120000 }],
+			}).success,
+		).toBe(false);
+		expect(
+			StructuredCommandsInputUnionSchema.safeParse([
+				{ command: "echo", timeout: 120000 },
+			]).success,
+		).toBe(false);
+		expect(
+			StructuredCommandsInputUnionSchema.parse({
+				command: "echo",
+				args: ["hi"],
+				timeout: 120000,
+			}),
+		).toEqual({
+			command: "echo",
+			args: ["hi"],
+			timeout: 120000,
+		});
 	});
 
 	it("accepts object input with commands as a single string", async () => {

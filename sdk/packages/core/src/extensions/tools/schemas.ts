@@ -144,6 +144,9 @@ export const StructuredCommandInputSchema = z.object({
 		.array(z.string())
 		.optional()
 		.describe("Optional argv list passed directly to the executable."),
+}).strict();
+
+const DirectStructuredCommandInputSchema = StructuredCommandInputSchema.extend({
 	timeout: RunCommandsTimeoutSchema.optional(),
 });
 
@@ -173,9 +176,9 @@ export const StructuredCommandsInputUnionSchema = z.union([
 		commands: StructuredCommandEntrySchema,
 		timeout: RunCommandsTimeoutSchema.optional(),
 	}),
+	DirectStructuredCommandInputSchema,
 	z.array(StructuredCommandInputSchema),
 	StructuredCommandInputSchema,
-	z.object({ command: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
 	z.object({ cmd: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
 	z.array(z.string()),
 	z.string(),
