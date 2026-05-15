@@ -317,6 +317,7 @@ describe("createInteractiveSessionRuntime", () => {
 
 	it("rejects manual compact while the active session is running", async () => {
 		const sessionId = "sess-running";
+		const messages = [{ role: "user" as const, content: "hello" }];
 		const manager = {
 			start: vi.fn().mockResolvedValue({
 				sessionId,
@@ -324,7 +325,7 @@ describe("createInteractiveSessionRuntime", () => {
 				manifestPath: "/tmp/session.json",
 				messagesPath: "/tmp/session.messages.json",
 			}),
-			readMessages: vi.fn(),
+			readMessages: vi.fn().mockResolvedValue(messages),
 			updateSessionCompactionState: vi
 				.fn()
 				.mockResolvedValue({ updated: true }),
@@ -361,7 +362,7 @@ describe("createInteractiveSessionRuntime", () => {
 		await expect(runtime.compactCurrentSession()).rejects.toThrow(
 			"Cannot compact while the current turn is running",
 		);
-		expect(manager.readMessages).not.toHaveBeenCalled();
+		expect(manager.readMessages).toHaveBeenCalledWith(sessionId);
 		expect(compactInteractiveMessagesMock).not.toHaveBeenCalled();
 		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
 	});

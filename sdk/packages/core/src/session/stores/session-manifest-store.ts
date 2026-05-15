@@ -107,9 +107,11 @@ export class SessionManifestStore {
 	}
 
 	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {
-		writeFileAtomicSync(
+		mkdirSync(dirname(manifestPath), { recursive: true });
+		writeFileSync(
 			manifestPath,
 			`${JSON.stringify(SessionManifestSchema.parse(manifest), null, 2)}\n`,
+			"utf8",
 		);
 	}
 
@@ -166,7 +168,8 @@ export class SessionManifestStore {
 			systemPrompt,
 		});
 		const contents = `${JSON.stringify(payload, null, 2)}\n`;
-		writeFileAtomicSync(path, contents);
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, contents, "utf8");
 		if (!this.messagesArtifactUploader) {
 			return;
 		}
@@ -205,7 +208,13 @@ export class SessionManifestStore {
 			return parseSessionCompactionState(
 				JSON.parse(readFileSync(path, "utf8")) as unknown,
 			);
-		} catch {
+		} catch (error) {
+			this.logger?.debug("Ignoring invalid session compaction state", {
+				sessionId,
+				path,
+				error,
+				recovery: "Canonical history is unchanged; deleting the sidecar is safe.",
+			});
 			return undefined;
 		}
 	}

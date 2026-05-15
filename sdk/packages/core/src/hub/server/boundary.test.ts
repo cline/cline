@@ -38,6 +38,7 @@ describe("HubServerTransport boundaries", () => {
 					updatedAt: new Date(0).toISOString(),
 					workspaceRoot: "/tmp/project",
 					cwd: "/tmp/project",
+					metadata: { hubCapabilityOwnerClientId: "client-1" },
 				}),
 				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
 				listSessions: vi.fn(),
@@ -340,6 +341,7 @@ describe("HubServerTransport boundaries", () => {
 					updatedAt: new Date(0).toISOString(),
 					workspaceRoot: "/tmp/project",
 					cwd: "/tmp/project",
+					metadata: { hubCapabilityOwnerClientId: "client-1" },
 				}),
 				listSessions: vi.fn(),
 				deleteSession: vi.fn(),
@@ -355,6 +357,7 @@ describe("HubServerTransport boundaries", () => {
 			version: "v1",
 			requestId: "req-compaction-get",
 			command: "session.compaction.get",
+			clientId: "client-1",
 			sessionId: "session-1",
 		});
 
@@ -1360,6 +1363,7 @@ describe("HubServerTransport boundaries", () => {
 					updatedAt: new Date(0).toISOString(),
 					workspaceRoot: "/tmp/project",
 					cwd: "/tmp/project",
+					metadata: { hubCapabilityOwnerClientId: "client-1" },
 				}),
 				listSessions: vi.fn(),
 				deleteSession: vi.fn(),
@@ -1405,6 +1409,61 @@ describe("HubServerTransport boundaries", () => {
 				sessionId: "session-1",
 			}),
 		);
+	});
+
+	it("rejects compaction state updates when the owner is unknown", async () => {
+		const updateSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "completed",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				updateSessionCompactionState,
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn(),
+			} as never,
+		});
+		const compactionState = createSessionCompactionState({
+			sourceMessages: [
+				{ id: "u1", role: "user" as const, content: "original" },
+			],
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-update-compaction-unknown-owner",
+			command: "session.compaction.update",
+			clientId: "client-1",
+			sessionId: "session-1",
+			payload: {
+				sessionId: "session-1",
+				state: compactionState,
+			},
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "session_wrong_client" },
+		});
+		expect(updateSessionCompactionState).not.toHaveBeenCalled();
 	});
 
 	it("rejects compaction state updates from non-owner clients", async () => {
@@ -1461,5 +1520,49 @@ describe("HubServerTransport boundaries", () => {
 			error: { code: "session_wrong_client" },
 		});
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("rejects compaction state reads from non-owner clients", async () => {
+		const readSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "completed",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+					metadata: { hubCapabilityOwnerClientId: "owner-client" },
+				}),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				updateSessionCompactionState: vi.fn(),
+				readSessionCompactionState,
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn(),
+			} as never,
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-get-compaction-wrong-client",
+			command: "session.compaction.get",
+			clientId: "viewer-client",
+			sessionId: "session-1",
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "session_wrong_client" },
+		});
+		expect(readSessionCompactionState).not.toHaveBeenCalled();
 	});
 });
