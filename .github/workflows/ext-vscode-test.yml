@@ -99,7 +99,7 @@ jobs:
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
 
-    test:
+    vscode-test:
         needs: [detect-changes, quality-checks]
         if: needs.detect-changes.outputs.vscode == 'true'
         env:
@@ -109,7 +109,7 @@ jobs:
             matrix:
                 os: [ubuntu-latest, windows-latest]
         runs-on: ${{ matrix.os }}
-        name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
+        name: ${{ matrix.os == 'ubuntu-latest' && 'vscode test' || format('vscode test ({0})', matrix.os) }}
         defaults:
             run:
                 shell: bash
@@ -249,9 +249,55 @@ jobs:
                 name: test-platform-integration-core-coverage
                 path: coverage/**/lcov.info
 
+    # Keep the required "test" check as a tiny aggregate gate instead of the conditional
+    # VS Code matrix. GitHub treats conditionally skipped jobs as successful required
+    # checks, so the gate below preserves the old required check name while making sure
+    # whichever filtered test jobs were selected actually passed.
+    test:
+        needs: [detect-changes, quality-checks, vscode-test, test-platform-integration]
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-latest
+        name: test
+        steps:
+            - name: Verify selected test jobs
+              env:
+                  DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
+                  QUALITY_CHECKS_RESULT: ${{ needs.quality-checks.result }}
+                  VSCODE_CHANGED: ${{ needs.detect-changes.outputs.vscode }}
+                  TESTING_PLATFORM_CHANGED: ${{ needs.detect-changes.outputs.testing_platform }}
+                  VSCODE_TEST_RESULT: ${{ needs.vscode-test.result }}
+                  TEST_PLATFORM_RESULT: ${{ needs.test-platform-integration.result }}
+              run: |
+                  if [ "$DETECT_CHANGES_RESULT" != "success" ]; then
+                    echo "detect-changes did not succeed: $DETECT_CHANGES_RESULT"
+                    exit 1
+                  fi
+
+                  if [ "$VSCODE_CHANGED" != "true" ] && [ "$TESTING_PLATFORM_CHANGED" != "true" ]; then
+                    echo "No root test paths changed; skipping root test requirements."
+                    exit 0
+                  fi
+
+                  if [ "$QUALITY_CHECKS_RESULT" != "success" ]; then
+                    echo "quality-checks did not succeed: $QUALITY_CHECKS_RESULT"
+                    exit 1
+                  fi
+
+                  if [ "$VSCODE_CHANGED" = "true" ] && [ "$VSCODE_TEST_RESULT" != "success" ]; then
+                    echo "vscode-test did not succeed: $VSCODE_TEST_RESULT"
+                    exit 1
+                  fi
+
+                  if [ "$TESTING_PLATFORM_CHANGED" = "true" ] && [ "$TEST_PLATFORM_RESULT" != "success" ]; then
+                    echo "test-platform-integration did not succeed: $TEST_PLATFORM_RESULT"
+                    exit 1
+                  fi
+
+                  echo "Selected root test jobs passed."
+
     qlty:
-        needs: [detect-changes, quality-checks, test, test-platform-integration]
-        if: always() && needs.quality-checks.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.test-platform-integration.result == 'success' || needs.test-platform-integration.result == 'skipped') && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true')
+        needs: [detect-changes, quality-checks, vscode-test, test-platform-integration]
+        if: ${{ !cancelled() && needs.quality-checks.result == 'success' && (needs.vscode-test.result == 'success' || needs.vscode-test.result == 'skipped') && (needs.test-platform-integration.result == 'success' || needs.test-platform-integration.result == 'skipped') && (needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true') }}
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
