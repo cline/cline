@@ -93,17 +93,34 @@ vi.mock("axios", () => ({
 	},
 }))
 
+const mockLoginClineOAuth = vi.hoisted(() => vi.fn())
+
 // Mock @cline/core OAuth functions
 vi.mock("@cline/core", () => ({
-	createOAuthClientCallbacks: (opts: { onPrompt: () => void }) => ({
-		onAuth: vi.fn(),
+	createOAuthClientCallbacks: (opts: {
+		onOutput?: (message: string) => void
+		onPrompt: () => void
+		openUrl?: (url: string) => void | Promise<void>
+	}) => ({
+		onAuth: ({ url, instructions }: { url: string; instructions?: string }) => {
+			opts.onOutput?.(instructions ?? "Complete sign-in in your browser.")
+			void opts.openUrl?.(url)
+			opts.onOutput?.(url)
+		},
 		onPrompt: opts.onPrompt,
 	}),
-	loginClineOAuth: vi.fn(),
+	loginClineOAuth: mockLoginClineOAuth,
 	loginOcaOAuth: vi.fn(),
 	loginOpenAICodex: vi.fn(),
 	refreshClineToken: vi.fn(),
 	getValidClineCredentials: vi.fn(),
+}))
+
+vi.mock("./provider-migration", () => ({
+	getProviderSettingsManager: () => ({
+		getProviderSettings: vi.fn(),
+		saveProviderSettings: vi.fn(),
+	}),
 }))
 
 // ---------------------------------------------------------------------------
@@ -307,6 +324,24 @@ describe("AuthService", () => {
 			authInfo.refreshToken = undefined
 			const token = await authService.getAuthToken()
 			expect(token).toBeNull()
+		})
+	})
+
+	describe("createAuthRequest()", () => {
+		it("returns the SDK device auth instruction so the webview can display the browser confirmation code", async () => {
+			mockLoginClineOAuth.mockImplementationOnce(async ({ callbacks, useWorkOSDeviceAuth }) => {
+				expect(useWorkOSDeviceAuth).toBe(true)
+				callbacks.onAuth({
+					url: "https://example.com/device?user_code=ABCD-EFGH",
+					instructions: "Enter this code in your browser: ABCD-EFGH",
+				})
+
+				return createTestOAuthCredentials()
+			})
+
+			const response = await authService.createAuthRequest()
+
+			expect(response.value).toBe("Enter this code in your browser: ABCD-EFGH")
 		})
 	})
 
