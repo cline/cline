@@ -37,11 +37,12 @@ The skill should guide the user through one release preparation flow, then offer
 ```sh
 git status --short --branch
 git fetch origin --tags
-git tag --list 'v*-cli' --sort=-v:refname | head -10
+LAST_CLI_TAG=$(git describe --tags --abbrev=0 --match 'v*-cli' HEAD)
+printf '%s\n' "$LAST_CLI_TAG"
 node -p "require('./apps/cli/package.json').version"
 ```
 
-Find the latest CLI tag. If there is no `v*-cli` tag, fall back to the latest `cli-v*` tag during the migration window. If neither exists, use the first relevant CLI release commit as the baseline and say that the baseline is inferred.
+Find the latest CLI tag by ancestry, not by version sort. The release contract uses `vX.Y.Z-cli` tags.
 
 2. Collect release commits.
 
