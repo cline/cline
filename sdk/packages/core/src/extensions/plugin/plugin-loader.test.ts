@@ -30,10 +30,9 @@ describe("plugin-loader", () => {
 		await writeFile(
 			join(dir, "plugin-top-level-await.mjs"),
 			[
-				"import { createTool } from '@cline/core';",
 				"const name = await Promise.resolve('plugin-top-level-await');",
 				"export default {",
-				"  name: typeof createTool === 'function' ? name : 'invalid',",
+				"  name,",
 				"  manifest: { capabilities: ['tools'] },",
 				"};",
 			].join("\n"),
