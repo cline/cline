@@ -75,6 +75,34 @@ function toGatewayConfiguredModel(
 	};
 }
 
+function compactOptions(options: Record<string, unknown>) {
+	const entries = Object.entries(options).filter(
+		([, value]) => value !== undefined,
+	);
+	return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+function toGatewayProviderOptions(
+	config: ProviderConfig,
+): Record<string, unknown> | undefined {
+	return compactOptions({
+		region: config.region,
+		authentication: config.aws?.authentication,
+		profile: config.aws?.profile,
+		accessKeyId: config.aws?.accessKey,
+		secretAccessKey: config.aws?.secretKey,
+		sessionToken: config.aws?.sessionToken,
+		endpoint: config.aws?.endpoint,
+		usePromptCache: config.aws?.usePromptCache,
+		useCrossRegionInference: config.useCrossRegionInference,
+		useGlobalInference: config.useGlobalInference,
+		customModelBaseId: config.aws?.customModelBaseId,
+		projectId: config.gcp?.projectId,
+		apiVersion: config.azure?.apiVersion,
+		useIdentity: config.azure?.useIdentity,
+	});
+}
+
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
@@ -105,6 +133,7 @@ export function createAgentModelFromConfig(
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
+				options: toGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
 							([id, model]) => toGatewayConfiguredModel(id, model),
