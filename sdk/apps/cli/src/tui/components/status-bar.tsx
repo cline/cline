@@ -1,8 +1,16 @@
 import type { AgentMode } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
-import { getDefaultForeground, palette } from "../palette";
+import {
+	useTerminalBackground,
+	useTerminalForeground,
+} from "../hooks/use-terminal-background";
+import {
+	getDefaultForeground,
+	getModeAccent,
+	getSuccessColor,
+	getTerminalTheme,
+} from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 
 export function createContextBar(
@@ -132,8 +140,13 @@ export function StatusBar(props: StatusBarProps) {
 
 	const { width } = useTerminalDimensions();
 	const terminalBg = useTerminalBackground();
+	const terminalFg = useTerminalForeground();
+	const terminalTheme = getTerminalTheme(terminalBg, terminalFg);
 	const defaultFg = getDefaultForeground(terminalBg);
 	const contextBarFilledFg = resolveContextBarFilledForeground(defaultFg);
+	const actAccent = getModeAccent("act", terminalTheme);
+	const planAccent = getModeAccent("plan", terminalTheme);
+	const successColor = getSuccessColor(terminalTheme);
 	const hasMaxInputTokens =
 		typeof maxInputTokens === "number" &&
 		Number.isFinite(maxInputTokens) &&
@@ -212,10 +225,10 @@ export function StatusBar(props: StatusBarProps) {
 					flexShrink={0}
 					onMouseDown={onToggleMode}
 				>
-					<text fg={uiMode === "plan" ? palette.plan : "gray"}>
+					<text fg={uiMode === "plan" ? planAccent : "gray"}>
 						{uiMode === "plan" ? "●" : "○"} Plan
 					</text>
-					<text fg={uiMode === "act" ? palette.act : "gray"}>
+					<text fg={uiMode === "act" ? actAccent : "gray"}>
 						{uiMode === "act" ? "●" : "○"} Act
 					</text>
 					<text fg="gray">(Tab)</text>
@@ -231,7 +244,7 @@ export function StatusBar(props: StatusBarProps) {
 						{" | "}
 						{gitDiffStats.files} file
 						{gitDiffStats.files !== 1 ? "s" : ""}{" "}
-						<span fg={palette.success}>+{gitDiffStats.additions}</span>{" "}
+						<span fg={successColor}>+{gitDiffStats.additions}</span>{" "}
 						<span fg="red">-{gitDiffStats.deletions}</span>
 					</span>
 				)}
@@ -239,7 +252,7 @@ export function StatusBar(props: StatusBarProps) {
 
 			{autoApproveAll ? (
 				<text fg={defaultFg}>
-					<span fg={palette.success}>
+					<span fg={successColor}>
 						{"\u23f5\u23f5"} Auto-approve all enabled
 					</span>
 					<span fg="gray"> (Shift+Tab)</span>

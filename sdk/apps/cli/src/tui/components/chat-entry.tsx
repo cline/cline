@@ -2,10 +2,14 @@ import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
+import {
+	useTerminalBackground,
+	useTerminalForeground,
+} from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
 	getModeInputBackground,
+	getTerminalTheme,
 	palette,
 } from "../palette";
 import type { ChatEntry } from "../types";
@@ -254,6 +258,8 @@ function ToolCallView(props: {
 export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 	const { entry, accent = palette.act } = props;
 	const terminalBg = useTerminalBackground();
+	const terminalFg = useTerminalForeground();
+	const terminalTheme = getTerminalTheme(terminalBg, terminalFg);
 	const defaultFg = getDefaultForeground(terminalBg);
 	const userMsgBg = getModeInputBackground(
 		accent === palette.plan ? "plan" : "act",
@@ -316,7 +322,7 @@ export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle()}
+							syntaxStyle={getSyntaxStyle(terminalTheme)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>

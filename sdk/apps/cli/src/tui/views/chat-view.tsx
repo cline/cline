@@ -14,12 +14,16 @@ import {
 	StatusBar,
 } from "../components/status-bar";
 import { useSession } from "../contexts/session-context";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
+import {
+	useTerminalBackground,
+	useTerminalForeground,
+} from "../hooks/use-terminal-background";
 import {
 	getModeAccent,
 	getModeInputBackground,
 	getModeInputForeground,
 	getModeInputPlaceholder,
+	getTerminalTheme,
 } from "../palette";
 import type { QueuedPromptItem, TuiProps } from "../types";
 
@@ -61,7 +65,9 @@ export function ChatView(props: {
 	} = props;
 	const session = useSession();
 	const terminalBg = useTerminalBackground();
-	const accent = getModeAccent(session.uiMode);
+	const terminalFg = useTerminalForeground();
+	const terminalTheme = getTerminalTheme(terminalBg, terminalFg);
+	const accent = getModeAccent(session.uiMode, terminalTheme);
 	const inputBackground = getModeInputBackground(session.uiMode, terminalBg);
 	const inputForeground = getModeInputForeground(session.uiMode, terminalBg);
 	const inputPlaceholder = getModeInputPlaceholder(session.uiMode, terminalBg);

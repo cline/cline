@@ -9,7 +9,11 @@ import {
 	useRef,
 } from "react";
 import type { TranscriptCommand } from "../hooks/transcript-keybinds";
-import { getModeAccent } from "../palette";
+import {
+	useTerminalBackground,
+	useTerminalForeground,
+} from "../hooks/use-terminal-background";
+import { getModeAccent, getTerminalTheme } from "../palette";
 import type { ChatEntry } from "../types";
 import { ChatEntryView } from "./chat-entry";
 
@@ -29,6 +33,10 @@ export const ChatMessageList = forwardRef<
 >(function ChatMessageList(props, ref) {
 	const scrollboxRef = useRef<ScrollBoxRenderable | null>(null);
 	const lastEntry = props.entries.at(-1);
+	const terminalBg = useTerminalBackground();
+	const terminalFg = useTerminalForeground();
+	const terminalTheme = getTerminalTheme(terminalBg, terminalFg);
+	const accent = getModeAccent(props.uiMode ?? "act", terminalTheme);
 	const userSubmissionScrollKey =
 		lastEntry?.kind === "user_submitted" ? props.entries.length : 0;
 
@@ -92,17 +100,11 @@ export const ChatMessageList = forwardRef<
 			<box flexDirection="column" paddingX={1} paddingY={1} gap={1}>
 				{props.entries.map((entry, i) => {
 					const key = `${i}:${entry.kind}`;
-					return (
-						<ChatEntryView
-							key={key}
-							entry={entry}
-							accent={getModeAccent(props.uiMode ?? "act")}
-						/>
-					);
+					return <ChatEntryView key={key} entry={entry} accent={accent} />;
 				})}
 				{props.isStreaming && (
 					<box flexDirection="row" gap={1}>
-						<spinner name="dots" color={getModeAccent(props.uiMode ?? "act")} />
+						<spinner name="dots" color={accent} />
 						<text fg="gray">Thinking... (esc to cancel)</text>
 					</box>
 				)}
