@@ -45,6 +45,7 @@ export interface ImportPluginModuleOptions {
 function collectWorkspaceAliases(root: string): Record<string, string> {
 	const aliases: Record<string, string> = {};
 	const candidates: Record<string, string> = {
+		"@cline/sdk": resolve(root, "packages/sdk/src/index.ts"),
 		"@cline/agents": resolve(root, "packages/agents/src/index.ts"),
 		"@cline/core": resolve(root, "packages/core/src/index.ts"),
 		"@cline/llms": resolve(root, "packages/llms/src/index.ts"),
@@ -289,8 +290,24 @@ function resolveHostPackageExport(specifier: string): string | null {
 	}
 }
 
-function findHostPackageRoot(packageName: string): string | null {
-	let current = MODULE_DIR;
+function getHostPackageSearchRoots(): string[] {
+	const roots = [MODULE_DIR];
+	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	if (wrapperPath) {
+		roots.push(dirname(dirname(wrapperPath)));
+	}
+	const execPath = process.execPath?.trim();
+	if (execPath) {
+		roots.push(dirname(execPath));
+	}
+	return [...new Set(roots.map((root) => resolve(root)))];
+}
+
+function findHostPackageRootFrom(
+	startDir: string,
+	packageName: string,
+): string | null {
+	let current = startDir;
 	while (true) {
 		const packageJsonPath = resolve(current, "package.json");
 		if (existsSync(packageJsonPath)) {
@@ -320,6 +337,16 @@ function findHostPackageRoot(packageName: string): string | null {
 		}
 		current = parent;
 	}
+}
+
+function findHostPackageRoot(packageName: string): string | null {
+	for (const root of getHostPackageSearchRoots()) {
+		const packageRoot = findHostPackageRootFrom(root, packageName);
+		if (packageRoot) {
+			return packageRoot;
+		}
+	}
+	return null;
 }
 
 function isPackageBasedPlugin(pluginFilePath: string): boolean {
@@ -538,6 +565,86 @@ function collectPluginImportAliases(
 	return aliases;
 }
 
+type JitiTransform = (opts: {
+	source: string;
+	filename?: string;
+	ts?: boolean;
+	async?: boolean;
+	jsx?: unknown;
+	[key: string]: unknown;
+}) => { code: string; error?: unknown };
+
+let cachedJitiTransform: JitiTransform | null | undefined;
+
+function loadJitiBabelTransform(): JitiTransform | null {
+	if (cachedJitiTransform !== undefined) {
+		return cachedJitiTransform;
+	}
+	// jiti's default lazyTransform path is
+	//   createRequire(import.meta.url)("../dist/babel.cjs")
+	// which fails in a `bun build --compile` binary: `import.meta.url` is
+	// `bunfs:/root/chunk-XXXX.js`, so the relative resolve has nothing to
+	// walk through. The wrapper install layout still has the real file at
+	// <wrapper>/node_modules/jiti/dist/babel.cjs, so locate it on disk via
+	// our host-package resolver and createRequire from an actual on-disk
+	// path. Returning null falls back to jiti's own loader (works in dev).
+	const jitiRoot = findHostPackageRoot("jiti");
+	if (!jitiRoot) {
+		cachedJitiTransform = null;
+		return null;
+	}
+	const babelPath = resolve(jitiRoot, "dist", "babel.cjs");
+	if (!existsSync(babelPath)) {
+		cachedJitiTransform = null;
+		return null;
+	}
+	try {
+		const requireFromBabel = createRequire(babelPath);
+		const transform = requireFromBabel(babelPath) as unknown;
+		cachedJitiTransform =
+			typeof transform === "function" ? (transform as JitiTransform) : null;
+	} catch {
+		cachedJitiTransform = null;
+	}
+	return cachedJitiTransform;
+}
+
+let cachedHostVirtualModules: Record<string, unknown> | undefined;
+
+function tryRequireFromPath(fromPath: string, specifier: string): unknown {
+	try {
+		return createRequire(fromPath)(specifier);
+	} catch {
+		return undefined;
+	}
+}
+
+function requireHostModule(specifier: string): unknown {
+	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	if (wrapperPath) {
+		const module = tryRequireFromPath(wrapperPath, specifier);
+		if (module) {
+			return module;
+		}
+	}
+	return tryRequireFromPath(import.meta.url, specifier);
+}
+
+function collectHostVirtualModules(): Record<string, unknown> {
+	if (cachedHostVirtualModules) {
+		return cachedHostVirtualModules;
+	}
+	const modules: Record<string, unknown> = {};
+	for (const specifier of HOST_PROVIDED_SDK_SPECIFIERS) {
+		const value = requireHostModule(specifier);
+		if (value && Object.keys(value).length > 0) {
+			modules[specifier] = value;
+		}
+	}
+	cachedHostVirtualModules = modules;
+	return modules;
+}
+
 export async function importPluginModule(
 	pluginPath: string,
 	options: ImportPluginModuleOptions = {},
@@ -559,14 +666,83 @@ export async function importPluginModule(
 	if (!createJiti) {
 		throw new Error("Unable to load jiti");
 	}
+	// The host packages (@cline/core, @cline/shared, etc.) are already loaded
+	// inside this process; the cline binary bundles them. Hand jiti those live
+	// module instances as virtual modules so a plugin's `import "@cline/core"`
+	// resolves to an object lookup instead of jiti walking + transforming the
+	// entire shipped package tree on every load (8s -> ~300ms for `cline config
+	// tools` in packaged installs). `virtualModules` lookup keys on the bare
+	// specifier before alias rewriting, so we strip any alias entry we'll
+	// satisfy virtually. Otherwise the alias rewrites the specifier to an
+	// absolute path and we pay the full file-load cost anyway.
+	//
+	// A plugin that ships its own installed copy of a host package (e.g. a
+	// pinned `@cline/shared` in its node_modules) must still see that copy, not
+	// our bundled one. `collectPluginImportAliases` already drops workspace
+	// aliases for plugin-installed deps; mirror that here so virtualModules
+	// behaves the same way.
+	const pluginRequire = createRequire(pluginPath);
+	const virtualModules: Record<string, unknown> = {};
+	for (const [specifier, value] of Object.entries(
+		collectHostVirtualModules(),
+	)) {
+		try {
+			pluginRequire.resolve(specifier);
+			continue;
+		} catch {
+			// Plugin doesn't ship its own copy; the bundled host module is
+			// what jiti should hand back for this specifier.
+		}
+		virtualModules[specifier] = value;
+	}
+	const jitiAliases: Record<string, string> = {};
+	for (const [specifier, target] of Object.entries(sortedAliases)) {
+		if (!Object.hasOwn(virtualModules, specifier)) {
+			jitiAliases[specifier] = target;
+		}
+	}
+	// jiti's lazyTransform uses `createRequire(import.meta.url)("../dist/babel.cjs")`
+	// to load its babel transformer on demand. In a `bun build --compile`
+	// binary that fails because `import.meta.url` points inside the bunfs
+	// bundle; the wrapper install still has the file on real disk though, so
+	// we locate it via our host-package resolver and inject the transform.
+	//
+	// jiti threads its top-level `interopDefault` into babel via the transform
+	// call's options (babel uses `noInterop: !interopDefault`). We want babel
+	// to emit the CJS interop wrapper so `import YAML from "yaml"` works for
+	// CJS deps, but we do not want jiti's runtime to wrap returned modules
+	// in a default-synthesizing Proxy (that proxy makes `moduleExports.default`
+	// truthy even for namespace-only modules, which breaks named-export
+	// plugins). Pin `interopDefault: true` going into babel by overriding it
+	// in the transform call, while keeping `interopDefault: false` on the jiti
+	// instance so the loader sees raw exports.
+	const baseBabelTransform = loadJitiBabelTransform();
+	const babelTransform: JitiTransform | undefined = baseBabelTransform
+		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
+		: undefined;
 	const jiti = createJiti(pluginPath, {
-		alias: sortedAliases,
+		alias: jitiAliases,
 		cache: options.useCache,
 		requireCache: options.useCache,
 		esmResolve: true,
 		interopDefault: false,
 		nativeModules: [...BUILTIN_MODULES],
-		transformModules: Object.keys(sortedAliases),
+		transformModules: Object.keys(jitiAliases),
+		virtualModules,
+		// On Bun (the packaged binary), tryNative defaults to true, which makes
+		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns
+		// every nested import in the plugin, sees `import "@cline/core"` with no
+		// node_modules adjacent to the drop-in plugin, and throws ResolveMessage.
+		// Forcing tryNative off keeps jiti in charge so bare specifiers route
+		// through `virtualModules` first.
+		tryNative: false,
+		...(babelTransform ? { transform: babelTransform } : {}),
 	});
-	return (await jiti.import(pluginPath, {})) as Record<string, unknown>;
+	// Use the synchronous jiti(path) call rather than `jiti.import(path)`.
+	// The async path emits ESM, which `vm.runInThisContext` can't compile, so
+	// jiti falls back to `nativeImport(data:URL)`, and that Bun-side import
+	// has no way to consult our virtualModules map. The sync path emits CJS,
+	// wraps it in a function with jiti's own `require` injected, and routes
+	// every `require("@cline/core")` back through jitiRequire -> virtualModules.
+	return jiti(pluginPath) as Record<string, unknown>;
 }
