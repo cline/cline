@@ -2,6 +2,7 @@ import type { AgentExtension } from "../agents/types";
 import {
 	FileRemoteConfigBundleStore,
 	FileSystemRemoteConfigManagedArtifactStore,
+	MigratingRemoteConfigBundleStore,
 } from "./artifact-store";
 import type {
 	PreparedRemoteConfigRuntime,
@@ -16,6 +17,7 @@ import type {
 import { FileSystemRemoteConfigPolicyMaterializer } from "./materializer";
 import {
 	getRemoteConfigCommandDirectories,
+	resolveLegacyWorkspaceRemoteConfigBundleCachePath,
 	resolveRemoteConfigPaths,
 } from "./paths";
 import { DefaultRemoteConfigTelemetryAdapter } from "./telemetry";
@@ -137,7 +139,15 @@ export async function prepareRemoteConfigRuntime(
 	});
 	const bundleStore =
 		options.bundleStore ??
-		new FileRemoteConfigBundleStore(paths.bundleCachePath);
+		new MigratingRemoteConfigBundleStore(
+			new FileRemoteConfigBundleStore(paths.bundleCachePath),
+			new FileRemoteConfigBundleStore(
+				resolveLegacyWorkspaceRemoteConfigBundleCachePath({
+					workspacePath: options.workspacePath,
+					pluginName: options.pluginName,
+				}),
+			),
+		);
 	const artifactStore: RemoteConfigManagedArtifactStore =
 		options.artifactStore ?? new FileSystemRemoteConfigManagedArtifactStore();
 	const materializer: RemoteConfigPolicyMaterializer =

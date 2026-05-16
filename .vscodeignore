@@ -7,6 +7,9 @@
 .claude/**
 .codex/**
 CLAUDE.local.md
+**/.cline/enterprise/**
+**/.cline/data/**
+**/.cline/tmp/**
 out/
 dist-standalone/
 node_modules/
