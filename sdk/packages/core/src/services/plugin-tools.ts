@@ -1,6 +1,6 @@
 import type { AgentConfig, AgentTool } from "@cline/shared";
 import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
-import { loadAgentPluginsFromPathsWithDiagnostics } from "../extensions/plugin/plugin-loader";
+import { loadSandboxedPlugins } from "../extensions/plugin/plugin-sandbox";
 import { resolveDisabledToolNames } from "./global-settings";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -51,29 +51,38 @@ export async function listPluginTools(input: {
 	const summaries: PluginToolSummary[] = [];
 
 	for (const pluginPath of pluginPaths) {
-		const report = await loadAgentPluginsFromPathsWithDiagnostics(
-			[pluginPath],
-			{
+		let sandboxed: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
+		try {
+			sandboxed = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
 				cwd: input.cwd,
 				providerId: input.providerId,
 				modelId: input.modelId,
-			},
-		);
-		for (const extension of report.plugins) {
-			for (const tool of collectRegisteredTools(extension, {
-				rootPath: input.workspacePath,
-			})) {
-				summaries.push({
-					name: tool.name,
-					pluginName: extension.name,
-					path: pluginPath,
-					source: pluginPath.startsWith(input.workspacePath)
-						? "workspace-plugin"
-						: "global-plugin",
-					enabled: !disabled.has(tool.name),
-					description: tool.description?.trim() || undefined,
-				});
+				workspaceInfo: { rootPath: input.workspacePath },
+			});
+			for (const extension of sandboxed.extensions ?? []) {
+				for (const tool of collectRegisteredTools(extension, {
+					rootPath: input.workspacePath,
+				})) {
+					summaries.push({
+						name: tool.name,
+						pluginName: extension.name,
+						path: pluginPath,
+						source: pluginPath.startsWith(input.workspacePath)
+							? "workspace-plugin"
+							: "global-plugin",
+						enabled: !disabled.has(tool.name),
+						description: tool.description?.trim() || undefined,
+					});
+				}
 			}
+		} catch {
+			// Tool listing is best effort so settings can still render built-in tools
+			// if one plugin fails to initialize.
+		} finally {
+			await sandboxed?.shutdown().catch(() => {
+				// Best effort cleanup after contribution discovery.
+			});
 		}
 	}
 
