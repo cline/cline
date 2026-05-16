@@ -363,4 +363,127 @@ describe("MessageBuilder", () => {
 			}),
 		]);
 	});
+
+	// CLINE-2183: editor / apply_patch / fetch_web_content were not
+	// in the original TARGET_TOOL_NAMES allowlist, so their tool_results
+	// bypassed both per-block truncation and the aggregate text budget.
+	// A coding-heavy turn could push the outbound request past a model's
+	// context window even with compaction enabled.
+	it("truncates editor tool results above the per-block limit (CLINE-2183)", () => {
+		const builder = new MessageBuilder(100);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "editor",
+						input: { path: "/tmp/example.ts", new_text: "x" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						content: "z".repeat(250),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const content = result[1].content;
+		expect(Array.isArray(content)).toBe(true);
+		const block = Array.isArray(content) ? content[0] : undefined;
+		expect(block?.type).toBe("tool_result");
+		if (block?.type !== "tool_result") {
+			throw new Error("expected tool_result");
+		}
+		expect(
+			typeof block.content === "string" ? block.content.length : 0,
+		).toBeLessThanOrEqual(100);
+		expect(block.content).toContain("...[truncated");
+	});
+
+	it("applies the aggregate text budget across editor / apply_patch / fetch_web_content tool results (CLINE-2183)", () => {
+		// 1 MB total budget against ~4.5 MB of input across the three newly
+		// covered tools. Use the default TARGET_TOOL_NAMES (omit the
+		// second constructor arg) to exercise the constant change itself.
+		// maxToolResultChars is set above each block size so the per-block
+		// truncator does not fire and the aggregate budget is the active limiter.
+		const builder = new MessageBuilder(2_000_000, undefined, 1_000_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_editor",
+						name: "editor",
+						input: { path: "/tmp/a.ts" },
+					},
+					{
+						type: "tool_use",
+						id: "tool_patch",
+						name: "apply_patch",
+						input: { input: "*** Begin Patch" },
+					},
+					{
+						type: "tool_use",
+						id: "tool_fetch",
+						name: "fetch_web_content",
+						input: { requests: [] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_editor",
+						content: "e".repeat(1_500_000),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_patch",
+						content: "p".repeat(1_500_000),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_fetch",
+						content: "f".repeat(1_500_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const totalBytes = result.reduce((sum, message) => {
+			if (typeof message.content === "string") {
+				return sum + Buffer.byteLength(message.content, "utf8");
+			}
+			return (
+				sum +
+				message.content.reduce((inner, block) => {
+					if (block.type !== "tool_result") {
+						return inner;
+					}
+					return (
+						inner +
+						(typeof block.content === "string"
+							? Buffer.byteLength(block.content, "utf8")
+							: 0)
+					);
+				}, 0)
+			);
+		}, 0);
+
+		expect(totalBytes).toBeLessThanOrEqual(1_000_000);
+		expect(JSON.stringify(result)).toContain("to fit provider request budget");
+	});
 });
