@@ -82,9 +82,13 @@ function compactOptions(options: Record<string, unknown>) {
 	return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
-function toGatewayProviderOptions(
+function toGatewayBedrockOptions(
 	config: ProviderConfig,
 ): Record<string, unknown> | undefined {
+	if (config.providerId !== "bedrock") {
+		return undefined;
+	}
+
 	return compactOptions({
 		region: config.region,
 		authentication: config.aws?.authentication,
@@ -93,13 +97,6 @@ function toGatewayProviderOptions(
 		secretAccessKey: config.aws?.secretKey,
 		sessionToken: config.aws?.sessionToken,
 		endpoint: config.aws?.endpoint,
-		usePromptCache: config.aws?.usePromptCache,
-		useCrossRegionInference: config.useCrossRegionInference,
-		useGlobalInference: config.useGlobalInference,
-		customModelBaseId: config.aws?.customModelBaseId,
-		projectId: config.gcp?.projectId,
-		apiVersion: config.azure?.apiVersion,
-		useIdentity: config.azure?.useIdentity,
 	});
 }
 
@@ -133,7 +130,7 @@ export function createAgentModelFromConfig(
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
-				options: toGatewayProviderOptions(normalizedProviderConfig),
+				options: toGatewayBedrockOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
 							([id, model]) => toGatewayConfiguredModel(id, model),
