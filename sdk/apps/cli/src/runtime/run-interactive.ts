@@ -10,7 +10,10 @@ import {
 	loadClineAccountSnapshot,
 	switchClineAccount,
 } from "../tui/cline-account";
-import type { InteractiveConfigItem } from "../tui/interactive-config";
+import type {
+	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
+} from "../tui/interactive-config";
 import {
 	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
@@ -309,10 +312,11 @@ export async function runInteractive(
 
 	const onToggleConfigItem = async (
 		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
 	): Promise<
 		Awaited<ReturnType<typeof configDataLoader.onToggleConfigItem>>
 	> => {
-		const data = await configDataLoader.onToggleConfigItem(item);
+		const data = await configDataLoader.onToggleConfigItem(item, options);
 		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
 			await refreshInteractiveSessionPolicies();
 		}
