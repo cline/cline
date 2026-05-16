@@ -19,6 +19,7 @@ import {
 } from "../../components/tracked-robot";
 import { useTerminalBackground } from "../../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../../palette";
+import { FIELD_ORDER } from "./fields";
 import { MAIN_MENU, THINKING_LEVELS } from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
@@ -233,14 +234,6 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	awsRegion: "us-east-1",
 	awsProfile: "default",
 };
-
-/** Render order: special fields first, then baseUrl, then apiKey last. */
-const FIELD_ORDER: ProviderConfigFieldKey[] = [
-	"awsRegion",
-	"baseUrl",
-	"apiKey",
-	"awsProfile",
-];
 
 export function OnboardingProviderConfigScreen(props: {
 	activeProviderName: string;

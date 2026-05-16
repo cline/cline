@@ -36,6 +36,7 @@ import {
 	runDeviceCodeAuthFlow,
 	runOAuthAuthFlow,
 } from "./auth";
+import { FIELD_ORDER } from "./fields";
 import { useOnboardingKeyboard } from "./keyboard";
 import {
 	type ModelEntry,
@@ -48,14 +49,6 @@ import {
 	toModelEntry,
 	toProviderEntry,
 } from "./model";
-
-/** Render order for cycling focus with Tab. */
-const FIELD_ORDER: ProviderConfigFieldKey[] = [
-	"awsRegion",
-	"baseUrl",
-	"apiKey",
-	"awsProfile",
-];
 
 const CUSTOM_MODEL_ID_ACTION = "__custom_model_id__";
 

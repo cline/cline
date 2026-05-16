@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { ClineModelPickerEntry } from "../../components/model-selector/cline-model-picker";
 import type { SearchableListState } from "../../components/searchable-list";
 import type { OnboardingOAuthProviderId } from "./auth";
+import { FIELD_ORDER } from "./fields";
 import {
 	MAIN_MENU,
 	type OnboardingStep,
@@ -25,8 +26,8 @@ export function useOnboardingKeyboard(input: {
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
 	resetByoFields: () => void;
-	byoFields: Partial<Record<string, unknown>>;
-	byoFocusedField: string;
+	byoFields: Partial<Record<ProviderConfigFieldKey, unknown>>;
+	byoFocusedField: ProviderConfigFieldKey;
 	setByoFocusedField: Dispatch<SetStateAction<ProviderConfigFieldKey>>;
 	setDeviceUserCode: (value: string) => void;
 	setDeviceVerifyUrl: (value: string) => void;
@@ -180,7 +181,7 @@ export function useOnboardingKeyboard(input: {
 
 		if (input.step === "byo_apikey") {
 			if (key.name === "tab") {
-				const visible = Object.keys(input.byoFields).filter(
+				const visible = FIELD_ORDER.filter(
 					(k) => input.byoFields[k] !== undefined,
 				);
 				if (visible.length > 1) {

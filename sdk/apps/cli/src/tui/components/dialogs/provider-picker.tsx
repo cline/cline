@@ -1,7 +1,10 @@
 import {
 	completeClineDeviceAuth,
+	getProviderConfigFields,
 	listLocalProviders,
 	loginLocalProvider,
+	type ProviderConfigFieldKey,
+	type ProviderConfigFieldRequirement,
 	ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
@@ -302,12 +305,6 @@ export function UseExistingOrReconfigureContent(
 		</box>
 	);
 }
-
-import {
-	getProviderConfigFields,
-	type ProviderConfigFieldKey,
-	type ProviderConfigFieldRequirement,
-} from "@cline/core";
 
 const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",

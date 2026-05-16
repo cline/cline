@@ -116,6 +116,7 @@ describe("createBedrockProviderModule", () => {
 		expect(fromNodeProviderChainMock).toHaveBeenCalledWith({
 			ignoreCache: true,
 			profile: "dev-profile",
+			clientConfig: { region: "us-east-2" },
 		});
 		expect(createAmazonBedrockMock).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -141,6 +142,7 @@ describe("createBedrockProviderModule", () => {
 		expect(fromNodeProviderChainMock).toHaveBeenCalledWith({
 			ignoreCache: true,
 			profile: "default",
+			clientConfig: { region: "us-east-1" },
 		});
 		expect(createAmazonBedrockMock).toHaveBeenCalledWith(
 			expect.objectContaining({
