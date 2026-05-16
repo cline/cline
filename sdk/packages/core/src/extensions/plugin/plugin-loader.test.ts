@@ -28,6 +28,18 @@ describe("plugin-loader", () => {
 			"utf8",
 		);
 		await writeFile(
+			join(dir, "plugin-top-level-await.mjs"),
+			[
+				"import { createTool } from '@cline/core';",
+				"const name = await Promise.resolve('plugin-top-level-await');",
+				"export default {",
+				"  name: typeof createTool === 'function' ? name : 'invalid',",
+				"  manifest: { capabilities: ['tools'] },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
 			join(dir, "plugin-named.mjs"),
 			[
 				"export const plugin = {",
@@ -257,6 +269,13 @@ describe("plugin-loader", () => {
 		);
 		expect(plugin.name).toBe("from-default");
 		expect(plugin.manifest.capabilities).toContain("hooks");
+	});
+
+	it("loads ESM plugin with top-level await from path", async () => {
+		const plugin = await loadAgentPluginFromPath(
+			join(dir, "plugin-top-level-await.mjs"),
+		);
+		expect(plugin.name).toBe("plugin-top-level-await");
 	});
 
 	it("loads named plugin export from path", async () => {
