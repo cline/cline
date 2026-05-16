@@ -16,6 +16,7 @@ The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes inst
 | [`background-terminal.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/background-terminal.ts) | Detached shell jobs with persisted logs and optional session steering. |
 | [`automation-events.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/automation-events.ts) | Plugin-emitted automation events. |
 | [`gitignore-read-files-guard.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts) | Runtime hook policy that blocks file access outside workspace `.gitignore` boundaries. |
+| [`atr-detector.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/atr-detector.ts) | Threat detection via `beforeTool`, inspired by the open Agent Threat Rules pack. Blocks destructive shells, curl-pipe-sh, prompt injection directives, and credential leakage. |
 | [`web-search.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts) | `web_search` tool backed by an Exa API key. |
 | [`typescript-lsp/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins/typescript-lsp) | `goto_definition` tool powered by the TypeScript Language Service. |
 | [`agents-squad/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins/agents-squad) | Multi-agent team with subagents that have their own models and personalities. |
@@ -41,6 +42,25 @@ cline -i "Read the ignored .env file"
 ```
 
 The guard uses the `beforeTool` runtime hook. When a `read_files`, `editor`, or `apply_patch` call targets an ignored workspace file, the hook returns `{ skip: true }`, so the tool records a policy error and does not access the file.
+
+## Detect Agent Threats
+
+Use `atr-detector.ts` to block tool calls that match known agent attack patterns. The plugin ships a small high-precision regex set inspired by the open [Agent Threat Rules](https://github.com/Agent-Threat-Rule/agent-threat-rules) project (MIT licensed) and stops the run on a match.
+
+```sh
+mkdir -p .cline/plugins
+cp examples/plugins/atr-detector.ts .cline/plugins/
+cline -i "Run rm -rf / on the project"
+```
+
+The detector inspects the tool name and serialized input on every `beforeTool` call. Categories covered out of the box:
+
+- Destructive shells (`rm -rf /`, `curl ... | sh`)
+- Eval-style RCE sinks (`eval(atob(...))`, `eval(Buffer.from(...))`)
+- Prompt-injection directives (`ignore previous instructions`, `new system prompt:`)
+- Credential leakage (AWS access keys, OpenAI `sk-` keys, `Authorization: Bearer` tokens)
+
+A match returns `{ stop: true, reason }`, which halts the run with a policy error and surfaces the matching rule id (for example `atr.cred.aws_access_key`). To load the full ATR rule pack instead of the inline subset, add the optional `agent-threat-rules` npm package to your plugin folder and load rules from it; no change to cline core is required.
 
 ## Install a Directory Plugin
 
