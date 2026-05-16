@@ -382,13 +382,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		setToggleError(undefined);
 		try {
 			const nextData = await props.onToggleConfigItem(item, {
-				includePluginTools: activeTab === "tools" && pluginToolsLoaded,
+				includePluginTools: pluginToolsLoaded,
 			});
 			if (nextData) {
 				setConfigData(nextData);
-				setPluginToolsLoaded(
-					pluginToolsLoaded || nextData.tools.some((tool) => tool.pluginName),
-				);
+				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
