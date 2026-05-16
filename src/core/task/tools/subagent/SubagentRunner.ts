@@ -19,6 +19,7 @@ import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { isNextGenModelFamily } from "@/utils/model-utils"
 import { TaskState } from "../../TaskState"
+import { applyUsageSnapshot } from "../../usage"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -454,20 +455,17 @@ export class SubagentRunner {
 					switch (chunk.type) {
 						case "usage":
 							requestId = requestId ?? chunk.id
-							stats.inputTokens += chunk.inputTokens || 0
-							stats.outputTokens += chunk.outputTokens || 0
-							stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
-							stats.cacheReadTokens += chunk.cacheReadTokens || 0
-							requestUsage.inputTokens += chunk.inputTokens || 0
-							requestUsage.outputTokens += chunk.outputTokens || 0
-							requestUsage.cacheWriteTokens += chunk.cacheWriteTokens || 0
-							requestUsage.cacheReadTokens += chunk.cacheReadTokens || 0
+							const usageDelta = applyUsageSnapshot(requestUsage, chunk)
+							stats.inputTokens += usageDelta.inputTokens
+							stats.outputTokens += usageDelta.outputTokens
+							stats.cacheWriteTokens += usageDelta.cacheWriteTokens
+							stats.cacheReadTokens += usageDelta.cacheReadTokens
 							requestUsage.totalTokens =
 								requestUsage.inputTokens +
 								requestUsage.outputTokens +
 								requestUsage.cacheWriteTokens +
 								requestUsage.cacheReadTokens
-							requestUsage.totalCost = chunk.totalCost ?? requestUsage.totalCost
+							stats.totalCost += usageDelta.totalCost ?? 0
 							stats.contextTokens = requestUsage.totalTokens
 							stats.contextUsagePercentage =
 								stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
