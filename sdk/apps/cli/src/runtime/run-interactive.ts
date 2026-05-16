@@ -68,24 +68,48 @@ export async function runInteractive(
 		userInstructionService,
 	);
 	let interactiveChatCommandHost = chatCommandHost;
+	let pluginChatCommandHostLoaded = false;
+	let pluginChatSlashCommands: InteractiveSlashCommand[] = [];
+	let pluginChatCommandHostShutdown: (() => Promise<void>) | undefined;
+	let pluginChatCommandHostPromise:
+		| Promise<InteractiveSlashCommand[]>
+		| undefined;
 	const configDataLoader = createInteractiveConfigDataLoader({
 		config,
 		userInstructionService,
 	});
-	const loadAdditionalSlashCommands = async (): Promise<
+	const ensurePluginChatCommandHost = async (): Promise<
 		InteractiveSlashCommand[]
 	> => {
-		const { host, pluginSlashCommands } = await createWorkspaceChatCommandHost({
+		if (pluginChatCommandHostLoaded) {
+			return pluginChatSlashCommands;
+		}
+		pluginChatCommandHostPromise ??= createWorkspaceChatCommandHost({
 			cwd: config.cwd,
 			workspaceRoot: config.workspaceRoot,
 			logger: config.logger,
-		});
-		interactiveChatCommandHost = host;
-		return pluginSlashCommands.map((cmd) => ({
-			name: cmd.name,
-			instructions: "",
-			description: cmd.description ?? "Plugin command",
-		}));
+		})
+			.then(({ host, pluginSlashCommands, shutdown }) => {
+				interactiveChatCommandHost = host;
+				pluginChatCommandHostShutdown = shutdown;
+				pluginChatSlashCommands = pluginSlashCommands.map((cmd) => ({
+					name: cmd.name,
+					instructions: "",
+					description: cmd.description ?? "Plugin command",
+				}));
+				return pluginChatSlashCommands;
+			})
+			.finally(() => {
+				pluginChatCommandHostLoaded = true;
+				pluginChatCommandHostPromise = undefined;
+			});
+		return await pluginChatCommandHostPromise;
+	};
+	const loadAdditionalSlashCommands = async (): Promise<
+		InteractiveSlashCommand[]
+	> => await ensurePluginChatCommandHost();
+	const shouldTryPluginChatCommands = (prompt: string): boolean => {
+		return prompt.trimStart().startsWith("/");
 	};
 
 	const enableChatCommands = true;
@@ -220,9 +244,18 @@ export async function runInteractive(
 		cleanupPromise = (async () => {
 			process.off("SIGINT", handleSigint);
 			process.off("SIGTERM", handleSigterm);
-			const exitSummary = await sessionRuntime.cleanup();
-			setActiveRuntimeAbort(undefined);
-			setActiveRuntimeCleanup(undefined);
+			let exitSummary: InteractiveExitSummary | undefined;
+			try {
+				exitSummary = await sessionRuntime.cleanup();
+			} finally {
+				await pluginChatCommandHostPromise?.catch(() => []);
+				await pluginChatCommandHostShutdown?.().catch(() => {
+					// Best effort cleanup for plugin command discovery sandbox.
+				});
+				pluginChatCommandHostShutdown = undefined;
+				setActiveRuntimeAbort(undefined);
+				setActiveRuntimeCleanup(undefined);
+			}
 			return exitSummary;
 		})();
 		return await cleanupPromise;
@@ -386,7 +419,7 @@ export async function runInteractive(
 					isRunning = true;
 				}
 
-				const chatCommandResult = await runInteractiveChatCommand({
+				let chatCommandResult = await runInteractiveChatCommand({
 					prompt: input,
 					enabled: enableChatCommands,
 					config,
@@ -399,6 +432,26 @@ export async function runInteractive(
 				});
 				if (chatCommandResult.handled) {
 					return chatCommandResult.turnResult;
+				}
+				if (
+					shouldTryPluginChatCommands(input) &&
+					!pluginChatCommandHostLoaded
+				) {
+					await ensurePluginChatCommandHost();
+					chatCommandResult = await runInteractiveChatCommand({
+						prompt: input,
+						enabled: enableChatCommands,
+						config,
+						host: interactiveChatCommandHost,
+						chatCommandState,
+						autoApproveAllRef,
+						setInteractiveAutoApprove,
+						sessionRuntime,
+						stop: () => tuiApp?.destroy(),
+					});
+					if (chatCommandResult.handled) {
+						return chatCommandResult.turnResult;
+					}
 				}
 				input = chatCommandResult.input;
 				const {

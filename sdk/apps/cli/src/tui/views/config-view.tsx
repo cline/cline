@@ -266,7 +266,6 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		if (
 			activeTab !== "tools" ||
 			pluginToolsLoaded ||
-			pluginToolsLoading ||
 			pluginToolsError ||
 			!props.loadConfigData
 		) {
@@ -301,13 +300,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		return () => {
 			cancelled = true;
 		};
-	}, [
-		activeTab,
-		pluginToolsError,
-		pluginToolsLoaded,
-		pluginToolsLoading,
-		props.loadConfigData,
-	]);
+	}, [activeTab, pluginToolsError, pluginToolsLoaded, props.loadConfigData]);
 
 	const rows = useMemo(() => {
 		const r: ConfigRow[] = [];
