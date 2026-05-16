@@ -516,7 +516,9 @@ export class SubagentRunner {
 					requestUsage.outputTokens +
 					requestUsage.cacheWriteTokens +
 					requestUsage.cacheReadTokens
-				stats.totalCost += calculatedRequestCost || 0
+				if (requestUsage.totalCost === undefined) {
+					stats.totalCost += calculatedRequestCost || 0
+				}
 				usageState.lastRequest = { ...requestUsage }
 
 				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
