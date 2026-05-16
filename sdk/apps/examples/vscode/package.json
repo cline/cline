@@ -43,9 +43,10 @@
 	},
 	"scripts": {
 		"build:webview": "cd ./src/webview && bun run build",
-		"build": "bun run build:webview && bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify",
+		"build": "rm -rf dist && bun run build:webview && bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify",
 		"watch": "bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify --watch",
 		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf dist",
 		"dev": "bun run watch"
 	},
 	"dependencies": {
