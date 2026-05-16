@@ -39,10 +39,10 @@ const AppContent = () => {
 	} = useExtensionState()
 	const [showKanbanModal, setShowKanbanModal] = useState(false)
 	const [hasShownKanbanModal, setHasShownKanbanModal] = useState(false)
-	const previousAccountUidRef = useRef<string | undefined>(undefined)
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
 	const clineUserUid = clineUser?.uid
+	const previousAccountUidRef = useRef<string | undefined>(clineUserUid)
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
