@@ -69,6 +69,10 @@ export interface InteractiveConfigData {
 	tools: InteractiveConfigItem[];
 }
 
+export interface LoadInteractiveConfigDataOptions {
+	includePluginTools?: boolean;
+}
+
 export function isToggleableInteractiveConfigItem(
 	item: Pick<InteractiveConfigItem, "kind" | "source">,
 ): boolean {
@@ -217,6 +221,7 @@ export async function loadInteractiveConfigData(input: {
 	cwd: string;
 	workspaceRoot: string;
 	availabilityContext?: BuiltinToolAvailabilityContext;
+	includePluginTools?: boolean;
 }): Promise<InteractiveConfigData> {
 	const workflows: InteractiveConfigItem[] = [];
 	const rules: InteractiveConfigItem[] = [];
@@ -349,29 +354,31 @@ export async function loadInteractiveConfigData(input: {
 			description: tool.description,
 		})),
 	);
-	try {
-		for (const pluginTool of await listPluginTools({
-			workspacePath: input.workspaceRoot,
-			cwd: input.cwd,
-			providerId: input.availabilityContext?.providerId,
-			modelId: input.availabilityContext?.modelId,
-		})) {
-			tools.push({
-				id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
-				name: pluginTool.name,
-				path: pluginTool.path,
-				enabled: pluginTool.enabled,
-				enabledState: pluginTool.enabled ? "enabled" : "disabled",
-				kind: "tool" as const,
-				toolNames: [pluginTool.name],
-				configKind: "tool",
-				pluginName: pluginTool.pluginName,
-				source: pluginTool.source,
-				description: pluginTool.description,
-			});
+	if (input.includePluginTools !== false) {
+		try {
+			for (const pluginTool of await listPluginTools({
+				workspacePath: input.workspaceRoot,
+				cwd: input.cwd,
+				providerId: input.availabilityContext?.providerId,
+				modelId: input.availabilityContext?.modelId,
+			})) {
+				tools.push({
+					id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
+					name: pluginTool.name,
+					path: pluginTool.path,
+					enabled: pluginTool.enabled,
+					enabledState: pluginTool.enabled ? "enabled" : "disabled",
+					kind: "tool" as const,
+					toolNames: [pluginTool.name],
+					configKind: "tool",
+					pluginName: pluginTool.pluginName,
+					source: pluginTool.source,
+					description: pluginTool.description,
+				});
+			}
+		} catch {
+			// Best effort: built-in tools and instruction config should still render.
 		}
-	} catch {
-		// Best effort: built-in tools and instruction config should still render.
 	}
 
 	return {
