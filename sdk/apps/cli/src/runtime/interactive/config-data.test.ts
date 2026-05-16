@@ -45,6 +45,30 @@ describe("interactive config data loader", () => {
 		tempRoots.length = 0;
 	});
 
+	async function writeSettingsPlugin(tempRoot: string): Promise<string> {
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "settings-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'settings-plugin',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api) {",
+				"    api.registerTool({",
+				"      name: 'settings_plugin_tool',",
+				"      description: 'Settings plugin tool',",
+				"      inputSchema: { type: 'object', properties: {} },",
+				"      execute: async () => 'ok',",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		return pluginPath;
+	}
+
 	it("toggles a skill item to the opposite enabled state and refreshes before reload", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
@@ -139,6 +163,49 @@ Use this skill.`,
 		expect(data).toBeDefined();
 	});
 
+	it("can skip plugin tool imports for fast settings open", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginPath = await writeSettingsPlugin(tempRoot);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: false });
+
+		expect(data.plugins.some((item) => item.path === pluginPath)).toBe(true);
+		expect(
+			data.tools.some((item) => item.pluginName === "settings-plugin"),
+		).toBe(false);
+	});
+
+	it("loads plugin tools when requested", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		await writeSettingsPlugin(tempRoot);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+
+		expect(
+			data.tools.some(
+				(item) =>
+					item.pluginName === "settings-plugin" &&
+					item.name === "settings_plugin_tool",
+			),
+		).toBe(true);
+	});
+
 	it("toggles every SDK tool name for a displayed built-in tool", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
@@ -191,7 +258,11 @@ Use this skill.`,
 		const plugin = data.plugins.find((item) => item.path === pluginPath);
 		expect(plugin?.enabled).toBe(false);
 
-		const nextData = await loader.onToggleConfigItem(plugin!);
+		expect(plugin).toBeDefined();
+		if (!plugin) {
+			throw new Error("Expected plugin config item");
+		}
+		const nextData = await loader.onToggleConfigItem(plugin);
 		const settings = JSON.parse(
 			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 		) as { disabledPlugins?: string[] };

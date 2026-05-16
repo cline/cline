@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
 } from "../../tui/interactive-config";
 import {
 	type McpEntry,
@@ -21,13 +22,17 @@ function toMcpEntries(items: InteractiveConfigItem[]): McpEntry[] {
 export function useMcpManager(opts: {
 	dialog: DialogActions;
 	termHeight: number;
-	loadConfigData: () => Promise<InteractiveConfigData>;
+	loadConfigData: (
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData>;
 	onSessionRestart: () => Promise<void>;
 	refocusTextarea: () => void;
 }) {
 	return useCallback(
 		async (options?: { refocus?: boolean }) => {
-			const data = await opts.loadConfigData().catch(() => undefined);
+			const data = await opts
+				.loadConfigData({ includePluginTools: false })
+				.catch(() => undefined);
 			const servers = toMcpEntries(data?.mcp ?? []);
 			const changed = await opts.dialog.choice<boolean>({
 				style: { maxHeight: opts.termHeight - 2 },
