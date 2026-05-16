@@ -100,15 +100,15 @@ If no `cline.plugins` field is present, the installer falls back to auto-discove
 
 ### Host-Provided Dependencies
 
-Dependencies under the `@cline/` scope (like `@cline/core`, `@cline/shared`) are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so you should declare them as `peerDependencies`:
+Dependencies under the `@cline/` scope are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so declare any `@cline/*` package your plugin imports as an optional peer dependency. The host currently provides `@cline/sdk`, `@cline/core`, `@cline/agents`, `@cline/llms`, and `@cline/shared`.
 
 ```json
 {
   "peerDependencies": {
-    "@cline/core": "*"
+    "@cline/sdk": "*"
   },
   "peerDependenciesMeta": {
-    "@cline/core": {
+    "@cline/sdk": {
       "optional": true
     }
   }
