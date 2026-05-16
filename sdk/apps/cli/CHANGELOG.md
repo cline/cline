@@ -1,5 +1,10 @@
 # Cline CLI Changelog
 
+## 3.0.5
+
+- Show plugin-provided tools and slash commands in the CLI settings dialog by hydrating them through the sandbox.
+- Preserve hydrated plugin tools and config reload options when toggling settings, so they no longer disappear after a toggle.
+
 ## 3.0.4
 
 - Improve light theme TUI colors so chat, status bar, tool output, and syntax highlighting render with better contrast on light terminals.
