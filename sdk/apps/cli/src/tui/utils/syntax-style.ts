@@ -150,6 +150,5 @@ function buildSyntaxStyle(theme: TerminalTheme): SyntaxStyle {
 }
 
 export function getSyntaxStyle(theme: TerminalTheme = "dark"): SyntaxStyle {
-	instances[theme] ??= buildSyntaxStyle(theme);
-	return instances[theme];
+	return (instances[theme] ??= buildSyntaxStyle(theme));
 }

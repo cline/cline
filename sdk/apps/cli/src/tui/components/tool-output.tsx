@@ -1,14 +1,6 @@
 import { useState } from "react";
-import {
-	useTerminalBackground,
-	useTerminalForeground,
-} from "../hooks/use-terminal-background";
-import {
-	diffPalettes,
-	getTerminalTheme,
-	palette,
-	type TerminalTheme,
-} from "../palette";
+import { useTerminalTheme } from "../hooks/use-terminal-background";
+import { diffPalettes, palette, type TerminalTheme } from "../palette";
 import { makeUnifiedDiff } from "../utils/diff";
 import { getSyntaxStyle } from "../utils/syntax-style";
 import {
@@ -299,9 +291,7 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 
 export function ToolOutput(props: ToolOutputProps) {
 	const { toolName, outputSummary, rawOutput, rawInput, error } = props;
-	const terminalBg = useTerminalBackground();
-	const terminalFg = useTerminalForeground();
-	const terminalTheme = getTerminalTheme(terminalBg, terminalFg);
+	const terminalTheme = useTerminalTheme();
 
 	if (error) {
 		return (

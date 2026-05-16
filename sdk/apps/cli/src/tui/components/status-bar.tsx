@@ -3,13 +3,12 @@ import { useTerminalDimensions } from "@opentui/react";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import {
 	useTerminalBackground,
-	useTerminalForeground,
+	useTerminalTheme,
 } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
 	getModeAccent,
 	getSuccessColor,
-	getTerminalTheme,
 } from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 
@@ -140,8 +139,7 @@ export function StatusBar(props: StatusBarProps) {
 
 	const { width } = useTerminalDimensions();
 	const terminalBg = useTerminalBackground();
-	const terminalFg = useTerminalForeground();
-	const terminalTheme = getTerminalTheme(terminalBg, terminalFg);
+	const terminalTheme = useTerminalTheme();
 	const defaultFg = getDefaultForeground(terminalBg);
 	const contextBarFilledFg = resolveContextBarFilledForeground(defaultFg);
 	const actAccent = getModeAccent("act", terminalTheme);
