@@ -119,6 +119,28 @@ async function npmPackageVersionExists(
 	return result.exitCode === 0;
 }
 
+async function verifyPublishedDependencies(
+	dependencies: Record<string, string>,
+): Promise<void> {
+	const missingDependencies: string[] = [];
+	for (const [name, version] of Object.entries(dependencies).sort()) {
+		if (!(await npmPackageVersionExists(name, version))) {
+			missingDependencies.push(`${name}@${version}`);
+		}
+	}
+
+	if (missingDependencies.length === 0) {
+		return;
+	}
+
+	console.error("Wrapper package dependencies are not published:");
+	for (const dependency of missingDependencies) {
+		console.error(`  ${dependency}`);
+	}
+	console.error("Publish the SDK packages before publishing the CLI wrapper.");
+	process.exit(1);
+}
+
 async function publishPackage(input: {
 	name: string;
 	version: string;
@@ -211,6 +233,10 @@ console.log(`  Dry run: ${dryRun}`);
 console.log(`  Platform packages: ${Object.keys(binaries).length}`);
 for (const name of Object.keys(binaries)) {
 	console.log(`    ${name}`);
+}
+
+if (!dryRun) {
+	await verifyPublishedDependencies(hostSdkDependencies);
 }
 
 // Step 1: Publish platform-specific packages (in parallel)
