@@ -1,7 +1,7 @@
-import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 
 const RESUME_ASKS = new Set<ClineAsk>(["resume_task", "resume_completed_task"])
-const HOOK_SAYS = new Set(["hook_status", "hook_output_stream"])
+const HOOK_SAYS = new Set<ClineSay>(["hook_status", "hook_output_stream"])
 
 function isResumeAsk(message: ClineMessage): boolean {
 	return message.type === "ask" && message.ask !== undefined && RESUME_ASKS.has(message.ask)

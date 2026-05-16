@@ -1223,7 +1223,7 @@ export class Task {
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
 
 		const lastClineMessage = getLastTaskStateMessage(this.messageStateHandler.getClineMessages())
-		const askType = getResumeAskType(this.messageStateHandler.getClineMessages())
+		const askType: ClineAsk = lastClineMessage?.ask === "completion_result" ? "resume_completed_task" : "resume_task"
 
 		this.taskState.isInitialized = true
 		this.taskState.abort = false // Reset abort flag when resuming task
