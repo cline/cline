@@ -41,6 +41,7 @@ export class TaskState {
 
 	// Tool execution flags
 	didRejectTool = false
+	rejectedCommands: Set<string> = new Set()
 	didAlreadyUseTool = false
 	didEditFile = false
 	lastToolName = "" // Track last tool used for consecutive call detection
