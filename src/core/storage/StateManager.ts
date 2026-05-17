@@ -438,6 +438,19 @@ export class StateManager {
 	}
 
 	/**
+	 * Atomically replace the entire remote config cache.
+	 * Use this instead of clearRemoteConfig() + setRemoteConfigField() loops
+	 * to avoid a window where the cache is empty and concurrent readers get stale data.
+	 */
+	replaceRemoteConfig(newCache: Partial<RemoteConfigFields>): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		this.remoteConfigCache = { ...newCache }
+	}
+
+	/**
 	 * Set models cache for a specific provider (in-memory only, not persisted)
 	 */
 	setModelsCache(
@@ -923,7 +936,10 @@ export class StateManager {
 		// Build API handler settings object with task override support
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
-		return { ...secrets, ...settings } satisfies ApiConfiguration
+		return {
+			...secrets,
+			...settings,
+		} satisfies ApiConfiguration
 	}
 
 	/**

@@ -1,6 +1,7 @@
 import { PromptBuilder } from "../../registry/PromptBuilder"
 import { TemplateEngine } from "../../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../../types"
+import { MULTI_ROOT_HINT } from "../../constants"
 
 export async function getToolUseToolsSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const focusChainEnabled = context.focusChainSettings?.enabled
@@ -38,4 +39,3 @@ const FOCUS_CHAIN_USAGE = `<task_progress>
 Checklist here (optional)
 </task_progress>
 `
-const MULTI_ROOT_HINT = " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."

@@ -1,0 +1,89 @@
+---
+title: "Types"
+sidebarTitle: "Types"
+description: "Common SDK type surfaces."
+---
+
+Most common types are exported from `@cline/shared`; runtime entry-point packages re-export selected helpers.
+
+## AgentRuntime Types
+
+```typescript
+import type {
+  AgentMessage,
+  AgentMessagePart,
+  AgentRunResult,
+  AgentRuntimeEvent,
+  AgentRuntimeStateSnapshot,
+  AgentUsage,
+} from "@cline/sdk"
+```
+
+`AgentRunResult` is returned by direct `AgentRuntime` / `Agent` runs:
+
+```typescript
+interface AgentRunResult {
+  agentId: string
+  agentRole?: string
+  runId: string
+  status: "completed" | "aborted" | "failed"
+  iterations: number
+  outputText: string
+  messages: readonly AgentMessage[]
+  usage: AgentUsage
+  error?: Error
+}
+```
+
+## Host-Facing Agent Types
+
+```typescript
+import type {
+  AgentConfig,
+  AgentEvent,
+  AgentResult,
+  AgentPlugin,
+  AgentTool,
+  AgentToolContext,
+  ToolPolicy,
+} from "@cline/sdk"
+```
+
+`AgentResult` is the host/core-facing result shape:
+
+```typescript
+interface AgentResult {
+  text: string
+  usage: LegacyAgentUsage
+  messages: MessageWithMetadata[]
+  toolCalls: ToolCallRecord[]
+  iterations: number
+  finishReason: "completed" | "max_iterations" | "aborted" | "mistake_limit" | "error"
+  model: { id: string; provider: string; info?: ModelInfo }
+  startedAt: Date
+  endedAt: Date
+  durationMs: number
+}
+```
+
+## ClineCore Types
+
+```typescript
+import type {
+  ClineCoreOptions,
+  ClineCoreStartInput,
+  CoreSessionConfig,
+  SessionRecord,
+} from "@cline/sdk"
+```
+
+## Tool Types
+
+```typescript
+interface ToolPolicy {
+  enabled?: boolean
+  autoApprove?: boolean
+}
+```
+
+See [Tools API](/sdk/reference/tools-api) for the full tool surface.

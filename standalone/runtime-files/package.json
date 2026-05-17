@@ -11,6 +11,7 @@
 		"vscode-uri": "^3.1.0"
 	},
 	"overrides": {
-		"tar-fs": "^3.1.1"
+		"tar-fs": "^3.1.1",
+		"protobufjs": "7.5.5"
 	}
 }

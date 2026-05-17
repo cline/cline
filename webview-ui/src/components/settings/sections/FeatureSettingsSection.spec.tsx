@@ -8,6 +8,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: vi.fn(() => ({
 		enableCheckpointsSetting: true,
 		hooksEnabled: false,
+		showFeatureTips: false,
 		mcpDisplayMode: "rich",
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
@@ -41,6 +42,18 @@ describe("FeatureSettingsSection", () => {
 		expect(agentSection?.querySelector("#Hooks")).toBeNull()
 	})
 
+	it("renders Feature Tips toggle in the Editor section", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.getByText("Feature Tips")).toBeTruthy()
+
+		const editorSection = container.querySelector("#optional-features")
+		const agentSection = container.querySelector("#agent-features")
+
+		expect(editorSection?.querySelector('[id="Feature Tips"]')).toBeTruthy()
+		expect(agentSection?.querySelector('[id="Feature Tips"]')).toBeNull()
+	})
+
 	it("calls updateSetting with hooksEnabled when toggled", () => {
 		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
 
@@ -50,5 +63,16 @@ describe("FeatureSettingsSection", () => {
 		fireEvent.click(hooksSwitch as Element)
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("hooksEnabled", true)
+	})
+
+	it("calls updateSetting with showFeatureTips when toggled", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const featureTipsSwitch = container.querySelector('[id="Feature Tips"]')
+		expect(featureTipsSwitch).toBeTruthy()
+
+		fireEvent.click(featureTipsSwitch as Element)
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("showFeatureTips", true)
 	})
 })

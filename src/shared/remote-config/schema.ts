@@ -163,9 +163,10 @@ export const S3AccessKeySettingsSchema = z.object({
 
 export const PromptUploadingSchema = z.object({
 	enabled: z.boolean().optional(),
-	type: z.union([z.literal("s3_access_keys"), z.literal("r2_access_keys")]).optional(),
+	type: z.union([z.literal("s3_access_keys"), z.literal("r2_access_keys"), z.literal("azure_access_keys")]).optional(),
 	s3AccessSettings: S3AccessKeySettingsSchema.optional(),
 	r2AccessSettings: S3AccessKeySettingsSchema.optional(),
+	azureAccessSettings: S3AccessKeySettingsSchema.optional(),
 })
 
 export const EnterpriseTelemetrySchema = z.object({
@@ -182,6 +183,7 @@ export const RemoteConfigSchema = z.object({
 
 	// General settings not specific to any provider
 	telemetryEnabled: z.boolean().optional(),
+	kanbanEnabled: z.boolean().optional(),
 
 	// MCP settings
 	// If this is false, the MCP marketplace is disabled in the extension
@@ -223,6 +225,7 @@ export const RemoteConfigSchema = z.object({
 	// Rules & Workflows
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
 	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
+	globalSkills: z.array(GlobalInstructionsFileSchema).optional(),
 })
 
 export const APIKeySchema = z.record(z.string(), z.string())

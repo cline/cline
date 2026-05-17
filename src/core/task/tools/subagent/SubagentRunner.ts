@@ -2,7 +2,7 @@ import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import type { ApiHandler, buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
-import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
+import { discoverAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
@@ -336,8 +336,13 @@ export class SubagentRunner {
 				!!this.baseConfig.services.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 
 			const host = HostRegistryInfo.get()
-			const discoveredSkills = await discoverSkills(this.baseConfig.cwd)
-			const availableSkills = getAvailableSkills(discoveredSkills)
+			const remoteSkillEntries = this.baseConfig.services.stateManager.getRemoteConfigSettings().remoteGlobalSkills || []
+			const availableSkills = await discoverAvailableSkills(this.baseConfig.cwd, {
+				remoteSkillEntries,
+				globalSkillsToggles: this.baseConfig.services.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {},
+				localSkillsToggles: this.baseConfig.services.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {},
+				remoteSkillsToggles: this.baseConfig.services.stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {},
+			})
 			const configuredSkillNames = this.agent.getConfiguredSkills()
 			const skills =
 				configuredSkillNames !== undefined

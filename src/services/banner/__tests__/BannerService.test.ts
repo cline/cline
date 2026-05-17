@@ -123,6 +123,21 @@ describe("BannerService", () => {
 		}
 	}
 
+	async function flushBannerServiceWork(clock: sinon.SinonFakeTimers, bannerService?: BannerService) {
+		await clock.tickAsync(0)
+		if (bannerService) {
+			await bannerService.drainForTesting()
+		}
+		await clock.tickAsync(0)
+	}
+
+	function useBannerFakeTimers() {
+		return sandbox.useFakeTimers({
+			now: Date.now(),
+			shouldClearNativeTimers: true,
+		})
+	}
+
 	describe("API Fetching", () => {
 		it("should fetch banners from API successfully", async () => {
 			const mockResponse = {
@@ -173,7 +188,7 @@ describe("BannerService", () => {
 		})
 
 		it("should cache banners for the configured hours from PostHog", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 			flagPayloadStub.callsFake((flag: FeatureFlag) =>
 				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? 4 * 60 * 60 * 1000 : undefined,
 			)
@@ -201,30 +216,30 @@ describe("BannerService", () => {
 				// Trigger initial fetch by calling getActiveBanners (fires background fetch)
 				bannerService.getActiveBanners()
 				// Wait for the background fetch to complete
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Second call within cache window uses cache (no new API call)
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// After 1 hour, still uses cache
 				await clock.tickAsync(60 * 60 * 1000)
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// After 3 hours total, still uses cache
 				await clock.tickAsync(2 * 60 * 60 * 1000)
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// After 5 hours total, cache expired, triggers new background fetch
 				await clock.tickAsync(2 * 60 * 60 * 1000)
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(2)
 			})
 
@@ -232,7 +247,7 @@ describe("BannerService", () => {
 		})
 
 		it("should fall back to 24 hours when payload is invalid", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 			flagPayloadStub.callsFake((flag: FeatureFlag) =>
 				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? "invalid" : undefined,
 			)
@@ -258,17 +273,17 @@ describe("BannerService", () => {
 				const bannerService = BannerService.initialize(mockController)
 
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				await clock.tickAsync(23 * 60 * 60 * 1000)
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				await clock.tickAsync(2 * 60 * 60 * 1000)
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(2)
 			})
 
@@ -1003,7 +1018,7 @@ describe("BannerService", () => {
 
 	describe("Rate Limit Backoff (429)", () => {
 		it("should trigger backoff on 429 response and return cached banners during backoff", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 
 			// First, cache a banner
 			const successResponse = {
@@ -1028,7 +1043,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Expire cache
@@ -1039,7 +1054,7 @@ describe("BannerService", () => {
 
 				// This call triggers 429
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 
 				const banners1 = bannerService.getActiveBanners()
 				expect(banners1).to.have.lengthOf(1) // Returns cached
@@ -1052,7 +1067,7 @@ describe("BannerService", () => {
 
 	describe("onAuthUpdate", () => {
 		it("should update the user id and trigger fetch after debounce", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 
 			const mockResponse = {
 				data: {
@@ -1077,13 +1092,14 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Call onAuthUpdate with a new token
 				const authPromise = BannerService.onAuthUpdate("new-user-id")
 				await clock.tickAsync(1000) // Advance past debounce (AUTH_DEBOUNCE_MS)
 				await authPromise
+				await flushBannerServiceWork(clock, bannerService)
 
 				// Should have triggered a new fetch
 				expect(mockFetch.callCount).to.equal(2)
@@ -1098,7 +1114,7 @@ describe("BannerService", () => {
 		})
 
 		it("should clear pending retry timeout on auth update", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 
 			const successResponse = {
 				data: {
@@ -1122,14 +1138,14 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Expire cache and trigger a rate limit
 				await clock.tickAsync(25 * 60 * 60 * 1000)
 				mockFetch.resolves(createErrorResponse(429))
 				bannerService.getActiveBanners()
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(2)
 
 				// Now update auth - should clear the retry timeout
@@ -1138,6 +1154,7 @@ describe("BannerService", () => {
 				const authPromise = BannerService.onAuthUpdate("user-id")
 				await clock.tickAsync(1000) // Advance past debounce
 				await authPromise
+				await flushBannerServiceWork(clock, bannerService)
 
 				expect(mockFetch.callCount).to.equal(3)
 
@@ -1165,7 +1182,7 @@ describe("BannerService", () => {
 		})
 
 		it("should handle null user-id (logout)", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 
 			const mockResponse = {
 				data: {
@@ -1189,13 +1206,14 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Set a user id first
 				const authPromise1 = BannerService.onAuthUpdate("usr-id")
 				await clock.tickAsync(1000) // Advance past debounce
 				await authPromise1
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(2)
 
 				// Now logout (null user id)
@@ -1203,6 +1221,7 @@ describe("BannerService", () => {
 				const authPromise2 = BannerService.onAuthUpdate(null)
 				await clock.tickAsync(1000) // Advance past debounce
 				await authPromise2
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(3)
 
 				// Verify no auth header on last call
@@ -1215,7 +1234,7 @@ describe("BannerService", () => {
 		})
 
 		it("should debounce rapid auth updates", async () => {
-			const clock = sandbox.useFakeTimers(Date.now())
+			const clock = useBannerFakeTimers()
 
 			const mockResponse = {
 				data: {
@@ -1240,7 +1259,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await clock.tickAsync(0)
+				await flushBannerServiceWork(clock, bannerService)
 				expect(mockFetch.callCount).to.equal(1)
 
 				const updatedToken = "test-updated-token"
@@ -1254,7 +1273,7 @@ describe("BannerService", () => {
 				// Advance past debounce period and allow async callback to complete
 				// The debounce timer fires at 1000ms (AUTH_DEBOUNCE_MS), then we need additional ticks for the async fetch
 				await clock.tickAsync(1000)
-				await clock.tickAsync(0) // Allow microtasks/promises from the debounce callback to settle
+				await flushBannerServiceWork(clock, bannerService)
 
 				// Wait for all promises to resolve
 				await Promise.all([promise1, promise2, promise3])

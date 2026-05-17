@@ -1,6 +1,7 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -202,7 +203,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}, [selectedIndex])
 
 	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
-	const showReasoningEffort = useMemo(() => supportsReasoningEffortForModelId(selectedModelId), [selectedModelId])
+	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
+	const adaptiveThinkingDefaultEffort = useMemo(
+		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
+		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
+	)
+	const showReasoningEffort = useMemo(
+		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
+		[selectedModelId, showAdaptiveThinkingEffort],
+	)
 
 	const showBudgetSlider = useMemo(() => {
 		if (showReasoningEffort) {
@@ -210,7 +219,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		}
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
-			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
 			selectedModelIdLower.includes("claude-sonnet-4.6") ||
@@ -220,7 +228,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
 			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-opus-4.5") ||
 			selectedModelIdLower.includes("claude-3-7-sonnet") ||
 			selectedModelIdLower.includes("claude-3.7-sonnet") ||
 			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
@@ -316,6 +323,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					)}
 				</DropdownWrapper>
 
+				{/* Context window switcher for Claude Opus 4.7 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.7"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Opus 4.6 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
@@ -352,7 +367,21 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			{hasInfo ? (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
-					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					{showReasoningEffort && (
+						<ReasoningEffortSelector
+							allowedEfforts={
+								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined
+							}
+							currentMode={currentMode}
+							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "medium"}
+							description={
+								showAdaptiveThinkingEffort
+									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+									: undefined
+							}
+							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+						/>
+					)}
 
 					<ModelInfoView
 						isPopup={isPopup}

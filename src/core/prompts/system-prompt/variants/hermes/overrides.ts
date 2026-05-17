@@ -9,7 +9,9 @@ const HERMES_AGENT_ROLE_TEMPLATE = [
 	"with extensive knowledge in many programming languages, frameworks, design patterns, and best practices. ",
 ].join("")
 
-const HERMES_TOOL_USE_TEMPLATE = `Begin every task by exploring the codebase (e.g., list_files, search_files, read_file) and outlining the required changes. Do not implement until exploration yields enough context to state objectives, approach, affected files, and risks. Briefly summarize the plan, then proceed with implementation.
+const HERMES_TOOL_USE_TEMPLATE = (
+	context: SystemPromptContext,
+) => `Begin every task by exploring the codebase (e.g., list_files, search_files, read_file) and outlining the required changes. Do not implement until exploration yields enough context to state objectives, approach, affected files, and risks. Briefly summarize the plan, then proceed with implementation.
 
 Tool invocation policy: Invoke tools only in assistant messages; they will not execute if placed inside reasoning blocks. Use reasoning blocks solely for analysis/option-weighing; place all tool XML blocks in assistant messages to execute them.
 
@@ -100,14 +102,26 @@ Param: context (Current Work; Key Concepts; Relevant Files/Code; Problem Solving
 </new_task>
 
 **plan_mode_respond** — PLAN-only reply.
-Params: response, needs_more_exploration (optional).  
+Params: response, needs_more_exploration (optional).
 Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.
 *Example:*
 <plan_mode_respond>
 <response>Your response here</response>
 <needs_more_exploration>true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)</needs_more_exploration>
 <task_progress>Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)</task_progress>
-</plan_mode_respond>`
+</plan_mode_respond>${
+	context.subagentsEnabled === true && !context.isSubagentRun
+		? `
+
+**use_subagents** — Run up to 5 focused in-process subagents in parallel for broad exploration. Each subagent gets its own prompt and returns a comprehensive research result. Use this when reading many files would consume the main agent's context window. Using a single subagent is also valid for light discovery work.
+Params: prompt_1 (required), prompt_2, prompt_3, prompt_4, prompt_5 (all optional).
+*Example:*
+<use_subagents>
+<prompt_1>First subagent task description here.</prompt_1>
+<prompt_2>Optional second subagent task here.</prompt_2>
+</use_subagents>`
+		: ""
+}`
 
 const HERMES_OBJECTIVE_TEMPLATE = `OBJECTIVE
 

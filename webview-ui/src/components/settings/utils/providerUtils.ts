@@ -65,6 +65,8 @@ import {
 	sapAiCoreModels,
 	vertexDefaultModelId,
 	vertexModels,
+	wandbDefaultModelId,
+	wandbModels,
 	xaiDefaultModelId,
 	xaiModels,
 } from "@shared/api"
@@ -118,6 +120,8 @@ export function getModelsForProvider(
 			return moonshotModels
 		case "nebius":
 			return nebiusModels
+		case "wandb":
+			return wandbModels
 		case "sambanova":
 			return sambanovaModels
 		case "cerebras":
@@ -373,6 +377,8 @@ export function normalizeApiConfiguration(
 			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
+		case "wandb":
+			return getProviderData(wandbModels, wandbDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
@@ -827,6 +833,7 @@ export async function syncModeConfigurations(
 		case "asksage":
 		case "xai":
 		case "nebius":
+		case "wandb":
 		case "sambanova":
 		case "cerebras":
 		case "sapaicore":

@@ -22,6 +22,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
+	enableParallelToolCalling?: boolean
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -68,6 +69,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
+			this.options.enableParallelToolCalling,
 		)
 
 		let didOutputUsage = false
@@ -152,11 +154,16 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 
 			if (!didOutputUsage && chunk.usage) {
+				// @ts-expect-error-next-line -- OpenRouter returns cache_write_tokens for Anthropic models
+				const cacheWriteTokens = chunk.usage.prompt_tokens_details?.cache_write_tokens || 0
 				yield {
 					type: "usage",
-					cacheWriteTokens: 0,
+					cacheWriteTokens,
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+					inputTokens:
+						(chunk.usage.prompt_tokens || 0) -
+						(chunk.usage.prompt_tokens_details?.cached_tokens || 0) -
+						(cacheWriteTokens || 0),
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-expect-error-next-line
 					totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
@@ -183,7 +190,7 @@ export class OpenRouterHandler implements ApiHandler {
 				// Logger.log("OpenRouter generation details:", generation)
 				return {
 					type: "usage",
-					cacheWriteTokens: 0,
+					cacheWriteTokens: generation?.native_tokens_cache_write || 0,
 					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
 					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),

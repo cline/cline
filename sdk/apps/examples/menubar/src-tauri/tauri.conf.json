@@ -1,0 +1,29 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Cline Hub",
+	"version": "0.0.0",
+	"identifier": "bot.cline.menubar",
+	"build": {
+		"beforeDevCommand": "bun run build:sidecar:bin",
+		"beforeBuildCommand": "bun run build:sidecar:bin",
+		"beforeBundleCommand": "[ \"$(uname)\" = \"Darwin\" ] && [ -e ./target/release/bundle/macos/Cline\\ Hub.app ] && xattr -d com.apple.quarantine ./target/release/bundle/macos/Cline\\ Hub.app || true"
+	},
+	"app": {
+		"windows": [],
+		"security": {
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"externalBin": ["bin/menubar-sidecar"],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		]
+	}
+}

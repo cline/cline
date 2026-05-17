@@ -6,6 +6,8 @@ import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
+import { HostProvider } from "@/hosts/host-provider"
+import { SearchWorkspaceItemsRequest_SearchItemType, SearchWorkspaceItemsResponse } from "@/shared/proto/host/workspace"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("File Search", () => {
@@ -124,8 +126,42 @@ describe("File Search", () => {
 			} as unknown as childProcess.ChildProcess)
 
 			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
-				`ripgrep process error: ${mockError}`,
+				`ripgrep failed to spawn: ${mockError}`,
 			)
+		})
+
+		it("should reject with RipgrepError when ripgrep exits non-zero with no results", async () => {
+			const mockStdout = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push("rg: /bogus: No such file or directory (os error 2)")
+					this.push(null)
+				},
+			})
+
+			let exitHandler: ((code: number | null) => void) | null = null
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						exitHandler = callback as (code: number | null) => void
+						// Schedule the exit-code emission for after the readline 'close'
+						setImmediate(() => exitHandler?.(2))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as childProcess.ChildProcess)
+
+			const err = await fileSearch.executeRipgrepForFiles("/workspace", 5000).catch((e) => e)
+			should(err.message).match(/ripgrep exited with code 2/)
+			should(err).have.property("name", "RipgrepError")
+			should(err.stderr).match(/No such file or directory/)
 		})
 	})
 
@@ -140,13 +176,38 @@ describe("File Search", () => {
 			// Directly stub the searchWorkspaceFiles function for this test
 			// This avoids issues with the executeRipgrepForFiles function
 			const searchStub = sandbox.stub(fileSearch, "searchWorkspaceFiles")
-			searchStub.withArgs("", "/workspace", 2).resolves(mockItems.slice(0, 2))
+			searchStub.withArgs("", "/workspace", 2).resolves({ items: mockItems.slice(0, 2), source: "ripgrep" })
 
 			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
 
-			should(result).be.an.Array()
-			should(result).have.length(2)
-			should(result).deepEqual(mockItems.slice(0, 2))
+			should(result.items).be.an.Array()
+			should(result.items).have.length(2)
+			should(result.items).deepEqual(mockItems.slice(0, 2))
+			should(result.source).equal("ripgrep")
+		})
+
+		it("should not duplicate a folder when the host returns it as both an explicit folder and a parent of a file", async () => {
+			// Repro for CLINE-2092 review feedback: with `selectedType=undefined`, the
+			// host-index path returned `src/` as an explicit folder *and* `src/main.ts`
+			// as a file, then the parent-walk re-added `src` as an inferred dir, so the
+			// picker showed `src` twice.
+			const hostResponse = SearchWorkspaceItemsResponse.create({
+				items: [
+					{ path: "src", type: SearchWorkspaceItemsRequest_SearchItemType.FOLDER, label: "src" },
+					{ path: "src/main.ts", type: SearchWorkspaceItemsRequest_SearchItemType.FILE, label: "main.ts" },
+				],
+			})
+			const searchItemsStub = sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").resolves(hostResponse)
+			sandbox.stub(HostProvider.window, "getOpenTabs").resolves({ paths: [] } as any)
+
+			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
+
+			should(searchItemsStub.calledOnce).be.true()
+			should(result.source).equal("host_index")
+
+			const srcEntries = result.items.filter((item) => item.path === "src")
+			should(srcEntries).have.length(1)
+			should(srcEntries[0]).have.properties({ path: "src", type: "folder" })
 		})
 
 		it("should apply fuzzy matching for non-empty query", async () => {
@@ -170,18 +231,17 @@ describe("File Search", () => {
 			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
 			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, _workspacePath, limit) => {
 				if (!query.trim()) {
-					return mockItems.slice(0, limit)
+					return { items: mockItems.slice(0, limit), source: "ripgrep" }
 				}
-
 				// Simulate the fuzzy search behavior
-				return [mockItems[1]]
+				return { items: [mockItems[1]], source: "ripgrep" }
 			})
 
 			const result = await fileSearch.searchWorkspaceFiles("imp", "/workspace", 2)
 
-			should(result).be.an.Array()
-			should(result).have.length(1)
-			should(result[0]).have.properties({
+			should(result.items).be.an.Array()
+			should(result.items).have.length(1)
+			should(result.items[0]).have.properties({
 				path: "folder1/important.js",
 				type: "file",
 				label: "important.js",

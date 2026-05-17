@@ -96,6 +96,33 @@ Otherwise, if you have not completed the task and do not need additional informa
 		)
 	},
 
+	replaceInFileMissingDiffError: (relPath: string): string => {
+		return (
+			`Failed to edit '${relPath}': The 'diff' parameter was empty.\n\n` +
+			`The diff parameter must contain SEARCH/REPLACE blocks in this format:\n` +
+			"<<<<<<< SEARCH\n" +
+			"exact lines to find\n" +
+			"=======\n" +
+			"replacement lines\n" +
+			">>>>>>> REPLACE\n\n" +
+			`Rules:\n` +
+			`- The SEARCH block must match existing file content exactly (including whitespace and indentation)\n` +
+			`- You can include multiple SEARCH/REPLACE blocks in a single diff parameter\n` +
+			`- If you're unsure of the exact content, use read_file first to see the current file`
+		)
+	},
+
+	executeCommandMissingCommandError: (): string => {
+		return (
+			"The 'command' parameter was empty. Provide the shell command to execute.\n\n" +
+			"Example:\n" +
+			"<execute_command>\n" +
+			"<command>cd /path && python -m pytest tests/</command>\n" +
+			"<requires_approval>false</requires_approval>\n" +
+			"</execute_command>"
+		)
+	},
+
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 
@@ -278,6 +305,9 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	toolAlreadyUsed: (toolName: string) =>
 		`Tool [${toolName}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
+
+	repeatedToolCall: (toolName: string, count: number) =>
+		`Tool [${toolName}] has been called ${count} times consecutively with identical arguments. This is not making progress. Please use a different tool or different arguments instead of repeating the same call.`,
 
 	clineIgnoreInstructions: (content: string) =>
 		`# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.clineignore`,

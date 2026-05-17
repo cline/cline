@@ -277,6 +277,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedCliBannerVersion: 0,
 		backgroundEditEnabled: false,
 		doubleCheckCompletionEnabled: false,
+		lazyTeammateModeEnabled: false,
+		showFeatureTips: true,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

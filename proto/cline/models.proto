@@ -460,6 +460,7 @@ enum ApiProvider {
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
+  WANDB = 41;
 }
 
 enum ApiFormat {
@@ -598,6 +599,7 @@ message ModelsApiConfiguration {
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
+  optional string wandb_api_key = 87;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

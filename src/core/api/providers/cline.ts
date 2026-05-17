@@ -4,10 +4,12 @@ import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineEnv } from "@/config"
+import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -28,9 +30,22 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
 	clineApiKey?: string
+	enableParallelToolCalling?: boolean
 }
 
-const CLINE_FREE_MODELS = ["minimax/minimax-m2.5", "kwaipilot/kat-coder-pro", "z-ai/glm-5"]
+function normalizeModelId(modelId: string): string {
+	return modelId.trim().toLowerCase()
+}
+
+const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
+
+function getCacheReadTokens(usage: any): number {
+	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
+}
+
+function getCacheWriteTokens(usage: any): number {
+	return usage?.prompt_tokens_details?.cache_write_tokens || usage?.cache_creation_input_tokens || 0
+}
 
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
@@ -47,6 +62,20 @@ export class ClineHandler implements ApiHandler {
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
 		this._authService = AuthService.getInstance()
+	}
+
+	private async getFreeModelIdSet(): Promise<Set<string>> {
+		try {
+			const models = await refreshClineRecommendedModels()
+			const freeModelIds = models.free.map((model) => normalizeModelId(model.id)).filter((modelId) => modelId.length > 0)
+			if (freeModelIds.length > 0) {
+				return new Set(freeModelIds)
+			}
+		} catch (error) {
+			Logger.error("Error resolving Cline free model IDs from recommended models:", error)
+		}
+
+		return CLINE_FREE_MODEL_IDS
 	}
 
 	private async ensureClient(): Promise<OpenAI> {
@@ -111,6 +140,7 @@ export class ClineHandler implements ApiHandler {
 			this.lastRequestId = undefined
 
 			let didOutputUsage = false
+			const freeModelIds = await this.getFreeModelIdSet()
 
 			const stream = await createOpenRouterStream(
 				client,
@@ -121,6 +151,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
+				this.options.enableParallelToolCalling,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()
@@ -206,7 +237,9 @@ export class ClineHandler implements ApiHandler {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const isFreeModel = CLINE_FREE_MODELS.includes(modelId)
+					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
+					const cacheReadTokens = getCacheReadTokens(chunk.usage)
+					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 
 					if (isFreeModel) {
 						totalCost = 0
@@ -214,9 +247,9 @@ export class ClineHandler implements ApiHandler {
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						cacheWriteTokens,
+						cacheReadTokens,
+						inputTokens: Math.max(0, (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens),
 						outputTokens: chunk.usage.completion_tokens || 0,
 						totalCost,
 					}
@@ -227,7 +260,7 @@ export class ClineHandler implements ApiHandler {
 			// Fallback to generation endpoint if usage chunk not returned
 			if (!didOutputUsage) {
 				Logger.warn("Cline API did not return usage chunk, fetching from generation endpoint")
-				const apiStreamUsage = await this.getApiStreamUsage()
+				const apiStreamUsage = await this.getApiStreamUsage(freeModelIds)
 				if (apiStreamUsage) {
 					yield apiStreamUsage
 				}
@@ -238,9 +271,10 @@ export class ClineHandler implements ApiHandler {
 		}
 	}
 
-	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
+	async getApiStreamUsage(freeModelIds?: Set<string>): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
+				const resolvedFreeModelIds = freeModelIds || (await this.getFreeModelIdSet())
 				const clineAccountAuthToken = await this._authService.getAuthToken()
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
@@ -260,7 +294,7 @@ export class ClineHandler implements ApiHandler {
 				const generation = response.data
 				let totalCost = generation?.total_cost || 0
 				const modelId = this.getModel().id
-				const isFreeModel = CLINE_FREE_MODELS.includes(modelId)
+				const isFreeModel = resolvedFreeModelIds.has(normalizeModelId(modelId))
 
 				if (isFreeModel) {
 					totalCost = 0
@@ -268,10 +302,15 @@ export class ClineHandler implements ApiHandler {
 
 				return {
 					type: "usage",
-					cacheWriteTokens: 0,
+					cacheWriteTokens: generation?.native_tokens_cache_write || 0,
 					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+					inputTokens: Math.max(
+						0,
+						(generation?.native_tokens_prompt || 0) -
+							(generation?.native_tokens_cached || 0) -
+							(generation?.native_tokens_cache_write || 0),
+					),
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost,
 				}

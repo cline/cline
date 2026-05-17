@@ -545,6 +545,7 @@ describe("Remote Config Schema", () => {
 			const validConfig: RemoteConfig = {
 				version: "v1",
 				telemetryEnabled: true,
+				kanbanEnabled: true,
 				mcpMarketplaceEnabled: true,
 				yoloModeAllowed: false,
 				providerSettings: {
@@ -639,6 +640,7 @@ describe("Remote Config Schema", () => {
 			const config = {
 				version: "v1",
 				telemetryEnabled: true,
+				kanbanEnabled: true,
 				mcpMarketplaceEnabled: false,
 				blockPersonalRemoteMCPServers: true,
 				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
@@ -675,6 +677,13 @@ describe("Remote Config Schema", () => {
 						alwaysEnabled: true,
 						name: "deployment-workflow.md",
 						contents: "# Deployment Workflow\n\n1. Run tests\n2. Build\n3. Deploy",
+					},
+				],
+				globalSkills: [
+					{
+						alwaysEnabled: true,
+						name: "company-standards.md",
+						contents: "# Company Standards\n\nAll code must follow these standards...",
 					},
 				],
 				providerSettings: {
@@ -769,6 +778,7 @@ describe("Remote Config Schema", () => {
 			expect(result.version).to.equal("v1")
 			expect(result.telemetryEnabled).to.equal(true)
 			expect(result.yoloModeAllowed).to.equal(true)
+			expect(result.kanbanEnabled).to.equal(true)
 
 			expect(result.mcpMarketplaceEnabled).to.equal(false)
 			expect(result.allowedMCPServers).to.deep.equal(config.allowedMCPServers)
@@ -837,6 +847,11 @@ describe("Remote Config Schema", () => {
 			expect(result.globalWorkflows?.[0].alwaysEnabled).to.equal(true)
 			expect(result.globalWorkflows?.[0].name).to.equal("deployment-workflow.md")
 			expect(result.globalWorkflows?.[0].contents).to.include("Deployment Workflow")
+
+			expect(result.globalSkills).to.have.lengthOf(1)
+			expect(result.globalSkills?.[0].alwaysEnabled).to.equal(true)
+			expect(result.globalSkills?.[0].name).to.equal("company-standards.md")
+			expect(result.globalSkills?.[0].contents).to.include("Company Standards")
 
 			expect(result.enterpriseTelemetry?.promptUploading?.enabled).to.equal(true)
 			expect(result.enterpriseTelemetry?.promptUploading?.type).to.equal("s3_access_keys")

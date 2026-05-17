@@ -1,6 +1,6 @@
 import type { ModelInfo } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
-import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, StarIcon, ZapIcon } from "lucide-react"
+import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
@@ -12,15 +12,16 @@ import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
+import WelcomeView from "../welcome/WelcomeView"
 import {
 	getCapabilities,
 	getClineUIOnboardingGroups,
-	getOverviewLabel,
 	getPriceRange,
 	getSpeedLabel,
 	type OnboardingModelsByGroup,
 } from "./data-models"
 import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./data-steps"
+import { useOnboardingModels } from "./useOnboardingModels"
 
 type ModelSelectionProps = {
 	userType: NEW_USER_TYPE.FREE | NEW_USER_TYPE.POWER
@@ -69,7 +70,9 @@ const ModelSelection = ({
 					<ItemTitle className="flex w-full justify-between">
 						<span className="font-semibold">{model.name || id}</span>
 						{model.badge ? (
-							<Badge variant="info">{model.badge}</Badge>
+							<Badge className="capitalize" variant="info">
+								{model.badge}
+							</Badge>
 						) : model.info ? (
 							<Badge>{getPriceRange(model.info)}</Badge>
 						) : null}
@@ -84,14 +87,6 @@ const ModelSelection = ({
 				{model.badge && isSelected && (
 					<ItemContent className="w-full border-t border-muted-foreground pt-5 text-ellipsis overflow-hidden">
 						<div className="flex flex-col gap-3">
-							{model.score && (
-								<div className="inline-flex gap-1 [&_svg]:stroke-warning [&_svg]:size-3 items-center text-sm">
-									<StarIcon />
-									<span>Model Overview: </span>
-									<span className="text-foreground/70">{model.score}%</span>
-									<span className="text-foreground/70 hidden xs:block">{getOverviewLabel(model.score)}</span>
-								</div>
-							)}
 							<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center text-sm">
 								<ZapIcon />
 								<span>Speed: </span>
@@ -270,7 +265,7 @@ const OnboardingStepContent = ({
 	return <ApiConfigurationSection />
 }
 
-const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
+const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 
@@ -423,6 +418,24 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 			</div>
 		</div>
 	)
+}
+
+const OnboardingView = () => {
+	const { status, models } = useOnboardingModels()
+
+	if (status === "loading") {
+		return (
+			<div className="fixed inset-0 flex items-center justify-center">
+				<LoaderCircleIcon className="animate-spin" />
+			</div>
+		)
+	}
+
+	if (status === "empty") {
+		return <WelcomeView />
+	}
+
+	return <OnboardingViewContent onboardingModels={models} />
 }
 
 export default OnboardingView

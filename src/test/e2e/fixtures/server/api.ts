@@ -7,16 +7,17 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 			"/organizations/{orgId}/api-keys",
 			"/organizations/{orgId}/remote-config",
 			"/users/me",
+			"/users/me/featurebase-token",
 			"/users/{userId}/balance",
 			"/users/{userId}/usages",
 			"/users/{userId}/payments",
 		],
-		POST: ["/chat/completions", "/auth/token"],
+		POST: ["/chat/completions", "/auth/token", "/users/me/budget/request"],
 		PUT: ["/users/active-account"],
 	},
 	"/.test": {
 		GET: [],
-		POST: ["/auth", "/setUserBalance", "/setUserHasOrganization", "/setOrgBalance"],
+		POST: ["/auth", "/setUserBalance", "/setUserHasOrganization", "/setOrgBalance", "/setSpendLimitExceeded"],
 		PUT: [],
 	},
 	"/health": {
@@ -53,7 +54,7 @@ The user wants me to replace the name "john" with "cline" in the test.ts file. I
 export const name = "john"
 \`\`\`
 
-I need to change "john" to "cline". This is a simple targeted edit, so I should use the replace_in_file tool rather than write_to_file since I\'m only changing one small part of the file.
+I need to change "john" to "cline". This is a simple targeted edit, so I should use the replace_in_file tool rather than write_to_file since I'm only changing one small part of the file.
 
 I need to:
 1. Use replace_in_file to change "john" to "cline" in the test.ts file
@@ -61,7 +62,7 @@ I need to:
 3. The REPLACE block should be: \`export const name = "cline"\`
 </thinking>
 
-I\'ll replace "john" with "cline" in the test.ts file.
+I'll replace "john" with "cline" in the test.ts file.
 
 <replace_in_file>
 <path>test.ts</path>

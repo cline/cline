@@ -1,5 +1,6 @@
 import type { ModelInfo } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -161,14 +162,21 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 	}, [selectedIndex])
 
 	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
-	const showReasoningEffort = useMemo(() => supportsReasoningEffortForModelId(selectedModelId), [selectedModelId])
+	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
+	const adaptiveThinkingDefaultEffort = useMemo(
+		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
+		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
+	)
+	const showReasoningEffort = useMemo(
+		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
+		[selectedModelId, showAdaptiveThinkingEffort],
+	)
 
 	const showBudgetSlider = useMemo(() => {
 		if (showReasoningEffort) {
 			return false
 		}
 		return (
-			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
 			selectedModelIdLower.includes("claude-sonnet-4.6") ||
@@ -178,7 +186,6 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
 			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-opus-4.5") ||
 			selectedModelIdLower.includes("claude-3-7-sonnet") ||
 			selectedModelIdLower.includes("claude-3.7-sonnet")
 		)
@@ -273,7 +280,21 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 			{hasInfo && selectedModelInfo ? (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
-					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					{showReasoningEffort && (
+						<ReasoningEffortSelector
+							allowedEfforts={
+								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined
+							}
+							currentMode={currentMode}
+							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "medium"}
+							description={
+								showAdaptiveThinkingEffort
+									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+									: undefined
+							}
+							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+						/>
+					)}
 
 					<ModelInfoView
 						isPopup={isPopup}

@@ -67,6 +67,13 @@ message NotificationData {
   string source = 2;
   string message = 3;
   bool waiting_for_user_input = 4;
+  string event_version = 5;
+  string event_id = 6;
+  bool message_truncated = 7;
+  string source_type = 8;
+  string source_id = 9;
+  bool requires_user_action = 10;
+  string severity = 11;
 }
 
 // Data for TaskStart hook

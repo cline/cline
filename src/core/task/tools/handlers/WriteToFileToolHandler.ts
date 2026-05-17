@@ -37,9 +37,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
-		// Early return if we don't have enough data yet
-		if (!rawRelPath || (!rawContent && !rawDiff)) {
-			// Wait until we have the path and either content or diff
+		// Wait for path + the param this tool needs. Use `== null` for content so empty-string
+		// writes still stream into the editor (mirrors execute()'s validation).
+		const hasContent = block.name === "replace_in_file" ? !!rawDiff : rawContent != null
+		if (!rawRelPath || !hasContent) {
 			return
 		}
 
@@ -114,10 +115,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (block.name === "replace_in_file" && !rawDiff) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "diff")
+			const relPath = rawRelPath || "unknown"
+			await config.callbacks.say(
+				"error",
+				`Cline tried to use replace_in_file for '${relPath}' without value for required parameter 'diff'. Retrying...`,
+			)
+			return formatResponse.toolError(formatResponse.replaceInFileMissingDiffError(relPath))
 		}
 
-		if (block.name === "write_to_file" && !rawContent) {
+		if (block.name === "write_to_file" && rawContent == null) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
 
@@ -361,6 +367,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
+			// Invalidate file read cache for this file so re-reads get fresh content
+			config.taskState.fileReadCache.delete(absolutePath.toLowerCase())
+
 			// Track file edit operation
 			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
 
@@ -547,8 +556,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 				return
 			}
-		} else if (content) {
-			// Handle write_to_file with direct content
+		} else if (content != null) {
+			// Handle write_to_file with direct content (empty string is valid)
 			newContent = content
 
 			// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)

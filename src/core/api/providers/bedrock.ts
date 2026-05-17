@@ -11,6 +11,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { type BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ClineStorageMessage } from "@/shared/messages/content"
@@ -37,6 +38,7 @@ export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: string
+	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -874,15 +876,18 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Gets inference configuration for different model types
 	 */
-	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova"): any {
+	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova", modelId?: string): any {
 		// For Anthropic models with thinking enabled, temperature must be 1
 		if (modelType === "anthropic") {
 			const budget_tokens = this.options.thinkingBudgetTokens || 0
 			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
 
+			// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+			const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+
 			return {
 				maxTokens: modelInfo.maxTokens || 8192,
-				temperature: reasoningOn ? 1 : 0,
+				...(isAdaptiveThinkingModel ? {} : { temperature: reasoningOn ? 1 : 0 }),
 			}
 		}
 
@@ -923,6 +928,13 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		const adaptiveThinking = isAdaptiveThinkingModel
+			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
+			: undefined
+		const adaptiveThinkingEnabled = adaptiveThinking?.enabled === true
+		const adaptiveThinkingEffort = adaptiveThinking?.effort
+		const thinkingEnabled = isAdaptiveThinkingModel ? adaptiveThinkingEnabled : reasoningOn
 
 		// Prepare request for Anthropic model using Converse API
 		const toolConfig = this.mapClineToolsToBedrockToolConfig(tools)
@@ -930,14 +942,19 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			inferenceConfig: this.getInferenceConfig(model.info, "anthropic", modelId),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
-				...(reasoningOn && {
+				...(thinkingEnabled && {
 					thinking: {
-						type: "enabled",
-						budget_tokens: budget_tokens,
+						type: isAdaptiveThinkingModel ? "adaptive" : "enabled",
+						...(isAdaptiveThinkingModel ? {} : { budget_tokens: budget_tokens }),
+					},
+				}),
+				...(adaptiveThinkingEffort && {
+					output_config: {
+						effort: adaptiveThinkingEffort,
 					},
 				}),
 				...(enable1mContextWindow && {

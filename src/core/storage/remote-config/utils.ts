@@ -1,4 +1,5 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
+import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
 import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
@@ -217,12 +218,15 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.remoteConfiguredProviders = providers
 	}
 
-	// Map global rules and workflows
+	// Map global rules, workflows, and skills
 	if (remoteConfig.globalRules !== undefined) {
 		transformed.remoteGlobalRules = remoteConfig.globalRules
 	}
 	if (remoteConfig.globalWorkflows !== undefined) {
 		transformed.remoteGlobalWorkflows = remoteConfig.globalWorkflows
+	}
+	if (remoteConfig.globalSkills !== undefined) {
+		transformed.remoteGlobalSkills = remoteConfig.globalSkills
 	}
 
 	if (remoteConfig.enterpriseTelemetry?.promptUploading) {
@@ -231,6 +235,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 			transformed.blobStoreConfig = accessSettingsToBlobStorage("s3", promptUplaoding.s3AccessSettings)
 		} else if (promptUplaoding.type === "r2_access_keys" && promptUplaoding.r2AccessSettings) {
 			transformed.blobStoreConfig = accessSettingsToBlobStorage("r2", promptUplaoding.r2AccessSettings)
+		} else if (promptUplaoding.type === "azure_access_keys" && promptUplaoding.azureAccessSettings) {
+			transformed.blobStoreConfig = accessSettingsToBlobStorage("azure", promptUplaoding.azureAccessSettings)
 		}
 	}
 
@@ -280,6 +286,7 @@ export function clearRemoteConfig() {
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
+		stateManager.setGlobalState("remoteSkillsToggles", {})
 
 		// clear secrets
 		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
@@ -320,11 +327,23 @@ export async function applyRemoteConfig(
 	const syncedRuleToggles = synchronizeRemoteRuleToggles(remoteConfig.globalRules || [], currentRuleToggles)
 	const syncedWorkflowToggles = synchronizeRemoteRuleToggles(remoteConfig.globalWorkflows || [], currentWorkflowToggles)
 
+	// Remote skills use shared validation (entry.name must match frontmatter.name)
+	const currentSkillToggles = stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+	const validatedSkillEntries = parseRemoteSkillEntries(remoteConfig.globalSkills || [])
+	const syncedSkillToggles = synchronizeRemoteRuleToggles(validatedSkillEntries, currentSkillToggles)
+
+	// Enforce alwaysEnabled: override any stale false toggles for skills the admin has locked on.
+	// This ensures the toggle store is the single source of truth — both the UI and handler agree.
+	for (const entry of validatedSkillEntries) {
+		if (entry.alwaysEnabled && syncedSkillToggles[entry.name] === false) {
+			syncedSkillToggles[entry.name] = true
+		}
+	}
+
 	stateManager.setGlobalState("remoteRulesToggles", syncedRuleToggles)
 	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
+	stateManager.setGlobalState("remoteSkillsToggles", syncedSkillToggles)
 
-	// Clear existing remote config cache
-	stateManager.clearRemoteConfig()
 	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 	// If the existing configured provider is valid, don't update it
@@ -336,16 +355,13 @@ export async function applyRemoteConfig(
 		transformed.planModeApiProvider = apiConfiguration.planModeApiProvider
 	}
 
-	// Populate remote config cache with transformed values
-	for (const [key, value] of Object.entries(transformed)) {
-		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
-	}
-	stateManager.setRemoteConfigField("configuredApiKeys", configuredKeys)
-
-	// Restore previousRemoteMCPServers across cache clears
+	// Build the full new cache and swap atomically to avoid a window where
+	// concurrent readers (e.g., UseSkillToolHandler) see an empty cache.
+	const newCache: Partial<RemoteConfigFields> = { ...transformed, configuredApiKeys: configuredKeys }
 	if (previousRemoteMCPServers !== undefined) {
-		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
+		newCache.previousRemoteMCPServers = previousRemoteMCPServers
 	}
+	stateManager.replaceRemoteConfig(newCache)
 
 	applyRemoteSyncQueueConfig(transformed)
 

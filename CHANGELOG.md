@@ -1,5 +1,195 @@
 # Changelog
 
+## [3.83.0]
+
+### Fixed
+
+- Show a clear "Searching..." state in the @-mention file picker
+- Improve @-mention file search performance
+- Allow `write_to_file` to create or overwrite files with empty content.
+- Fix validation failures for MCP servers that require an object.
+- Enable OpenRouter prompt cache control for Qwen models.
+- Update Axios and SAP Connectivity dependencies
+
+### Changed
+
+- Use the VS Code-specific `README.marketplace.md` when packaging and publishing the VS Code extension
+- Add telemetry to @-mention search to help diagnose local, remote, and multi-root workspace search behavior.
+
+## [3.82.0]
+
+### Added
+
+- Restore VS Code foreground terminal support and settings.
+- Add latest OpenAI, SAP AI Core, and Z AI models.
+
+### Fixed
+
+- Fix hook template JSON escaping.
+- Improve ripgrep file search error handling.
+
+### Changed
+
+- Remove hardcoded model lists from docs.
+
+## [3.81.0]
+
+### Added
+
+- Add GPT-5.5 model support for OpenAI Codex subscription users.
+
+### Fixed
+
+- Remove hardcoded "What’s New" fallback items in webview; only remote-configured welcome banners are shown.
+
+### Changed
+
+- Improve cline-core memory diagnostics used by the extension runtime:
+  - enable near-heap-limit heap snapshots
+  - add periodic memory usage logging
+  - log discovered heap snapshots on abnormal exits for easier OOM debugging
+
+## [3.80.0]
+
+### Added
+
+- Wire up remote `globalSkills` from enterprise remote config with full UI, toggle support, and system prompt integration — enterprise-managed skills now appear under a dedicated "Enterprise Skills" section and support `alwaysEnabled` enforcement
+- Onboarding flow now uses dynamically fetched recommended models instead of a hardcoded list, with a fallback to the welcome view on failure
+- Add dedicated "Quota Exceeded" error message in the chat error UI when Cline account spend caps are hit
+
+### Fixed
+
+- Fix OOM crashes during long conversations by setting `--max-old-space-size=8192` for the cline-core Node.js process (was defaulting to ~2 GB)
+- Show detailed error information in the chat error row instead of a generic caught error message
+- Update `axios` to 1.15.0 across all packages
+
+### Changed
+
+- Remove foreground terminal mode — all task command execution now defaults to background mode, removing the VS Code integrated terminal dependency and related settings UI
+- Remove old hardcoded announcement banners
+
+## [3.79.0]
+
+### Added
+
+- Add Claude Opus 4.7 model support
+- Add Azure Blob Storage as a storage provider
+- Add `globalSkills` to remote config
+- Inline value reuse in user-level remote-config discovery
+
+### Fixed
+
+- Fix cache reflection for Cline and Vercel API handlers
+- Fix stuck `command_output` ask when terminal command ends unexpectedly
+- Add `use_subagents` to system prompt for GLM, Hermes, and XS models
+- Fix action injection security risk
+
+### Changed
+
+- Remove deprecated evals tool
+
+## [3.78.0]
+
+### Added
+
+- Add a dedicated "Spend Limit Reached" error UI when spend caps are hit
+- Docs updates
+
+### Fixed
+
+- Show actual `read_file` line ranges in chat UI
+
+## [3.77.0]
+
+### Added
+
+- Add "Lazy Teammate Mode" experimental toggle
+- `read_file` tool now supports chunked reading for targeted file access
+
+### Fixed
+
+- Exclude `new_task` tool from system prompt in yolo/headless mode
+- Fix Kanban demo video formatting
+
+### Changed
+
+- Polish `Notification` hook functionality
+
+## [3.76.0]
+
+### Added
+
+- Add Cline Kanban launch modal in webview; CLI now launches Kanban by default with a migration view
+- Add toggle to disable feature tips in chat
+- Add repeated tool call loop detection to prevent infinite loops wasting tokens
+
+### Fixed
+
+- Fix CLI Kanban spawn on Windows by enabling shell mode for `npx.cmd`
+
+## [3.75.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+### Fixed
+
+- Stabilize flaky hooks tests
+
+### Changed
+
+- Remove example hooks in favor of reading the docs
+
+## [3.74.0]
+
+### Added
+- Implement dynamic free model detection for Cline API
+- Add file read deduplication cache to prevent repeated reads
+- Add feature tips tooltip during thinking state
+
+### Fixed
+- Replace error message when not logged in to Cline
+- Align ClineRulesToggleModal padding with ServersToggleModal
+- Skip WebP for GLM and Devstral models running through llama.cpp
+- Respect user-configured context window in LiteLLM getModel()
+- Honor explicit model IDs outside static catalog in W&B provider
+- Add missing Fireworks serverless models and pricing
+
+## [3.73.0]
+
+### Added
+
+- Added W&B Inference by CoreWeave as a new API provider with 17 models
+- Improved parallel tool calling support for OpenRouter and Cline providers
+
+### Fixed
+
+- Claude Code Provider: handle rate limit events, empty content arrays, error results, and unknown content types without crashing
+- Tool handlers (`read_file`, `list_files`, `list_code_definition_names`, `search_files`) now return graceful errors instead of crashing
+
+## [3.72.0]
+
+### Added
+
+- Added Anthropic Opus 4.6 fast mode variants
+
+### Fixed
+
+- Resolved native tool placeholder interpolation in prompts
+- Gemini: capped Flash output tokens to 8192 across providers
+- Fixed Windows unit test path normalization
+- Fixed flaky hooks tests on Windows
+- Bedrock: handle thinking and redacted_thinking blocks correctly in message conversion and streaming
+- Prevent crash when `list_files` or `list_code_definition_names` receives a file path
+
+### Changed
+
+- Updated Jupyter Notebook GIFs
+- Markdown image loading now requires user consent
+- Added `.github/copilot-instructions.md` for coding agents
+- Hooks: reintroduced feature toggle
+
 ## [3.71.0]
 
 ### Added

@@ -89,6 +89,8 @@ export type TelemetryMetadata = {
 	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
 	 * This is the value returned by os.version() */
 	os_version: string
+	/** Whether the current workspace is a VS Code remote workspace */
+	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
 }
@@ -360,6 +362,8 @@ export class TelemetryService {
 			cline_type: hostVersion.clineType || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
+			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
+			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
 		}
 		return new TelemetryService(providers, metadata)
@@ -836,47 +840,58 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tokensIn Number of input tokens consumed
 	 * @param tokensOut Number of output tokens generated
+	 * @param provider The API provider identifier (e.g. "anthropic", "openai", "cline")
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(ulid: string, tokensIn: number, tokensOut: number, model: string, options?: TokenUsage) {
+	public captureTokenUsage(
+		ulid: string,
+		tokensIn: number,
+		tokensOut: number,
+		provider: string,
+		model: string,
+		options?: TokenUsage,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
 			properties: {
 				ulid,
 				tokensIn,
 				tokensOut,
+				provider,
 				model,
 				...options,
 			},
 		})
 
+		const attributes = { ulid, provider, model }
+
 		if (Number.isFinite(tokensIn)) {
 			const value = tokensIn ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, attributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, attributes)
 		}
 
 		if (Number.isFinite(tokensOut)) {
 			const value = tokensOut ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, attributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, attributes)
 		}
 
 		if (Number.isFinite(options?.cacheWriteTokens)) {
 			const cacheWriteTokens = options!.cacheWriteTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, attributes)
+			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, attributes)
 		}
 
 		if (Number.isFinite(options?.cacheReadTokens)) {
 			const cacheReadTokens = options!.cacheReadTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, attributes)
+			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, attributes)
 		}
 
 		if (Number.isFinite(options?.totalCost)) {
 			const totalCost = options!.totalCost ?? 0
-			const costAttributes = { ulid, model, currency: "USD" }
+			const costAttributes = { ...attributes, currency: "USD" }
 			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
 			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
 		}
@@ -1988,15 +2003,27 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records when a mention fails to retrieve content
-	 * @param mentionType Type of mention that failed
-	 * @param errorType Category of error (not_found, permission_denied, network_error, parse_error)
-	 * @param errorMessage Optional error message for debugging (will be truncated)
+	 * Records when a mention fails to retrieve content or when the mention
+	 * picker's file/folder search itself fails.
+	 *
+	 * `ripgrep_spawn_failed` and `workspace_unavailable` are picker-search
+	 * failures, surfaced by the `searchFiles` controller; the others are
+	 * mention-content retrieval failures.
+	 *
+	 * @param fsContext Optional filesystem info, emitted as `fs_class` and `fs_type`.
 	 */
 	public captureMentionFailed(
 		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
-		errorType: "not_found" | "permission_denied" | "network_error" | "parse_error" | "unknown",
+		errorType:
+			| "not_found"
+			| "permission_denied"
+			| "network_error"
+			| "parse_error"
+			| "ripgrep_spawn_failed"
+			| "workspace_unavailable"
+			| "unknown",
 		errorMessage?: string,
+		fsContext?: { fsClass?: "local" | "network" | "unknown"; fsType?: string },
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MENTION_FAILED,
@@ -2004,6 +2031,8 @@ export class TelemetryService {
 				mentionType,
 				errorType,
 				errorMessage: errorMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				...(fsContext?.fsClass ? { fs_class: fsContext.fsClass } : {}),
+				...(fsContext?.fsType ? { fs_type: fsContext.fsType } : {}),
 				timestamp: new Date().toISOString(),
 			},
 		})
@@ -2015,12 +2044,19 @@ export class TelemetryService {
 	 * @param resultCount Number of results returned
 	 * @param searchType Type of search (file, folder, or all)
 	 * @param isEmpty Whether the search returned no results
+	 * @param fsContext Optional filesystem info, emitted as `fs_class` and `fs_type`.
+	 * @param searchSource Which backend served the search: `host_index` (e.g.
+	 *   JetBrains FilenameIndex) or `ripgrep` (default everywhere). Emitted as
+	 *   the `search_source` property so we can tell, for a given fs_class, how
+	 *   often the host index actually picks up the load.
 	 */
 	public captureMentionSearchResults(
 		query: string,
 		resultCount: number,
 		searchType: "file" | "folder" | "all",
 		isEmpty: boolean,
+		fsContext?: { fsClass?: "local" | "network" | "unknown"; fsType?: string },
+		searchSource?: "host_index" | "ripgrep",
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MENTION_SEARCH_RESULTS,
@@ -2029,6 +2065,9 @@ export class TelemetryService {
 				resultCount,
 				searchType,
 				isEmpty,
+				...(fsContext?.fsClass ? { fs_class: fsContext.fsClass } : {}),
+				...(fsContext?.fsType ? { fs_type: fsContext.fsType } : {}),
+				...(searchSource ? { search_source: searchSource } : {}),
 				timestamp: new Date().toISOString(),
 			},
 		})

@@ -2,6 +2,7 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { CLAUDE_SONNET_1M_SUFFIX, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
@@ -93,34 +94,54 @@ export class VertexHandler implements ApiHandler {
 		// Use model metadata to determine if reasoning should be enabled
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
+		// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		const adaptiveThinking = isAdaptiveThinkingModel
+			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
+			: undefined
+		const adaptiveThinkingEnabled = adaptiveThinking?.enabled === true
+		const adaptiveThinkingEffort = adaptiveThinking?.effort
+		const thinkingEnabled = isAdaptiveThinkingModel ? adaptiveThinkingEnabled : reasoningOn
+		const thinkingConfig = thinkingEnabled
+			? isAdaptiveThinkingModel
+				? ({ type: "adaptive" } as any)
+				: { type: "enabled", budget_tokens: budget_tokens }
+			: undefined
+		const outputConfig = isAdaptiveThinkingModel && adaptiveThinkingEffort ? { effort: adaptiveThinkingEffort } : undefined
+
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length ? tools?.length > 0 : false
 
 		const anthropicMessages = sanitizeAnthropicMessages(messages, model.info.supportsPromptCache ?? false)
 
-		const stream = await clientAnthropic.beta.messages.create(
-			{
-				model: modelId,
-				max_tokens: model.info.maxTokens || 8192,
-				thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-				temperature: reasoningOn ? undefined : 0,
-				system: [
-					{
-						text: systemPrompt,
-						type: "text",
-						cache_control: model.info.supportsPromptCache ? { type: "ephemeral" } : undefined,
-					},
-				],
-				messages: anthropicMessages,
-				stream: true,
-				tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-				// tool_choice options:
-				// - none: disables tool use, even if tools are provided. Claude will not call any tools.
-				// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-				// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
-			},
+		const requestBody: Record<string, unknown> = {
+			model: modelId,
+			max_tokens: model.info.maxTokens || 8192,
+			thinking: thinkingConfig,
+			temperature: isAdaptiveThinkingModel ? undefined : reasoningOn ? undefined : 0,
+			system: [
+				{
+					text: systemPrompt,
+					type: "text",
+					cache_control: model.info.supportsPromptCache ? { type: "ephemeral" } : undefined,
+				},
+			],
+			messages: anthropicMessages,
+			stream: true,
+			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+			// tool_choice options:
+			// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+			// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+			// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+			// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+			tool_choice: nativeToolsOn && !thinkingEnabled ? { type: "any" } : undefined,
+		}
+		if (outputConfig) {
+			requestBody.output_config = outputConfig
+		}
+
+		const stream = (await clientAnthropic.beta.messages.create(
+			requestBody as any,
 			enable1mContextWindow
 				? {
 						headers: {
@@ -128,7 +149,7 @@ export class VertexHandler implements ApiHandler {
 						},
 					}
 				: undefined,
-		)
+		)) as unknown as AsyncIterable<any>
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 

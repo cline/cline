@@ -4,11 +4,13 @@ import {
 	ModelInfo,
 	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeOpus461mModelId,
+	openRouterClaudeOpus471mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isGeminiFlashModel,
@@ -21,6 +23,21 @@ import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format
 import { convertToR1Format } from "./r1-format"
 import { getOpenAIToolParams } from "./tool-call-processor"
 
+const openRouterExplicitCacheControlModelIds = new Set([
+	"deepseek/deepseek-v3.2",
+	"qwen/qwen-plus",
+	"qwen/qwen3-max",
+	"qwen/qwen3.6-plus",
+	"qwen/qwen3-coder-plus",
+	"qwen/qwen3-coder-flash",
+])
+
+function needsExplicitCacheControl(modelId: string): boolean {
+	return (
+		modelId.startsWith("anthropic/") || modelId.startsWith("minimax/") || openRouterExplicitCacheControlModelIds.has(modelId)
+	)
+}
+
 export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
@@ -30,6 +47,7 @@ export async function createOpenRouterStream(
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 	tools?: Array<ChatCompletionTool>,
+	enableParallelToolCalling?: boolean,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -41,7 +59,8 @@ export async function createOpenRouterStream(
 		model.id === openRouterClaudeSonnet41mModelId ||
 		model.id === openRouterClaudeSonnet451mModelId ||
 		model.id === openRouterClaudeSonnet461mModelId ||
-		model.id === openRouterClaudeOpus461mModelId
+		model.id === openRouterClaudeOpus461mModelId ||
+		model.id === openRouterClaudeOpus471mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id openrouter API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
@@ -51,74 +70,41 @@ export async function createOpenRouterStream(
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
-	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
-	// handles direct model.id match logic
-	switch (model.id) {
-		case "anthropic/claude-opus-4.6":
-		case "anthropic/claude-haiku-4.5":
-		case "anthropic/claude-4.5-haiku":
-		case "anthropic/claude-sonnet-4.6":
-		case "anthropic/claude-4.6-sonnet":
-		case "anthropic/claude-sonnet-4.5":
-		case "anthropic/claude-4.5-sonnet": // OpenRouter accidentally included this in model list for a brief moment, and users may be using this model id. And to support prompt caching, we need to add it here.
-		case "anthropic/claude-sonnet-4":
-		case "anthropic/claude-opus-4.5":
-		case "anthropic/claude-opus-4.1":
-		case "anthropic/claude-opus-4":
-		case "anthropic/claude-3.7-sonnet":
-		case "anthropic/claude-3.7-sonnet:beta":
-		case "anthropic/claude-3.7-sonnet:thinking":
-		case "anthropic/claude-3-7-sonnet":
-		case "anthropic/claude-3-7-sonnet:beta":
-		case "anthropic/claude-3.5-sonnet":
-		case "anthropic/claude-3.5-sonnet:beta":
-		case "anthropic/claude-3.5-sonnet-20240620":
-		case "anthropic/claude-3.5-sonnet-20240620:beta":
-		case "anthropic/claude-3-5-haiku":
-		case "anthropic/claude-3-5-haiku:beta":
-		case "anthropic/claude-3-5-haiku-20241022":
-		case "anthropic/claude-3-5-haiku-20241022:beta":
-		case "anthropic/claude-3-haiku":
-		case "anthropic/claude-3-haiku:beta":
-		case "anthropic/claude-3-opus":
-		case "anthropic/claude-3-opus:beta":
-		case "minimax/minimax-m2":
-		case "minimax/minimax-m2.1":
-		case "minimax/minimax-m2.1-lightning":
-		case "minimax/minimax-m2.5":
-			openAiMessages[0] = {
-				role: "system",
-				content: [
-					{
-						type: "text",
-						text: systemPrompt,
-						// @ts-expect-error-next-line
-						cache_control: { type: "ephemeral" },
-					},
-				],
-			}
-			// Add cache_control to the last two user messages
-			// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
-			const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
-			lastTwoUserMessages.forEach((msg) => {
-				if (typeof msg.content === "string") {
-					msg.content = [{ type: "text", text: msg.content }]
-				}
-				if (Array.isArray(msg.content)) {
-					// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
-					let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+	// Some OpenRouter models require cache_control blocks instead of automatic provider caching.
+	// Other providers (OpenAI, Google) handle caching automatically without cache_control blocks.
+	const needsCacheControl = needsExplicitCacheControl(model.id)
 
-					if (!lastTextPart) {
-						lastTextPart = { type: "text", text: "..." }
-						msg.content.push(lastTextPart)
-					}
+	if (needsCacheControl) {
+		openAiMessages[0] = {
+			role: "system",
+			content: [
+				{
+					type: "text",
+					text: systemPrompt,
 					// @ts-expect-error-next-line
-					lastTextPart["cache_control"] = { type: "ephemeral" }
+					cache_control: { type: "ephemeral" },
+				},
+			],
+		}
+		// Add cache_control to the last two user messages
+		// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
+		const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
+		lastTwoUserMessages.forEach((msg) => {
+			if (typeof msg.content === "string") {
+				msg.content = [{ type: "text", text: msg.content }]
+			}
+			if (Array.isArray(msg.content)) {
+				// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
+				let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+				if (!lastTextPart) {
+					lastTextPart = { type: "text", text: "..." }
+					msg.content.push(lastTextPart)
 				}
-			})
-			break
-		default:
-			break
+				// @ts-expect-error-next-line
+				lastTextPart["cache_control"] = { type: "ephemeral" }
+			}
+		})
 	}
 
 	let temperature: number | undefined = 0
@@ -141,37 +127,47 @@ export async function createOpenRouterStream(
 
 	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
 
-	let reasoning: { max_tokens: number } | undefined
-	switch (model.id) {
-		case "anthropic/claude-opus-4.6":
-		case "anthropic/claude-haiku-4.5":
-		case "anthropic/claude-4.5-haiku":
-		case "anthropic/claude-sonnet-4.6":
-		case "anthropic/claude-4.6-sonnet":
-		case "anthropic/claude-sonnet-4.5":
-		case "anthropic/claude-4.5-sonnet":
-		case "anthropic/claude-sonnet-4":
-		case "anthropic/claude-opus-4.5":
-		case "anthropic/claude-opus-4.1":
-		case "anthropic/claude-opus-4":
-		case "anthropic/claude-3.7-sonnet":
-		case "anthropic/claude-3.7-sonnet:beta":
-		case "anthropic/claude-3.7-sonnet:thinking":
-		case "anthropic/claude-3-7-sonnet":
-		case "anthropic/claude-3-7-sonnet:beta":
-			const budget_tokens = thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0
-			if (reasoningOn) {
-				temperature = undefined // extended thinking does not support non-1 temperature
-				reasoning = { max_tokens: budget_tokens }
-			}
-			break
-		default:
-			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !supportsReasoningEffort) {
-				temperature = undefined // extended thinking does not support non-1 temperature
-				reasoning = { max_tokens: thinkingBudgetTokens }
+	// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
+	const adaptiveThinking = isAdaptiveThinkingModel
+		? resolveClaudeOpusAdaptiveThinking(reasoningEffort, thinkingBudgetTokens)
+		: undefined
+	if (isAdaptiveThinkingModel) {
+		temperature = undefined
+		topP = undefined
+	}
+
+	let reasoning: Record<string, unknown> | undefined
+	if (!isAdaptiveThinkingModel) {
+		switch (model.id) {
+			case "anthropic/claude-haiku-4.5":
+			case "anthropic/claude-4.5-haiku":
+			case "anthropic/claude-sonnet-4.6":
+			case "anthropic/claude-4.6-sonnet":
+			case "anthropic/claude-sonnet-4.5":
+			case "anthropic/claude-4.5-sonnet":
+			case "anthropic/claude-sonnet-4":
+			case "anthropic/claude-opus-4.1":
+			case "anthropic/claude-opus-4":
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3.7-sonnet:thinking":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
+				const budget_tokens = thinkingBudgetTokens || 0
+				const reasoningOn = budget_tokens !== 0
+				if (reasoningOn) {
+					temperature = undefined // extended thinking does not support non-1 temperature
+					reasoning = { max_tokens: budget_tokens }
+				}
 				break
-			}
+			default:
+				if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !supportsReasoningEffort) {
+					temperature = undefined // extended thinking does not support non-1 temperature
+					reasoning = { max_tokens: thinkingBudgetTokens }
+					break
+				}
+		}
 	}
 
 	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
@@ -182,9 +178,14 @@ export async function createOpenRouterStream(
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
-	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
-	const reasoningPayload =
-		reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined)
+	const includeReasoning = isAdaptiveThinkingModel
+		? !!adaptiveThinking?.enabled
+		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+	const reasoningPayload = isAdaptiveThinkingModel
+		? adaptiveThinking?.enabled
+			? { enabled: true }
+			: undefined
+		: (reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined))
 	const maxTokens = isGeminiFlashModel(model.id)
 		? Math.min(model.info.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
 		: undefined
@@ -199,10 +200,11 @@ export async function createOpenRouterStream(
 		stream_options: { include_usage: true },
 		include_reasoning: includeReasoning,
 		...(reasoningPayload ? { reasoning: reasoningPayload } : {}),
+		...(isAdaptiveThinkingModel && adaptiveThinking?.effort ? { verbosity: adaptiveThinking.effort } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
-		...getOpenAIToolParams(tools),
+		...getOpenAIToolParams(tools, !!enableParallelToolCalling),
 	}
 
 	// @ts-expect-error-next-line

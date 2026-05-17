@@ -22,7 +22,7 @@ export const ErrorBlockTitle = ({
 }: ErrorBlockTitleProps): [React.ReactElement, React.ReactElement] => {
 	const getIconSpan = (iconName: string, colorClass: string) => (
 		<div className="w-4 h-4 flex items-center justify-center">
-			<span className={`codicon codicon-${iconName} text-base -mb-0.5 ${colorClass}`}></span>
+			<span className={`codicon codicon-${iconName} text-base -mb-0.5 ${colorClass}`} />
 		</div>
 	)
 
@@ -58,7 +58,11 @@ export const ErrorBlockTitle = ({
 		} else if (apiRequestFailedMessage) {
 			// Handle failed request
 			const clineError = ClineError.parse(apiRequestFailedMessage)
-			const titleText = clineError?.isErrorType(ClineErrorType.Balance) ? "Credit Limit Reached" : "API Request Failed"
+			const titleText = clineError?.isErrorType(ClineErrorType.Balance)
+				? "Credit Limit Reached"
+				: clineError?.isErrorType(ClineErrorType.SpendLimit)
+					? "Spend Limit Reached"
+					: "API Request Failed"
 			details.title = titleText
 			details.classNames.push("font-bold text-(--vscode-errorForeground)")
 		} else if (retryStatus) {

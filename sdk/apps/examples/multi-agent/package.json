@@ -1,0 +1,21 @@
+{
+	"name": "@cline/example-multi-agent",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bun run src/index.ts",
+		"build:sdk": "bun run --cwd ../../.. build:sdk",
+		"build": "tsc",
+		"start": "node dist/index.js"
+	},
+	"dependencies": {
+		"@cline/sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}

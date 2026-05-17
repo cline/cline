@@ -100,9 +100,15 @@ const RuleRow: React.FC<{
 		}
 	}
 
+	const getRemoteUriType = () => {
+		if (ruleType === "workflow") return "workflow"
+		if (ruleType === "skill") return "skill"
+		return "rule"
+	}
+
 	const handleEditClick = () => {
-		// For remote rules, use the special remote:// URI format
-		const filePath = isRemote ? `${REMOTE_URI_SCHEME}${ruleType === "workflow" ? "workflow" : "rule"}/${rulePath}` : rulePath
+		// For remote rules/workflows/skills, use the special remote:// URI format
+		const filePath = isRemote ? `${REMOTE_URI_SCHEME}${getRemoteUriType()}/${rulePath}` : rulePath
 		FileServiceClient.openFile(StringRequest.create({ value: filePath })).catch((err) =>
 			console.error("Failed to open file:", err),
 		)
@@ -158,19 +164,19 @@ const RuleRow: React.FC<{
 						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
 					/>
 					<Button
-						aria-label={isRemote ? "View rule file" : "Edit rule file"}
+						aria-label={isRemote ? `View ${ruleType} file` : `Edit ${ruleType} file`}
 						onClick={handleEditClick}
 						size="xs"
-						title={isRemote ? "View rule file (read-only)" : "Edit rule file"}
+						title={isRemote ? `View ${ruleType} file (read-only)` : `Edit ${ruleType} file`}
 						variant="icon">
 						{isRemote ? <EyeIcon /> : <PenIcon />}
 					</Button>
 					<Button
-						aria-label="Delete rule file"
+						aria-label={`Delete ${ruleType} file`}
 						disabled={isRemote}
 						onClick={handleDeleteClick}
 						size="xs"
-						title="Delete rule file"
+						title={`Delete ${ruleType} file`}
 						variant="icon">
 						<Trash2Icon />
 					</Button>

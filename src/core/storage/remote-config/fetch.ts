@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -156,33 +157,27 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<APIK
 	}
 }
 
-/**
- * Scans all user organizations to find the first one with an enabled remote configuration.
- *
- * @returns Object containing the organization ID and config, or undefined if none found
- */
-async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: string; config: RemoteConfig } | undefined> {
-	const authService = AuthService.getInstance()
+async function discoverRemoteConfigOrg(): Promise<
+	{ organizationId: string; discoveredValue?: string } | undefined
+> {
+	const accountService = ClineAccountService.getInstance()
 
-	// Get all user organizations from cached auth info
-	const userOrganizations = authService.getUserOrganizations()
-
-	if (!userOrganizations || userOrganizations.length === 0) {
+	const discovery = await accountService.fetchUserRemoteConfig()
+	if (!discovery) {
 		return undefined
 	}
 
-	// Scan each organization for remote config
-	for (const org of userOrganizations) {
-		if (!isRemoteConfigEnabled(org.organizationId)) {
-			continue
-		}
+	if (isRemoteConfigEnabled(discovery.organizationId)) {
+		return { organizationId: discovery.organizationId, discoveredValue: discovery.value }
+	}
 
-		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
-
-		if (remoteConfig) {
-			return {
-				organizationId: org.organizationId,
-				config: remoteConfig,
+	if (discovery.organizations) {
+		for (const org of discovery.organizations) {
+			if (org.organizationId === discovery.organizationId) {
+				continue
+			}
+			if (isRemoteConfigEnabled(org.organizationId)) {
+				return { organizationId: org.organizationId }
 			}
 		}
 	}
@@ -190,78 +185,97 @@ async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: str
 	return undefined
 }
 
+function parseDiscoveredConfig(value: string, organizationId: string): RemoteConfig | undefined {
+	try {
+		return RemoteConfigSchema.parse(JSON.parse(value))
+	} catch (error) {
+		Logger.warn(`Failed to parse discovered config for org ${organizationId}, will re-fetch`, error)
+		return undefined
+	}
+}
+
+async function resolveRemoteConfig(
+	organizationId: string,
+	discoveredValue?: string,
+): Promise<RemoteConfig | undefined> {
+	if (discoveredValue) {
+		const config = parseDiscoveredConfig(discoveredValue, organizationId)
+		if (config) {
+			return config
+		}
+	}
+	return fetchRemoteConfigForOrganization(organizationId)
+}
+
 /**
- * Ensures the user is in the correct organization with remote configuration enabled.
- * Automatically switches to the organization if needed and applies the remote config.
+ * Discovers the target org, resolves its remote config, switches org if needed,
+ * fetches API keys, and applies the config. Clears remote config when no
+ * qualifying org is found or config resolution returns nothing.
  *
  * @param controller The controller instance
  * @returns RemoteConfig if found and applied, undefined otherwise
  */
 async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
 	const authService = AuthService.getInstance()
+	const discovered = await discoverRemoteConfigOrg()
 
-	try {
-		// Find an organization with remote config
-		const result = await findOrganizationWithRemoteConfig()
+	if (!discovered) {
+		clearRemoteConfig()
+		controller.postStateToWebview()
+		return undefined
+	}
 
-		if (!result) {
-			clearRemoteConfig()
-			controller.postStateToWebview()
-			return undefined
-		}
+	const { organizationId, discoveredValue } = discovered
 
-		const { organizationId, config } = result
+	const remoteConfig = await resolveRemoteConfig(organizationId, discoveredValue)
 
-		// Check if we need to switch organizations
-		const currentActiveOrgId = authService.getActiveOrganizationId()
-		if (currentActiveOrgId !== organizationId) {
-			await controller.accountService.switchAccount(organizationId)
-		}
+	if (!remoteConfig) {
+		clearRemoteConfig()
+		controller.postStateToWebview()
+		return undefined
+	}
 
-		const configuredApiKeys: ConfiguredAPIKeys = {}
-		// Fetch and store API keys for configured providers
-		const hasConfiguredProviders = config.providerSettings && Object.keys(config.providerSettings).length > 0
-		if (hasConfiguredProviders) {
-			const apiKeys = await fetchApiKeysForOrganization(organizationId)
-			if (config.providerSettings?.LiteLLM) {
-				if (apiKeys.litellm) {
-					configuredApiKeys["litellm"] = true
-					controller.stateManager.setSecret("remoteLiteLlmApiKey", apiKeys.litellm)
-				} else {
-					controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
-				}
+	// Switch org only after we know we have a valid config to apply.
+	if (authService.getActiveOrganizationId() !== organizationId) {
+		await controller.accountService.switchAccount(organizationId)
+	}
+
+	const configuredApiKeys: ConfiguredAPIKeys = {}
+	const hasConfiguredProviders = remoteConfig.providerSettings && Object.keys(remoteConfig.providerSettings).length > 0
+	if (hasConfiguredProviders) {
+		const apiKeys = await fetchApiKeysForOrganization(organizationId)
+		if (remoteConfig.providerSettings?.LiteLLM) {
+			if (apiKeys.litellm) {
+				configuredApiKeys["litellm"] = true
+				controller.stateManager.setSecret("remoteLiteLlmApiKey", apiKeys.litellm)
 			} else {
 				controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
 			}
 		} else {
 			controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
 		}
-
-		// Cache and apply the remote config
-		await writeRemoteConfigToCache(organizationId, config)
-		if (isRemoteConfigEnabled(organizationId)) {
-			await applyRemoteConfig(config, configuredApiKeys, controller.mcpHub)
-		} else {
-			clearRemoteConfig()
-		}
-		controller.postStateToWebview()
-
-		return config
-	} catch (error) {
-		Logger.error("Failed to ensure user in organization with remote config:", error)
-		return undefined
+	} else {
+		controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
 	}
+
+	await writeRemoteConfigToCache(organizationId, remoteConfig)
+	if (isRemoteConfigEnabled(organizationId)) {
+		await applyRemoteConfig(remoteConfig, configuredApiKeys, controller.mcpHub)
+	} else {
+		clearRemoteConfig()
+	}
+	controller.postStateToWebview()
+
+	return remoteConfig
 }
 
 /**
  * Main entry point for fetching remote configuration.
- * Scans all user organizations, switches to the one with remote config if found,
- * and applies the configuration.
+ * Called periodically to ensure users stay in organizations with remote
+ * configuration enabled.
  *
- * It catches any exceptions, logs them and does not propagate them to the caller.
- *
- * This function is called periodically to ensure users stay in
- * organizations with remote configuration enabled.
+ * Catches all exceptions and logs them without clearing existing config,
+ * so transient failures do not drop remote-config-enforced settings.
  *
  * @param controller The controller instance
  */

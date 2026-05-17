@@ -64,7 +64,7 @@ class FakeProvider implements ITelemetryProvider {
 	async dispose(): Promise<void> {}
 }
 
-function createTelemetryService(provider: FakeProvider): TelemetryService {
+function createTelemetryService(provider: FakeProvider, overrides: Partial<TelemetryMetadata> = {}): TelemetryService {
 	return new TelemetryService([provider], {
 		extension_version: "test",
 		cline_type: "cline-unit-tests",
@@ -72,7 +72,9 @@ function createTelemetryService(provider: FakeProvider): TelemetryService {
 		platform_version: "1.0.0",
 		os_type: "darwin",
 		os_version: "24",
+		is_remote_workspace: false,
 		is_dev: "true",
+		...overrides,
 	} as TelemetryMetadata)
 }
 
@@ -81,7 +83,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a")
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a")
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
@@ -91,8 +93,9 @@ describe("TelemetryService metrics", () => {
 			provider.histograms.map((entry) => entry.name),
 			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
 		)
-		provider.counters.forEach((entry) => {
+		;[...provider.counters, ...provider.histograms].forEach((entry) => {
 			assert.strictEqual(entry.attributes.ulid, "task-1")
+			assert.strictEqual(entry.attributes.provider, "anthropic")
 			assert.strictEqual(entry.attributes.model, "model-a")
 			assert.strictEqual(entry.attributes.extension_version, "test")
 		})
@@ -102,7 +105,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {
 			cacheWriteTokens: 50,
 			cacheReadTokens: 30,
 			totalCost: 0.42,
@@ -162,7 +165,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a", {})
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {})
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
@@ -178,7 +181,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {
 			cacheWriteTokens: 50,
 			cacheReadTokens: 30,
 			totalCost: 0.42,
@@ -186,9 +189,22 @@ describe("TelemetryService metrics", () => {
 
 		const tokenEvent = provider.logs.find((entry) => entry.event === "task.tokens")
 		assert.ok(tokenEvent)
+		assert.strictEqual(tokenEvent?.properties?.provider, "anthropic")
+		assert.strictEqual(tokenEvent?.properties?.model, "model-a")
 		assert.strictEqual(tokenEvent?.properties?.cacheWriteTokens, 50)
 		assert.strictEqual(tokenEvent?.properties?.cacheReadTokens, 30)
 		assert.strictEqual(tokenEvent?.properties?.totalCost, 0.42)
+	})
+
+	it("metrics include is_remote_workspace in standard attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, { is_remote_workspace: true })
+
+		service.captureTokenUsage("task-remote", 120, 80, "anthropic", "model-a")
+
+		assert.ok(provider.counters.length > 0)
+		assert.strictEqual(provider.counters[0].attributes.is_remote_workspace, true)
+		assert.strictEqual(provider.histograms[0].attributes.is_remote_workspace, true)
 	})
 
 	it("captureConversationTurnEvent emits counters with cache and cost", () => {

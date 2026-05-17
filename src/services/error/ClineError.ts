@@ -6,6 +6,8 @@ export enum ClineErrorType {
 	Network = "network",
 	RateLimit = "rateLimit",
 	Balance = "balance",
+	SpendLimit = "spendLimit",
+	QuotaExceeded = "quotaExceeded",
 }
 
 interface ErrorDetails {
@@ -144,10 +146,20 @@ export class ClineError extends Error {
 			return ClineErrorType.Balance
 		}
 
+		// Check spend limit exceeded (org-enforced budget cap, 429 SPEND_LIMIT_EXCEEDED)
+		// Must be checked before the generic rate-limit check since both use 429
+		if (code === "SPEND_LIMIT_EXCEEDED" || details?.code === "SPEND_LIMIT_EXCEEDED") {
+			return ClineErrorType.SpendLimit
+		}
+
 		// Check auth errors
 		const isAuthStatus = status !== undefined && status > 400 && status < 429
 		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
 			return ClineErrorType.Auth
+		}
+
+		if (code === "INFERENCE_CAP_ERROR") {
+			return ClineErrorType.QuotaExceeded
 		}
 
 		if (message) {

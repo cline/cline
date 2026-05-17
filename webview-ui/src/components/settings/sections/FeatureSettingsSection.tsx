@@ -80,6 +80,13 @@ const agentFeatures: FeatureToggle[] = [
 
 const editorFeatures: FeatureToggle[] = [
 	{
+		id: "show-feature-tips",
+		label: "Feature Tips",
+		description: "Show rotating tips during the thinking phase to help you discover Cline features.",
+		stateKey: "showFeatureTips",
+		settingKey: "showFeatureTips",
+	},
+	{
 		id: "background-edit",
 		label: "Background Edit",
 		description: "Allow edits without stealing editor focus",
@@ -125,6 +132,13 @@ const experimentalFeatures: FeatureToggle[] = [
 			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
 		stateKey: "doubleCheckCompletionEnabled",
 		settingKey: "doubleCheckCompletionEnabled",
+	},
+	{
+		id: "lazy-teammate",
+		label: "Lazy Teammate Mode",
+		description: "Sometimes Cline just isn't feeling it today. For entertainment purposes only.",
+		stateKey: "lazyTeammateModeEnabled",
+		settingKey: "lazyTeammateModeEnabled",
 	},
 ]
 
@@ -211,6 +225,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lazyTeammateModeEnabled,
+		showFeatureTips,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -224,6 +240,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 	// State lookup for mapped features
 	const featureState: Record<string, boolean | undefined> = {
+		showFeatureTips,
 		enableCheckpointsSetting,
 		strictPlanModeEnabled,
 		hooksEnabled,
@@ -236,6 +253,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lazyTeammateModeEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 

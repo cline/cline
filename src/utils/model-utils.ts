@@ -29,7 +29,10 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
-	return modelId.includes("grok")
+	// Grok doesn't support WebP via its API.
+	// GLM and Devstral models running through llama.cpp fail with WebP because
+	// llama.cpp's STB image library doesn't support the WebP format.
+	return modelId.includes("grok") || isGLMModelFamily(modelId) || isDevstralModelFamily(modelId)
 }
 
 /**
@@ -101,6 +104,20 @@ export function isGPT52Model(id: string): boolean {
 	return modelId.includes("gpt-5.2") || modelId.includes("gpt-5-2")
 }
 
+export function isGPT51PlusModel(id: string): boolean {
+	const modelId = normalize(id)
+	return (
+		isGPT51Model(modelId) ||
+		isGPT52Model(modelId) ||
+		modelId.includes("gpt-5.3") ||
+		modelId.includes("gpt-5-3") ||
+		modelId.includes("gpt-5.4") ||
+		modelId.includes("gpt-5-4") ||
+		modelId.includes("gpt-5.5") ||
+		modelId.includes("gpt-5-5")
+	)
+}
+
 export function isGLMModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
@@ -108,6 +125,8 @@ export function isGLMModelFamily(id: string): boolean {
 		modelId.includes("glm-4.7") ||
 		modelId.includes("glm-4.6") ||
 		modelId.includes("glm-4.5") ||
+		// Space-separated variants like "GLM 4.6V" used with openai-compatible local servers
+		modelId.includes("glm 4.") ||
 		modelId.includes("z-ai/glm") ||
 		modelId.includes("zai-org/glm")
 	)

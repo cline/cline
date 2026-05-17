@@ -394,18 +394,29 @@ export class OcaHandler implements ApiHandler {
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
 			}))
 
-		const responsesParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
-			model: this.options.ocaModelId || liteLlmDefaultModelId,
-			input,
-			stream: true,
-			tools: responseTools,
-		}
+		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0
+		const maxOutputTokens: number | undefined = this.options.ocaModelInfo?.maxTokens
 
 		const ocaModelInfo = this.options.ocaModelInfo
 		if (!ocaModelInfo) {
 			throw new Error("Oracle Code Assist (OCA) model info is required for Responses API")
 		}
-		if (ocaModelInfo.supportsReasoning) {
+
+		const reasoningOn = !!ocaModelInfo.supportsReasoning
+		if (reasoningOn) {
+			temperature = undefined
+		}
+
+		const responsesParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
+			model: this.options.ocaModelId || liteLlmDefaultModelId,
+			input,
+			stream: true,
+			tools: responseTools,
+			...(typeof temperature === "number" ? { temperature } : {}),
+			...(typeof maxOutputTokens === "number" && maxOutputTokens > 0 ? { max_output_tokens: maxOutputTokens } : {}),
+		}
+
+		if (reasoningOn) {
 			responsesParams.reasoning = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
 		}
 

@@ -1,0 +1,98 @@
+---
+title: "Configure Anthropic Provider (Admin)"
+sidebarTitle: "Configure Anthropic (Admin)"
+description: "This guide explains how administrators configure Anthropic as the organization-wide LLM provider for Cline."
+---
+
+
+As an administrator, you can add Anthropic as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach provides direct access to Anthropic's Claude models, with an optional custom base URL for organizations that route traffic through a proxy.
+
+## Before You Begin
+
+To get started with setting up Anthropic as your organization's LLM provider, you'll need a few items in place.
+
+**Administrator access to the Cline Admin console**  
+You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Cline Settings** in the admin console at [app.cline.bot](https://app.cline.bot), you have the right access level.
+
+**Anthropic API access**  
+Your organization needs an Anthropic account with API access to Claude models. Members will need individual API keys to authenticate.
+
+<Note>
+If your organization requires routing API traffic through a proxy or custom endpoint, have the proxy URL ready before configuring.
+</Note>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Access Cline Settings">
+Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. Go to **Settings → Cline Settings**.
+
+<Info>
+You should see the provider configuration options if you have the correct admin access level.
+</Info>
+</Step>
+
+<Step title="Enable Remote Provider Configuration">
+Toggle on **Enable settings** to reveal the remote provider configuration options. This allows you to enforce provider settings across your organization.
+</Step>
+
+<Step title="Select Anthropic as the API Provider">
+Open the **API Provider** dropdown menu and select **Anthropic**. This will open the Anthropic configuration panel where you'll configure all your organization-wide settings.
+</Step>
+
+<Step title="Configure Anthropic Settings">
+The configuration panel includes settings that control how Anthropic works for your organization:
+
+<AccordionGroup>
+<Accordion title="Base URL (optional)">
+By default, Cline connects directly to the Anthropic API (`https://api.anthropic.com`). If your organization routes API traffic through a proxy or custom endpoint, enter the base URL here.
+
+Use cases for a custom base URL:
+- Corporate proxy that logs or filters API traffic
+- Self-hosted API gateway for rate limiting or access control
+- Regional routing requirements
+
+Leave this empty to use the default Anthropic API endpoint.
+
+<Tip>
+If using a proxy, ensure it correctly forwards requests to the Anthropic API and preserves all required headers.
+</Tip>
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Save Configuration">
+After configuring your settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
+
+Once saved, all organization members signed into the Cline extension will automatically use Anthropic with your configured settings. They won't be able to select other providers or switch to their personal Cline accounts.
+
+<Warning>
+Members can't switch to personal Cline accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
+</Warning>
+</Step>
+</Steps>
+
+## Verification
+
+To verify the configuration:
+
+1. Check that the provider shows as "Anthropic" in the Enabled provider field
+2. Confirm the settings persist after refreshing the page
+3. Test with a member account to ensure they see only Anthropic as a provider
+4. Verify that Claude models are available in the model dropdown
+
+## Troubleshooting
+
+**Members don't see the configured provider**  
+Ensure you clicked Save after closing the configuration panel. Verify the member account belongs to the correct organization.
+
+**Connection errors when using a custom base URL**  
+Verify the proxy URL is correct and accessible from your team's development environments. Ensure the proxy correctly forwards requests to the Anthropic API.
+
+**Configuration changes don't persist**  
+Make sure to click the Save button on the main settings page, not just close the configuration panel.
+
+**Need to change settings later**  
+You can update the base URL or other settings at any time. Changes take effect immediately for all organization members.
+
+For further details, consult the [Anthropic API documentation](https://docs.anthropic.com/) and coordinate with your infrastructure team.

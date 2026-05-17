@@ -3,7 +3,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch } from "lucide-react"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -37,7 +37,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
-	const bannerWaitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	// Quick launch worktree modal
 	const [showCreateWorktreeModal, setShowCreateWorktreeModal] = useState(false)
@@ -70,37 +69,13 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
-	// Show modal when there's a new announcement and we haven't shown it this session.
-	// We delay opening slightly to wait for welcome banners from the backend API,
-	// which are fetched asynchronously and may not be available on the first state push.
-	// The modal opens immediately if banners arrive, or after a 3s timeout as fallback.
+	// Open modal once we have welcome banners
 	useEffect(() => {
-		if (showAnnouncement && !hasShownWhatsNewModal && !bannerWaitTimeoutRef.current) {
-			bannerWaitTimeoutRef.current = setTimeout(() => {
-				bannerWaitTimeoutRef.current = null
-				setShowWhatsNewModal(true)
-				setHasShownWhatsNewModal(true)
-			}, 3000)
-		}
-		return () => {
-			if (bannerWaitTimeoutRef.current) {
-				clearTimeout(bannerWaitTimeoutRef.current)
-				bannerWaitTimeoutRef.current = null
-			}
-		}
-	}, [showAnnouncement, hasShownWhatsNewModal])
-
-	// Open modal early if welcome banners arrive before the timeout
-	useEffect(() => {
-		if (bannerWaitTimeoutRef.current && welcomeBanners && welcomeBanners.length > 0) {
-			if (bannerWaitTimeoutRef.current) {
-				clearTimeout(bannerWaitTimeoutRef.current)
-				bannerWaitTimeoutRef.current = null
-			}
+		if (showAnnouncement && !hasShownWhatsNewModal && welcomeBanners && welcomeBanners.length > 0) {
 			setShowWhatsNewModal(true)
 			setHasShownWhatsNewModal(true)
 		}
-	}, [welcomeBanners])
+	}, [welcomeBanners, showAnnouncement, hasShownWhatsNewModal])
 
 	const handleCloseWhatsNewModal = useCallback(() => {
 		setShowWhatsNewModal(false)

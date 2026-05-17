@@ -1,33 +1,13 @@
 import { Logger } from "../services/Logger"
-import { getStorageAdapter, StorageAdapter } from "./adapters"
+import { getStorageAdapter, type StorageAdapter } from "./adapters"
 import { ClineStorage } from "./ClineStorage"
+import type { BlobStoreSettings } from "./types"
 
-export interface BlobStoreSettings {
-	bucket: string
-	adapterType: "s3" | "r2" | string
-	accessKeyId: string
-	secretAccessKey: string
-	region?: string
-	endpoint?: string
-	accountId?: string
-
-	/** Interval between sync attempts in milliseconds (default: 30000 = 30s) */
-	intervalMs?: number
-	/** Maximum number of retries before giving up on an item (default: 5) */
-	maxRetries?: number
-	/** Batch size - how many items to process per interval (default: 10) */
-	batchSize?: number
-	/** Maximum queue size before eviction (default: 1000) */
-	maxQueueSize?: number
-	/** Maximum age for failed items in milliseconds (default: 7 days) */
-	maxFailedAgeMs?: number
-	/** Whether to backfill existing unsynced items on startup (default: false) */
-	backfillEnabled?: boolean
-}
+export type { BlobStoreSettings } from "./types"
 
 /**
- * S3/R2 blob storage implementation of ClineStorage.
- * Uses AWS S3 or Cloudflare R2 as the backend storage.
+ * S3/R2/Azure blob storage implementation of ClineStorage.
+ * Uses AWS S3, Cloudflare R2, or Azure Blob Storage as the backend storage.
  */
 export class ClineBlobStorage extends ClineStorage {
 	override name = "ClineBlobStorage"
@@ -95,7 +75,7 @@ export class ClineBlobStorage extends ClineStorage {
 
 	public static isConfigured(settings: BlobStoreSettings): boolean {
 		const adapter = settings.adapterType
-		if (adapter !== "s3" && adapter !== "r2") {
+		if (adapter !== "s3" && adapter !== "r2" && adapter !== "azure") {
 			return false
 		}
 
@@ -146,7 +126,7 @@ export class ClineBlobStorage extends ClineStorage {
 }
 
 /**
- * Get the blob storage instance if S3/R2 storage is configured.
+ * Get the blob storage instance if S3/R2/Azure storage is configured.
  * Returns null if not configured.
  */
 export const blobStorage = ClineBlobStorage.instance

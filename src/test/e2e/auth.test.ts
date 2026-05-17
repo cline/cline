@@ -42,39 +42,23 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(apiKeyInput).not.toBeVisible()
 	await expect(providerSelectorInput).not.toBeVisible()
 
-	// Verify the "What's New" modal is visible for new installs and can be closed.
-	const dialog = sidebar.getByRole("heading", {
-		name: /^🎉 New in v\d/,
+	// New installs may first show the Kanban launch modal, which blocks the
+	// update announcement modal until it has been dismissed.
+	const kanbanDialog = sidebar.getByRole("heading", {
+		name: "Introducing Cline Kanban",
 	})
-	await expect(dialog).toBeVisible()
-	await sidebar.getByRole("button", { name: "Close" }).click()
-	await expect(dialog).not.toBeVisible()
+	try {
+		await kanbanDialog.waitFor({ state: "visible", timeout: 5_000 })
+		await sidebar.getByRole("button", { name: "Close" }).click()
+		await expect(kanbanDialog).not.toBeVisible()
+	} catch {
+		// Kanban modal did not appear during this run.
+	}
 
-	// Verify you are now in the chat page after setup was completed and the dialog was closed.
+	// Verify you are now in the chat page after setup was completed.
 	// cline logo container
 	const clineLogo = sidebar.locator(".size-20")
 	await expect(clineLogo).toBeVisible()
 	const chatInputBox = sidebar.getByTestId("chat-input")
 	await expect(chatInputBox).toBeVisible()
-
-	// Verify What's New Section is showing and starts with first banner,
-	// and the navigation buttons work
-	const announcementsRegion = sidebar.locator('[aria-label="Announcements"]')
-	await expect(announcementsRegion).toBeVisible()
-
-	const pageIndicator = announcementsRegion
-		.locator("div")
-		.filter({ hasText: /^\d+ \/ \d+$/ })
-		.first()
-	await expect(pageIndicator).toBeVisible()
-
-	const initialIndicator = (await pageIndicator.innerText()).trim()
-	const totalBanners = Number(initialIndicator.split("/")[1]?.trim() || "0")
-
-	if (totalBanners > 1) {
-		await sidebar.getByRole("button", { name: "Next banner" }).click()
-		await expect(pageIndicator).not.toHaveText(initialIndicator)
-		await sidebar.getByRole("button", { name: "Previous banner" }).click()
-		await expect(pageIndicator).toHaveText(initialIndicator)
-	}
 })

@@ -609,6 +609,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		const anthropicModels = [
 			"anthropic--claude-4.5-haiku",
+			"anthropic--claude-4.7-opus",
+			"anthropic--claude-4.6-opus",
 			"anthropic--claude-4.5-opus",
 			"anthropic--claude-4.6-sonnet",
 			"anthropic--claude-4.5-sonnet",
@@ -631,17 +633,40 @@ export class SapAiCoreHandler implements ApiHandler {
 			"gpt-5",
 			"gpt-5-nano",
 			"gpt-5-mini",
+			"gpt-5.2",
+			"gpt-5.4",
+			"gpt-5.4-nano",
 			"o3-mini",
 			"o3",
 			"o4-mini",
 		]
 
 		const perplexityModels = ["sonar-pro", "sonar"]
-		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
+		const hostedModels = [
+			"mistralai--mistral-medium-instruct",
+			"mistralai--mistral-large-instruct",
+			"mistralai--mistral-small-instruct",
+			"mistralai--mistral-small",
+			"cohere--command-a-reasoning",
+			]
+		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-image", "gemini-2.5-pro"]
+		const novaModels = ["amazon--nova-pro", "amazon--nova-lite", "amazon--nova-micro"]
+		const converseStreamModels = [
+			"anthropic--claude-4.7-opus",
+			"anthropic--claude-4.6-opus",
+			"anthropic--claude-4.5-opus",
+			"anthropic--claude-4.6-sonnet",
+			"anthropic--claude-4.5-sonnet",
+			"anthropic--claude-4.5-haiku",
+			"anthropic--claude-4-sonnet",
+			"anthropic--claude-4-opus",
+			"anthropic--claude-3.7-sonnet",
+			...novaModels,
+		]
 
 		let url: string
 		let payload: any
-		if (anthropicModels.includes(model.id)) {
+		if (anthropicModels.includes(model.id) || novaModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/invoke-with-response-stream`
 
 			// Format messages for Converse API. Note that the Invoke API has
@@ -658,35 +683,30 @@ export class SapAiCoreHandler implements ApiHandler {
 			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
-			if (
-				model.id === "anthropic--claude-4.5-opus" ||
-				model.id === "anthropic--claude-4.6-sonnet" ||
-				model.id === "anthropic--claude-4.5-sonnet" ||
-				model.id === "anthropic--claude-4.5-haiku" ||
-				model.id === "anthropic--claude-4-sonnet" ||
-				model.id === "anthropic--claude-4-opus" ||
-				model.id === "anthropic--claude-3.7-sonnet"
-			) {
-				// Use converse-stream endpoint with caching support
+			if (converseStreamModels.includes(model.id)) {
+				// Use converse-stream endpoint with optional caching support
 				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/converse-stream`
 
-				// Apply caching controls to messages (enabled by default)
-				const messagesWithCache = Bedrock.applyCacheControlToMessages(
-					formattedMessages,
-					lastUserMsgIndex,
-					secondLastMsgUserIndex,
-				)
+				const enableCaching = model.info.supportsPromptCache === true
+				const messagesForPayload = enableCaching
+					? Bedrock.applyCacheControlToMessages(formattedMessages, lastUserMsgIndex, secondLastMsgUserIndex)
+					: formattedMessages
+				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, enableCaching)
 
-				// Prepare system message with caching support (enabled by default)
-				const systemMessages = Bedrock.prepareSystemMessages(systemPrompt, true)
+				const inferenceConfig: { maxTokens: number | undefined; temperature?: number } = {
+					maxTokens: model.info.maxTokens,
+					temperature: 0.0,
+				}
+				if (model.id === "anthropic--claude-4.7-opus") {
+					// temperature not supported for 4.7 opus
+					// https://platform.claude.com/docs/en/about-claude/models/migration-guide
+					delete inferenceConfig.temperature
+				}
 
 				payload = {
-					inferenceConfig: {
-						maxTokens: model.info.maxTokens,
-						temperature: 0.0,
-					},
+					inferenceConfig,
 					system: systemMessages,
-					messages: messagesWithCache,
+					messages: messagesForPayload,
 				}
 			} else {
 				// Use invoke-with-response-stream endpoint
@@ -716,7 +736,20 @@ export class SapAiCoreHandler implements ApiHandler {
 				stream_options: { include_usage: true },
 			}
 
-			if (["o1", "o3-mini", "o3", "o4-mini", "gpt-5", "gpt-5-nano", "gpt-5-mini"].includes(model.id)) {
+			if (
+				[
+					"o1",
+					"o3-mini",
+					"o3",
+					"o4-mini",
+					"gpt-5",
+					"gpt-5.2",
+					"gpt-5.4",
+					"gpt-5.4-nano",
+					"gpt-5-nano",
+					"gpt-5-mini",
+				].includes(model.id)
+			) {
 				delete payload.max_tokens
 				delete payload.temperature
 
@@ -746,6 +779,32 @@ export class SapAiCoreHandler implements ApiHandler {
 				stop: null,
 				model: model.id,
 				stream_options: { include_usage: true },
+			}
+		} else if (hostedModels.includes(model.id)) {
+			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+				{ role: "system", content: systemPrompt },
+				...convertToOpenAiMessages(messages),
+			]
+
+			if (model.id.startsWith("cohere--")) {
+				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat`
+				payload = {
+					stream: true,
+					model: model.id,
+					messages: openAiMessages,
+					max_tokens: model.info.maxTokens,
+					temperature: 0.0,
+				}
+			} else {
+				url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/chat/completions`
+				payload = {
+					stream: true,
+					model: model.id,
+					messages: openAiMessages,
+					max_tokens: model.info.maxTokens,
+					temperature: 0.0,
+					stream_options: { include_usage: true },
+				}
 			}
 		} else if (geminiModels.includes(model.id)) {
 			url = `${this.options.sapAiCoreBaseUrl}/v2/inference/deployments/${deploymentId}/models/${model.id}:streamGenerateContent`
@@ -789,17 +848,15 @@ export class SapAiCoreHandler implements ApiHandler {
 						outputTokens: response.data.usage.completion_tokens,
 					}
 				}
-			} else if (openAIModels.includes(model.id) || perplexityModels.includes(model.id)) {
-				yield* this.streamCompletionGPT(response.data, model)
+			} else if (model.id.startsWith("cohere--")) {
+				yield* this.streamCompletionCohere(response.data, model)
 			} else if (
-				model.id === "anthropic--claude-4.5-opus" ||
-				model.id === "anthropic--claude-4.6-sonnet" ||
-				model.id === "anthropic--claude-4.5-sonnet" ||
-				model.id === "anthropic--claude-4.5-haiku" ||
-				model.id === "anthropic--claude-4-sonnet" ||
-				model.id === "anthropic--claude-4-opus" ||
-				model.id === "anthropic--claude-3.7-sonnet"
+				openAIModels.includes(model.id) ||
+				perplexityModels.includes(model.id) ||
+				hostedModels.includes(model.id)
 			) {
+				yield* this.streamCompletionGPT(response.data, model)
+			} else if (converseStreamModels.includes(model.id)) {
 				yield* this.streamCompletionSonnet37(response.data, model)
 			} else if (geminiModels.includes(model.id)) {
 				yield* this.streamCompletionGemini(response.data, model)
@@ -924,8 +981,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		stream: any,
 		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		const _usage = { input_tokens: 0, output_tokens: 0 }
-
 		try {
 			// Iterate over the stream and process each chunk
 			for await (const chunk of stream) {
@@ -1062,6 +1117,54 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 		} catch (error) {
 			Logger.error("Error streaming GPT completion:", error)
+			throw error
+		}
+	}
+
+	private async *streamCompletionCohere(
+		stream: any,
+		_model: { id: SapAiCoreModelId; info: ModelInfo },
+	): AsyncGenerator<any, void, unknown> {
+		let inputTokens = 0
+		let outputTokens = 0
+
+		try {
+			for await (const chunk of stream) {
+				const chunkStr = this.chunkToString(chunk)
+				const lines = chunkStr.split("\n").filter(Boolean)
+				for (const line of lines) {
+					if (!line.startsWith("data: ")) {
+						continue
+					}
+					const jsonData = line.slice(6).trim()
+					if (!jsonData || jsonData === "[DONE]") {
+						continue
+					}
+					try {
+						const data = JSON.parse(jsonData)
+
+						//  https://docs.cohere.com/docs/streaming
+						if (data.type === "content-delta") {
+							const text = data.delta?.message?.content?.text
+							if (text) {
+								yield { type: "text", text }
+							}
+						}
+						if (data.type === "message-end") {
+							const usage = data.delta?.usage?.tokens ?? data.delta?.usage?.billed_units
+							if (usage) {
+								inputTokens = usage.input_tokens ?? inputTokens
+								outputTokens = usage.output_tokens ?? outputTokens
+								yield { type: "usage", inputTokens, outputTokens }
+							}
+						}
+					} catch (error) {
+						Logger.error("Failed to parse Cohere JSON data:", error)
+					}
+				}
+			}
+		} catch (error) {
+			Logger.error("Error streaming Cohere completion:", error)
 			throw error
 		}
 	}

@@ -1,0 +1,81 @@
+---
+title: "Core Workflow"
+description: "The end-to-end workflow for using Cline Kanban: create tasks, run agents, review changes, and ship"
+---
+
+This guide walks through the typical Kanban workflow from start to finish.
+
+## 1. Create Tasks
+
+There are two ways to add tasks to the board:
+
+- **Manually** — click the add button and write a task description
+- **Via sidebar chat** — open the sidebar chat and ask the agent to break down a piece of work into tasks. The agent can create cards, link them together, and start work directly on the board.
+
+Each card on the board represents a discrete unit of work for an agent to complete.
+
+## 2. Link Tasks
+
+Link cards together to create dependency chains:
+
+- **⌘ + click** (Mac) / **Ctrl + click** (Windows/Linux) a card to link it to another task
+- When a linked card completes and is moved to trash, the next linked task **automatically starts**
+
+Combined with auto-commit, this enables fully autonomous chains where one task's output feeds into the next without manual intervention.
+
+## 3. Start Tasks
+
+Hit the **play button** on a card to start it. Here's what happens:
+
+1. Kanban creates an **ephemeral git worktree** for the task — an isolated copy of your repo where the agent can make changes without affecting your main working directory or other tasks
+2. Gitignored files like `node_modules` are **symlinked** from your main repo into the worktree, avoiding slow reinstalls for each task
+3. The agent starts working in its own terminal within that worktree
+4. The card displays the agent's **latest message or tool call** so you can monitor progress from the board
+
+Multiple tasks run in parallel, each in their own worktree, so agents never create merge conflicts with each other.
+
+<Warning>
+Symlinks work well for gitignored files that agents don't need to modify (like `node_modules`). If your workflow requires agents to modify gitignored files, be aware that changes will affect the symlink target (your main repo's copy).
+</Warning>
+
+## 4. Review Changes
+
+Click a card to open the detail view, which shows:
+
+- **The agent's TUI** — the full text interface showing the agent's conversation and actions
+- **A diff of all changes** in that worktree compared to your base branch
+
+The diff viewer includes a **checkpoint system** — you can see diffs scoped to specific message ranges, not just the full cumulative diff. This makes it easier to understand what changed and when.
+
+### Inline Comments
+
+Click on any line in the diff to leave a comment. Comments are sent back to the agent as feedback, letting you steer its work without rewriting the task description. This is useful for corrections like "use a different approach here" or "this edge case isn't handled."
+
+## 5. Ship It
+
+When you're satisfied with the changes, you have two options:
+
+- **Commit** — merges the worktree changes into a commit on your base branch
+- **Open PR** — creates a new branch and opens a pull request
+
+In both cases, Kanban sends a dynamic prompt to the agent to handle the operation. The agent converts the worktree into the appropriate git action and **intelligently handles merge conflicts** if the base branch has moved since the worktree was created.
+
+## 6. Clean Up
+
+After shipping, move the card to **trash** to clean up the ephemeral worktree and free disk space.
+
+<Tip>
+If you need to resume work on a trashed card later, Kanban provides a **resume ID** for each task. You can use this to pick up where you left off.
+</Tip>
+
+## Workflow Summary
+
+| Step | Action | What Happens |
+|------|--------|-------------|
+| Create | Add card or use sidebar chat | Task card appears on the board |
+| Link | ⌘ + click to connect cards | Dependency chain is established |
+| Start | Hit play on a card | Ephemeral worktree is created, agent begins work |
+| Monitor | Watch card status on board | Latest agent message/tool call shown on card |
+| Review | Click card to see diff | Full diff with checkpoints and inline commenting |
+| Ship | Click Commit or Open PR | Agent handles merge into base branch or creates PR |
+| Clean up | Move to trash | Worktree is removed, resume ID saved |

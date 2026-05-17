@@ -96,8 +96,20 @@ Key: Never include an option to toggle modes.
 
 **new_task** — Create a new task with context. Param: context (Current Work; Key Concepts; Relevant Files/Code; Problem Solving; Pending & Next).
 
-**plan_mode_respond** — PLAN-only reply. Params: response, needs_more_exploration (optional).  
-Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.`
+**plan_mode_respond** — PLAN-only reply. Params: response, needs_more_exploration (optional).
+Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.${
+				context.subagentsEnabled === true && !context.isSubagentRun
+					? `
+
+**use_subagents** — Run up to 5 focused in-process subagents in parallel for broad exploration. Each subagent gets its own prompt and returns a comprehensive research result. Use this when reading many files would consume the main agent's context window. Using a single subagent is also valid for light discovery work.
+Params: prompt_1 (required), prompt_2, prompt_3, prompt_4, prompt_5 (all optional).
+*Example:*
+<use_subagents>
+<prompt_1>First subagent task description here.</prompt_1>
+<prompt_2>Optional second subagent task here.</prompt_2>
+</use_subagents>`
+					: ""
+			}`
 
 export const xsComponentOverrides = {
 	AGENT_ROLE:
