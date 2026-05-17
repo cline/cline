@@ -3,6 +3,7 @@ import {
 	buildSearchableListRows,
 	getSearchableListRowsWindow,
 	type SearchableItem,
+	scoreItem,
 } from "./searchable-list";
 
 function rowLabels(items: SearchableItem[]): string[] {
@@ -72,5 +73,23 @@ describe("searchable list sections", () => {
 			kind: "header",
 			label: "Popular",
 		});
+	});
+});
+
+describe("searchable list scoring", () => {
+	it("prioritizes camel-case filename initials", () => {
+		const target: SearchableItem = {
+			key: "src/classes/MyAmazingClassDefinition.js",
+			label: "MyAmazingClassDefinition.js",
+		};
+		const fuzzyOnly: SearchableItem = {
+			key: "src/classes/MainClientDashboard.js",
+			label: "MainClientDashboard.js",
+		};
+
+		expect(scoreItem(target, "M-A-C-D")).toBeGreaterThan(
+			scoreItem(fuzzyOnly, "M-A-C-D"),
+		);
+		expect(scoreItem(target, "M-A-C-D")).toBe(95);
 	});
 });

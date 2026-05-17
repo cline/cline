@@ -32,7 +32,21 @@ export type CreateSearchableItem = (
 ) => SearchableItem | undefined;
 
 function normalize(s: string): string {
-	return s.replace(/[^a-z0-9.]/g, "");
+	return s.toLowerCase().replace(/[^a-z0-9.]/g, "");
+}
+
+function filenameStem(path: string): string {
+	const filename = path.split(/[\\/]/).pop() ?? path;
+	return filename.replace(/\.[^.]*$/, "");
+}
+
+function initials(s: string): string {
+	return (
+		s
+			.match(/[A-Z]+(?=[A-Z][a-z]|\b)|[A-Z]?[a-z0-9]+/g)
+			?.map((word) => word[0])
+			.join("") ?? ""
+	).toLowerCase();
 }
 
 function fuzzyMatch(text: string, query: string): boolean {
@@ -43,12 +57,8 @@ function fuzzyMatch(text: string, query: string): boolean {
 	return qi === query.length;
 }
 
-function scoreItem(item: SearchableItem, query: string): number {
-	const targets = [
-		item.label.toLowerCase(),
-		item.key.toLowerCase(),
-		item.searchText?.toLowerCase() ?? "",
-	];
+export function scoreItem(item: SearchableItem, query: string): number {
+	const targets = [item.label, item.key, item.searchText ?? ""];
 	const nQuery = normalize(query);
 
 	let best = 0;
@@ -58,7 +68,14 @@ function scoreItem(item: SearchableItem, query: string): number {
 		if (t === nQuery) return 100;
 		if (t.startsWith(nQuery)) best = Math.max(best, 90);
 		else if (t.includes(nQuery)) best = Math.max(best, 70);
-		else if (fuzzyMatch(t, nQuery)) best = Math.max(best, 30);
+
+		for (const acronym of [initials(raw), initials(filenameStem(raw))]) {
+			if (!acronym) continue;
+			if (acronym === nQuery) best = Math.max(best, 95);
+			else if (acronym.startsWith(nQuery)) best = Math.max(best, 80);
+		}
+
+		if (fuzzyMatch(t, nQuery)) best = Math.max(best, 30);
 	}
 	return best;
 }
