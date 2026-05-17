@@ -34,7 +34,7 @@ const LONG_RUNNING_COMMAND_PATTERNS: RegExp[] = [
 ]
 
 export function isLikelyLongRunningCommand(command: string): boolean {
-	const normalized = command.trim().replace(/\s+/g, " ")
+	const normalized = commandRejectionKey(command)
 	return LONG_RUNNING_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
@@ -53,6 +53,10 @@ export function resolveCommandTimeoutSeconds(
 	}
 
 	return isLikelyLongRunningCommand(command) ? LONG_RUNNING_COMMAND_TIMEOUT_SECONDS : DEFAULT_COMMAND_TIMEOUT_SECONDS
+}
+
+export function commandRejectionKey(command: string): string {
+	return command.trim().replace(/\s+/g, " ")
 }
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
@@ -158,6 +162,15 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// If no hint, use primary workspace (cwd)
 		}
 
+		const rejectedCommandLabel = workspaceHint ? `@${workspaceHint}:${actualCommand}` : actualCommand
+		const key = commandRejectionKey(rejectedCommandLabel)
+		if (config.taskState.rejectedCommands.has(key)) {
+			config.taskState.didRejectTool = true
+			return formatResponse.toolError(
+				`The user already rejected this command in the current task: ${rejectedCommandLabel}. Ask the user for confirmation or choose a different approach before trying it again.`,
+			)
+		}
+
 		// Check command permission validation (CLINE_COMMAND_PERMISSIONS env var)
 		const permissionResult = config.services.commandPermissionController.validateCommand(actualCommand)
 		if (!permissionResult.allowed) {
@@ -254,6 +267,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				config,
 			)
 			if (!didApprove) {
+				config.taskState.rejectedCommands.add(key)
 				telemetryService.captureToolUsage(
 					config.ulid,
 					block.name,
@@ -328,6 +342,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		if (userRejected) {
 			config.taskState.didRejectTool = true
+			config.taskState.rejectedCommands.add(key)
 		}
 
 		return result
