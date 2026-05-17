@@ -247,6 +247,22 @@ describe("File Search", () => {
 				label: "important.js",
 			})
 		})
+
+		it("should request an unfiltered host candidate set for fuzzy initialism queries", async () => {
+			const hostResponse = SearchWorkspaceItemsResponse.create({
+				items: [{ path: "src/MyAmazingClassDefinition.js", type: SearchWorkspaceItemsRequest_SearchItemType.FILE }],
+			})
+			const searchItemsStub = sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").resolves(hostResponse)
+
+			const result = await fileSearch.executeHostIndexForFiles("M-A-C-D", "/workspace")
+
+			should(searchItemsStub.calledOnce).be.true()
+			searchItemsStub.firstCall.args[0].query.should.equal("")
+			should(result).deepEqual([
+				{ path: "src/MyAmazingClassDefinition.js", type: "file", label: "MyAmazingClassDefinition.js" },
+				{ path: "src", type: "folder", label: "src" },
+			])
+		})
 	})
 
 	describe("OrderbyMatchScore", () => {

@@ -163,14 +163,18 @@ const GRPC_STATUS_UNIMPLEMENTED = 12
  * doesn't implement the RPC / the index is unavailable. Returning `[]` is
  * authoritative — caller does not fall back to ripgrep.
  */
-async function executeHostIndexForFiles(
+export async function executeHostIndexForFiles(
 	query: string,
 	workspacePath: string,
 	selectedType?: "file" | "folder",
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[] | null> {
 	try {
+		// Preserve core-side fuzzy matching semantics (including initialism input like
+		// "M-A-C-D" -> MyAmazingClassDefinition) by asking the host for a broad seed set
+		// and letting fzf rank locally. Native host indexes generally do literal/prefix
+		// matching, so forwarding the raw query can prematurely exclude valid fuzzy hits.
 		const req = SearchWorkspaceItemsRequest.create({
-			query,
+			query: query.trim() ? "" : query,
 			workspacePath,
 			limit: HOST_INDEX_CANDIDATE_LIMIT,
 			selectedType:
