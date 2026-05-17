@@ -72,7 +72,7 @@ function config(options?: { response?: "yesButtonClicked" | "noButtonClicked"; a
 			api: { getModel: () => ({ id: "test-model" }) },
 			services: {
 				stateManager: {
-					getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : undefined),
+					getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : key === "hooksEnabled" ? false : undefined),
 					getApiConfiguration: () => ({
 						actModeApiProvider: "test-provider",
 						planModeApiProvider: "test-provider",
@@ -139,5 +139,33 @@ describe("ExecuteCommandToolHandler timeout policy", () => {
 		assert.equal(setup.callbacks.ask.called, false)
 		assert.equal(setup.callbacks.executeCommandTool.called, false)
 		assert.equal(setup.state.didRejectTool, true)
+	})
+
+	it("scopes rejected commands by workspace hint", async () => {
+		const handler = new ExecuteCommandToolHandler({} as never)
+		const setup = config({ response: "noButtonClicked" })
+		Object.assign(setup.config, {
+			isMultiRootEnabled: true,
+			workspaceManager: {
+				getRootByName: (name: string) => ({ name, path: `/tmp/${name}` }),
+				getRoots: () => [
+					{ name: "backend", path: "/tmp/backend" },
+					{ name: "frontend", path: "/tmp/frontend" },
+				],
+				getPrimaryRoot: () => ({ name: "backend", path: "/tmp/backend" }),
+				resolvePathToRoot: () => undefined,
+			},
+		})
+
+		const rejected = await handler.execute(setup.config, block("@backend:npm install"))
+		assert.equal(rejected, "The user denied this operation.")
+		assert.equal(setup.state.rejectedCommands.has(commandRejectionKey("@backend:npm install")), true)
+
+		setup.config.autoApprover.shouldAutoApproveTool = sinon.stub().returns([true, true])
+		const allowed = await handler.execute(setup.config, block("@frontend:npm install"))
+
+		assert.equal(allowed, "executed")
+		assert.equal(setup.callbacks.executeCommandTool.calledOnce, true)
+		assert.equal(setup.callbacks.executeCommandTool.firstCall.args[0], 'cd "/tmp/frontend" && npm install')
 	})
 })

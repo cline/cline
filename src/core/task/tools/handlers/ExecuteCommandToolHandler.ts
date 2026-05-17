@@ -34,7 +34,7 @@ const LONG_RUNNING_COMMAND_PATTERNS: RegExp[] = [
 ]
 
 export function isLikelyLongRunningCommand(command: string): boolean {
-	const normalized = command.trim().replace(/\s+/g, " ")
+	const normalized = commandRejectionKey(command)
 	return LONG_RUNNING_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
@@ -162,11 +162,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// If no hint, use primary workspace (cwd)
 		}
 
-		const key = commandRejectionKey(actualCommand)
+		const rejectedCommandLabel = workspaceHint ? `@${workspaceHint}:${actualCommand}` : actualCommand
+		const key = commandRejectionKey(rejectedCommandLabel)
 		if (config.taskState.rejectedCommands.has(key)) {
 			config.taskState.didRejectTool = true
 			return formatResponse.toolError(
-				`The user already rejected this command in the current task: ${actualCommand}. Ask the user for confirmation or choose a different approach before trying it again.`,
+				`The user already rejected this command in the current task: ${rejectedCommandLabel}. Ask the user for confirmation or choose a different approach before trying it again.`,
 			)
 		}
 
