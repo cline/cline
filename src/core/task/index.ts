@@ -128,6 +128,7 @@ import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskPresentationScheduler } from "./TaskPresentationScheduler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
+import { applyUsageSnapshot } from "./usage"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
 
@@ -2840,15 +2841,11 @@ export class Task {
 					onUsageChunk: (chunk) => {
 						this.streamHandler.setRequestId(chunk.id)
 						didReceiveUsageChunk = true
-						taskMetrics.inputTokens += chunk.inputTokens
-						taskMetrics.outputTokens += chunk.outputTokens
-						taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-						taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
-						taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
-						queueUsageChunkSideEffects(chunk.inputTokens, chunk.outputTokens, {
-							cacheWriteTokens: chunk.cacheWriteTokens,
-							cacheReadTokens: chunk.cacheReadTokens,
-							totalCost: chunk.totalCost,
+						const usageDelta = applyUsageSnapshot(taskMetrics, chunk)
+						queueUsageChunkSideEffects(usageDelta.inputTokens, usageDelta.outputTokens, {
+							cacheWriteTokens: usageDelta.cacheWriteTokens,
+							cacheReadTokens: usageDelta.cacheReadTokens,
+							totalCost: usageDelta.totalCost,
 						})
 					},
 				})
@@ -3072,15 +3069,11 @@ export class Task {
 			if (!didReceiveUsageChunk) {
 				const apiStreamUsage = await this.api.getApiStreamUsage?.()
 				if (apiStreamUsage) {
-					taskMetrics.inputTokens += apiStreamUsage.inputTokens
-					taskMetrics.outputTokens += apiStreamUsage.outputTokens
-					taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-					taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
-					taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
-					queueUsageChunkSideEffects(apiStreamUsage.inputTokens, apiStreamUsage.outputTokens, {
-						cacheWriteTokens: apiStreamUsage.cacheWriteTokens,
-						cacheReadTokens: apiStreamUsage.cacheReadTokens,
-						totalCost: apiStreamUsage.totalCost,
+					const usageDelta = applyUsageSnapshot(taskMetrics, apiStreamUsage)
+					queueUsageChunkSideEffects(usageDelta.inputTokens, usageDelta.outputTokens, {
+						cacheWriteTokens: usageDelta.cacheWriteTokens,
+						cacheReadTokens: usageDelta.cacheReadTokens,
+						totalCost: usageDelta.totalCost,
 					})
 				}
 			}
