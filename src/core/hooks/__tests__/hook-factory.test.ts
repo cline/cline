@@ -472,7 +472,11 @@ console.log(JSON.stringify({
 			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
-		it("should execute both global and workspace hooks", async () => {
+		it("should execute both global and workspace hooks", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			// Create global hook
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node
