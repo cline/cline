@@ -95,7 +95,7 @@ jobs:
 
       - name: Install Cline CLI
         if: steps.detect.outputs.hit == 'true'
-        run: npm install -g @cline/cli
+        run: npm install -g cline
 
       - name: Configure Cline Authentication
         if: steps.detect.outputs.hit == 'true'
