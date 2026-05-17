@@ -287,7 +287,31 @@ export const e2e = test
 			try {
 				await use(app)
 			} finally {
-				await app.close()
+				// Graceful shutdown: ask Electron to quit from inside the process.
+				// This fires before-quit/will-quit events, giving the extension host
+				// a chance to clean up (file watchers, terminals, etc.) — unlike
+				// app.close() alone which just waits for the process to exit.
+				try {
+					await app.evaluate(({ app: electronApp }) => electronApp.quit())
+				} catch {}
+				// Close the Playwright connection with a timeout. If the process
+				// still hangs (e.g. stuck IPC handler), force-kill after 10s so
+				// fixture teardown stays well within the 60s worker budget.
+				let appCloseTimer: ReturnType<typeof setTimeout> | undefined
+				try {
+					await Promise.race([
+						app.close(),
+						new Promise<never>(
+							(_, reject) => (appCloseTimer = setTimeout(() => reject(new Error("app.close() timed out")), 10_000)),
+						),
+					])
+				} catch {
+					try {
+						app.process().kill("SIGKILL")
+					} catch {}
+				} finally {
+					clearTimeout(appCloseTimer)
+				}
 				// Cleanup in parallel - include clineTestDir if it was created
 				const cleanupTasks = [
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
@@ -328,10 +352,23 @@ export const e2e = test
 			try {
 				await use(page)
 			} finally {
-				// Ensure proper cleanup: Close the page if it's still open and not already closed by app.close()
-				// This provides a common teardown mechanism for all e2e tests without requiring explicit page.close() calls
+				// Close the page with a timeout guard. page.close() can hang if
+				// the renderer is unresponsive. 5s is generous for a BrowserWindow
+				// close; if exceeded, skip it and let app.close() handle termination.
 				if (!page.isClosed()) {
-					await page.close()
+					let pageCloseTimer: ReturnType<typeof setTimeout> | undefined
+					try {
+						await Promise.race([
+							page.close(),
+							new Promise<never>(
+								(_, reject) =>
+									(pageCloseTimer = setTimeout(() => reject(new Error("page.close() timed out")), 5_000)),
+							),
+						])
+					} catch {
+					} finally {
+						clearTimeout(pageCloseTimer)
+					}
 				}
 			}
 		},
