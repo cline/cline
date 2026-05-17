@@ -43,6 +43,15 @@ describe("PerplexityHandler", () => {
 		client.should.not.be.undefined()
 	})
 
+	it("should fall back to PPLX_API_KEY when PERPLEXITY_API_KEY is empty", async () => {
+		process.env.PERPLEXITY_API_KEY = ""
+		process.env.PPLX_API_KEY = "pplx-test-key"
+
+		const handler = new PerplexityHandler({})
+		const client = (handler as any).ensureClient()
+		client.should.not.be.undefined()
+	})
+
 	it("should default to sonar-pro when no model id is provided", () => {
 		const handler = new PerplexityHandler({ perplexityApiKey: "test-key" })
 		const model = handler.getModel()
@@ -106,7 +115,7 @@ describe("PerplexityHandler", () => {
 		])
 	})
 
-	it("should yield reasoning chunks when reasoning_content is present", async () => {
+	it("should yield reasoning chunks before text when both are present", async () => {
 		const handler = new PerplexityHandler({
 			perplexityApiKey: "test-key",
 			perplexityModelId: "sonar-reasoning",
@@ -119,8 +128,7 @@ describe("PerplexityHandler", () => {
 						.stub()
 						.resolves(
 							createAsyncIterable([
-								{ choices: [{ delta: { reasoning_content: "thinking..." } }] },
-								{ choices: [{ delta: { content: "answer" } }] },
+								{ choices: [{ delta: { reasoning_content: "thinking...", content: "answer" } }] },
 							]),
 						),
 				},
@@ -137,6 +145,29 @@ describe("PerplexityHandler", () => {
 			{ type: "reasoning", reasoning: "thinking..." },
 			{ type: "text", text: "answer" },
 		])
+	})
+
+	it("should omit temperature for Perplexity reasoning models", async () => {
+		const handler = new PerplexityHandler({
+			perplexityApiKey: "test-key",
+			perplexityModelId: "sonar-reasoning-pro",
+		})
+
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(createAsyncIterable()),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+		for await (const _ of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			// no-op
+		}
+
+		const request = fakeClient.chat.completions.create.firstCall.args[0]
+		request.should.not.have.property("temperature")
 	})
 
 	it("should propagate errors from the upstream client", async () => {

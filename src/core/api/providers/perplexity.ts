@@ -18,8 +18,8 @@ function resolvePerplexityApiKey(explicit?: string): string | undefined {
 	if (explicit) {
 		return explicit
 	}
-	const fromEnv = process.env.PERPLEXITY_API_KEY ?? process.env.PPLX_API_KEY
-	return fromEnv && fromEnv.length > 0 ? fromEnv : undefined
+	const fromEnv = (process.env.PERPLEXITY_API_KEY || process.env.PPLX_API_KEY) || undefined
+	return fromEnv
 }
 
 export class PerplexityHandler implements ApiHandler {
@@ -63,7 +63,7 @@ export class PerplexityHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(!(modelId.includes("reasoning")) && { temperature: 0 }),
+			...(modelId !== "sonar-reasoning" && modelId !== "sonar-reasoning-pro" && { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
@@ -73,17 +73,17 @@ export class PerplexityHandler implements ApiHandler {
 				  })
 				| undefined
 
-			if (delta?.content) {
-				yield {
-					type: "text",
-					text: delta.content,
-				}
-			}
-
 			if (delta?.reasoning_content) {
 				yield {
 					type: "reasoning",
 					reasoning: delta.reasoning_content,
+				}
+			}
+
+			if (delta?.content) {
+				yield {
+					type: "text",
+					text: delta.content,
 				}
 			}
 
