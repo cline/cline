@@ -4,9 +4,7 @@ import { checkContextWindowExceededError } from "../context-error-handling"
 describe("checkContextWindowExceededError", () => {
 	it("detects OpenRouter context errors using structured status", () => {
 		const error = Object.assign(
-			new Error(
-				"This endpoint's maximum context length is 204800 tokens. However, you requested about 244027 tokens.",
-			),
+			new Error("This endpoint's maximum context length is 204800 tokens. However, you requested about 244027 tokens."),
 			{
 				status: 400,
 			},
@@ -21,6 +19,18 @@ describe("checkContextWindowExceededError", () => {
 		)
 
 		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	it("detects plain context overflow messages without structured status", () => {
+		const error = new Error("prompt is too long: 228307 tokens > 200000 maximum [failed to stream chunk]")
+
+		expect(checkContextWindowExceededError(error)).to.equal(true)
+	})
+
+	it("does not classify unrelated long input validation errors", () => {
+		const error = new Error("input is too long for this field")
+
+		expect(checkContextWindowExceededError(error)).to.equal(false)
 	})
 
 	it("does not classify unrelated 400 errors as context window failures", () => {

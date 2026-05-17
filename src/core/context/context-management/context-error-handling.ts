@@ -2,6 +2,7 @@ import LengthFinishReasonError, { APIError } from "openai"
 
 export function checkContextWindowExceededError(error: unknown): boolean {
 	return (
+		checkIsGenericContextWindowError(error) ||
 		checkIsOpenAIContextWindowError(error) ||
 		checkIsOpenRouterContextWindowError(error) ||
 		checkIsAnthropicContextWindowError(error) ||
@@ -9,6 +10,37 @@ export function checkContextWindowExceededError(error: unknown): boolean {
 		checkIsBedrockContextWindowError(error) ||
 		checkIsVercelContextWindowError(error)
 	)
+}
+
+function getErrorMessages(error: any): string[] {
+	return [
+		error?.message,
+		error?.error?.message,
+		error?.error?.param?.message,
+		error?.error?.param?.error,
+		error?.error?.error?.message,
+		error?.error?.value?.error_message,
+	].filter((message) => message != null)
+}
+
+function checkIsGenericContextWindowError(error: any): boolean {
+	try {
+		const messages = getErrorMessages(error)
+		if (messages.length === 0) {
+			return false
+		}
+
+		const CONTEXT_ERROR_PATTERNS = [
+			/prompt is too long.*tokens?\s*>\s*\d+\s*maximum/i,
+			/input token count exceeds.*maximum.*tokens? allowed/i,
+			/requested input length.*exceeds.*maximum input length/i,
+			/input is too long.*tokens?/i,
+		] as const
+
+		return messages.some((message) => CONTEXT_ERROR_PATTERNS.some((pattern) => pattern.test(String(message))))
+	} catch {
+		return false
+	}
 }
 
 function checkIsOpenRouterContextWindowError(error: any): boolean {
@@ -129,14 +161,7 @@ export function checkIsVercelContextWindowError(error: any): boolean {
 			return true
 		}
 
-		const messages: string[] = [
-			error?.message,
-			error?.error?.message,
-			error?.error?.param?.message,
-			error?.error?.param?.error,
-			error?.error?.error?.message,
-			error?.error?.value?.error_message, // Alibaba Qwen validation errors
-		].filter((msg) => msg != null)
+		const messages = getErrorMessages(error)
 
 		if (messages.length === 0) {
 			return false
