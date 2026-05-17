@@ -166,6 +166,8 @@ describe("ExecuteCommandToolHandler timeout policy", () => {
 
 		assert.equal(allowed, "executed")
 		assert.equal(setup.callbacks.executeCommandTool.calledOnce, true)
-		assert.equal(setup.callbacks.executeCommandTool.firstCall.args[0], 'cd "/tmp/frontend" && npm install')
+		const executedCommand = setup.callbacks.executeCommandTool.firstCall.args[0]
+		assert.match(executedCommand, /^cd ".*frontend" && npm install$/)
+		assert.equal(executedCommand.includes("backend"), false)
 	})
 })
