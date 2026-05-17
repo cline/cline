@@ -82,7 +82,7 @@ describe("provider-ids", () => {
 	});
 
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
-		for (const providerId of ["litellm", "v0"]) {
+		for (const providerId of ["v0"]) {
 			const provider = await getProvider(providerId);
 			expect(provider).toMatchObject({
 				id: providerId,
@@ -97,5 +97,20 @@ describe("provider-ids", () => {
 				createProvider: createOpenAIProvider,
 			});
 		}
+	});
+
+	it("routes LiteLLM through OpenAI-compatible chat completions", async () => {
+		await expect(getProvider("litellm")).resolves.toMatchObject({
+			id: "litellm",
+			protocol: "openai-chat",
+			client: "openai-compatible",
+		});
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "litellm",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
 	});
 });
