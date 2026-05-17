@@ -27,6 +27,12 @@ describe("checkContextWindowExceededError", () => {
 		expect(checkContextWindowExceededError(error)).to.equal(true)
 	})
 
+	it("does not classify unrelated long input validation errors", () => {
+		const error = new Error("input is too long for this field")
+
+		expect(checkContextWindowExceededError(error)).to.equal(false)
+	})
+
 	it("does not classify unrelated 400 errors as context window failures", () => {
 		const error = new Error("OpenRouter API Error 400: Invalid API key")
 

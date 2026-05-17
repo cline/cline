@@ -34,7 +34,7 @@ function checkIsGenericContextWindowError(error: any): boolean {
 			/prompt is too long.*tokens?\s*>\s*\d+\s*maximum/i,
 			/input token count exceeds.*maximum.*tokens? allowed/i,
 			/requested input length.*exceeds.*maximum input length/i,
-			/input is too long/i,
+			/input is too long.*tokens?/i,
 		] as const
 
 		return messages.some((message) => CONTEXT_ERROR_PATTERNS.some((pattern) => pattern.test(String(message))))
