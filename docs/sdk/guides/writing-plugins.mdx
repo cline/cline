@@ -251,15 +251,21 @@ await cline.start({
 
 ## Distributing via CLI Install
 
-To make your plugin installable with `cline plugin install`, add a `cline` field to your `package.json` that declares entry points and list `@cline/` imports as peer dependencies (the host runtime provides them):
+To make your plugin installable with `cline plugin install`, add a `cline` field to your `package.json` that declares entry points. Dependencies under the `@cline/` scope are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so declare any `@cline/*` package your plugin imports as an optional peer dependency:
 
 ```json
 {
   "cline": {
     "plugins": [{ "paths": ["./github-plugin.ts"], "capabilities": ["tools", "hooks"] }]
   },
-  "peerDependencies": { "@cline/core": "*" },
-  "peerDependenciesMeta": { "@cline/core": { "optional": true } }
+  "peerDependencies": {
+    "@cline/sdk": "*"
+  },
+  "peerDependenciesMeta": {
+    "@cline/sdk": {
+      "optional": true
+    }
+  }
 }
 ```
 
