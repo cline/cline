@@ -80,17 +80,30 @@ describe("resolveProviderConfig", () => {
 	it("does not expose generic OpenAI models for OpenAI Codex OAuth fallback", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 
+		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"gpt-5-codex",
+			"gpt-5.1-codex",
+			"gpt-5.1-codex-max",
+			"gpt-5.1-codex-mini",
+			"gpt-5.2",
+			"gpt-5.2-codex",
+			"gpt-5.3-codex",
+			"gpt-5.3-codex-spark",
+			"gpt-5.4",
+			"gpt-5.4-mini",
+		]);
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
 
-	it("uses OpenAI Codex account models as the authoritative authenticated list", async () => {
+	it("merges OpenAI Codex account models into the ChatGPT OAuth fallback list", async () => {
 		const listModels = vi
 			.spyOn(Llms, "listOpenAICodexModels")
 			.mockResolvedValue([
 				{ id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
 				{ id: "gpt-5.4", name: "GPT-5.4" },
 				{ id: "gpt-5.4-mini", name: "gpt-5.4-mini" },
+				{ id: "account-only-codex", name: "Account Only Codex" },
 			]);
 
 		const resolved = await resolveProviderConfig(
@@ -111,7 +124,15 @@ describe("resolveProviderConfig", () => {
 			}),
 		);
 		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"account-only-codex",
+			"gpt-5-codex",
+			"gpt-5.1-codex",
+			"gpt-5.1-codex-max",
+			"gpt-5.1-codex-mini",
+			"gpt-5.2",
+			"gpt-5.2-codex",
 			"gpt-5.3-codex",
+			"gpt-5.3-codex-spark",
 			"gpt-5.4",
 			"gpt-5.4-mini",
 		]);

@@ -63,7 +63,7 @@ export async function listOpenAICodexModels(
 			: undefined;
 	const provider = createCodexAppServer({
 		defaultSettings: {
-			codexPath: options.codexPath ?? "codex",
+			codexPath: options.codexPath,
 			cwd: options.cwd,
 			env: options.env,
 			logger: false,

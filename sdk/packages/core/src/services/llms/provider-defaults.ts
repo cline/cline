@@ -172,10 +172,12 @@ async function mergeKnownModels(
 			...userKnownModels,
 		});
 	}
-	const privateHasResults = Object.keys(privateModels).length > 0;
-	if (providerId === "openai-codex" && privateHasResults) {
+	if (providerId === "openai-codex") {
 		return Llms.sortModelsByReleaseDate({
+			...defaultKnownModels,
+			...liveModels,
 			...privateModels,
+			...publicModels,
 			...userKnownModels,
 		});
 	}
