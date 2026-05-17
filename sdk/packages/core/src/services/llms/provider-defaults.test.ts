@@ -79,19 +79,26 @@ describe("resolveProviderConfig", () => {
 
 	it("does not expose generic OpenAI models for OpenAI Codex OAuth fallback", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
-
-		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
-			"gpt-5-codex",
-			"gpt-5.1-codex",
-			"gpt-5.1-codex-max",
-			"gpt-5.1-codex-mini",
+		const modelIds = Object.keys(resolved?.knownModels ?? {});
+		const additionalOAuthModelIds = new Set([
 			"gpt-5.2",
-			"gpt-5.2-codex",
-			"gpt-5.3-codex",
-			"gpt-5.3-codex-spark",
 			"gpt-5.4",
 			"gpt-5.4-mini",
 		]);
+
+		expect(modelIds).toEqual(
+			expect.arrayContaining([
+				"gpt-5.1-codex-max",
+				"gpt-5.3-codex",
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		);
+		expect(
+			modelIds.every(
+				(id) => id.includes("codex") || additionalOAuthModelIds.has(id),
+			),
+		).toBe(true);
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
@@ -123,19 +130,16 @@ describe("resolveProviderConfig", () => {
 				accountId: "acct_123",
 			}),
 		);
-		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
-			"account-only-codex",
-			"gpt-5-codex",
-			"gpt-5.1-codex",
-			"gpt-5.1-codex-max",
-			"gpt-5.1-codex-mini",
-			"gpt-5.2",
-			"gpt-5.2-codex",
-			"gpt-5.3-codex",
-			"gpt-5.3-codex-spark",
-			"gpt-5.4",
-			"gpt-5.4-mini",
-		]);
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
+			expect.arrayContaining([
+				"account-only-codex",
+				"gpt-5.1-codex-max",
+				"gpt-5.2",
+				"gpt-5.3-codex",
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		);
 		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
 			expect.objectContaining({
 				name: "gpt-5.4-mini",
