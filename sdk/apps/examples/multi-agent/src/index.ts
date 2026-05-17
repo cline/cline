@@ -134,7 +134,7 @@ const AGENT_ROLES = [
 function createAgentConfig() {
 	return {
 		providerId: "cline",
-		modelId: "anthropic/claude-sonnet-4-6",
+		modelId: "anthropic/claude-sonnet-4.6",
 		apiKey: process.env.CLINE_API_KEY,
 		maxIterations: 1,
 	};
@@ -222,7 +222,11 @@ async function runAgents(
 			status: result.status,
 		});
 
-		return { role: spec.role, output: result.outputText, status: result.status };
+		return {
+			role: spec.role,
+			output: result.outputText,
+			status: result.status,
+		};
 	});
 
 	return Promise.all(promises);

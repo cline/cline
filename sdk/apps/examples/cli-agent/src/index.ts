@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const agent = new Agent({
 	providerId: "cline",
-	modelId: "anthropic/claude-sonnet-4-6",
+	modelId: "anthropic/claude-sonnet-4.6",
 	apiKey: process.env.CLINE_API_KEY,
 	systemPrompt: "You are a helpful assistant in a terminal chat. Be concise.",
 	maxIterations: 10,
@@ -35,13 +35,22 @@ agent.subscribe((event) => {
 			process.stdout.write(event.text);
 			break;
 		case "tool-started":
-			console.log(`\n[tool] ${event.toolCall.toolName}(${JSON.stringify(event.toolCall.input)})`);
+			console.log(
+				`\n[tool] ${event.toolCall.toolName}(${JSON.stringify(event.toolCall.input)})`,
+			);
 			break;
 		case "tool-finished": {
-			const result = event.message.content.find((p) => p.type === "tool-result");
+			const result = event.message.content.find(
+				(p) => p.type === "tool-result",
+			);
 			if (result && result.type === "tool-result") {
-				const output = typeof result.output === "string" ? result.output : JSON.stringify(result.output, null, 2);
-				console.log(`[result] ${output.slice(0, 200)}${output.length > 200 ? "..." : ""}`);
+				const output =
+					typeof result.output === "string"
+						? result.output
+						: JSON.stringify(result.output, null, 2);
+				console.log(
+					`[result] ${output.slice(0, 200)}${output.length > 200 ? "..." : ""}`,
+				);
 			}
 			break;
 		}

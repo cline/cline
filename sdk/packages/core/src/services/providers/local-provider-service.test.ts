@@ -1350,10 +1350,14 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
-	it("normalizes the openai alias to openai-native", () => {
-		const result = getProviderConfigFields("openai");
-		expect(result.providerId).toBe("openai-native");
+	it("returns api-key auth with apiKey + baseUrl for OpenAI Compatible", () => {
+		const result = getProviderConfigFields("openai-compatible");
+		expect(result.providerId).toBe("openai-compatible");
 		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"https://api.openai.com/v1",
+		);
 	});
 
 	it("falls back to a single api-key field for unknown providers", () => {

@@ -2,7 +2,7 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { resolveModelFamily } from "./anthropic-compatible";
+import { isGlmModel } from "../model-facts";
 import type { ProviderOptionsPatch } from "./utils";
 
 /**
@@ -13,15 +13,6 @@ import type { ProviderOptionsPatch } from "./utils";
  * control shape. The return value is a normal provider-options patch so the
  * composer can rely on merge order instead of out-of-band flags.
  */
-
-export function isGlmModel(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-): boolean {
-	const family = resolveModelFamily(context)?.toLowerCase() ?? "";
-	const modelId = request.modelId.toLowerCase();
-	return family.includes("glm") || modelId.includes("glm");
-}
 
 export function isNativeZaiProvider(providerId: string): boolean {
 	return providerId === "zai" || providerId === "zai-coding-plan";

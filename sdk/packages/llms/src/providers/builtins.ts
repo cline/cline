@@ -15,6 +15,11 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
+import {
+	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+	ANTHROPIC_ROUTING_METADATA,
+	QWEN_CACHE_ROUTING_METADATA,
+} from "./routing/anthropic-compatible";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
@@ -140,6 +145,23 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	);
 }
 
+function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
+	const info: ModelInfo = {
+		id,
+		name: id,
+	};
+	if (spec?.family === "openai-compatible") {
+		info.contextWindow = 128_000;
+		info.maxInputTokens = 128_000;
+		info.capabilities = ["streaming", "tools", "images"];
+	}
+	if (spec?.id === "qwen" || spec?.id === "qwen-code") {
+		info.family = "qwen";
+		info.capabilities = ["prompt-cache"];
+	}
+	return info;
+}
+
 function modelInfoToGateway(
 	providerId: string,
 	info: ModelInfo,
@@ -152,6 +174,9 @@ function modelInfoToGateway(
 				break;
 			case "reasoning":
 				capabilities.add("reasoning");
+				break;
+			case "prompt-cache":
+				capabilities.add("prompt-cache");
 				break;
 			case "images":
 				capabilities.add("images");
@@ -173,6 +198,9 @@ function modelInfoToGateway(
 	}
 	if (info.releaseDate) {
 		metadata.releaseDate = info.releaseDate;
+	}
+	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
+		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
 	}
 	return {
 		id: info.id,
@@ -233,6 +261,17 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	{
+		id: "openai-compatible",
+		name: "OpenAI Compatible",
+		description: "OpenAI-compatible chat completions endpoint",
+		family: "openai-compatible",
+		popular: 7,
+		capabilities: ["tools"],
+		defaultModelId: "gpt-4o",
+		apiKeyEnv: ["OPENAI_API_KEY"],
+		defaults: { baseUrl: "https://api.openai.com/v1" },
+	},
+	{
 		id: "cline",
 		name: "Cline",
 		description: "Cline API endpoint",
@@ -247,7 +286,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
 			},
 		},
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	},
 	{
 		id: "deepseek",
@@ -377,7 +416,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		modelsProviderId: "vercel-ai-gateway",
 		defaults: { baseUrl: "https://ai-gateway.vercel.sh/v1" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	},
 	{
 		id: "v0",
@@ -401,7 +440,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["AIHUBMIX_API_KEY"],
 		modelsProviderId: "aihubmix",
 		defaults: { baseUrl: "https://api.aihubmix.com/v1" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "hicap",
@@ -443,7 +482,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["QWEN_API_KEY"],
 		modelsProviderId: "qwen",
 		defaults: { baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: QWEN_CACHE_ROUTING_METADATA,
 	},
 	{
 		id: "qwen-code",
@@ -454,7 +493,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "qwen3-coder-plus",
 		modelsProviderId: "qwen-code",
 		defaults: { baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: QWEN_CACHE_ROUTING_METADATA,
 	},
 	{
 		id: "doubao",
@@ -547,7 +586,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
 		defaults: { baseUrl: "https://openrouter.ai/api/v1" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	},
 	{
 		id: "ollama",
@@ -581,7 +620,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["OCA_API_KEY"],
 		modelsProviderId: "oca",
 		defaults: { baseUrl: DEFAULT_EXTERNAL_OCA_BASE_URL },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "asksage",
@@ -605,7 +644,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "anthropic--claude-3.5-sonnet",
 		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
 		modelsProviderId: "sapaicore",
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 ];
 
@@ -656,7 +695,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		modelsProviderId: "anthropic",
 		defaults: { baseUrl: "https://api.anthropic.com/v1" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "claude-code",
@@ -695,7 +734,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 			"GOOGLE_API_KEY",
 		],
 		modelsProviderId: "vertex",
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "bedrock",
@@ -706,13 +745,14 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "minimax.minimax-m2.5",
 		apiKeyEnv: [
+			"AWS_BEARER_TOKEN_BEDROCK",
 			"AWS_REGION",
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",
 			"AWS_SESSION_TOKEN",
 		],
 		modelsProviderId: "bedrock",
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "mistral",
@@ -735,7 +775,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		modelsProviderId: "minimax",
 		defaults: { baseUrl: "https://api.minimax.io/anthropic" },
-		metadata: { promptCacheStrategy: "anthropic-automatic" },
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "opencode",
@@ -778,10 +818,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			? sourceModels
 			: spec.defaultModelId
 				? {
-						[spec.defaultModelId]: {
-							id: spec.defaultModelId,
-							name: spec.defaultModelId,
-						},
+						[spec.defaultModelId]: fallbackModelInfo(spec.defaultModelId, spec),
 					}
 				: {};
 	const modelIds = Object.keys(models);

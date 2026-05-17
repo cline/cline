@@ -7,6 +7,7 @@ import {
 	bufferToImageDataUrl,
 	isImagePath,
 	loadImageAsDataUrl,
+	resolveExistingImagePath,
 } from "../../utils/image-attachments";
 
 const COMMAND_TIMEOUT_MS = 1500;
@@ -89,9 +90,17 @@ export function readImageDataUrlFromPastedText(
 		return undefined;
 	}
 
+	// Resolve macOS-style filename variants (narrow no-break space before
+	// AM/PM, NFD normalization, curly apostrophe, etc.) before reading.
+	// See resolveExistingImagePath for the full ladder.
+	const resolvedPath = resolveExistingImagePath(filePath);
+	if (!resolvedPath) {
+		return undefined;
+	}
+
 	try {
 		return {
-			dataUrl: loadImageAsDataUrl(filePath),
+			dataUrl: loadImageAsDataUrl(resolvedPath),
 			source: "path",
 		};
 	} catch {

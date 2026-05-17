@@ -91,6 +91,30 @@
 				"requireToolCall": true
 			}
 		},
+		"qwen-tools": {
+			"settings": {
+				"provider": "qwen",
+				"model": "qwen-plus",
+				"apiKeyEnv": "DASHSCOPE_API_KEY",
+				"baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"qwen-code-tools": {
+			"settings": {
+				"provider": "qwen-code",
+				"model": "qwen3-coder-plus",
+				"apiKeyEnv": "DASHSCOPE_API_KEY",
+				"baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
 		"cline-tools": {
 			"settings": {
 				"provider": "cline",

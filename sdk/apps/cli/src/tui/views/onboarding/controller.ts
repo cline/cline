@@ -1,4 +1,5 @@
 import {
+	captureProviderConfigured,
 	getLocalProviderModels,
 	getProviderConfigFields,
 	listLocalProviders,
@@ -15,6 +16,7 @@ import {
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
+import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	buildClineModelEntries,
 	type ClineModelPickerEntry,
@@ -248,12 +250,18 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (providerId === "cline") {
 				setClineModelSelected(0);
 				setStep("cline_model");
+			} else if (providerId === "openai-compatible") {
+				const existing =
+					providerSettingsManager.getProviderSettings(providerId);
+				setCustomModelId(existing?.model ?? provider?.defaultModelId ?? "");
+				setCustomModelError("");
+				setStep("custom_model_id");
 			} else {
 				setStep("model_picker");
 				loadModelsForProvider(providerId);
 			}
 		},
-		[providers, loadModelsForProvider],
+		[providers, loadModelsForProvider, providerSettingsManager],
 	);
 
 	const resetAuth = useCallback(() => {
@@ -282,6 +290,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setStatus: setDeviceStatus,
 				setError: setDeviceError,
 				onComplete: transitionToModelPicker,
+				telemetry: getCliTelemetryService(),
 			});
 		},
 		[providerSettingsManager, transitionToModelPicker],
@@ -307,6 +316,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setAuthUrl,
 				setError: setAuthError,
 				onComplete: transitionToModelPicker,
+				telemetry: getCliTelemetryService(),
 			});
 		},
 		[
@@ -393,6 +403,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			apiKey: byoFields.apiKey ? byoApiKey.trim() : undefined,
 			baseUrl: byoFields.baseUrl ? byoBaseUrl.trim() : undefined,
 		});
+		// Emit a single `user.provider_configured` event mirroring the
+		// `{ provider }` payload shape used by the auth funnel. The save above
+		// is synchronous and infallible, so there's no start/fail counterpart;
+		// invalid credentials surface later as `task.provider_api_error` on
+		// the first real API call.
+		captureProviderConfigured(getCliTelemetryService(), activeProviderId);
 		transitionToModelPicker(activeProviderId);
 	}, [
 		byoApiKey,
@@ -587,6 +603,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		deviceVerifyUrl,
 		customModelError,
 		customModelId,
+		customModelTitle:
+			activeProviderId === "openai-compatible"
+				? "Set model ID"
+				: "Create custom model ID",
 		handleByoApiKeyInput: setByoApiKey,
 		handleByoBaseUrlInput: setByoBaseUrl,
 		handleCustomModelIdInput: (value: string) => {

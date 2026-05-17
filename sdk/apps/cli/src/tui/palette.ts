@@ -8,8 +8,51 @@ export const palette = {
 	textOnSelection: "black",
 } as const;
 
-export function getModeAccent(mode: string): string {
-	return mode === "plan" ? palette.plan : palette.act;
+export type TerminalTheme = "dark" | "light";
+
+export const themePalette = {
+	dark: {
+		act: palette.act,
+		plan: palette.plan,
+		success: palette.success,
+	},
+	light: {
+		act: "#0969da",
+		plan: "#9a6700",
+		success: "#116329",
+	},
+} as const;
+
+export const diffPalettes = {
+	dark: {
+		addedBg: "#1a4d1a",
+		removedBg: "#4d1a1a",
+		addedLineNumberBg: "#1a4d1a",
+		removedLineNumberBg: "#4d1a1a",
+		addedSignColor: "#22c55e",
+		removedSignColor: "#ef4444",
+		lineNumberFg: "#888888",
+	},
+	light: {
+		addedBg: "#e6ffed",
+		removedBg: "#ffebe9",
+		addedLineNumberBg: "#ccf0d2",
+		removedLineNumberBg: "#ffd7d5",
+		addedSignColor: "#116329",
+		removedSignColor: "#b42318",
+		lineNumberFg: "#57606a",
+	},
+} as const;
+
+export function getModeAccent(
+	mode: string,
+	theme: TerminalTheme = "dark",
+): string {
+	return mode === "plan" ? themePalette[theme].plan : themePalette[theme].act;
+}
+
+export function getSuccessColor(theme: TerminalTheme = "dark"): string {
+	return themePalette[theme].success;
 }
 
 // Input field adaptive color system
@@ -64,6 +107,23 @@ function isLightTheme(terminalBg: string | null): boolean {
 	return hexToOklab(hex).L > LIGHT_THEME_THRESHOLD;
 }
 
+export function getTerminalTheme(
+	terminalBg: string | null,
+	terminalFg?: string | null,
+): TerminalTheme {
+	const bg = normalizeHex(terminalBg);
+	if (bg) {
+		return hexToOklab(bg).L > LIGHT_THEME_THRESHOLD ? "light" : "dark";
+	}
+
+	const fg = normalizeHex(terminalFg ?? null);
+	if (fg) {
+		return hexToOklab(fg).L <= LIGHT_THEME_THRESHOLD ? "light" : "dark";
+	}
+
+	return "dark";
+}
+
 export function getDefaultForeground(
 	terminalBg: string | null,
 ): string | undefined {
@@ -116,11 +176,11 @@ export function getModeInputPlaceholder(
 }
 
 function srgbToLinear(c: number): number {
-	return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+	return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 }
 
 function linearToSrgb(c: number): number {
-	const v = c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055;
+	const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
 	return Math.max(0, Math.min(1, v));
 }
 

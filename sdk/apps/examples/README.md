@@ -2,6 +2,15 @@
 
 Learn how to build with the Cline SDK through working examples, ordered from simple to complex.
 
+## SDK Skill
+If you use a coding agent (Claude Code, Codex, Cline, etc.), install the [Cline SDK skill](https://github.com/cline/sdk-skill) to give your agent context on the SDK's APIs and best practices to help you build with the Cline SDK.
+
+```bash
+npx skills add cline/sdk-skill
+```
+
+Prompt it to scaffold agents, create custom tools, wire up plugins, configure providers, and more.
+
 ## Getting started
 
 All examples live in this directory. Each is a standalone project with its own `package.json` and README. To run any example:
@@ -39,7 +48,6 @@ Requires Node.js 22+.
 | [desktop-app](./desktop-app) | Full Tauri + Next.js desktop app for running and inspecting chat sessions. | Sidecar runtime, websocket transport, session persistence |
 | [menubar](./menubar) | macOS menu bar app with Tauri. | Native app integration, compact UI |
 | [vscode](./vscode) | VS Code extension with chat panel. | Extension API, webview, workspace context |
-| [slack-bot](./slack-bot) | Slack bot integration. | Event-driven, external service integration |
 
 ## SDK packages
 

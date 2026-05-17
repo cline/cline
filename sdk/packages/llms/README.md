@@ -123,6 +123,7 @@ Optional:
 
 - `LLMS_LIVE_PROVIDER_TIMEOUT_MS=120000` to increase per-provider timeout.
 - `LLMS_LIVE_PROVIDER_RETRIES=2` to retry transient upstream/provider failures per provider (total attempts = retries + 1).
+- `LLMS_LIVE_PROVIDER_CONCURRENCY=3` to run multiple provider entries in parallel. Defaults to `3`; lower it if you need stricter provider rate-limit behavior.
 - Point `LLMS_LIVE_PROVIDERS_PATH` to a custom file if you want a narrower provider set.
 - Point `LLMS_LIVE_REASONING_PROVIDERS_PATH` to a custom file for reasoning-enabled suites.
 - Point `LLMS_LIVE_TOOL_PROVIDERS_PATH` to a custom file for tool-use suites.

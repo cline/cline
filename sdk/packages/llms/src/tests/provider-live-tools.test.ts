@@ -3,6 +3,10 @@ import path from "node:path";
 import { describe, it } from "vitest";
 import * as LlmsProviders from "../providers";
 import { toLiveProviderConfig } from "./provider-live-config";
+import {
+	LIVE_PROVIDER_CONCURRENCY,
+	runLiveProviderTargets,
+} from "./provider-live-runner";
 
 type ProviderConfig = import("../providers").ProviderConfig;
 
@@ -222,29 +226,33 @@ describe("live provider tool-use smoke test", () => {
 				throw new Error(`No providers found in ${filePath}.`);
 			}
 
-			const failures: string[] = [];
-			for (const target of targets) {
-				let success = false;
-				let lastError: unknown;
-				for (let attempt = 1; attempt <= PROVIDER_ATTEMPTS; attempt++) {
-					try {
-						await withTimeout(
-							runToolUsePrompt(target),
-							PROVIDER_TIMEOUT_MS,
-							target.label,
-						);
-						success = true;
-						break;
-					} catch (error) {
-						lastError = error;
+			const failures = await runLiveProviderTargets({
+				targets,
+				concurrency: LIVE_PROVIDER_CONCURRENCY,
+				runTarget: async (target) => {
+					let success = false;
+					let lastError: unknown;
+					for (let attempt = 1; attempt <= PROVIDER_ATTEMPTS; attempt++) {
+						try {
+							await withTimeout(
+								runToolUsePrompt(target),
+								PROVIDER_TIMEOUT_MS,
+								target.label,
+							);
+							success = true;
+							break;
+						} catch (error) {
+							lastError = error;
+						}
 					}
-				}
-				if (!success) {
+					if (success) {
+						return undefined;
+					}
 					const message =
 						lastError instanceof Error ? lastError.message : String(lastError);
-					failures.push(`${target.label}: ${message}`);
-				}
-			}
+					return `${target.label}: ${message}`;
+				},
+			});
 
 			if (failures.length > 0) {
 				throw new Error(
