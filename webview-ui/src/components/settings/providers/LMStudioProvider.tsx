@@ -5,6 +5,7 @@ import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
@@ -56,7 +57,8 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {
 		await ModelsServiceClient.getLmStudioModels({
-			value: endpoint,
+			baseUrl: endpoint,
+			apiKey: apiConfiguration?.lmStudioApiKey || "",
 		})
 			.then((response) => {
 				if (response?.values) {
@@ -67,11 +69,11 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			.catch((error) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
-	}, [endpoint])
+	}, [apiConfiguration?.lmStudioApiKey, endpoint])
 
 	useEffect(() => {
 		requestLmStudioModels()
-	}, [])
+	}, [requestLmStudioModels])
 
 	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
 	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()
@@ -99,6 +101,13 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
+			/>
+			<ApiKeyField
+				helpText="Optional API key for authenticated LM Studio servers. Leave empty for local servers without authentication."
+				initialValue={apiConfiguration?.lmStudioApiKey || ""}
+				onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
+				placeholder="Enter API Key (optional)..."
+				providerName="LM Studio"
 			/>
 
 			<div className="font-semibold">Model</div>
