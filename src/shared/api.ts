@@ -2191,28 +2191,10 @@ export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 // DeepSeek
 // https://api-docs.deepseek.com/quick_start/pricing
 export type DeepSeekModelId = keyof typeof deepSeekModels
-export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
+// deepseek-chat and deepseek-reasoner deprecated as of 2026-07-24;
+// both now map to deepseek-v4-flash (non-thinking / thinking mode).
+export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-v4-flash"
 export const deepSeekModels = {
-	"deepseek-chat": {
-		maxTokens: 8_000,
-		contextWindow: 64_000,
-		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
-		outputPrice: 0.28,
-		cacheWritesPrice: 0.14,
-		cacheReadsPrice: 0.07,
-	},
-	"deepseek-reasoner": {
-		maxTokens: 8_000,
-		contextWindow: 64_000,
-		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
-		outputPrice: 2.19,
-		cacheWritesPrice: 0.55,
-		cacheReadsPrice: 0.14,
-	},
 	"deepseek-v4-pro": {
 		maxTokens: 384_000,
 		contextWindow: 1_000_000,

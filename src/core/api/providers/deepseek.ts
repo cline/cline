@@ -8,7 +8,6 @@ import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertDeepSeekMessages, convertDeepseekToOpenAiMessages } from "../transform/deepseek-format"
-import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
@@ -82,34 +81,32 @@ export class DeepSeekHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
-
 		const convertedMessages = convertDeepseekToOpenAiMessages(messages)
-		const isV4Model = model.id.startsWith("deepseek-v4")
 		const isThinkingEnabled = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
 		const reasoningEffort = isThinkingEnabled
 			? (this.options.reasoningEffort as OpenAI.ChatCompletionReasoningEffort)
 			: undefined
+		const supportsReasoning = model.info.supportsReasoning ?? false
 
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
-			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
-			: isV4Model && isThinkingEnabled
-				? convertDeepSeekMessages(messages, systemPrompt)
-				: [{ role: "system", content: systemPrompt }, ...convertedMessages]
+		// All deepseek models now use the same message conversion: V4-native format when thinking is on,
+		// plain OpenAI format otherwise. deepseek-chat and deepseek-reasoner are deprecated as of 2026-07-24.
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isThinkingEnabled
+			? convertDeepSeekMessages(messages, systemPrompt)
+			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_completion_tokens: model.info.maxTokens,
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(model.id === "deepseek-reasoner" || isV4Model ? {} : { temperature: 0 }),
+			...(supportsReasoning ? {} : { temperature: 0 }),
 			...getOpenAIToolParams(tools),
-			...(isV4Model
+			...(supportsReasoning
 				? {
 						extra_body: {
-							thinking: { type: reasoningEffort && reasoningEffort !== "none" ? "enabled" : "disabled" },
+							thinking: { type: isThinkingEnabled ? "enabled" : "disabled" },
 						},
-						...(reasoningEffort && reasoningEffort !== "none" ? { reasoning_effort: reasoningEffort } : {}),
+						...(isThinkingEnabled ? { reasoning_effort: reasoningEffort } : {}),
 					}
 				: {}),
 		})
@@ -147,6 +144,10 @@ export class DeepSeekHandler implements ApiHandler {
 
 	getModel(): { id: DeepSeekModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
+		// Smooth migration from deprecated model names to v4-flash:
+		// deepseek-chat → deepseek-v4-flash (non-thinking, reasoningEffort=none by default)
+		// deepseek-reasoner → deepseek-v4-flash (thinking, existing reasoningEffort setting preserved)
+		// Both now resolve to v4-flash; thinking is controlled solely by reasoningEffort.
 		if (modelId && modelId in deepSeekModels) {
 			const id = modelId as DeepSeekModelId
 			return { id, info: deepSeekModels[id] }

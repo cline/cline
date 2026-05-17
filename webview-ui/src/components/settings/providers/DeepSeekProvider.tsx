@@ -31,7 +31,9 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const isV4Model = selectedModelId?.startsWith("deepseek-v4") ?? false
+	// All current deepseek models (v4-pro, v4-flash) support reasoning/thinking mode.
+	// deepseek-chat and deepseek-reasoner are deprecated as of 2026-07-24, mapped to v4-flash.
+	const supportsThinking = selectedModelInfo?.supportsReasoning ?? false
 	const [enableThinking, setEnableThinking] = useState(!!modeFields.reasoningEffort)
 	const adaptiveThinking = resolveDeepSeekAdaptiveThinking(modeFields.reasoningEffort)
 
@@ -63,7 +65,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 						selectedModelId={selectedModelId}
 					/>
 
-					{isV4Model ? (
+					{supportsThinking ? (
 						<>
 							<div style={{ marginTop: 8 }}>
 								<VSCodeCheckbox
