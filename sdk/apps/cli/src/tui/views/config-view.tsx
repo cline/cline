@@ -236,7 +236,7 @@ function appendToolRows(
 }
 
 export function ConfigPanelContent(props: ConfigPanelProps) {
-	const { resolve, dismiss, dialogId, config } = props;
+	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
 	const { height } = useTerminalDimensions();
 
 	const [mode, setMode] = useState(props.currentMode);
@@ -267,7 +267,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			activeTab !== "tools" ||
 			pluginToolsLoaded ||
 			pluginToolsError ||
-			!props.loadConfigData
+			!loadConfigData
 		) {
 			return;
 		}
@@ -275,8 +275,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		let cancelled = false;
 		setPluginToolsLoading(true);
 		setPluginToolsError(undefined);
-		props
-			.loadConfigData({ includePluginTools: true })
+		loadConfigData({ includePluginTools: true })
 			.then((nextData) => {
 				if (cancelled) {
 					return;
@@ -300,7 +299,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		return () => {
 			cancelled = true;
 		};
-	}, [activeTab, pluginToolsError, pluginToolsLoaded, props.loadConfigData]);
+	}, [activeTab, loadConfigData, pluginToolsError, pluginToolsLoaded]);
 
 	const rows = useMemo(() => {
 		const r: ConfigRow[] = [];
