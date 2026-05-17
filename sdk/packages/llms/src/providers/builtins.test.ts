@@ -63,7 +63,31 @@ describe("built-in provider metadata", () => {
 
 	it("enriches OpenAI Codex fallback models from the generated OpenAI catalog", async () => {
 		const models = await getModelsForProvider("openai-codex");
+		const modelIds = Object.keys(models);
+		const additionalOAuthModelIds = new Set([
+			"gpt-5.2",
+			"gpt-5.4",
+			"gpt-5.4-mini",
+		]);
 
+		expect(modelIds).toEqual(
+			expect.arrayContaining([
+				"gpt-5.1-codex-max",
+				"gpt-5.3-codex",
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		);
+		expect(
+			modelIds.every(
+				(id) => id.includes("codex") || additionalOAuthModelIds.has(id),
+			),
+		).toBe(true);
+		expect(modelIds.filter((id) => !id.includes("codex")).sort()).toEqual([
+			"gpt-5.2",
+			"gpt-5.4",
+			"gpt-5.4-mini",
+		]);
 		expect(models["gpt-5.4"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.4",
@@ -78,5 +102,6 @@ describe("built-in provider metadata", () => {
 				contextWindow: expect.any(Number),
 			}),
 		);
+		expect(models["gpt-5.4-nano"]).toBeUndefined();
 	});
 });
