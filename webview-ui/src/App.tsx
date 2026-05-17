@@ -1,5 +1,5 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import ClineKanbanLaunchModal, { CLINE_KANBAN_MODAL_DISMISS_ID } from "./components/common/ClineKanbanLaunchModal"
@@ -41,6 +41,8 @@ const AppContent = () => {
 	const [hasShownKanbanModal, setHasShownKanbanModal] = useState(false)
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
+	const clineUserUid = clineUser?.uid
+	const previousAccountUidRef = useRef<string | undefined>(clineUserUid)
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
@@ -84,12 +86,21 @@ const AppContent = () => {
 		showUpdateAnnouncementModal,
 	])
 
+	useEffect(() => {
+		const previousUid = previousAccountUidRef.current
+		previousAccountUidRef.current = clineUserUid
+
+		if (showAccount && !previousUid && clineUserUid) {
+			hideAccount()
+		}
+	}, [clineUserUid, hideAccount, showAccount])
+
 	const handleCloseKanbanModal = useCallback((doNotShowAgain: boolean) => {
 		setShowKanbanModal(false)
 		if (doNotShowAgain) {
-			StateServiceClient.dismissBanner({ value: CLINE_KANBAN_MODAL_DISMISS_ID }).catch((error) =>
-				console.error("Failed to persist Cline Kanban modal dismissal:", error),
-			)
+			StateServiceClient.dismissBanner({
+				value: CLINE_KANBAN_MODAL_DISMISS_ID,
+			}).catch((error) => console.error("Failed to persist Cline Kanban modal dismissal:", error))
 		}
 	}, [])
 
