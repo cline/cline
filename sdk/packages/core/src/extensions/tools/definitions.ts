@@ -218,6 +218,8 @@ export function createBashTool(
 			"An optional top-level timeout may be provided in milliseconds, but it should normally be omitted in favor of the configured default and only raised for expected long-running installs/builds/tests or after a timeout. " +
 			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
+		// Static SDK tool-runner ceiling. The real run_commands timeout is
+		// resolved per call from input.timeout ?? defaultTimeoutMs below.
 		timeoutMs: MAX_RUN_COMMANDS_TIMEOUT_MS,
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
@@ -287,6 +289,8 @@ export function createWindowsShellTool(
 			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. " +
 			"An optional top-level timeout may be provided in milliseconds, but it should normally be omitted in favor of the configured default and only raised for expected long-running installs/builds/tests or after a timeout.",
 		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
+		// Static SDK tool-runner ceiling. The real run_commands timeout is
+		// resolved per call from input.timeout ?? defaultTimeoutMs below.
 		timeoutMs: MAX_RUN_COMMANDS_TIMEOUT_MS,
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,

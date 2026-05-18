@@ -37,7 +37,11 @@ export function getEditorSizeError(input: EditFileInput): string | null {
  * Create a timeout-wrapped promise
  */
 export class TimeoutError extends Error {
-	readonly isTimeout = true;
+	/**
+	 * Shared brand for tool wrapper/executor timeouts. Use this when callers
+	 * need to distinguish real timeout failures from ordinary error text.
+	 */
+	readonly type = "timeout";
 }
 
 export function withTimeout<T>(
