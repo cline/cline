@@ -9,6 +9,7 @@ export type {
 } from "./models";
 export {
 	fetchModelsDevProviderModels,
+	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
