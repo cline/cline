@@ -283,6 +283,17 @@
 					"IS_DEV": "true"
 				}
 			}
+		},
+		{
+			"label": "build-sdk",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/sdk"
+			}
 		}
 	],
 	"inputs": [
