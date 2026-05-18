@@ -2,6 +2,10 @@
 
 An AI-powered code review dashboard for real GitHub pull requests. Paste a PR URL, inspect the actual changed files, stream an SDK-powered review over the real PR diff, and copy or optionally post the generated review.
 
+<p align="center">
+  <img src="./assets/dashboard.jpg" alt="Code Review Bot dashboard showing a loaded pull request diff" width="100%" />
+</p>
+
 ## Getting started
 
 Install dependencies:
