@@ -61,47 +61,46 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
-	it("enriches OpenAI Codex fallback models from the generated OpenAI catalog", async () => {
-		const models = await getModelsForProvider("openai-codex");
-		const modelIds = Object.keys(models);
-		const additionalOAuthModelIds = new Set([
-			"gpt-5.2",
-			"gpt-5.4",
-			"gpt-5.4-mini",
-		]);
+	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
+		const chatGptModels = await getModelsForProvider("openai-codex");
+		const openAiModels = await getModelsForProvider("openai-native");
+		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
 			expect.arrayContaining([
-				"gpt-5.1-codex-max",
+				"gpt-5.5",
+				"gpt-5.5-pro",
+				"gpt-5.2",
 				"gpt-5.3-codex",
+				"gpt-5.3-codex-spark",
 				"gpt-5.4",
 				"gpt-5.4-mini",
 			]),
 		);
-		expect(
-			modelIds.every(
-				(id) => id.includes("codex") || additionalOAuthModelIds.has(id),
-			),
-		).toBe(true);
-		expect(modelIds.filter((id) => !id.includes("codex")).sort()).toEqual([
-			"gpt-5.2",
-			"gpt-5.4",
-			"gpt-5.4-mini",
-		]);
-		expect(models["gpt-5.4"]).toEqual(
+		expect(modelIds).not.toContain("gpt-5.1-codex-max");
+		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(modelIds).not.toContain("o3");
+		expect(chatGptModels["gpt-5.5"]).toEqual(
+			expect.objectContaining({
+				...openAiModels["gpt-5.5"],
+				maxInputTokens: 272_000,
+				contextWindow: 400_000,
+			}),
+		);
+		expect(chatGptModels["gpt-5.4"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.4",
 				maxInputTokens: expect.any(Number),
 				contextWindow: expect.any(Number),
 			}),
 		);
-		expect(models["gpt-5.3-codex"]).toEqual(
+		expect(chatGptModels["gpt-5.3-codex"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.3 Codex",
 				maxInputTokens: expect.any(Number),
 				contextWindow: expect.any(Number),
 			}),
 		);
-		expect(models["gpt-5.4-nano"]).toBeUndefined();
 	});
 });

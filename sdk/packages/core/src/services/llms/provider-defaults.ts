@@ -174,7 +174,7 @@ async function mergeKnownModels(
 	if (providerId === "openai-codex") {
 		return Llms.sortModelsByReleaseDate({
 			...defaultKnownModels,
-			...liveModels,
+			...Llms.filterOpenAICodexModels(liveModels),
 			...publicModels,
 			...userKnownModels,
 		});
@@ -633,7 +633,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchModelsDevProviderModels(url);
+	return Llms.fetchModelsDevProviderModels(url, globalThis.fetch);
 }
 
 export async function getLiveModelsCatalog(
