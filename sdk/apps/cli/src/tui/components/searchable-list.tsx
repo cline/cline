@@ -89,7 +89,12 @@ export function buildSearchableListRows(
 				label: item.section,
 			});
 		}
-		rows.push({ kind: "item", key: item.key, item, itemIndex });
+		rows.push({
+			kind: "item",
+			key: `item-${itemIndex}-${item.key}`,
+			item,
+			itemIndex,
+		});
 		previousSection = item.section;
 	}
 	return rows;

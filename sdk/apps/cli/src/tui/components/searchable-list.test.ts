@@ -73,4 +73,23 @@ describe("searchable list sections", () => {
 			label: "Popular",
 		});
 	});
+
+	it("keeps render keys unique when items share the same backing path", () => {
+		const duplicatedPath =
+			"/Users/jaygohil/.agents/skills/find-skills/SKILL.md";
+
+		const rows = buildSearchableListRows([
+			{ key: duplicatedPath, label: "find-skills", section: "Global Skills" },
+			{
+				key: duplicatedPath,
+				label: "find-skills",
+				section: "Workspace Skills",
+			},
+		]);
+
+		expect(new Set(rows.map((row) => row.key)).size).toBe(rows.length);
+		expect(
+			rows.filter((row) => row.kind === "item").map((row) => row.item.key),
+		).toEqual([duplicatedPath, duplicatedPath]);
+	});
 });
