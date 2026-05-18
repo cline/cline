@@ -1,7 +1,10 @@
 import {
 	completeClineDeviceAuth,
+	getProviderConfigFields,
 	listLocalProviders,
 	loginLocalProvider,
+	type ProviderConfigFieldKey,
+	type ProviderConfigFieldRequirement,
 	ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
@@ -21,6 +24,12 @@ import {
 import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
 import { getProviderSection } from "../../utils/provider-sections";
+import {
+	getDefaultAwsRegion,
+	resolveProviderConfigAwsRegion,
+	updateProviderConfigValue,
+	type ProviderConfigValues,
+} from "../../utils/provider-config-values";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -302,22 +311,33 @@ export function UseExistingOrReconfigureContent(
 	);
 }
 
-type ProviderConfigFieldKey = "apiKey" | "baseUrl";
-
-const FIELD_LABELS: Record<ProviderConfigFieldKey, string> = {
+const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
+	awsRegion: "AWS Region",
+	awsProfile: "AWS Profile Name",
 };
 
-const FIELD_PLACEHOLDERS: Record<ProviderConfigFieldKey, string> = {
+const DEFAULT_FIELD_PLACEHOLDERS: Partial<
+	Record<ProviderConfigFieldKey, string>
+> = {
 	apiKey: "sk-...",
 	baseUrl: "",
+	awsRegion: "us-east-1",
+	awsProfile: "default",
 };
 
-export interface ProviderConfigInputFields {
-	apiKey?: { defaultValue?: string };
-	baseUrl?: { defaultValue?: string };
-}
+/** Render order for cycling focus with Tab. */
+const FIELD_ORDER: ProviderConfigFieldKey[] = [
+	"awsRegion",
+	"baseUrl",
+	"apiKey",
+	"awsProfile",
+];
+
+export type ProviderConfigInputFields = Partial<
+	Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
+>;
 
 /**
  * Single-purpose configure dialog: collects API key and (when applicable)
@@ -340,43 +360,59 @@ export function ProviderConfigInputContent(
 		dialogId,
 		providerId,
 		providerName,
-		fields,
 		providerSettingsManager,
 	} = props;
 
-	// Render order: base URL first (when present) so local-server users land
-	// on the actionable input. Cloud providers see just `apiKey`.
-	const fieldKeys = useMemo<ProviderConfigFieldKey[]>(() => {
-		const order: ProviderConfigFieldKey[] = ["baseUrl", "apiKey"];
-		return order.filter((key) => fields[key] !== undefined);
-	}, [fields]);
-
-	const [apiKey, setApiKey] = useState("");
-	const [baseUrl, setBaseUrl] = useState(
-		() =>
-			providerSettingsManager
-				.getProviderSettings(providerId)
-				?.baseUrl?.trim() ??
-			fields.baseUrl?.defaultValue ??
-			"",
+	const config = useMemo(
+		() => getProviderConfigFields(providerId),
+		[providerId],
+	);
+	const fieldKeys = useMemo<ProviderConfigFieldKey[]>(
+		() => FIELD_ORDER.filter((key) => config.fields[key] !== undefined),
+		[config],
 	);
 
-	const initialFocus = fieldKeys[0] ?? "apiKey";
-	const [focusedField, setFocusedField] =
-		useState<ProviderConfigFieldKey>(initialFocus);
+	const existingSettings =
+		providerSettingsManager.getProviderSettings(providerId);
+	const [values, setValues] = useState<ProviderConfigValues>(() => {
+		const initial: ProviderConfigValues = {};
+		if (config.fields.baseUrl) {
+			initial.baseUrl =
+				existingSettings?.baseUrl?.trim() ??
+				config.fields.baseUrl?.defaultValue ??
+				"";
+		}
+		if (config.fields.awsRegion) {
+			const ep = existingSettings?.aws?.profile?.trim() ?? "";
+			initial.awsRegion =
+				existingSettings?.aws?.region?.trim() || getDefaultAwsRegion(ep);
+		}
+		if (config.fields.apiKey)
+			initial.apiKey = existingSettings?.apiKey?.trim() ?? "";
+		if (config.fields.awsProfile)
+			initial.awsProfile = existingSettings?.aws?.profile?.trim() ?? "";
+		return initial;
+	});
 
-	const getValue = (key: ProviderConfigFieldKey): string =>
-		key === "apiKey" ? apiKey : baseUrl;
-	const setValue = (key: ProviderConfigFieldKey, value: string): void => {
-		if (key === "apiKey") setApiKey(value);
-		else setBaseUrl(value);
-	};
+	const [focusedField, setFocusedField] = useState<ProviderConfigFieldKey>(
+		() => fieldKeys[0] ?? "apiKey",
+	);
 
 	const submit = () => {
+		const apiKey = values.apiKey?.trim();
+		const awsProfile = values.awsProfile?.trim();
+		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
 		saveLocalProviderSettings(providerSettingsManager, {
 			providerId,
-			apiKey: fields.apiKey ? apiKey.trim() : undefined,
-			baseUrl: fields.baseUrl ? baseUrl.trim() : undefined,
+			apiKey: config.fields.apiKey ? apiKey : undefined,
+			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
+			aws: hasAwsFields
+				? {
+						region: resolveProviderConfigAwsRegion(values),
+						authentication: apiKey ? "api-key" : "profile",
+						profile: apiKey ? undefined : awsProfile || undefined,
+					}
+				: undefined,
 		});
 		resolve(true);
 	};
@@ -406,16 +442,20 @@ export function ProviderConfigInputContent(
 				<strong>{providerName}</strong>
 			</text>
 
+			{config.description && <text fg="gray">{config.description}</text>}
+
 			{fieldKeys.map((key) => {
-				const requirement = fields[key];
+				const requirement = config.fields[key];
 				if (!requirement) return null;
+				const label = requirement.label ?? DEFAULT_FIELD_LABELS[key] ?? key;
 				const placeholder =
-					key === "baseUrl" && requirement.defaultValue
+					requirement.placeholder ??
+					(key === "baseUrl" && requirement.defaultValue
 						? requirement.defaultValue
-						: FIELD_PLACEHOLDERS[key];
+						: (DEFAULT_FIELD_PLACEHOLDERS[key] ?? ""));
 				return (
 					<box key={key} flexDirection="column">
-						<text fg="gray">{FIELD_LABELS[key]}</text>
+						<text fg="gray">{label}</text>
 						<box
 							border
 							borderStyle="rounded"
@@ -423,8 +463,12 @@ export function ProviderConfigInputContent(
 							paddingX={1}
 						>
 							<input
-								value={getValue(key)}
-								onInput={(v: string) => setValue(key, v)}
+								value={values[key] ?? ""}
+								onInput={(v: string) =>
+									setValues((prev) =>
+										updateProviderConfigValue(prev, key, v),
+									)
+								}
 								placeholder={placeholder}
 								flexGrow={1}
 								focused={focusedField === key}

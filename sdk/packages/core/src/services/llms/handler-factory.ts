@@ -9,6 +9,53 @@ import type {
 } from "@cline/shared";
 import type { ProviderConfig } from "./provider-settings";
 
+function compactOptions(
+	options: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+	const compacted = Object.fromEntries(
+		Object.entries(options).filter(([, value]) => value !== undefined),
+	);
+	return Object.keys(compacted).length > 0 ? compacted : undefined;
+}
+
+function buildGatewayProviderOptions(
+	config: ProviderConfig,
+): Record<string, unknown> | undefined {
+	const options: Record<string, unknown> = {
+		region: config.region,
+		apiLine: config.apiLine,
+		openRouterProviderSorting: config.openRouterProviderSorting,
+		modelCatalog: config.modelCatalog,
+	};
+
+	if (config.providerId === "bedrock") {
+		Object.assign(options, {
+			authentication: config.aws?.authentication,
+			profile: config.aws?.profile,
+			accessKeyId: config.aws?.accessKey,
+			secretAccessKey: config.aws?.secretKey,
+			sessionToken: config.aws?.sessionToken,
+			usePromptCache: config.aws?.usePromptCache,
+			useCrossRegionInference: config.useCrossRegionInference,
+			useGlobalInference: config.useGlobalInference,
+			endpoint: config.aws?.endpoint,
+			customModelBaseId: config.aws?.customModelBaseId,
+		});
+	}
+
+	if (config.providerId === "vertex") {
+		const gcpRegion = config.gcp?.region ?? config.region;
+		Object.assign(options, {
+			project: config.gcp?.projectId,
+			projectId: config.gcp?.projectId,
+			location: gcpRegion,
+			region: gcpRegion,
+		});
+	}
+
+	return compactOptions(options);
+}
+
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
@@ -105,6 +152,7 @@ export function createAgentModelFromConfig(
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
+				options: buildGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
 							([id, model]) => toGatewayConfiguredModel(id, model),
