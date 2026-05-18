@@ -59,19 +59,23 @@ jobs:
 
       - name: Determine publish channel
         id: channel
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
         run: |
           # Default to nightly for scheduled runs
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "$EVENT_NAME" = "schedule" ]; then
             echo "channel=nightly" >> $GITHUB_OUTPUT
           else
-            echo "channel=${{ inputs.channel }}" >> $GITHUB_OUTPUT
+            echo "channel=$INPUT_CHANNEL" >> $GITHUB_OUTPUT
           fi
 
       - name: Check for recent commits
         id: check_commits
+        env:
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          FORCE_PUBLISH: ${{ inputs.force_publish }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-
           # Always publish for latest (production) releases
           if [ "$CHANNEL" = "latest" ]; then
             echo "Production release requested, proceeding with publish"
@@ -79,7 +83,7 @@ jobs:
             exit 0
           fi
 
-          if [ "${{ inputs.force_publish }}" = "true" ]; then
+          if [ "$FORCE_PUBLISH" = "true" ]; then
             echo "force_publish enabled, proceeding with publish"
             echo "skip=false" >> $GITHUB_OUTPUT
             exit 0
@@ -141,8 +145,9 @@ jobs:
       - name: Generate shared version
         if: steps.check_commits.outputs.skip != 'true'
         id: version
+        env:
+          CHANNEL: ${{ steps.channel.outputs.channel }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
           BASE_VERSION=$(node -p "require('./packages/llms/package.json').version")
 
           if [ "$CHANNEL" = "nightly" ]; then
@@ -159,7 +164,9 @@ jobs:
 
       - name: Update all package versions and lockfile
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun scripts/version.ts "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/version.ts "$VERSION"
 
       - name: Verify publishability
         if: steps.check_commits.outputs.skip != 'true'
@@ -176,9 +183,10 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-          echo "Publishing @cline/shared@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          echo "Publishing @cline/shared@${VERSION} with tag '${CHANNEL}'..."
           cd packages/shared
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
@@ -187,9 +195,10 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-          echo "Publishing @cline/llms@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          echo "Publishing @cline/llms@${VERSION} with tag '${CHANNEL}'..."
           cd packages/llms
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
@@ -198,9 +207,10 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-          echo "Publishing @cline/agents@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          echo "Publishing @cline/agents@${VERSION} with tag '${CHANNEL}'..."
           cd packages/agents
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
@@ -209,9 +219,10 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-          echo "Publishing @cline/core@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          echo "Publishing @cline/core@${VERSION} with tag '${CHANNEL}'..."
           cd packages/core
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
@@ -220,18 +231,19 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-          echo "Publishing @cline/sdk@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          echo "Publishing @cline/sdk@${VERSION} with tag '${CHANNEL}'..."
           cd packages/sdk
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
       - name: Create package tags for production publish
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -250,9 +262,10 @@ jobs:
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ steps.channel.outputs.channel }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Published SDK packages with tag '${CHANNEL}':"
           echo "  - @cline/shared@${VERSION}"
           echo "  - @cline/llms@${VERSION}"
