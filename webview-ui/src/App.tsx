@@ -97,6 +97,10 @@ const AppContent = () => {
 		return null
 	}
 
+	if (showWelcome && showSettings) {
+		return <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />
+	}
+
 	if (showWelcome) {
 		return <OnboardingView />
 	}
