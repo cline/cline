@@ -89,12 +89,12 @@ jobs:
                       webview-ui/package-lock.json
 
             - name: Install root dependencies
-              run: npm ci
+              run: npm ci --include=optional
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              run: cd webview-ui && npm ci --include=optional
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -127,12 +127,12 @@ jobs:
                       webview-ui/package-lock.json
 
             - name: Install root dependencies
-              run: npm ci
+              run: npm ci --include=optional
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              run: cd webview-ui && npm ci --include=optional
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -223,12 +223,12 @@ jobs:
                       testing-platform/package-lock.json
 
             - name: Install root dependencies
-              run: npm ci
+              run: npm ci --include=optional
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              run: cd webview-ui && npm ci --include=optional
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
@@ -237,7 +237,7 @@ jobs:
               run: npm run compile-standalone
 
             - name: Install testing platform dependencies
-              run: cd testing-platform && npm ci
+              run: cd testing-platform && npm ci --include=optional
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
