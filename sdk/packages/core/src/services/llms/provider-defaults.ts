@@ -1,7 +1,6 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: static */
 
 import * as Llms from "@cline/llms";
-import { decodeJwtPayload } from "../../auth/utils";
 import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
@@ -176,7 +175,6 @@ async function mergeKnownModels(
 		return Llms.sortModelsByReleaseDate({
 			...defaultKnownModels,
 			...liveModels,
-			...privateModels,
 			...publicModels,
 			...userKnownModels,
 		});
@@ -232,34 +230,6 @@ function resolvePrivateCacheKey(
 	config: ProviderConfig,
 ): string {
 	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}:${fingerprint(resolveAuthToken(config) ?? "")}`;
-}
-
-function deriveOpenAICodexAccountId(
-	accessToken: string | undefined,
-): string | undefined {
-	const trimmed = accessToken?.trim();
-	if (!trimmed) {
-		return undefined;
-	}
-	const payload = decodeJwtPayload(trimmed) as {
-		"https://api.openai.com/auth"?: { chatgpt_account_id?: string };
-		organizations?: Array<{ id?: string }>;
-		chatgpt_account_id?: string;
-	} | null;
-	const authAccountId =
-		payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
-	if (typeof authAccountId === "string" && authAccountId.length > 0) {
-		return authAccountId;
-	}
-	const orgAccountId = payload?.organizations?.[0]?.id;
-	if (typeof orgAccountId === "string" && orgAccountId.length > 0) {
-		return orgAccountId;
-	}
-	const rootAccountId = payload?.chatgpt_account_id;
-	if (typeof rootAccountId === "string" && rootAccountId.length > 0) {
-		return rootAccountId;
-	}
-	return undefined;
 }
 
 async function fetchWithTimeout(
@@ -327,23 +297,6 @@ function buildModelFromPrivateSource(
 		releaseDate: input.releaseDate,
 		status: "active",
 	};
-}
-
-function buildOpenAICodexPrivateModelInfo(
-	model: Llms.OpenAICodexListedModel,
-): ModelInfo {
-	const generated =
-		Llms.getGeneratedModelsForProvider("openai-native")[model.id];
-	if (generated) {
-		return {
-			...generated,
-			id: model.id,
-			name: model.name ?? generated.name ?? model.id,
-		};
-	}
-	return buildModelFromPrivateSource(model.id, {
-		name: model.name ?? model.id,
-	});
 }
 
 interface BasetenModelResponse {
@@ -522,33 +475,6 @@ async function fetchLiteLlmPrivateModels(
 	return models;
 }
 
-async function fetchOpenAICodexPrivateModels(
-	config: ProviderConfig,
-	token: string,
-): Promise<Record<string, ModelInfo>> {
-	const models = await Llms.listOpenAICodexModels({
-		accessToken: token,
-		accountId: config.accountId ?? deriveOpenAICodexAccountId(token),
-		cwd:
-			typeof config.codex?.defaultSettings?.cwd === "string"
-				? config.codex.defaultSettings.cwd
-				: undefined,
-		codexPath:
-			typeof config.codex?.defaultSettings?.codexPath === "string"
-				? config.codex.defaultSettings.codexPath
-				: undefined,
-		env:
-			config.codex?.defaultSettings?.env &&
-			typeof config.codex.defaultSettings.env === "object" &&
-			!Array.isArray(config.codex.defaultSettings.env)
-				? (config.codex.defaultSettings.env as Record<string, string>)
-				: undefined,
-	});
-	return Object.fromEntries(
-		models.map((model) => [model.id, buildOpenAICodexPrivateModelInfo(model)]),
-	);
-}
-
 type PrivateProviderModelFetcher = (
 	config: ProviderConfig,
 	token: string,
@@ -561,7 +487,6 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
-	"openai-codex": fetchOpenAICodexPrivateModels,
 };
 
 const PUBLIC_MODELS_CACHE = new Map<

@@ -103,15 +103,10 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
 
-	it("merges OpenAI Codex account models into the ChatGPT OAuth fallback list", async () => {
+	it("does not spawn Codex app-server while resolving ChatGPT OAuth models", async () => {
 		const listModels = vi
 			.spyOn(Llms, "listOpenAICodexModels")
-			.mockResolvedValue([
-				{ id: "gpt-5.3-codex", name: "GPT-5.3 Codex" },
-				{ id: "gpt-5.4", name: "GPT-5.4" },
-				{ id: "gpt-5.4-mini", name: "gpt-5.4-mini" },
-				{ id: "account-only-codex", name: "Account Only Codex" },
-			]);
+			.mockRejectedValue(new Error("should not be called"));
 
 		const resolved = await resolveProviderConfig(
 			"openai-codex",
@@ -124,15 +119,9 @@ describe("resolveProviderConfig", () => {
 			},
 		);
 
-		expect(listModels).toHaveBeenCalledWith(
-			expect.objectContaining({
-				accessToken: "oauth-token",
-				accountId: "acct_123",
-			}),
-		);
+		expect(listModels).not.toHaveBeenCalled();
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
 			expect.arrayContaining([
-				"account-only-codex",
 				"gpt-5.1-codex-max",
 				"gpt-5.2",
 				"gpt-5.3-codex",
@@ -142,7 +131,7 @@ describe("resolveProviderConfig", () => {
 		);
 		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
 			expect.objectContaining({
-				name: "gpt-5.4-mini",
+				name: "GPT-5.4 mini",
 				maxInputTokens: 272_000,
 				contextWindow: 400_000,
 			}),
