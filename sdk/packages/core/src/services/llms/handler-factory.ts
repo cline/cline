@@ -75,6 +75,31 @@ function toGatewayConfiguredModel(
 	};
 }
 
+function compactOptions(options: Record<string, unknown>) {
+	const entries = Object.entries(options).filter(
+		([, value]) => value !== undefined,
+	);
+	return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+function toGatewayBedrockOptions(
+	config: ProviderConfig,
+): Record<string, unknown> | undefined {
+	if (config.providerId !== "bedrock") {
+		return undefined;
+	}
+
+	return compactOptions({
+		region: config.region,
+		authentication: config.aws?.authentication,
+		profile: config.aws?.profile,
+		accessKeyId: config.aws?.accessKey,
+		secretAccessKey: config.aws?.secretKey,
+		sessionToken: config.aws?.sessionToken,
+		endpoint: config.aws?.endpoint,
+	});
+}
+
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
@@ -105,6 +130,7 @@ export function createAgentModelFromConfig(
 				apiKey: normalizedProviderConfig.apiKey,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
+				options: toGatewayBedrockOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
 							([id, model]) => toGatewayConfiguredModel(id, model),

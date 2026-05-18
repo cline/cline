@@ -82,6 +82,52 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards provider-specific options into the gateway config", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "bedrock",
+				modelId: "anthropic.claude-opus-4-7",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "bedrock",
+					modelId: "anthropic.claude-opus-4-7",
+					region: "us-east-1",
+					aws: {
+						authentication: "profile",
+						profile: "default",
+						accessKey: "access-key",
+						secretKey: "secret-key",
+						sessionToken: "session-token",
+						endpoint: "https://bedrock-runtime.us-east-1.amazonaws.com",
+					},
+				},
+			} satisfies AgentConfig,
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "bedrock",
+						options: {
+							region: "us-east-1",
+							authentication: "profile",
+							profile: "default",
+							accessKeyId: "access-key",
+							secretAccessKey: "secret-key",
+							sessionToken: "session-token",
+							endpoint: "https://bedrock-runtime.us-east-1.amazonaws.com",
+						},
+					}),
+				],
+			}),
+		);
+	});
+
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
