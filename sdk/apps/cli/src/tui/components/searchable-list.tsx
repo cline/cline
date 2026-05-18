@@ -289,7 +289,7 @@ export function SearchableList(props: {
 						const isSel = row.itemIndex === safeSelected;
 						return (
 							<box
-								key={item.key}
+								key={row.key}
 								paddingX={1}
 								flexDirection="row"
 								gap={1}
