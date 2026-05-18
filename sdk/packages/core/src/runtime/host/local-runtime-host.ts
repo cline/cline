@@ -559,6 +559,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
+			lastInteractiveTurnFinishReason: undefined,
 		};
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
@@ -747,6 +748,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await this.releaseSessionRuntime(session, "session_stop");
 			return;
 		}
+		if (session.interactive && session.agent.canStartRun()) {
+			await this.shutdownSession(session, {
+				status: this.resolveInteractiveStopStatus(session),
+				exitCode: this.resolveInteractiveStopExitCode(session),
+				shutdownReason: "session_stop",
+				endReason: "stopped",
+			});
+			return;
+		}
 		// Abort the agent first if it's running, so shutdown can proceed
 		session.aborting = true;
 		session.agent.abort(new Error("session_stop"));
@@ -765,6 +775,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessions.map((session) =>
 				session.interactive && session.status !== "running"
 					? this.releaseSessionRuntime(session, reason)
+					: session.interactive && session.agent.canStartRun()
+						? this.shutdownSession(session, {
+								status: this.resolveInteractiveStopStatus(session),
+								exitCode: this.resolveInteractiveStopExitCode(session),
+								shutdownReason: reason,
+								endReason: "disposed",
+							})
 					: this.shutdownSession(session, {
 							status: "cancelled",
 							exitCode: 0,
@@ -945,22 +962,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
-		const isAborted = finishReason === "aborted" || session.aborting;
-		const isError = finishReason === "error";
-		await this.updateStatus(
-			session,
-			isAborted ? "cancelled" : isError ? "failed" : "completed",
-			isError ? 1 : 0,
-		);
-		this.emit({
-			type: "ended",
-			payload: {
-				sessionId: session.sessionId,
-				reason: finishReason,
-				ts: Date.now(),
-			},
-		});
+		session.lastInteractiveTurnFinishReason = finishReason;
+		await this.markTurnRunning(session);
 		session.aborting = false;
+	}
+
+	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
+		switch (session.lastInteractiveTurnFinishReason) {
+			case "completed":
+				return "completed";
+			case "error":
+				return "failed";
+			case "aborted":
+			case "max_iterations":
+			case "mistake_limit":
+			default:
+				return "cancelled";
+		}
+	}
+
+	private resolveInteractiveStopExitCode(session: ActiveSession): number {
+		return session.lastInteractiveTurnFinishReason === "error" ? 1 : 0;
 	}
 
 	private async completeAbortedInteractiveTurn(

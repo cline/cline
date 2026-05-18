@@ -1097,7 +1097,86 @@ describe("HubRuntimeHost", () => {
 			version: 1,
 			event: "run.aborted",
 			sessionId: "sess-1",
-			payload: {},
+			payload: {
+				snapshot: {
+					version: 1,
+					sessionId: "sess-1",
+					status: "running",
+					interactive: true,
+				},
+			},
+		});
+
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: expect.objectContaining({
+							type: "done",
+							reason: "aborted",
+						}),
+					}),
+				}),
+			]),
+		);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "ended",
+				payload: expect.objectContaining({ sessionId: "sess-1" }),
+			}),
+		);
+	});
+
+	it("emits ended for terminal interactive hub run events", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "run.aborted";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "run.aborted",
+			sessionId: "sess-1",
+			payload: {
+				snapshot: {
+					version: 1,
+					sessionId: "sess-1",
+					status: "cancelled",
+					interactive: true,
+				},
+			},
 		});
 
 		expect(events).toEqual(

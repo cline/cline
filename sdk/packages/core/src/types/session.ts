@@ -35,6 +35,12 @@ export type ActiveSession = {
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;
 	turnUsageByAgent?: Map<string, SessionAccumulatedUsage>;
+	lastInteractiveTurnFinishReason?:
+		| "completed"
+		| "aborted"
+		| "error"
+		| "max_iterations"
+		| "mistake_limit";
 	/**
 	 * Set to `true` once the assistant successfully invoked the canonical
 	 * completion tool (`submit_and_exit`) for this session. Used to:

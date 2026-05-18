@@ -1671,6 +1671,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "run.completed":
 			case "run.failed":
 			case "run.aborted": {
+				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const reason =
 					typeof event.payload?.reason === "string"
 						? event.payload.reason
@@ -1686,6 +1687,9 @@ export class HubRuntimeHost implements RuntimeHost {
 						reason,
 					},
 				});
+				if (snapshot?.interactive === true && snapshot.status === "running") {
+					return;
+				}
 				this.events.emit({
 					type: "ended",
 					payload: {
