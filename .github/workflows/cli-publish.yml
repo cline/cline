@@ -180,8 +180,9 @@ jobs:
 
       - name: Get Previous CLI Tag
         id: prev_tag
+        env:
+          CURRENT_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          CURRENT_TAG="${{ steps.version.outputs.tag }}"
           PREV_TAG=$(git describe --tags --abbrev=0 --match 'cli-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
@@ -206,8 +207,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "Published cline@${VERSION} to npm with dist-tag 'latest'"
           echo "Install with: npm install -g cline"
 
@@ -330,8 +332,9 @@ jobs:
 
       - name: Update nightly package version
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           node -e '
             const fs = require("node:fs");
             const path = "apps/cli/package.json";
@@ -340,8 +343,6 @@ jobs:
             fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
           '
           cat apps/cli/package.json | grep '"version"'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
@@ -350,8 +351,9 @@ jobs:
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           EXPECTED=(
             "@cline/cli-darwin-arm64"
             "@cline/cli-darwin-x64"
@@ -389,7 +391,8 @@ jobs:
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "Published cline@${VERSION} to npm with dist-tag 'nightly'"
           echo "Install with: npm install -g cline@nightly"
