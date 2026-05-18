@@ -79,7 +79,6 @@ const GLOBAL_STATE_FIELDS = {
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
-	cliKanbanMigrationAnnouncementShown: { default: false as boolean },
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
 	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },
 	primaryRootIndex: { default: 0 as number },
