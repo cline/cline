@@ -10,6 +10,7 @@ import {
 	getDefaultModelIdForProvider,
 	getHistoryItemById,
 	normalizeProviderReasoningSettings,
+	normalizeSdkBaseUrl,
 	updateHistoryItem,
 } from "./cline-session-factory"
 
@@ -140,6 +141,27 @@ describe("buildResumeSessionInput", () => {
 
 		expect(result.userImages).toEqual(["img.png"])
 		expect(result.userFiles).toEqual(["file.ts"])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// normalizeSdkBaseUrl
+// ---------------------------------------------------------------------------
+
+describe("normalizeSdkBaseUrl", () => {
+	it("treats blank base URLs as unset so SDK provider defaults can apply", () => {
+		expect(normalizeSdkBaseUrl("openai-compatible", "")).toBeUndefined()
+		expect(normalizeSdkBaseUrl("openai-compatible", "   ")).toBeUndefined()
+	})
+
+	it("uses provider catalog defaults to add the SDK endpoint path when the user supplies only an origin", () => {
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434")).toBe("http://localhost:11434/v1")
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/")).toBe("http://localhost:11434/v1")
+		expect(normalizeSdkBaseUrl("ollama", "http://localhost:11434/v1")).toBe("http://localhost:11434/v1")
+	})
+
+	it("preserves explicit user paths", () => {
+		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
 })
 

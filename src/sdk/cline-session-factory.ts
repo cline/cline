@@ -345,6 +345,38 @@ function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration
 /**
  * Resolve the base URL for a given provider from the ApiConfiguration.
  */
+export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): string | undefined {
+	if (typeof baseUrl !== "string") {
+		return undefined
+	}
+
+	const trimmed = baseUrl.trim()
+	if (!trimmed) {
+		return undefined
+	}
+
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.baseUrl
+	if (!providerDefaultBaseUrl) {
+		return trimmed
+	}
+
+	try {
+		const configuredUrl = new URL(trimmed)
+		const defaultUrl = new URL(providerDefaultBaseUrl)
+		const configuredHasPath = configuredUrl.pathname !== "/"
+		const defaultHasPath = defaultUrl.pathname !== "/"
+
+		if (!configuredHasPath && defaultHasPath) {
+			configuredUrl.pathname = defaultUrl.pathname
+			return configuredUrl.toString().replace(/\/$/, "")
+		}
+	} catch {
+		return trimmed
+	}
+
+	return trimmed
+}
+
 function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -361,7 +393,7 @@ function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | 
 
 	const field = baseUrlMap[providerId]
 	if (field) {
-		return config[field] as string | undefined
+		return normalizeSdkBaseUrl(providerId, config[field])
 	}
 
 	return undefined
