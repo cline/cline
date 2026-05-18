@@ -47,7 +47,7 @@ if (!target || !["sdk", "cli"].includes(target)) {
 	console.error("");
 	console.error("Targets:");
 	console.error("  sdk   Publish @cline/{shared,llms,agents,core,sdk} to npm");
-	console.error("  cli   Publish cline from an existing cli-vX.Y.Z git tag");
+	console.error("  cli   Publish cline from an existing vX.Y.Z-cli git tag");
 	console.error("");
 	console.error("Options:");
 	console.error(
@@ -235,7 +235,7 @@ async function ensureCleanWorkingTree(): Promise<void> {
 }
 
 async function ensureCliReleaseTag(version: string): Promise<void> {
-	const expectedTag = `cli-v${version}`;
+	const expectedTag = `v${version}-cli`;
 	if (dryRun) {
 		console.log(`  [dry-run] Required pushed git tag: ${expectedTag}`);
 		return;
@@ -400,19 +400,35 @@ async function releaseSDK(version: string): Promise<number> {
 	// Step 5: Git tag
 	if (npmTag === "latest" && !skipGitTags) {
 		header("Step 5/5: Creating git tag");
-		const gitTag = `sdk-v${version}`;
-		console.log(`  Creating tag: ${gitTag}`);
-		await run(["git", "tag", "-a", gitTag, "-m", `SDK v${version}`]);
+		const gitTags = SDK_PUBLISH_ORDER.map(
+			(workspace) => `v${version}-sdk-${workspace}`,
+		);
+		console.log(`  Creating tags: ${gitTags.join(", ")}`);
+		for (const workspace of SDK_PUBLISH_ORDER) {
+			const gitTag = `v${version}-sdk-${workspace}`;
+			await run([
+				"git",
+				"tag",
+				"-a",
+				gitTag,
+				"-m",
+				`@cline/${workspace}@${version}`,
+			]);
+		}
 
 		if (!dryRun) {
 			const pushOk = await confirm(
-				"\nPush tag to remote? This makes the release public.",
+				"\nPush tags to remote? This makes the release public.",
 			);
 			if (pushOk) {
-				await run(["git", "push", "origin", `refs/tags/${gitTag}`]);
+				for (const gitTag of gitTags) {
+					await run(["git", "push", "origin", `refs/tags/${gitTag}`]);
+				}
 			} else {
-				console.log(`  Skipped pushing tag. Push manually with:`);
-				console.log(`    git push origin refs/tags/${gitTag}`);
+				console.log("  Skipped pushing tags. Push manually with:");
+				for (const gitTag of gitTags) {
+					console.log(`    git push origin refs/tags/${gitTag}`);
+				}
 			}
 		}
 	} else if (skipGitTags) {
@@ -443,7 +459,7 @@ async function releaseSDK(version: string): Promise<number> {
 async function releaseCLI(version: string): Promise<number> {
 	console.log(`\nRelease CLI`);
 	console.log(`  Version:     ${version}`);
-	console.log(`  Git tag:     cli-v${version}`);
+	console.log(`  Git tag:     v${version}-cli`);
 	console.log(`  Tag:         ${npmTag}`);
 	console.log(`  Dry run:     ${dryRun}`);
 	console.log(`  Skip tests:  ${skipTests}`);

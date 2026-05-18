@@ -91,7 +91,7 @@ Additional SDK flags: `--skip-tests`, `--skip-git-tags`.
 
 The script checks out `main` (and pulls latest) before starting. If the working tree is dirty it aborts.
 
-The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core) → optional `sdk-v{VERSION}` tag creation.
+The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core) → optional `v{VERSION}-sdk-{PACKAGE}` tag creation.
 
 ### CLI Release
 
@@ -101,7 +101,7 @@ Under the hood, every release starts the same way: prepare one release commit, t
 
 Prepare the release commit from the code you want to release:
 
-1. Draft user-facing release notes from the commits since the last `cli-vX.Y.Z` tag.
+1. Draft user-facing release notes from the commits since the last `vX.Y.Z-cli` tag.
 2. Choose the release version.
 3. Update `apps/cli/package.json`.
 4. Add the approved notes to `apps/cli/CHANGELOG.md`.
@@ -115,12 +115,12 @@ Path A: publish from GitHub Actions.
 Use this for normal releases. Merge the release commit to `main`, create and push the matching release tag, then run:
 
 ```sh
-git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
-git push origin refs/tags/cli-vX.Y.Z
-gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+git tag -a vX.Y.Z-cli -m "CLI vX.Y.Z"
+git push origin refs/tags/vX.Y.Z-cli
+gh workflow run cli-publish.yml -f publish_target=main -f git_tag=vX.Y.Z-cli -f confirm_publish=publish
 ```
 
-The workflow checks out the provided `cli-vX.Y.Z` tag, verifies it matches `apps/cli/package.json`, builds the platform packages, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
+The workflow checks out the provided `vX.Y.Z-cli` tag, verifies it matches `apps/cli/package.json`, builds the platform packages, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
 
 Path B: publish locally.
 
@@ -129,13 +129,13 @@ Use this when publishing from an authenticated local machine. Start from a clean
 ```sh
 gh auth status
 npm whoami
-git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
-git push origin refs/tags/cli-vX.Y.Z
+git tag -a vX.Y.Z-cli -m "CLI vX.Y.Z"
+git push origin refs/tags/vX.Y.Z-cli
 bun release cli
-gh release create cli-vX.Y.Z --verify-tag --title "CLI vX.Y.Z" --notes "Paste the approved release notes here."
+gh release create vX.Y.Z-cli --verify-tag --title "CLI vX.Y.Z" --notes "Paste the approved release notes here."
 ```
 
-The local helper verifies the working tree is clean, verifies `cli-vX.Y.Z` points at `HEAD` locally and on `origin`, runs tests, builds platform packages, and publishes to npm.
+The local helper verifies the working tree is clean, verifies `vX.Y.Z-cli` points at `HEAD` locally and on `origin`, runs tests, builds platform packages, and publishes to npm.
 
 Nightly release:
 
@@ -143,7 +143,7 @@ Nightly release:
 gh workflow run cli-publish.yml -f publish_target=nightly
 ```
 
-Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
+Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag, creates a `vX.Y.Z-cli-nightly.TIMESTAMP` git tag, and skips if there were no commits in the last 24 hours unless forced.
 
 ### Manual SDK Publish
 
@@ -158,7 +158,7 @@ If you need fine-grained control over individual steps:
    ```sh
    cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish && cd ../../
    ```
-7. For tagged production releases, create and push a git tag: `git tag -a sdk-v{VERSION} -m "SDK v{VERSION}" && git push origin sdk-v{VERSION}`.
+7. For tagged production releases, create and push package tags such as `v{VERSION}-sdk-shared`, `v{VERSION}-sdk-llms`, `v{VERSION}-sdk-agents`, `v{VERSION}-sdk-core`, and `v{VERSION}-sdk-sdk`.
 
 ### Workspace Dependency Rules
 

@@ -61,6 +61,12 @@ jobs:
       - name: Install Publishing Tools
         run: npm install -g @vscode/vsce ovsx
 
+      - name: Capture base version
+        id: base_version
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Verify LFS media assets are resolved
         run: |
           for FILE in webview-ui/src/assets/cline_kanban_demo.mp4 webview-ui/src/assets/cline_kanban_demo.webm; do
@@ -90,14 +96,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          SAFE_REF=$(echo "$GITHUB_REF_NAME" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9._-')
-          SHORT_SHA=$(git rev-parse --short=12 HEAD)
+          BASE_VERSION="${{ steps.base_version.outputs.base_version }}"
           TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
-          TAG="nightly-${SAFE_REF}-${TIMESTAMP}-${SHORT_SHA}"
+          TAG="v${BASE_VERSION}-vscode-nightly.${TIMESTAMP}"
 
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Cline Nightly published from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "VS Code nightly from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
           # Use an explicit HTTPS remote with GH_TOKEN because checkout was run with
           # persist-credentials: false, so actions/checkout did not persist a git credential helper.
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"

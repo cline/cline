@@ -17,7 +17,7 @@ on:
                 default: true
                 type: boolean
             tag:
-                description: "Tag to publish (required in both modes, e.g., v3.1.2)"
+                description: "Tag to publish (required in both modes, e.g., v3.1.2-vscode)"
                 required: true
                 type: string
 
@@ -59,8 +59,8 @@ jobs:
                     exit 1
                   fi
 
-                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
-                    echo "Error: tag must match vX.Y.Z (optionally with -suffix or .suffix)"
+                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-vscode$ ]]; then
+                    echo "Error: tag must match vX.Y.Z-vscode"
                     exit 1
                   fi
                   TAG_REF="refs/tags/$TAG"
@@ -88,8 +88,8 @@ jobs:
                       echo "Tag '$TAG' already exists at tested SHA. Continuing."
                     else
                       git config user.name "github-actions[bot]"
-                      git config user.email "github-actions[bot]@users.noreply.github.com"
-                      git tag "$TAG" "$TESTED_SHA"
+                      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                      git tag -a "$TAG" -m "VS Code ${TAG}" "$TESTED_SHA"
                       git push origin "$TAG_REF"
                       echo "Created and pushed tag '$TAG' from tested SHA $TESTED_SHA."
                     fi
@@ -128,8 +128,10 @@ jobs:
             - name: Verify Tag Matches Package Version
               run: |
                   TAG="${{ steps.resolve_tag.outputs.tag }}"
-                  VERSION="v${{ steps.get_version.outputs.version }}"
-                  if [[ "$TAG" != "$VERSION" ]]; then
+                  TAG_VERSION="${TAG#v}"
+                  TAG_VERSION="${TAG_VERSION%-vscode}"
+                  VERSION="${{ steps.get_version.outputs.version }}"
+                  if [[ "$TAG_VERSION" != "$VERSION" ]]; then
                     echo "Error: tag '$TAG' does not match package version '$VERSION'"
                     exit 1
                   fi
@@ -182,7 +184,13 @@ jobs:
               id: prev_tag
               run: |
                   CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
-                  PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || echo "")
+                  PREV_TAG=$(git describe --tags --abbrev=0 --match 'v*-vscode' "$CURRENT_TAG^" 2>/dev/null || true)
+                  if [[ -z "$PREV_TAG" ]]; then
+                    # Migration fallback for old VS Code releases, which used plain vX.Y.Z tags.
+                    # Exclude all hyphenated tags so CLI, SDK package, and nightly tags cannot
+                    # become the changelog baseline.
+                    PREV_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*-*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+                  fi
                   echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
             - name: Get Changelog Entry

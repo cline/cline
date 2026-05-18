@@ -56,6 +56,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Determine publish channel
         id: channel
@@ -155,6 +158,7 @@ jobs:
           echo "Base version: $BASE_VERSION"
           echo "Channel: $CHANNEL"
           echo "Publish version: $VERSION"
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update all package versions and lockfile
@@ -236,7 +240,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           for PKG in shared llms agents core sdk; do
-            TAG="sdk/${PKG}/v${VERSION}"
+            TAG="v${VERSION}-sdk-${PKG}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"
             else
@@ -244,9 +248,23 @@ jobs:
               echo "Created tag: ${TAG}"
             fi
 
-            # Ensure remote has the tag; this is idempotent if tag already exists remotely.
             git push origin "refs/tags/${TAG}"
           done
+
+      - name: Create nightly git tag
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'nightly'
+        run: |
+          BASE_VERSION="${{ steps.version.outputs.base_version }}"
+          NIGHTLY_VERSION="${{ steps.version.outputs.version }}"
+          TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
+          TAG="v${BASE_VERSION}-sdk-nightly.${TIMESTAMP}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "SDK nightly ${NIGHTLY_VERSION} from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
+          git push origin "refs/tags/${TAG}"
+
+          echo "Tagged published commit: $TAG"
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
@@ -261,9 +279,9 @@ jobs:
           echo "  - @cline/sdk@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
             echo "Created git tags:"
-            echo "  - sdk/shared/v${VERSION}"
-            echo "  - sdk/llms/v${VERSION}"
-            echo "  - sdk/agents/v${VERSION}"
-            echo "  - sdk/core/v${VERSION}"
-            echo "  - sdk/sdk/v${VERSION}"
+            echo "  - v${VERSION}-sdk-shared"
+            echo "  - v${VERSION}-sdk-llms"
+            echo "  - v${VERSION}-sdk-agents"
+            echo "  - v${VERSION}-sdk-core"
+            echo "  - v${VERSION}-sdk-sdk"
           fi

@@ -14,7 +14,7 @@ on:
           - main
           - nightly
       git_tag:
-        description: "Existing release tag to publish when publish_target=main, for example cli-v0.1.0"
+        description: "Existing release tag to publish when publish_target=main, for example v0.1.0-cli"
         required: false
         type: string
       confirm_publish:
@@ -96,12 +96,13 @@ jobs:
             exit 1
           fi
 
-          if ! printf "%s\n" "$TAG" | grep -Eq '^cli-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "git_tag must look like cli-vX.Y.Z, got: ${TAG}"
+          if ! printf "%s\n" "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+-cli$'; then
+            echo "git_tag must look like vX.Y.Z-cli, got: ${TAG}"
             exit 1
           fi
 
-          VERSION="${TAG#cli-v}"
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%-cli}"
           PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
@@ -181,7 +182,18 @@ jobs:
         id: prev_tag
         run: |
           CURRENT_TAG="${{ steps.version.outputs.tag }}"
-          PREV_TAG=$(git describe --tags --abbrev=0 --match 'cli-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          NEW_STYLE_PREV=$(git describe --tags --abbrev=0 --match 'v*-cli' "$CURRENT_TAG^" 2>/dev/null || true)
+          LEGACY_PREV=$(git describe --tags --abbrev=0 --match 'cli-v*' "$CURRENT_TAG^" 2>/dev/null || true)
+
+          PREV_TAG="$NEW_STYLE_PREV"
+          if [ -n "$NEW_STYLE_PREV" ] && [ -n "$LEGACY_PREV" ]; then
+            if git merge-base --is-ancestor "${NEW_STYLE_PREV}^{commit}" "${LEGACY_PREV}^{commit}"; then
+              PREV_TAG="$LEGACY_PREV"
+            fi
+          elif [ -z "$PREV_TAG" ]; then
+            PREV_TAG="$LEGACY_PREV"
+          fi
+
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Get Changelog Entry
@@ -235,7 +247,7 @@ jobs:
   publish-nightly:
     name: Publish cline nightly
     permissions:
-      contents: read
+      contents: write
       id-token: write
     if: |
       github.repository == 'cline/cline' &&
@@ -385,6 +397,21 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag nightly
         working-directory: sdk/apps/cli
+
+      - name: Create nightly git tag
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          BASE_VERSION="${{ steps.version.outputs.base_version }}"
+          NIGHTLY_VERSION="${{ steps.version.outputs.version }}"
+          TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
+          TAG="v${BASE_VERSION}-cli-nightly.${TIMESTAMP}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "CLI nightly ${NIGHTLY_VERSION} from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
+          git push origin "refs/tags/${TAG}"
+
+          echo "Tagged published commit: $TAG"
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
