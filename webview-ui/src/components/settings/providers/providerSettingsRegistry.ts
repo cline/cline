@@ -57,17 +57,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://cloud.cerebras.ai/",
 	},
 	gemini: {
-		baseUrlField: {
-			label: "Use custom base URL",
-			placeholder: "Default: https://generativelanguage.googleapis.com",
-		},
 		signupUrl: "https://aistudio.google.com/apikey",
 	},
 	huggingface: {
 		signupUrl: "https://huggingface.co/settings/tokens",
 	},
 	nebius: {
-		signupUrl: "https://studio.nebius.com/settings/api-keys",
+		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",
 	},
 	sambanova: {
 		signupUrl: "https://docs.sambanova.ai/cloud/docs/get-started/overview",
