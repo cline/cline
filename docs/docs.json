@@ -156,6 +156,12 @@
 						]
 					},
 					{
+						"group": "Best Practices",
+						"pages": [
+							"best-practices/memory-bank"
+						]
+					},
+					{
 						"group": "IDE Specific Features",
 						"pages": [
 							"features/auto-approve",
@@ -430,11 +436,11 @@
 		},
 		{
 			"source": "/prompting/cline-memory-bank",
-			"destination": "/core-workflows/task-management"
+			"destination": "/best-practices/memory-bank"
 		},
 		{
 			"source": "/customization/memory-bank",
-			"destination": "/core-workflows/task-management"
+			"destination": "/best-practices/memory-bank"
 		},
 		{
 			"source": "/customization/overview",
@@ -650,7 +656,7 @@
 		},
 		{
 			"source": "/features/memory-bank",
-			"destination": "/core-workflows/task-management"
+			"destination": "/best-practices/memory-bank"
 		},
 		{
 			"source": "/features/focus-chain",
