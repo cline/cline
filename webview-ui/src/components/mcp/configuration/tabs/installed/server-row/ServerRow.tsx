@@ -394,7 +394,7 @@ const ServerRow = ({
 							disabled={server.status === "connecting" || isRestarting || server.disabled}
 							onClick={handleRestart}
 							variant="secondary">
-							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
+							{server.status === "connecting" || isRestarting ? "Restarting..." : server.disabled ? "Server Disabled" : "Restart Server"}
 						</Button>
 
 						{!isRemoteManagedServer && (
