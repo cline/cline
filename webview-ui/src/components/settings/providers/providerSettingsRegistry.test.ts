@@ -35,10 +35,6 @@ describe("providerSettingsRegistry", () => {
 			),
 		).toEqual({
 			allowsCustomIds: false,
-			baseUrlField: {
-				label: "Use custom base URL",
-				placeholder: "Default: https://generativelanguage.googleapis.com",
-			},
 			providerId: "gemini",
 			providerName: "Google Gemini",
 			signupUrl: "https://aistudio.google.com/apikey",
@@ -60,7 +56,7 @@ describe("providerSettingsRegistry", () => {
 			["fireworks", "Fireworks", "https://fireworks.ai/"],
 			["groq", "Groq", "https://console.groq.com/keys"],
 			["huggingface", "Hugging Face", "https://huggingface.co/settings/tokens"],
-			["nebius", "Nebius", "https://studio.nebius.com/settings/api-keys"],
+			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
 			["sambanova", "SambaNova", "https://docs.sambanova.ai/cloud/docs/get-started/overview"],
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
 		] as const

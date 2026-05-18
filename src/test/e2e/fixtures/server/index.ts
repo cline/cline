@@ -166,7 +166,11 @@ export class ClineApiServerMock {
 
 			// Authentication middleware
 			const authHeader = req.headers.authorization
-			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health" && path !== "/api/v1/auth/token"
+			const isAuthRequired =
+				!path.startsWith("/.test/") &&
+				path !== "/health" &&
+				path !== "/api/v1/auth/token" &&
+				path !== "/api/v1/auth/register"
 
 			if (isAuthRequired && (!authHeader || !authHeader.startsWith("Bearer "))) {
 				return sendApiError("Unauthorized", 401)
@@ -314,6 +318,37 @@ export class ClineApiServerMock {
 						}
 						controller.setCurrentUser(currentUser)
 						return sendApiResponse("Account switched successfully")
+					}
+
+					// Auth token registration endpoint used by WorkOS device auth.
+					if (endpoint === "/auth/register" && method === "POST") {
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { accessToken, refreshToken } = parsed
+
+						if (!accessToken || !refreshToken) {
+							return sendApiError("Invalid request", 400)
+						}
+
+						const user = controller.API_USER.getUserByToken(accessToken)
+						if (!user) {
+							return sendApiError("Invalid WorkOS token", 400)
+						}
+
+						return sendApiResponse({
+							accessToken: accessToken + "_access",
+							refreshToken,
+							tokenType: "Bearer",
+							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+							userInfo: {
+								subject: user.id,
+								email: user.email,
+								name: user.displayName,
+								clineUserId: user.id,
+								accounts: null,
+								organizations: user.organizations,
+							},
+						})
 					}
 
 					// Auth token exchange endpoint

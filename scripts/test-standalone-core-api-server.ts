@@ -115,7 +115,8 @@ async function main(): Promise<void> {
 
 	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
 
-	const baseArgs = ["--enable-source-maps", path.join(distDir, "cline-core.js")]
+	const workosFetchMockPath = path.join(projectRoot, "scripts", "testing-platform-workos-fetch-mock.cjs")
+	const baseArgs = ["--enable-source-maps", "--require", workosFetchMockPath, path.join(distDir, "cline-core.js")]
 
 	const spawnArgs = USE_C8 ? ["c8", "--report-dir", covDir, "node", ...baseArgs] : ["node", ...baseArgs]
 
