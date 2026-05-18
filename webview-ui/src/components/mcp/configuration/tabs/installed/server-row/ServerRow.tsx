@@ -391,7 +391,7 @@ const ServerRow = ({
 						</div>
 						<Button
 							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
-							disabled={server.status === "connecting" || isRestarting}
+							disabled={server.status === "connecting" || isRestarting || server.disabled}
 							onClick={handleRestart}
 							variant="secondary">
 							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
