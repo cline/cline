@@ -28,3 +28,4 @@ export {
 	resetRegistry,
 	unregisterProvider,
 } from "./providers/model-registry";
+export { filterOpenAICodexModels } from "./providers/openai-codex-models";

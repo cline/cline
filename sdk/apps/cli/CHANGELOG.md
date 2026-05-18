@@ -1,5 +1,14 @@
 # Cline CLI Changelog
 
+## 3.0.7
+
+- Skip the ChatGPT OAuth model refresh on session startup so the CLI launches without the extra network round-trip.
+- Align the ChatGPT OAuth model catalog with the Codex provider list so the available models match the subscription tier.
+
+## 3.0.6
+
+- Fix ChatGPT provider model list to include the codex variants and the gpt-5.2, gpt-5.4, and gpt-5.4-mini subscription models.
+
 ## 3.0.5
 
 - Show plugin-provided tools and slash commands in the CLI settings dialog by hydrating them through the sandbox.
