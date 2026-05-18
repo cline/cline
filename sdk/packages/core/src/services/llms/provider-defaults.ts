@@ -175,7 +175,6 @@ async function mergeKnownModels(
 		return Llms.sortModelsByReleaseDate({
 			...defaultKnownModels,
 			...liveModels,
-			...privateModels,
 			...publicModels,
 			...userKnownModels,
 		});
