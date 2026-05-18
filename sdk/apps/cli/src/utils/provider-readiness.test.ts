@@ -117,6 +117,13 @@ describe("provider readiness", () => {
 		expect(
 			isProviderSettingsUsable("bedrock", {
 				provider: "bedrock",
+				region: "us-east-1",
+				aws: { authentication: "iam" },
+			} satisfies ProviderSettings),
+		).toBe(true);
+		expect(
+			isProviderSettingsUsable("bedrock", {
+				provider: "bedrock",
 				aws: { authentication: "profile", region: "us-east-1" },
 			} satisfies ProviderSettings),
 		).toBe(true);

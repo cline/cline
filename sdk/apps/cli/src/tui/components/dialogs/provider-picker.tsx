@@ -15,7 +15,6 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolveAwsRegion } from "../../../utils/aws-region";
 import {
 	CODEX_CLI_INSTALL_URL,
 	type CodexCliStatus,
@@ -25,6 +24,12 @@ import {
 import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
 import { getProviderSection } from "../../utils/provider-sections";
+import {
+	getDefaultAwsRegion,
+	resolveProviderConfigAwsRegion,
+	updateProviderConfigValue,
+	type ProviderConfigValues,
+} from "../../utils/provider-config-values";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -369,10 +374,8 @@ export function ProviderConfigInputContent(
 
 	const existingSettings =
 		providerSettingsManager.getProviderSettings(providerId);
-	const [values, setValues] = useState<
-		Partial<Record<ProviderConfigFieldKey, string>>
-	>(() => {
-		const initial: Partial<Record<ProviderConfigFieldKey, string>> = {};
+	const [values, setValues] = useState<ProviderConfigValues>(() => {
+		const initial: ProviderConfigValues = {};
 		if (config.fields.baseUrl) {
 			initial.baseUrl =
 				existingSettings?.baseUrl?.trim() ??
@@ -382,9 +385,7 @@ export function ProviderConfigInputContent(
 		if (config.fields.awsRegion) {
 			const ep = existingSettings?.aws?.profile?.trim() ?? "";
 			initial.awsRegion =
-				existingSettings?.aws?.region?.trim() ||
-				resolveAwsRegion({ profile: ep }) ||
-				"us-east-1";
+				existingSettings?.aws?.region?.trim() || getDefaultAwsRegion(ep);
 		}
 		if (config.fields.apiKey)
 			initial.apiKey = existingSettings?.apiKey?.trim() ?? "";
@@ -399,7 +400,6 @@ export function ProviderConfigInputContent(
 
 	const submit = () => {
 		const apiKey = values.apiKey?.trim();
-		const awsRegion = values.awsRegion?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
 		saveLocalProviderSettings(providerSettingsManager, {
@@ -408,7 +408,7 @@ export function ProviderConfigInputContent(
 			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
 			aws: hasAwsFields
 				? {
-						region: awsRegion || "us-east-1",
+						region: resolveProviderConfigAwsRegion(values),
 						authentication: apiKey ? "api-key" : "profile",
 						profile: apiKey ? undefined : awsProfile || undefined,
 					}
@@ -465,7 +465,9 @@ export function ProviderConfigInputContent(
 							<input
 								value={values[key] ?? ""}
 								onInput={(v: string) =>
-									setValues((prev) => ({ ...prev, [key]: v }))
+									setValues((prev) =>
+										updateProviderConfigValue(prev, key, v),
+									)
 								}
 								placeholder={placeholder}
 								flexGrow={1}

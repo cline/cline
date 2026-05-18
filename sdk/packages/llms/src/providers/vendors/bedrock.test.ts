@@ -159,7 +159,9 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		expect(fromNodeProviderChainMock).toHaveBeenCalledWith();
+		expect(fromNodeProviderChainMock).toHaveBeenCalledWith({
+			clientConfig: { region: "us-east-1" },
+		});
 		expect(createAmazonBedrockMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				apiKey: "",

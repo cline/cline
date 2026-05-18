@@ -28,7 +28,7 @@ function hasAwsCredentials(settings: ProviderSettings): boolean {
 }
 
 function hasAwsRegion(settings: ProviderSettings): boolean {
-	return hasText(settings.aws?.region);
+	return hasText(settings.aws?.region ?? settings.region);
 }
 
 function hasGcpCredentials(settings: ProviderSettings): boolean {

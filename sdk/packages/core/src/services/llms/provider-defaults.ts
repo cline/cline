@@ -91,7 +91,7 @@ function getOpenAICompatibleProviderManifests(): Record<
 }
 
 export interface ProviderDefaults {
-	baseUrl: string;
+	baseUrl?: string;
 	modelId: string;
 	knownModels?: Record<string, ModelInfo>;
 	capabilities?: ProviderCapability[];
@@ -777,12 +777,12 @@ export function getProviderConfig(
 	providerId: string,
 ): ProviderDefaults | undefined {
 	const manifest = getBuiltInProviderManifest(providerId);
-	if (!manifest || !manifest.baseUrl) {
+	if (!manifest) {
 		return undefined;
 	}
 
 	return {
-		baseUrl: manifest.baseUrl,
+		baseUrl: manifest.baseUrl || undefined,
 		modelId: manifest.modelId,
 		knownModels: manifest.knownModels,
 		capabilities: toRuntimeCapabilities(manifest.capabilities),

@@ -14,6 +14,17 @@ afterEach(() => {
 });
 
 describe("resolveProviderConfig", () => {
+	it("returns bundled models for built-in providers without a base URL", async () => {
+		const resolved = await resolveProviderConfig("bedrock");
+
+		expect(resolved?.baseUrl).toBeUndefined();
+		expect(resolved?.modelId).toBe("minimax.minimax-m2.5");
+		expect(resolved?.knownModels?.["amazon.nova-2-lite-v1:0"]?.name).toBe(
+			"Nova 2 Lite",
+		);
+		expect(Object.keys(resolved?.knownModels ?? {}).length).toBeGreaterThan(0);
+	});
+
 	it("uses catalog aliases when loading live models", async () => {
 		vi.stubGlobal(
 			"fetch",

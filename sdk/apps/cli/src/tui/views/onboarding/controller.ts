@@ -11,7 +11,6 @@ import {
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { resolveAwsRegion } from "../../../utils/aws-region";
 import {
 	type CodexCliStatus,
 	checkCodexCliInstalled,
@@ -30,6 +29,12 @@ import {
 } from "../../components/searchable-list";
 import { palette } from "../../palette";
 import { getProviderSection } from "../../utils/provider-sections";
+import {
+	getDefaultAwsRegion,
+	resolveProviderConfigAwsRegion,
+	updateProviderConfigValue,
+	type ProviderConfigValues,
+} from "../../utils/provider-config-values";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,
@@ -76,9 +81,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		{},
 	);
 	const [byoDescription, setByoDescription] = useState<string | undefined>();
-	const [byoValues, setByoValues] = useState<
-		Partial<Record<ProviderConfigFieldKey, string>>
-	>({});
+	const [byoValues, setByoValues] = useState<ProviderConfigValues>({});
 	const [byoFocusedField, setByoFocusedField] =
 		useState<ProviderConfigFieldKey>("apiKey");
 	const [codexCliStatus, setCodexCliStatus] = useState<
@@ -371,7 +374,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 			// Build initial values from existing settings
 			const existing = providerSettingsManager.getProviderSettings(provider.id);
-			const initialValues: Partial<Record<ProviderConfigFieldKey, string>> = {};
+			const initialValues: ProviderConfigValues = {};
 			if (config.fields.baseUrl) {
 				initialValues.baseUrl =
 					existing?.baseUrl?.trim() ??
@@ -381,9 +384,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (config.fields.awsRegion) {
 				const existingProfile = existing?.aws?.profile?.trim() ?? "";
 				initialValues.awsRegion =
-					existing?.aws?.region?.trim() ||
-					resolveAwsRegion({ profile: existingProfile }) ||
-					"us-east-1";
+					existing?.aws?.region?.trim() || getDefaultAwsRegion(existingProfile);
 			}
 			if (config.fields.apiKey) {
 				initialValues.apiKey = existing?.apiKey?.trim() ?? "";
@@ -423,7 +424,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		// the provider's own auth response is the authoritative error and is
 		// surfaced when the model picker / first turn runs.
 		const apiKey = byoValues.apiKey?.trim();
-		const awsRegion = byoValues.awsRegion?.trim();
 		const awsProfile = byoValues.awsProfile?.trim();
 		const hasAwsFields = byoFields.awsRegion || byoFields.awsProfile;
 
@@ -433,7 +433,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
 			aws: hasAwsFields
 				? {
-						region: awsRegion || "us-east-1",
+						region: resolveProviderConfigAwsRegion(byoValues),
 						authentication: apiKey ? "api-key" : "profile",
 						profile: apiKey ? undefined : awsProfile || undefined,
 					}
@@ -644,7 +644,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				? "Set model ID"
 				: "Create custom model ID",
 		handleByoFieldInput: (field: ProviderConfigFieldKey, value: string) => {
-			setByoValues((prev) => ({ ...prev, [field]: value }));
+			setByoValues((prev) => updateProviderConfigValue(prev, field, value));
 		},
 		handleCustomModelIdInput: (value: string) => {
 			setCustomModelId(value);

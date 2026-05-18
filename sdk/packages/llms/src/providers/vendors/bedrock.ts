@@ -87,6 +87,7 @@ function resolveCredentialProvider(
 		hasProfile: boolean;
 	},
 ): BedrockCredentialProvider | undefined {
+	const region = readOptionalString(config.options?.region);
 	if (typeof config.options?.credentialProvider === "function") {
 		return config.options.credentialProvider as BedrockCredentialProvider;
 	}
@@ -101,7 +102,6 @@ function resolveCredentialProvider(
 
 	if (options.authentication === "profile" || options.hasProfile) {
 		const profile = readOptionalString(config.options?.profile);
-		const region = readOptionalString(config.options?.region);
 		return fromNodeProviderChain({
 			ignoreCache: true,
 			...(profile ? { profile } : {}),
@@ -113,7 +113,9 @@ function resolveCredentialProvider(
 		return undefined;
 	}
 
-	return fromNodeProviderChain();
+	return region
+		? fromNodeProviderChain({ clientConfig: { region } })
+		: fromNodeProviderChain();
 }
 
 async function resolveBedrockApiKey(
