@@ -1,5 +1,5 @@
-import { Agent } from "@cline/sdk";
 import { createServer } from "node:http";
+import { Agent } from "@cline/sdk";
 
 const PORT = Number(process.env.PORT || 3456);
 
@@ -14,13 +14,13 @@ const HTML = `<!DOCTYPE html>
   header { padding: 16px 24px; border-bottom: 1px solid #262626; }
   header h1 { font-size: 16px; font-weight: 500; }
   header p { font-size: 13px; color: #737373; margin-top: 4px; }
-  .container { flex: 1; display: flex; flex-direction: column; padding: 24px; gap: 16px; overflow: hidden; }
+  .container { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 24px; gap: 16px; overflow-y: auto; }
   .input-row { display: flex; gap: 8px; }
   .input-row input { flex: 1; padding: 10px 14px; background: #171717; border: 1px solid #262626; border-radius: 8px; color: #e5e5e5; font-size: 14px; outline: none; }
   .input-row input:focus { border-color: #525252; }
   .input-row button { padding: 10px 20px; background: #e5e5e5; color: #0a0a0a; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
   .input-row button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .agents { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; overflow-y: auto; }
+  .agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
   .agent-card { background: #171717; border: 1px solid #262626; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; }
   .agent-card .agent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .agent-card .agent-name { font-size: 13px; font-weight: 600; }
@@ -28,7 +28,7 @@ const HTML = `<!DOCTYPE html>
   .status-running { background: #172554; color: #60a5fa; }
   .status-done { background: #14532d; color: #4ade80; }
   .status-error { background: #450a0a; color: #f87171; }
-  .agent-card .agent-output { flex: 1; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-y: auto; color: #a3a3a3; }
+  .agent-card .agent-output { font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: #a3a3a3; }
   .summary { background: #171717; border: 1px solid #262626; border-radius: 8px; padding: 16px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; display: none; }
   .summary.visible { display: block; }
   .summary h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #e5e5e5; }
