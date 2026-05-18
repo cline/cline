@@ -59,9 +59,11 @@ jobs:
 
       - name: Determine publish channel
         id: channel
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           # Default to nightly for scheduled runs
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "$EVENT_NAME" = "schedule" ]; then
             echo "channel=nightly" >> $GITHUB_OUTPUT
           else
             echo "channel=${{ inputs.channel }}" >> $GITHUB_OUTPUT
@@ -69,9 +71,9 @@ jobs:
 
       - name: Check for recent commits
         id: check_commits
+        env:
+          CHANNEL: ${{ steps.channel.outputs.channel }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-
           # Always publish for latest (production) releases
           if [ "$CHANNEL" = "latest" ]; then
             echo "Production release requested, proceeding with publish"
@@ -141,8 +143,9 @@ jobs:
       - name: Generate shared version
         if: steps.check_commits.outputs.skip != 'true'
         id: version
+        env:
+          CHANNEL: ${{ steps.channel.outputs.channel }}
         run: |
-          CHANNEL="${{ steps.channel.outputs.channel }}"
           BASE_VERSION=$(node -p "require('./packages/llms/package.json').version")
 
           if [ "$CHANNEL" = "nightly" ]; then

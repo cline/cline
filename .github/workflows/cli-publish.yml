@@ -88,9 +88,9 @@ jobs:
 
       - name: Validate release tag
         id: version
+        env:
+          TAG: ${{ github.event.inputs.git_tag }}
         run: |
-          TAG="${{ github.event.inputs.git_tag }}"
-
           if [ -z "$TAG" ]; then
             echo "git_tag is required when publish_target=main"
             exit 1
@@ -141,8 +141,9 @@ jobs:
         working-directory: sdk/apps/cli
 
       - name: Verify build output
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           EXPECTED=(
             "@cline/cli-darwin-arm64"
             "@cline/cli-darwin-x64"
