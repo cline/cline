@@ -118,24 +118,14 @@ describe("ApiOptions Component", () => {
 		})
 	})
 
-	it("renders Together API Key input", () => {
+	it("renders Together generic provider settings", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
-		expect(apiKeyInput).toBeInTheDocument()
-	})
 
-	it("renders Together Model ID input", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</ExtensionStateContextProvider>,
-		)
-		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
-		expect(modelIdInput).toBeInTheDocument()
+		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("Together")
 	})
 })
 

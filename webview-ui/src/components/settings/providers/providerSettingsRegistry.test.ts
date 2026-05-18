@@ -46,6 +46,8 @@ describe("providerSettingsRegistry", () => {
 		expect(hasCustomProviderSettings("deepseek")).toBe(false)
 		expect(hasCustomProviderSettings("groq")).toBe(false)
 		expect(hasCustomProviderSettings("cerebras")).toBe(false)
+		expect(hasCustomProviderSettings("minimax")).toBe(false)
+		expect(hasCustomProviderSettings("together")).toBe(false)
 		expect(getGenericProviderSettings("openai", listing({ id: "openai", name: "OpenAI" }))).toBeUndefined()
 	})
 
@@ -70,6 +72,39 @@ describe("providerSettingsRegistry", () => {
 				...(signupUrl ? { signupUrl } : {}),
 			})
 		}
+	})
+
+	it("builds MiniMax and Together settings through the generic registry", () => {
+		expect(
+			getGenericProviderSettings(
+				"minimax",
+				listing({ id: "minimax", name: "MiniMax", protocol: "anthropic", allowsCustomModelIds: false }),
+			),
+		).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.minimax.io/anthropic",
+			},
+			providerId: "minimax",
+			providerName: "MiniMax",
+			signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
+		})
+		expect(
+			getGenericProviderSettings(
+				"together",
+				listing({ id: "together", name: "Together AI", protocol: "openai-chat", allowsCustomModelIds: false }),
+			),
+		).toEqual({
+			allowsCustomIds: true,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.together.xyz/v1",
+			},
+			providerId: "together",
+			providerName: "Together AI",
+			signupUrl: "https://api.together.ai/settings/api-keys",
+		})
 	})
 
 	it("allows future simple SDK providers to use the generic fallback", () => {
@@ -100,12 +135,33 @@ describe("providerSettingsRegistry", () => {
 		).toBeUndefined()
 	})
 
-	it("keeps wrapper fallback metadata for import/render compatibility", () => {
+	it("keeps static fallback metadata for generic providers that can render before listings load", () => {
 		expect(getFallbackGenericProviderSettings("deepseek")).toEqual({
 			allowsCustomIds: false,
 			providerId: "deepseek",
 			providerName: "DeepSeek",
 			signupUrl: "https://www.deepseek.com/",
 		})
+		expect(getFallbackGenericProviderSettings("minimax")).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.minimax.io/anthropic",
+			},
+			providerId: "minimax",
+			providerName: "MiniMax",
+			signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
+		})
+		expect(getFallbackGenericProviderSettings("together")).toEqual({
+			allowsCustomIds: true,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.together.xyz/v1",
+			},
+			providerId: "together",
+			providerName: "Together",
+			signupUrl: "https://api.together.ai/settings/api-keys",
+		})
+		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})
 })
