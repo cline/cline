@@ -67,9 +67,4 @@ export {
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
-export {
-	listOpenAICodexModels,
-	type OpenAICodexListedModel,
-	type OpenAICodexModelListOptions,
-} from "./providers/vendors/community";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
