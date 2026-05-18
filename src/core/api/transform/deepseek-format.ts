@@ -284,11 +284,9 @@ export function convertDeepseekToOpenAiMessages(
 				const consolidatedReasoningDetails =
 					reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails as any) : []
 
-				// Skip pure-thinking messages (neither content nor tool_calls)
+				// skip pure-thinking messages (only reasoning_content, no text or tool_calls)
 				if (finalContent === undefined && !hasToolCalls) {
-					Logger.warn(
-						"Skipping pure-thinking assistant message in convertDeepseekToOpenAiMessages — no content or tool_calls",
-					)
+					Logger.warn("skipping deepseek pure-thinking message — use convertDeepSeekMessages for thinking mode")
 					continue
 				}
 

@@ -81,7 +81,6 @@ export class DeepSeekHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		const convertedMessages = convertDeepseekToOpenAiMessages(messages)
 		const isThinkingEnabled = this.options.reasoningEffort && this.options.reasoningEffort !== "none"
 		const reasoningEffort = isThinkingEnabled
 			? (this.options.reasoningEffort as OpenAI.ChatCompletionReasoningEffort)
@@ -90,9 +89,11 @@ export class DeepSeekHandler implements ApiHandler {
 
 		// All deepseek models now use the same message conversion: V4-native format when thinking is on,
 		// plain OpenAI format otherwise. deepseek-chat and deepseek-reasoner are deprecated as of 2026-07-24.
+		// Only call the appropriate converter to avoid unnecessary warnings from skipping
+		// pure-thinking messages in the non-thinking converter when thinking is actually enabled.
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isThinkingEnabled
 			? convertDeepSeekMessages(messages, systemPrompt)
-			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
+			: [{ role: "system", content: systemPrompt }, ...convertDeepseekToOpenAiMessages(messages)]
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_completion_tokens: model.info.maxTokens,
