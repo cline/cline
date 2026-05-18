@@ -61,6 +61,8 @@ export function buildNativeGlmThinkingProviderOptionsPatch(
 	request: GatewayStreamRequest,
 	providerOptionsKey: string,
 ): ProviderOptionsPatch | undefined {
+	// Native Z.AI GLM endpoints expect `thinking.type`; they do not accept the
+	// routed `reasoning.enabled` / `reasoning.exclude` shape.
 	const nativeThinking = buildNativeZaiThinkingOptions(request);
 	return nativeThinking
 		? {
@@ -79,6 +81,8 @@ export function buildRoutedGlmReasoningProviderOptionsPatch(
 	providerOptionsKey: string,
 	options?: { includeProviderBuckets?: boolean },
 ): ProviderOptionsPatch | undefined {
+	// Routed GLM endpoints stay OpenAI-compatible and use the generic
+	// `reasoning` include/exclude shape instead of native Z.AI `thinking.type`.
 	if (!isGlmModel(request, context)) {
 		return undefined;
 	}

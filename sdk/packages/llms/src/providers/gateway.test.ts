@@ -2712,6 +2712,56 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("does not apply generic thinking to non-GLM native Z.AI custom models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "zai",
+					apiKey: "zai-key",
+					models: [
+						{
+							id: "zai-other-model",
+							name: "Non GLM Model",
+							metadata: {
+								family: "other",
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "zai",
+				modelId: "zai-other-model",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					zai: expect.not.objectContaining({
+						thinking: expect.anything(),
+					}),
+					openaiCompatible: expect.not.objectContaining({
+						thinking: expect.anything(),
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("passes routed GLM reasoning include/exclude provider options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

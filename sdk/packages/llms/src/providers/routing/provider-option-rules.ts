@@ -1,9 +1,3 @@
-import { buildGatewayReasoningOptions } from "./anthropic-compatible";
-import { buildOpenAINativeProviderOptions } from "./generic-compatible";
-import {
-	buildNativeGlmThinkingProviderOptionsPatch,
-	buildRoutedGlmReasoningProviderOptionsPatch,
-} from "./glm-thinking";
 import {
 	isDeepSeekFamily,
 	isGlmModel,
@@ -12,6 +6,12 @@ import {
 	modelReasoningDefaultsOn,
 	providerReasoningRouteMatches,
 } from "../model-facts";
+import { buildGatewayReasoningOptions } from "./anthropic-compatible";
+import { buildOpenAINativeProviderOptions } from "./generic-compatible";
+import {
+	buildNativeGlmThinkingProviderOptionsPatch,
+	buildRoutedGlmReasoningProviderOptionsPatch,
+} from "./glm-thinking";
 import type {
 	MatchedProviderOptionRule,
 	ProviderOptionBuildInput,
@@ -55,11 +55,22 @@ function isOllamaReasoningDefaultOnDisable(
 	);
 }
 
-function usesGlmThinkingProviderRouting(input: ProviderOptionMatchInput): boolean {
+function usesGlmThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
 	return providerReasoningRouteMatches(
 		"glm-thinking",
 		input.request,
 		input.context,
+	);
+}
+
+function hasGlmThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		input.context.provider.metadata?.routing?.reasoning?.format ===
+		"glm-thinking"
 	);
 }
 
@@ -294,11 +305,23 @@ const ollamaReasoningDefaultOnDisableRule: ProviderOptionRule = {
 	},
 };
 
+const nonGlmProviderRoutingSuppressionRule: ProviderOptionRule = {
+	id: "provider.routing.glm-thinking.non-glm.suppress-generic-thinking",
+	phase: "provider",
+	description:
+		"Providers with GLM thinking routing should not apply generic adaptive thinking to non-GLM models.",
+	applies: (input) =>
+		hasGlmThinkingProviderRouting(input) &&
+		input.request.reasoning?.enabled !== undefined &&
+		!usesGlmThinkingProviderRouting(input),
+	suppresses: { genericThinking: true },
+	build: () => undefined,
+};
+
 const nativeZaiGlmThinkingRule: ProviderOptionRule = {
 	id: "provider.routing.glm-thinking",
 	phase: "model-overlay",
-	description:
-		"Providers routed to the GLM thinking format use thinking.type.",
+	description: "Providers routed to the GLM thinking format use thinking.type.",
 	applies: usesGlmThinkingProviderRouting,
 	suppresses: { genericThinking: true },
 	build: (input) =>
@@ -347,6 +370,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
 	ollamaReasoningDefaultOnDisableRule,
+	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	routedGlmReasoningRule,
 ];
