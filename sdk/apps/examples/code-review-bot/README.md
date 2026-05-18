@@ -14,7 +14,7 @@ bun run build:sdk
 Set an API key:
 
 ```bash
-export CLINE_API_KEY="cline_..."
+export CLINE_API_KEY="sk_..."
 ```
 
 Review the last commit:
