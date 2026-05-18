@@ -1,11 +1,12 @@
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
 	InteractiveConfigTab,
+	LoadInteractiveConfigDataOptions,
 } from "../../tui/interactive-config";
 import {
 	formatCliCompactionMode,
@@ -117,11 +118,15 @@ const COMPACTION_MODE_COLORS: Record<CliCompactionMode, string> = {
 export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	config: Config;
 	configData: InteractiveConfigData;
+	loadConfigData?: (
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData>;
 	providerDisplayName: string;
 	currentMode: string;
 	currentCompactionMode: CliCompactionMode;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
 	onToggleMode: () => void;
 	onToggleAutoApprove: () => void;
@@ -244,11 +249,58 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	);
 	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>("general");
 	const [configData, setConfigData] = useState(props.configData);
+	const [pluginToolsLoaded, setPluginToolsLoaded] = useState(
+		props.configData.tools.some((item) => item.pluginName),
+	);
+	const [pluginToolsLoading, setPluginToolsLoading] = useState(false);
+	const [pluginToolsError, setPluginToolsError] = useState<
+		string | undefined
+	>();
 	const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
 	const [toggleError, setToggleError] = useState<string | undefined>();
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+
+	useEffect(() => {
+		if (
+			activeTab !== "tools" ||
+			pluginToolsLoaded ||
+			pluginToolsError ||
+			!props.loadConfigData
+		) {
+			return;
+		}
+
+		let cancelled = false;
+		setPluginToolsLoading(true);
+		setPluginToolsError(undefined);
+		props
+			.loadConfigData({ includePluginTools: true })
+			.then((nextData) => {
+				if (cancelled) {
+					return;
+				}
+				setConfigData(nextData);
+				setPluginToolsLoaded(true);
+			})
+			.catch((error) => {
+				if (cancelled) {
+					return;
+				}
+				const message = error instanceof Error ? error.message : String(error);
+				setPluginToolsError(`Failed to load plugin tools: ${message}`);
+			})
+			.finally(() => {
+				if (!cancelled) {
+					setPluginToolsLoading(false);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [activeTab, pluginToolsError, pluginToolsLoaded, props.loadConfigData]);
 
 	const rows = useMemo(() => {
 		const r: ConfigRow[] = [];
@@ -271,13 +323,25 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				label: `${toTabLabel(activeTab)} (${activeItems.length})`,
 			});
 
-			if (activeItems.length === 0) {
+			if (activeItems.length === 0 && !pluginToolsLoading) {
 				r.push({
 					kind: "detail",
 					text: `No ${toTabLabel(activeTab).toLowerCase()} found.`,
 				});
 			} else if (activeTab === "tools") {
 				appendToolRows(r, activeItems);
+				if (pluginToolsLoading) {
+					r.push({
+						kind: "detail",
+						text: "Loading plugin tools...",
+					});
+				}
+				if (pluginToolsError) {
+					r.push({
+						kind: "detail",
+						text: pluginToolsError,
+					});
+				}
 			} else {
 				for (const item of activeItems) {
 					r.push({
@@ -298,7 +362,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 
 		return r;
-	}, [activeTab, configData]);
+	}, [activeTab, configData, pluginToolsError, pluginToolsLoading]);
 
 	const navIndices = useMemo(
 		() => rows.map((r, i) => (isNavigable(r) ? i : -1)).filter((i) => i >= 0),
@@ -317,9 +381,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		setTogglingItemId(item.id);
 		setToggleError(undefined);
 		try {
-			const nextData = await props.onToggleConfigItem(item);
+			const nextData = await props.onToggleConfigItem(item, {
+				includePluginTools: pluginToolsLoaded,
+			});
 			if (nextData) {
 				setConfigData(nextData);
+				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

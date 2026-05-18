@@ -4411,6 +4411,41 @@ export const sapAiCoreModels = {
 		supportsPromptCache: false,
 		description: sapAiCoreModelDescription,
 	},
+	"mistralai--mistral-medium-instruct": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"mistralai--mistral-large-instruct": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"mistralai--mistral-small-instruct": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"mistralai--mistral-small": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
+	"cohere--command-a-reasoning": {
+		maxTokens: 8192,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Moonshot AI Studio

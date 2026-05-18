@@ -59,7 +59,7 @@
 		"@opentelemetry/sdk-trace-base": "^2.6.1",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@opentelemetry/semantic-conventions": "^1.40.0",
-		"jiti": "^1.21.7",
+		"jiti": "^2.7.0",
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
 		"simple-git": "3.36.0",

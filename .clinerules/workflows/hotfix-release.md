@@ -176,7 +176,7 @@ Present a final summary:
 - Slack message copied to clipboard: yes
 
 Remind the user to:
-1. Manually trigger the publish release GitHub Action at: https://github.com/cline/cline/actions/workflows/publish.yml (paste `v{VERSION}` as the tag)
+1. Manually trigger the publish release GitHub Action at: https://github.com/cline/cline/actions/workflows/ext-vscode-publish-stable.yml (paste `v{VERSION}` as the tag)
 2. Post the Slack message to announce the hotfix
 
 ## Important Notes

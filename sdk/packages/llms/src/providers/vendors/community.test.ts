@@ -22,15 +22,15 @@ describe("listOpenAICodexModels", () => {
 		closeSpy.mockResolvedValue(undefined);
 	});
 
-	it("uses the codex executable on PATH by default", async () => {
+	it("lets the provider resolve its bundled Codex CLI by default", async () => {
 		await listOpenAICodexModels();
 
-		expect(createCodexAppServerSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				defaultSettings: expect.objectContaining({
-					codexPath: "codex",
-				}),
-			}),
+		const options = createCodexAppServerSpy.mock.calls[0]?.[0] as
+			| { defaultSettings?: Record<string, unknown> }
+			| undefined;
+		expect(options?.defaultSettings).toBeDefined();
+		expect(Object.hasOwn(options?.defaultSettings ?? {}, "codexPath")).toBe(
+			false,
 		);
 		expect(listModelsSpy).toHaveBeenCalledWith(["openai"]);
 		expect(closeSpy).toHaveBeenCalled();

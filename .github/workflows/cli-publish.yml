@@ -1,4 +1,4 @@
-name: Publish CLI to NPM
+name: cli-publish
 
 on:
   schedule:

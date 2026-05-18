@@ -1,4 +1,4 @@
-name: "Publish Nightly Release"
+name: ext-vscode-publish-nightly
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ run-name: "Publish Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
 # runs on the same ref can collide on the same version and cause publish failures
 # or inconsistent tagging. Runs on different branches proceed independently.
 concurrency:
-  group: publish-nightly-${{ github.ref }}
+  group: ext-vscode-publish-nightly-${{ github.ref }}
   cancel-in-progress: false
 
 permissions: {}
@@ -20,7 +20,7 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     permissions:
       contents: read
-    uses: ./.github/workflows/test.yml
+    uses: ./.github/workflows/ext-vscode-test.yml
 
   publish:
     needs: test

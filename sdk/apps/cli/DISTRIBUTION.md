@@ -95,7 +95,7 @@ Use this path for normal releases.
 ```bash
 git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
 git push origin refs/tags/cli-vX.Y.Z
-gh workflow run publish-cli.yaml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
 ```
 
 This path requires the release commit to be on `main` and the matching `cli-vX.Y.Z` tag to exist before the workflow runs. The workflow checks out the tag, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
@@ -125,7 +125,7 @@ bun release cli --tag next
 
 ## CI Workflow
 
-The GitHub workflow at `.github/workflows/publish-cli.yaml` automates publishing:
+The GitHub workflow at `.github/workflows/cli-publish.yml` automates publishing:
 
 - Main releases are manual. Select `publish_target=main` and set `confirm_publish=publish`.
 - Main releases require `git_tag=cli-vX.Y.Z`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
