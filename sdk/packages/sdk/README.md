@@ -80,16 +80,16 @@ async function handleMessage(threadId: string, message: string) {
 }
 ```
 
-Explore full working examples in [`examples/`](examples) and app examples in [`apps/examples/`](apps/examples):
+Explore full working examples in [`examples/`](https://github.com/cline/cline/tree/main/sdk/examples) and app examples in [`apps/examples/`](https://github.com/cline/cline/tree/main/sdk/apps/examples):
 
 | Example | Description |
 |---------|-------------|
-| [Plugins](examples/plugins) | Custom tools with workspace-aware context, lifecycle hooks, and branch-level safety policies |
-| [Subagent Orchestration](examples/plugins/agents-squad) | Spawn and manage background agents with presets, skills, and cross-agent handoffs |
-| [Hooks](examples/hooks) | File-based and runtime hooks for logging, review gates, context injection, and lifecycle automation |
-| [Cron Automations](examples/cron) | Recurring and event-driven automation specs for scheduled quality checks and PR workflows |
-| [Desktop App](apps/examples/desktop-app) | Tauri desktop shell with a Bun sidecar backend and Next.js UI |
-| [VS Code Extension App](apps/examples/vscode) | VS Code extension example that runs Cline sessions over the RPC runtime |
+| [Plugins](https://github.com/cline/cline/tree/main/sdk/examples/plugins) | Custom tools with workspace-aware context, lifecycle hooks, and branch-level safety policies |
+| [Subagent Orchestration](https://github.com/cline/cline/tree/main/sdk/examples/plugins/agents-squad) | Spawn and manage background agents with presets, skills, and cross-agent handoffs |
+| [Hooks](https://github.com/cline/cline/tree/main/sdk/examples/hooks) | File-based and runtime hooks for logging, review gates, context injection, and lifecycle automation |
+| [Cron Automations](https://github.com/cline/cline/tree/main/sdk/examples/cron) | Recurring and event-driven automation specs for scheduled quality checks and PR workflows |
+| [Desktop App](https://github.com/cline/cline/tree/main/sdk/apps/examples/desktop-app) | Tauri desktop shell with a Bun sidecar backend and Next.js UI |
+| [VS Code Extension App](https://github.com/cline/cline/tree/main/sdk/apps/examples/vscode) | VS Code extension example that runs Cline sessions over the RPC runtime |
 
 ## Custom Tools
 
@@ -238,7 +238,7 @@ cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN"
 # Then send /help or /start to the bot in Telegram
 ```
 
-For Telegram-specific connector behavior, see [`apps/cli/src/connectors/adapters/telegram.md`](./apps/cli/src/connectors/adapters/telegram.md).
+For Telegram-specific connector behavior, see [`apps/cli/src/connectors/adapters/telegram.md`](https://github.com/cline/cline/blob/main/sdk/apps/cli/src/connectors/adapters/telegram.md).
 
 ## Providers
 
@@ -266,8 +266,8 @@ Full documentation at [docs.cline.bot/sdk](https://docs.cline.bot/sdk/overview):
 
 ## Contributing
 
-To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the `#contributors` channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
+To contribute to the project, start with our [Contributing Guide](https://github.com/cline/cline/blob/main/sdk/CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the `#contributors` channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
 
 ## License
 
-[Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2026 Cline Bot Inc.](https://github.com/cline/cline/blob/main/sdk/LICENSE)
