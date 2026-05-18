@@ -1,5 +1,6 @@
 import {
 	completeClineDeviceAuth,
+	type ITelemetryService,
 	loginLocalProvider,
 	type ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
@@ -28,22 +29,28 @@ export function runOAuthAuthFlow(input: {
 	setAuthUrl: (url: string) => void;
 	setError: (error: string) => void;
 	onComplete: (providerId: OnboardingOAuthProviderId) => void;
+	telemetry?: ITelemetryService;
 }): void {
 	const existing = input.providerSettingsManager.getProviderSettings(
 		input.providerId,
 	);
 
-	loginLocalProvider(input.providerId, existing, (url: string) => {
-		input.setAuthUrl(url);
-		input.setStatus("Waiting for sign-in...");
-		try {
-			void open(url, { wait: false }).catch(() => {
+	loginLocalProvider(
+		input.providerId,
+		existing,
+		(url: string) => {
+			input.setAuthUrl(url);
+			input.setStatus("Waiting for sign-in...");
+			try {
+				void open(url, { wait: false }).catch(() => {
+					input.setStatus("Could not open browser. Visit the URL below.");
+				});
+			} catch {
 				input.setStatus("Could not open browser. Visit the URL below.");
-			});
-		} catch {
-			input.setStatus("Could not open browser. Visit the URL below.");
-		}
-	})
+			}
+		},
+		input.telemetry,
+	)
 		.then((credentials) => {
 			if (input.isAborted()) return;
 			saveLocalProviderOAuthCredentials(
@@ -70,6 +77,7 @@ export function runDeviceCodeAuthFlow(input: {
 	setStatus: (status: string) => void;
 	setError: (error: string) => void;
 	onComplete: (providerId: OnboardingOAuthProviderId) => void;
+	telemetry?: ITelemetryService;
 }): void {
 	const existing = input.providerSettingsManager.getProviderSettings(
 		input.providerId,
@@ -77,6 +85,10 @@ export function runDeviceCodeAuthFlow(input: {
 	const apiBaseUrl =
 		existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
 
+	// `startClineDeviceAuth` only requests the user/device code pair; the
+	// `auth_started` telemetry event is emitted by `completeClineDeviceAuth`
+	// (which owns the actual login lifecycle), so we intentionally do NOT
+	// pass telemetry into `startClineDeviceAuth` here.
 	startClineDeviceAuth()
 		.then((result) => {
 			if (input.isAborted()) return;
@@ -92,6 +104,7 @@ export function runDeviceCodeAuthFlow(input: {
 				pollIntervalSeconds: result.pollIntervalSeconds,
 				apiBaseUrl,
 				provider: input.providerId,
+				telemetry: input.telemetry,
 			})
 				.then((credentials) => {
 					if (input.isAborted()) return;

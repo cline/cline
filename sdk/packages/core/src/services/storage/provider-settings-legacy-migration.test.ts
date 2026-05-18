@@ -177,7 +177,7 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 	});
 
-	it("migrates legacy custom OpenAI-compatible config into the openai provider", () => {
+	it("migrates legacy OpenAI-compatible config into the openai-compatible provider", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
 		);
@@ -215,10 +215,10 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(result).toMatchObject({
 			migrated: true,
 			providerCount: 1,
-			lastUsedProvider: "openai",
+			lastUsedProvider: "openai-compatible",
 		});
-		expect(manager.getProviderSettings("openai")).toEqual({
-			provider: "openai",
+		expect(manager.getProviderSettings("openai-compatible")).toEqual({
+			provider: "openai-compatible",
 			model: "gpt-oss-120b",
 			apiKey: "legacy-openai-compatible-key",
 			baseUrl: "https://gateway.example.invalid/v1",
@@ -232,7 +232,7 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(JSON.parse(readFileSync(modelsPath, "utf8"))).toEqual({
 			version: 1,
 			providers: {
-				openai: {
+				"openai-compatible": {
 					provider: {
 						name: "OpenAI Compatible",
 						baseUrl: "https://gateway.example.invalid/v1",
@@ -242,6 +242,9 @@ describe("migrateLegacyProviderSettings", () => {
 						"gpt-oss-120b": {
 							id: "gpt-oss-120b",
 							name: "gpt-oss-120b",
+							contextWindow: 128000,
+							maxInputTokens: 128000,
+							capabilities: ["streaming", "tools", "images"],
 						},
 					},
 				},
@@ -249,7 +252,7 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 	});
 
-	it("keeps official OpenAI endpoints under the built-in openai provider", () => {
+	it("keeps official OpenAI endpoints under the built-in openai-compatible provider", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
 		);
@@ -283,15 +286,15 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(result).toMatchObject({
 			migrated: true,
 			providerCount: 1,
-			lastUsedProvider: "openai",
+			lastUsedProvider: "openai-compatible",
 		});
-		expect(manager.getProviderSettings("openai")).toEqual({
-			provider: "openai",
+		expect(manager.getProviderSettings("openai-compatible")).toEqual({
+			provider: "openai-compatible",
 			model: "gpt-5",
 			apiKey: "legacy-openai-key",
 			baseUrl: "https://api.openai.com/v1",
 		});
-		expect(manager.getProviderSettings("openai-compatible")).toBeUndefined();
+		expect(manager.getProviderSettings("openai")).toBeUndefined();
 	});
 });
 

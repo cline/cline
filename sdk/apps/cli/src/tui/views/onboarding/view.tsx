@@ -146,6 +146,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 				mouse={mouse}
 				onInput={state.handleCustomModelIdInput}
 				onSubmit={state.saveCustomModelId}
+				title={state.customModelTitle}
 				value={state.customModelId}
 			/>
 		);

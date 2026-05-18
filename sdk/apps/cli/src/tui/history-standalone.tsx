@@ -8,6 +8,7 @@ import { HistoryStandaloneContent } from "./views/history-view";
 export async function renderHistoryStandalone(input: {
 	rows: SessionHistoryRecord[];
 	onExport: (sessionId: string) => Promise<string | undefined>;
+	refreshRows?: () => Promise<SessionHistoryRecord[]>;
 }): Promise<number | string> {
 	const renderer = await createCliRenderer({
 		exitOnCtrlC: true,
@@ -51,6 +52,7 @@ export async function renderHistoryStandalone(input: {
 				rows: input.rows,
 				onResolve: (sessionId: string) => settle(sessionId),
 				onExport: input.onExport,
+				refreshRows: input.refreshRows,
 				onDelete: async (sessionId: string) => {
 					const result = await deleteSession(sessionId);
 					return result.deleted;

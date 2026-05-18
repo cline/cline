@@ -59,6 +59,7 @@ If you touch hub/bootstrap/session flows, please update `ARCHITECTURE.md`.
 ### Keep Boundaries Clean
 
 - Don't move stateful logic down into `agents`
+- For `@cline/llms` provider/model routing rules, follow [packages/llms/AGENTS.md](./packages/llms/AGENTS.md).
 - Don't put app-specific behavior into `core` unless it is truly shared host behavior
 - Keep remote-config primitives generic in `shared`; host-facing session integration belongs in `core`
 

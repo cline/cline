@@ -108,6 +108,45 @@ function isUnknownPluginIdError(error: unknown): boolean {
 	return message.includes("Unknown sandbox plugin id:");
 }
 
+function getPlatformPackageName(): string {
+	const platform = process.platform === "win32" ? "windows" : process.platform;
+	return `@cline/cli-${platform}-${process.arch}`;
+}
+
+function resolveBootstrapFromWrapper(): string | undefined {
+	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	if (!wrapperPath) {
+		return undefined;
+	}
+	try {
+		const requireFromWrapper = createRequire(wrapperPath);
+		const packageJsonPath = requireFromWrapper.resolve(
+			`${getPlatformPackageName()}/package.json`,
+		);
+		const candidate = join(
+			dirname(packageJsonPath),
+			"extensions",
+			"plugin-sandbox-bootstrap.js",
+		);
+		return existsSync(candidate) ? candidate : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function resolveBootstrapFromExecutable(): string | undefined {
+	const execPath = process.execPath?.trim();
+	if (!execPath) {
+		return undefined;
+	}
+	const candidate = join(
+		dirname(dirname(execPath)),
+		"extensions",
+		"plugin-sandbox-bootstrap.js",
+	);
+	return existsSync(candidate) ? candidate : undefined;
+}
+
 /**
  * Resolve the bootstrap for the sandbox subprocess.
  *
@@ -127,8 +166,12 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		join(dir, "plugin-sandbox-bootstrap.js"),
 		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
+		resolveBootstrapFromWrapper(),
+		resolveBootstrapFromExecutable(),
 	];
-	for (const candidate of candidates) {
+	for (const candidate of candidates.filter(
+		(candidate): candidate is string => typeof candidate === "string",
+	)) {
 		if (existsSync(candidate)) return { file: candidate };
 	}
 	const tsPath = join(dir, "plugin-sandbox-bootstrap.ts");

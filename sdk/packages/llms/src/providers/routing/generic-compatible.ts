@@ -4,13 +4,15 @@ import type {
 } from "@cline/shared";
 import {
 	buildAnthropicCompatibleReasoningOptions,
-	isAnthropicCompatibleModel,
-	isQwenModel,
 	resolveAnthropicReasoningRequestPolicy,
-	resolveModelFamily,
 	resolveReasoningRoute,
 	shouldApplyPromptCache,
 } from "./anthropic-compatible";
+import {
+	isAnthropicCompatibleModel,
+	isQwenModel,
+	resolveModelFamily,
+} from "../model-facts";
 import type {
 	AiSdkProviderOptionsTarget,
 	ProviderOptionSuppression,
