@@ -261,13 +261,14 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+	const { loadConfigData } = props;
 
 	useEffect(() => {
 		if (
 			activeTab !== "tools" ||
 			pluginToolsLoaded ||
 			pluginToolsError ||
-			!props.loadConfigData
+			!loadConfigData
 		) {
 			return;
 		}
@@ -275,8 +276,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		let cancelled = false;
 		setPluginToolsLoading(true);
 		setPluginToolsError(undefined);
-		props
-			.loadConfigData({ includePluginTools: true })
+		loadConfigData({ includePluginTools: true })
 			.then((nextData) => {
 				if (cancelled) {
 					return;
@@ -300,7 +300,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		return () => {
 			cancelled = true;
 		};
-	}, [activeTab, pluginToolsError, pluginToolsLoaded, props.loadConfigData]);
+	}, [activeTab, pluginToolsError, pluginToolsLoaded, loadConfigData]);
 
 	const rows = useMemo(() => {
 		const r: ConfigRow[] = [];
