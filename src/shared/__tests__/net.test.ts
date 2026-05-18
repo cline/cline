@@ -21,27 +21,29 @@ const loadNet = (tlsRejectUnauthorized?: string) => {
 
 	const setGlobalDispatcher = sinon.stub()
 	const undiciFetch = sinon.stub()
-	proxyquire.noCallThru().noPreserveCache()("../net", {
-		undici: {
-			EnvHttpProxyAgent: MockEnvHttpProxyAgent,
-			setGlobalDispatcher,
-			fetch: undiciFetch,
-		},
-		"@/services/EnvUtils": {
-			buildExternalBasicHeaders: () => ({}),
-		},
-		openai: function MockOpenAI() {},
-	})
-
-	if (previousStandalone === undefined) {
-		delete process.env.IS_STANDALONE
-	} else {
-		process.env.IS_STANDALONE = previousStandalone
-	}
-	if (previousTlsRejectUnauthorized === undefined) {
-		delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
-	} else {
-		process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTlsRejectUnauthorized
+	try {
+		proxyquire.noCallThru().noPreserveCache()("../net", {
+			undici: {
+				EnvHttpProxyAgent: MockEnvHttpProxyAgent,
+				setGlobalDispatcher,
+				fetch: undiciFetch,
+			},
+			"@/services/EnvUtils": {
+				buildExternalBasicHeaders: () => ({}),
+			},
+			openai: function MockOpenAI() {},
+		})
+	} finally {
+		if (previousStandalone === undefined) {
+			delete process.env.IS_STANDALONE
+		} else {
+			process.env.IS_STANDALONE = previousStandalone
+		}
+		if (previousTlsRejectUnauthorized === undefined) {
+			delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
+		} else {
+			process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTlsRejectUnauthorized
+		}
 	}
 
 	return { agentOptions, setGlobalDispatcher }
@@ -56,6 +58,13 @@ describe("shared net", function () {
 
 	it("preserves default TLS verification for standalone fetch", () => {
 		const { agentOptions, setGlobalDispatcher } = loadNet()
+
+		expect(agentOptions).to.deep.equal([{}])
+		expect(setGlobalDispatcher.calledOnce).to.equal(true)
+	})
+
+	it("preserves TLS verification when NODE_TLS_REJECT_UNAUTHORIZED is not '0'", () => {
+		const { agentOptions, setGlobalDispatcher } = loadNet("1")
 
 		expect(agentOptions).to.deep.equal([{}])
 		expect(setGlobalDispatcher.calledOnce).to.equal(true)
