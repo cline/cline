@@ -69,15 +69,14 @@ export function OnboardingView(props: OnboardingViewProps) {
 		return (
 			<OnboardingProviderConfigScreen
 				activeProviderName={state.activeProviderName}
-				apiKeyValue={state.byoApiKey}
-				baseUrlValue={state.byoBaseUrl}
 				compact={compact}
 				contentWidth={contentWidth}
+				description={state.byoDescription}
 				fields={state.byoFields}
 				focusedField={state.byoFocusedField}
 				mouse={mouse}
-				onApiKeyInput={state.handleByoApiKeyInput}
-				onBaseUrlInput={state.handleByoBaseUrlInput}
+				values={state.byoValues}
+				onFieldInput={state.handleByoFieldInput}
 				onSubmit={state.saveByoConfig}
 			/>
 		);
