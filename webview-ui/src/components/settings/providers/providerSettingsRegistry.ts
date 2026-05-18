@@ -3,7 +3,8 @@ import type { GenericProviderSettingsProps } from "./GenericProviderSettings"
 
 type GenericProviderSettingsConfig = Omit<GenericProviderSettingsProps, "currentMode" | "isPopup" | "showModelOptions">
 
-type GenericProviderPresentationOverride = Pick<GenericProviderSettingsConfig, "signupUrl" | "baseUrlField">
+type GenericProviderPresentationOverride = Pick<GenericProviderSettingsConfig, "signupUrl" | "baseUrlField"> &
+	Partial<Pick<GenericProviderSettingsConfig, "allowsCustomIds">>
 
 const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"aihubmix",
@@ -18,7 +19,6 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"huawei-cloud-maas",
 	"litellm",
 	"lmstudio",
-	"minimax",
 	"mistral",
 	"moonshot",
 	"nousResearch",
@@ -32,7 +32,6 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"qwen-code",
 	"requesty",
 	"sapaicore",
-	"together",
 	"vertex",
 	"vscode-lm",
 	"wandb",
@@ -62,11 +61,26 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	huggingface: {
 		signupUrl: "https://huggingface.co/settings/tokens",
 	},
+	minimax: {
+		signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "https://api.minimax.io/anthropic",
+		},
+	},
 	nebius: {
 		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",
 	},
 	sambanova: {
 		signupUrl: "https://docs.sambanova.ai/cloud/docs/get-started/overview",
+	},
+	together: {
+		allowsCustomIds: true,
+		signupUrl: "https://api.together.ai/settings/api-keys",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "https://api.together.xyz/v1",
+		},
 	},
 	"vercel-ai-gateway": {
 		signupUrl: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai",
@@ -97,19 +111,35 @@ export function getGenericProviderSettings(
 		return undefined
 	}
 
+	const overrides = GENERIC_PROVIDER_PRESENTATION_OVERRIDES[providerId]
+
 	return {
-		...GENERIC_PROVIDER_PRESENTATION_OVERRIDES[providerId],
-		allowsCustomIds: listing.allowsCustomModelIds,
+		...overrides,
+		allowsCustomIds: overrides?.allowsCustomIds ?? listing.allowsCustomModelIds,
 		providerId: listing.id,
 		providerName: listing.name,
 	}
 }
 
-export function getFallbackGenericProviderSettings(providerId: "deepseek" | "gemini"): GenericProviderSettingsConfig {
+const FALLBACK_GENERIC_PROVIDER_NAMES = {
+	deepseek: "DeepSeek",
+	gemini: "Gemini",
+	minimax: "MiniMax",
+	together: "Together",
+} as const
+
+export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {
+	const providerName = FALLBACK_GENERIC_PROVIDER_NAMES[providerId as keyof typeof FALLBACK_GENERIC_PROVIDER_NAMES]
+	if (!providerName) {
+		return undefined
+	}
+
+	const overrides = GENERIC_PROVIDER_PRESENTATION_OVERRIDES[providerId]
+
 	return {
-		...GENERIC_PROVIDER_PRESENTATION_OVERRIDES[providerId],
-		allowsCustomIds: false,
+		...overrides,
+		allowsCustomIds: overrides?.allowsCustomIds ?? false,
 		providerId,
-		providerName: providerId === "deepseek" ? "DeepSeek" : "Gemini",
+		providerName,
 	}
 }
