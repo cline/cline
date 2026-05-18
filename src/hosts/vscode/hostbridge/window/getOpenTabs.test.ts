@@ -30,6 +30,18 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			viewColumn: column,
 			preview: false,
 		})
+
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				return response.paths.includes(uri.fsPath)
+			},
+			{
+				timeout: 10000,
+				interval: 50,
+			},
+		)
 	}
 
 	async function waitForAllTabsClosed(): Promise<void> {
