@@ -79,7 +79,7 @@ export const PLATFORMS: PlatformDef[] = [
 		],
 		security: {
 			prompt:
-				"By default, anyone who finds your bot can message it and run tasks on your machine. Restrict access to your Telegram user ID?",
+				"By default, anyone who finds your bot can message it and run tasks on your machine. Restrict access to your Telegram user ID? (Message @userinfobot on Telegram and it will reply with your numeric ID)",
 			fields: [
 				{
 					key: "userId",
