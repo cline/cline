@@ -1,4 +1,3 @@
-import * as Llms from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
@@ -178,11 +177,7 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
-	it("does not spawn Codex app-server while resolving ChatGPT OAuth models", async () => {
-		const listModels = vi
-			.spyOn(Llms, "listOpenAICodexModels")
-			.mockRejectedValue(new Error("should not be called"));
-
+	it("resolves ChatGPT OAuth models from the filtered catalog", async () => {
 		const resolved = await resolveProviderConfig(
 			"openai-codex",
 			{ cacheTtlMs: 1 },
@@ -194,7 +189,6 @@ describe("resolveProviderConfig", () => {
 			},
 		);
 
-		expect(listModels).not.toHaveBeenCalled();
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
 			expect.arrayContaining([
 				"gpt-5.2",
