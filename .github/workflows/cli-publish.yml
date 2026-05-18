@@ -200,7 +200,8 @@ jobs:
           name: "CLI v${{ steps.version.outputs.version }}"
           body: |
             ${{ steps.changelog.outputs.content }}
-            ${{ steps.prev_tag.outputs.prev_tag != '' && format('Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}
+
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
