@@ -87,7 +87,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 									allowedEfforts={["high", "xhigh"] as const}
 									currentMode={currentMode}
 									defaultEffort={adaptiveThinking.effort ?? "high"}
-									description="Use None to disable thinking. Higher effort increases response detail and token usage."
+									description="Toggle above to enable thinking. 'high' is the standard reasoning level; 'xhigh' enables max-effort reasoning for complex tasks."
 									label="Thinking Level"
 								/>
 							)}
