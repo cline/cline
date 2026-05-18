@@ -290,7 +290,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [isHidden, sendingDisabled, enableButtons])
 
 	const visibleMessages = useMemo(() => {
-		return filterVisibleMessages(modifiedMessages)
+		// Temporarily hide checkpoint rows so users cannot restore the conversation to a specific checkpoint.
+		// Checkpoint support will be re-enabled once the restore flow is ready again.
+		return filterVisibleMessages(modifiedMessages).filter((message) => message.say !== "checkpoint_created")
 	}, [modifiedMessages])
 
 	const groupedMessages = useMemo(() => {
