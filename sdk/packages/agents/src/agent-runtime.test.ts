@@ -1388,4 +1388,40 @@ describe("AgentRuntime", () => {
 			true,
 		);
 	});
+
+	it("resets usage between consecutive run/continue calls", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "usage",
+					usage: { inputTokens: 100, outputTokens: 20, totalCost: 0.5 },
+				},
+				{ type: "text-delta", text: "first" },
+				{ type: "finish", reason: "stop" },
+			],
+			() => [
+				{
+					type: "usage",
+					usage: { inputTokens: 200, outputTokens: 40, totalCost: 1.0 },
+				},
+				{ type: "text-delta", text: "second" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const first = await runtime.run("Turn 1");
+		expect(first.usage).toMatchObject({
+			inputTokens: 100,
+			outputTokens: 20,
+			totalCost: 0.5,
+		});
+
+		const second = await runtime.continue("Turn 2");
+		expect(second.usage).toMatchObject({
+			inputTokens: 200,
+			outputTokens: 40,
+			totalCost: 1.0,
+		});
+	});
 });
