@@ -35,7 +35,10 @@ const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
 
 const TS_PROTO_PLUGIN = isWindows
-	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
+	// On Windows, use the .exe shim. Bun does not create
+	// .cmd shims in node_modules/.bin on Windows — it generates .exe/.bunx shims instead
+	// (see oven-sh/bun#22735). Using .exe also works with npm, pnpm, and yarn.
+	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.exe")
 	: require.resolve("ts-proto/protoc-gen-ts_proto")
 
 const TS_PROTO_OPTIONS = [
