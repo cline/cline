@@ -1,11 +1,11 @@
 {
 	"name": "@cline/shared",
-	"version": "0.0.39",
+	"version": "0.0.41",
 	"description": "Shared utilities, types, and schemas for Cline packages",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/sdk",
-		"directory": "packages/shared"
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/shared"
 	},
 	"type": "module",
 	"main": "dist/index.js",
@@ -47,7 +47,6 @@
 	],
 	"scripts": {
 		"build": "BUILD_MODE=package bun bun.mts",
-		"clean": "rm -rf dist node_modules",
 		"typecheck": "bun tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts"

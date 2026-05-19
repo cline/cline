@@ -1,11 +1,11 @@
 {
 	"name": "@cline/sdk",
 	"description": "Cline SDK - user-facing alias for @cline/core",
-	"version": "0.0.39",
+	"version": "0.0.41",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/sdk",
-		"directory": "packages/sdk"
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/sdk"
 	},
 	"type": "module",
 	"types": "./dist/index.d.ts",
@@ -22,7 +22,6 @@
 	},
 	"scripts": {
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
-		"clean": "rm -rf dist node_modules",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {

@@ -3,6 +3,7 @@ import type {
 	AgentConfig,
 	AgentModel,
 	BasicLogger,
+	GatewayModelDefinition,
 	ITelemetryService,
 	ModelInfo,
 } from "@cline/shared";
@@ -21,6 +22,57 @@ export function resolveKnownModelsFromConfig(
 	return (
 		MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ?? undefined
 	);
+}
+
+function toGatewayCapabilities(
+	capabilities: ModelInfo["capabilities"],
+): GatewayModelDefinition["capabilities"] {
+	if (!capabilities?.length) {
+		return undefined;
+	}
+
+	const mapped = new Set<
+		NonNullable<GatewayModelDefinition["capabilities"]>[number]
+	>();
+	for (const capability of capabilities) {
+		switch (capability) {
+			case "tools":
+			case "reasoning":
+			case "prompt-cache":
+			case "images":
+				mapped.add(capability);
+				break;
+			case "structured_output":
+				mapped.add("structured-output");
+				break;
+			default:
+				mapped.add("text");
+		}
+	}
+
+	mapped.add("text");
+	return [...mapped];
+}
+
+function toGatewayConfiguredModel(
+	id: string,
+	model: ModelInfo,
+): Omit<GatewayModelDefinition, "providerId"> {
+	return {
+		id,
+		name: model.name ?? id,
+		description: model.description,
+		contextWindow: model.contextWindow,
+		maxInputTokens: model.maxInputTokens,
+		maxOutputTokens: model.maxTokens,
+		capabilities: toGatewayCapabilities(model.capabilities),
+		metadata: {
+			family: model.family,
+			pricing: model.pricing,
+			status: model.status,
+			releaseDate: model.releaseDate,
+		},
+	};
 }
 
 export function createAgentModelFromConfig(
@@ -55,14 +107,7 @@ export function createAgentModelFromConfig(
 				headers: normalizedProviderConfig.headers,
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
-							([id, model]) => ({
-								id,
-								name: model.name ?? id,
-								description: model.description,
-								contextWindow: model.contextWindow,
-								maxInputTokens: model.maxInputTokens,
-								maxOutputTokens: model.maxTokens,
-							}),
+							([id, model]) => toGatewayConfiguredModel(id, model),
 						)
 					: undefined,
 			},

@@ -6,7 +6,7 @@ Learn how to build with the Cline SDK through practical, runnable examples.
 
 Plugins extend the CLI and SDK with custom capabilities. Install them in `~/.cline/plugins/`:
 
-### [`../../examples/plugins/`](../../examples/plugins/)
+### [`./plugins/`](./plugins/)
 
 **Plugin module examples** showing how to extend the CLI and SDK with custom capabilities:
 
@@ -15,7 +15,7 @@ Plugins extend the CLI and SDK with custom capabilities. Install them in `~/.cli
 - Export a reusable plugin module for `.cline/plugins`
 
 Examples include:
-- `weather-plugin.example.ts` - Weather query tool
+- `weather-metrics.ts` - Weather query tool
 - `mac-notify.ts` - macOS Notification Center alerts
 - `custom-compaction.ts` - Custom context compaction
 - `automation-events.ts` - Plugin event emission
@@ -23,11 +23,11 @@ Examples include:
 
 ```bash
 mkdir -p ~/.cline/plugins
-cp examples/plugins/weather-plugin.example.ts ~/.cline/plugins/weather-metrics.ts
+cp examples/plugins/weather-metrics.ts ~/.cline/plugins/weather-metrics.ts
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
-### [`../../examples/plugins/typescript-lsp/`](../../examples/plugins/typescript-lsp)
+### [`./plugins/typescript-lsp/`](./plugins/typescript-lsp)
 
 TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by the TypeScript Language Service API. Resolves through imports, re-exports, and type aliases -- much more precise than text search.
 
@@ -41,7 +41,7 @@ cp examples/plugins/typescript-lsp/index.ts ~/.cline/plugins/typescript-lsp.ts
 cline -i "Find where createTool is defined"
 ```
 
-### [`../../examples/plugins/agents-squad/`](../../examples/plugins/agents-squad)
+### [`./plugins/agents-squad/`](./plugins/agents-squad)
 
 **Portable subagent plugin** that adds background agent orchestration tools to the CLI and SDK:
 
@@ -66,9 +66,9 @@ cline -i "Use subagents to inspect this repository and report back."
 
 Once loaded, the agent can call tools like `start_subagent`, `message_subagent`, `get_subagent`, `list_agent_presets`, `list_skills`, and the handoff tools.
 
-## 📁 App Examples
+## 📁 Cron & hooks Examples
 
-### [`../../examples/cron/`](../../examples/cron)
+### [`./cron/`](./cron)
 
 **Example file-based and event-driven automation specs** for global `~/.cline/cron/`:
 
@@ -94,9 +94,9 @@ mkdir -p ~/.cline/cron/events
 cp examples/cron/events/pr-changelog-check.event.md ~/.cline/cron/events/
 ```
 
-See [cron/README.md](../../examples/cron/README.md) for full descriptions and usage patterns.
+See [cron/README.md](./cron/README.md) for full descriptions and usage patterns.
 
-### [`../../examples/hooks/`](../../examples/hooks)
+### [`./hooks/`](./hooks)
 
 **Lifecycle hooks** written in bash, Python, or TypeScript that intercept agent actions at key points:
 
@@ -145,22 +145,22 @@ Current SDK layering:
 ## 📚 Learning Path
 
 **Building plugins?**
-- Start with [`../../examples/plugins/`](../../examples/plugins/) for basic tool and event patterns
-- Explore [`../../examples/plugins/typescript-lsp/`](../../examples/plugins/typescript-lsp) for integration with language services
-- See [`../../examples/plugins/agents-squad/`](../../examples/plugins/agents-squad) for advanced agent orchestration
+- Start with [`./plugins/`](./plugins/) for basic tool and event patterns
+- Explore [`./plugins/typescript-lsp/`](./plugins/typescript-lsp) for integration with language services
+- See [`./plugins/agents-squad/`](./plugins/agents-squad) for advanced agent orchestration
 
 **Building integrations?**
-- Review [`../../examples/cron/`](../../examples/cron) for automation and event-driven workflows
-- Explore [`desktop-app/`](./desktop-app), [`vscode/`](./vscode), and [`menubar/`](./menubar) for app integration patterns
+- Review [`./cron/`](./cron) for automation and event-driven workflows
+- Explore [`desktop-app/`](../apps/examples/desktop-app), [`vscode/`](../apps/examples/vscode), and [`menubar/`](../apps/examples/menubar) for app integration patterns
 
 **Controlling agent behavior?**
-- Explore [`../../examples/hooks/`](../../examples/hooks) to intercept and modify tool execution, log actions, or enforce policies
+- Explore [`./hooks/`](./hooks) to intercept and modify tool execution, log actions, or enforce policies
 
 ## 📖 Documentation
 
-- [Cline SDK README](../../packages/README.md)
-- [Architecture Guide](../../ARCHITECTURE.md)
-- [Individual Package Docs](../../packages/)
+- [Cline SDK README](../packages/README.md)
+- [Architecture Guide](../ARCHITECTURE.md)
+- [Individual Package Docs](../packages/)
 
 ## 🛠️ Requirements
 

@@ -1,21 +1,14 @@
 name: Smoke Tests
 
+# Temporarily disabled: this workflow built and linked the legacy CLI
+# (`cd cli && npm install && npm run build && npm link`) before running the
+# smoke-test scenarios. The legacy CLI publish chain has been retired in
+# favor of the SDK CLI at `sdk/apps/cli/`. The scenarios under
+# `evals/smoke-tests/scenarios/` are CLI-agnostic and should be re-enabled
+# once the build step is repointed at the new SDK CLI. Until then, only
+# manual `workflow_dispatch` runs are accepted (and will fail in their
+# current form).
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/core/**'
-      - 'src/shared/**'
-      - 'proto/**'
-      - 'evals/**'
-      - '.github/workflows/cline-evals-regression.yml'
-  pull_request:
-    paths:
-      - 'src/core/**'
-      - 'src/shared/**'
-      - 'proto/**'
-      - 'evals/**'
-      - '.github/workflows/cline-evals-regression.yml'
   workflow_dispatch:
 
 permissions:

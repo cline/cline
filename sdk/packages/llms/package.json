@@ -1,11 +1,11 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.39",
+	"version": "0.0.41",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/sdk",
-		"directory": "packages/llms"
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/llms"
 	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
@@ -35,7 +35,6 @@
 		"test": "vitest run",
 		"test:live": "vitest run src/tests/provider-live*.test.ts",
 		"test:watch": "vitest",
-		"clean": "rm -rf dist node_modules",
 		"generate:models": "bun run scripts/generate-models.ts"
 	},
 	"peerDependenciesMeta": {

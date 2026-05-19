@@ -1,7 +1,9 @@
 import type {
+	GatewayModelRoute,
 	GatewayPromptCacheStrategy,
 	GatewayProviderContext,
 	GatewayProviderManifest,
+	GatewayProviderMetadata,
 	GatewayStreamRequest,
 } from "@cline/shared";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
@@ -20,14 +22,66 @@ export type AnthropicReasoningRequestPolicy =
 	| { kind: "anthropic-adaptive" };
 
 /**
- * Anthropic-compatible routing precedence:
- * 1) `context.model.metadata.family` (contains "claude")
- * 2) `request.modelId` fallback heuristics
- *
- * Prompt-cache shaping is stricter: it only applies when the resolved model is
- * Anthropic-compatible AND provider metadata opts into
- * `promptCacheStrategy = "anthropic-automatic"`.
+ * Provider metadata owns behavior routing. `anthropic-compatible` is one route
+ * matcher for Claude/Anthropic lineage; prompt-cache and reasoning decide
+ * independently whether they use it.
  */
+
+const ANTHROPIC_COMPATIBLE_ROUTE: GatewayModelRoute = {
+	matcher: "anthropic-compatible",
+};
+
+// Qwen cache support is model-specific; direct Dashscope/OpenRouter catalogs
+// only match this route once their model metadata includes prompt-cache support.
+const QWEN_PROMPT_CACHE_ROUTE: GatewayModelRoute = {
+	matcher: "model-family",
+	family: "qwen",
+	requiredCapability: "prompt-cache",
+};
+
+function createAnthropicRoutingMetadata(options?: {
+	promptCacheRoutes?: GatewayModelRoute[];
+	reasoningRoutes?: GatewayModelRoute[];
+}): GatewayProviderMetadata {
+	const promptCacheRoutes: GatewayModelRoute[] = options?.promptCacheRoutes ?? [
+		ANTHROPIC_COMPATIBLE_ROUTE,
+	];
+	const reasoningRoutes: GatewayModelRoute[] = options?.reasoningRoutes ?? [
+		ANTHROPIC_COMPATIBLE_ROUTE,
+	];
+	return {
+		routing: {
+			...(promptCacheRoutes.length > 0
+				? {
+						promptCache: {
+							format: "anthropic-cache-control",
+							routes: promptCacheRoutes.map((route) => ({ ...route })),
+						},
+					}
+				: {}),
+			...(reasoningRoutes.length > 0
+				? {
+						reasoning: {
+							format: "anthropic-thinking",
+							routes: reasoningRoutes.map((route) => ({ ...route })),
+						},
+					}
+				: {}),
+		},
+	};
+}
+
+export const ANTHROPIC_ROUTING_METADATA = createAnthropicRoutingMetadata();
+
+export const QWEN_CACHE_ROUTING_METADATA = createAnthropicRoutingMetadata({
+	promptCacheRoutes: [QWEN_PROMPT_CACHE_ROUTE],
+	reasoningRoutes: [],
+});
+
+export const ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA =
+	createAnthropicRoutingMetadata({
+		promptCacheRoutes: [ANTHROPIC_COMPATIBLE_ROUTE, QWEN_PROMPT_CACHE_ROUTE],
+	});
 
 export function resolveModelFamily(
 	context: GatewayProviderContext,
@@ -40,10 +94,9 @@ export function isAnthropicCompatibleModel(options: {
 	modelId?: string;
 	family?: string;
 }): boolean {
-	const family =
-		typeof options.family === "string" ? options.family.trim() : "";
+	const family = normalizeRoutingValue(options.family);
 	if (family) {
-		return hasAnthropicLineage(family);
+		return isAnthropicLineageValue(family);
 	}
 
 	return isAnthropicCompatibleModelId(options.modelId);
@@ -56,39 +109,82 @@ export function isAnthropicCompatibleModelId(
 		return false;
 	}
 
-	return hasAnthropicLineage(modelId);
+	return isAnthropicLineageValue(modelId);
 }
 
-export function isAnthropicPromptCacheCompatibleModel(options: {
+export function isQwenModel(options: {
 	modelId?: string;
 	family?: string;
 }): boolean {
-	const family =
-		typeof options.family === "string" ? options.family.trim() : "";
-	if (family) {
-		return hasAnthropicLineage(family) || hasQwenLineage(family);
+	const family = normalizeRoutingValue(options.family);
+	if (isQwenLineageValue(family)) {
+		return true;
 	}
 
-	return isAnthropicPromptCacheCompatibleModelId(options.modelId);
+	const modelId = normalizeRoutingValue(options.modelId);
+	return isQwenLineageValue(modelId);
 }
 
-export function isAnthropicPromptCacheCompatibleModelId(
-	modelId: string | undefined,
+function normalizeRoutingValue(value: string | undefined) {
+	const normalized = value?.trim().toLowerCase();
+	return normalized ? normalized : undefined;
+}
+
+function isAnthropicLineageValue(value: string | undefined): boolean {
+	const normalized = normalizeRoutingValue(value);
+	return normalized
+		? normalized.includes("anthropic") || normalized.includes("claude")
+		: false;
+}
+
+function isQwenLineageValue(value: string | undefined): boolean {
+	return value ? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(value) : false;
+}
+
+function modelFamilyMatches(
+	family: string | undefined,
+	routeFamily: string | undefined,
 ): boolean {
-	if (!modelId) {
+	const normalizedFamily = normalizeRoutingValue(family);
+	const normalizedRouteFamily = normalizeRoutingValue(routeFamily);
+	if (!normalizedFamily || !normalizedRouteFamily) {
+		return false;
+	}
+	if (normalizedFamily === normalizedRouteFamily) {
+		return true;
+	}
+	return normalizedRouteFamily === "qwen"
+		? isQwenLineageValue(normalizedFamily)
+		: false;
+}
+
+function routeMatches(
+	route: GatewayModelRoute,
+	options: {
+		modelId?: string;
+		family?: string;
+		capabilities?: readonly string[];
+	},
+): boolean {
+	if (
+		"requiredCapability" in route &&
+		route.requiredCapability &&
+		!options.capabilities?.includes(route.requiredCapability)
+	) {
 		return false;
 	}
 
-	return hasAnthropicLineage(modelId) || hasQwenLineage(modelId);
-}
-
-function hasAnthropicLineage(value: string): boolean {
-	const normalized = value.toLowerCase();
-	return normalized.includes("anthropic") || normalized.includes("claude");
-}
-
-function hasQwenLineage(value: string): boolean {
-	return value.toLowerCase().includes("qwen");
+	switch (route.matcher) {
+		case "anthropic-compatible":
+			return isAnthropicCompatibleModel(options);
+		case "model-family":
+			return modelFamilyMatches(options.family, route.family);
+		case "model-id":
+			return (
+				normalizeRoutingValue(options.modelId) ===
+				normalizeRoutingValue(route.modelId)
+			);
+	}
 }
 
 export function createPromptCacheProviderOptions(
@@ -122,7 +218,7 @@ export function applyPromptCacheToLastTextPart(
 
 	const content = message.content;
 	if (typeof content === "string") {
-		message.content = [
+		const cachedContent: Record<string, unknown>[] = [
 			{
 				type: "text",
 				text: content,
@@ -132,12 +228,26 @@ export function applyPromptCacheToLastTextPart(
 				),
 			},
 		];
+		if (!includeAnthropic) {
+			// Keep non-Anthropic OpenAI-compatible requests multipart so
+			// cache_control remains on the content part instead of being collapsed
+			// to message metadata. Anthropic rejects whitespace-only text blocks.
+			cachedContent.push({ type: "text", text: " " });
+		}
+		message.content = cachedContent;
 		return;
 	}
 
 	if (!Array.isArray(content)) {
 		return;
 	}
+
+	const textPartCount = content.filter(
+		(part) =>
+			part &&
+			typeof part === "object" &&
+			(part as { type?: unknown }).type === "text",
+	).length;
 
 	for (let i = content.length - 1; i >= 0; i--) {
 		const part = content[i];
@@ -146,6 +256,7 @@ export function applyPromptCacheToLastTextPart(
 			typeof part === "object" &&
 			(part as { type?: unknown }).type === "text"
 		) {
+			const needsFiller = textPartCount === 1 && !includeAnthropic;
 			content[i] = {
 				...(part as Record<string, unknown>),
 				providerOptions: createPromptCacheProviderOptions(
@@ -153,20 +264,151 @@ export function applyPromptCacheToLastTextPart(
 					includeAnthropic,
 				),
 			};
+			if (needsFiller) {
+				content.push({ type: "text", text: " " });
+			}
 			return;
 		}
 	}
 }
 
-export function shouldUseAnthropicPromptCache(
+export function shouldApplyPromptCache(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): boolean {
+	return resolvePromptCacheRoute(request, context) !== undefined;
+}
+
+function shouldApplyAnthropicCacheBucket(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): boolean {
 	return (
-		isAnthropicPromptCacheCompatibleModel({
+		resolvePromptCacheRoute(request, context)?.matcher ===
+		"anthropic-compatible"
+	);
+}
+
+function resolveLegacyPromptCacheStrategy(
+	provider: GatewayProviderManifest,
+): GatewayPromptCacheStrategy | undefined {
+	return provider.metadata?.promptCacheStrategy === "anthropic-automatic"
+		? "anthropic-automatic"
+		: undefined;
+}
+
+function resolveLegacyPromptCacheRoute(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): GatewayModelRoute | undefined {
+	if (
+		resolveLegacyPromptCacheStrategy(context.provider) !== "anthropic-automatic"
+	) {
+		return undefined;
+	}
+
+	const family = resolveModelFamily(context);
+	if (
+		isAnthropicCompatibleModel({
+			modelId: request.modelId,
+			family,
+		})
+	) {
+		return { matcher: "anthropic-compatible" };
+	}
+
+	// `promptCacheStrategy` predates explicit routing and historically treated
+	// Qwen ids as Anthropic-compatible. Preserve that opt-in custom-provider
+	// behavior, but keep the returned route non-Anthropic so Qwen still gets the
+	// OpenAI-compatible cache_control shape used by the new routing path.
+	if (isQwenModel({ modelId: request.modelId, family })) {
+		return family
+			? { matcher: "model-family", family }
+			: { matcher: "model-id", modelId: request.modelId };
+	}
+
+	return undefined;
+}
+
+function resolveLegacyReasoningRoute(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): GatewayModelRoute | undefined {
+	if (
+		resolveLegacyPromptCacheStrategy(context.provider) !== "anthropic-automatic"
+	) {
+		return undefined;
+	}
+
+	const family = resolveModelFamily(context);
+	return isAnthropicCompatibleModel({
+		modelId: request.modelId,
+		family,
+	})
+		? { matcher: "anthropic-compatible" }
+		: undefined;
+}
+
+function resolveUnroutedAnthropicReasoningRoute(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): GatewayModelRoute | undefined {
+	if (context.provider.metadata?.routing) {
+		return undefined;
+	}
+
+	const family = resolveModelFamily(context);
+	return isAnthropicCompatibleModel({
+		modelId: request.modelId,
+		family,
+	})
+		? { matcher: "anthropic-compatible" }
+		: undefined;
+}
+
+export function resolvePromptCacheRoute(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): GatewayModelRoute | undefined {
+	const promptCache = context.provider.metadata?.routing?.promptCache;
+	if (promptCache) {
+		if (promptCache.format !== "anthropic-cache-control") {
+			return undefined;
+		}
+
+		return promptCache.routes.find((route) =>
+			routeMatches(route, {
+				modelId: request.modelId,
+				family: resolveModelFamily(context),
+				capabilities: context.model.capabilities,
+			}),
+		);
+	}
+
+	return resolveLegacyPromptCacheRoute(request, context);
+}
+
+export function resolveReasoningRoute(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): GatewayModelRoute | undefined {
+	const reasoning = context.provider.metadata?.routing?.reasoning;
+	if (!reasoning) {
+		return (
+			resolveLegacyReasoningRoute(request, context) ??
+			resolveUnroutedAnthropicReasoningRoute(request, context)
+		);
+	}
+	if (reasoning.format !== "anthropic-thinking") {
+		return undefined;
+	}
+
+	return reasoning.routes.find((route) =>
+		routeMatches(route, {
 			modelId: request.modelId,
 			family: resolveModelFamily(context),
-		}) && resolvePromptCacheStrategy(context.provider) === "anthropic-automatic"
+			capabilities: context.model.capabilities,
+		}),
 	);
 }
 
@@ -248,7 +490,7 @@ export function resolveAnthropicReasoningRequestPolicy(
 ): AnthropicReasoningRequestPolicy {
 	const family = resolveModelFamily(context);
 	if (
-		!isAnthropicCompatibleModel({ modelId: request.modelId, family }) ||
+		!resolveReasoningRoute(request, context) ||
 		!shouldEmitAnthropicReasoning(context)
 	) {
 		return { kind: "none" };
@@ -260,13 +502,6 @@ export function resolveAnthropicReasoningRequestPolicy(
 	})
 		? { kind: "anthropic-adaptive" }
 		: { kind: "anthropic-manual" };
-}
-
-export function resolvePromptCacheStrategy(
-	provider: GatewayProviderManifest,
-): GatewayPromptCacheStrategy | undefined {
-	const strategy = provider.metadata?.promptCacheStrategy;
-	return strategy === "anthropic-automatic" ? strategy : undefined;
 }
 
 export function buildAnthropicProviderOptions(
@@ -302,7 +537,7 @@ export function buildAnthropicProviderOptions(
 			? { effort: request.reasoning.effort }
 			: {}),
 		...(thinking ? { thinking } : {}),
-		...(shouldUseAnthropicPromptCache(request, context)
+		...(shouldApplyAnthropicCacheBucket(request, context)
 			? createEphemeralCacheControl()
 			: {}),
 	};
@@ -411,12 +646,25 @@ export function buildGatewayReasoningOptions(
 	}
 
 	const policy = resolveAnthropicReasoningRequestPolicy(request, context);
-	if (
+	const reasoningRoute = resolveReasoningRoute(request, context);
+	const family = resolveModelFamily(context);
+	const shouldSuppressUnsupportedRoutedReasoning =
+		policy.kind === "none" && reasoningRoute !== undefined;
+	const shouldSuppressUnroutedAnthropicLikeReasoning =
 		policy.kind === "none" &&
-		isAnthropicCompatibleModel({
-			modelId: request.modelId,
-			family: resolveModelFamily(context),
-		})
+		reasoningRoute === undefined &&
+		(shouldApplyPromptCache(request, context) ||
+			isQwenModel({
+				modelId: request.modelId,
+				family,
+			}) ||
+			isAnthropicCompatibleModel({
+				modelId: request.modelId,
+				family,
+			}));
+	if (
+		shouldSuppressUnsupportedRoutedReasoning ||
+		shouldSuppressUnroutedAnthropicLikeReasoning
 	) {
 		return undefined;
 	}
@@ -425,7 +673,7 @@ export function buildGatewayReasoningOptions(
 		policy.kind === "anthropic-manual"
 			? resolveAnthropicCompatibleReasoningBudget({
 					modelId: request.modelId,
-					family: resolveModelFamily(context),
+					family,
 					effort: request.reasoning?.effort,
 					maxTokens: request.maxTokens,
 					explicitBudgetTokens: request.reasoning?.budgetTokens,

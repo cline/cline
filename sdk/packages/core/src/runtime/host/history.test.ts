@@ -262,7 +262,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(list).toHaveBeenCalledWith(10);
+		expect(list).toHaveBeenCalledWith(20);
 		expect(readSessionMessages).not.toHaveBeenCalled();
 		expect(rows).toEqual([
 			expect.objectContaining({
@@ -271,6 +271,62 @@ describe("session history", () => {
 				model: "anthropic/claude-sonnet-4.6",
 				metadata: expect.objectContaining({ title: "stored title" }),
 			}),
+		]);
+	});
+
+	it("filters child sessions from history by default", async () => {
+		const listSessions = vi.fn().mockResolvedValue([
+			createBackendRow({
+				sessionId: "root-session__teamtask__java-haiku-agent__abc123",
+				parentSessionId: "root-session",
+				parentAgentId: "lead",
+				agentId: "java-haiku-agent",
+				isSubagent: true,
+			}),
+			createBackendRow({
+				sessionId: "root-session__plain-worker",
+				parentSessionId: "root-session",
+				parentAgentId: "lead",
+				agentId: "plain-worker",
+				isSubagent: true,
+			}),
+			createBackendRow({
+				sessionId: "root-session",
+			}),
+		]);
+
+		const rows = await listSessionHistoryFromBackend(
+			{ listSessions },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(rows.map((row) => row.sessionId)).toEqual(["root-session"]);
+	});
+
+	it("can include child sessions when explicitly requested", async () => {
+		const listSessions = vi.fn().mockResolvedValue([
+			createBackendRow({
+				sessionId: "root-session__teamtask__java-haiku-agent__abc123",
+				parentSessionId: "root-session",
+				parentAgentId: "lead",
+				agentId: "java-haiku-agent",
+				isSubagent: true,
+			}),
+			createBackendRow({
+				sessionId: "root-session",
+			}),
+		]);
+
+		const rows = await listSessionHistoryFromBackend(
+			{ listSessions },
+			{ limit: 10, hydrate: false, includeSubagents: true },
+		);
+
+		expect(listSessions).toHaveBeenCalledWith(10);
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"root-session__teamtask__java-haiku-agent__abc123",
+			"root-session",
 		]);
 	});
 
@@ -295,6 +351,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
+		expect(listSessions).toHaveBeenCalledWith(20);
 		expect(rows.map((row) => row.sessionId)).toEqual([
 			"sess_full",
 			"sess_empty",
@@ -324,7 +381,7 @@ describe("session history", () => {
 			{ limit: 5, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(5);
+		expect(listSessions).toHaveBeenCalledWith(20);
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_backend_direct",

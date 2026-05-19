@@ -83,7 +83,8 @@ export function createReadFilesTool(
 		name: "read_files",
 		description:
 			"Read the full content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
-			"Returns file contents or error messages for each path.",
+			"Binary files that are not image and large files are not supported. " +
+			"Returns file contents or error messages for each path. ",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
 		timeoutMs: timeoutMs * 2, // Account for multiple files
 		retryable: true,
@@ -210,7 +211,8 @@ export function createBashTool(
 		description:
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Commands should be properly shell-escaped.",
+			"Commands should be properly shell-escaped and targeted to avoid error or timeout. " +
+			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false, // Shell commands often have side effects
@@ -613,6 +615,7 @@ export function createSubmitAndExitTool(
 			"Submit the final answer and exit the conversation. " +
 			"For example, submit a summary of the investigation and confirm the issue is resolved. " +
 			"You should only submit once all necessary steps are completed. " +
+			"Make sure to verify your output matches the expected format, data types, and file locations specified. " +
 			"Provide a summary of the investigation and confirm the issue is resolved.",
 		inputSchema: zodToJsonSchema(SubmitInputSchema),
 		lifecycle: {
