@@ -803,8 +803,8 @@ export class Controller {
 		return this.mode.toggleActModeForYoloMode()
 	}
 
-	async togglePlanActMode(modeToSwitchTo: Mode, _chatContent?: ChatContent): Promise<boolean> {
-		return this.mode.togglePlanActMode(modeToSwitchTo)
+	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+		return this.mode.togglePlanActMode(modeToSwitchTo, chatContent)
 	}
 
 	// ---- Telemetry ----
