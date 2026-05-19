@@ -130,21 +130,24 @@ export class SdkTaskControlCoordinator {
 
 			this.options.resetMessageTranslator()
 
+			// Load messages before installing the new task proxy so any concurrent
+			// postStateToWebview() caller never sees the new id with empty messages.
+			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
+			const cleanedMessages = messages.length > 0 ? this.appendFreshResumeMessage(messages) : []
+
 			const task = createTaskProxy(
 				taskId,
 				(text?: string, images?: string[], files?: string[]) => this.options.onAskResponse(text, images, files),
 				() => this.cancelTask(),
 			)
+			if (cleanedMessages.length > 0) {
+				task.messageStateHandler.addMessages(cleanedMessages)
+			}
 			this.options.setTask(task)
 
-			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
-			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
-
-			if (messages.length > 0) {
-				const cleanedMessages = this.appendFreshResumeMessage(messages)
-				this.options.messages.appendMessages(cleanedMessages)
+			if (cleanedMessages.length > 0) {
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
-
 				const { pushMessageToWebview } = await import("./webview-grpc-bridge")
 				for (const msg of cleanedMessages) {
 					await pushMessageToWebview(msg)
