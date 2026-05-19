@@ -83,6 +83,47 @@ describe("SdkModeCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("auto-continues with the canned act-mode prompt when togglePlanActMode switches plan -> act on an active session", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "plan" })
+
+		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+
+		expect(state.mode).toBe("act")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.objectContaining({ send: expect.any(Function) }),
+			"new-session",
+			"The user approved switching to act mode. Continue with the approved plan now.",
+		)
+	})
+
+	it("auto-continues with the user-supplied chatContent message when provided on plan -> act toggle", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({ activeSession, task, mode: "plan" })
+
+		await coordinator.togglePlanActMode("act", { message: "  go ahead and implement step 1  ", images: [], files: [] })
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.objectContaining({ send: expect.any(Function) }),
+			"new-session",
+			"go ahead and implement step 1",
+		)
+	})
+
+	it("does not auto-continue on act -> plan toggle even when an active session exists", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "act" })
+
+		await coordinator.togglePlanActMode("plan", { message: "draft message", images: [], files: [] })
+
+		expect(state.mode).toBe("plan")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
 	it("emits an auth error and skips replacement when the target cline provider has no token", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({
@@ -113,9 +154,7 @@ describe("SdkModeCoordinator", () => {
 		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
-		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }], {
-			save: false,
-		})
+		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
 	})
 })
 
