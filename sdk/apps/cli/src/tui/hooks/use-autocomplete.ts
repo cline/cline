@@ -198,13 +198,8 @@ export function useAutocomplete(opts: {
 	);
 
 	const getFilteredMentionOptions = useCallback(
-		(query: string): AutocompleteOption[] => {
-			const q = query.toLowerCase();
-			let filtered = mentionResults;
-			if (q) {
-				filtered = mentionResults.filter((f) => f.toLowerCase().includes(q));
-			}
-			return filtered.slice(0, MAX_COMPLETION_RESULTS).map((f) => ({
+		(_query: string): AutocompleteOption[] => {
+			return mentionResults.slice(0, MAX_COMPLETION_RESULTS).map((f) => ({
 				display: f,
 				value: formatMentionAutocompleteValue(f),
 			}));
