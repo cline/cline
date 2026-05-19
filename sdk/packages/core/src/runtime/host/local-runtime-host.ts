@@ -782,12 +782,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 								shutdownReason: reason,
 								endReason: "disposed",
 							})
-					: this.shutdownSession(session, {
-							status: "cancelled",
-							exitCode: 0,
-							shutdownReason: reason,
-							endReason: "disposed",
-						}),
+						: this.shutdownSession(session, {
+								status: "cancelled",
+								exitCode: 0,
+								shutdownReason: reason,
+								endReason: "disposed",
+							}),
 			),
 		);
 		this.usageBySession.clear();
@@ -968,7 +968,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
-		switch (session.lastInteractiveTurnFinishReason) {
+		const finishReason = session.lastInteractiveTurnFinishReason;
+		if (!finishReason) return "cancelled";
+
+		switch (finishReason) {
 			case "completed":
 				return "completed";
 			case "error":
@@ -976,9 +979,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			case "aborted":
 			case "max_iterations":
 			case "mistake_limit":
-			default:
 				return "cancelled";
 		}
+
+		const _exhaustive: never = finishReason;
+		return _exhaustive;
 	}
 
 	private resolveInteractiveStopExitCode(session: ActiveSession): number {
