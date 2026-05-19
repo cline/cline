@@ -1,6 +1,7 @@
 import type {
 	GatewayModelRoute,
 	GatewayProviderContext,
+	GatewayReasoningFormat,
 	GatewayStreamRequest,
 } from "@cline/shared";
 
@@ -20,7 +21,9 @@ function normalizedFamily(context: GatewayProviderContext): string {
 	return normalizeRoutingValue(resolveModelFamily(context)) ?? "";
 }
 
-function normalizedModelId(request: Pick<GatewayStreamRequest, "modelId">): string {
+function normalizedModelId(
+	request: Pick<GatewayStreamRequest, "modelId">,
+): string {
 	return normalizeRoutingValue(request.modelId) ?? "";
 }
 
@@ -37,7 +40,9 @@ function isClaudeLineageValue(value: string | undefined): boolean {
 
 function isQwenLineageValue(value: string | undefined): boolean {
 	const normalized = normalizeRoutingValue(value);
-	return normalized ? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(normalized) : false;
+	return normalized
+		? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(normalized)
+		: false;
 }
 
 export function isAnthropicCompatibleModel(options: {
@@ -126,6 +131,25 @@ export function modelRouteMatches(
 				normalizeRoutingValue(route.modelId)
 			);
 	}
+}
+
+export function providerReasoningRouteMatches(
+	format: GatewayReasoningFormat,
+	request: Pick<GatewayStreamRequest, "modelId">,
+	context: GatewayProviderContext,
+): boolean {
+	const reasoning = context.provider.metadata?.routing?.reasoning;
+	if (reasoning?.format !== format) {
+		return false;
+	}
+
+	return reasoning.routes.some((route) =>
+		modelRouteMatches(route, {
+			modelId: request.modelId,
+			family: resolveModelFamily(context),
+			capabilities: context.model.capabilities,
+		}),
+	);
 }
 
 export function isGlmModel(

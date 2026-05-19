@@ -60,3 +60,13 @@ tests/**/cache
 # Backup created by scripts/marketplace-readme.mjs while publishing.
 # Should never be committed: only exists if a publish aborts mid-swap.
 .README.github.bak
+
+
+# SDK Session files / User data
+.cline/data
+.cline/tmp
+*.db
+*.db-shm
+*.db-wal
+.cline/**/managed.json
+.cline/**/bundle.json

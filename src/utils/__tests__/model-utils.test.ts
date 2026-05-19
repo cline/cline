@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import type { ApiHandlerModel } from "@core/api"
+import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isClaude4PlusModelFamily,
@@ -8,12 +8,20 @@ import {
 	isGLMModelFamily,
 	isGPT5ModelFamily,
 	isGptOssModelFamily,
+	isNativeToolCallingConfig,
+	isNextGenModelFamily,
+	isPoolsideModelFamily,
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
 } from "../model-utils"
 
 // Minimal helper — modelDoesntSupportWebp only reads apiHandlerModel.id
-const m = (id: string): ApiHandlerModel => ({ id, info: {} as any })
+const m = (id: string): ApiHandlerModel => ({ id, info: { supportsPromptCache: false } })
+const providerInfo = (providerId: string, modelId: string): ApiProviderInfo => ({
+	providerId,
+	model: m(modelId),
+	mode: "act",
+})
 
 describe("shouldSkipReasoningForModel", () => {
 	it("should return true for grok-4 models", () => {
@@ -113,6 +121,26 @@ describe("isGptOssModelFamily", () => {
 		isGptOssModelFamily("gpt-5").should.equal(false)
 		isGptOssModelFamily("gpt-4o").should.equal(false)
 		isGptOssModelFamily("claude-sonnet-4").should.equal(false)
+	})
+})
+
+describe("isPoolsideModelFamily", () => {
+	it("should return true for Laguna model IDs", () => {
+		isPoolsideModelFamily("poolside/laguna-m.1").should.equal(true)
+		isPoolsideModelFamily("laguna-enterprise").should.equal(true)
+		isPoolsideModelFamily("LAGUNA").should.equal(true)
+	})
+
+	it("should return false for non-Poolside model IDs", () => {
+		isPoolsideModelFamily("gpt-5").should.equal(false)
+		isPoolsideModelFamily("deepseek-chat").should.equal(false)
+		isPoolsideModelFamily("claude-sonnet-4").should.equal(false)
+	})
+
+	it("should qualify Laguna models for next-gen and native tool calling paths", () => {
+		isNextGenModelFamily("poolside/laguna-m.1").should.equal(true)
+		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), true).should.equal(true)
+		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), false).should.equal(false)
 	})
 })
 

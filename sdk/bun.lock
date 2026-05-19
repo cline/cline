@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.7",
+      "version": "3.0.8",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -38,6 +38,7 @@
         "@opentui/react": "0.1.102",
         "chat": "^4.23.0",
         "commander": "^14.0.3",
+        "fzf": "^0.5.2",
         "marked": "^15.0.12",
         "open": "^10.2.0",
         "opentui-spinner": "^0.0.6",
@@ -61,6 +62,16 @@
       "dependencies": {
         "@cline/sdk": "workspace:*",
         "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/cline-core-cli-agent": {
+      "name": "@cline/example-cline-core-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^5.9.3",
@@ -625,6 +636,8 @@
     "@cline/core": ["@cline/core@workspace:packages/core"],
 
     "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
+
+    "@cline/example-cline-core-cli-agent": ["@cline/example-cline-core-cli-agent@workspace:apps/examples/cline-core-cli-agent"],
 
     "@cline/example-code-review-bot": ["@cline/example-code-review-bot@workspace:apps/examples/code-review-bot"],
 
@@ -2111,6 +2124,8 @@
     "function-bind": ["function-bind@1.1.2", "", {}, "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="],
 
     "fuzzysort": ["fuzzysort@3.1.0", "", {}, "sha512-sR9BNCjBg6LNgwvxlBd0sBABvQitkLzoVY9MYYROQVX/FvfJ4Mai9LsGhDgd8qYdds0bY77VzYd5iuB+v5rwQQ=="],
+
+    "fzf": ["fzf@0.5.2", "", {}, "sha512-Tt4kuxLXFKHy8KT40zwsUPUkg1CrsgY25FxA2U/j/0WgEDCk3ddc/zLTCCcbSHX9FcKtLuVaDGtGE/STWC+j3Q=="],
 
     "gaxios": ["gaxios@7.1.4", "", { "dependencies": { "extend": "^3.0.2", "https-proxy-agent": "^7.0.1", "node-fetch": "^3.3.2" } }, "sha512-bTIgTsM2bWn3XklZISBTQX7ZSddGW+IO3bMdGaemHZ3tbqExMENHLx6kKZ/KlejgrMtj8q7wBItt51yegqalrA=="],
 
