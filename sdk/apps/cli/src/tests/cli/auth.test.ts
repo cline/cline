@@ -230,7 +230,7 @@ test.describe("cline auth -p -k -m -b (golden path with baseUrl)", () => {
 			args: [
 				"auth",
 				"--provider",
-				"openai",
+				"openai-compatible",
 				"--apikey",
 				"sk-test-key-12345",
 				"--modelid",
@@ -243,7 +243,7 @@ test.describe("cline auth -p -k -m -b (golden path with baseUrl)", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("exits successfully with baseUrl for OpenAI provider", async ({
+	test("exits successfully with baseUrl for OpenAI Compatible provider", async ({
 		terminal,
 	}) => {
 		await expectExitCode(terminal, EXIT_CODE_SUCCESS);

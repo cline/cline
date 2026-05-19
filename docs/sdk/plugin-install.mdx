@@ -79,6 +79,28 @@ Installed plugins appear in the `plugins` section of your CLI config:
 cline config
 ```
 
+### Find All Your Plugins from your file system
+
+Project-scoped plugins live in the `.cline/plugins/` folder at your workspace root. The CLI auto-discovers plugins from this folder when you run Cline in that project.
+
+```text
+your-project/
+├── .cline/
+│   └── plugins/
+│       ├── my-plugin.ts
+│       └── another-plugin/
+└── ...
+```
+
+To add a single-file plugin manually, copy it into `.cline/plugins/`:
+
+```sh
+mkdir -p .cline/plugins
+cp path/to/my-plugin.ts .cline/plugins/
+```
+
+Global plugins are discovered from `~/.cline/plugins/`, and Cline may also discover plugins from the system Plugins folder. Use `.cline/plugins/` when you want plugins to stay with a specific project.
+
 ## Programmatic Installation
 
 ### Using `pluginPaths` (ClineCore)

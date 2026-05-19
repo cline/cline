@@ -1,0 +1,11 @@
+{
+	"version": 1,
+	"skills": {
+		"cline-sdk": {
+			"source": "cline/sdk-skill",
+			"sourceType": "github",
+			"skillPath": "skill/cline-sdk/SKILL.md",
+			"computedHash": "ce565d78d5bd1c40075248a3a925b2059c5c024bfcdbbf1f55bf3440cae34144"
+		}
+	}
+}

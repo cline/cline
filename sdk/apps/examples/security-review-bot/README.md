@@ -1,4 +1,4 @@
-# Security Review Bot
+# Security Review Bot on git diffs
 
 An AI-powered application security review agent that reads a git diff, analyzes it for security risk, and produces structured findings with severity, category, CWE/OWASP metadata, exploit scenarios, remediation guidance, and confidence levels.
 
@@ -33,6 +33,67 @@ bun dev HEAD~5
 bun dev abc123
 ```
 
+Add run-specific review instructions with `--prompt` or `-p`:
+
+```bash
+bun dev main --prompt "Focus on authorization bypasses and SSRF"
+bun dev HEAD~1 -p "Treat test-only secrets as low severity"
+```
+
+You can also pass extra positional text after the ref; it will be appended as additional review instructions:
+
+```bash
+bun dev main "Prioritize auth, secrets, and unsafe file access"
+```
+
+## Review a specific repo
+
+The bot reviews the git repository in the current working directory. To review a different repo, run the example command from that repo's directory and pass the ref you want to compare against.
+
+Using Bun directly from another repo:
+
+```bash
+cd /path/to/repo-you-want-to-review
+bun --cwd /path/to/cline/sdk/apps/examples/security-review-bot dev main
+```
+
+With extra instructions:
+
+```bash
+cd /path/to/repo-you-want-to-review
+bun --cwd /path/to/cline/sdk/apps/examples/security-review-bot dev main --prompt "Focus on payment and admin flows"
+```
+
+Or build the example once and run the compiled JavaScript from any git repo:
+
+```bash
+cd /path/to/cline/sdk/apps/examples/security-review-bot
+bun run build
+
+cd /path/to/repo-you-want-to-review
+node /path/to/cline/sdk/apps/examples/security-review-bot/dist/index.js main
+```
+
+The argument is passed to `git diff <ref>` in the target repo. Common examples:
+
+```bash
+# Review all changes on your branch compared with main
+bun --cwd /path/to/cline/sdk/apps/examples/security-review-bot dev main
+
+# Review the last commit
+bun --cwd /path/to/cline/sdk/apps/examples/security-review-bot dev HEAD~1
+
+# Review changes since a release tag
+bun --cwd /path/to/cline/sdk/apps/examples/security-review-bot dev v1.2.3
+```
+
+If you want to review uncommitted changes in a target repo, compare against the branch or commit you started from, for example:
+
+```bash
+cd /path/to/repo-you-want-to-review
+bun --cwd /path/to/cline/sdk/apps/examples/security-review-bot dev main
+```
+
 ## What it does
 
 1. Reads a `git diff` against the specified ref (defaults to `HEAD~1`)
@@ -62,7 +123,8 @@ Each finding includes:
 - Enabling selected ClineCore built-in tools, including `read_files` and `search_codebase`
 - Adding domain-specific custom tools with `extraTools`
 - `lifecycle: { completesRun: true }` to make a tool end the agent loop
-- Subscribing to `CoreSessionEvent` events with `cline.subscribe()` and rendering structured `agent_event` payloads
+- Subscribing to `CoreSessionEvent` events with `cline.subscribe()`
+- Rendering parsed `agent_event` text/tool events instead of printing serialized `chunk` payloads
 - Cleaning up runtime resources with `cline.dispose()`
 - Processing structured results after the run completes
 

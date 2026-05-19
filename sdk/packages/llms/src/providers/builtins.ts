@@ -15,6 +15,7 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
+import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	ANTHROPIC_ROUTING_METADATA,
@@ -25,6 +26,7 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
+const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
 
 export type ProviderFamily =
 	| "openai"
@@ -131,18 +133,7 @@ function buildClaudeCodeModels(): Record<string, ModelInfo> {
 }
 
 function buildOpenAICodexModels(): Record<string, ModelInfo> {
-	const openaiModels = generatedModels("openai-native");
-	const fallbackIds = ["gpt-5.4", "gpt-5.3-codex"];
-	return Object.fromEntries(
-		fallbackIds.map((id) => [
-			id,
-			openaiModels[id] ?? {
-				id,
-				name: id,
-				capabilities: ["tools", "reasoning", "streaming"],
-			},
-		]),
-	);
+	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
@@ -150,6 +141,11 @@ function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
 		id,
 		name: id,
 	};
+	if (spec?.family === "openai-compatible") {
+		info.contextWindow = 128_000;
+		info.maxInputTokens = 128_000;
+		info.capabilities = ["streaming", "tools", "images"];
+	}
 	if (spec?.id === "qwen" || spec?.id === "qwen-code") {
 		info.family = "qwen";
 		info.capabilities = ["prompt-cache"];
@@ -193,6 +189,9 @@ function modelInfoToGateway(
 	}
 	if (info.releaseDate) {
 		metadata.releaseDate = info.releaseDate;
+	}
+	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
+		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
 	}
 	return {
 		id: info.id,
@@ -252,6 +251,17 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 }
 
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
+	{
+		id: "openai-compatible",
+		name: "OpenAI Compatible",
+		description: "OpenAI-compatible chat completions endpoint",
+		family: "openai-compatible",
+		popular: 7,
+		capabilities: ["tools"],
+		defaultModelId: "gpt-4o",
+		apiKeyEnv: ["OPENAI_API_KEY"],
+		defaults: { baseUrl: "https://api.openai.com/v1" },
+	},
 	{
 		id: "cline",
 		name: "Cline",
@@ -649,7 +659,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		family: "openai",
 		popular: 2,
 		capabilities: ["reasoning", "oauth"],
-		defaultModelId: "gpt-5.4",
+		defaultModelId: OPENAI_CODEX_DEFAULT_MODEL_ID,
 		modelsFactory: buildOpenAICodexModels,
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 		metadata: { usageCostDisplay: "hide" },
@@ -726,6 +736,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "minimax.minimax-m2.5",
 		apiKeyEnv: [
+			"AWS_BEARER_TOKEN_BEDROCK",
 			"AWS_REGION",
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",

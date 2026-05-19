@@ -6,10 +6,23 @@
 	"build": {
 		"beforeDevCommand": "bun run build:sidecar:bin",
 		"beforeBuildCommand": "bun run build:sidecar:bin",
+		"frontendDist": "../ui",
 		"beforeBundleCommand": "[ \"$(uname)\" = \"Darwin\" ] && [ -e ./target/release/bundle/macos/Cline\\ Hub.app ] && xattr -d com.apple.quarantine ./target/release/bundle/macos/Cline\\ Hub.app || true"
 	},
 	"app": {
-		"windows": [],
+		"withGlobalTauri": true,
+		"windows": [
+			{
+				"label": "main",
+				"title": "Cline Hub Monitor",
+				"width": 1600,
+				"height": 900,
+				"minWidth": 1180,
+				"minHeight": 720,
+				"resizable": true,
+				"decorations": false
+			}
+		],
 		"security": {
 			"csp": null
 		}

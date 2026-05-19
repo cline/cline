@@ -6,6 +6,7 @@ export type {
 	ProviderInfo,
 } from "./models";
 export {
+	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getModelsForProvider,

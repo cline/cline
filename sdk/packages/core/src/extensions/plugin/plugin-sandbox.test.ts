@@ -8,7 +8,15 @@ import type {
 	AgentToolContext,
 	Message,
 } from "@cline/shared";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 
 function createApiCapture() {
@@ -424,6 +432,100 @@ describe("plugin-sandbox", () => {
 				payload: { value: "hello" },
 			},
 		]);
+	});
+
+	it("resolves sandbox bootstrap from the npm wrapper platform package", async () => {
+		const previousWrapperPath = process.env.CLINE_WRAPPER_PATH;
+		const wrapperRoot = await mkdtemp(
+			join(tmpdir(), "core-plugin-sandbox-wrapper-"),
+		);
+		const platform =
+			process.platform === "win32" ? "windows" : process.platform;
+		const packageRoot = join(
+			wrapperRoot,
+			"node_modules",
+			"@cline",
+			`cli-${platform}-${process.arch}`,
+		);
+		const wrapperBinDir = join(wrapperRoot, "bin");
+		const bootstrapPath = join(
+			packageRoot,
+			"extensions",
+			"plugin-sandbox-bootstrap.js",
+		);
+		const wrapperPath = join(wrapperBinDir, "cline");
+		const events: Array<{ name: string; payload?: unknown }> = [];
+
+		try {
+			await mkdir(join(packageRoot, "extensions"), { recursive: true });
+			await mkdir(wrapperBinDir, { recursive: true });
+			await writeFile(wrapperPath, "#!/usr/bin/env node\n", "utf8");
+			await writeFile(
+				join(packageRoot, "package.json"),
+				JSON.stringify({
+					name: `@cline/cli-${platform}-${process.arch}`,
+					version: "0.0.0-test",
+					type: "module",
+				}),
+				"utf8",
+			);
+			await writeFile(
+				bootstrapPath,
+				[
+					"process.on('message', (message) => {",
+					"  if (!message || message.type !== 'call') return;",
+					"  if (message.method !== 'initialize') throw new Error('Unexpected method: ' + message.method);",
+					"  process.send?.({ type: 'event', name: 'wrapper_bootstrap_selected', payload: { ok: true } });",
+					"  process.send?.({",
+					"    type: 'response',",
+					"    id: message.id,",
+					"    ok: true,",
+					"    result: {",
+					"      plugins: [{",
+					"        pluginId: 'plugin_1',",
+					"        pluginPath: 'wrapper-bootstrap',",
+					"        name: 'wrapper-bootstrap',",
+					"        manifest: { capabilities: ['tools'] },",
+					"        contributions: { tools: [], commands: [], messageBuilders: [], providers: [], automationEventTypes: [] },",
+					"      }],",
+					"      failures: [],",
+					"      warnings: [],",
+					"    },",
+					"  });",
+					"});",
+				].join("\n"),
+				"utf8",
+			);
+
+			process.env.CLINE_WRAPPER_PATH = wrapperPath;
+			vi.resetModules();
+			const { loadSandboxedPlugins: loadSandboxedPluginsFromWrapper } =
+				await import("./plugin-sandbox");
+			const sandboxed = await loadSandboxedPluginsFromWrapper({
+				pluginPaths: [join(wrapperRoot, "unused-plugin.mjs")],
+				onEvent: (event) => events.push(event),
+			});
+
+			try {
+				expect(
+					sandboxed.extensions?.map((extension) => extension.name),
+				).toEqual(["wrapper-bootstrap"]);
+				expect(events).toContainEqual({
+					name: "wrapper_bootstrap_selected",
+					payload: { ok: true },
+				});
+			} finally {
+				await sandboxed.shutdown();
+			}
+		} finally {
+			if (previousWrapperPath === undefined) {
+				delete process.env.CLINE_WRAPPER_PATH;
+			} else {
+				process.env.CLINE_WRAPPER_PATH = previousWrapperPath;
+			}
+			vi.resetModules();
+			await rm(wrapperRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("registers automation event types and forwards sandbox automation events", async () => {

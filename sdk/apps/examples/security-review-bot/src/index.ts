@@ -228,7 +228,7 @@ function renderAgentEvent(event: AgentEvent) {
 }
 
 // Get the diff to review
-const ref = process.argv[2] || "HEAD~1";
+const { ref, extraPrompt } = parseArgs(process.argv.slice(2));
 if (ref.startsWith("-")) {
 	console.error(`Invalid ref: ${ref}`);
 	process.exit(1);
@@ -256,6 +256,9 @@ if (!diff.trim()) {
 console.log(
 	`Security reviewing diff against ${ref} (${diff.split("\n").length} lines)...\n`,
 );
+if (extraPrompt) {
+	console.log(`Additional review instructions: ${extraPrompt}\n`);
+}
 
 const cline = await ClineCore.create({
 	clientName: "security-review-bot",
@@ -271,10 +274,14 @@ const unsubscribe = cline.subscribe((event) => {
 });
 
 try {
+	const prompt = `Security review this git diff.${
+		extraPrompt ? `\n\nAdditional review instructions:\n${extraPrompt}` : ""
+	}\n\n\`\`\`diff\n${diff}\n\`\`\``;
+
 	const result = await cline.start({
 		source: "cli",
 		interactive: false,
-		prompt: `Security review this git diff:\n\n\`\`\`diff\n${diff}\n\`\`\``,
+		prompt,
 		config: {
 			providerId: "cline",
 			modelId: "anthropic/claude-sonnet-4.6",

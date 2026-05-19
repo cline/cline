@@ -179,9 +179,7 @@
 				"!!**/*.js",
 				"!!**/scripts/**",
 				"!!**/*.tsx",
-				"!!**/testing-platform/**",
-				// ACP mode must redirect console to stderr - this is intentional
-				"!!cli/src/acp/index.ts"
+				"!!**/testing-platform/**"
 			]
 		},
 		{

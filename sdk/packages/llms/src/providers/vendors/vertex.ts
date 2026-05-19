@@ -5,6 +5,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { resolveApiKey } from "../http";
+import { isClaudeModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
 export async function createVertexProviderModule(
@@ -18,7 +19,7 @@ export async function createVertexProviderModule(
 		config.options?.location ?? config.options?.region ?? "us-central1",
 	);
 
-	if (context.model.id.toLowerCase().includes("claude")) {
+	if (isClaudeModelId(context.model.id)) {
 		const provider = createVertexAnthropic({
 			project,
 			location,

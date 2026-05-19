@@ -42,19 +42,6 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(apiKeyInput).not.toBeVisible()
 	await expect(providerSelectorInput).not.toBeVisible()
 
-	// New installs may first show the Kanban launch modal, which blocks the
-	// update announcement modal until it has been dismissed.
-	const kanbanDialog = sidebar.getByRole("heading", {
-		name: "Introducing Cline Kanban",
-	})
-	try {
-		await kanbanDialog.waitFor({ state: "visible", timeout: 5_000 })
-		await sidebar.getByRole("button", { name: "Close" }).click()
-		await expect(kanbanDialog).not.toBeVisible()
-	} catch {
-		// Kanban modal did not appear during this run.
-	}
-
 	// Verify you are now in the chat page after setup was completed.
 	// cline logo container
 	const clineLogo = sidebar.locator(".size-20")

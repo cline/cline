@@ -9,6 +9,7 @@ import {
 	useRef,
 } from "react";
 import type { TranscriptCommand } from "../hooks/transcript-keybinds";
+import { useTerminalTheme } from "../hooks/use-terminal-background";
 import { getModeAccent } from "../palette";
 import type { ChatEntry } from "../types";
 import { ChatEntryView } from "./chat-entry";
@@ -29,6 +30,8 @@ export const ChatMessageList = forwardRef<
 >(function ChatMessageList(props, ref) {
 	const scrollboxRef = useRef<ScrollBoxRenderable | null>(null);
 	const lastEntry = props.entries.at(-1);
+	const terminalTheme = useTerminalTheme();
+	const accent = getModeAccent(props.uiMode ?? "act", terminalTheme);
 	const userSubmissionScrollKey =
 		lastEntry?.kind === "user_submitted" ? props.entries.length : 0;
 
@@ -96,13 +99,14 @@ export const ChatMessageList = forwardRef<
 						<ChatEntryView
 							key={key}
 							entry={entry}
-							accent={getModeAccent(props.uiMode ?? "act")}
+							accent={accent}
+							terminalTheme={terminalTheme}
 						/>
 					);
 				})}
 				{props.isStreaming && (
 					<box flexDirection="row" gap={1}>
-						<spinner name="dots" color={getModeAccent(props.uiMode ?? "act")} />
+						<spinner name="dots" color={accent} />
 						<text fg="gray">Thinking... (esc to cancel)</text>
 					</box>
 				)}
