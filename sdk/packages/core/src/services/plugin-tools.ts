@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import type { AgentConfig, AgentTool } from "@cline/shared";
 import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
 import { loadSandboxedPlugins } from "../extensions/plugin/plugin-sandbox";
@@ -38,21 +38,23 @@ function cachePluginToolDescriptors(
 	pluginToolDescriptorCache.set(key, descriptors);
 }
 
-function buildPluginToolDescriptorCacheKey(input: {
+async function buildPluginToolDescriptorCacheKey(input: {
 	pluginPaths: ReadonlyArray<string>;
 	workspacePath: string;
 	cwd?: string;
 	providerId?: string;
 	modelId?: string;
-}): string {
-	const pathStats = input.pluginPaths.map((pluginPath) => {
-		try {
-			const stats = statSync(pluginPath);
-			return `${pluginPath}:${stats.mtimeMs}:${stats.size}`;
-		} catch {
-			return `${pluginPath}:missing`;
-		}
-	});
+}): Promise<string> {
+	const pathStats = await Promise.all(
+		input.pluginPaths.map(async (pluginPath) => {
+			try {
+				const stats = await stat(pluginPath);
+				return `${pluginPath}:${stats.mtimeMs}:${stats.size}`;
+			} catch {
+				return `${pluginPath}:missing`;
+			}
+		}),
+	);
 	return JSON.stringify({
 		workspacePath: input.workspacePath,
 		cwd: input.cwd,
@@ -98,7 +100,7 @@ export async function listPluginTools(input: {
 		return [];
 	}
 	const disabled = resolveDisabledToolNames(input.disabledToolNames);
-	const cacheKey = buildPluginToolDescriptorCacheKey({
+	const cacheKey = await buildPluginToolDescriptorCacheKey({
 		pluginPaths,
 		workspacePath: input.workspacePath,
 		cwd: input.cwd,

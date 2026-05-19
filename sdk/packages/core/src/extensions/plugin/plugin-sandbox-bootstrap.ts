@@ -582,18 +582,18 @@ async function initialize(args: {
 	};
 
 	const loadResults = await Promise.all(
-		(args.pluginPaths || []).map((pluginPath, index) =>
-			loadPluginDescriptor({
+		(args.pluginPaths || []).map((pluginPath) => {
+			const pluginId = `plugin_${++pluginCounter}`;
+			return loadPluginDescriptor({
 				pluginPath,
-				pluginId: `plugin_${index + 1}`,
+				pluginId,
 				exportName,
 				targeting,
 				setupCtxBase,
 				loggerEnabled: args.loggerEnabled,
-			}),
-		),
+			});
+		}),
 	);
-	pluginCounter = loadResults.length;
 
 	for (const result of loadResults) {
 		if (result.type === "skipped") {
