@@ -327,6 +327,7 @@ function registerTools(
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const td of descriptor.contributions?.tools ?? []) {
+		const toolTimeoutMs = withTimeoutFallback(td.timeoutMs, timeoutMs);
 		const tool: AgentTool = {
 			name: td.name,
 			description: td.description ?? "",
@@ -346,7 +347,7 @@ function registerTools(
 							input,
 							context,
 						},
-						{ timeoutMs },
+						{ timeoutMs: toolTimeoutMs },
 					);
 				} catch (error) {
 					if (!isUnknownPluginIdError(error)) {
@@ -361,7 +362,7 @@ function registerTools(
 							input,
 							context,
 						},
-						{ timeoutMs },
+						{ timeoutMs: toolTimeoutMs },
 					);
 				}
 			},
@@ -378,6 +379,7 @@ function registerCommands(
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const cd of descriptor.contributions?.commands ?? []) {
+		const commandTimeoutMs = withTimeoutFallback(cd.timeoutMs, timeoutMs);
 		api.registerCommand({
 			name: cd.name,
 			description: cd.description,
@@ -390,7 +392,7 @@ function registerCommands(
 							contributionId: cd.id,
 							input,
 						},
-						{ timeoutMs },
+						{ timeoutMs: commandTimeoutMs },
 					);
 				} catch (error) {
 					if (!isUnknownPluginIdError(error)) {
@@ -404,7 +406,7 @@ function registerCommands(
 							contributionId: cd.id,
 							input,
 						},
-						{ timeoutMs },
+						{ timeoutMs: commandTimeoutMs },
 					);
 				}
 			},
@@ -446,6 +448,7 @@ function registerMessageBuilders(
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const bd of descriptor.contributions?.messageBuilders ?? []) {
+		const builderTimeoutMs = withTimeoutFallback(bd.timeoutMs, timeoutMs);
 		api.registerMessageBuilder({
 			name: bd.name,
 			async build(messages) {
@@ -457,7 +460,7 @@ function registerMessageBuilders(
 							contributionId: bd.id,
 							messages,
 						},
-						{ timeoutMs },
+						{ timeoutMs: builderTimeoutMs },
 					);
 					return isMessageArray(result) ? result : messages;
 				} catch (error) {
@@ -472,7 +475,7 @@ function registerMessageBuilders(
 							contributionId: bd.id,
 							messages,
 						},
-						{ timeoutMs },
+						{ timeoutMs: builderTimeoutMs },
 					);
 					return isMessageArray(result) ? result : messages;
 				}

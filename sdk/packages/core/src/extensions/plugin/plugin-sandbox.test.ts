@@ -617,6 +617,64 @@ describe("plugin-sandbox", () => {
 		expect(result).toEqual({ echoed: "ok" });
 	});
 
+	it("uses tool timeout when executing sandbox tool contributions", async () => {
+		const pluginPath = join(dir, "plugin-tool-timeout.mjs");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'sandbox-tool-timeout',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api) {",
+				"    api.registerTool({",
+				"      name: 'slow_tool',",
+				"      description: 'slow tool',",
+				"      inputSchema: { type: 'object', properties: {} },",
+				"      timeoutMs: 25,",
+				"      execute: async () => {",
+				"        await new Promise((resolve) => setTimeout(resolve, 250));",
+				"        return { ok: true };",
+				"      },",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		const sandboxed = await loadSandboxedPlugins({
+			pluginPaths: [pluginPath],
+			contributionTimeoutMs: 1_000,
+		});
+
+		try {
+			const extension = sandboxed.extensions?.find(
+				(entry) => entry.name === "sandbox-tool-timeout",
+			);
+			if (!extension) {
+				throw new Error("Expected sandbox-tool-timeout extension to load");
+			}
+			const { tools, api } = createApiCapture();
+			await extension.setup?.(api, {});
+			const tool = tools.find((entry) => entry.name === "slow_tool");
+			if (!tool) {
+				throw new Error("Expected slow_tool to be registered");
+			}
+
+			const startedAt = Date.now();
+			await expect(
+				tool.execute({}, {
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				} as AgentToolContext),
+			).rejects.toThrow("timed out after 25ms: executeTool");
+			expect(Date.now() - startedAt).toBeLessThan(800);
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+
 	it("continues loading remaining sandbox plugins when one setup fails", async () => {
 		const sandboxed = await loadSandboxedPlugins({
 			pluginPaths: [
