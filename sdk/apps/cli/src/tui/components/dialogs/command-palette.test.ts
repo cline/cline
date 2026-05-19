@@ -114,4 +114,27 @@ describe("command palette", () => {
 			})?.label,
 		).toBe("Open Help");
 	});
+
+	it("keeps option right available for word navigation", () => {
+		const items = buildCommandPaletteItems({
+			canForkSession: true,
+		});
+
+		expect(
+			findCommandPaletteShortcut(items, {
+				name: "f",
+				meta: false,
+				option: true,
+				shift: false,
+			}),
+		).toBeUndefined();
+		expect(
+			findCommandPaletteShortcut(items, {
+				name: "r",
+				meta: false,
+				option: true,
+				shift: false,
+			})?.label,
+		).toBe("Create Session Fork");
+	});
 });
