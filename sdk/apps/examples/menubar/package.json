@@ -4,6 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"dev:ui": "python3 -m http.server 3466 --bind 127.0.0.1 --directory ui",
 		"dev": "tauri dev",
 		"build": "tauri build",
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
