@@ -1,4 +1,4 @@
-# Security Review Bot
+# Security Review Bot on git diffs
 
 An AI-powered application security review agent that reads a git diff, analyzes it for security risk, and produces structured findings with severity, category, CWE/OWASP metadata, exploit scenarios, remediation guidance, and confidence levels.
 
