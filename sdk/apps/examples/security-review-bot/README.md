@@ -2,7 +2,7 @@
 
 An AI-powered application security review agent that reads a git diff, analyzes it for security risk, and produces structured findings with severity, category, CWE/OWASP metadata, exploit scenarios, remediation guidance, and confidence levels.
 
-This example is based on the `code-review-bot` example, but narrows the agent prompt and tool schema around actionable security review.
+This example is based on the `code-review-bot` example, but uses the `ClineCore` runtime instead of the lightweight `Agent` runtime. That means it can use ClineCore's built-in workspace tools, including `read_files`, while still adding custom security review tools through `extraTools`.
 
 ## Getting started
 
@@ -36,11 +36,12 @@ bun dev abc123
 ## What it does
 
 1. Reads a `git diff` against the specified ref (defaults to `HEAD~1`)
-2. Sends the diff to a security-focused agent with three custom tools:
-   - `get_file_context` - reads full file contents for surrounding security context
+2. Starts a local `ClineCore` session with built-in tools enabled
+3. Lets the model use ClineCore's `read_files` tool for surrounding file context
+4. Adds two custom security review tools through `extraTools`:
    - `add_security_finding` - records a structured security finding with severity, category, exploit scenario, remediation, and confidence
    - `submit_security_review` - a completion tool that ends the run with a summary, overall risk rating, and merge-blocking decision
-3. Prints findings grouped by severity (`critical`, `high`, `medium`, `low`, `info`)
+5. Prints findings grouped by severity (`critical`, `high`, `medium`, `low`, `info`)
 
 ## Finding schema
 
@@ -57,12 +58,12 @@ Each finding includes:
 
 ## Concepts demonstrated
 
-- Reusing the review-bot pattern for a specialized domain agent
-- Multiple `createTool` definitions with zod schemas
-- Security-focused structured outputs
+- Using `ClineCore.create()` and `cline.start()` for a local runtime session
+- Enabling ClineCore's built-in tools, including `read_files`
+- Adding domain-specific custom tools with `extraTools`
 - `lifecycle: { completesRun: true }` to make a tool end the agent loop
-- Safe repository file reads constrained to the git root
-- Event subscription filtered by tool name
+- Subscribing to `CoreSessionEvent` events with `cline.subscribe()`
+- Cleaning up runtime resources with `cline.dispose()`
 - Processing structured results after the run completes
 
 ## Notes

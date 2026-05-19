@@ -1,7 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, realpathSync, statSync } from "node:fs";
-import path from "node:path";
-import { Agent, createTool } from "@cline/sdk";
+import { type AgentTool, ClineCore, createTool } from "@cline/sdk";
 import { z } from "zod";
 
 const SecurityFindingSchema = z.object({
@@ -40,7 +38,16 @@ const SecurityFindingSchema = z.object({
 	confidence: z.enum(["high", "medium", "low"]),
 });
 
+const SecurityReviewResultSchema = z.object({
+	summary: z.string().describe("Brief overall security assessment"),
+	overallRisk: z.enum(["critical", "high", "medium", "low", "none"]),
+	blockMerge: z
+		.boolean()
+		.describe("Whether the changes should be blocked from merging"),
+});
+
 const findings: z.infer<typeof SecurityFindingSchema>[] = [];
+let reviewResult: z.infer<typeof SecurityReviewResultSchema> | undefined;
 
 const repoRoot = (() => {
 	try {
@@ -53,43 +60,9 @@ const repoRoot = (() => {
 	}
 })();
 
-const realRepoRoot = realpathSync(repoRoot);
+const systemPrompt = `You are a senior application security engineer performing a focused security review of a git diff.
 
-function readRepoFile(inputPath: string) {
-	try {
-		if (path.isAbsolute(inputPath)) {
-			return `Error: absolute paths are not allowed: ${inputPath}`;
-		}
-		const resolvedPath = path.resolve(repoRoot, inputPath);
-		const realPath = realpathSync(resolvedPath);
-		const relativePath = path.relative(realRepoRoot, realPath);
-		if (
-			!relativePath ||
-			relativePath.startsWith("..") ||
-			path.isAbsolute(relativePath)
-		) {
-			return `Error: path is outside repo root: ${inputPath}`;
-		}
-		const stats = statSync(realPath);
-		if (!stats.isFile()) {
-			return `Error: path is not a file: ${inputPath}`;
-		}
-		if (stats.size > 1024 * 1024) {
-			return `Error: file is too large to read: ${inputPath}`;
-		}
-		return readFileSync(realPath, { encoding: "utf-8" });
-	} catch {
-		return `Error: could not read file ${inputPath}`;
-	}
-}
-
-const agent = new Agent({
-	providerId: "cline",
-	modelId: "anthropic/claude-sonnet-4.6",
-	apiKey: process.env.CLINE_API_KEY,
-	systemPrompt: `You are a senior application security engineer performing a focused security review of a git diff.
-
-Your goal is to identify exploitable or defense-in-depth security issues introduced or modified by the diff. Use the get_file_context tool when you need surrounding code to determine whether a finding is real.
+Your goal is to identify exploitable or defense-in-depth security issues introduced or modified by the diff. Use the read_files tool when you need surrounding code to determine whether a finding is real.
 
 Focus on:
 - Authentication and authorization bypasses
@@ -115,78 +88,44 @@ Severity guidance:
 
 For each real issue, call add_security_finding with clear evidence, exploit scenario, remediation, confidence, and CWE/OWASP metadata when applicable.
 
-When you are done reviewing, call submit_security_review with a brief summary, an overall risk rating, and whether the changes should be blocked from merging.`,
-	maxIterations: 25,
-	tools: [
-		createTool({
-			name: "get_file_context",
-			description:
-				"Read the full contents of a file to understand context around a security-relevant diff hunk.",
-			inputSchema: z.object({
-				path: z.string().describe("File path relative to the repo root"),
-			}),
-			async execute(input) {
-				return readRepoFile(input.path);
-			},
-		}),
-		createTool({
-			name: "add_security_finding",
-			description:
-				"Add an actionable security finding on a specific file and line.",
-			inputSchema: SecurityFindingSchema,
-			async execute(input) {
-				findings.push(input);
-				return `Security finding added (${findings.length} total)`;
-			},
-		}),
-		createTool({
-			name: "submit_security_review",
-			description: "Submit the completed security review with a risk summary.",
-			inputSchema: z.object({
-				summary: z.string().describe("Brief overall security assessment"),
-				overallRisk: z.enum(["critical", "high", "medium", "low", "none"]),
-				blockMerge: z
-					.boolean()
-					.describe("Whether the changes should be blocked from merging"),
-			}),
-			lifecycle: { completesRun: true },
-			async execute(input) {
-				return JSON.stringify({
-					summary: input.summary,
-					overallRisk: input.overallRisk,
-					blockMerge: input.blockMerge,
-					findingCount: findings.length,
-				});
-			},
-		}),
-	],
+When you are done reviewing, call submit_security_review with a brief summary, an overall risk rating, and whether the changes should be blocked from merging.`;
+
+const addSecurityFindingTool = createTool({
+	name: "add_security_finding",
+	description:
+		"Add an actionable security finding on a specific file and line.",
+	inputSchema: SecurityFindingSchema,
+	async execute(input) {
+		findings.push(input);
+		return {
+			success: true,
+			message: `Security finding added (${findings.length} total)`,
+			findingCount: findings.length,
+		};
+	},
 });
 
-agent.subscribe((event) => {
-	switch (event.type) {
-		case "assistant-text-delta":
-			process.stdout.write(event.text);
-			break;
-		case "tool-started":
-			if (event.toolCall.toolName === "add_security_finding") {
-				const input = event.toolCall.input as z.infer<
-					typeof SecurityFindingSchema
-				>;
-				const icon =
-					input.severity === "critical"
-						? "X"
-						: input.severity === "high"
-							? "!"
-							: input.severity === "medium"
-								? "~"
-								: "i";
-				console.log(
-					`  [${icon}] ${input.severity.toUpperCase()} ${input.file}:${input.line} - ${input.title}`,
-				);
-			}
-			break;
-	}
+const submitSecurityReviewTool = createTool({
+	name: "submit_security_review",
+	description: "Submit the completed security review with a risk summary.",
+	inputSchema: SecurityReviewResultSchema,
+	lifecycle: { completesRun: true },
+	async execute(input) {
+		reviewResult = input;
+		return {
+			success: true,
+			summary: input.summary,
+			overallRisk: input.overallRisk,
+			blockMerge: input.blockMerge,
+			findingCount: findings.length,
+		};
+	},
 });
+
+const securityReviewTools: AgentTool[] = [
+	addSecurityFindingTool as AgentTool,
+	submitSecurityReviewTool as AgentTool,
+];
 
 // Get the diff to review
 const ref = process.argv[2] || "HEAD~1";
@@ -218,38 +157,117 @@ console.log(
 	`Security reviewing diff against ${ref} (${diff.split("\n").length} lines)...\n`,
 );
 
-const result = await agent.run(
-	`Security review this git diff:\n\n\`\`\`diff\n${diff}\n\`\`\``,
-);
+const cline = await ClineCore.create({
+	clientName: "security-review-bot",
+	backendMode: "local",
+});
 
-console.log("\n\n--- Security Review Complete ---\n");
+const unsubscribe = cline.subscribe((event) => {
+	switch (event.type) {
+		case "chunk":
+			if (event.payload.stream === "agent") {
+				process.stdout.write(event.payload.chunk);
+			}
+			break;
+		case "agent_event":
+			if (
+				event.payload.event.type === "content_start" &&
+				event.payload.event.contentType === "tool" &&
+				event.payload.event.toolName === "add_security_finding"
+			) {
+				const input = event.payload.event.input as z.infer<
+					typeof SecurityFindingSchema
+				>;
+				const icon =
+					input.severity === "critical"
+						? "X"
+						: input.severity === "high"
+							? "!"
+							: input.severity === "medium"
+								? "~"
+								: "i";
+				console.log(
+					`  [${icon}] ${input.severity.toUpperCase()} ${input.file}:${input.line} - ${input.title}`,
+				);
+			}
+			break;
+	}
+});
 
-if (findings.length === 0) {
-	console.log("No actionable security findings identified.");
-} else {
-	const severityOrder = ["critical", "high", "medium", "low", "info"] as const;
+try {
+	const result = await cline.start({
+		source: "cli",
+		interactive: false,
+		prompt: `Security review this git diff:\n\n\`\`\`diff\n${diff}\n\`\`\``,
+		config: {
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: process.env.CLINE_API_KEY,
+			cwd: repoRoot,
+			workspaceRoot: repoRoot,
+			mode: "act",
+			systemPrompt,
+			maxIterations: 25,
+			enableTools: true,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+			disableMcpSettingsTools: true,
+		},
+		localRuntime: {
+			extraTools: securityReviewTools,
+		},
+		toolPolicies: {
+			"*": { autoApprove: true },
+		},
+	});
 
-	for (const severity of severityOrder) {
-		const group = findings.filter((finding) => finding.severity === severity);
-		if (group.length === 0) {
-			continue;
-		}
+	console.log("\n\n--- Security Review Complete ---\n");
 
-		console.log(`${severity.toUpperCase()}: ${group.length}`);
-		for (const finding of group) {
-			const metadata = [finding.cwe, finding.owasp].filter(Boolean).join(" | ");
-			console.log(
-				`  ${finding.file}:${finding.line} - ${finding.title}${metadata ? ` (${metadata})` : ""}`,
-			);
-			console.log(`    Category: ${finding.category}`);
-			console.log(`    Confidence: ${finding.confidence}`);
-			console.log(`    Risk: ${finding.description}`);
-			console.log(`    Exploit: ${finding.exploitScenario}`);
-			console.log(`    Fix: ${finding.remediation}`);
+	if (reviewResult) {
+		console.log(`Summary: ${reviewResult.summary}`);
+		console.log(`Overall risk: ${reviewResult.overallRisk}`);
+		console.log(`Block merge: ${reviewResult.blockMerge ? "yes" : "no"}\n`);
+	}
+
+	if (findings.length === 0) {
+		console.log("No actionable security findings identified.");
+	} else {
+		const severityOrder = [
+			"critical",
+			"high",
+			"medium",
+			"low",
+			"info",
+		] as const;
+
+		for (const severity of severityOrder) {
+			const group = findings.filter((finding) => finding.severity === severity);
+			if (group.length === 0) {
+				continue;
+			}
+
+			console.log(`${severity.toUpperCase()}: ${group.length}`);
+			for (const finding of group) {
+				const metadata = [finding.cwe, finding.owasp]
+					.filter(Boolean)
+					.join(" | ");
+				console.log(
+					`  ${finding.file}:${finding.line} - ${finding.title}${metadata ? ` (${metadata})` : ""}`,
+				);
+				console.log(`    Category: ${finding.category}`);
+				console.log(`    Confidence: ${finding.confidence}`);
+				console.log(`    Risk: ${finding.description}`);
+				console.log(`    Exploit: ${finding.exploitScenario}`);
+				console.log(`    Fix: ${finding.remediation}`);
+			}
 		}
 	}
-}
 
-console.log(
-	`\nStatus: ${result.status} | Iterations: ${result.iterations} | Tokens: ${result.usage.outputTokens} output`,
-);
+	const usage = result.result?.usage;
+	console.log(
+		`\nSession: ${result.sessionId} | Status: ${result.result?.finishReason ?? "unknown"} | Iterations: ${result.result?.iterations ?? 0} | Tokens: ${usage?.outputTokens ?? 0} output`,
+	);
+} finally {
+	unsubscribe();
+	await cline.dispose();
+}
