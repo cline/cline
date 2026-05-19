@@ -35,11 +35,13 @@ function cloneKnownModels(
 function isOpenAICompatibleManifest(
 	manifest: BuiltInProviderManifest,
 ): boolean {
+	if (manifest.client === "openai-compatible") {
+		return true;
+	}
 	if (manifest.baseUrl.length === 0) {
 		return false;
 	}
 	switch (manifest.client) {
-		case "openai-compatible":
 		case "openai":
 		case "openai-r1":
 		case "fetch":
@@ -204,7 +206,7 @@ function resolveCatalogModels(
 }
 
 function normalizeBaseUrl(baseUrl: string | undefined): string {
-	const value = baseUrl?.trim();
+	const value = baseUrl?.trim().replace(/\/+$/, "");
 	return value && value.length > 0 ? value : "";
 }
 
@@ -358,6 +360,16 @@ interface HicapModelResponse {
 	id?: string;
 }
 
+interface PoolsideModelResponse {
+	id?: string;
+	name?: string;
+	context_length?: number;
+	contextWindow?: number;
+	max_completion_tokens?: number;
+	max_output_tokens?: number;
+	supported_features?: string[];
+}
+
 async function fetchHicapPrivateModels(
 	_config: ProviderConfig,
 	token: string,
@@ -388,6 +400,51 @@ async function fetchHicapPrivateModels(
 			maxInputTokens: 128_000,
 			supportsImages: true,
 			supportsPromptCache: true,
+		});
+	}
+	return models;
+}
+
+async function fetchPoolsidePrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl = normalizeBaseUrl(config.baseUrl);
+	if (!baseUrl) {
+		return {};
+	}
+
+	const response = await fetchWithTimeout(`${baseUrl}/models`, {
+		method: "GET",
+		headers: {
+			accept: "application/json",
+			Authorization: `Bearer ${token}`,
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`Poolside model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as {
+		data?: PoolsideModelResponse[];
+	};
+	const entries = payload?.data ?? [];
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id) {
+			continue;
+		}
+		const features = model.supported_features ?? [];
+		models[id] = buildModelFromPrivateSource(id, {
+			name: model.name?.trim() || id,
+			contextWindow: model.context_length ?? model.contextWindow,
+			maxInputTokens: model.context_length ?? model.contextWindow,
+			maxTokens: model.max_completion_tokens ?? model.max_output_tokens,
+			supportsReasoning:
+				features.includes("reasoning") || features.includes("reasoning_effort"),
+			supportsImages:
+				features.includes("vision") || features.includes("images"),
 		});
 	}
 	return models;
@@ -487,6 +544,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
+	poolside: fetchPoolsidePrivateModels,
 };
 
 const PUBLIC_MODELS_CACHE = new Map<

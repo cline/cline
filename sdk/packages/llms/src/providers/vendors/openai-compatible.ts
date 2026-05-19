@@ -9,6 +9,14 @@ import { resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
+function normalizeBaseUrl(baseUrl: string | undefined): string | undefined {
+	const trimmed = baseUrl?.trim().replace(/\/+$/, "");
+	if (!trimmed) {
+		return undefined;
+	}
+	return trimmed;
+}
+
 export async function createOpenAICompatibleProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -18,10 +26,11 @@ export async function createOpenAICompatibleProviderModule(
 	// authoritative error and is surfaced to the user as-is. This keeps
 	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
+	const baseUrl = normalizeBaseUrl(config.baseUrl);
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,
-		...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
+		...(baseUrl ? { baseURL: baseUrl } : {}),
 		...(config.headers ? { headers: config.headers } : {}),
 		...(config.fetch ? { fetch: config.fetch } : {}),
 		includeUsage: true,

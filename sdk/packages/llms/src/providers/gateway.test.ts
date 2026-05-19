@@ -100,6 +100,7 @@ const baseMessages: AgentMessage[] = [
 	},
 ];
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
+const originalPoolsideApiKey = process.env.POOLSIDE_API_KEY;
 
 describe("sdk-gateway", () => {
 	beforeEach(() => {
@@ -135,6 +136,11 @@ describe("sdk-gateway", () => {
 			delete process.env.OPENROUTER_API_KEY;
 		} else {
 			process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
+		}
+		if (originalPoolsideApiKey === undefined) {
+			delete process.env.POOLSIDE_API_KEY;
+		} else {
+			process.env.POOLSIDE_API_KEY = originalPoolsideApiKey;
 		}
 	});
 
@@ -187,6 +193,7 @@ describe("sdk-gateway", () => {
 		expect(providerIds).toContain("bedrock");
 		expect(providerIds).toContain("openrouter");
 		expect(providerIds).toContain("aihubmix");
+		expect(providerIds).toContain("poolside");
 		expect(providerIds).toContain("claude-code");
 		expect(providerIds).toContain("openai-codex");
 
@@ -3036,6 +3043,41 @@ describe("sdk-gateway", () => {
 			type: "text-delta",
 			text: "OpenRouter",
 		});
+	});
+
+	it("preserves Poolside deployment OpenAI-compatible base URLs", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "Poolside" },
+				{ type: "finish", usage: { inputTokens: 3, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "poolside",
+					apiKey: "poolside-key",
+					baseUrl: "https://deployment.example.com/v1/",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "poolside",
+				modelId: "laguna",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiCompatibleFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "poolside-key",
+				baseURL: "https://deployment.example.com/v1",
+				name: "poolside",
+			}),
+		);
 	});
 
 	it("allows unregistered model ids on known providers", async () => {

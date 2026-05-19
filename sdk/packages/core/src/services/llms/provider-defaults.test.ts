@@ -147,6 +147,73 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("loads Poolside deployment models through the OpenAI-compatible models endpoint", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "laguna-enterprise",
+							context_length: 131_072,
+							max_completion_tokens: 8192,
+							supported_features: ["reasoning", "images"],
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"poolside",
+			{ failOnError: true, cacheTtlMs: 60_000 },
+			{
+				providerId: "poolside",
+				modelId: "laguna-enterprise",
+				apiKey: "poolside-key",
+				baseUrl: "https://deployment.example.com/v1/",
+			},
+		);
+
+		await resolveProviderConfig(
+			"poolside",
+			{ failOnError: true, cacheTtlMs: 60_000 },
+			{
+				providerId: "poolside",
+				modelId: "laguna-enterprise",
+				apiKey: "poolside-key",
+				baseUrl: "https://deployment.example.com/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://deployment.example.com/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer poolside-key",
+				}),
+			}),
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(resolved?.knownModels?.["laguna-enterprise"]).toMatchObject({
+			id: "laguna-enterprise",
+			contextWindow: 131_072,
+			maxInputTokens: 131_072,
+			maxTokens: 8192,
+			capabilities: expect.arrayContaining([
+				"streaming",
+				"tools",
+				"reasoning",
+				"images",
+			]),
+		});
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");

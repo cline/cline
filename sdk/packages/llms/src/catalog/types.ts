@@ -78,6 +78,7 @@ export const ProviderInfoSchema = z.object({
 	description: z.string().optional(),
 	protocol: ProviderProtocolSchema.optional(),
 	baseUrl: z.string().optional(),
+	baseUrlPlaceholder: z.string().optional(),
 	modelsSourceUrl: z.string().optional(),
 	defaultModelId: z.string(),
 	capabilities: z.array(ProviderCapabilitySchema).optional(),

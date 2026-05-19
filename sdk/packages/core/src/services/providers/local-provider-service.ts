@@ -832,14 +832,17 @@ const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
 	"lmstudio",
 	"litellm",
 	"openai-compatible",
+	"poolside",
 ]);
 
 function shouldExposeBaseUrlField(
 	providerId: string,
 	collection: LlmsModels.ModelCollection | undefined,
 ): boolean {
-	if (!collection?.provider.baseUrl) return false;
-	if (collection.provider.source !== "system") return true;
+	if (!collection) return false;
+	if (collection.provider.source !== "system") {
+		return Boolean(collection.provider.baseUrl);
+	}
 	return EDITABLE_BASE_URL_PROVIDER_IDS.has(providerId);
 }
 
@@ -905,7 +908,10 @@ export function getProviderConfigFields(
 	const defaultBaseUrl = collection?.provider.baseUrl;
 	const fields: ProviderConfigFields["fields"] = { apiKey: {} };
 	if (shouldExposeBaseUrlField(id, collection)) {
-		fields.baseUrl = { defaultValue: defaultBaseUrl };
+		fields.baseUrl = {
+			defaultValue: defaultBaseUrl,
+			placeholder: collection?.provider.baseUrlPlaceholder,
+		};
 	}
 
 	return { providerId: id, authMethod: "api-key", fields };

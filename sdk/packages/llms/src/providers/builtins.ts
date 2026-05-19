@@ -58,6 +58,7 @@ export interface BuiltinSpec {
 	apiKeyEnv?: readonly string[];
 	modelsSourceUrl?: string;
 	docsUrl?: string;
+	baseUrlPlaceholder?: string;
 	defaults?: GatewayProviderSettings;
 	metadata?: GatewayProviderMetadata;
 }
@@ -454,6 +455,17 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://inference-api.nousresearch.com/v1" },
 	},
 	{
+		id: "poolside",
+		name: "Poolside",
+		description: "Poolside deployment OpenAI-compatible API",
+		family: "openai-compatible",
+		capabilities: ["tools"],
+		defaultModelId: "default",
+		apiKeyEnv: ["POOLSIDE_API_KEY"],
+		docsUrl: "https://docs.poolside.ai/api/openai-api-examples",
+		baseUrlPlaceholder: "https://<api-domain>/v1",
+	},
+	{
 		id: "huawei-cloud-maas",
 		name: "Huawei Cloud MaaS",
 		description: "Huawei's model-as-a-service platform",
@@ -825,6 +837,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			description: spec.description,
 			protocol: spec.protocol ?? inferProtocol(spec),
 			baseUrl: spec.defaults?.baseUrl,
+			baseUrlPlaceholder: spec.baseUrlPlaceholder,
 			modelsSourceUrl: spec.modelsSourceUrl,
 			defaultModelId,
 			capabilities,

@@ -1360,6 +1360,16 @@ describe("getProviderConfigFields", () => {
 		);
 	});
 
+	it("returns api-key auth with editable baseUrl for Poolside deployments", () => {
+		const result = getProviderConfigFields("poolside");
+		expect(result.providerId).toBe("poolside");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.baseUrl).toMatchObject({
+			placeholder: "https://<api-domain>/v1",
+		});
+	});
+
 	it("returns api-key auth with awsRegion, apiKey, and awsProfile for bedrock", () => {
 		const result = getProviderConfigFields("bedrock");
 		expect(result.providerId).toBe("bedrock");
