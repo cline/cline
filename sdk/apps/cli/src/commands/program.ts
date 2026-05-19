@@ -232,7 +232,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.id !== undefined) result.id = opts.id;
 
 	// Positional args → prompt
-	const positional = program.args.filter((a) => !a.startsWith("-"));
+	const positional = program.args;
 	if (positional.length > 0) {
 		result.prompt = positional.join(" ");
 	}
