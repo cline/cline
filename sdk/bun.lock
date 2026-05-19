@@ -66,6 +66,16 @@
         "typescript": "^5.9.3",
       },
     },
+    "apps/examples/cline-core-cli-agent": {
+      "name": "@cline/example-cline-core-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
     "apps/examples/code-review-bot": {
       "name": "@cline/example-code-review-bot",
       "version": "0.0.0",
@@ -181,6 +191,17 @@
       "version": "0.0.0",
       "dependencies": {
         "@cline/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/security-review-bot": {
+      "name": "@cline/example-security-review-bot",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+        "zod": "^4.3.6",
       },
       "devDependencies": {
         "typescript": "^5.9.3",
@@ -605,11 +626,15 @@
 
     "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
 
+    "@cline/example-cline-core-cli-agent": ["@cline/example-cline-core-cli-agent@workspace:apps/examples/cline-core-cli-agent"],
+
     "@cline/example-code-review-bot": ["@cline/example-code-review-bot@workspace:apps/examples/code-review-bot"],
 
     "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
 
     "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
+
+    "@cline/example-security-review-bot": ["@cline/example-security-review-bot@workspace:apps/examples/security-review-bot"],
 
     "@cline/llms": ["@cline/llms@workspace:packages/llms"],
 
