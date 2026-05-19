@@ -225,7 +225,6 @@ export function convertDeepseekToOpenAiMessages(
 
 				let content: string | undefined
 				const reasoningDetails: any[] = []
-				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
 						const anyPart = part as any
@@ -235,9 +234,6 @@ export function convertDeepseekToOpenAiMessages(
 							} else {
 								reasoningDetails.push(anyPart.reasoning_details)
 							}
-						}
-						if (part.type === "thinking" && part.thinking) {
-							thinkingBlock.push(part)
 						}
 					})
 					content = nonToolMessages

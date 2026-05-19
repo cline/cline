@@ -2,7 +2,7 @@ import { deepSeekModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { resolveDeepSeekAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -36,6 +36,9 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 	const supportsThinking = selectedModelInfo?.supportsReasoning ?? false
 	const [enableThinking, setEnableThinking] = useState(!!modeFields.reasoningEffort)
 	const adaptiveThinking = resolveDeepSeekAdaptiveThinking(modeFields.reasoningEffort)
+	// Preserve the last known effort level when thinking is disabled so
+	// re-enabling restores the user's previous selection ("xhigh", etc.).
+	const savedEffortRef = useRef<string>(modeFields.reasoningEffort || "high")
 
 	useEffect(() => {
 		setEnableThinking(!!modeFields.reasoningEffort)
@@ -73,9 +76,11 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 									onChange={(e: any) => {
 										const checked = e.target.checked === true
 										setEnableThinking(checked)
+										const prevEffort = modeFields.reasoningEffort || savedEffortRef.current
+										if (checked) savedEffortRef.current = prevEffort
 										handleModeFieldChange(
 											{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
-											checked ? modeFields.reasoningEffort || "high" : "",
+											checked ? prevEffort : "",
 											currentMode,
 										)
 									}}>
