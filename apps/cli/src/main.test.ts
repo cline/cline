@@ -174,10 +174,6 @@ vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
 
 describe("runCli lightweight command dispatch", () => {
-	afterEach(() => {
-		process.exitCode = undefined;
-	});
-
 	beforeEach(() => {
 		process.exitCode = undefined;
 		mockState.runAgentImports = 0;
@@ -259,6 +255,8 @@ describe("runCli lightweight command dispatch", () => {
 	});
 
 	afterEach(() => {
+		process.exitCode = undefined;
+
 		process.argv = [...originalArgv];
 		Object.defineProperty(process.stdin, "isTTY", {
 			value: originalStdinIsTTY,
