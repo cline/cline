@@ -5149,51 +5149,268 @@ export const nousResearchModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// Perplexity Sonar
-// https://docs.perplexity.ai/docs/getting-started
-// https://docs.perplexity.ai/guides/pricing
+// Perplexity Agent API
+// https://docs.perplexity.ai/docs/agent-api/quickstart
+// https://docs.perplexity.ai/docs/agent-api/models
+//
+// The Perplexity provider in Cline routes through the Agent API
+// (https://api.perplexity.ai/v1), which exposes a multi-provider catalogue
+// of frontier models (OpenAI, Anthropic, Google, xAI, NVIDIA, plus
+// Perplexity's own search models). Users pick the underlying model the
+// same way they do with OpenRouter.
 export type PerplexityModelId = keyof typeof perplexityModels
-export const perplexityDefaultModelId: PerplexityModelId = "sonar-pro"
+export const perplexityDefaultModelId: PerplexityModelId = "openai/gpt-5.5"
 export const perplexityModels = {
-	sonar: {
-		maxTokens: 8192,
-		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 1.0,
-		outputPrice: 1.0,
+	// --- OpenAI ---
+	"openai/gpt-5.5": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 30.0,
+		cacheReadsPrice: 0.5,
 		description:
-			"Lightweight, cost-effective Sonar model with built-in web search grounding. Best for quick lookups and short answers.",
+			"OpenAI GPT-5.5 routed through Perplexity's Agent API. Default frontier model for coding and reasoning tasks.",
 	},
-	"sonar-pro": {
-		maxTokens: 8192,
-		contextWindow: 128_000,
-		supportsImages: false,
+	"openai/gpt-5.4": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15.0,
+		cacheReadsPrice: 0.25,
+		description: "OpenAI GPT-5.4 routed through Perplexity's Agent API. Strong general-purpose coding model.",
+	},
+	"openai/gpt-5.4-mini": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
 		supportsPromptCache: false,
+		inputPrice: 0.75,
+		outputPrice: 4.5,
+		description: "OpenAI GPT-5.4 mini. Lower-cost variant for lighter tasks.",
+	},
+	"openai/gpt-5.4-nano": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 1.25,
+		description: "OpenAI GPT-5.4 nano. Cheapest GPT-5.4 tier.",
+	},
+	"openai/gpt-5.2": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		description: "OpenAI GPT-5.2 routed through Perplexity's Agent API.",
+	},
+	"openai/gpt-5.1": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		description: "OpenAI GPT-5.1 routed through Perplexity's Agent API.",
+	},
+	"openai/gpt-5": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+		description: "OpenAI GPT-5 routed through Perplexity's Agent API.",
+	},
+	"openai/gpt-5-mini": {
+		maxTokens: 16_384,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 2.0,
+		cacheReadsPrice: 0.025,
+		description: "OpenAI GPT-5 mini.",
+	},
+
+	// --- Anthropic ---
+	"anthropic/claude-opus-4-7": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheReadsPrice: 0.5,
+		description: "Anthropic Claude Opus 4.7 via Perplexity Agent API. Top-tier reasoning model.",
+	},
+	"anthropic/claude-opus-4-6": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheReadsPrice: 0.5,
+		description: "Anthropic Claude Opus 4.6 via Perplexity Agent API.",
+	},
+	"anthropic/claude-opus-4-5": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheReadsPrice: 0.5,
+		description: "Anthropic Claude Opus 4.5 via Perplexity Agent API.",
+	},
+	"anthropic/claude-sonnet-4-6": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
-		description:
-			"Perplexity's flagship Sonar model with built-in web search grounding. Best for complex queries that benefit from up-to-date information.",
+		cacheReadsPrice: 0.3,
+		description: "Anthropic Claude Sonnet 4.6 via Perplexity Agent API. Balanced quality and cost.",
 	},
-	"sonar-reasoning": {
-		maxTokens: 8192,
-		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: false,
+	"anthropic/claude-sonnet-4-5": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
 		supportsReasoning: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheReadsPrice: 0.3,
+		description: "Anthropic Claude Sonnet 4.5 via Perplexity Agent API.",
+	},
+	"anthropic/claude-haiku-4-5": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
-		description: "Sonar reasoning model with chain-of-thought and built-in web search grounding.",
+		cacheReadsPrice: 0.1,
+		description: "Anthropic Claude Haiku 4.5 via Perplexity Agent API. Fast and inexpensive.",
 	},
-	"sonar-reasoning-pro": {
-		maxTokens: 8192,
+
+	// --- Google ---
+	"google/gemini-3.1-pro-preview": {
+		maxTokens: 8_192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		description: "Google Gemini 3.1 Pro (preview) via Perplexity Agent API. Long-context, tiered pricing above 200k tokens.",
+	},
+	"google/gemini-3.1-flash-lite": {
+		maxTokens: 8_192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 1.5,
+		description: "Google Gemini 3.1 Flash Lite via Perplexity Agent API.",
+	},
+	"google/gemini-3.1-flash-lite-preview": {
+		maxTokens: 8_192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 1.5,
+		description: "Google Gemini 3.1 Flash Lite (preview) via Perplexity Agent API.",
+	},
+	"google/gemini-3-flash-preview": {
+		maxTokens: 8_192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.5,
+		outputPrice: 3.0,
+		description: "Google Gemini 3 Flash (preview) via Perplexity Agent API.",
+	},
+
+	// --- xAI ---
+	"xai/grok-4.3": {
+		maxTokens: 8_192,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.3 via Perplexity Agent API.",
+	},
+	"xai/grok-4.20-reasoning": {
+		maxTokens: 8_192,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 reasoning model via Perplexity Agent API.",
+	},
+	"xai/grok-4.20-non-reasoning": {
+		maxTokens: 8_192,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 non-reasoning variant via Perplexity Agent API.",
+	},
+	"xai/grok-4.20-multi-agent": {
+		maxTokens: 8_192,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.2,
+		description: "xAI Grok 4.20 multi-agent variant via Perplexity Agent API.",
+	},
+
+	// --- NVIDIA ---
+	"nvidia/nemotron-3-super-120b-a12b": {
+		maxTokens: 8_192,
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		supportsReasoning: true,
-		inputPrice: 2.0,
-		outputPrice: 8.0,
-		description:
-			"Sonar reasoning pro model with extended chain-of-thought reasoning and built-in web search grounding for complex multi-step problems.",
+		inputPrice: 0.25,
+		outputPrice: 2.5,
+		description: "NVIDIA Nemotron 3 Super 120B A12B via Perplexity Agent API.",
+	},
+
+	// --- Perplexity search models ---
+	"perplexity/sonar": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.25,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.0625,
+		description: "Perplexity's own search model. Best when you want answers grounded in live web sources.",
 	},
 } as const satisfies Record<string, ModelInfo>

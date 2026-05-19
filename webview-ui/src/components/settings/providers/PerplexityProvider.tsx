@@ -15,8 +15,12 @@ interface PerplexityProviderProps {
 
 /**
  * Perplexity provider configuration component.
- * Perplexity Sonar models include built-in web search grounding via the
- * OpenAI-compatible /v1/chat/completions endpoint at https://api.perplexity.ai.
+ *
+ * Routes through Perplexity's Agent API (https://api.perplexity.ai/v1), which
+ * exposes a multi-provider catalogue of frontier models — OpenAI GPT-5.x,
+ * Anthropic Claude, Google Gemini, xAI Grok, NVIDIA Nemotron, and Perplexity's
+ * own Sonar search model — all behind a single API key. Mirrors the
+ * OpenRouter-style "pick your underlying model" UX.
  */
 export const PerplexityProvider = ({ currentMode, isPopup, showModelOptions }: PerplexityProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
@@ -55,12 +59,13 @@ export const PerplexityProvider = ({ currentMode, isPopup, showModelOptions }: P
 					marginTop: 6,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Sonar models perform built-in web search and return answers grounded in current sources. Get a key at{" "}
+				Perplexity's Agent API routes a single API key to frontier models from OpenAI, Anthropic, Google, xAI, NVIDIA, and
+				Perplexity. Pick the underlying model above. Get a key at{" "}
 				<a href="https://www.perplexity.ai/account/api/keys" rel="noreferrer" target="_blank">
 					perplexity.ai/account/api/keys
 				</a>
 				. See{" "}
-				<a href="https://docs.perplexity.ai/docs/getting-started" rel="noreferrer" target="_blank">
+				<a href="https://docs.perplexity.ai/docs/agent-api/quickstart" rel="noreferrer" target="_blank">
 					docs.perplexity.ai
 				</a>{" "}
 				for details.

@@ -52,22 +52,22 @@ describe("PerplexityHandler", () => {
 		client.should.not.be.undefined()
 	})
 
-	it("should default to sonar-pro when no model id is provided", () => {
+	it("should default to openai/gpt-5.5 when no model id is provided", () => {
 		const handler = new PerplexityHandler({ perplexityApiKey: "test-key" })
 		const model = handler.getModel()
 		model.id.should.equal(perplexityDefaultModelId)
-		model.id.should.equal("sonar-pro")
+		model.id.should.equal("openai/gpt-5.5")
 		model.info.should.equal(perplexityModels[perplexityDefaultModelId])
 	})
 
-	it("should select the configured Sonar model when a valid id is provided", () => {
+	it("should select the configured Agent API model when a valid id is provided", () => {
 		const handler = new PerplexityHandler({
 			perplexityApiKey: "test-key",
-			perplexityModelId: "sonar-reasoning-pro",
+			perplexityModelId: "anthropic/claude-sonnet-4-6",
 		})
 		const model = handler.getModel()
-		model.id.should.equal("sonar-reasoning-pro")
-		model.info.should.equal(perplexityModels["sonar-reasoning-pro"])
+		model.id.should.equal("anthropic/claude-sonnet-4-6")
+		model.info.should.equal(perplexityModels["anthropic/claude-sonnet-4-6"])
 	})
 
 	it("should fall back to the default model when an unknown model id is provided", () => {
@@ -82,7 +82,7 @@ describe("PerplexityHandler", () => {
 	it("should stream text and usage chunks from a chat completion response", async () => {
 		const handler = new PerplexityHandler({
 			perplexityApiKey: "test-key",
-			perplexityModelId: "sonar",
+			perplexityModelId: "openai/gpt-5.5",
 		})
 
 		const fakeClient = {
@@ -115,10 +115,10 @@ describe("PerplexityHandler", () => {
 		])
 	})
 
-	it("should yield reasoning chunks before text when both are present", async () => {
+	it("should yield reasoning chunks (reasoning_content) before text when both are present", async () => {
 		const handler = new PerplexityHandler({
 			perplexityApiKey: "test-key",
-			perplexityModelId: "sonar-reasoning",
+			perplexityModelId: "anthropic/claude-opus-4-7",
 		})
 
 		const fakeClient = {
@@ -147,10 +147,38 @@ describe("PerplexityHandler", () => {
 		])
 	})
 
-	it("should omit temperature for Perplexity reasoning models", async () => {
+	it("should also accept the alternate `reasoning` field (Anthropic / Gemini / Grok style)", async () => {
 		const handler = new PerplexityHandler({
 			perplexityApiKey: "test-key",
-			perplexityModelId: "sonar-reasoning-pro",
+			perplexityModelId: "anthropic/claude-sonnet-4-6",
+		})
+
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon
+						.stub()
+						.resolves(createAsyncIterable([{ choices: [{ delta: { reasoning: "step one", content: "done" } }] }])),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+		const chunks: any[] = []
+		for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			chunks.push(chunk)
+		}
+
+		chunks.should.deepEqual([
+			{ type: "reasoning", reasoning: "step one" },
+			{ type: "text", text: "done" },
+		])
+	})
+
+	it("should omit temperature for reasoning-capable models", async () => {
+		const handler = new PerplexityHandler({
+			perplexityApiKey: "test-key",
+			perplexityModelId: "anthropic/claude-opus-4-7",
 		})
 
 		const fakeClient = {
@@ -170,10 +198,33 @@ describe("PerplexityHandler", () => {
 		request.should.not.have.property("temperature")
 	})
 
+	it("should set temperature=0 for non-reasoning models", async () => {
+		const handler = new PerplexityHandler({
+			perplexityApiKey: "test-key",
+			perplexityModelId: "openai/gpt-5.5",
+		})
+
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(createAsyncIterable()),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+		for await (const _ of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			// no-op
+		}
+
+		const request = fakeClient.chat.completions.create.firstCall.args[0]
+		request.temperature.should.equal(0)
+	})
+
 	it("should propagate errors from the upstream client", async () => {
 		const handler = new PerplexityHandler({
 			perplexityApiKey: "test-key",
-			perplexityModelId: "sonar",
+			perplexityModelId: "openai/gpt-5.5",
 		})
 
 		const fakeClient = {

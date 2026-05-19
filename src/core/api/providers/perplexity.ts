@@ -12,13 +12,17 @@ interface PerplexityHandlerOptions extends CommonApiHandlerOptions {
 	perplexityModelId?: string
 }
 
-const PERPLEXITY_BASE_URL = "https://api.perplexity.ai"
+// Perplexity's Agent API lives under /v1 and exposes a multi-provider
+// model catalogue (OpenAI, Anthropic, Google, xAI, NVIDIA, Perplexity
+// Sonar) through the OpenAI-compatible /v1/chat/completions endpoint.
+// See https://docs.perplexity.ai/docs/agent-api/quickstart.
+const PERPLEXITY_BASE_URL = "https://api.perplexity.ai/v1"
 
 function resolvePerplexityApiKey(explicit?: string): string | undefined {
 	if (explicit) {
 		return explicit
 	}
-	const fromEnv = (process.env.PERPLEXITY_API_KEY || process.env.PPLX_API_KEY) || undefined
+	const fromEnv = process.env.PERPLEXITY_API_KEY || process.env.PPLX_API_KEY || undefined
 	return fromEnv
 }
 
@@ -51,32 +55,40 @@ export class PerplexityHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const client = this.ensureClient()
-		const { id: modelId } = this.getModel()
+		const { id: modelId, info: modelInfo } = this.getModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
+		// The Agent API surfaces many heterogeneous upstream models; reasoning
+		// models (Claude, Gemini, Grok reasoning, etc.) don't accept temperature=0
+		// in the OpenAI-compatible shim, so omit it for any reasoning-capable model.
 		const stream = await client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(modelId !== "sonar-reasoning" && modelId !== "sonar-reasoning-pro" && { temperature: 0 }),
+			...(modelInfo.supportsReasoning ? {} : { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta as
 				| (OpenAI.Chat.Completions.ChatCompletionChunk["choices"][number]["delta"] & {
 						reasoning_content?: string
+						reasoning?: string
 				  })
 				| undefined
 
-			if (delta?.reasoning_content) {
+			// Perplexity's Agent API normalizes reasoning under either
+			// `reasoning_content` (Sonar / OpenAI-style) or `reasoning`
+			// (Anthropic / Gemini / Grok-style). Accept both.
+			const reasoningChunk = delta?.reasoning_content ?? delta?.reasoning
+			if (reasoningChunk) {
 				yield {
 					type: "reasoning",
-					reasoning: delta.reasoning_content,
+					reasoning: reasoningChunk,
 				}
 			}
 
