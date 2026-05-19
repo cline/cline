@@ -1,3 +1,4 @@
+import type { ChatContent } from "@shared/ChatContent"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -64,14 +65,24 @@ export class SdkModeCoordinator {
 		return true
 	}
 
-	async togglePlanActMode(modeToSwitchTo: Mode): Promise<boolean> {
+	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
 		if (currentMode === modeToSwitchTo) {
 			return false
 		}
 
 		if (this.options.sessions.getActiveSession()) {
-			await this.rebuildSessionForMode(modeToSwitchTo)
+			// Switching plan -> act on an active session resumes the LLM with a
+			// continuation prompt; the classic controller used
+			// task.handleWebviewAskResponse(...) with a "PLAN_MODE_TOGGLE_RESPONSE"
+			// fallback to do the same. If the caller provided chatContent.message
+			// (e.g. from the textarea), prefer that over the canned prompt.
+			const switchingToAct = modeToSwitchTo === "act"
+			const userPrompt = chatContent?.message?.trim()
+			await this.rebuildSessionForMode(modeToSwitchTo, {
+				autoContinue: switchingToAct,
+				continuationPrompt: switchingToAct ? userPrompt || undefined : undefined,
+			})
 			return false
 		}
 
@@ -80,7 +91,10 @@ export class SdkModeCoordinator {
 		return false
 	}
 
-	async rebuildSessionForMode(newMode: Mode, options: { autoContinue?: boolean } = {}): Promise<void> {
+	async rebuildSessionForMode(
+		newMode: Mode,
+		options: { autoContinue?: boolean; continuationPrompt?: string } = {},
+	): Promise<void> {
 		this.options.stateManager.setGlobalState("mode", newMode)
 
 		const activeSession = this.options.sessions.getActiveSession()
@@ -137,8 +151,9 @@ export class SdkModeCoordinator {
 
 			this.options.resetMessageTranslator()
 			if (options.autoContinue) {
+				const prompt = options.continuationPrompt ?? ACT_MODE_CONTINUATION_PROMPT
 				this.options.sessions.setRunning(true)
-				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, ACT_MODE_CONTINUATION_PROMPT)
+				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, prompt)
 			}
 			await this.options.postStateToWebview()
 
