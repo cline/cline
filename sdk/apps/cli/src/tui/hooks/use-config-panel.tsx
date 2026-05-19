@@ -43,6 +43,7 @@ export function useConfigPanel(opts: {
 			plugins: [] as InteractiveConfigItem[],
 			mcp: [] as InteractiveConfigItem[],
 			tools: [] as InteractiveConfigItem[],
+			workflowSlashCommands: [],
 		}),
 		[],
 	);
