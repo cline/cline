@@ -1,16 +1,17 @@
-import { buildGatewayReasoningOptions } from "./anthropic-compatible";
-import { buildOpenAINativeProviderOptions } from "./generic-compatible";
-import {
-	buildGlmThinkingProviderOptionsPatch,
-	isNativeZaiProvider,
-} from "./glm-thinking";
 import {
 	isDeepSeekFamily,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMoonshotKimiModelIdFallback,
 	modelReasoningDefaultsOn,
+	providerReasoningRouteMatches,
 } from "../model-facts";
+import { buildGatewayReasoningOptions } from "./anthropic-compatible";
+import { buildOpenAINativeProviderOptions } from "./generic-compatible";
+import {
+	buildNativeGlmThinkingProviderOptionsPatch,
+	buildRoutedGlmReasoningProviderOptionsPatch,
+} from "./glm-thinking";
 import type {
 	MatchedProviderOptionRule,
 	ProviderOptionBuildInput,
@@ -51,6 +52,25 @@ function isOllamaReasoningDefaultOnDisable(
 			request: input.request,
 			context: input.context,
 		})
+	);
+}
+
+function usesGlmThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return providerReasoningRouteMatches(
+		"glm-thinking",
+		input.request,
+		input.context,
+	);
+}
+
+function hasGlmThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		input.context.provider.metadata?.routing?.reasoning?.format ===
+		"glm-thinking"
 	);
 }
 
@@ -285,31 +305,28 @@ const ollamaReasoningDefaultOnDisableRule: ProviderOptionRule = {
 	},
 };
 
-const nativeZaiNonGlmSuppressionRule: ProviderOptionRule = {
-	id: "provider.zai.non-glm.suppress-generic-thinking",
+const nonGlmProviderRoutingSuppressionRule: ProviderOptionRule = {
+	id: "provider.routing.glm-thinking.non-glm.suppress-generic-thinking",
 	phase: "provider",
 	description:
-		"Native Z.AI non-GLM models should not inherit adaptive OpenAI-compatible thinking.",
+		"Providers with GLM thinking routing should not apply generic adaptive thinking to non-GLM models.",
 	applies: (input) =>
-		isNativeZaiProvider(input.request.providerId) &&
+		hasGlmThinkingProviderRouting(input) &&
 		input.request.reasoning?.enabled !== undefined &&
-		!isGlmModel(input.request, input.context),
+		!usesGlmThinkingProviderRouting(input),
 	suppresses: { genericThinking: true },
 	build: () => undefined,
 };
 
 const nativeZaiGlmThinkingRule: ProviderOptionRule = {
-	id: "family.glm.native-zai-thinking",
+	id: "provider.routing.glm-thinking",
 	phase: "model-overlay",
-	description: "Native Z.AI GLM models use thinking.type.",
-	applies: (input) =>
-		isNativeZaiProvider(input.request.providerId) &&
-		isGlmModel(input.request, input.context),
+	description: "Providers routed to the GLM thinking format use thinking.type.",
+	applies: usesGlmThinkingProviderRouting,
 	suppresses: { genericThinking: true },
 	build: (input) =>
-		buildGlmThinkingProviderOptionsPatch(
+		buildNativeGlmThinkingProviderOptionsPatch(
 			input.request,
-			input.context,
 			input.providerOptionsKey,
 		),
 };
@@ -320,11 +337,11 @@ const routedGlmReasoningRule: ProviderOptionRule = {
 	description:
 		"Routed GLM models use the generic reasoning include/exclude shape, not thinking.type.",
 	applies: (input) =>
-		!isNativeZaiProvider(input.request.providerId) &&
+		!usesGlmThinkingProviderRouting(input) &&
 		isGlmModel(input.request, input.context),
 	suppresses: { genericThinking: true },
 	build: (input) =>
-		buildGlmThinkingProviderOptionsPatch(
+		buildRoutedGlmReasoningProviderOptionsPatch(
 			input.request,
 			input.context,
 			input.providerOptionsKey,
@@ -353,7 +370,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
 	ollamaReasoningDefaultOnDisableRule,
-	nativeZaiNonGlmSuppressionRule,
+	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	routedGlmReasoningRule,
 ];

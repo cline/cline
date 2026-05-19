@@ -3,6 +3,7 @@ import type {
 	GatewayStreamRequest,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import {
 	composeAiSdkProviderOptions,
 	mergeProviderOptionPatches,
@@ -770,6 +771,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				modelId: "glm-4.7",
 				reasoning: { enabled: true },
 			},
+			context: { family: "glm", metadata: GLM_THINKING_ROUTING_METADATA },
 			expect: [
 				{ bucket: "zai", has: { thinking: { type: "enabled" } } },
 				{
@@ -777,6 +779,19 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 					has: { thinking: { type: "enabled" } },
 					lacks: ["reasoning"],
 				},
+			],
+		},
+		{
+			name: "native zai custom non-GLM -> no generic adaptive thinking",
+			request: {
+				providerId: "zai",
+				modelId: "zai-other-model",
+				reasoning: { enabled: true },
+			},
+			context: { family: "other", metadata: GLM_THINKING_ROUTING_METADATA },
+			expect: [
+				{ bucket: "zai", lacks: ["thinking", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["thinking", "reasoning"] },
 			],
 		},
 		// Kimi K2.6 family: explicit enabled/disabled and unset defaults to enabled

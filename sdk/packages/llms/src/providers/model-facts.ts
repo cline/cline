@@ -1,5 +1,6 @@
 import type {
 	GatewayModelRoute,
+	GatewayReasoningFormat,
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
@@ -126,6 +127,25 @@ export function modelRouteMatches(
 				normalizeRoutingValue(route.modelId)
 			);
 	}
+}
+
+export function providerReasoningRouteMatches(
+	format: GatewayReasoningFormat,
+	request: Pick<GatewayStreamRequest, "modelId">,
+	context: GatewayProviderContext,
+): boolean {
+	const reasoning = context.provider.metadata?.routing?.reasoning;
+	if (reasoning?.format !== format) {
+		return false;
+	}
+
+	return reasoning.routes.some((route) =>
+		modelRouteMatches(route, {
+			modelId: request.modelId,
+			family: resolveModelFamily(context),
+			capabilities: context.model.capabilities,
+		}),
+	);
 }
 
 export function isGlmModel(
