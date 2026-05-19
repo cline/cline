@@ -487,7 +487,8 @@
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"@types/bun": "1.3.14"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
