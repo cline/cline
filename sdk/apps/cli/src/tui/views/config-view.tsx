@@ -469,6 +469,15 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			if (nextData) {
 				setConfigData(nextData);
 				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
+			} else if (item.kind === "plugin" && loadConfigData) {
+				const refreshedData = await loadConfigData({
+					includePluginTools: true,
+				});
+				setConfigData(refreshedData);
+				setPluginToolsLoaded(
+					refreshedData.tools.some((tool) => tool.pluginName),
+				);
+				setPluginToolsError(undefined);
 			}
 		} catch (error) {
 			setConfigData(previousData);
