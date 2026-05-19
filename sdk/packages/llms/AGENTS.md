@@ -15,6 +15,11 @@ alwaysApply: true
   quirks, default behavior, or wire-format details.
 - Stable, reliable known-model facts belong in typed `ModelInfo.metadata`
   helpers or `src/providers/model-facts.ts`.
+- Stable provider routing facts belong in `GatewayProviderMetadata.routing`
+  and the relevant builtin provider manifest. For example, if a native
+  provider uses a known reasoning wire format for a model route, add a typed
+  `GatewayReasoningFormat` value and route metadata instead of matching that
+  provider id directly in a rule predicate.
 - Provider wire-format encoding belongs in `PROVIDER_OPTION_RULES` and codec
   helpers under `src/providers/routing`.
 - Local or dynamic provider fallbacks, such as Ollama or routed model-id

@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.83.0",
+	"version": "3.84.0",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
 		"."
@@ -449,7 +449,6 @@
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/chai": "^5.0.1",
 		"@types/clone-deep": "^4.0.4",
-		"@types/diff": "^5.2.1",
 		"@types/get-folder-size": "^3.0.4",
 		"@types/js-yaml": "^4.0.9",
 		"@types/mocha": "^10.0.7",
@@ -539,7 +538,7 @@
 		"chrome-launcher": "^1.1.2",
 		"clone-deep": "^4.0.1",
 		"default-shell": "^2.2.0",
-		"diff": "^5.2.0",
+		"diff": "8.0.4",
 		"exceljs": "^4.4.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
@@ -593,9 +592,7 @@
 		"js-yaml": "^4.1.1",
 		"serialize-javascript": ">=7.0.3",
 		"protobufjs": "7.5.5",
-		"mocha": {
-			"diff": ">=8.0.3"
-		}
+		"diff": "8.0.4"
 	},
 	"c8": {
 		"reporter": [
