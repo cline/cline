@@ -292,6 +292,17 @@ function withOptimisticToggle(
 	};
 }
 
+function getPluginLoadErrorLabel(
+	item: InteractiveConfigItem,
+): string | undefined {
+	if (!item.loadError) {
+		return undefined;
+	}
+	const lines = item.loadError.split("\n");
+	const first = lines[0] ?? item.loadError;
+	return lines.length > 1 ? `${first} (+${lines.length - 1} more)` : first;
+}
+
 export function ConfigPanelContent(props: ConfigPanelProps) {
 	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
 	const { height } = useTerminalDimensions();
@@ -321,7 +332,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	useEffect(() => {
 		if (
-			activeTab !== "tools" ||
+			(activeTab !== "tools" && activeTab !== "plugins") ||
 			pluginToolsLoaded ||
 			pluginToolsError ||
 			!loadConfigData
@@ -345,7 +356,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					return;
 				}
 				const message = error instanceof Error ? error.message : String(error);
-				setPluginToolsError(`Failed to load plugin tools: ${message}`);
+				setPluginToolsError(`Failed to load plugin diagnostics: ${message}`);
 			})
 			.finally(() => {
 				if (!cancelled) {
@@ -408,6 +419,19 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						enabled: item.enabled,
 						description: item.description,
 						item,
+						rightLabel: getPluginLoadErrorLabel(item),
+					});
+				}
+				if (activeTab === "plugins" && pluginToolsLoading) {
+					r.push({
+						kind: "detail",
+						text: "Loading plugin diagnostics...",
+					});
+				}
+				if (activeTab === "plugins" && pluginToolsError) {
+					r.push({
+						kind: "detail",
+						text: pluginToolsError,
 					});
 				}
 			}
@@ -695,8 +719,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						const rightLabel = row.rightLabel ?? "";
 						const toggleable = isToggleableConfigItem(row.item);
 						const prefix = " ".repeat(row.indent ?? 0);
-						const rowColor =
-							toggleable && enabledState === "enabled"
+						const rowColor = row.item.loadError
+							? "red"
+							: toggleable && enabledState === "enabled"
 								? palette.success
 								: enabledState === "partial"
 									? "yellow"

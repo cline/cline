@@ -87,7 +87,7 @@ const ACTION_ITEMS: Array<{
 	{
 		action: "fork",
 		label: "Create Session Fork",
-		shortcut: "Opt+F",
+		shortcut: "Opt+R",
 		description: "Branch the current conversation into a new session",
 		keywords: ["fork", "session", "branch"],
 		requiresFork: true,

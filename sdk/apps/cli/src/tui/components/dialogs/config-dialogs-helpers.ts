@@ -3,7 +3,7 @@ import { isToggleableInteractiveConfigItem } from "../../interactive-config";
 
 export type ExtDetailRow =
 	| { kind: "header"; name: string; source: string }
-	| { kind: "field"; label: "Path" | "Description"; value: string[] }
+	| { kind: "field"; label: "Path" | "Description" | "Error"; value: string[] }
 	| { kind: "status"; enabled: boolean };
 
 const TOGGLE_FOOTER = "Space toggle status, Tab/Enter/Esc to go back";
@@ -75,6 +75,13 @@ export function getExtDetailRows(item: InteractiveConfigItem): ExtDetailRow[] {
 			kind: "field",
 			label: "Description",
 			value: truncateDescription(item.description),
+		});
+	}
+	if (item.loadError) {
+		rows.push({
+			kind: "field",
+			label: "Error",
+			value: truncateDescription(item.loadError),
 		});
 	}
 	if (

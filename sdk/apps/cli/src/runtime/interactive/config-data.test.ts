@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
 import { afterEach, describe, expect, it } from "vitest";
-import type { InteractiveConfigItem } from "../../tui/interactive-config";
+import {
+	applyPluginFailures,
+	type InteractiveConfigItem,
+} from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 import { createInteractiveConfigDataLoader } from "./config-data";
 
@@ -204,6 +207,82 @@ Use this skill.`,
 					item.name === "settings_plugin_tool",
 			),
 		).toBe(true);
+	});
+
+	it("keeps failed plugins visible with their load error", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "broken-plugin.js");
+		const invalidPluginPath = join(pluginsDir, "invalid-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'broken-plugin',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup() {",
+				"    throw new Error('setup exploded');",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		await writeFile(invalidPluginPath, "export default {};\n", "utf8");
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+		const plugin = data.plugins.find((item) => item.path === pluginPath);
+
+		expect(plugin?.name).toBe("broken-plugin");
+		expect(plugin?.loadErrorPhase).toBe("setup");
+		expect(plugin?.loadError).toContain("setup failed: setup exploded");
+
+		const invalidPlugin = data.plugins.find(
+			(item) => item.path === invalidPluginPath,
+		);
+		expect(invalidPlugin?.name).toBe("invalid-plugin");
+		expect(invalidPlugin?.loadErrorPhase).toBe("load");
+		expect(invalidPlugin?.loadError).toContain("load failed:");
+	});
+
+	it("preserves multiple load failures for the same plugin path", () => {
+		const plugin: InteractiveConfigItem = {
+			id: "/tmp/plugin.js",
+			name: "plugin",
+			path: "/tmp/plugin.js",
+			enabled: true,
+			kind: "plugin",
+			source: "workspace-plugin",
+		};
+
+		applyPluginFailures(
+			[plugin],
+			[
+				{
+					pluginPath: "/tmp/plugin.js",
+					pluginName: "plugin",
+					phase: "setup",
+					message: "first failure",
+				},
+				{
+					pluginPath: "/tmp/plugin.js",
+					phase: "setup",
+					message: "second failure",
+				},
+			],
+		);
+
+		expect(plugin.loadError).toBe(
+			"setup failed: first failure\nsetup failed: second failure",
+		);
+		expect(plugin.loadErrorPhase).toBeUndefined();
 	});
 
 	it("toggles every SDK tool name for a displayed built-in tool", async () => {
