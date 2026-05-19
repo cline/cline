@@ -49,13 +49,4 @@ pnpm-lock.yaml
 # Protobuf generated code
 packages/rpc/src/proto/generated
 
-# Tauri generated code
-apps/*/src-tauri/gen
-apps/*/src-tauri/bin
-apps/examples/*/src-tauri/gen
-apps/examples/*/src-tauri/bin
-# Tauri UI test snapshots
-apps/*/src/tests/.tui-test
-apps/*/src/tests/tui-traces
-
 .cli-release-staging

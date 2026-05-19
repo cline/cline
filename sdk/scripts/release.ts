@@ -77,7 +77,7 @@ const SDK_PUBLISH_ORDER = ["shared", "llms", "agents", "core", "sdk"] as const;
 const MAIN_BRANCH = "main";
 const root = join(import.meta.dir, "..");
 const packagesDir = join(root, "packages");
-const cliDir = join(root, "apps/cli");
+const cliDir = join(root, "../apps/cli");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

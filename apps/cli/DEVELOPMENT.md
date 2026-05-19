@@ -416,7 +416,7 @@ Then attach VS Code or Chrome DevTools to `ws://127.0.0.1:6499`.
 
 ## Publishing
 
-The CLI is published as the `cline` wrapper package on npm with platform-specific binaries under `@cline/cli-*`. The release flow lives in the `publish-cli` skill (`sdk/apps/cli/.cline/skills/publish-cli/SKILL.md`).
+The CLI is published as the `cline` wrapper package on npm with platform-specific binaries under `@cline/cli-*`. The release flow lives in the `publish-cli` skill (`apps/cli/.cline/skills/publish-cli/SKILL.md`).
 
 From the `apps/cli` workspace:
 

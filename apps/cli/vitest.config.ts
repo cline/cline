@@ -11,40 +11,40 @@ export default defineConfig({
 				find: /^@cline\/core\/telemetry$/,
 				replacement: resolve(
 					rootDir,
-					"../../packages/core/src/services/telemetry/index.ts",
+					"../../sdk/packages/core/src/services/telemetry/index.ts",
 				),
 			},
 			{
 				find: /^@cline\/core$/,
-				replacement: resolve(rootDir, "../../packages/core/src/index.ts"),
+				replacement: resolve(rootDir, "../../sdk/packages/core/src/index.ts"),
 			},
 			{
 				find: /^@cline\/core\/(.+)$/,
-				replacement: resolve(rootDir, "../../packages/core/src/$1"),
+				replacement: resolve(rootDir, "../../sdk/packages/core/src/$1"),
 			},
 			{
 				find: /^@cline\/llms$/,
-				replacement: resolve(rootDir, "../../packages/llms/src/index.ts"),
+				replacement: resolve(rootDir, "../../sdk/packages/llms/src/index.ts"),
 			},
 			{
 				find: /^@cline\/llms\/(.+)$/,
-				replacement: resolve(rootDir, "../../packages/llms/src/$1"),
+				replacement: resolve(rootDir, "../../sdk/packages/llms/src/$1"),
 			},
 			{
 				find: /^@cline\/shared\/(.+)$/,
-				replacement: resolve(rootDir, "../../packages/shared/src/$1"),
+				replacement: resolve(rootDir, "../../sdk/packages/shared/src/$1"),
 			},
 			{
 				find: /^@cline\/agents$/,
-				replacement: resolve(rootDir, "../../packages/agents/src/index.ts"),
+				replacement: resolve(rootDir, "../../sdk/packages/agents/src/index.ts"),
 			},
 			{
 				find: /^@cline\/core$/,
-				replacement: resolve(rootDir, "../../packages/core/src/index.ts"),
+				replacement: resolve(rootDir, "../../sdk/packages/core/src/index.ts"),
 			},
 			{
 				find: /^@cline\/shared$/,
-				replacement: resolve(rootDir, "../../packages/shared/src/index.ts"),
+				replacement: resolve(rootDir, "../../sdk/packages/shared/src/index.ts"),
 			},
 		],
 	},

@@ -66,7 +66,7 @@ if (result.logs.length > 0) {
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const coreBootstrapPath = join(
 	rootDir,
-	"../../packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
+	"../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
 );
 const cliBootstrapPath = join(
 	rootDir,
