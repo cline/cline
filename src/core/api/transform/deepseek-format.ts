@@ -391,6 +391,9 @@ function extractAssistantBlocks(msg: ClineStorageMessage): {
 				hasToolUse = true
 			}
 		}
+	} else if (typeof msg.content === "string" && msg.content.length > 0) {
+		// String-content assistant messages (e.g. older conversations) are plain text
+		hasText = true
 	}
 
 	return { thinkingText, hasText, hasToolUse }
