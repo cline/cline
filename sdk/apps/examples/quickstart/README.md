@@ -25,12 +25,19 @@ Run:
 bun dev
 ```
 
+Or pass a prompt from the command line:
+
+```bash
+bun dev "Explain event streaming in AI apps to a frontend engineer."
+```
+
 ## What it does
 
 1. Creates an `Agent` with a provider and model
 2. Subscribes to `assistant-text-delta` events to stream output
-3. Calls `agent.run()` with a prompt
-4. Prints token usage when done
+3. Reads a prompt from command-line arguments, falling back to the default prompt
+4. Calls `agent.run()` with that prompt
+5. Prints token usage when done
 
 ## Notes
 

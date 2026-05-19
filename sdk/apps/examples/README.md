@@ -32,6 +32,7 @@ Requires Node.js 22+.
 | Example | Description | Concepts |
 |---------|-------------|----------|
 | [quickstart](./quickstart) | Send one prompt, stream the response. ~15 lines of code. | `Agent`, `subscribe`, `run()` |
+| [quickstart-clinecore](./quickstart-clinecore) | Send one prompt through a persisted Core session. | `ClineCore`, `start()`, `CoreSessionEvent`, `dispose()` |
 | [cli-agent](./cli-agent) | Interactive terminal chat with a shell tool. | `createTool`, multi-turn `run()`/`continue()`, streaming |
 
 ### Intermediate

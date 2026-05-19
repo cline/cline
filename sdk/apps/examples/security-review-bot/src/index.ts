@@ -149,6 +149,80 @@ const securityReviewToolPolicies = {
 
 let reasoningOpen = false;
 
+function usage() {
+	console.error("Usage: bun dev [git-ref] [--prompt <instructions>]");
+	console.error("  e.g. bun dev HEAD~3");
+	console.error("  e.g. bun dev main");
+	console.error(
+		'  e.g. bun dev main --prompt "Focus on authorization bypasses and SSRF"',
+	);
+	console.error(
+		'  e.g. bun dev main "Prioritize auth, secrets, and unsafe file access"',
+	);
+}
+
+function parseArgs(args: string[]): { ref: string; extraPrompt?: string } {
+	let ref = "HEAD~1";
+	let hasRef = false;
+	const promptParts: string[] = [];
+	const positionalPromptParts: string[] = [];
+
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+
+		if (arg === "--help" || arg === "-h") {
+			usage();
+			process.exit(0);
+		}
+
+		if (arg === "--prompt" || arg === "-p") {
+			const value = args[i + 1];
+			if (!value) {
+				console.error(`Missing value for ${arg}`);
+				usage();
+				process.exit(1);
+			}
+			promptParts.push(value);
+			i++;
+			continue;
+		}
+
+		if (arg.startsWith("--prompt=")) {
+			const value = arg.slice("--prompt=".length);
+			if (!value) {
+				console.error("Missing value for --prompt");
+				usage();
+				process.exit(1);
+			}
+			promptParts.push(value);
+			continue;
+		}
+
+		if (arg.startsWith("-")) {
+			console.error(`Unknown option: ${arg}`);
+			usage();
+			process.exit(1);
+		}
+
+		if (!hasRef) {
+			ref = arg;
+			hasRef = true;
+			continue;
+		}
+
+		positionalPromptParts.push(arg);
+	}
+
+	if (positionalPromptParts.length > 0) {
+		promptParts.push(positionalPromptParts.join(" "));
+	}
+
+	return {
+		ref,
+		extraPrompt: promptParts.length > 0 ? promptParts.join("\n\n") : undefined,
+	};
+}
+
 function closeReasoning() {
 	if (reasoningOpen) {
 		process.stdout.write("\n");
@@ -242,9 +316,7 @@ try {
 	});
 } catch {
 	console.error(`Failed to get diff for ref: ${ref}`);
-	console.error("Usage: bun dev [git-ref]");
-	console.error("  e.g. bun dev HEAD~3");
-	console.error("  e.g. bun dev main");
+	usage();
 	process.exit(1);
 }
 

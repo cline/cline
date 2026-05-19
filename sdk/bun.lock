@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.3",
+      "version": "3.0.7",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -178,6 +178,16 @@
     },
     "apps/examples/quickstart": {
       "name": "@cline/example-quickstart",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/quickstart-clinecore": {
+      "name": "@cline/example-quickstart-clinecore",
       "version": "0.0.0",
       "dependencies": {
         "@cline/sdk": "workspace:*",
@@ -621,6 +631,8 @@
     "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
 
     "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
+
+    "@cline/example-quickstart-clinecore": ["@cline/example-quickstart-clinecore@workspace:apps/examples/quickstart-clinecore"],
 
     "@cline/example-security-review-bot": ["@cline/example-security-review-bot@workspace:apps/examples/security-review-bot"],
 
