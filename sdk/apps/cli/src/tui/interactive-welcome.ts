@@ -3,6 +3,7 @@ import {
 	type ProviderSettings,
 	type UserInstructionConfigService,
 } from "@cline/core";
+import { byLengthAsc, Fzf, type FzfResultItem } from "fzf";
 import type { Config } from "../utils/types";
 import { formatClineCredits, loadClineAccountSnapshot } from "./cline-account";
 
@@ -17,24 +18,95 @@ function normalizeLimit(limit: number | undefined): number {
 	if (typeof limit !== "number" || Number.isNaN(limit)) {
 		return 10;
 	}
-	return Math.min(50, Math.max(1, Math.trunc(limit)));
+	return Math.min(200, Math.max(1, Math.trunc(limit)));
 }
 
-function rankPath(path: string, query: string): number {
-	if (query.length === 0) {
-		return 3;
+function getPathLabel(filePath: string): string {
+	const parts = filePath.split("/");
+	return parts[parts.length - 1] ?? filePath;
+}
+
+function normalizeMentionQuery(query: string): string {
+	const trimmed = query.trim().replace(/^["']/, "");
+	if (trimmed.startsWith("./")) {
+		return trimmed.slice(2);
 	}
-	const lowerPath = path.toLowerCase();
-	if (lowerPath.startsWith(query)) {
-		return 0;
+	if (trimmed.startsWith("/")) {
+		return trimmed.slice(1);
 	}
-	if (lowerPath.includes(`/${query}`)) {
-		return 1;
+	return trimmed;
+}
+
+function compactSearchText(text: string): string {
+	return text.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+interface MentionPathItem {
+	path: string;
+	label: string;
+	searchText: string;
+}
+
+function countGaps(positions: Iterable<number>): number {
+	const sortedPositions = Array.from(positions).sort((a, b) => a - b);
+	let gaps = 0;
+	let previous = Number.NEGATIVE_INFINITY;
+	for (const position of sortedPositions) {
+		if (previous !== Number.NEGATIVE_INFINITY && position - previous > 1) {
+			gaps++;
+		}
+		previous = position;
 	}
-	if (lowerPath.includes(query)) {
-		return 2;
+	return gaps;
+}
+
+function orderByMatchScore(
+	left: FzfResultItem<MentionPathItem>,
+	right: FzfResultItem<MentionPathItem>,
+): number {
+	return countGaps(left.positions) - countGaps(right.positions);
+}
+
+export function rankMentionPaths(
+	paths: Iterable<string>,
+	query: string,
+	limit: number,
+): string[] {
+	const items = Array.from(paths, (path): MentionPathItem => {
+		const label = getPathLabel(path);
+		return {
+			path,
+			label,
+			searchText: [
+				label,
+				label,
+				path,
+				compactSearchText(label),
+				compactSearchText(path),
+			].join(" "),
+		};
+	});
+
+	const normalizedQuery = normalizeMentionQuery(query);
+	if (!normalizedQuery) {
+		return items
+			.sort((left, right) => left.path.localeCompare(right.path))
+			.slice(0, limit)
+			.map((item) => item.path);
 	}
-	return Number.POSITIVE_INFINITY;
+
+	const fzf = new Fzf(items, {
+		selector: (item) => item.searchText,
+		tiebreakers: [orderByMatchScore, byLengthAsc],
+		limit,
+	});
+
+	const rawResults = fzf.find(normalizedQuery);
+	const results =
+		rawResults.length > 0
+			? rawResults
+			: fzf.find(compactSearchText(normalizedQuery));
+	return results.map((result) => result.item.path);
 }
 
 export function listInteractiveSlashCommands(
@@ -90,21 +162,9 @@ export async function searchWorkspaceFilesForMention(input: {
 	if (!workspaceRoot) {
 		return [];
 	}
-	const query = input.query.trim().toLowerCase();
 	const limit = normalizeLimit(input.limit);
 	const index = await getFileIndex(workspaceRoot);
-	const allPaths = Array.from(index).sort((a, b) => a.localeCompare(b));
-	return allPaths
-		.map((path) => ({ path, rank: rankPath(path, query) }))
-		.filter((item) => Number.isFinite(item.rank))
-		.sort((left, right) => {
-			if (left.rank !== right.rank) {
-				return left.rank - right.rank;
-			}
-			return left.path.localeCompare(right.path);
-		})
-		.slice(0, limit)
-		.map((item) => item.path);
+	return rankMentionPaths(index, input.query, limit);
 }
 
 export async function resolveClineWelcomeLine(input: {
