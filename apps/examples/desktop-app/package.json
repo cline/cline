@@ -83,6 +83,7 @@
 		"postcss": "^8.5",
 		"tailwindcss": "^4.2.0",
 		"tw-animate-css": "1.3.3",
-		"typescript": "5.7.3"
+		"typescript": "5.7.3",
+		"vitest": "^4.0.18"
 	}
 }

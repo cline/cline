@@ -17,9 +17,9 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/cli": {
+    "../apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.3",
+      "version": "3.0.7",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -53,9 +53,10 @@
         "@cline/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
         "@types/react": "19.2.14",
+        "vitest": "^4.0.18",
       },
     },
-    "apps/examples/cli-agent": {
+    "../apps/examples/cli-agent": {
       "name": "@cline/example-cli-agent",
       "version": "0.0.0",
       "dependencies": {
@@ -66,7 +67,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/code-review-bot": {
+    "../apps/examples/code-review-bot": {
       "name": "@cline/example-code-review-bot",
       "version": "0.0.0",
       "dependencies": {
@@ -77,7 +78,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/desktop-app": {
+    "../apps/examples/desktop-app": {
       "name": "@cline/code",
       "version": "0.0.0",
       "dependencies": {
@@ -150,9 +151,10 @@
         "tailwindcss": "^4.2.0",
         "tw-animate-css": "1.3.3",
         "typescript": "5.7.3",
+        "vitest": "^4.0.18",
       },
     },
-    "apps/examples/menubar": {
+    "../apps/examples/menubar": {
       "name": "@cline/menubar",
       "version": "0.1.0",
       "dependencies": {
@@ -166,7 +168,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/multi-agent": {
+    "../apps/examples/multi-agent": {
       "name": "@cline/example-multi-agent",
       "version": "0.0.0",
       "dependencies": {
@@ -176,7 +178,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/quickstart": {
+    "../apps/examples/quickstart": {
       "name": "@cline/example-quickstart",
       "version": "0.0.0",
       "dependencies": {
@@ -186,7 +188,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/vscode": {
+    "../apps/examples/vscode": {
       "name": "@cline/vscode",
       "version": "0.0.0",
       "dependencies": {
@@ -200,9 +202,10 @@
         "@types/node": "^25.3.5",
         "@types/vscode": "^1.90.0",
         "typescript": "^5.9.3",
+        "vitest": "^4.0.18",
       },
     },
-    "apps/examples/vscode/src/webview": {
+    "../apps/examples/vscode/src/webview": {
       "name": "webview",
       "version": "0.0.0",
       "dependencies": {
@@ -597,29 +600,29 @@
 
     "@cline/agents": ["@cline/agents@workspace:packages/agents"],
 
-    "@cline/cli": ["@cline/cli@workspace:apps/cli"],
+    "@cline/cli": ["@cline/cli@workspace:../apps/cli"],
 
-    "@cline/code": ["@cline/code@workspace:apps/examples/desktop-app"],
+    "@cline/code": ["@cline/code@workspace:../apps/examples/desktop-app"],
 
     "@cline/core": ["@cline/core@workspace:packages/core"],
 
-    "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
+    "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:../apps/examples/cli-agent"],
 
-    "@cline/example-code-review-bot": ["@cline/example-code-review-bot@workspace:apps/examples/code-review-bot"],
+    "@cline/example-code-review-bot": ["@cline/example-code-review-bot@workspace:../apps/examples/code-review-bot"],
 
-    "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
+    "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:../apps/examples/multi-agent"],
 
-    "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
+    "@cline/example-quickstart": ["@cline/example-quickstart@workspace:../apps/examples/quickstart"],
 
     "@cline/llms": ["@cline/llms@workspace:packages/llms"],
 
-    "@cline/menubar": ["@cline/menubar@workspace:apps/examples/menubar"],
+    "@cline/menubar": ["@cline/menubar@workspace:../apps/examples/menubar"],
 
     "@cline/sdk": ["@cline/sdk@workspace:packages/sdk"],
 
     "@cline/shared": ["@cline/shared@workspace:packages/shared"],
 
-    "@cline/vscode": ["@cline/vscode@workspace:apps/examples/vscode"],
+    "@cline/vscode": ["@cline/vscode@workspace:../apps/examples/vscode"],
 
     "@date-fns/tz": ["@date-fns/tz@1.4.1", "", {}, "sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA=="],
 
@@ -3073,7 +3076,7 @@
 
     "web-tree-sitter": ["web-tree-sitter@0.25.10", "", { "peerDependencies": { "@types/emscripten": "^1.40.0" }, "optionalPeers": ["@types/emscripten"] }, "sha512-Y09sF44/13XvgVKgO2cNDw5rGk6s26MgoZPXLESvMXeefBf7i6/73eFurre0IsTW6E14Y0ArIzhUMmjoc7xyzA=="],
 
-    "webview": ["webview@workspace:apps/examples/vscode/src/webview"],
+    "webview": ["webview@workspace:../apps/examples/vscode/src/webview"],
 
     "which": ["which@4.0.0", "", { "dependencies": { "isexe": "^3.1.1" }, "bin": { "node-which": "bin/which.js" } }, "sha512-GlaYyEb07DPxYCKhKzplCWBJtvxZcZMrL+4UkrTSJHHPyZU4mYYTv3qaOe77H7EODLSSopAUFAc6W8U4yqvscg=="],
 
