@@ -33,7 +33,11 @@ export function ExtDetailContent(
 		) {
 			return;
 		}
+		const previousItem = item;
 		setToggleError(undefined);
+		if (typeof item.enabled === "boolean") {
+			setItem({ ...item, enabled: !item.enabled });
+		}
 		try {
 			const nextData = await props.onToggleConfigItem(item, {
 				includePluginTools: false,
@@ -52,6 +56,7 @@ export function ExtDetailContent(
 			);
 			setItem(nextItem ?? { ...item, enabled: !item.enabled });
 		} catch (error) {
+			setItem(previousItem);
 			const message = error instanceof Error ? error.message : String(error);
 			setToggleError(`Failed to update ${item.name}: ${message}`);
 		}

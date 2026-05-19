@@ -48,6 +48,10 @@ export interface PluginSandboxOptions extends PluginTargeting {
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
+type SandboxedAgentExtension = AgentExtension & {
+	/** Internal metadata used by settings surfaces that need source paths. */
+	__clinePluginPath?: string;
+};
 
 type SandboxedContributionDescriptor = {
 	id: string;
@@ -265,8 +269,9 @@ export async function loadSandboxedPlugins(
 
 	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
 		(descriptor) => {
-			const extension: AgentExtension = {
+			const extension: SandboxedAgentExtension = {
 				name: descriptor.name,
+				__clinePluginPath: descriptor.pluginPath,
 				manifest: descriptor.manifest,
 				setup: (api: AgentExtensionApi) => {
 					registerTools(
