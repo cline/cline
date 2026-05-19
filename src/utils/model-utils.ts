@@ -189,6 +189,11 @@ export function isDeepSeekNativeModelFamily(id: string): boolean {
 	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
 }
 
+export function isPoolsideModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("laguna")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
@@ -201,7 +206,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
 		isDeepSeek32ModelFamily(modelId) ||
-		isDeepSeekNativeModelFamily(modelId)
+		isDeepSeekNativeModelFamily(modelId) ||
+		isPoolsideModelFamily(modelId)
 	)
 }
 
