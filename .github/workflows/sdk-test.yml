@@ -22,6 +22,10 @@ permissions:
 defaults:
     run:
         working-directory: sdk
+        # Force bash on every OS (Git Bash on Windows). Works around bun#23960:
+        # bun install fails to symlink `../`-traversal workspaces on Windows under
+        # PowerShell/cmd, but succeeds when invoked from Git Bash.
+        shell: bash
 
 jobs:
     quality-checks:
