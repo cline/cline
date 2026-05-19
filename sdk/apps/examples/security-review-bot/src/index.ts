@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { type AgentTool, ClineCore, createTool } from "@cline/sdk";
+import {
+	type AgentEvent,
+	type AgentTool,
+	ClineCore,
+	createTool,
+	type ToolPolicy,
+} from "@cline/sdk";
 import { z } from "zod";
 
 const SecurityFindingSchema = z.object({
@@ -62,7 +68,7 @@ const repoRoot = (() => {
 
 const systemPrompt = `You are a senior application security engineer performing a focused security review of a git diff.
 
-Your goal is to identify exploitable or defense-in-depth security issues introduced or modified by the diff. Use the read_files tool when you need surrounding code to determine whether a finding is real.
+Your goal is to identify exploitable or defense-in-depth security issues introduced or modified by the diff. The repository root is ${repoRoot}. Use the read_files tool with absolute paths, or search_codebase, when you need surrounding code to determine whether a finding is real.
 
 Focus on:
 - Authentication and authorization bypasses
@@ -127,28 +133,98 @@ const securityReviewTools: AgentTool[] = [
 	submitSecurityReviewTool as AgentTool,
 ];
 
-function parseArgs(args: string[]) {
-	const ref = args[0] && !args[0].startsWith("-") ? args[0] : "HEAD~1";
-	const promptParts: string[] = [];
-	const remaining =
-		ref === "HEAD~1" && args[0]?.startsWith("-") ? args : args.slice(1);
+const securityReviewToolPolicies = {
+	"*": { autoApprove: true },
+	read_files: { autoApprove: true },
+	search_codebase: { autoApprove: true },
+	add_security_finding: { autoApprove: true },
+	submit_security_review: { autoApprove: true },
+	run_commands: { enabled: false },
+	fetch_web_content: { enabled: false },
+	editor: { enabled: false },
+	apply_patch: { enabled: false },
+	skills: { enabled: false },
+	ask_question: { enabled: false },
+} satisfies Record<string, ToolPolicy>;
 
-	for (let index = 0; index < remaining.length; index++) {
-		const arg = remaining[index];
-		if (arg === "--prompt" || arg === "-p") {
-			const value = remaining[index + 1];
-			if (!value) {
-				console.error(`Missing value for ${arg}`);
-				process.exit(1);
-			}
-			promptParts.push(value);
-			index++;
-			continue;
+let reasoningOpen = false;
+
+function closeReasoning() {
+	if (reasoningOpen) {
+		process.stdout.write("\n");
+		reasoningOpen = false;
+	}
+}
+
+function renderToolStart(
+	event: Extract<AgentEvent, { type: "content_start" }>,
+) {
+	const toolName = event.toolName ?? "unknown_tool";
+	if (toolName === "add_security_finding") {
+		const parsed = SecurityFindingSchema.safeParse(event.input);
+		if (!parsed.success) {
+			console.log(`\n[tool] ${toolName}`);
+			return;
 		}
-		promptParts.push(arg);
+		const input = parsed.data;
+		const icon =
+			input.severity === "critical"
+				? "X"
+				: input.severity === "high"
+					? "!"
+					: input.severity === "medium"
+						? "~"
+						: "i";
+		console.log(
+			`\n  [${icon}] ${input.severity.toUpperCase()} ${input.file}:${input.line} - ${input.title}`,
+		);
+		return;
 	}
 
-	return { ref, extraPrompt: promptParts.join(" ").trim() };
+	console.log(`\n[tool] ${toolName}`);
+}
+
+function renderAgentEvent(event: AgentEvent) {
+	switch (event.type) {
+		case "content_start":
+			if (event.contentType === "text" && event.text) {
+				closeReasoning();
+				process.stdout.write(event.text);
+				return;
+			}
+			if (event.contentType === "reasoning") {
+				if (event.redacted === true && !event.reasoning) {
+					console.log("\n[thinking redacted]");
+					return;
+				}
+				if (event.reasoning) {
+					if (!reasoningOpen) {
+						process.stdout.write("\n[thinking]\n");
+						reasoningOpen = true;
+					}
+					process.stdout.write(event.reasoning);
+				}
+				return;
+			}
+			if (event.contentType === "tool") {
+				closeReasoning();
+				renderToolStart(event);
+				return;
+			}
+			break;
+		case "content_end":
+			if (event.contentType === "reasoning") {
+				closeReasoning();
+				return;
+			}
+			if (event.contentType === "tool" && event.error) {
+				closeReasoning();
+				console.log(
+					`\n[tool failed] ${event.toolName ?? "unknown_tool"}: ${event.error}`,
+				);
+			}
+			break;
+	}
 }
 
 // Get the diff to review
@@ -192,39 +268,7 @@ const cline = await ClineCore.create({
 const unsubscribe = cline.subscribe((event) => {
 	switch (event.type) {
 		case "agent_event":
-			if (event.payload.event.type === "content_start") {
-				if (event.payload.event.contentType === "text") {
-					process.stdout.write(event.payload.event.text ?? "");
-				}
-
-				if (
-					event.payload.event.contentType === "tool" &&
-					event.payload.event.toolName === "add_security_finding"
-				) {
-					const input = event.payload.event.input as z.infer<
-						typeof SecurityFindingSchema
-					>;
-					const icon =
-						input.severity === "critical"
-							? "X"
-							: input.severity === "high"
-								? "!"
-								: input.severity === "medium"
-									? "~"
-									: "i";
-					console.log(
-						`  [${icon}] ${input.severity.toUpperCase()} ${input.file}:${input.line} - ${input.title}`,
-					);
-				}
-			}
-
-			if (event.payload.event.type === "notice") {
-				console.log(`\n[notice] ${event.payload.event.message}\n`);
-			}
-
-			if (event.payload.event.type === "error") {
-				console.error(`\n[error] ${event.payload.event.error.message}\n`);
-			}
+			renderAgentEvent(event.payload.event);
 			break;
 	}
 });
@@ -251,12 +295,10 @@ try {
 			enableSpawnAgent: false,
 			enableAgentTeams: false,
 			disableMcpSettingsTools: true,
+			toolPolicies: securityReviewToolPolicies,
 		},
 		localRuntime: {
 			extraTools: securityReviewTools,
-		},
-		toolPolicies: {
-			"*": { autoApprove: true },
 		},
 	});
 
