@@ -5,7 +5,6 @@ This is a VS Code extension. Read `.clinerules/general.md` for tribal knowledge 
 ## Architecture
 - **Core** (`src/`): `extension.ts` → `WebviewProvider` → `Controller` (single source of truth) → `Task` (agent loop).
 - **Webview** (`webview-ui/`): React/Vite app. State via `ExtensionStateContext.tsx`, synced through message passing.
-- **CLI** (`cli/`): React Ink terminal UI sharing core logic. Update CLI when changing webview features.
 - **Communication**: Protobuf-defined gRPC-like protocol over VS Code message passing. Schemas in `proto/`.
 - **MCP**: `src/services/mcp/McpHub.ts`.
 
@@ -28,7 +27,7 @@ Three proto conversion updates are **required** or the provider silently resets 
 2. `convertApiProviderToProto()` in `src/shared/proto-conversions/models/api-configuration-conversion.ts`.
 3. `convertProtoToApiProvider()` in the same file.
 
-Also update: `src/shared/api.ts`, `src/shared/providers/providers.json`, `src/core/api/index.ts`, `webview-ui/.../providerUtils.ts`, `webview-ui/.../validate.ts`, `webview-ui/.../ApiOptions.tsx`, and `cli/src/components/ModelPicker.tsx`.
+Also update: `src/shared/api.ts`, `src/shared/providers/providers.json`, `src/core/api/index.ts`, `webview-ui/.../providerUtils.ts`, `webview-ui/.../validate.ts`, `webview-ui/.../ApiOptions.tsx`.
 
 For Responses API providers: add to `isNextGenModelProvider()` in `src/utils/model-utils.ts` and set `apiFormat: ApiFormat.OPENAI_RESPONSES` on models.
 

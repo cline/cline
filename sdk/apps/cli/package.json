@@ -1,0 +1,100 @@
+{
+	"name": "@cline/cli",
+	"displayName": "cline",
+	"version": "3.0.7",
+	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
+	"type": "module",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cline/cline.git",
+		"directory": "sdk/apps/cli"
+	},
+	"keywords": [
+		"cline",
+		"claude",
+		"dev",
+		"mcp",
+		"openrouter",
+		"coding",
+		"agent",
+		"autonomous",
+		"chatgpt",
+		"sonnet",
+		"ai",
+		"llama",
+		"cli"
+	],
+	"author": {
+		"name": "Cline Bot Inc."
+	},
+	"license": "Apache-2.0",
+	"homepage": "https://cline.bot",
+	"bugs": {
+		"url": "https://github.com/cline/cline/issues"
+	},
+	"bin": {
+		"cline": "src/index.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"main": "dist/index.js",
+	"exports": {
+		".": "./dist/index.js"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "bun run bun.mts",
+		"build:platforms": "bun script/build.ts --install-native-variants",
+		"build:platforms:single": "bun script/build.ts --single",
+		"prepack": "bun script/guard-direct-publish.ts",
+		"prepublishOnly": "bun script/guard-direct-publish.ts",
+		"publish:npm": "bun script/publish-npm.ts",
+		"publish:npm:dry": "bun script/publish-npm.ts --dry-run",
+		"dev": "CLINE_BUILD_ENV=development bun --conditions=development ./src/index.ts",
+		"typecheck": "tsc --noEmit",
+		"test": "bun run test:unit",
+		"test:unit": "vitest run --config vitest.config.ts",
+		"test:e2e": "vitest run --config vitest.e2e.config.ts",
+		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",
+		"test:watch": "vitest --config vitest.config.ts",
+		"test:e2e:cli:tui": "cd src/tests && tui-test",
+		"link": "bun unlink && bun link"
+	},
+	"dependencies": {
+		"@agentclientprotocol/sdk": "^0.16.1",
+		"@clack/prompts": "^1.2.0",
+		"@chat-adapter/discord": "^4.23.0",
+		"@chat-adapter/gchat": "^4.23.0",
+		"@chat-adapter/linear": "^4.23.0",
+		"@chat-adapter/slack": "^4.23.0",
+		"@chat-adapter/telegram": "^4.23.0",
+		"@chat-adapter/whatsapp": "^4.23.0",
+		"@gramio/format": "^0.7.0",
+		"chat": "^4.23.0",
+		"commander": "^14.0.3",
+		"@opentui/core": "0.1.102",
+		"@opentui/react": "0.1.102",
+		"@opentui-ui/dialog": "^0.1.2",
+		"marked": "^15.0.12",
+		"open": "^10.2.0",
+		"opentui-spinner": "^0.0.6",
+		"pino": "^10.3.1",
+		"react": "19.2.4",
+		"react-reconciler": "0.32.0",
+		"react-devtools-core": "^7.0.1",
+		"yaml": "^2.8.2",
+		"zod": "^4.1.11"
+	},
+	"devDependencies": {
+		"@cline/core": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"@microsoft/tui-test": "^0.0.2",
+		"@types/react": "19.2.14"
+	}
+}

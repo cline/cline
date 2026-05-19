@@ -35,7 +35,7 @@ Now with summarization:
 - You can work on much larger projects without interruption
 
 <Tip>
-Auto Compact works beautifully with [Focus Chain](/features/focus-chain). When Focus Chain is enabled, todo lists persist across summarizations. Cline can work on long-horizon tasks spanning multiple context windows while staying on track.
+Auto Compact works especially well for long-running tasks. Structured task lists can help maintain progress across summarizations so Cline can stay on track across multiple context windows.
 </Tip>
 
 ## Cost Considerations
@@ -43,15 +43,6 @@ Auto Compact works beautifully with [Focus Chain](/features/focus-chain). When F
 Summarization leverages your existing prompt cache from the conversation, so it costs about the same as any other tool call.
 
 Since most input tokens are already cached, you're primarily paying for summary generation (output tokens), making it cost-effective.
-
-## Supported Models
-
-Auto Compact uses advanced LLM-based summarization for these models:
-
-- Claude 4 series
-- Gemini 2.5 series
-- GPT-5
-- Grok 4
 
 <Note>
 With other models, Cline falls back to standard rule-based context truncation, even if Auto Compact is enabled.

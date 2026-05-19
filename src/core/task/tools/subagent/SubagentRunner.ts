@@ -707,6 +707,7 @@ export class SubagentRunner {
 			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
+			vscodeTerminalExecutionMode: "backgroundExec",
 			callbacks: {
 				...baseCallbacks,
 				say: async () => undefined,

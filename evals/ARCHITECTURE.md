@@ -1,5 +1,7 @@
 # Cline Evals Architecture
 
+> Note: Smoke tests (Layer 2) are partially disabled while the eval framework is repointed at the new SDK CLI. The scenarios under `evals/smoke-tests/` are preserved and `npm run eval:smoke:run` still works against whatever `cline` is on `$PATH` (install with `npm i -g cline`). The old build-and-link helpers and the auto-running `cline-evals-regression.yml` workflow are off until someone wires the build step at the new SDK CLI.
+
 ## Overview
 
 The evals system provides multi-layered testing for Cline's AI capabilities.
@@ -79,7 +81,7 @@ evals/
 │                         SMOKE TEST EXECUTION FLOW                            │
 └──────────────────────────────────────────────────────────────────────────────┘
 
- npm run eval:smoke
+ npm run eval:smoke:run
         │
         ▼
 ┌───────────────────┐
@@ -196,19 +198,16 @@ evals/
 
 ```bash
 # Run all smoke tests (all models, 3 trials each)
-npm run eval:smoke
+npm run eval:smoke:run
 
 # Run single model (use exact model ID for reproducibility)
-npm run eval:smoke -- --model claude-sonnet-4-20250514
+npm run eval:smoke:run -- --model claude-sonnet-4-20250514
 
 # Run single scenario
-npm run eval:smoke -- --scenario 01-create-file
+npm run eval:smoke:run -- --scenario 01-create-file
 
 # Quick check (1 trial)
-npm run eval:smoke -- --trials 1
-
-# CI-like run (builds CLI from source, single trial)
-npm run eval:smoke:ci
+npm run eval:smoke:run -- --trials 1
 
 # View latest results
 cat evals/smoke-tests/results/latest/summary.md
@@ -220,22 +219,7 @@ ls evals/smoke-tests/results/latest/<scenario>/<model>/workspace-trial-1/
 
 ## CI Integration
 
-Smoke tests run automatically on merge to `main` via `.github/workflows/cline-evals-regression.yml`.
-
-**Triggers:**
-- Push to `main` branch (paths: `src/core/**`, `src/shared/**`, `proto/**`)
-- Manual dispatch via `workflow_dispatch`
-
-**What it does:**
-1. Builds the Go CLI from source via `scripts/run-smoke-tests.sh`
-2. Runs all 5 scenarios × 3 models × 1 trial
-3. Uploads results as artifact
-4. Posts summary to GitHub Actions job summary
-
-```bash
-# The CI runs this script which handles proto generation + CLI build:
-bash scripts/run-smoke-tests.sh --trials 1
-```
+Smoke test CI is temporarily disabled. `.github/workflows/cline-evals-regression.yml` was removed until the build step is repointed at the new SDK CLI.
 
 ### Viewing CI Results
 
@@ -245,22 +229,13 @@ bash scripts/run-smoke-tests.sh --trials 1
 ### Running CI-like Tests Locally
 
 ```bash
-# One command - builds CLI from source and runs tests
-npm run eval:smoke:ci
-
-# Or manually:
-npm run protos-go
-cd cli && go build -o cline ./cmd/cline
-export PATH="$(pwd)/cli:$PATH"
+# Use an installed or locally linked cline binary
 npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1
 ```
 
-### Why Build CLI in CI?
+### Re-enabling CI
 
-We build the Go CLI from source rather than using a pre-built release because:
-- Tests actual CLI code from the commit (catches CLI regressions)
-- Proto definitions may have changed
-- No dependency on external releases
+The old workflow built the legacy CLI from `cli/`. Re-enable it only after replacing that build step with the SDK CLI under `sdk/apps/cli`.
 
 ## Contract Tests (Layer 1)
 

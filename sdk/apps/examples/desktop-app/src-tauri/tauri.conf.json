@@ -1,0 +1,38 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Cline Code",
+	"version": "0.1.0",
+	"identifier": "bot.cline.app",
+	"build": {
+		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
+		"devUrl": "http://localhost:3125",
+		"beforeBuildCommand": "bun run build",
+		"frontendDist": "../webview/out"
+	},
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"title": "Cline Code",
+				"width": 1500,
+				"height": 980,
+				"resizable": true
+			}
+		],
+		"security": {
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"externalBin": ["bin/code-sidecar"],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		]
+	}
+}

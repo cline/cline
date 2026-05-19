@@ -1,0 +1,106 @@
+import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { BUILTIN_SPECS } from "./builtins";
+import { getModelsForProvider, getProvider } from "./model-registry";
+
+function findClineSpec() {
+	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
+	if (!spec) {
+		throw new Error("cline builtin spec not found");
+	}
+	return spec;
+}
+
+describe("cline builtin spec defaults.baseUrl", () => {
+	const originalEnvironment = process.env[CLINE_ENVIRONMENT_ENV];
+
+	beforeEach(() => {
+		delete process.env[CLINE_ENVIRONMENT_ENV];
+	});
+
+	afterEach(() => {
+		if (originalEnvironment === undefined) {
+			delete process.env[CLINE_ENVIRONMENT_ENV];
+		} else {
+			process.env[CLINE_ENVIRONMENT_ENV] = originalEnvironment;
+		}
+	});
+
+	it("re-resolves baseUrl when CLINE_ENVIRONMENT changes between reads", () => {
+		const spec = findClineSpec();
+
+		expect(spec.defaults?.baseUrl).toBe(
+			`${CLINE_ENVIRONMENTS.production.apiBaseUrl}/api/v1`,
+		);
+
+		process.env[CLINE_ENVIRONMENT_ENV] = "staging";
+		expect(spec.defaults?.baseUrl).toBe(
+			`${CLINE_ENVIRONMENTS.staging.apiBaseUrl}/api/v1`,
+		);
+
+		process.env[CLINE_ENVIRONMENT_ENV] = "local";
+		expect(spec.defaults?.baseUrl).toBe(
+			`${CLINE_ENVIRONMENTS.local.apiBaseUrl}/api/v1`,
+		);
+
+		delete process.env[CLINE_ENVIRONMENT_ENV];
+		expect(spec.defaults?.baseUrl).toBe(
+			`${CLINE_ENVIRONMENTS.production.apiBaseUrl}/api/v1`,
+		);
+	});
+});
+
+describe("built-in provider metadata", () => {
+	it("marks popular providers with a provider capability and rank", async () => {
+		await expect(getProvider("cline")).resolves.toMatchObject({
+			capabilities: expect.arrayContaining(["popular"]),
+			metadata: { popularRank: 1 },
+		});
+		await expect(getProvider("zai")).resolves.not.toMatchObject({
+			capabilities: expect.arrayContaining(["popular"]),
+		});
+	});
+
+	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
+		const chatGptModels = await getModelsForProvider("openai-codex");
+		const openAiModels = await getModelsForProvider("openai-native");
+		const modelIds = Object.keys(chatGptModels);
+
+		expect(modelIds).toEqual(
+			expect.arrayContaining([
+				"gpt-5.5",
+				"gpt-5.5-pro",
+				"gpt-5.2",
+				"gpt-5.3-codex",
+				"gpt-5.3-codex-spark",
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		);
+		expect(modelIds).not.toContain("gpt-5.1-codex-max");
+		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(modelIds).not.toContain("o3");
+		expect(chatGptModels["gpt-5.5"]).toEqual(
+			expect.objectContaining({
+				...openAiModels["gpt-5.5"],
+				maxInputTokens: 272_000,
+				contextWindow: 400_000,
+			}),
+		);
+		expect(chatGptModels["gpt-5.4"]).toEqual(
+			expect.objectContaining({
+				name: "GPT-5.4",
+				maxInputTokens: expect.any(Number),
+				contextWindow: expect.any(Number),
+			}),
+		);
+		expect(chatGptModels["gpt-5.3-codex"]).toEqual(
+			expect.objectContaining({
+				name: "GPT-5.3 Codex",
+				maxInputTokens: expect.any(Number),
+				contextWindow: expect.any(Number),
+			}),
+		);
+	});
+});

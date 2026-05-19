@@ -1,7 +1,7 @@
+import * as vscode from "vscode"
 import { OpenTerminalRequest, OpenTerminalResponse } from "@/shared/proto/index.host"
-import { Logger } from "@/shared/services/Logger"
 
 export async function openTerminalPanel(_: OpenTerminalRequest): Promise<OpenTerminalResponse> {
-	Logger.warn("openTerminalPanel called after integrated-terminal removal; ignoring request")
+	vscode.commands.executeCommand("workbench.action.terminal.focus")
 	return {}
 }

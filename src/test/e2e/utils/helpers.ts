@@ -1,4 +1,5 @@
-import { mkdtempSync, type PathLike, type RmOptions, rmSync } from "node:fs"
+import type { ChildProcess } from "node:child_process"
+import { mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
@@ -22,6 +23,9 @@ export class E2ETestHelper {
 	// Constants
 	public static readonly CODEBASE_ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..")
 	public static readonly E2E_TESTS_DIR = path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "src", "test", "e2e")
+	private static readonly TEARDOWN_TIMEOUT_MS = 10_000
+	private static readonly WINDOW_DIAGNOSTIC_TIMEOUT_MS = 1_000
+	private static readonly PROCESS_EXIT_TIMEOUT_MS = 2_000
 
 	// Instance properties for caching
 	private cachedFrame: Frame | null = null
@@ -118,13 +122,155 @@ export class E2ETestHelper {
 		}
 	}
 
+	private static async withTimeout<T>(
+		promise: Promise<T>,
+		timeoutMs: number,
+	): Promise<{ timedOut: false; value: T } | { timedOut: true }> {
+		let timeout: ReturnType<typeof setTimeout> | undefined
+		let timedOut = false
+
+		try {
+			const value = await Promise.race([
+				promise.then((value) => ({ timedOut: false as const, value })),
+				new Promise<{ timedOut: true }>((resolve) => {
+					timeout = setTimeout(() => {
+						timedOut = true
+						resolve({ timedOut: true })
+					}, timeoutMs)
+				}),
+			])
+
+			return value
+		} finally {
+			if (timeout) {
+				clearTimeout(timeout)
+			}
+			if (timedOut) {
+				void promise.catch(() => undefined)
+			}
+		}
+	}
+
+	private static async getWindowDiagnostics(app: ElectronApplication): Promise<string> {
+		const windows = app.windows()
+		const titles = await Promise.all(
+			windows.map(async (window, index) => {
+				if (window.isClosed()) {
+					return `#${index}: closed`
+				}
+
+				const title = await E2ETestHelper.withTimeout(window.title(), E2ETestHelper.WINDOW_DIAGNOSTIC_TIMEOUT_MS)
+				return title.timedOut ? `#${index}: title timed out` : `#${index}: ${title.value || "<untitled>"}`
+			}),
+		)
+
+		return titles.length > 0 ? titles.join(", ") : "no windows"
+	}
+
+	private static async waitForProcessExit(process: ChildProcess, timeoutMs: number): Promise<boolean> {
+		if (process.exitCode !== null || process.signalCode !== null) {
+			return true
+		}
+
+		return new Promise((resolve) => {
+			const onExit = () => {
+				clearTimeout(timeout)
+				resolve(true)
+			}
+			const timeout = setTimeout(() => {
+				process.off("exit", onExit)
+				resolve(process.exitCode !== null || process.signalCode !== null)
+			}, timeoutMs)
+
+			process.once("exit", onExit)
+		})
+	}
+
+	public static async closePageForTeardown(page: Page): Promise<void> {
+		if (page.isClosed()) {
+			return
+		}
+
+		const result = await E2ETestHelper.withTimeout(page.close(), E2ETestHelper.TEARDOWN_TIMEOUT_MS).catch((error) => {
+			console.warn(`[e2e teardown] page.close() failed: ${error}`)
+			return { timedOut: false as const, value: undefined }
+		})
+		if (result.timedOut) {
+			console.warn(`[e2e teardown] page.close() exceeded ${E2ETestHelper.TEARDOWN_TIMEOUT_MS}ms; continuing to app cleanup`)
+		}
+	}
+
+	public static async closeAppForTeardown(app: ElectronApplication): Promise<void> {
+		const process = app.process()
+		const getProcessSummary = () =>
+			process
+				? `pid=${process.pid ?? "unknown"} exitCode=${process.exitCode ?? "null"} signalCode=${process.signalCode ?? "null"} killed=${process.killed}`
+				: "process unavailable"
+
+		const closeResult = await E2ETestHelper.withTimeout(app.close(), E2ETestHelper.TEARDOWN_TIMEOUT_MS).catch((error) => {
+			console.warn(`[e2e teardown] app.close() failed: ${error}`)
+			return { timedOut: true as const }
+		})
+		if (!closeResult.timedOut) {
+			return
+		}
+
+		const windowDiagnostics = await E2ETestHelper.getWindowDiagnostics(app).catch(
+			(error) => `window diagnostics failed: ${error}`,
+		)
+		console.warn(
+			`[e2e teardown] app.close() exceeded ${E2ETestHelper.TEARDOWN_TIMEOUT_MS}ms; forcing VS Code/Electron shutdown (${getProcessSummary()}; windows: ${windowDiagnostics})`,
+		)
+
+		if (!process || process.killed || process.exitCode !== null) {
+			return
+		}
+
+		try {
+			if (process.kill("SIGKILL")) {
+				const exited = await E2ETestHelper.waitForProcessExit(process, E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS)
+				if (!exited) {
+					console.warn(
+						`[e2e teardown] VS Code/Electron process did not report exit within ${E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS}ms after SIGKILL (${getProcessSummary()})`,
+					)
+				}
+				return
+			}
+
+			console.warn(
+				`[e2e teardown] SIGKILL returned false for VS Code/Electron process; skipping SIGTERM (${getProcessSummary()})`,
+			)
+			return
+		} catch (error) {
+			console.warn(`[e2e teardown] SIGKILL failed for VS Code/Electron process: ${error}`)
+		}
+
+		try {
+			if (process.exitCode === null && process.signalCode === null && process.kill("SIGTERM")) {
+				await E2ETestHelper.waitForProcessExit(process, E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS)
+			}
+		} catch (error) {
+			console.warn(`[e2e teardown] SIGTERM failed for VS Code/Electron process: ${error}`)
+		}
+	}
+
 	public async signin(webview: Frame): Promise<void> {
 		await webview.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 
 		// Verify start up page is no longer visible
 		await expect(webview.getByRole("button", { name: "Login to Cline" })).not.toBeVisible()
 
-		await webview.getByRole("button", { name: "Close" }).click({ delay: 50 })
+		const closeButton = webview.getByRole("button", { name: "Close" })
+		let shouldCloseModal = false
+		try {
+			await closeButton.waitFor({ state: "visible", timeout: 5_000 })
+			shouldCloseModal = true
+		} catch {
+			// No blocking modal appeared after sign-in.
+		}
+		if (shouldCloseModal) {
+			await closeButton.click({ delay: 50 })
+		}
 	}
 
 	public static async openClineSidebar(page: Page): Promise<void> {
@@ -232,24 +378,21 @@ export const e2e = test
 			await use(async (workspacePath: string) => {
 				// Create isolated Cline data directory for this test
 				const clineTestDir = mkdtempSync(path.join(os.tmpdir(), "cline-e2e-"))
-				const launchEnv = {
-					...process.env,
-					TEMP_PROFILE: "true",
-					E2E_TEST: "true",
-					CLINE_ENVIRONMENT: "local",
-					CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
-					GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
-					// GRPC_RECORDER_ENABLED: "true",
-					// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
-					// IS_DEV: "true",
-					// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
-				}
-
-				delete launchEnv.ELECTRON_RUN_AS_NODE
 
 				const app = await _electron.launch({
 					executablePath,
-					env: launchEnv,
+					env: {
+						...process.env,
+						TEMP_PROFILE: "true",
+						E2E_TEST: "true",
+						CLINE_ENVIRONMENT: "local",
+						CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
+						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
+						// GRPC_RECORDER_ENABLED: "true",
+						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
+						// IS_DEV: "true",
+						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
+					},
 					recordVideo: {
 						dir: E2ETestHelper.getResultsDir(testInfo.title, "recordings"),
 					},
@@ -275,23 +418,13 @@ export const e2e = test
 		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
 			const workspacePath = workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir
 
-			// Track the clineTestDir created in openVSCode
-			let clineTestDir: string | undefined
-			const originalOpenVSCode = openVSCode
-			const wrappedOpenVSCode = async (wp: string) => {
-				const app = await originalOpenVSCode(wp)
-				// Extract CLINE_DIR from the launched app's environment
-				// We'll need to pass it through the fixture chain
-				return app
-			}
-
 			const app = await openVSCode(workspacePath)
 
 			try {
 				await use(app)
 			} finally {
-				await app.close()
-				// Cleanup in parallel - include clineTestDir if it was created
+				await E2ETestHelper.closeAppForTeardown(app)
+				// Cleanup in parallel after the app process has been asked to exit.
 				const cleanupTasks = [
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
 					E2ETestHelper.rmForRetries(extensionsDir, { recursive: true }),
@@ -301,7 +434,7 @@ export const e2e = test
 				// Find all temp directories matching our pattern
 				const tmpDir = os.tmpdir()
 				try {
-					const entries = require("node:fs").readdirSync(tmpDir)
+					const entries = readdirSync(tmpDir)
 					for (const entry of entries) {
 						if (entry.startsWith("cline-e2e-")) {
 							cleanupTasks.push(E2ETestHelper.rmForRetries(path.join(tmpDir, entry), { recursive: true }))
@@ -331,11 +464,7 @@ export const e2e = test
 			try {
 				await use(page)
 			} finally {
-				// Ensure proper cleanup: Close the page if it's still open and not already closed by app.close()
-				// This provides a common teardown mechanism for all e2e tests without requiring explicit page.close() calls
-				if (!page.isClosed()) {
-					await page.close()
-				}
+				await E2ETestHelper.closePageForTeardown(page)
 			}
 		},
 	})

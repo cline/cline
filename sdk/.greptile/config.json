@@ -1,0 +1,45 @@
+{
+	"strictness": 2,
+	"triggerOnUpdates": true,
+	"statusCheck": true,
+	"rules": [
+		{
+			"id": "sdk-tool-handler-telemetry",
+			"rule": "Any new tool handler added to packages/agents/src or packages/core/src that performs a user-visible action (writes files, executes commands, modifies state, calls external APIs) must include a call to captureToolUsage() from packages/core/src/services/telemetry/core-events.ts, or emit a task.tool_used event via telemetry.capture(). Pure read-only helpers and getters are exempt. When in doubt, prefer instrumentation.",
+			"scope": ["packages/agents/src/**", "packages/core/src/**"],
+			"severity": "high"
+		},
+		{
+			"id": "sdk-session-lifecycle-telemetry",
+			"rule": "New session start, end, or state-transition code paths in packages/core/src must call the appropriate typed helper from packages/core/src/services/telemetry/core-events.ts (captureTaskCreated, captureTaskCompleted, captureConversationTurnEvent, captureTokenUsage, etc.). Do not inline raw telemetry.capture() calls for session lifecycle events — always use the typed helper, which guarantees a consistent payload shape.",
+			"scope": [
+				"packages/core/src/cline-core/**",
+				"packages/core/src/runtime/**"
+			],
+			"severity": "high"
+		},
+		{
+			"id": "sdk-no-raw-event-strings",
+			"rule": "All telemetry event name strings must be sourced from CORE_TELEMETRY_EVENTS in packages/core/src/services/telemetry/core-events.ts. If a PR introduces a string literal in a telemetry.capture(), telemetry.captureRequired(), or recordCounter()/recordHistogram()/recordGauge() call that does not reference CORE_TELEMETRY_EVENTS, flag it. New events must be added to CORE_TELEMETRY_EVENTS first, with a typed capture helper created alongside them.",
+			"scope": [
+				"packages/core/src/**",
+				"packages/agents/src/**",
+				"apps/cli/src/**",
+				"apps/vscode/src/**"
+			],
+			"severity": "medium"
+		},
+		{
+			"id": "sdk-auth-telemetry-completeness",
+			"rule": "Any new OAuth or authentication provider added under packages/core/src/auth must emit all four lifecycle events using the typed helpers from core-events.ts: captureAuthStarted (at flow entry), captureAuthSucceeded + identifyAccount (on token success), captureAuthFailed (on error), and captureAuthLoggedOut (on token invalidation or explicit logout). Flag PRs that introduce a new auth flow file without all four. Cross-reference packages/core/src/auth/cline.ts and packages/core/src/auth/codex.ts as canonical examples.",
+			"scope": ["packages/core/src/auth/**"],
+			"severity": "high"
+		},
+		{
+			"id": "sdk-telemetry-doc-update",
+			"rule": "Any PR that adds new event constants to CORE_TELEMETRY_EVENTS in packages/core/src/services/telemetry/core-events.ts, adds new capture* helper functions, or changes the payload shape of an existing event must update the Event Catalog section in DOC.md. Flag PRs that modify core-events.ts without a corresponding change to DOC.md.",
+			"scope": ["packages/core/src/services/telemetry/core-events.ts"],
+			"severity": "medium"
+		}
+	]
+}

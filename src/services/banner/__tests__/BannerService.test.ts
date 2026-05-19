@@ -819,7 +819,14 @@ describe("BannerService", () => {
 		})
 
 		it("should accept all valid BannerActionType values", async () => {
-			const validActionTypes = ["link", "show-api-settings", "show-feature-settings", "show-account", "set-model"]
+			const validActionTypes = [
+				"link",
+				"show-api-settings",
+				"show-feature-settings",
+				"show-account",
+				"set-model",
+				"install-cli",
+			]
 
 			const mockResponse = {
 				data: {
