@@ -427,8 +427,14 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { PluginToolSummary } from "./services/plugin-tools";
-export { listPluginTools } from "./services/plugin-tools";
+export type {
+	ListPluginToolsResult,
+	PluginToolSummary,
+} from "./services/plugin-tools";
+export {
+	listPluginTools,
+	listPluginToolsWithDiagnostics,
+} from "./services/plugin-tools";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
