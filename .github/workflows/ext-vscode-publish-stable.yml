@@ -108,13 +108,19 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
+                  # Node is still required because vsce shells out to npm during packaging.
                   node-version: 22
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
             - name: Install root dependencies
-              run: npm install --include=optional
+              run: bun install --frozen-lockfile
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm install --include=optional
+              run: cd webview-ui && bun install --frozen-lockfile
 
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx
@@ -153,7 +159,7 @@ jobs:
               run: |
                   # Swap README.marketplace.md into README.md so both the GitHub
                   # release artifact (vsce package below) and the marketplace
-                  # publish (npm run publish:marketplace below, which swaps
+                  # publish (bun run publish:marketplace below, which swaps
                   # internally as an idempotent no-op) ship the same README.
                   node scripts/marketplace-readme.mjs swap-in
                   trap 'node scripts/marketplace-readme.mjs restore' EXIT
@@ -162,10 +168,10 @@ jobs:
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
                   if [ "$RELEASE_TYPE" = "pre-release" ]; then
-                    npm run publish:marketplace:prerelease
+                    bun run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else
-                    npm run publish:marketplace
+                    bun run publish:marketplace
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 

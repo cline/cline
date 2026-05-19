@@ -36,15 +36,20 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  # Keep publish environment aligned with test workflow/tooling lockfile expectations.
+                  # Node is still required because vsce shells out to npm during packaging.
                   # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
                   node-version: 22
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
             - name: Install root dependencies
-              run: npm ci --include=optional
+              run: bun install --frozen-lockfile
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci --include=optional
+              run: cd webview-ui && bun install --frozen-lockfile
 
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx
@@ -63,4 +68,4 @@ jobs:
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-              run: npm run publish:marketplace:nightly
+              run: bun run publish:marketplace:nightly
