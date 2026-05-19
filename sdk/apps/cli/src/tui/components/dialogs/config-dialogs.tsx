@@ -42,19 +42,24 @@ export function ExtDetailContent(
 			const nextData = await props.onToggleConfigItem(item, {
 				includePluginTools: false,
 			});
-			const nextItem = [
-				...(nextData?.workflows ?? []),
-				...(nextData?.rules ?? []),
-				...(nextData?.skills ?? []),
-				...(nextData?.hooks ?? []),
-				...(nextData?.agents ?? []),
-				...(nextData?.plugins ?? []),
-				...(nextData?.mcp ?? []),
-				...(nextData?.tools ?? []),
-			].find(
-				(candidate) => candidate.id === item.id && candidate.path === item.path,
-			);
-			setItem(nextItem ?? { ...item, enabled: !item.enabled });
+			if (nextData) {
+				const nextItem = [
+					...nextData.workflows,
+					...nextData.rules,
+					...nextData.skills,
+					...nextData.hooks,
+					...nextData.agents,
+					...nextData.plugins,
+					...nextData.mcp,
+					...nextData.tools,
+				].find(
+					(candidate) =>
+						candidate.id === item.id && candidate.path === item.path,
+				);
+				if (nextItem) {
+					setItem(nextItem);
+				}
+			}
 		} catch (error) {
 			setItem(previousItem);
 			const message = error instanceof Error ? error.message : String(error);
