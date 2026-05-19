@@ -4,6 +4,7 @@ import { useState } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
 } from "../../interactive-config";
 import { palette } from "../../palette";
 import {
@@ -18,6 +19,7 @@ export function ExtDetailContent(
 		item: InteractiveConfigItem;
 		onToggleConfigItem?: (
 			item: InteractiveConfigItem,
+			options?: LoadInteractiveConfigDataOptions,
 		) => Promise<InteractiveConfigData | undefined>;
 	},
 ) {
@@ -33,7 +35,9 @@ export function ExtDetailContent(
 		}
 		setToggleError(undefined);
 		try {
-			const nextData = await props.onToggleConfigItem(item);
+			const nextData = await props.onToggleConfigItem(item, {
+				includePluginTools: false,
+			});
 			const nextItem = [
 				...(nextData?.workflows ?? []),
 				...(nextData?.rules ?? []),

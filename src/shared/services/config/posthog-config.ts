@@ -34,7 +34,7 @@ const useDevEnv = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT
  * PostHog configuration for Production Environment.
  * NOTE: The production environment variables will be injected at build time in CI/CD pipeline.
  * IMPORTANT: The secrets must be added to the GitHub Secrets and matched with the environment variables names
- * defined in the .github/workflows/publish.yml workflow.
+ * defined in the .github/workflows/ext-vscode-publish-stable.yml workflow.
  * NOTE: The development environment variables should be retrieved from 1password shared vault.
  */
 export const posthogConfig: PostHogClientConfig = {

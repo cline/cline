@@ -17,7 +17,7 @@
 //
 // swapIn is idempotent: if README.md already matches README.marketplace.md
 // (e.g., an outer wrapper has already swapped), it no-ops instead of erroring
-// on the backup file. This lets nested callers (publish.yml wrapping the whole
+// on the backup file. This lets nested callers (ext-vscode-publish-stable.yml wrapping the whole
 // step, plus the individual npm scripts swapping internally) coexist safely.
 
 import fs from "node:fs"

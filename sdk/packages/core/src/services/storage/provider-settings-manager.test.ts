@@ -112,20 +112,27 @@ describe("ProviderSettingsManager", () => {
 
 		const manager = new ProviderSettingsManager({ filePath, dataDir: tempDir });
 		const providers = await LlmsModels.getAllProviders();
+		const models = await LlmsModels.getModelsForProvider("openai-compatible");
 		const openAiProvider = providers.find(
-			(provider) => provider.id === "openai",
+			(provider) => provider.id === "openai-compatible",
 		);
 
-		expect(manager.getProviderSettings("openai")).toEqual({
-			provider: "openai",
+		expect(manager.getProviderSettings("openai-compatible")).toEqual({
+			provider: "openai-compatible",
 			model: "gpt-oss-120b",
 			apiKey: "legacy-key",
 			baseUrl: "https://gateway.example.invalid/v1",
 		});
 		expect(openAiProvider).toMatchObject({
-			id: "openai",
+			id: "openai-compatible",
 			baseUrl: "https://gateway.example.invalid/v1",
 			defaultModelId: "gpt-oss-120b",
+		});
+		expect(models["gpt-oss-120b"]).toMatchObject({
+			id: "gpt-oss-120b",
+			contextWindow: 128000,
+			maxInputTokens: 128000,
+			capabilities: ["streaming", "tools", "images"],
 		});
 	});
 

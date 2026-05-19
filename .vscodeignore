@@ -2,6 +2,10 @@
 .vscode/**
 .vscode-test/**
 .worktrees/**
+# Agent tooling, never shipped in the VSIX
+.agents/**
+.claude/**
+.codex/**
 CLAUDE.local.md
 out/
 dist-standalone/
@@ -21,9 +25,6 @@ eslint-rules/**
 .github/**
 .husky/**
 .env
-
-# cli
-cli/**
 
 # sdk (separate monorepo with its own build/release pipeline)
 sdk/**

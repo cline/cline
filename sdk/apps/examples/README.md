@@ -2,6 +2,15 @@
 
 Learn how to build with the Cline SDK through working examples, ordered from simple to complex.
 
+## SDK Skill
+If you use a coding agent (Claude Code, Codex, Cline, etc.), install the [Cline SDK skill](https://github.com/cline/sdk-skill) to give your agent context on the SDK's APIs and best practices to help you build with the Cline SDK.
+
+```bash
+npx skills add cline/sdk-skill
+```
+
+Prompt it to scaffold agents, create custom tools, wire up plugins, configure providers, and more.
+
 ## Getting started
 
 All examples live in this directory. Each is a standalone project with its own `package.json` and README. To run any example:

@@ -1,9 +1,6 @@
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
-import {
-	createCodexAppServer,
-	createCodexExec,
-} from "ai-sdk-provider-codex-cli";
+import { createCodexExec } from "ai-sdk-provider-codex-cli";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
@@ -30,60 +27,6 @@ export async function createOpenAICodexProviderModule(
 	return {
 		model: (modelId) => provider(modelId),
 	};
-}
-
-export interface OpenAICodexModelListOptions {
-	accessToken?: string;
-	accountId?: string;
-	cwd?: string;
-	codexPath?: string;
-	env?: Record<string, string>;
-	requestTimeoutMs?: number;
-	connectionTimeoutMs?: number;
-}
-
-export interface OpenAICodexListedModel {
-	id: string;
-	name?: string | null;
-	isDefault?: boolean | null;
-}
-
-export async function listOpenAICodexModels(
-	options: OpenAICodexModelListOptions = {},
-): Promise<OpenAICodexListedModel[]> {
-	const serverRequests =
-		options.accessToken && options.accountId
-			? {
-					onAuthRefresh: async () => ({
-						accessToken: options.accessToken as string,
-						chatgptAccountId: options.accountId as string,
-						chatgptPlanType: null,
-					}),
-				}
-			: undefined;
-	const provider = createCodexAppServer({
-		defaultSettings: {
-			codexPath: options.codexPath ?? "codex",
-			cwd: options.cwd,
-			env: options.env,
-			logger: false,
-			requestTimeoutMs: options.requestTimeoutMs,
-			connectionTimeoutMs: options.connectionTimeoutMs,
-			serverRequests,
-		},
-	});
-
-	let result: Awaited<ReturnType<typeof provider.listModels>>;
-	try {
-		result = await provider.listModels(["openai"]);
-	} finally {
-		await provider.close().catch(() => {});
-	}
-	return result.models.map((model) => ({
-		id: model.id,
-		name: model.name,
-		isDefault: model.isDefault,
-	}));
 }
 
 // ai-sdk-provider-opencode-sdk registers process.once("SIGINT") and

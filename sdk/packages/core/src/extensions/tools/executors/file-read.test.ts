@@ -122,4 +122,46 @@ describe("createFileReadExecutor", () => {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("resolves macOS screenshot paths with narrow no-break space (U+202F) before PM", async () => {
+		// Repro for the agent-tool side of the U+202F bug: a Cline session
+		// (e.g. 1778635423953_jac9b) sent a screenshot path with a regular
+		// space, but the on-disk filename contains U+202F. Without the
+		// Unicode-aware resolver, fs.stat returns ENOENT and the tool fails.
+		const dir = await fs.mkdtemp(
+			path.join(os.tmpdir(), "agents-file-read-nnbsp-"),
+		);
+		const onDisk = "Screenshot 2026-05-12 at 4.42.48\u202FPM.png";
+		// A 1x1 PNG so the file is valid image bytes -- the tool branches
+		// on the .png extension and returns image content blocks.
+		const pngBytes = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+			"base64",
+		);
+		await fs.writeFile(path.join(dir, onDisk), pngBytes);
+
+		try {
+			const readFile = createFileReadExecutor();
+			const result = await readFile(
+				// Request with a regular space instead of U+202F.
+				{ path: path.join(dir, "Screenshot 2026-05-12 at 4.42.48 PM.png") },
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+					metadata: { modelSupportsImages: true },
+				},
+			);
+			expect(result).toEqual([
+				{ type: "text", text: "Successfully read image" },
+				{
+					type: "image",
+					data: pngBytes.toString("base64"),
+					mediaType: "image/png",
+				},
+			]);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
 });

@@ -5,10 +5,14 @@ import type {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
-	applyPromptCacheToLastTextPart,
 	isAnthropicCompatibleModel,
 	isAnthropicCompatibleModelId,
+	isClaudeModelId,
+	isGlmModel,
 	isQwenModel,
+} from "../model-facts";
+import {
+	applyPromptCacheToLastTextPart,
 	resolveAnthropicReasoningRequestPolicy,
 	resolvePromptCacheRoute,
 	shouldApplyPromptCache,
@@ -230,6 +234,23 @@ describe("anthropic-compatible routing helpers", () => {
 				),
 			),
 		).toEqual({ matcher: "model-id", modelId: "qwen/qwen3.6-plus" });
+	});
+
+	it("keeps Vertex Claude detection scoped to model id", () => {
+		expect(isClaudeModelId("anthropic.claude-sonnet-4-6")).toBe(true);
+		expect(isClaudeModelId("anthropic-vertex-experimental")).toBe(false);
+	});
+
+	it("matches GLM when either family or model id contains glm", () => {
+		expect(
+			isGlmModel(
+				{ modelId: "provider/glm-4.6" },
+				makeContext("other-family"),
+			),
+		).toBe(true);
+		expect(
+			isGlmModel({ modelId: "provider/other-model" }, makeContext("zai-glm")),
+		).toBe(true);
 	});
 
 	it("requires an explicit prompt-cache route", () => {

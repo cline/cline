@@ -36,10 +36,11 @@ describe("plugin chat commands", () => {
 			].join("\n"),
 		);
 
-		const { host, pluginSlashCommands } = await createWorkspaceChatCommandHost({
-			cwd: tempRoot,
-			workspaceRoot: tempRoot,
-		});
+		const { host, pluginSlashCommands, shutdown } =
+			await createWorkspaceChatCommandHost({
+				cwd: tempRoot,
+				workspaceRoot: tempRoot,
+			});
 		const reply = vi.fn(async () => undefined);
 
 		// Filter to only our test plugin to ignore any discovered system plugins
@@ -62,5 +63,6 @@ describe("plugin chat commands", () => {
 
 		expect(handled).toBe(true);
 		expect(reply).toHaveBeenCalledWith("echo:hello plugin");
+		await shutdown?.();
 	});
 });

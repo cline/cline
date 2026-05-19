@@ -3,6 +3,35 @@ import { formatDisplayUserInput, truncateStr } from "@cline/shared";
 import { formatUsd } from "./output";
 import { shouldShowCliUsageCost } from "./usage-cost-display";
 
+export function formatSessionStatusLabel(
+	status: SessionHistoryRecord["status"] | undefined,
+): string {
+	return status?.trim() || "unknown";
+}
+
+export function mergeHistoryStatusRows(
+	currentRows: SessionHistoryRecord[],
+	refreshedRows: SessionHistoryRecord[],
+): SessionHistoryRecord[] {
+	const currentById = new Map(
+		currentRows.map((row) => [row.sessionId, row] as const),
+	);
+
+	return refreshedRows.map((row) => {
+		const current = currentById.get(row.sessionId);
+		if (!current) {
+			return row;
+		}
+		return {
+			...current,
+			status: row.status,
+			endedAt: row.endedAt,
+			exitCode: row.exitCode,
+			updatedAt: row.updatedAt,
+		};
+	});
+}
+
 function formatHistoryTitle(
 	title: string | undefined,
 	prompt: string | undefined,
@@ -75,5 +104,5 @@ export function formatHistoryListLine(row: SessionHistoryRecord): string {
 			: new Date(row.startedAt).getTime();
 	const date = formatUtcDate(new Date(timestamp));
 	const costSegment = cost ? ` | ${cost}` : "";
-	return `${date} ${provider}:${model}${costSegment} | ${title}`;
+	return `${date} ${provider}:${model} [${formatSessionStatusLabel(row.status)}]${costSegment} | ${title}`;
 }

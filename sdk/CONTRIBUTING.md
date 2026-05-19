@@ -117,7 +117,7 @@ Use this for normal releases. Merge the release commit to `main`, create and pus
 ```sh
 git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
 git push origin refs/tags/cli-vX.Y.Z
-gh workflow run publish-cli.yaml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
 ```
 
 The workflow checks out the provided `cli-vX.Y.Z` tag, verifies it matches `apps/cli/package.json`, builds the platform packages, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
@@ -140,7 +140,7 @@ The local helper verifies the working tree is clean, verifies `cli-vX.Y.Z` point
 Nightly release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=nightly
+gh workflow run cli-publish.yml -f publish_target=nightly
 ```
 
 Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
@@ -185,7 +185,7 @@ bun pm ls @cline/core @cline/agents @cline/llms
 
 ### CI
 
-The CI publish workflow (`.github/workflows/publish-sdk.yaml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
+The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
 
 ### Root Automation Scope
 

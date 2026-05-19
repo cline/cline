@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
 } from "../../tui/interactive-config";
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { ExtDetailContent } from "../components/dialogs/config-dialogs";
@@ -21,9 +22,12 @@ export function useConfigPanel(opts: {
 	toggleAutoApprove: () => void;
 	setCompactionMode: (mode: CliCompactionMode) => void;
 	termHeight: number;
-	loadConfigData: () => Promise<InteractiveConfigData>;
+	loadConfigData: (
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData>;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
 	openModelSelector: (options?: OpenModelSelectorOptions) => Promise<void>;
 	openMcpManager: (options?: { refocus?: boolean }) => Promise<boolean>;
@@ -47,7 +51,9 @@ export function useConfigPanel(opts: {
 		let keepOpen = true;
 		while (keepOpen) {
 			const [data, providerInfo] = await Promise.all([
-				opts.loadConfigData().catch(() => emptyConfigData),
+				opts
+					.loadConfigData({ includePluginTools: false })
+					.catch(() => emptyConfigData),
 				Llms.getProvider(opts.config.providerId).catch(() => undefined),
 			]);
 			const providerDisplayName = providerInfo?.name ?? opts.config.providerId;
@@ -60,6 +66,7 @@ export function useConfigPanel(opts: {
 						{...ctx}
 						config={opts.config}
 						configData={data}
+						loadConfigData={opts.loadConfigData}
 						providerDisplayName={providerDisplayName}
 						currentMode={opts.sessionUiMode}
 						currentCompactionMode={opts.compactionMode}

@@ -112,6 +112,8 @@ export {
 	ModelCapabilitySchema,
 	type ModelInfo,
 	ModelInfoSchema,
+	type ModelMetadata,
+	ModelMetadataSchema,
 	type ModelPricing,
 	ModelPricingSchema,
 	type ModelStatus,

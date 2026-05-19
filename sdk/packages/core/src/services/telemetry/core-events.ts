@@ -38,6 +38,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		AUTH_SUCCEEDED: "user.auth_succeeded",
 		AUTH_FAILED: "user.auth_failed",
 		AUTH_LOGGED_OUT: "user.auth_logged_out",
+		PROVIDER_CONFIGURED: "user.provider_configured",
 		TELEMETRY_OPT_OUT: "user.opt_out",
 	},
 	TASK: {
@@ -58,6 +59,8 @@ export const CORE_TELEMETRY_EVENTS = {
 		AGENT_TEAM_CREATED: "task.agent_team_created",
 		SUBAGENT_STARTED: "task.subagent_started",
 		SUBAGENT_COMPLETED: "task.subagent_completed",
+		COMPACTION_EXECUTED: "task.compaction_executed",
+		COMPACTION_SKIPPED: "task.compaction_skipped",
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
@@ -217,6 +220,23 @@ export function captureAuthLoggedOut(
 		provider,
 		reason,
 	});
+}
+
+/**
+ * Fires when the user finishes configuring a "bring your own provider"
+ * (API-key based) provider during onboarding or via settings.
+ *
+ * Unlike the OAuth/device-code `captureAuth*` events, the configure step is a
+ * synchronous local credential save with no network roundtrip, so there is no
+ * start/fail counterpart — the credential is validated lazily on the first
+ * subsequent API call. Mirrors the `{ provider }` payload shape of
+ * {@link captureAuthSucceeded} for funnel consistency.
+ */
+export function captureProviderConfigured(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.PROVIDER_CONFIGURED, { provider });
 }
 
 export function captureTelemetryOptOut(
@@ -528,6 +548,94 @@ export function captureHookDiscovery(
 		globalCount,
 		workspaceCount,
 		totalCount: globalCount + workspaceCount,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * Identifies which compaction implementation produced a
+ * `task.compaction_executed` / `task.compaction_skipped` event.
+ *
+ * - `basic`   — built-in token-budget truncation
+ *   (see `extensions/context/basic-compaction.ts`).
+ * - `agentic` — built-in LLM-powered summarization
+ *   (see `extensions/context/agentic-compaction.ts`).
+ * - `custom`  — user-supplied `compaction.compact()` callback on
+ *   `CoreSessionConfig`.
+ */
+export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
+
+/**
+ * Trigger mode for a compaction attempt.
+ *
+ * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
+ *   when input tokens exceed the configured threshold.
+ * - `manual` — user-initiated (e.g. CLI `/compact`).
+ */
+export type TelemetryCompactionMode = "auto" | "manual";
+
+export interface CaptureCompactionExecutedProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	messagesBefore: number;
+	messagesAfter: number;
+	messagesRemoved: number;
+	tokensBefore: number;
+	tokensAfter: number;
+	tokensSaved: number;
+	triggerTokens: number;
+	maxInputTokens: number;
+	thresholdRatio: number;
+	durationMs: number;
+	// Name matches the rest of the TASK-namespace capture functions
+	// (`captureTaskCompleted`, `captureToolUsage`, etc.) — using `provider`,
+	// not `providerId`, keeps downstream PostHog joins consistent.
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionExecuted(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionExecutedProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_EXECUTED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureCompactionSkippedProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	/**
+	 * Why the strategy decided not to compact. Currently only one value is
+	 * emitted by the wrapper:
+	 * - `no_result` — strategy returned `undefined` (e.g. there was nothing
+	 *   safe to remove). Strategy *exceptions* propagate up instead of
+	 *   firing telemetry, so no `strategy_error` value is emitted today.
+	 * The field is kept loosely typed (`string`) so additional reasons can
+	 * be introduced without changing the schema.
+	 */
+	reason: string;
+	tokensBefore: number;
+	triggerTokens: number;
+	maxInputTokens: number;
+	thresholdRatio: number;
+	durationMs: number;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionSkipped(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionSkippedProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
+		...properties,
 		timestamp: new Date().toISOString(),
 	});
 }
