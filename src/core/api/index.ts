@@ -139,6 +139,7 @@ function createHandlerForProvider(
 				ulid: options.ulid,
 			})
 		case "openai":
+		case "poolside":
 			return new OpenAiHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				openAiApiKey: options.openAiApiKey,

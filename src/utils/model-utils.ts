@@ -16,6 +16,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"vertex",
 		"openrouter",
 		"openai",
+		"poolside",
 		"minimax",
 		"openai-native",
 		"openai-compatible",

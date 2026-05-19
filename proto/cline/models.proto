@@ -461,6 +461,7 @@ enum ApiProvider {
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
   WANDB = 41;
+  POOLSIDE = 42;
 }
 
 enum ApiFormat {

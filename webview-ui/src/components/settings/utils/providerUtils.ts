@@ -150,6 +150,7 @@ export function getModelsForProvider(
 		case "openrouter":
 		case "cline":
 		case "openai":
+		case "poolside":
 		case "ollama":
 		case "lmstudio":
 		case "vscode-lm":
@@ -294,6 +295,7 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: clineModelInfo,
 			}
 		case "openai":
+		case "poolside":
 			const openAiModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeOpenAiModelId : apiConfiguration?.actModeOpenAiModelId
 			const openAiModelInfo =
@@ -708,6 +710,7 @@ export async function syncModeConfigurations(
 			break
 
 		case "openai":
+		case "poolside":
 			updates.planModeOpenAiModelId = sourceFields.openAiModelId
 			updates.actModeOpenAiModelId = sourceFields.openAiModelId
 			updates.planModeOpenAiModelInfo = sourceFields.openAiModelInfo
@@ -892,6 +895,13 @@ export const getProviderInfo = (
 					effectiveMode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 				baseUrl: apiConfiguration.openAiBaseUrl,
 				helpText: "Add your OpenAI API key and endpoint",
+			}
+		case "poolside":
+			return {
+				modelId:
+					effectiveMode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
+				baseUrl: apiConfiguration.openAiBaseUrl,
+				helpText: "Add your Poolside API key and endpoint",
 			}
 		case "vscode-lm":
 			return {

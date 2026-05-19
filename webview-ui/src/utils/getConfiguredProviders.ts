@@ -192,7 +192,11 @@ export function getConfiguredProviders(
 		apiConfiguration.planModeOpenAiModelId ||
 		apiConfiguration.actModeOpenAiModelId
 	) {
-		configured.push("openai")
+		if (apiConfiguration.planModeApiProvider === "poolside" || apiConfiguration.actModeApiProvider === "poolside") {
+			configured.push("poolside")
+		} else {
+			configured.push("openai")
+		}
 	}
 
 	// Ollama - local provider, check base URL OR model configured

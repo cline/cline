@@ -10,6 +10,7 @@ import {
 	isGptOssModelFamily,
 	isNativeToolCallingConfig,
 	isNextGenModelFamily,
+	isNextGenModelProvider,
 	isPoolsideModelFamily,
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
@@ -140,6 +141,7 @@ describe("isPoolsideModelFamily", () => {
 	it("should qualify Laguna models for next-gen and native tool calling paths", () => {
 		isNextGenModelFamily("poolside/laguna-m.1").should.equal(true)
 		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), true).should.equal(true)
+		isNativeToolCallingConfig(providerInfo("poolside", "poolside/laguna-m.1"), true).should.equal(true)
 		isNativeToolCallingConfig(providerInfo("openai-compatible", "poolside/laguna-m.1"), false).should.equal(false)
 	})
 })
@@ -174,6 +176,16 @@ describe("isGeminiFlashModel", () => {
 describe("GEMINI_FLASH_MAX_OUTPUT_TOKENS", () => {
 	it("should be set to 8192", () => {
 		GEMINI_FLASH_MAX_OUTPUT_TOKENS.should.equal(8_192)
+	})
+})
+
+describe("isNextGenModelProvider", () => {
+	it("should recognize Poolside as a next-gen-capable OpenAI-compatible provider", () => {
+		isNextGenModelProvider({
+			providerId: "poolside",
+			model: m("laguna"),
+			mode: "act",
+		}).should.equal(true)
 	})
 })
 

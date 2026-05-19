@@ -17,6 +17,10 @@
 			"label": "OpenAI Compatible"
 		},
 		{
+			"value": "poolside",
+			"label": "Poolside"
+		},
+		{
 			"value": "anthropic",
 			"label": "Anthropic"
 		},

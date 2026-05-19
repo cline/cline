@@ -189,6 +189,43 @@ describe("OpenApiInfoOptions", () => {
 	})
 })
 
+describe("Poolside Provider Options", () => {
+	const mockPostMessage = vi.fn()
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		//@ts-expect-error - vscode is not defined in the global namespace in test environment
+		global.vscode = { postMessage: mockPostMessage }
+		mockExtensionState({
+			planModeApiProvider: "poolside",
+			actModeApiProvider: "poolside",
+		})
+	})
+
+	it("renders Poolside in the provider selector", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+
+		fireEvent.focus(screen.getByTestId("provider-selector-input"))
+		expect(screen.getByTestId("provider-option-poolside")).toHaveTextContent("Poolside")
+	})
+
+	it("renders Poolside with OpenAI-compatible fields", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+
+		expect(screen.getByPlaceholderText("Enter Poolside base URL...")).toBeInTheDocument()
+		expect(screen.getByText("Poolside API Key")).toBeInTheDocument()
+		expect(screen.getByPlaceholderText("Enter Model ID...")).toBeInTheDocument()
+	})
+})
+
 describe("ApiOptions Component", () => {
 	vi.clearAllMocks()
 	const mockPostMessage = vi.fn()

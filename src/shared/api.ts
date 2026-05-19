@@ -8,6 +8,7 @@ export type ApiProvider =
 	| "bedrock"
 	| "vertex"
 	| "openai"
+	| "poolside"
 	| "ollama"
 	| "lmstudio"
 	| "gemini"

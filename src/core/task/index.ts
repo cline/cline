@@ -510,7 +510,7 @@ export class Task {
 
 		// Extract domain of the provider endpoint if using OpenAI Compatible provider
 		let openAiCompatibleDomain: string | undefined
-		if (currentProvider === "openai" && apiConfiguration.openAiBaseUrl) {
+		if ((currentProvider === "openai" || currentProvider === "poolside") && apiConfiguration.openAiBaseUrl) {
 			openAiCompatibleDomain = extractProviderDomainFromUrl(apiConfiguration.openAiBaseUrl)
 		}
 

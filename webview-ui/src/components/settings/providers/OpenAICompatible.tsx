@@ -24,12 +24,20 @@ interface OpenAICompatibleProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
+	providerName?: string
+	baseUrlPlaceholder?: string
 }
 
 /**
  * The OpenAI Compatible provider configuration component
  */
-export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMode }: OpenAICompatibleProviderProps) => {
+export const OpenAICompatibleProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+	providerName = "OpenAI Compatible",
+	baseUrlPlaceholder = "Enter base URL...",
+}: OpenAICompatibleProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -90,7 +98,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								handleFieldChange("openAiBaseUrl", value)
 								debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
 							}}
-							placeholder={"Enter base URL..."}
+							placeholder={baseUrlPlaceholder}
 							style={{ width: "100%", marginBottom: 10 }}
 							type="text"
 						/>
@@ -107,7 +115,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					handleFieldChange("openAiApiKey", value)
 					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
 				}}
-				providerName="OpenAI Compatible"
+				providerName={providerName}
 			/>
 
 			<DebouncedTextField

@@ -420,6 +420,16 @@ const ApiOptions = ({
 				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
+			{apiConfiguration && selectedProvider === "poolside" && (
+				<OpenAICompatibleProvider
+					baseUrlPlaceholder="Enter Poolside base URL..."
+					currentMode={currentMode}
+					isPopup={isPopup}
+					providerName="Poolside"
+					showModelOptions={showModelOptions}
+				/>
+			)}
+
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
 				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}

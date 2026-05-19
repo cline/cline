@@ -77,6 +77,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				// Validation happens at runtime in the handler
 				break
 			case "openai":
+			case "poolside":
 				if (
 					!apiConfiguration.openAiBaseUrl ||
 					(!apiConfiguration.openAiApiKey && !apiConfiguration.azureIdentity) ||

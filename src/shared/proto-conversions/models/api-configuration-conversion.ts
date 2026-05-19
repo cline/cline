@@ -254,6 +254,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.VERTEX
 		case "openai":
 			return ProtoApiProvider.OPENAI
+		case "poolside":
+			return ProtoApiProvider.POOLSIDE
 		case "ollama":
 			return ProtoApiProvider.OLLAMA
 		case "lmstudio":
@@ -346,6 +348,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "vertex"
 		case ProtoApiProvider.OPENAI:
 			return "openai"
+		case ProtoApiProvider.POOLSIDE:
+			return "poolside"
 		case ProtoApiProvider.OLLAMA:
 			return "ollama"
 		case ProtoApiProvider.LMSTUDIO:
