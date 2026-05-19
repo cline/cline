@@ -1,5 +1,12 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
 	"root": false,
-	"extends": ["../sdk/biome.json"]
+	"extends": ["../sdk/biome.json"],
+	"linter": {
+		"rules": {
+			"a11y": {
+				"noStaticElementInteractions": "warn"
+			}
+		}
+	}
 }
