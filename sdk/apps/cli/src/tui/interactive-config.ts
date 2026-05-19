@@ -5,7 +5,8 @@ import {
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
-	listPluginTools,
+	listPluginToolsWithDiagnostics,
+	type PluginInitializationFailure,
 	type RuleConfig,
 	readGlobalSettings,
 	resolveAgentConfigSearchPaths,
@@ -49,6 +50,8 @@ export interface InteractiveConfigItem {
 	toolNames?: string[];
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
+	loadError?: string;
+	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
 		| "global"
 		| "workspace"
@@ -216,6 +219,28 @@ function getPluginDisplayName(filePath: string): string {
 	return basename(filePath, extname(filePath));
 }
 
+function formatPluginFailure(failure: PluginInitializationFailure): string {
+	return `${failure.phase === "setup" ? "setup failed" : "load failed"}: ${failure.message}`;
+}
+
+function applyPluginFailures(
+	plugins: InteractiveConfigItem[],
+	failures: readonly PluginInitializationFailure[],
+): void {
+	const pluginsByPath = new Map(plugins.map((plugin) => [plugin.path, plugin]));
+	for (const failure of failures) {
+		const plugin = pluginsByPath.get(failure.pluginPath);
+		if (!plugin) {
+			continue;
+		}
+		if (failure.pluginName) {
+			plugin.name = failure.pluginName;
+		}
+		plugin.loadError = formatPluginFailure(failure);
+		plugin.loadErrorPhase = failure.phase;
+	}
+}
+
 export async function loadInteractiveConfigData(input: {
 	userInstructionService?: UserInstructionConfigService;
 	cwd: string;
@@ -356,12 +381,14 @@ export async function loadInteractiveConfigData(input: {
 	);
 	if (input.includePluginTools !== false) {
 		try {
-			for (const pluginTool of await listPluginTools({
+			const pluginToolResult = await listPluginToolsWithDiagnostics({
 				workspacePath: input.workspaceRoot,
 				cwd: input.cwd,
 				providerId: input.availabilityContext?.providerId,
 				modelId: input.availabilityContext?.modelId,
-			})) {
+			});
+			applyPluginFailures(plugins, pluginToolResult.failures);
+			for (const pluginTool of pluginToolResult.tools) {
 				tools.push({
 					id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
 					name: pluginTool.name,

@@ -206,6 +206,49 @@ Use this skill.`,
 		).toBe(true);
 	});
 
+	it("keeps failed plugins visible with their load error", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "broken-plugin.js");
+		const invalidPluginPath = join(pluginsDir, "invalid-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'broken-plugin',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup() {",
+				"    throw new Error('setup exploded');",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		await writeFile(invalidPluginPath, "export default {};\n", "utf8");
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+		const plugin = data.plugins.find((item) => item.path === pluginPath);
+
+		expect(plugin?.name).toBe("broken-plugin");
+		expect(plugin?.loadErrorPhase).toBe("setup");
+		expect(plugin?.loadError).toContain("setup failed: setup exploded");
+
+		const invalidPlugin = data.plugins.find(
+			(item) => item.path === invalidPluginPath,
+		);
+		expect(invalidPlugin?.name).toBe("invalid-plugin");
+		expect(invalidPlugin?.loadErrorPhase).toBe("load");
+		expect(invalidPlugin?.loadError).toContain("load failed:");
+	});
+
 	it("toggles every SDK tool name for a displayed built-in tool", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
