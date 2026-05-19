@@ -48,9 +48,10 @@ interface MentionPathItem {
 }
 
 function countGaps(positions: Iterable<number>): number {
+	const sortedPositions = Array.from(positions).sort((a, b) => a - b);
 	let gaps = 0;
 	let previous = Number.NEGATIVE_INFINITY;
-	for (const position of positions) {
+	for (const position of sortedPositions) {
 		if (previous !== Number.NEGATIVE_INFINITY && position - previous > 1) {
 			gaps++;
 		}

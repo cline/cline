@@ -228,6 +228,7 @@ export function useAutocomplete(opts: {
 				if (searchTimerRef.current) {
 					clearTimeout(searchTimerRef.current);
 				}
+				setMentionResults([]);
 				const counter = ++searchCounterRef.current;
 				searchTimerRef.current = setTimeout(() => {
 					searchWorkspaceFilesForMention({
