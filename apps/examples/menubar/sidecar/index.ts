@@ -23,14 +23,51 @@ interface TrackedSession {
 	sessionId: string;
 	status: string;
 	workspaceRoot: string;
+	cwd?: string;
 	createdAt: number;
+	updatedAt: number;
 	createdByClientId?: string;
+	title?: string;
+	provider?: string;
+	model?: string;
+	prompt?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	totalCost?: number;
+	agentCount?: number;
 }
 
 interface ClientSummary {
 	label: string;
 	name: string;
 	sessionCount: number;
+}
+
+interface SessionSummary {
+	sessionId: string;
+	title: string;
+	status: string;
+	workspaceRoot: string;
+	workspaceName: string;
+	cwd?: string;
+	model?: string;
+	provider?: string;
+	createdAt: number;
+	updatedAt: number;
+	createdByClientId?: string;
+	prompt?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	totalCost?: number;
+	agentCount: number;
+}
+
+interface EventRecord {
+	id: string;
+	title: string;
+	body: string;
+	severity: "info" | "success" | "warn" | "error";
+	timestamp: number;
 }
 
 type ClientSummaryGroup = {
@@ -67,8 +104,9 @@ interface ProviderLaunchAuth {
 }
 
 interface SidecarCommand {
-	type: "new_chat" | "shutdown_hub";
+	type: "new_chat" | "shutdown_hub" | "abort_session";
 	prompt?: string;
+	sessionId?: string;
 }
 
 function isVisibleClient(clientType: string): boolean {
@@ -101,6 +139,72 @@ function emitNotification(
 		body,
 		severity,
 	});
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function asString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
+}
+
+function basename(value: string | undefined): string {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return "workspace";
+	}
+	const parts = trimmed.split(/[\\/]+/).filter(Boolean);
+	return parts.at(-1) ?? trimmed;
+}
+
+function shortSessionId(sessionId: string): string {
+	return sessionId.length > 10 ? sessionId.slice(0, 10) : sessionId;
+}
+
+function pushEvent(
+	events: EventRecord[],
+	title: string,
+	body: string,
+	severity: EventRecord["severity"] = "info",
+	timestamp = Date.now(),
+): void {
+	events.unshift({
+		id: `${timestamp}-${events.length}-${title}`,
+		title,
+		body,
+		severity,
+		timestamp,
+	});
+	if (events.length > 30) {
+		events.length = 30;
+	}
+}
+
+function metadataFor(
+	session: SessionRecord | Record<string, unknown>,
+): Record<string, unknown> {
+	return asRecord(session.metadata) ?? {};
+}
+
+function usageFor(
+	session: SessionRecord | Record<string, unknown>,
+): Record<string, unknown> {
+	return (
+		asRecord(session.aggregateUsage) ??
+		asRecord(session.usage) ??
+		asRecord(metadataFor(session).aggregateUsage) ??
+		asRecord(metadataFor(session).usage) ??
+		{}
+	);
 }
 
 function formatUptime(ms: number): string {
@@ -166,6 +270,89 @@ function summarizeClient(client: TrackedClient): {
 		key: client.clientId,
 		label: formatClientLabel(client.clientType),
 		name: formatClientName(client),
+	};
+}
+
+function sessionTitle(
+	session: SessionRecord | Record<string, unknown>,
+): string {
+	const raw = session as Record<string, unknown>;
+	const metadata = metadataFor(session);
+	const title = asString(metadata.title);
+	if (title) {
+		return title;
+	}
+	const prompt = asString(raw.prompt) ?? asString(metadata.prompt);
+	if (prompt) {
+		return prompt.length > 34 ? `${prompt.slice(0, 31)}...` : prompt;
+	}
+	return basename(asString(raw.workspaceRoot) ?? asString(raw.cwd));
+}
+
+function trackedSessionFrom(
+	session: SessionRecord | Record<string, unknown>,
+): TrackedSession | undefined {
+	const raw = session as Record<string, unknown>;
+	const sessionId = asString(raw.sessionId);
+	if (!sessionId) {
+		return undefined;
+	}
+	const metadata = metadataFor(session);
+	const usage = usageFor(session);
+	const createdAt =
+		asNumber(raw.createdAt) ??
+		asNumber(raw.startedAt) ??
+		asNumber(metadata.createdAt) ??
+		Date.now();
+	return {
+		sessionId,
+		status: asString(raw.status) ?? "running",
+		workspaceRoot: asString(raw.workspaceRoot) ?? asString(raw.cwd) ?? "",
+		cwd: asString(raw.cwd),
+		createdAt,
+		updatedAt:
+			asNumber(raw.updatedAt) ??
+			asNumber(raw.endedAt) ??
+			asNumber(metadata.updatedAt) ??
+			createdAt,
+		createdByClientId: asString(raw.createdByClientId),
+		title: sessionTitle(session),
+		provider: asString(raw.provider) ?? asString(metadata.provider),
+		model: asString(raw.model) ?? asString(metadata.model),
+		prompt: asString(raw.prompt) ?? asString(metadata.prompt),
+		inputTokens:
+			asNumber(usage.inputTokens) ??
+			asNumber(usage.input) ??
+			asNumber(usage.totalInputTokens),
+		outputTokens:
+			asNumber(usage.outputTokens) ??
+			asNumber(usage.output) ??
+			asNumber(usage.totalOutputTokens),
+		totalCost: asNumber(usage.totalCost) ?? asNumber(metadata.totalCost),
+		agentCount: Array.isArray(raw.participants)
+			? Math.max(1, raw.participants.length)
+			: 1,
+	};
+}
+
+function toSessionSummary(session: TrackedSession): SessionSummary {
+	return {
+		sessionId: session.sessionId,
+		title: session.title || basename(session.workspaceRoot),
+		status: session.status,
+		workspaceRoot: session.workspaceRoot,
+		workspaceName: basename(session.workspaceRoot || session.cwd),
+		cwd: session.cwd,
+		model: session.model,
+		provider: session.provider,
+		createdAt: session.createdAt,
+		updatedAt: session.updatedAt,
+		createdByClientId: session.createdByClientId,
+		prompt: session.prompt,
+		inputTokens: session.inputTokens,
+		outputTokens: session.outputTokens,
+		totalCost: session.totalCost,
+		agentCount: session.agentCount ?? 1,
 	};
 }
 
@@ -267,6 +454,7 @@ async function main(): Promise<void> {
 
 	const clients = new Map<string, TrackedClient>();
 	const sessions = new Map<string, TrackedSession>();
+	const events: EventRecord[] = [];
 	let lastSessionContext: LastSessionContext | undefined;
 	let hubStartedAt: string | undefined;
 
@@ -316,13 +504,10 @@ async function main(): Promise<void> {
 			) {
 				continue;
 			}
-			sessions.set(session.sessionId, {
-				sessionId: session.sessionId,
-				status: session.status,
-				workspaceRoot: session.workspaceRoot,
-				createdAt: session.createdAt,
-				createdByClientId: session.createdByClientId,
-			});
+			const tracked = trackedSessionFrom(session);
+			if (tracked) {
+				sessions.set(tracked.sessionId, tracked);
+			}
 		}
 		const mostRecentContext = [...knownSessions]
 			.sort((a, b) => b.updatedAt - a.updatedAt)
@@ -331,6 +516,12 @@ async function main(): Promise<void> {
 		if (mostRecentContext) {
 			lastSessionContext = mostRecentContext;
 		}
+		pushEvent(
+			events,
+			"Hub monitor connected",
+			`${knownClients.length} clients and ${knownSessions.length} sessions discovered`,
+			"success",
+		);
 	};
 
 	function emitState(): void {
@@ -378,6 +569,10 @@ async function main(): Promise<void> {
 			clients: Array.from(clients.values()),
 			sessions: Array.from(sessions.values()),
 			clientSummaries,
+			sessionSummaries: Array.from(sessions.values())
+				.sort((a, b) => b.updatedAt - a.updatedAt)
+				.map(toSessionSummary),
+			events,
 			lastWorkspaceRoot: lastSessionContext?.workspaceRoot,
 			hubStartedAt,
 			hubUptime: hubStartedAt
@@ -455,6 +650,30 @@ async function main(): Promise<void> {
 		}
 	}
 
+	async function abortBackgroundSession(sessionId: string): Promise<void> {
+		const trimmedSessionId = sessionId.trim();
+		if (!trimmedSessionId) {
+			return;
+		}
+		try {
+			await sessionClient.abortRuntimeSession(trimmedSessionId);
+			pushEvent(
+				events,
+				"Session abort requested",
+				`Requested stop for ${shortSessionId(trimmedSessionId)}`,
+				"warn",
+			);
+			emitState();
+		} catch (error) {
+			emit({
+				type: "notification",
+				title: "Stop session failed",
+				body: error instanceof Error ? error.message : String(error),
+				severity: "error",
+			});
+		}
+	}
+
 	const stdin = createInterface({ input: process.stdin, terminal: false });
 	stdin.on("line", (line) => {
 		const trimmed = line.trim();
@@ -476,10 +695,25 @@ async function main(): Promise<void> {
 		if (command?.type === "shutdown_hub") {
 			void shutdownHub();
 		}
+		if (command?.type === "abort_session") {
+			if (typeof command.sessionId === "string") {
+				void abortBackgroundSession(command.sessionId);
+			}
+		}
 	});
 
 	uiClient.subscribeUI({
 		onNotify(payload: HubUINotifyPayload) {
+			pushEvent(
+				events,
+				payload.title,
+				payload.body,
+				payload.severity === "error"
+					? "error"
+					: payload.severity === "warning"
+						? "warn"
+						: "info",
+			);
 			emit({
 				type: "notification",
 				title: payload.title,
@@ -510,13 +744,26 @@ async function main(): Promise<void> {
 						: "unknown",
 				connectedAt: Date.now(),
 			});
+			pushEvent(
+				events,
+				"Client connected",
+				`${formatClientLabel(typeof payload.clientType === "string" ? payload.clientType : "unknown")} joined the hub`,
+				"success",
+			);
 			emitState();
 		},
 		onClientDisconnected(payload) {
 			const clientId =
 				typeof payload.clientId === "string" ? payload.clientId : undefined;
 			if (!clientId) return;
+			const client = clients.get(clientId);
 			clients.delete(clientId);
+			pushEvent(
+				events,
+				"Client disconnected",
+				`${client?.displayName ?? client?.clientType ?? clientId} left the hub`,
+				"warn",
+			);
 			emitState();
 		},
 		onSessionCreated(payload) {
@@ -543,19 +790,16 @@ async function main(): Promise<void> {
 				emitState();
 				return;
 			}
-			sessions.set(sessionId, {
-				sessionId,
-				status,
-				workspaceRoot:
-					typeof session.workspaceRoot === "string"
-						? session.workspaceRoot
-						: "",
-				createdAt: Date.now(),
-				createdByClientId:
-					typeof session.createdByClientId === "string"
-						? session.createdByClientId
-						: undefined,
-			});
+			const tracked = trackedSessionFrom({ ...session, status });
+			if (!tracked) return;
+			sessions.set(sessionId, tracked);
+			pushEvent(
+				events,
+				`Started session "${tracked.title ?? shortSessionId(sessionId)}"`,
+				`${tracked.workspaceRoot || "workspace"} on ${tracked.model ?? "selected model"}`,
+				"success",
+				tracked.createdAt,
+			);
 			emitState();
 		},
 		onSessionUpdated(payload) {
@@ -584,26 +828,48 @@ async function main(): Promise<void> {
 				return;
 			}
 			if (existing) {
+				const previousStatus = existing.status;
 				existing.status = status;
+				existing.updatedAt =
+					asNumber(session.updatedAt) ??
+					asNumber(session.endedAt) ??
+					Date.now();
+				existing.title = sessionTitle(session);
+				existing.workspaceRoot =
+					typeof session.workspaceRoot === "string"
+						? session.workspaceRoot
+						: existing.workspaceRoot;
+				existing.cwd =
+					typeof session.cwd === "string" ? session.cwd : existing.cwd;
+				const metadata = metadataFor(session);
+				existing.provider =
+					asString(session.provider) ??
+					asString(metadata.provider) ??
+					existing.provider;
+				existing.model =
+					asString(session.model) ?? asString(metadata.model) ?? existing.model;
 				existing.createdByClientId =
 					typeof session.createdByClientId === "string"
 						? session.createdByClientId
 						: existing.createdByClientId;
 				sessions.set(sessionId, existing);
+				if (previousStatus !== status) {
+					pushEvent(
+						events,
+						`Session ${status}`,
+						`${existing.title ?? shortSessionId(sessionId)} changed from ${previousStatus}`,
+						status === "running"
+							? "success"
+							: status === "idle"
+								? "info"
+								: "warn",
+					);
+				}
 			} else {
-				sessions.set(sessionId, {
-					sessionId,
-					status,
-					workspaceRoot:
-						typeof session.workspaceRoot === "string"
-							? session.workspaceRoot
-							: "",
-					createdAt: Date.now(),
-					createdByClientId:
-						typeof session.createdByClientId === "string"
-							? session.createdByClientId
-							: undefined,
-				});
+				const tracked = trackedSessionFrom({ ...session, status });
+				if (tracked) {
+					sessions.set(sessionId, tracked);
+				}
 			}
 			emitState();
 		},
@@ -623,7 +889,14 @@ async function main(): Promise<void> {
 				? session.participants.length
 				: 0;
 			if (participantCount <= 0) {
+				const tracked = sessions.get(sessionId);
 				sessions.delete(sessionId);
+				pushEvent(
+					events,
+					"Session detached",
+					`${tracked?.title ?? shortSessionId(sessionId)} has no active participants`,
+					"warn",
+				);
 				emitState();
 			}
 		},

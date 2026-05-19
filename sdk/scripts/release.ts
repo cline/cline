@@ -16,7 +16,8 @@
  *   bun release sdk --skip-git-tags          # skip git tag creation
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { copyFile, readdir, readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -118,6 +119,32 @@ async function run(
 		throw new Error(`Command failed (exit ${exitCode}): ${label}`);
 	}
 	return stdout;
+}
+
+async function stageSdkReadmeForPublish(
+	workspace: (typeof SDK_PUBLISH_ORDER)[number],
+): Promise<string | undefined> {
+	if (workspace !== "sdk") {
+		return undefined;
+	}
+
+	const destination = join(packagesDir, "sdk", "README.md");
+
+	if (dryRun) {
+		console.log(`  [dry-run] Copy README.md to ${destination}`);
+		return undefined;
+	}
+
+	await copyFile(join(root, "README.md"), destination, constants.COPYFILE_EXCL);
+	return destination;
+}
+
+async function removeStagedSdkReadme(path: string | undefined): Promise<void> {
+	if (!path) {
+		return;
+	}
+
+	await unlink(path);
 }
 
 async function confirm(prompt: string): Promise<boolean> {
@@ -392,9 +419,14 @@ async function releaseSDK(version: string): Promise<number> {
 		const pkgDir = join(packagesDir, workspace);
 		const name = `@cline/${workspace}`;
 		console.log(`  Publishing ${name}@${version} with tag '${npmTag}'...`);
-		await run(["bun", "publish", "--tag", npmTag, "--access", "public"], {
-			cwd: pkgDir,
-		});
+		const stagedReadme = await stageSdkReadmeForPublish(workspace);
+		try {
+			await run(["bun", "publish", "--tag", npmTag, "--access", "public"], {
+				cwd: pkgDir,
+			});
+		} finally {
+			await removeStagedSdkReadme(stagedReadme);
+		}
 	}
 
 	// Step 5: Git tag

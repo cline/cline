@@ -38,6 +38,53 @@ describe("telegramConnector", () => {
 	});
 });
 
+describe("telegram participant resolution", () => {
+	it("uses the stable numeric Telegram user id when username is also present", () => {
+		const result = __test__.resolveTelegramParticipant({
+			message: {
+				from: {
+					id: 1201547643,
+					username: "AraFatKatze",
+					first_name: "Ara",
+				},
+			},
+		});
+
+		expect(result).toEqual({
+			key: "telegram:id:1201547643",
+			label: "arafatkatze",
+		});
+	});
+
+	it("falls back to username when Telegram does not provide a numeric user id", () => {
+		const result = __test__.resolveTelegramParticipant({
+			message: {
+				from: {
+					username: "Alice",
+				},
+			},
+		});
+
+		expect(result).toEqual({
+			key: "telegram:user:alice",
+			label: "alice",
+		});
+	});
+
+	it("accepts string numeric user ids from raw Telegram payloads", () => {
+		const result = __test__.resolveTelegramParticipant({
+			message: {
+				from: {
+					id: "1201547643",
+					username: "arafatkatze",
+				},
+			},
+		});
+
+		expect(result?.key).toBe("telegram:id:1201547643");
+	});
+});
+
 describe("telegram binding lookup", () => {
 	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
 		const result = __test__.findBindingForThread(

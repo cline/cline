@@ -260,7 +260,17 @@ export class E2ETestHelper {
 		// Verify start up page is no longer visible
 		await expect(webview.getByRole("button", { name: "Login to Cline" })).not.toBeVisible()
 
-		await webview.getByRole("button", { name: "Close" }).click({ delay: 50 })
+		const closeButton = webview.getByRole("button", { name: "Close" })
+		let shouldCloseModal = false
+		try {
+			await closeButton.waitFor({ state: "visible", timeout: 5_000 })
+			shouldCloseModal = true
+		} catch {
+			// No blocking modal appeared after sign-in.
+		}
+		if (shouldCloseModal) {
+			await closeButton.click({ delay: 50 })
+		}
 	}
 
 	public static async openClineSidebar(page: Page): Promise<void> {
@@ -459,7 +469,7 @@ export const e2e = test
 		},
 	})
 	.extend<{ sidebar: Frame }>({
-		sidebar: async ({ page, helper, server }, use) => {
+		sidebar: async ({ page, helper }, use) => {
 			await E2ETestHelper.openClineSidebar(page)
 			const sidebar = await helper.getSidebar(page)
 			await use(sidebar)

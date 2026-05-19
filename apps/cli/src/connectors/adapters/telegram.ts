@@ -135,11 +135,11 @@ function resolveTelegramParticipant(
 	const lastName = readString(from?.last_name);
 	const label =
 		username || [firstName, lastName].filter(Boolean).join(" ") || userId;
-	if (username) {
-		return { key: `telegram:user:${username}`, label };
-	}
 	if (userId) {
 		return { key: `telegram:id:${userId}`, label };
+	}
+	if (username) {
+		return { key: `telegram:user:${username}`, label };
 	}
 	return undefined;
 }
@@ -957,6 +957,7 @@ export const telegramConnector: ConnectCommandDefinition =
 	new TelegramConnector();
 
 export const __test__ = {
+	resolveTelegramParticipant,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<TelegramThreadState>,
 		thread: Pick<Thread<TelegramThreadState>, "id" | "channelId" | "isDM"> & {

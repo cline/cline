@@ -5,7 +5,8 @@ import {
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
-	listPluginTools,
+	listPluginToolsWithDiagnostics,
+	type PluginInitializationFailure,
 	type RuleConfig,
 	readGlobalSettings,
 	resolveAgentConfigSearchPaths,
@@ -49,6 +50,8 @@ export interface InteractiveConfigItem {
 	toolNames?: string[];
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
+	loadError?: string;
+	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
 		| "global"
 		| "workspace"
@@ -216,6 +219,36 @@ function getPluginDisplayName(filePath: string): string {
 	return basename(filePath, extname(filePath));
 }
 
+function formatPluginFailure(failure: PluginInitializationFailure): string {
+	return `${failure.phase === "setup" ? "setup failed" : "load failed"}: ${failure.message}`;
+}
+
+export function applyPluginFailures(
+	plugins: InteractiveConfigItem[],
+	failures: readonly PluginInitializationFailure[],
+): void {
+	const pluginsByPath = new Map(plugins.map((plugin) => [plugin.path, plugin]));
+	const failuresByPath = new Map<string, PluginInitializationFailure[]>();
+	for (const failure of failures) {
+		const failuresForPath = failuresByPath.get(failure.pluginPath) ?? [];
+		failuresForPath.push(failure);
+		failuresByPath.set(failure.pluginPath, failuresForPath);
+	}
+	for (const [pluginPath, failuresForPath] of failuresByPath) {
+		const plugin = pluginsByPath.get(pluginPath);
+		if (!plugin) {
+			continue;
+		}
+		const namedFailure = failuresForPath.find((failure) => failure.pluginName);
+		if (namedFailure?.pluginName) {
+			plugin.name = namedFailure.pluginName;
+		}
+		plugin.loadError = failuresForPath.map(formatPluginFailure).join("\n");
+		plugin.loadErrorPhase =
+			failuresForPath.length === 1 ? failuresForPath[0]?.phase : undefined;
+	}
+}
+
 export async function loadInteractiveConfigData(input: {
 	userInstructionService?: UserInstructionConfigService;
 	cwd: string;
@@ -356,12 +389,14 @@ export async function loadInteractiveConfigData(input: {
 	);
 	if (input.includePluginTools !== false) {
 		try {
-			for (const pluginTool of await listPluginTools({
+			const pluginToolResult = await listPluginToolsWithDiagnostics({
 				workspacePath: input.workspaceRoot,
 				cwd: input.cwd,
 				providerId: input.availabilityContext?.providerId,
 				modelId: input.availabilityContext?.modelId,
-			})) {
+			});
+			applyPluginFailures(plugins, pluginToolResult.failures);
+			for (const pluginTool of pluginToolResult.tools) {
 				tools.push({
 					id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
 					name: pluginTool.name,
