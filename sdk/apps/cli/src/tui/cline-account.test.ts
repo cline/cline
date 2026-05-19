@@ -15,7 +15,12 @@ const coreMocks = vi.hoisted(() => {
 });
 
 vi.mock("@cline/core", () => {
+	const SDK_ERROR_CODES = {
+		ClineAccountAuthRequired: "cline_account_auth_required",
+	} as const;
+
 	return {
+		SDK_ERROR_CODES,
 		ClineAccountService: class {
 			constructor(options: {
 				apiBaseUrl: string;
@@ -31,6 +36,11 @@ vi.mock("@cline/core", () => {
 			saveProviderSettings(settings: unknown, options?: unknown) {
 				coreMocks.saveProviderSettings(settings, options);
 			}
+		},
+		createSdkCodedError: (code: string, message: string) => {
+			const error = new Error(message) as Error & { code: string };
+			error.code = code;
+			return error;
 		},
 		getValidClineCredentials: coreMocks.getValidClineCredentials,
 	};
@@ -129,8 +139,8 @@ describe("createClineAccountService", () => {
 
 		await expect(
 			createClineAccountService({ config: makeConfig() }),
-		).rejects.toThrow(
-			"Cline account requires re-authentication. Run cline auth cline.",
-		);
+		).rejects.toMatchObject({
+			code: "cline_account_auth_required",
+		});
 	});
 });

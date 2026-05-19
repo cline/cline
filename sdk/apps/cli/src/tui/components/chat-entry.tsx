@@ -347,6 +347,20 @@ export function ChatEntryView(props: {
 			);
 
 		case "error":
+			if (entry.help) {
+				return (
+					<box flexDirection="column">
+						<box flexDirection="row">
+							<text fg="red" content="* " />
+							<text fg="red" selectable content={entry.text} />
+						</box>
+						<box flexDirection="row">
+							<box width={2} />
+							<text fg="gray" selectable content={entry.help} />
+						</box>
+					</box>
+				);
+			}
 			return (
 				<box flexDirection="row">
 					<text fg="red" content="* " />

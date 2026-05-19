@@ -1,12 +1,15 @@
 // @jsxImportSource @opentui/react
-import type { ClineAccountOrganization } from "@cline/core";
+import {
+	type ClineAccountOrganization,
+	getSdkErrorCode,
+	SDK_ERROR_CODES,
+} from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	type ClineAccountSnapshot,
 	formatClineCredits,
-	isClineAccountAuthErrorMessage,
 } from "../../cline-account";
 import { palette } from "../../palette";
 
@@ -256,10 +259,10 @@ export function AccountDialogContent(
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			if (generation.current === currentGeneration) {
+				const accountAuthRequired =
+					getSdkErrorCode(error) === SDK_ERROR_CODES.ClineAccountAuthRequired;
 				setState({
-					status: isClineAccountAuthErrorMessage(message)
-						? "unauthenticated"
-						: "error",
+					status: accountAuthRequired ? "unauthenticated" : "error",
 					message,
 				});
 				setSelectedAction(0);
