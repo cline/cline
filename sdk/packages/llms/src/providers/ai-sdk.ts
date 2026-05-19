@@ -18,10 +18,9 @@ import { jsonSchema, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
+import { isAnthropicCompatibleModel, resolveModelFamily } from "./model-facts";
 import {
 	applyPromptCacheToLastTextPart,
-	isAnthropicCompatibleModel,
-	resolveModelFamily,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {

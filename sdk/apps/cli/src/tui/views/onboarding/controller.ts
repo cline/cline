@@ -1,7 +1,9 @@
 import {
+	captureProviderConfigured,
 	getLocalProviderModels,
 	getProviderConfigFields,
 	listLocalProviders,
+	type ProviderConfigFieldKey,
 	type ProviderConfigFields,
 	ProviderSettingsManager,
 	refreshProviderModelsFromSource,
@@ -15,6 +17,7 @@ import {
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
+import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	buildClineModelEntries,
 	type ClineModelPickerEntry,
@@ -25,6 +28,12 @@ import {
 	useSearchableList,
 } from "../../components/searchable-list";
 import { palette } from "../../palette";
+import {
+	getDefaultAwsRegion,
+	type ProviderConfigValues,
+	resolveProviderConfigAwsRegion,
+	updateProviderConfigValue,
+} from "../../utils/provider-config-values";
 import { getProviderSection } from "../../utils/provider-sections";
 import {
 	isOnboardingOAuthProviderId,
@@ -32,6 +41,7 @@ import {
 	runDeviceCodeAuthFlow,
 	runOAuthAuthFlow,
 } from "./auth";
+import { FIELD_ORDER } from "./fields";
 import { useOnboardingKeyboard } from "./keyboard";
 import {
 	type ModelEntry,
@@ -44,8 +54,6 @@ import {
 	toModelEntry,
 	toProviderEntry,
 } from "./model";
-
-type ByoFieldKey = "apiKey" | "baseUrl";
 
 const CUSTOM_MODEL_ID_ACTION = "__custom_model_id__";
 
@@ -72,9 +80,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [byoFields, setByoFields] = useState<ProviderConfigFields["fields"]>(
 		{},
 	);
-	const [byoApiKey, setByoApiKey] = useState("");
-	const [byoBaseUrl, setByoBaseUrl] = useState("");
-	const [byoFocusedField, setByoFocusedField] = useState<ByoFieldKey>("apiKey");
+	const [byoDescription, setByoDescription] = useState<string | undefined>();
+	const [byoValues, setByoValues] = useState<ProviderConfigValues>({});
+	const [byoFocusedField, setByoFocusedField] =
+		useState<ProviderConfigFieldKey>("apiKey");
 	const [codexCliStatus, setCodexCliStatus] = useState<
 		CodexCliStatus | undefined
 	>();
@@ -248,12 +257,18 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (providerId === "cline") {
 				setClineModelSelected(0);
 				setStep("cline_model");
+			} else if (providerId === "openai-compatible") {
+				const existing =
+					providerSettingsManager.getProviderSettings(providerId);
+				setCustomModelId(existing?.model ?? provider?.defaultModelId ?? "");
+				setCustomModelError("");
+				setStep("custom_model_id");
 			} else {
 				setStep("model_picker");
 				loadModelsForProvider(providerId);
 			}
 		},
-		[providers, loadModelsForProvider],
+		[providers, loadModelsForProvider, providerSettingsManager],
 	);
 
 	const resetAuth = useCallback(() => {
@@ -282,6 +297,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setStatus: setDeviceStatus,
 				setError: setDeviceError,
 				onComplete: transitionToModelPicker,
+				telemetry: getCliTelemetryService(),
 			});
 		},
 		[providerSettingsManager, transitionToModelPicker],
@@ -307,6 +323,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setAuthUrl,
 				setError: setAuthError,
 				onComplete: transitionToModelPicker,
+				telemetry: getCliTelemetryService(),
 			});
 		},
 		[
@@ -353,17 +370,35 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setActiveProviderId(provider.id);
 			setActiveProviderName(provider.name);
 			setByoFields(config.fields);
-			setByoApiKey("");
-			setByoBaseUrl(
-				providerSettingsManager
-					.getProviderSettings(provider.id)
-					?.baseUrl?.trim() ??
+			setByoDescription(config.description);
+
+			// Build initial values from existing settings
+			const existing = providerSettingsManager.getProviderSettings(provider.id);
+			const initialValues: ProviderConfigValues = {};
+			if (config.fields.baseUrl) {
+				initialValues.baseUrl =
+					existing?.baseUrl?.trim() ??
 					config.fields.baseUrl?.defaultValue ??
-					"",
+					"";
+			}
+			if (config.fields.awsRegion) {
+				const existingProfile = existing?.aws?.profile?.trim() ?? "";
+				initialValues.awsRegion =
+					existing?.aws?.region?.trim() || getDefaultAwsRegion(existingProfile);
+			}
+			if (config.fields.apiKey) {
+				initialValues.apiKey = existing?.apiKey?.trim() ?? "";
+			}
+			if (config.fields.awsProfile) {
+				initialValues.awsProfile = existing?.aws?.profile?.trim() ?? "";
+			}
+			setByoValues(initialValues);
+
+			// Focus the first visible field
+			const firstField = FIELD_ORDER.find(
+				(k) => config.fields[k] !== undefined,
 			);
-			// Focus base URL first when present (local-server users land on
-			// the actionable input). Cloud providers see only `apiKey`.
-			setByoFocusedField(config.fields.baseUrl ? "baseUrl" : "apiKey");
+			setByoFocusedField(firstField ?? "apiKey");
 			setStep("byo_apikey");
 		},
 		[providers, startOAuthFlow, refreshCodexCliStatus, providerSettingsManager],
@@ -388,15 +423,31 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		// No required-field validation. If credentials are missing or wrong,
 		// the provider's own auth response is the authoritative error and is
 		// surfaced when the model picker / first turn runs.
+		const apiKey = byoValues.apiKey?.trim();
+		const awsProfile = byoValues.awsProfile?.trim();
+		const hasAwsFields = byoFields.awsRegion || byoFields.awsProfile;
+
 		saveLocalProviderSettings(providerSettingsManager, {
 			providerId: activeProviderId,
-			apiKey: byoFields.apiKey ? byoApiKey.trim() : undefined,
-			baseUrl: byoFields.baseUrl ? byoBaseUrl.trim() : undefined,
+			apiKey: byoFields.apiKey ? apiKey : undefined,
+			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
+			aws: hasAwsFields
+				? {
+						region: resolveProviderConfigAwsRegion(byoValues),
+						authentication: apiKey ? "api-key" : "profile",
+						profile: apiKey ? undefined : awsProfile || undefined,
+					}
+				: undefined,
 		});
+		// Emit a single `user.provider_configured` event mirroring the
+		// `{ provider }` payload shape used by the auth funnel. The save above
+		// is synchronous and infallible, so there's no start/fail counterpart;
+		// invalid credentials surface later as `task.provider_api_error` on
+		// the first real API call.
+		captureProviderConfigured(getCliTelemetryService(), activeProviderId);
 		transitionToModelPicker(activeProviderId);
 	}, [
-		byoApiKey,
-		byoBaseUrl,
+		byoValues,
 		byoFields,
 		activeProviderId,
 		providerSettingsManager,
@@ -537,8 +588,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		setMenuSelected,
 		resetByoFields: () => {
 			setByoFields({});
-			setByoApiKey("");
-			setByoBaseUrl("");
+			setByoValues({});
+			setByoDescription(undefined);
 		},
 		byoFields,
 		byoFocusedField,
@@ -563,6 +614,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		loadModelsForProvider,
 		saveClineModelSelection,
 		saveCodexCliConfig,
+		saveByoConfig,
 		saveModelSelection,
 		saveThinkingLevel,
 	});
@@ -572,10 +624,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		authError,
 		authStatus,
 		authUrl,
-		byoApiKey,
-		byoBaseUrl,
+		byoDescription,
 		byoFields,
 		byoFocusedField,
+		byoValues,
 		codexCliChecking,
 		codexCliStatus,
 		clineEntries,
@@ -587,8 +639,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		deviceVerifyUrl,
 		customModelError,
 		customModelId,
-		handleByoApiKeyInput: setByoApiKey,
-		handleByoBaseUrlInput: setByoBaseUrl,
+		customModelTitle:
+			activeProviderId === "openai-compatible"
+				? "Set model ID"
+				: "Create custom model ID",
+		handleByoFieldInput: (field: ProviderConfigFieldKey, value: string) => {
+			setByoValues((prev) => updateProviderConfigValue(prev, field, value));
+		},
 		handleCustomModelIdInput: (value: string) => {
 			setCustomModelId(value);
 			setCustomModelError("");

@@ -38,8 +38,6 @@ e2e.describe("Diff Editor", () => {
 			)
 			await diffEditor.click()
 			await expect(diffEditor).toBeVisible()
-
-			await page.close()
 		})
 	})
 })

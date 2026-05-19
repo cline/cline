@@ -28,6 +28,17 @@ describe("plugin-loader", () => {
 			"utf8",
 		);
 		await writeFile(
+			join(dir, "plugin-top-level-await.mjs"),
+			[
+				"const name = await Promise.resolve('plugin-top-level-await');",
+				"export default {",
+				"  name,",
+				"  manifest: { capabilities: ['tools'] },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+		await writeFile(
 			join(dir, "plugin-named.mjs"),
 			[
 				"export const plugin = {",
@@ -259,6 +270,13 @@ describe("plugin-loader", () => {
 		expect(plugin.manifest.capabilities).toContain("hooks");
 	});
 
+	it("loads ESM plugin with top-level await from path", async () => {
+		const plugin = await loadAgentPluginFromPath(
+			join(dir, "plugin-top-level-await.mjs"),
+		);
+		expect(plugin.name).toBe("plugin-top-level-await");
+	});
+
 	it("loads named plugin export from path", async () => {
 		const plugin = await loadAgentPluginFromPath(
 			join(dir, "plugin-named.mjs"),
@@ -310,6 +328,54 @@ describe("plugin-loader", () => {
 			},
 		);
 		expect(plugin.name).toMatch(/ok: true/i);
+	});
+
+	it("resolves standalone plugin dependencies from the npm wrapper path", async () => {
+		const previousWrapperPath = process.env.CLINE_WRAPPER_PATH;
+		const wrapperRoot = join(dir, "wrapper-root");
+		const wrapperBinDir = join(wrapperRoot, "bin");
+		const depDir = join(wrapperRoot, "node_modules", "wrapper-host-dep");
+		const pluginPath = join(dir, "plugin-with-wrapper-dep.ts");
+		await mkdir(wrapperBinDir, { recursive: true });
+		await mkdir(depDir, { recursive: true });
+		await writeFile(join(wrapperBinDir, "cline"), "#!/usr/bin/env node\n");
+		await writeFile(
+			join(depDir, "package.json"),
+			JSON.stringify({
+				name: "wrapper-host-dep",
+				type: "module",
+				exports: "./index.js",
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(depDir, "index.js"),
+			"export const depName = 'wrapper-host-dep';\n",
+			"utf8",
+		);
+		await writeFile(
+			pluginPath,
+			[
+				"import { depName } from 'wrapper-host-dep';",
+				"export default {",
+				"  name: depName,",
+				"  manifest: { capabilities: ['tools'] },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		try {
+			process.env.CLINE_WRAPPER_PATH = join(wrapperBinDir, "cline");
+			const plugin = await loadAgentPluginFromPath(pluginPath);
+			expect(plugin.name).toBe("wrapper-host-dep");
+		} finally {
+			if (previousWrapperPath === undefined) {
+				delete process.env.CLINE_WRAPPER_PATH;
+			} else {
+				process.env.CLINE_WRAPPER_PATH = previousWrapperPath;
+			}
+		}
 	});
 
 	it("requires package-based plugins to provide their own non-SDK dependencies", async () => {

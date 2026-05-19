@@ -20,7 +20,7 @@ The skill should guide the user through one release preparation flow, then offer
 - Nightly release version: `X.Y.Z-nightly.TIMESTAMP`.
 - Release prep includes approved release notes, a version bump, and an `apps/cli/CHANGELOG.md` update.
 - Publish paths:
-  - GitHub workflow: `.github/workflows/publish-cli.yaml`.
+  - GitHub workflow: `.github/workflows/cli-publish.yml`.
   - Local publish helper: `bun release cli`.
 - npm dist-tags and git tags are separate. `--tag latest` and `--tag nightly` are npm registry channels. `cli-vX.Y.Z` is a git tag for source history and GitHub releases.
 - The GitHub main release workflow runs from `main`, requires an existing `cli-vX.Y.Z` tag, checks out that tag, and publishes from it.
@@ -46,7 +46,7 @@ Find the latest CLI tag. If there is no `cli-v*` tag, use the first relevant CLI
 2. Collect release commits.
 
 ```sh
-git log <last-cli-tag>..HEAD --oneline --no-merges -- apps/cli packages scripts .github/workflows/publish-cli.yaml
+git log <last-cli-tag>..HEAD --oneline --no-merges -- apps/cli packages scripts .github/workflows/cli-publish.yml
 ```
 
 If the release includes broader SDK changes that affect the CLI, also inspect commits outside `apps/cli`.
@@ -126,20 +126,20 @@ Ask the user which path to use:
 For GitHub main release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
-gh run list --workflow=publish-cli.yaml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
+gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh run list --workflow=cli-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
 
 For GitHub nightly release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=nightly
+gh workflow run cli-publish.yml -f publish_target=nightly
 ```
 
 For forced GitHub nightly release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=nightly -f force_nightly_publish=true
+gh workflow run cli-publish.yml -f publish_target=nightly -f force_nightly_publish=true
 ```
 
 For local publish:

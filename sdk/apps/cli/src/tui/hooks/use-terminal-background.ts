@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { getTerminalTheme, type TerminalTheme } from "../palette";
 
 export interface TerminalColors {
 	background: string | null;
@@ -16,4 +17,9 @@ export function useTerminalBackground(): string | null {
 
 export function useTerminalForeground(): string | null {
 	return useContext(TerminalColorsContext).foreground;
+}
+
+export function useTerminalTheme(): TerminalTheme {
+	const { background, foreground } = useContext(TerminalColorsContext);
+	return getTerminalTheme(background, foreground);
 }

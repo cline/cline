@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolveExistingFilePath } from "@cline/shared/storage";
 
 const IMAGE_EXTENSIONS = new Set([
 	".png",
@@ -9,6 +10,13 @@ const IMAGE_EXTENSIONS = new Set([
 	".bmp",
 	".svg",
 ]);
+
+/**
+ * Resolve a possibly-mangled image path to an actual on-disk file.
+ */
+export function resolveExistingImagePath(filePath: string): string | undefined {
+	return resolveExistingFilePath(filePath);
+}
 
 export function isImagePath(filePath: string): boolean {
 	const normalized = filePath.toLowerCase();

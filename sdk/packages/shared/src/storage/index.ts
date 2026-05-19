@@ -1,3 +1,4 @@
+export { resolveExistingFilePath } from "./path-resolution";
 export {
 	AGENT_CONFIG_DIRECTORY_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,

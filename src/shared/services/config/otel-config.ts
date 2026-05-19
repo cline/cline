@@ -143,7 +143,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  *
  * Configuration Sources:
  * - **Production Build**: Environment variables injected by esbuild at build time
- *   via .github/workflows/publish.yml
+ *   via .github/workflows/ext-vscode-publish-stable.yml
  * - **Development**: Environment variables from .env file loaded by VSCode
  *
  * Supported Environment Variables:
@@ -165,7 +165,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  *
  * @private
  * @see .env.example for development setup
- * @see .github/workflows/publish.yml for production environment variable injection
+ * @see .github/workflows/ext-vscode-publish-stable.yml for production environment variable injection
  */
 function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 	return {

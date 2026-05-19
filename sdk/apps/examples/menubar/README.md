@@ -1,29 +1,8 @@
-# Menu Bar Example
+### Preview
 
-macOS menu bar app built with Tauri and a Bun sidecar that monitors the shared Cline Hub.
+![Cline Hub Monitor preview](./assets/hub-monitor-preview.jpg)
 
-## Prerequisites
-
-- macOS for the menu bar/tray experience.
-- Node.js 22+ and Bun.
-- Rust and the Tauri 2 prerequisites for your platform. See the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/). This is required to run this example successfully.
-
-## Spin it up
-
-From the repository root:
-
-```bash
-cd sdk
-bun install
-bun run build:sdk
-
-cd apps/examples/menubar
-bun run dev
-```
-
-`bun run dev` runs `tauri dev`. Tauri first compiles the sidecar binary with `bun run build:sidecar:bin`, then launches the native app. There is no main window; look for the **Cline Hub** icon in your macOS menu bar.
-
-## Architecture Overview
+### Architecture Overview
 
 ```
 Any Client (CLI, VS Code, agents)
@@ -40,6 +19,12 @@ Menu Bar Sidecar (apps/examples/menubar/sidecar/index.ts)  ← TypeScript/Bun pr
     ▼
 Rust Tauri App (apps/examples/menubar/src-tauri/src/main.rs)
     │
+    ├── Hub Monitor Window (ui/index.html)
+    │     ● Live hub status, uptime, clients, sessions
+    │     ● Running session tracker and inspector
+    │     ● Recent events and background-session launcher
+    │
+    │
     ├── System Tray Icon with dynamic menu
     │     ● Hub Connected — 3 clients, 2 sessions
     │     ─────────────────
@@ -49,3 +34,11 @@ Rust Tauri App (apps/examples/menubar/src-tauri/src/main.rs)
     │
     └── Logs notifications to stderr (with severity)
 ```
+
+### Dev Commands
+
+From `sdk/apps/examples/menubar/`:
+
+- `bun run dev:ui` - run only the Hub Monitor UI at `http://127.0.0.1:3466/` with preview data
+- `bun run dev` - run the full Tauri app with the real hub sidecar
+- `bun run typecheck` - TypeScript check

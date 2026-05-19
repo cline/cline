@@ -7,7 +7,7 @@
 // flag to point it elsewhere, so we swap README.marketplace.md into place
 // first and restore the original on the way out. The swap helper is
 // idempotent, so this is safe to run nested under another wrapper (e.g., the
-// CI step in .github/workflows/publish.yml that also packages a .vsix for the
+// CI step in .github/workflows/ext-vscode-publish-stable.yml that also packages a .vsix for the
 // GitHub release artifact before invoking this script).
 //
 // Usage:

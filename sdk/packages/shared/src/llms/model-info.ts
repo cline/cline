@@ -60,6 +60,15 @@ export const ThinkingConfigSchema = z.object({
 
 export type ThinkingConfig = z.infer<typeof ThinkingConfigSchema>;
 
+export const ModelMetadataSchema = z
+	// Keep metadata open for catalog-defined facts while typing routing fields.
+	.object({
+		reasoningDefaultOn: z.boolean().optional(),
+	})
+	.catchall(z.unknown());
+
+export type ModelMetadata = z.infer<typeof ModelMetadataSchema>;
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),
@@ -79,6 +88,7 @@ export const ModelInfoSchema = z.object({
 	releaseDate: z.string().optional(),
 	deprecationDate: z.string().optional(),
 	family: z.string().optional(),
+	metadata: ModelMetadataSchema.optional(),
 });
 
 export type ModelInfo = z.infer<typeof ModelInfoSchema>;

@@ -1,6 +1,8 @@
-# Multi-Agent Fan-Out
+# Multi-Agent War Room
 
-A web app that spawns three specialist agents in parallel, streams their responses to the browser in real time via SSE, then feeds their findings into a synthesizer agent that produces a unified answer.
+A web app that spawns four specialist agents in parallel, streams their responses to the browser in real time via SSE, then feeds their findings into a synthesizer agent that produces a unified decision brief.
+
+![Agent War Room interface](assets/agent-war-room.png)
 
 ## Getting started
 
@@ -23,17 +25,18 @@ Run:
 bun dev
 ```
 
-Open http://localhost:3456 in your browser, enter a topic, and watch the agents work.
+Open http://localhost:3456 in your browser, enter a mission, and watch the agents work.
 
 ## What it does
 
-1. You enter a topic in the browser
-2. The server spawns three `Agent` instances in parallel via `Promise.all`:
-   - Technical Expert (engineering perspective)
-   - Practical Analyst (real-world applications)
-   - Critical Reviewer (limitations and trade-offs)
+1. You enter a mission in the browser
+2. The server spawns four `Agent` instances in parallel via `Promise.all`:
+   - Architect (system design)
+   - Security Analyst (audit)
+   - Pragmatist (product)
+   - Skeptic (red team)
 3. Each agent streams `assistant-text-delta` events to the browser via SSE, rendered in its own card
-4. Once all three finish, a fourth synthesizer agent combines their findings into a unified answer, also streamed live
+4. Once all specialists finish, a synthesizer agent combines their findings into a unified decision brief, also streamed live
 
 ## Concepts demonstrated
 

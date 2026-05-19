@@ -25,6 +25,9 @@ export const StoredModelEntrySchema = z
 	.object({
 		id: z.string().optional(),
 		name: z.string().optional(),
+		maxTokens: z.number().optional(),
+		contextWindow: z.number().optional(),
+		maxInputTokens: z.number().optional(),
 		capabilities: z.array(ModelCapabilitySchema).optional(),
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
@@ -237,8 +240,11 @@ function resolveProviderClient(
 function toStoredModelInfo(
 	modelId: string,
 	model: StoredModelEntry | undefined,
+	fallbackCapabilities?: ModelInfo["capabilities"],
 ): ModelInfo {
-	const capabilities = new Set<ModelCapability>(model?.capabilities ?? []);
+	const capabilities = new Set<ModelCapability>(
+		model?.capabilities ?? fallbackCapabilities ?? [],
+	);
 	if (model?.supportsVision) capabilities.add("images");
 	if (model?.supportsAttachments) capabilities.add("files");
 	if (model?.supportsReasoning) capabilities.add("reasoning");
@@ -246,6 +252,9 @@ function toStoredModelInfo(
 	return {
 		id: modelId,
 		name: model?.name ?? modelId,
+		maxTokens: model?.maxTokens,
+		contextWindow: model?.contextWindow,
+		maxInputTokens: model?.maxInputTokens,
 		capabilities: capabilities.size > 0 ? [...capabilities] : undefined,
 	};
 }
@@ -404,10 +413,11 @@ export function registerCustomProvider(
 		modelEntries.map(({ id, model }) => [
 			id,
 			{
-				id,
-				name: model.name ?? id,
-				capabilities:
+				...toStoredModelInfo(
+					id,
+					model,
 					modelCapabilities.length > 0 ? modelCapabilities : undefined,
+				),
 				status: "active" as const,
 			},
 		]),

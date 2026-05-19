@@ -1,8 +1,7 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
-import ClineKanbanLaunchModal, { CLINE_KANBAN_MODAL_DISMISS_ID } from "./components/common/ClineKanbanLaunchModal"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
@@ -11,14 +10,13 @@ import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
-import { StateServiceClient, UiServiceClient } from "./services/grpc-client"
+import { UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
 	const {
 		didHydrateState,
 		showWelcome,
 		shouldShowAnnouncement,
-		dismissedBanners,
 		showMcp,
 		mcpTab,
 		showSettings,
@@ -37,8 +35,6 @@ const AppContent = () => {
 		hideWorktrees,
 		hideAnnouncement,
 	} = useExtensionState()
-	const [showKanbanModal, setShowKanbanModal] = useState(false)
-	const [hasShownKanbanModal, setHasShownKanbanModal] = useState(false)
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
 
@@ -54,44 +50,11 @@ const AppContent = () => {
 	}, [setShouldShowAnnouncement, setShowAnnouncement])
 
 	useEffect(() => {
-		if (!didHydrateState || showWelcome || hasShownKanbanModal) {
-			return
-		}
-		const hasDismissedKanbanModal = dismissedBanners?.some((banner) => banner.bannerId === CLINE_KANBAN_MODAL_DISMISS_ID)
-		if (!hasDismissedKanbanModal) {
-			setShowKanbanModal(true)
-		}
-		setHasShownKanbanModal(true)
-	}, [didHydrateState, dismissedBanners, hasShownKanbanModal, showWelcome])
-
-	// Keep update announcements queued until the Kanban modal has either shown and closed or been skipped.
-	useEffect(() => {
 		if (!didHydrateState || showWelcome || !shouldShowAnnouncement || showAnnouncement) {
 			return
 		}
-		const isKanbanModalBlocking = showKanbanModal || !hasShownKanbanModal
-		if (isKanbanModalBlocking) {
-			return
-		}
 		showUpdateAnnouncementModal()
-	}, [
-		didHydrateState,
-		showWelcome,
-		shouldShowAnnouncement,
-		showAnnouncement,
-		showKanbanModal,
-		hasShownKanbanModal,
-		showUpdateAnnouncementModal,
-	])
-
-	const handleCloseKanbanModal = useCallback((doNotShowAgain: boolean) => {
-		setShowKanbanModal(false)
-		if (doNotShowAgain) {
-			StateServiceClient.dismissBanner({ value: CLINE_KANBAN_MODAL_DISMISS_ID }).catch((error) =>
-				console.error("Failed to persist Cline Kanban modal dismissal:", error),
-			)
-		}
-	}, [])
+	}, [didHydrateState, showWelcome, shouldShowAnnouncement, showAnnouncement, showUpdateAnnouncementModal])
 
 	if (!didHydrateState) {
 		return null
@@ -103,7 +66,6 @@ const AppContent = () => {
 
 	return (
 		<div className="flex h-screen w-full flex-col">
-			<ClineKanbanLaunchModal onClose={handleCloseKanbanModal} open={showKanbanModal} />
 			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}

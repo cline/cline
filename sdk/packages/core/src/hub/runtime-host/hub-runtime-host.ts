@@ -1389,7 +1389,13 @@ export class HubRuntimeHost implements RuntimeHost {
 	private handleHubEvent(event: HubEventEnvelope): void {
 		const sessionId = event.sessionId?.trim();
 		if (event.event === "capability.requested") {
-			void this.handleCapabilityRequest(event);
+			void this.handleCapabilityRequest(event).catch((error) => {
+				this.captureDetachedHubEventError(
+					"hub.runtime_host.capability_request",
+					error,
+					event,
+				);
+			});
 			return;
 		}
 		if (event.event === "capability.resolved") {
@@ -1397,7 +1403,13 @@ export class HubRuntimeHost implements RuntimeHost {
 			return;
 		}
 		if (event.event === "approval.requested") {
-			void this.handleApprovalRequested(event);
+			void this.handleApprovalRequested(event).catch((error) => {
+				this.captureDetachedHubEventError(
+					"hub.runtime_host.approval_request",
+					error,
+					event,
+				);
+			});
 			return;
 		}
 		if (!sessionId) {
@@ -1689,6 +1701,29 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	private captureDetachedHubEventError(
+		operation: string,
+		error: unknown,
+		event: HubEventEnvelope,
+	): void {
+		try {
+			captureSdkError(this.telemetry, {
+				component: "core",
+				operation,
+				error,
+				severity: "warn",
+				handled: true,
+				context: {
+					event: event.event,
+					sessionId: event.sessionId,
+					runtimeAddress: this.runtimeAddress,
+				},
+			});
+		} catch {
+			// Telemetry must not rethrow from detached hub event handlers.
+		}
+	}
+
 	private async handleCapabilityRequest(
 		event: HubEventEnvelope,
 	): Promise<void> {
@@ -1740,14 +1775,22 @@ export class HubRuntimeHost implements RuntimeHost {
 		const abortController = new AbortController();
 		this.activeCapabilityAbortControllers.set(requestId, abortController);
 		const progress = (progressPayload: Record<string, unknown>): void => {
-			void this.client.command(
-				"capability.progress",
-				{
-					requestId,
-					payload: progressPayload,
-				},
-				sessionId,
-			);
+			void this.client
+				.command(
+					"capability.progress",
+					{
+						requestId,
+						payload: progressPayload,
+					},
+					sessionId,
+				)
+				.catch((error) => {
+					this.captureDetachedHubEventError(
+						"hub.runtime_host.capability_progress",
+						error,
+						event,
+					);
+				});
 		};
 		try {
 			const responsePayload = await handler({

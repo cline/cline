@@ -29,7 +29,6 @@ export type ProviderOptionMatchInput = {
 	context: GatewayProviderContext;
 	providerOptionsKey: string;
 	target: AiSdkProviderOptionsTarget;
-	modelFamily?: string;
 	isAnthropicCompatibleModelId: boolean;
 	anthropicReasoningPolicyKind?: AnthropicReasoningRequestPolicy["kind"];
 };
