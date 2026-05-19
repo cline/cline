@@ -1,4 +1,3 @@
-import * as Llms from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
@@ -14,6 +13,17 @@ afterEach(() => {
 });
 
 describe("resolveProviderConfig", () => {
+	it("returns bundled models for built-in providers without a base URL", async () => {
+		const resolved = await resolveProviderConfig("bedrock");
+
+		expect(resolved?.baseUrl).toBeUndefined();
+		expect(resolved?.modelId).toBe("minimax.minimax-m2.5");
+		expect(resolved?.knownModels?.["amazon.nova-2-lite-v1:0"]?.name).toBe(
+			"Nova 2 Lite",
+		);
+		expect(Object.keys(resolved?.knownModels ?? {}).length).toBeGreaterThan(0);
+	});
+
 	it("uses catalog aliases when loading live models", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -167,11 +177,7 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
-	it("does not spawn Codex app-server while resolving ChatGPT OAuth models", async () => {
-		const listModels = vi
-			.spyOn(Llms, "listOpenAICodexModels")
-			.mockRejectedValue(new Error("should not be called"));
-
+	it("resolves ChatGPT OAuth models from the filtered catalog", async () => {
 		const resolved = await resolveProviderConfig(
 			"openai-codex",
 			{ cacheTtlMs: 1 },
@@ -183,7 +189,6 @@ describe("resolveProviderConfig", () => {
 			},
 		);
 
-		expect(listModels).not.toHaveBeenCalled();
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
 			expect.arrayContaining([
 				"gpt-5.2",

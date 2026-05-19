@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
-e2e("Chat - can send messages and switch between modes", async ({ helper, sidebar, page }) => {
+e2e("Chat - can send messages and switch between modes", async ({ helper, sidebar }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
@@ -59,6 +59,4 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	// Add following text to verify it works correctly
 	await inputbox.pressSequentially("following text should be preserved")
 	await expect(inputbox).toHaveValue("@problems following text should be preserved")
-
-	await page.close()
 })
