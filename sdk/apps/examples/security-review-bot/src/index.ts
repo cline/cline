@@ -127,8 +127,32 @@ const securityReviewTools: AgentTool[] = [
 	submitSecurityReviewTool as AgentTool,
 ];
 
+function parseArgs(args: string[]) {
+	const ref = args[0] && !args[0].startsWith("-") ? args[0] : "HEAD~1";
+	const promptParts: string[] = [];
+	const remaining =
+		ref === "HEAD~1" && args[0]?.startsWith("-") ? args : args.slice(1);
+
+	for (let index = 0; index < remaining.length; index++) {
+		const arg = remaining[index];
+		if (arg === "--prompt" || arg === "-p") {
+			const value = remaining[index + 1];
+			if (!value) {
+				console.error(`Missing value for ${arg}`);
+				process.exit(1);
+			}
+			promptParts.push(value);
+			index++;
+			continue;
+		}
+		promptParts.push(arg);
+	}
+
+	return { ref, extraPrompt: promptParts.join(" ").trim() };
+}
+
 // Get the diff to review
-const ref = process.argv[2] || "HEAD~1";
+const { ref, extraPrompt } = parseArgs(process.argv.slice(2));
 if (ref.startsWith("-")) {
 	console.error(`Invalid ref: ${ref}`);
 	process.exit(1);
@@ -156,6 +180,9 @@ if (!diff.trim()) {
 console.log(
 	`Security reviewing diff against ${ref} (${diff.split("\n").length} lines)...\n`,
 );
+if (extraPrompt) {
+	console.log(`Additional review instructions: ${extraPrompt}\n`);
+}
 
 const cline = await ClineCore.create({
 	clientName: "security-review-bot",
@@ -164,41 +191,53 @@ const cline = await ClineCore.create({
 
 const unsubscribe = cline.subscribe((event) => {
 	switch (event.type) {
-		case "chunk":
-			if (event.payload.stream === "agent") {
-				process.stdout.write(event.payload.chunk);
-			}
-			break;
 		case "agent_event":
-			if (
-				event.payload.event.type === "content_start" &&
-				event.payload.event.contentType === "tool" &&
-				event.payload.event.toolName === "add_security_finding"
-			) {
-				const input = event.payload.event.input as z.infer<
-					typeof SecurityFindingSchema
-				>;
-				const icon =
-					input.severity === "critical"
-						? "X"
-						: input.severity === "high"
-							? "!"
-							: input.severity === "medium"
-								? "~"
-								: "i";
-				console.log(
-					`  [${icon}] ${input.severity.toUpperCase()} ${input.file}:${input.line} - ${input.title}`,
-				);
+			if (event.payload.event.type === "content_start") {
+				if (event.payload.event.contentType === "text") {
+					process.stdout.write(event.payload.event.text ?? "");
+				}
+
+				if (
+					event.payload.event.contentType === "tool" &&
+					event.payload.event.toolName === "add_security_finding"
+				) {
+					const input = event.payload.event.input as z.infer<
+						typeof SecurityFindingSchema
+					>;
+					const icon =
+						input.severity === "critical"
+							? "X"
+							: input.severity === "high"
+								? "!"
+								: input.severity === "medium"
+									? "~"
+									: "i";
+					console.log(
+						`  [${icon}] ${input.severity.toUpperCase()} ${input.file}:${input.line} - ${input.title}`,
+					);
+				}
+			}
+
+			if (event.payload.event.type === "notice") {
+				console.log(`\n[notice] ${event.payload.event.message}\n`);
+			}
+
+			if (event.payload.event.type === "error") {
+				console.error(`\n[error] ${event.payload.event.error.message}\n`);
 			}
 			break;
 	}
 });
 
 try {
+	const prompt = `Security review this git diff.${
+		extraPrompt ? `\n\nAdditional review instructions:\n${extraPrompt}` : ""
+	}\n\n\`\`\`diff\n${diff}\n\`\`\``;
+
 	const result = await cline.start({
 		source: "cli",
 		interactive: false,
-		prompt: `Security review this git diff:\n\n\`\`\`diff\n${diff}\n\`\`\``,
+		prompt,
 		config: {
 			providerId: "cline",
 			modelId: "anthropic/claude-sonnet-4.6",
