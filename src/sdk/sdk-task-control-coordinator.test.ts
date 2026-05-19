@@ -99,6 +99,48 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.setTask).not.toHaveBeenCalled()
 		expect(options.taskHistory.getClineMessages).not.toHaveBeenCalled()
 	})
+
+	it("does not install the new task proxy until its messages are loaded", async () => {
+		const sdkClineMessages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+		]
+
+		let resolveGetClineMessages: ((messages: ClineMessage[]) => void) | undefined
+		const getClineMessagesDeferred = new Promise<ClineMessage[]>((resolve) => {
+			resolveGetClineMessages = resolve
+		})
+
+		const { coordinator, options, state } = makeCoordinator({
+			hasHistoryItem: true,
+			clineMessages: sdkClineMessages,
+		})
+		options.taskHistory.getClineMessages.mockReturnValueOnce(getClineMessagesDeferred)
+
+		let setTaskHadMessages: boolean | undefined
+		options.setTask.mockImplementation((task: any) => {
+			setTaskHadMessages = (task?.messageStateHandler?.getClineMessages?.() ?? []).length > 0
+			state.task = task
+		})
+
+		const inFlight = coordinator.showTaskWithId("task-1")
+
+		// While getClineMessages is still pending, the new task proxy must not be
+		// installed — otherwise concurrent postStateToWebview() callers would see
+		// currentTaskItem.id with an empty messageStateHandler.
+		await Promise.resolve()
+		await Promise.resolve()
+		expect(options.setTask).not.toHaveBeenCalled()
+		expect(state.task).toBeUndefined()
+
+		resolveGetClineMessages?.(sdkClineMessages)
+		await inFlight
+
+		expect(options.setTask).toHaveBeenCalledTimes(1)
+		expect(setTaskHadMessages).toBe(true)
+		expect(state.task?.taskId).toBe("task-1")
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
