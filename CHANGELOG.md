@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.84.0]
+
+### Added
+
+- Add SAP AI Core support for additional hosted models
+
+### Fixed
+
+- Disable the MCP "Restart Server" button when a server is toggled off.
+
+### Changed
+
+- Remove the Cline Kanban launch modal and bundled demo media from the VS Code extension startup flow.
+
 ## [3.83.0]
 
 ### Fixed
