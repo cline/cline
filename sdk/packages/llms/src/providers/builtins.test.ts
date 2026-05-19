@@ -103,4 +103,24 @@ describe("built-in provider metadata", () => {
 			}),
 		);
 	});
+
+	it("routes native Z.AI providers through GLM thinking metadata", async () => {
+		for (const providerId of ["zai", "zai-coding-plan"] as const) {
+			await expect(getProvider(providerId)).resolves.toMatchObject({
+				metadata: {
+					routing: {
+						reasoning: {
+							format: "glm-thinking",
+						},
+					},
+				},
+			});
+
+			const models = Object.values(await getModelsForProvider(providerId));
+			expect(models.length).toBeGreaterThan(0);
+			for (const model of models) {
+				expect(model.family?.startsWith("glm")).toBe(true);
+			}
+		}
+	});
 });
