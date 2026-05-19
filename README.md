@@ -128,7 +128,7 @@ npm install @cline/sdk
 
 | Product | Description | Location | Changelog |
 |---------|------------|--------------|-----------|
-| **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | — |
+| **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | WIP |
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`sdk/apps/cli/`](https://github.com/cline/cline/tree/main/sdk/apps/cli) | [`sdk/apps/cli/CHANGELOG.md`](https://github.com/cline/cline/blob/main/sdk/apps/cli/CHANGELOG.md) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | [`/`](https://github.com/cline/cline/tree/main) (WIP migrating) | [`CHANGELOG.md`](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins | — |
