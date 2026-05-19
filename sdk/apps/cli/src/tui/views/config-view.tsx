@@ -235,6 +235,17 @@ function appendToolRows(
 	}
 }
 
+function getPluginLoadErrorLabel(
+	item: InteractiveConfigItem,
+): string | undefined {
+	if (!item.loadError) {
+		return undefined;
+	}
+	const lines = item.loadError.split("\n");
+	const first = lines[0] ?? item.loadError;
+	return lines.length > 1 ? `${first} (+${lines.length - 1} more)` : first;
+}
+
 export function ConfigPanelContent(props: ConfigPanelProps) {
 	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
 	const { height } = useTerminalDimensions();
@@ -351,7 +362,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						enabled: item.enabled,
 						description: item.description,
 						item,
-						rightLabel: item.loadError,
+						rightLabel: getPluginLoadErrorLabel(item),
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsLoading) {

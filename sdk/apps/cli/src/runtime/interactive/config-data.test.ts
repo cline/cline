@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
 import { afterEach, describe, expect, it } from "vitest";
-import type { InteractiveConfigItem } from "../../tui/interactive-config";
+import {
+	applyPluginFailures,
+	type InteractiveConfigItem,
+} from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 import { createInteractiveConfigDataLoader } from "./config-data";
 
@@ -247,6 +250,39 @@ Use this skill.`,
 		expect(invalidPlugin?.name).toBe("invalid-plugin");
 		expect(invalidPlugin?.loadErrorPhase).toBe("load");
 		expect(invalidPlugin?.loadError).toContain("load failed:");
+	});
+
+	it("preserves multiple load failures for the same plugin path", () => {
+		const plugin: InteractiveConfigItem = {
+			id: "/tmp/plugin.js",
+			name: "plugin",
+			path: "/tmp/plugin.js",
+			enabled: true,
+			kind: "plugin",
+			source: "workspace-plugin",
+		};
+
+		applyPluginFailures(
+			[plugin],
+			[
+				{
+					pluginPath: "/tmp/plugin.js",
+					pluginName: "plugin",
+					phase: "setup",
+					message: "first failure",
+				},
+				{
+					pluginPath: "/tmp/plugin.js",
+					phase: "setup",
+					message: "second failure",
+				},
+			],
+		);
+
+		expect(plugin.loadError).toBe(
+			"setup failed: first failure\nsetup failed: second failure",
+		);
+		expect(plugin.loadErrorPhase).toBeUndefined();
 	});
 
 	it("toggles every SDK tool name for a displayed built-in tool", async () => {

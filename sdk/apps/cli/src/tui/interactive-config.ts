@@ -223,21 +223,29 @@ function formatPluginFailure(failure: PluginInitializationFailure): string {
 	return `${failure.phase === "setup" ? "setup failed" : "load failed"}: ${failure.message}`;
 }
 
-function applyPluginFailures(
+export function applyPluginFailures(
 	plugins: InteractiveConfigItem[],
 	failures: readonly PluginInitializationFailure[],
 ): void {
 	const pluginsByPath = new Map(plugins.map((plugin) => [plugin.path, plugin]));
+	const failuresByPath = new Map<string, PluginInitializationFailure[]>();
 	for (const failure of failures) {
-		const plugin = pluginsByPath.get(failure.pluginPath);
+		const failuresForPath = failuresByPath.get(failure.pluginPath) ?? [];
+		failuresForPath.push(failure);
+		failuresByPath.set(failure.pluginPath, failuresForPath);
+	}
+	for (const [pluginPath, failuresForPath] of failuresByPath) {
+		const plugin = pluginsByPath.get(pluginPath);
 		if (!plugin) {
 			continue;
 		}
-		if (failure.pluginName) {
-			plugin.name = failure.pluginName;
+		const namedFailure = failuresForPath.find((failure) => failure.pluginName);
+		if (namedFailure?.pluginName) {
+			plugin.name = namedFailure.pluginName;
 		}
-		plugin.loadError = formatPluginFailure(failure);
-		plugin.loadErrorPhase = failure.phase;
+		plugin.loadError = failuresForPath.map(formatPluginFailure).join("\n");
+		plugin.loadErrorPhase =
+			failuresForPath.length === 1 ? failuresForPath[0]?.phase : undefined;
 	}
 }
 
