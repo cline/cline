@@ -1,5 +1,13 @@
 # Cline CLI Changelog
 
+## 3.0.8
+
+- Use Telegram numeric participant ids so renamed users stay linked to the same participant in the Telegram connector.
+- Keep failed plugins visible in the config UI with their load/setup phase and error details so broken plugin definitions are easier to diagnose.
+- Move the Create Session Fork shortcut from Opt+F to Opt+R so terminal word-right navigation works again.
+- Fix AWS Bedrock region and profile detection in the CLI onboarding, and surface bearer-token and additional Bedrock config fields in the provider config screens.
+- Fix inflated token usage counts caused by AgentRuntime.execute() not resetting usage between calls, which the local runtime host was then double-counting on top of the session baseline.
+
 ## 3.0.7
 
 - Skip the ChatGPT OAuth model refresh on session startup so the CLI launches without the extra network round-trip.
