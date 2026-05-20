@@ -4,10 +4,10 @@
 		"target": "ES2022",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"outDir": "dist",
 		"strict": true,
 		"skipLibCheck": true,
 		"esModuleInterop": true
 	},
-	"include": ["src"]
+	"include": ["src"],
+	"exclude": ["node_modules", "dist"]
 }
