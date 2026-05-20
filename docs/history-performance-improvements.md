@@ -111,6 +111,8 @@ Expected impact: better infinite-scroll performance and more correct search/filt
 
 ## 6. Cache or index merged history metadata
 
+Status: partially implemented. `SdkTaskHistory.listHistory({ hydrate: false, ... })` now caches the merged SDK + legacy metadata list for a short TTL and invalidates it on update/delete/migration. This reduces repeated reads/merges/sorts for History view and state rebuilds. A persisted index or deeper SDK-level pagination/filtering remains future work.
+
 Current issue:
 
 - Every history request reads SDK history, reads legacy `taskHistory.json`, merges, sorts, and slices.
