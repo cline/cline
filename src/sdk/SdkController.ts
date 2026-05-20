@@ -1183,6 +1183,30 @@ export class Controller {
 				mergedTaskHistoryById.set(item.id, item)
 			}
 
+			// A just-started task may not be visible in SDK persisted history yet (the
+			// history adapter can lag behind the active in-memory TaskProxy). Classic
+			// state included the current task immediately, and the testing platform
+			// asserts that taskHistory reflects newTask before the model turn completes.
+			if (this.task?.taskId && !mergedTaskHistoryById.has(this.task.taskId)) {
+				const taskMessage = this.task.messageStateHandler
+					.getClineMessages()
+					.find((message) => message.type === "say" && message.say === "task" && message.text)
+				if (taskMessage?.text) {
+					mergedTaskHistoryById.set(this.task.taskId, {
+						id: this.task.taskId,
+						ts: taskMessage.ts || Date.now(),
+						task: taskMessage.text,
+						tokensIn: 0,
+						tokensOut: 0,
+						cacheWrites: 0,
+						cacheReads: 0,
+						totalCost: 0,
+						modelId: this.task.api?.getModel?.().id,
+						cwdOnTaskInitialization: await this.getWorkspaceRoot(),
+					})
+				}
+			}
+
 			const processedTaskHistory = Array.from(mergedTaskHistoryById.values())
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
