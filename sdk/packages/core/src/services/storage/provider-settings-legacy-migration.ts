@@ -490,13 +490,16 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
+		const useBedrockProfile =
+			legacyGlobalState.awsAuthentication === "profile" ||
+			legacyGlobalState.awsUseProfile === true;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
 			authentication: legacyGlobalState.awsAuthentication,
-			profile: legacyGlobalState.awsUseProfile
+			profile: useBedrockProfile
 				? trimNonEmpty(legacyGlobalState.awsProfile)
 				: undefined,
 			usePromptCache: legacyGlobalState.awsBedrockUsePromptCache,
@@ -657,7 +660,10 @@ function collectCandidateProviderIds(
 	if (trimNonEmpty(legacySecrets.ollamaApiKey)) candidates.add("ollama");
 	if (
 		trimNonEmpty(legacySecrets.awsAccessKey) ||
-		trimNonEmpty(legacySecrets.awsBedrockApiKey)
+		trimNonEmpty(legacySecrets.awsBedrockApiKey) ||
+		legacyGlobalState.awsAuthentication !== undefined ||
+		legacyGlobalState.awsUseProfile === true ||
+		trimNonEmpty(legacyGlobalState.awsProfile)
 	)
 		candidates.add("bedrock");
 	if (
