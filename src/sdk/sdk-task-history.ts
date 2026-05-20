@@ -192,6 +192,13 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 }
 
 export class SdkTaskHistory {
+	private cachedHistoryHost?: VscodeSessionHost
+	private cachedHistoryHostPromise?: Promise<VscodeSessionHost>
+	private cachedHistoryHostRefCount = 0
+	private cachedHistoryHostIdleTimer?: NodeJS.Timeout
+	private disposed = false
+	private readonly cachedHistoryHostIdleMs = 30_000
+
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
 
 	private getActiveHistoryHost(): VscodeSessionHost | undefined {
@@ -202,22 +209,97 @@ export class SdkTaskHistory {
 		return undefined
 	}
 
+	private async getCachedHistoryHost(): Promise<VscodeSessionHost> {
+		if (this.disposed) {
+			throw new Error("SdkTaskHistory has been disposed")
+		}
+
+		if (this.cachedHistoryHostIdleTimer) {
+			clearTimeout(this.cachedHistoryHostIdleTimer)
+			this.cachedHistoryHostIdleTimer = undefined
+		}
+
+		if (this.cachedHistoryHost) {
+			return this.cachedHistoryHost
+		}
+		if (this.cachedHistoryHostPromise) {
+			return this.cachedHistoryHostPromise
+		}
+
+		const startedAt = Date.now()
+		this.cachedHistoryHostPromise = (async () => {
+			const { VscodeSessionHost } = await import("./vscode-session-host")
+			const historyHost = await VscodeSessionHost.create({ mcpHub: this.options.mcpHub })
+			this.cachedHistoryHost = historyHost
+			Logger.log(`[HistoryPerf] SdkTaskHistory created cached history host in ${Date.now() - startedAt}ms`)
+			return historyHost
+		})()
+
+		try {
+			return await this.cachedHistoryHostPromise
+		} catch (error) {
+			this.cachedHistoryHost = undefined
+			throw error
+		} finally {
+			this.cachedHistoryHostPromise = undefined
+		}
+	}
+
+	private scheduleCachedHistoryHostDispose(): void {
+		if (this.disposed || this.cachedHistoryHostRefCount > 0 || !this.cachedHistoryHost) {
+			return
+		}
+
+		this.cachedHistoryHostIdleTimer = setTimeout(() => {
+			void this.disposeCachedHistoryHost("idle")
+		}, this.cachedHistoryHostIdleMs)
+		this.cachedHistoryHostIdleTimer.unref?.()
+	}
+
+	private async disposeCachedHistoryHost(reason: string): Promise<void> {
+		if (this.cachedHistoryHostIdleTimer) {
+			clearTimeout(this.cachedHistoryHostIdleTimer)
+			this.cachedHistoryHostIdleTimer = undefined
+		}
+
+		if (this.cachedHistoryHostRefCount > 0) {
+			return
+		}
+
+		const historyHost = this.cachedHistoryHost
+		this.cachedHistoryHost = undefined
+		if (!historyHost) {
+			return
+		}
+
+		const startedAt = Date.now()
+		await historyHost.dispose(`taskHistory:${reason}`).catch((error) => {
+			Logger.warn("[SdkTaskHistory] Failed to dispose cached history host:", error)
+		})
+		Logger.log(`[HistoryPerf] SdkTaskHistory disposed cached history host reason=${reason} took ${Date.now() - startedAt}ms`)
+	}
+
+	async dispose(): Promise<void> {
+		this.disposed = true
+		if (this.cachedHistoryHostPromise) {
+			await this.cachedHistoryHostPromise.catch(() => undefined)
+		}
+		await this.disposeCachedHistoryHost("controllerDispose")
+	}
+
 	private async withHistoryHost<T>(fn: (host: VscodeSessionHost) => Promise<T>): Promise<T> {
 		const activeHistoryHost = this.getActiveHistoryHost()
 		if (activeHistoryHost) {
 			return fn(activeHistoryHost)
 		}
 
-		const startedAt = Date.now()
-		const { VscodeSessionHost } = await import("./vscode-session-host")
-		const historyHost = await VscodeSessionHost.create({ mcpHub: this.options.mcpHub })
-		Logger.log(`[HistoryPerf] SdkTaskHistory.withHistoryHost created temp host in ${Date.now() - startedAt}ms`)
+		const historyHost = await this.getCachedHistoryHost()
+		this.cachedHistoryHostRefCount += 1
 		try {
 			return await fn(historyHost)
 		} finally {
-			await historyHost.dispose("taskHistory").catch((error) => {
-				Logger.warn("[SdkTaskHistory] Failed to dispose history host:", error)
-			})
+			this.cachedHistoryHostRefCount = Math.max(0, this.cachedHistoryHostRefCount - 1)
+			this.scheduleCachedHistoryHostDispose()
 		}
 	}
 
