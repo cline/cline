@@ -30,6 +30,7 @@ import {
 import { palette } from "../../palette";
 import { getProviderSection } from "../../utils/provider-sections";
 import {
+	getNextProviderConfigField,
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
 	updateProviderConfigValue,
@@ -454,6 +455,20 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		transitionToModelPicker,
 	]);
 
+	const submitByoConfigField = useCallback(() => {
+		const nextField = getNextProviderConfigField(
+			byoFields,
+			FIELD_ORDER,
+			byoFocusedField,
+		);
+		if (nextField) {
+			setByoFocusedField(nextField);
+			return;
+		}
+
+		saveByoConfig();
+	}, [byoFields, byoFocusedField, saveByoConfig]);
+
 	const completeModelSelection = useCallback(
 		(modelId: string) => {
 			const existing =
@@ -614,7 +629,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		loadModelsForProvider,
 		saveClineModelSelection,
 		saveCodexCliConfig,
-		saveByoConfig,
+		saveByoConfig: submitByoConfigField,
 		saveModelSelection,
 		saveThinkingLevel,
 	});
@@ -659,7 +674,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		providerList,
 		providersLoading,
 		recommendedLoading: recommended.loading,
-		saveByoConfig,
+		saveByoConfig: submitByoConfigField,
 		saveCodexCliConfig,
 		saveCustomModelId,
 		selectedModelName,

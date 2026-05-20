@@ -309,7 +309,7 @@ export function OnboardingProviderConfigScreen(props: {
 				<text fg="gray">
 					<em>
 						{visibleFields.length > 1
-							? "Tab to switch fields, Enter to save, Esc to go back, Ctrl+C to exit"
+							? "Tab to switch fields, Enter to continue, Esc to go back, Ctrl+C to exit"
 							: "Enter to save, Esc to go back, Ctrl+C to exit"}
 					</em>
 				</text>

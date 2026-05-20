@@ -3,10 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	getNextProviderConfigField,
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
 	updateProviderConfigValue,
 } from "./provider-config-values";
+import { FIELD_ORDER } from "../views/onboarding/fields";
 
 const originalEnv = { ...process.env };
 
@@ -63,5 +65,25 @@ describe("provider config values", () => {
 				awsRegion: "",
 			}),
 		).toBe("us-west-2");
+	});
+
+	it("advances Bedrock profile input before the optional API key", () => {
+		expect(
+			getNextProviderConfigField(
+				{ awsRegion: {}, apiKey: {}, awsProfile: {} },
+				FIELD_ORDER,
+				"awsRegion",
+			),
+		).toBe("awsProfile");
+	});
+
+	it("returns undefined after the last visible provider config field", () => {
+		expect(
+			getNextProviderConfigField(
+				{ awsRegion: {}, awsProfile: {} },
+				FIELD_ORDER,
+				"awsProfile",
+			),
+		).toBeUndefined();
 	});
 });

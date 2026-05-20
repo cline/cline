@@ -25,6 +25,7 @@ import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
 import { getProviderSection } from "../../utils/provider-sections";
 import {
+	getNextProviderConfigField,
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
 	updateProviderConfigValue,
@@ -330,9 +331,9 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 /** Render order for cycling focus with Tab. */
 const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"awsRegion",
+	"awsProfile",
 	"baseUrl",
 	"apiKey",
-	"awsProfile",
 ];
 
 export type ProviderConfigInputFields = Partial<
@@ -399,6 +400,16 @@ export function ProviderConfigInputContent(
 	);
 
 	const submit = () => {
+		const nextField = getNextProviderConfigField(
+			config.fields,
+			FIELD_ORDER,
+			focusedField,
+		);
+		if (nextField) {
+			setFocusedField(nextField);
+			return;
+		}
+
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
@@ -465,9 +476,7 @@ export function ProviderConfigInputContent(
 							<input
 								value={values[key] ?? ""}
 								onInput={(v: string) =>
-									setValues((prev) =>
-										updateProviderConfigValue(prev, key, v),
-									)
+									setValues((prev) => updateProviderConfigValue(prev, key, v))
 								}
 								placeholder={placeholder}
 								flexGrow={1}
@@ -481,7 +490,7 @@ export function ProviderConfigInputContent(
 			<text fg="gray">
 				<em>
 					{fieldKeys.length > 1
-						? "Tab to switch fields, Enter to save, Esc to go back"
+						? "Tab to switch fields, Enter to continue, Esc to go back"
 						: "Enter to save, Esc to go back"}
 				</em>
 			</text>
