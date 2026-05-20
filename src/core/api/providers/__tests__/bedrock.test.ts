@@ -268,6 +268,54 @@ describe("AwsBedrockHandler", () => {
 			should.exist(bytes)
 			Array.from(bytes as Uint8Array).should.deepEqual([82, 73, 70, 70])
 		})
+
+		it("should reject malformed JSON-serialized Buffer data", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: "image/png",
+								data: { type: "Buffer", data: ["R", "I", "F", "F"] },
+							},
+						},
+					],
+				} as unknown as ClineStorageMessage,
+			]
+
+			const formattedMessages = handler["formatMessagesForConverseAPI"](messages)
+			const text = (formattedMessages[0].content?.[0] as any).text
+
+			text.should.startWith("[ERROR: Failed to process image - Unsupported image data format]")
+		})
+
+		it("should reject numeric-key image data with empty keys", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: "image/png",
+								data: { "": 82 },
+							},
+						},
+					],
+				} as unknown as ClineStorageMessage,
+			]
+
+			const formattedMessages = handler["formatMessagesForConverseAPI"](messages)
+			const text = (formattedMessages[0].content?.[0] as any).text
+
+			text.should.startWith("[ERROR: Failed to process image - Unsupported image data format]")
+		})
 	})
 
 	const mockOptions: AwsBedrockHandlerOptions = {
