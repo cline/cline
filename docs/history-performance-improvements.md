@@ -124,6 +124,8 @@ Expected impact: faster repeated History opens, filtering, and state updates.
 
 ## 7. Make `getTotalTasksSize` lazy/cached/backgrounded
 
+Status: partially implemented. History no longer requests total task/checkpoint size immediately on mount; the webview defers the recursive size scan until after the first history page has loaded, with a short delay. Explicit refreshes after deletes still request the size.
+
 Current issue:
 
 - Opening History triggers recursive size calculation for `globalStorageFsPath/tasks` and `checkpoints`.
