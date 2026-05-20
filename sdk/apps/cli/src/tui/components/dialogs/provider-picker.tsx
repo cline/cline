@@ -23,13 +23,13 @@ import {
 } from "../../../utils/codex-cli";
 import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
-import { getProviderSection } from "../../utils/provider-sections";
 import {
 	getDefaultAwsRegion,
+	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	updateProviderConfigValue,
-	type ProviderConfigValues,
 } from "../../utils/provider-config-values";
+import { getProviderSection } from "../../utils/provider-sections";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -465,9 +465,7 @@ export function ProviderConfigInputContent(
 							<input
 								value={values[key] ?? ""}
 								onInput={(v: string) =>
-									setValues((prev) =>
-										updateProviderConfigValue(prev, key, v),
-									)
+									setValues((prev) => updateProviderConfigValue(prev, key, v))
 								}
 								placeholder={placeholder}
 								flexGrow={1}

@@ -1,7 +1,7 @@
 import type {
 	GatewayModelRoute,
-	GatewayReasoningFormat,
 	GatewayProviderContext,
+	GatewayReasoningFormat,
 	GatewayStreamRequest,
 } from "@cline/shared";
 
@@ -21,7 +21,9 @@ function normalizedFamily(context: GatewayProviderContext): string {
 	return normalizeRoutingValue(resolveModelFamily(context)) ?? "";
 }
 
-function normalizedModelId(request: Pick<GatewayStreamRequest, "modelId">): string {
+function normalizedModelId(
+	request: Pick<GatewayStreamRequest, "modelId">,
+): string {
 	return normalizeRoutingValue(request.modelId) ?? "";
 }
 
@@ -38,7 +40,9 @@ function isClaudeLineageValue(value: string | undefined): boolean {
 
 function isQwenLineageValue(value: string | undefined): boolean {
 	const normalized = normalizeRoutingValue(value);
-	return normalized ? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(normalized) : false;
+	return normalized
+		? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(normalized)
+		: false;
 }
 
 export function isAnthropicCompatibleModel(options: {
