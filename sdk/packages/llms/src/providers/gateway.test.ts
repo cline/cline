@@ -2712,7 +2712,7 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("does not apply Z.AI GLM thinking controls to non-GLM native Z.AI models", async () => {
+	it("does not apply generic thinking to non-GLM native Z.AI custom models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },

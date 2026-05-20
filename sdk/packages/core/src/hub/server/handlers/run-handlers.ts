@@ -287,7 +287,6 @@ export async function handleRunAbort(
 		(request) => request.sessionId === sessionId,
 		reason,
 	);
-	ctx.publish(ctx.buildEvent("run.aborted", { reason }, sessionId));
 	return okReply(envelope, { applied: true });
 }
 

@@ -657,6 +657,27 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
 	});
 
+	it("treats dash-prefixed positional text after -- as a prompt", async () => {
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--",
+			"- You are given a PyTorch state dictionary.",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"- You are given a PyTorch state dictionary.",
+			expect.any(Object),
+			expect.anything(),
+		);
+		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
 	it("applies --auto-approve as a runtime policy without changing the config default", async () => {
 		process.argv = ["bun", "src/index.ts", "--auto-approve", "false"];
 

@@ -688,7 +688,7 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.readSessionManifest).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("marks interactive turns completed without disposing the session", async () => {
+	it("keeps interactive sessions running after a completed turn", async () => {
 		const sessionId = "sess-interactive-turn-status";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -741,20 +741,16 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
-		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
-			sessionId,
-			"completed",
-			0,
-		);
+		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
-			status: "completed",
+			status: "running",
 		});
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
 	});
 
-	it("disposes idle interactive sessions without changing completed status", async () => {
+	it("disposes idle interactive sessions without changing status", async () => {
 		const sessionId = "sess-interactive-dispose";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -2138,6 +2134,110 @@ describe("LocalRuntimeHost", () => {
 		).toEqual([]);
 	});
 
+	it("keeps the same live interactive session usable after aborting before the first response", async () => {
+		const sessionId = "sess-abort-then-next-turn";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtime = { tools: [], shutdown: vi.fn() };
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue(runtime),
+		};
+		let messages: AgentResult["messages"] = [];
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const run = vi.fn(
+			() =>
+				new Promise<AgentResult>((_resolve, reject) => {
+					activeRun = true;
+					messages = [{ role: "user", content: "slow" }];
+					rejectRun = (error) => {
+						activeRun = false;
+						reject(error);
+					};
+					markRunStarted?.();
+				}),
+		);
+		const continueTurn = vi.fn().mockResolvedValue(
+			createResult({
+				text: "continued after abort",
+			}),
+		);
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn(() => messages),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		agent.abort.mockImplementation(() => {
+			rejectRun?.(new Error("user cancelled before first response"));
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const events: unknown[] = [];
+		manager.subscribe((event) => events.push(event));
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.abort(sessionId, new Error("test abort"));
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		await expect(
+			manager.runTurn({ sessionId, prompt: "next turn after abort" }),
+		).resolves.toMatchObject({
+			finishReason: "completed",
+			text: "continued after abort",
+		});
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "running",
+		});
+		expect(run).toHaveBeenCalledTimes(1);
+		expect(continueTurn).toHaveBeenCalledTimes(1);
+		expect(agent.shutdown).not.toHaveBeenCalled();
+		expect(runtime.shutdown).not.toHaveBeenCalled();
+		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "ended",
+				payload: expect.objectContaining({ sessionId, reason: "aborted" }),
+			}),
+		);
+	});
+
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
 		const sessionId = "sess-meta-multi";
 		const manifest = createManifest(sessionId);
@@ -2822,12 +2922,7 @@ describe("LocalRuntimeHost", () => {
 			"running",
 			null,
 		);
-		expect(updateSessionStatus).toHaveBeenNthCalledWith(
-			2,
-			sessionId,
-			"completed",
-			0,
-		);
+		expect(updateSessionStatus).toHaveBeenCalledTimes(1);
 		const persistedMetadata = updateSession.mock.calls[0]?.[0]
 			.metadata as Record<string, unknown>;
 		expect(persistedMetadata.title).toBe("saved title");
