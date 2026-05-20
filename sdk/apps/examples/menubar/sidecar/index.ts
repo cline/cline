@@ -152,7 +152,9 @@ function asString(value: unknown): string | undefined {
 }
 
 function asNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
 }
 
 function basename(value: string | undefined): string {
@@ -271,7 +273,9 @@ function summarizeClient(client: TrackedClient): {
 	};
 }
 
-function sessionTitle(session: SessionRecord | Record<string, unknown>): string {
+function sessionTitle(
+	session: SessionRecord | Record<string, unknown>,
+): string {
 	const raw = session as Record<string, unknown>;
 	const metadata = metadataFor(session);
 	const title = asString(metadata.title);
@@ -827,7 +831,9 @@ async function main(): Promise<void> {
 				const previousStatus = existing.status;
 				existing.status = status;
 				existing.updatedAt =
-					asNumber(session.updatedAt) ?? asNumber(session.endedAt) ?? Date.now();
+					asNumber(session.updatedAt) ??
+					asNumber(session.endedAt) ??
+					Date.now();
 				existing.title = sessionTitle(session);
 				existing.workspaceRoot =
 					typeof session.workspaceRoot === "string"
@@ -852,7 +858,11 @@ async function main(): Promise<void> {
 						events,
 						`Session ${status}`,
 						`${existing.title ?? shortSessionId(sessionId)} changed from ${previousStatus}`,
-						status === "running" ? "success" : status === "idle" ? "info" : "warn",
+						status === "running"
+							? "success"
+							: status === "idle"
+								? "info"
+								: "warn",
 					);
 				}
 			} else {
@@ -873,7 +883,7 @@ async function main(): Promise<void> {
 					? session.sessionId
 					: typeof payload.sessionId === "string"
 						? payload.sessionId
-				: undefined;
+						: undefined;
 			if (!sessionId) return;
 			const participantCount = Array.isArray(session?.participants)
 				? session.participants.length

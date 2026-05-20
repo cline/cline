@@ -218,23 +218,20 @@ export function SessionProvider(props: {
 		setLastTotalCost(0);
 	}, []);
 
-	const addUsageDelta = useCallback(
-		(usage: UsageDelta) => {
-			const nextTotalTokens = nextUsageTokenDisplay(0, usage);
-			if (nextTotalTokens > 0) {
-				setLastTotalTokens((prev) => nextUsageTokenDisplay(prev, usage));
-			}
-			const costDelta = usage.cost;
-			if (
-				typeof costDelta === "number" &&
-				Number.isFinite(costDelta) &&
-				costDelta > 0
-			) {
-				setLastTotalCost((prev) => prev + costDelta);
-			}
-		},
-		[],
-	);
+	const addUsageDelta = useCallback((usage: UsageDelta) => {
+		const nextTotalTokens = nextUsageTokenDisplay(0, usage);
+		if (nextTotalTokens > 0) {
+			setLastTotalTokens((prev) => nextUsageTokenDisplay(prev, usage));
+		}
+		const costDelta = usage.cost;
+		if (
+			typeof costDelta === "number" &&
+			Number.isFinite(costDelta) &&
+			costDelta > 0
+		) {
+			setLastTotalCost((prev) => prev + costDelta);
+		}
+	}, []);
 
 	const replaceEntries = useCallback((nextEntries: ChatEntry[]) => {
 		setEntries(
