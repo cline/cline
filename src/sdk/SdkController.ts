@@ -97,19 +97,18 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-function sdkHistoryRecordToTaskResponse(item: SessionHistoryRecord): TaskResponse {
-	const metadata = item.metadata
+function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 	return TaskResponse.create({
-		id: item.sessionId,
-		task: metadataString(metadata, "title") ?? item.prompt ?? "",
-		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
-		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
-		size: metadataNumber(metadata, "size") ?? 0,
-		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
-		tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
-		tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
-		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
-		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
+		id: item.id,
+		task: item.task,
+		ts: item.ts,
+		isFavorited: item.isFavorited ?? false,
+		size: item.size ?? 0,
+		totalCost: item.totalCost ?? 0,
+		tokensIn: item.tokensIn ?? 0,
+		tokensOut: item.tokensOut ?? 0,
+		cacheWrites: item.cacheWrites ?? 0,
+		cacheReads: item.cacheReads ?? 0,
 	})
 }
 
@@ -788,13 +787,23 @@ export class Controller {
 	 * 3. Only then push state to the webview
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = (await this.taskHistory.listHistory()).find((item) => item.sessionId === taskId)
+		const startedAt = Date.now()
+		const lookupStartedAt = Date.now()
+		const historyItem = await this.taskHistory.findHistoryItem(taskId)
+		const lookupElapsed = Date.now() - lookupStartedAt
 		if (!historyItem) {
+			Logger.log(
+				`[HistoryPerf] SdkController.showTaskWithId taskId=${taskId} found=false targetedLookup=${lookupElapsed}ms total=${Date.now() - startedAt}ms`,
+			)
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
 
+		const controlStartedAt = Date.now()
 		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
-		return sdkHistoryRecordToTaskResponse(historyItem)
+		Logger.log(
+			`[HistoryPerf] SdkController.showTaskWithId taskId=${taskId} targetedLookup=${lookupElapsed}ms control=${Date.now() - controlStartedAt}ms total=${Date.now() - startedAt}ms`,
+		)
+		return historyItemToTaskResponse(historyItem)
 	}
 
 	// ---- Mode switching (Step 8) ----
@@ -921,11 +930,17 @@ export class Controller {
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
+		const startedAt = Date.now()
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
+		const workspaceStartedAt = Date.now()
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		const workspaceElapsed = Date.now() - workspaceStartedAt
+		const listStartedAt = Date.now()
 		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false, limit: limit + 1, offset })
+		const listElapsed = Date.now() - listStartedAt
+		const transformStartedAt = Date.now()
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -988,6 +1003,7 @@ export class Controller {
 		})
 
 		const hasMore = sessionHistory.length > limit
+		const mapStartedAt = Date.now()
 		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
@@ -1005,6 +1021,9 @@ export class Controller {
 			}
 		})
 
+		Logger.log(
+			`[HistoryPerf] SdkController.getTaskHistory offset=${offset} limit=${limit} raw=${sessionHistory.length} filtered=${filteredTasks.length} tasks=${tasks.length} hasMore=${hasMore} workspace=${workspaceElapsed}ms list=${listElapsed}ms filterSortMap=${Date.now() - transformStartedAt}ms map=${Date.now() - mapStartedAt}ms total=${Date.now() - startedAt}ms`,
+		)
 		return TaskHistoryArray.create({ tasks, hasMore })
 	}
 
@@ -1116,10 +1135,17 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
+		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
+		const stateStartedAt = Date.now()
 		const state = await this.getStateToPostToWebview()
+		const stateElapsed = Date.now() - stateStartedAt
+		const sendStartedAt = Date.now()
 		await sendStateUpdate(state)
+		Logger.log(
+			`[HistoryPerf] SdkController.postStateToWebview state=${stateElapsed}ms send=${Date.now() - sendStartedAt}ms total=${Date.now() - startedAt}ms`,
+		)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {

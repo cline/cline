@@ -70,6 +70,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
+		const startedAt = Date.now()
 		// Build tool executor capabilities from options — only include keys that are provided.
 		// When a terminal manager is available, suppress the SDK's built-in run_commands
 		// tool by setting bash to undefined. Our custom run_commands (provided via
@@ -117,6 +118,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			}),
 		})
 
+		Logger.log(`[HistoryPerf] VscodeSessionHost.create took ${Date.now() - startedAt}ms`)
 		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
