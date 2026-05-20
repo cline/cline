@@ -3224,7 +3224,7 @@ export class Task {
 						say: this.say.bind(this),
 						messageStateHandler: this.messageStateHandler,
 						taskId: this.taskId,
-						hooksEnabled: true,
+						hooksEnabled: getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled")),
 						model: getHookModelContext(this.api, this.stateManager),
 					})
 				}
