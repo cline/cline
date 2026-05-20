@@ -115,7 +115,7 @@ interface ContentItem {
 	type: SupportedContentType
 	text?: string
 	source?: {
-		data: string | Buffer | Uint8Array
+		data: unknown
 		media_type?: string
 	}
 }
@@ -1082,16 +1082,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Get image data with improved error handling
 		try {
-			if (typeof item.source.data === "string") {
-				// Handle base64 encoded data
-				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
-				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
-			} else {
-				throw new Error("Unsupported image data format")
-			}
+			imageData = this.normalizeImageData(item.source.data)
 
 			return {
 				image: {
@@ -1109,6 +1100,53 @@ export class AwsBedrockHandler implements ApiHandler {
 				text: `[ERROR: Failed to process image - ${error instanceof Error ? error.message : "Unknown error"}]`,
 			}
 		}
+	}
+
+	private normalizeImageData(data: unknown): Uint8Array {
+		if (typeof data === "string") {
+			const base64Data = data.replace(/^data:image\/\w+;base64,/, "")
+			return new Uint8Array(Buffer.from(base64Data, "base64"))
+		}
+
+		if (data instanceof Uint8Array) {
+			return new Uint8Array(data)
+		}
+
+		if (data instanceof ArrayBuffer) {
+			return new Uint8Array(data)
+		}
+
+		if (Array.isArray(data) && data.every((value) => Number.isInteger(value))) {
+			return Uint8Array.from(data)
+		}
+
+		if (data && typeof data === "object") {
+			const maybeBufferJson = data as { type?: unknown; data?: unknown }
+			if (
+				maybeBufferJson.type === "Buffer" &&
+				Array.isArray(maybeBufferJson.data) &&
+				maybeBufferJson.data.every((value) => typeof value === "number" && Number.isInteger(value))
+			) {
+				return Uint8Array.from(maybeBufferJson.data as number[])
+			}
+
+			const entries = Object.entries(data)
+				.filter(([key]) => key.length > 0)
+				.map(([key, value]) => [Number(key), value] as const)
+				.sort(([left], [right]) => left - right)
+
+			if (
+				entries.length > 0 &&
+				entries.every(
+					([key, value], index) =>
+						Number.isInteger(key) && key === index && typeof value === "number" && Number.isInteger(value),
+				)
+			) {
+				return Uint8Array.from(entries.map(([, value]) => value as number))
+			}
+		}
+
+		throw new Error("Unsupported image data format")
 	}
 
 	/**

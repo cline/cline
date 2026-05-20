@@ -218,6 +218,58 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
+	describe("formatMessagesForConverseAPI", () => {
+		it("should restore image bytes from JSON-serialized Uint8Array data", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: "image/png",
+								data: { "0": 82, "1": 73, "2": 70, "3": 70 },
+							},
+						},
+					],
+				} as unknown as ClineStorageMessage,
+			]
+
+			const formattedMessages = handler["formatMessagesForConverseAPI"](messages)
+			const bytes = (formattedMessages[0].content?.[0] as any).image?.source.bytes
+
+			should.exist(bytes)
+			Array.from(bytes as Uint8Array).should.deepEqual([82, 73, 70, 70])
+		})
+
+		it("should restore image bytes from JSON-serialized Buffer data", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: "image/png",
+								data: { type: "Buffer", data: [82, 73, 70, 70] },
+							},
+						},
+					],
+				} as unknown as ClineStorageMessage,
+			]
+
+			const formattedMessages = handler["formatMessagesForConverseAPI"](messages)
+			const bytes = (formattedMessages[0].content?.[0] as any).image?.source.bytes
+
+			should.exist(bytes)
+			Array.from(bytes as Uint8Array).should.deepEqual([82, 73, 70, 70])
+		})
+	})
+
 	const mockOptions: AwsBedrockHandlerOptions = {
 		apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
 		awsRegion: "us-east-1",
