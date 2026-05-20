@@ -1,9 +1,9 @@
 import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GroupedVirtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
@@ -35,6 +35,8 @@ const HISTORY_FILTERS = {
 	favoritesOnly: "Favorites Only",
 }
 
+const HISTORY_PAGE_SIZE = 50
+
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
 	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
@@ -50,33 +52,76 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 
 	// Load filtered task history with gRPC
-	const [tasks, setTasks] = useState<any[]>([])
+	const [tasks, setTasks] = useState<TaskItem[]>([])
+	const [hasMoreTasks, setHasMoreTasks] = useState(false)
+	const [nextHistoryOffset, setNextHistoryOffset] = useState(0)
+	const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+	const isLoadingHistoryRef = useRef(false)
+	const historyRequestIdRef = useRef(0)
 
 	// Load and refresh task history
-	const loadTaskHistory = useCallback(async () => {
-		try {
-			const response = await TaskServiceClient.getTaskHistory(
-				GetTaskHistoryRequest.create({
-					favoritesOnly: showFavoritesOnly,
-					searchQuery: searchQuery || undefined,
-					sortBy: sortOption,
-					currentWorkspaceOnly: showCurrentWorkspaceOnly,
-				}),
-			)
-			setTasks(response.tasks || [])
-		} catch (error) {
-			console.error("Error loading task history:", error)
+	const loadTaskHistory = useCallback(
+		async (offset = 0) => {
+			if (offset > 0 && isLoadingHistoryRef.current) {
+				return
+			}
+
+			const requestId = ++historyRequestIdRef.current
+			isLoadingHistoryRef.current = true
+			setIsLoadingHistory(true)
+			try {
+				const response = await TaskServiceClient.getTaskHistory(
+					GetTaskHistoryRequest.create({
+						favoritesOnly: showFavoritesOnly,
+						searchQuery: searchQuery || undefined,
+						sortBy: sortOption,
+						currentWorkspaceOnly: showCurrentWorkspaceOnly,
+						limit: HISTORY_PAGE_SIZE,
+						offset,
+					}),
+				)
+				if (requestId !== historyRequestIdRef.current) {
+					return
+				}
+				const pageTasks = response.tasks || []
+				setTasks((currentTasks) => {
+					if (offset === 0) {
+						return pageTasks
+					}
+
+					const mergedTasks = new Map(currentTasks.map((task) => [task.id, task]))
+					for (const task of pageTasks) {
+						mergedTasks.set(task.id, task)
+					}
+					return Array.from(mergedTasks.values())
+				})
+				setHasMoreTasks(response.hasMore)
+				setNextHistoryOffset(offset + HISTORY_PAGE_SIZE)
+			} catch (error) {
+				console.error("Error loading task history:", error)
+			} finally {
+				if (requestId === historyRequestIdRef.current) {
+					isLoadingHistoryRef.current = false
+					setIsLoadingHistory(false)
+				}
+			}
+		},
+		[showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption],
+	)
+
+	const loadMoreTaskHistory = useCallback(() => {
+		if (!hasMoreTasks || isLoadingHistory) {
+			return
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+		loadTaskHistory(nextHistoryOffset)
+	}, [hasMoreTasks, isLoadingHistory, loadTaskHistory, nextHistoryOffset])
 
 	// Load when filters change
 	useEffect(() => {
-		// Force a complete refresh when both filters are active
-		// to ensure proper combined filtering
-		if (showFavoritesOnly && showCurrentWorkspaceOnly) {
-			setTasks([])
-		}
-		loadTaskHistory()
+		setTasks([])
+		setHasMoreTasks(false)
+		setNextHistoryOffset(0)
+		loadTaskHistory(0)
 	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
 
 	const toggleFavorite = useCallback(
@@ -94,7 +139,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 				// Refresh if either filter is active to ensure proper combined filtering
 				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
-					loadTaskHistory()
+					loadTaskHistory(0)
 				}
 			} catch (err) {
 				console.error(`[FAVORITE_TOGGLE_UI] Error for task ${taskId}:`, err)
@@ -115,7 +160,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}, 1000)
 			}
 		},
-		[showFavoritesOnly, loadTaskHistory],
+		[showFavoritesOnly, showCurrentWorkspaceOnly, loadTaskHistory],
 	)
 
 	// Use the onRelinquishControl hook instead of message event
@@ -157,9 +202,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setSelectedItems((prev) => {
 			if (checked) {
 				return [...prev, itemId]
-			} else {
-				return prev.filter((id) => id !== itemId)
 			}
+			return prev.filter((id) => id !== itemId)
 		})
 	}, [])
 
@@ -275,8 +319,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			return 0
 		}
 
-		return taskHistory.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
-	}, [selectedItems, taskHistory])
+		return tasks.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
+	}, [selectedItems, tasks])
 
 	const handleBatchHistorySelect = useCallback(
 		(selectAll: boolean) => {
@@ -394,6 +438,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			<div className="flex-grow overflow-y-auto m-0 w-full py-2">
 				<GroupedVirtuoso
 					className="flex-grow overflow-y-scroll"
+					components={{
+						Footer: () =>
+							hasMoreTasks ? (
+								<div className="px-4 py-3 text-center text-xs text-description">
+									{isLoadingHistory ? "Loading..." : ""}
+								</div>
+							) : null,
+					}}
+					endReached={loadMoreTaskHistory}
 					groupContent={(index) => (
 						<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
 							{groupLabels[index]}
@@ -442,7 +495,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<Button
 						aria-label="Delete all history"
 						className="w-full"
-						disabled={deleteAllDisabled || taskHistory.length === 0}
+						disabled={deleteAllDisabled || (taskHistory.length === 0 && tasks.length === 0)}
 						onClick={() => {
 							setDeleteAllDisabled(true)
 							TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({}))
@@ -460,7 +513,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number
