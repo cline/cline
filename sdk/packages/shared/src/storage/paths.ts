@@ -13,14 +13,15 @@ import type { PluginManifest } from "..";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
-const LEGACY_AGENT_SKILLS_DIRECTORY_NAME = ".agents";
-export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
+const LEGACY_AGENT_SKILLS_CONFIG_DIR = ".agents";
 
+export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
 export const SKILLS_CONFIG_DIRECTORY_NAME = "skills";
 export const RULES_CONFIG_DIRECTORY_NAME = "rules";
 export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
+
 export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
 
 function resolveDefaultHomeDir(): string {
@@ -301,7 +302,7 @@ function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 	return [
 		DEPRECATED_CONFIG_DIR,
 		CLINE_CONFIG_DIR,
-		LEGACY_AGENT_SKILLS_DIRECTORY_NAME,
+		LEGACY_AGENT_SKILLS_CONFIG_DIR,
 	].map((dir) => join(workspacePath, dir, SKILLS_CONFIG_DIRECTORY_NAME));
 }
 
@@ -344,7 +345,7 @@ export function resolveSkillsConfigSearchPaths(
 		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
 		join(
 			HOME_DIR,
-			LEGACY_AGENT_SKILLS_DIRECTORY_NAME,
+			LEGACY_AGENT_SKILLS_CONFIG_DIR,
 			SKILLS_CONFIG_DIRECTORY_NAME,
 		),
 	]);
