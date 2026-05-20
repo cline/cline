@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.9
+
+- Speed up CLI startup with plugins by loading sandboxed plugins concurrently and caching plugin tool descriptors per plugin, provider, and model.
+- Speed up plugin and tool config toggles by updating the TUI optimistically and persisting changes without reloading the full config or reimporting plugins.
+- Restore fuzzy ranking for the @-mention file picker so the most relevant files appear first.
+- Keep the interactive CLI session alive after cancelling a task instead of tearing the session down.
+- Accept dash-prefixed prompts when passed after `--`, so prompts starting with `-` are no longer parsed as flags.
+- Recover from hub abort cleanup failures so a cancel that hits an error no longer crashes the runtime host.
+- Route GLM thinking through provider metadata so thinking-enabled GLM models behave correctly through the gateway.
+
 ## 3.0.8
 
 - Use Telegram numeric participant ids so renamed users stay linked to the same participant in the Telegram connector.
