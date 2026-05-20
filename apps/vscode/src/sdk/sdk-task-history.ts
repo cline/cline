@@ -35,6 +35,10 @@ export interface SdkTaskHistoryOptions {
 	sessions: SdkSessionLifecycle
 }
 
+type SdkTaskHistoryListOptions = ClineCoreListHistoryOptions & {
+	offset?: number
+}
+
 function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
 	const value = metadata?.[key]
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
@@ -215,9 +219,15 @@ export class SdkTaskHistory {
 		}
 	}
 
-	async listHistory(options: ClineCoreListHistoryOptions = {}): Promise<SessionHistoryRecord[]> {
+	async listHistory(options: SdkTaskHistoryListOptions = {}): Promise<SessionHistoryRecord[]> {
+		const offset = Math.max(0, Math.floor(options.offset ?? 0))
+		const limit = Math.max(0, Math.floor(options.limit ?? 10_000))
+		const hostLimit = offset + limit
+		const hostOptions: ClineCoreListHistoryOptions = { ...options }
+		delete (hostOptions as { offset?: number }).offset
+
 		const sdkHistory = await this.withHistoryHost((host) =>
-			host.listHistory({ limit: 10_000, includeManifestFallback: true, ...options }),
+			host.listHistory({ ...hostOptions, limit: hostLimit || 10_000, includeManifestFallback: true }),
 		)
 		const visibleSdkHistory = sdkHistory.filter((item) => item.isSubagent !== true)
 		const sdkIds = new Set(visibleSdkHistory.map((item) => item.sessionId))
@@ -231,7 +241,7 @@ export class SdkTaskHistory {
 					dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
 					dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt),
 			)
-			.slice(0, options.limit ?? 10_000)
+			.slice(offset, offset + limit)
 	}
 
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
