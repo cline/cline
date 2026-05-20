@@ -2,14 +2,11 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { isAnthropicCompatibleModel, resolveModelFamily } from "../model-facts";
 import {
 	buildAnthropicProviderOptions,
 	resolveAnthropicReasoningRequestPolicy,
 } from "./anthropic-compatible";
-import {
-	isAnthropicCompatibleModel,
-	resolveModelFamily,
-} from "../model-facts";
 import { buildCompatibleProviderOptions } from "./generic-compatible";
 import {
 	buildProviderOptionRulePatches,

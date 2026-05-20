@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+	createServer,
+	type IncomingMessage,
+	type ServerResponse,
+} from "node:http";
 import { Agent, createTool } from "@cline/sdk";
 import { z } from "zod";
 
@@ -1438,9 +1442,12 @@ async function loadPullRequest(prUrl: string): Promise<PullRequestBundle> {
 		githubPaged<GitHubPullFile>(
 			`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/files`,
 		),
-		githubText(`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.number}`, {
-			headers: { Accept: "application/vnd.github.v3.diff" },
-		}),
+		githubText(
+			`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.number}`,
+			{
+				headers: { Accept: "application/vnd.github.v3.diff" },
+			},
+		),
 		loadChecks(ref, pr.head.sha),
 	]);
 
@@ -1464,7 +1471,8 @@ async function loadChecks(ref: PullRequestRef, sha: string) {
 			(run) => run.status !== "completed",
 		);
 		if (failedChecks.length > 0 || status.state === "failure") return "failing";
-		if (pendingChecks.length > 0 || status.state === "pending") return "pending";
+		if (pendingChecks.length > 0 || status.state === "pending")
+			return "pending";
 		if (checks.total_count > 0 || status.total_count > 0) return "passing";
 		return "unknown";
 	} catch {
@@ -1566,7 +1574,8 @@ async function githubText(url: string, init: RequestInit = {}) {
 
 async function githubFetch(url: string, init: RequestInit = {}) {
 	const headers = new Headers(init.headers);
-	if (!headers.has("Accept")) headers.set("Accept", "application/vnd.github+json");
+	if (!headers.has("Accept"))
+		headers.set("Accept", "application/vnd.github+json");
 	headers.set("User-Agent", "cline-sdk-code-review-bot-example");
 	headers.set("X-GitHub-Api-Version", "2022-11-28");
 	if (GITHUB_TOKEN) headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
@@ -1614,7 +1623,12 @@ function formatReviewComment(
 	const lines = ["## AI Review Bot", ""];
 	if (summary) {
 		lines.push(summary.summary, "");
-		lines.push(summary.approve ? "**Status:** Looks safe to merge." : "**Status:** Changes requested.", "");
+		lines.push(
+			summary.approve
+				? "**Status:** Looks safe to merge."
+				: "**Status:** Changes requested.",
+			"",
+		);
 	}
 
 	if (findings.length === 0) {

@@ -243,10 +243,7 @@ describe("anthropic-compatible routing helpers", () => {
 
 	it("matches GLM when either family or model id contains glm", () => {
 		expect(
-			isGlmModel(
-				{ modelId: "provider/glm-4.6" },
-				makeContext("other-family"),
-			),
+			isGlmModel({ modelId: "provider/glm-4.6" }, makeContext("other-family")),
 		).toBe(true);
 		expect(
 			isGlmModel({ modelId: "provider/other-model" }, makeContext("zai-glm")),
