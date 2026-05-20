@@ -62,6 +62,8 @@ Expected impact: faster task opening, especially with 1000+ old sessions.
 
 ## 3. Reuse a history/session host instead of creating temporary hosts repeatedly
 
+Status: implemented cached history host reuse. When there is no active session host, `SdkTaskHistory` now creates one shared history host, reuses it across history operations, disposes it after an idle timeout, and disposes it during controller shutdown.
+
 Current issue:
 
 - `SdkTaskHistory.withHistoryHost()` creates a temporary `VscodeSessionHost` when there is no active session.
