@@ -68,7 +68,10 @@ export interface ActiveScheduledExecution {
 
 export interface HubScheduleServiceOptions {
 	runtimeHandlers: HubScheduleRuntimeHandlers;
-	eventPublisher?: (eventType: string, payload: unknown) => void;
+	eventPublisher?: (
+		eventType: string,
+		payload: Record<string, unknown>,
+	) => void;
 	logger?: BasicLogger;
 	dbPath?: string;
 	pollIntervalMs?: number;

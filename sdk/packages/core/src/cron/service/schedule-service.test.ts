@@ -58,10 +58,7 @@ describe("HubScheduleService", () => {
 				stopSession: vi.fn(async () => ({ applied: true })),
 			},
 			eventPublisher: (eventType, payload) => {
-				publishedEvents.push({
-					eventType,
-					payload: payload as Record<string, unknown>,
-				});
+				publishedEvents.push({ eventType, payload });
 			},
 		});
 		try {
@@ -127,10 +124,7 @@ describe("HubScheduleService", () => {
 				stopSession: vi.fn(async () => ({ applied: true })),
 			},
 			eventPublisher: (eventType, payload) => {
-				publishedEvents.push({
-					eventType,
-					payload: payload as Record<string, unknown>,
-				});
+				publishedEvents.push({ eventType, payload });
 			},
 		});
 		try {
