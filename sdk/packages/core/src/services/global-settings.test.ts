@@ -240,6 +240,32 @@ describe("global-settings", () => {
 			}
 		});
 
+		it("returns a frozen value so callers cannot mutate the cache", async () => {
+			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const settingsPath = join(root, "global-settings.json");
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+				writeGlobalSettings({
+					disabledTools: ["editor"],
+					disabledPlugins: ["/plugins/example.js"],
+				});
+
+				const settings = readGlobalSettings();
+
+				expect(Object.isFrozen(settings)).toBe(true);
+				expect(Object.isFrozen(settings.disabledTools)).toBe(true);
+				expect(Object.isFrozen(settings.disabledPlugins)).toBe(true);
+				expect(() => {
+					(settings as { telemetryOptOut: boolean }).telemetryOptOut = true;
+				}).toThrow();
+				expect(() => {
+					settings.disabledTools?.push("malicious");
+				}).toThrow();
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+
 		it("transitions from missing-file default to fresh value once the file is created", async () => {
 			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 			try {

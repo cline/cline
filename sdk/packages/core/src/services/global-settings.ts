@@ -76,6 +76,16 @@ function invalidateSettingsCache(): void {
 	settingsCache = undefined;
 }
 
+function freezeSettings(value: GlobalSettings): GlobalSettings {
+	if (value.disabledTools) {
+		Object.freeze(value.disabledTools);
+	}
+	if (value.disabledPlugins) {
+		Object.freeze(value.disabledPlugins);
+	}
+	return Object.freeze(value);
+}
+
 function loadSettingsFromDisk(filePath: string): GlobalSettings {
 	let raw: string;
 	try {
@@ -107,9 +117,9 @@ function getCachedSettings(): CachedSettings {
 		return cached;
 	}
 
-	const value = stats
-		? loadSettingsFromDisk(filePath)
-		: defaultGlobalSettings();
+	const value = freezeSettings(
+		stats ? loadSettingsFromDisk(filePath) : defaultGlobalSettings(),
+	);
 	settingsCache = { path: filePath, mtimeMs, size, value };
 	return settingsCache;
 }
