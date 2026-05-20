@@ -1329,6 +1329,27 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("serializes error abort reasons for hub abort commands", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { applied: true } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.abort(
+			"sess-1",
+			new Error("Interactive runtime abort requested"),
+		);
+
+		expect(commandMock).toHaveBeenCalledWith(
+			"run.abort",
+			{
+				sessionId: "sess-1",
+				reason: "Interactive runtime abort requested",
+			},
+			"sess-1",
+		);
+	});
+
 	it("reads messages through the hub instead of dereferencing client-local artifact paths", async () => {
 		const messages = [
 			{
