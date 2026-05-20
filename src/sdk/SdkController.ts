@@ -9,7 +9,7 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import type { PreparedRemoteConfigCoreIntegration, SessionHistoryRecord } from "@cline/core"
-import type { RemoteConfig, RemoteConfigBundle } from "@cline/shared"
+import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -100,7 +100,7 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 	return TaskResponse.create({
 		id: item.id,
-		task: item.task,
+		task: formatDisplayUserInput(item.task),
 		ts: item.ts,
 		isFavorited: item.isFavorited ?? false,
 		size: item.size ?? 0,
@@ -1009,7 +1009,7 @@ export class Controller {
 			const metadata = item.metadata
 			return {
 				id: item.sessionId,
-				task: metadataString(metadata, "title") ?? item.prompt ?? "",
+				task: formatDisplayUserInput(metadataString(metadata, "title") ?? item.prompt ?? ""),
 				ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
 				isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 				size: metadataNumber(metadata, "size") ?? 0,
