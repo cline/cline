@@ -70,6 +70,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			isLoadingHistoryRef.current = true
 			setIsLoadingHistory(true)
 			try {
+				const startedAt = performance.now()
 				const response = await TaskServiceClient.getTaskHistory(
 					GetTaskHistoryRequest.create({
 						favoritesOnly: showFavoritesOnly,
@@ -79,6 +80,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						limit: HISTORY_PAGE_SIZE,
 						offset,
 					}),
+				)
+				console.log(
+					`[HistoryPerf] getTaskHistory offset=${offset} tasks=${response.tasks?.length ?? 0} hasMore=${response.hasMore} took ${Math.round(performance.now() - startedAt)}ms`,
 				)
 				if (requestId !== historyRequestIdRef.current) {
 					return
@@ -174,7 +178,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const fetchTotalTasksSize = useCallback(async () => {
 		try {
+			const startedAt = performance.now()
 			const response = await TaskServiceClient.getTotalTasksSize(EmptyRequest.create({}))
+			console.log(`[HistoryPerf] getTotalTasksSize took ${Math.round(performance.now() - startedAt)}ms`)
 			if (response && typeof response.value === "number") {
 				setTotalTasksSize?.(response.value || 0)
 			}
