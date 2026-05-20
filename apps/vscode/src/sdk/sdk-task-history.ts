@@ -196,8 +196,10 @@ export class SdkTaskHistory {
 	private cachedHistoryHostPromise?: Promise<VscodeSessionHost>
 	private cachedHistoryHostRefCount = 0
 	private cachedHistoryHostIdleTimer?: NodeJS.Timeout
+	private metadataHistoryCache?: { records: SessionHistoryRecord[]; hostLimit: number; createdAt: number }
 	private disposed = false
 	private readonly cachedHistoryHostIdleMs = 30_000
+	private readonly metadataHistoryCacheTtlMs = 10_000
 
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
 
@@ -281,10 +283,19 @@ export class SdkTaskHistory {
 
 	async dispose(): Promise<void> {
 		this.disposed = true
+		this.invalidateMetadataHistoryCache()
 		if (this.cachedHistoryHostPromise) {
 			await this.cachedHistoryHostPromise.catch(() => undefined)
 		}
 		await this.disposeCachedHistoryHost("controllerDispose")
+	}
+
+	private invalidateMetadataHistoryCache(): void {
+		this.metadataHistoryCache = undefined
+	}
+
+	private canUseMetadataHistoryCache(options: SdkTaskHistoryListOptions): boolean {
+		return options.hydrate === false
 	}
 
 	private async withHistoryHost<T>(fn: (host: VscodeSessionHost) => Promise<T>): Promise<T> {
@@ -308,6 +319,17 @@ export class SdkTaskHistory {
 		const offset = Math.max(0, Math.floor(options.offset ?? 0))
 		const limit = Math.max(0, Math.floor(options.limit ?? 10_000))
 		const hostLimit = offset + limit
+		const useCache = this.canUseMetadataHistoryCache(options)
+		const now = Date.now()
+		const cached = useCache ? this.metadataHistoryCache : undefined
+		if (cached && cached.hostLimit >= hostLimit && now - cached.createdAt < this.metadataHistoryCacheTtlMs) {
+			const result = cached.records.slice(offset, offset + limit)
+			Logger.log(
+				`[HistoryPerf] SdkTaskHistory.listHistory cacheHit=true offset=${offset} limit=${limit} cachedHostLimit=${cached.hostLimit} result=${result.length} total=${Date.now() - startedAt}ms`,
+			)
+			return result
+		}
+
 		const hostOptions: ClineCoreListHistoryOptions = { ...options }
 		delete (hostOptions as { offset?: number }).offset
 
@@ -323,15 +345,18 @@ export class SdkTaskHistory {
 			.filter((item) => item.id && item.task && !sdkIds.has(item.id))
 			.map(historyItemToSessionHistoryRecord)
 
-		const result = [...visibleSdkHistory, ...legacyHistory]
-			.sort(
-				(a, b) =>
-					dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
-					dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt),
-			)
-			.slice(offset, offset + limit)
+		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(
+			(a, b) =>
+				dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
+				dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt),
+		)
+		if (useCache) {
+			this.metadataHistoryCache = { records: mergedHistory, hostLimit, createdAt: Date.now() }
+		}
+
+		const result = mergedHistory.slice(offset, offset + limit)
 		Logger.log(
-			`[HistoryPerf] SdkTaskHistory.listHistory offset=${offset} limit=${limit} hydrate=${options.hydrate !== false} sdk=${sdkHistory.length} visibleSdk=${visibleSdkHistory.length} legacy=${legacyHistory.length} result=${result.length} host=${hostElapsed}ms mergeSort=${Date.now() - mergeStartedAt}ms total=${Date.now() - startedAt}ms`,
+			`[HistoryPerf] SdkTaskHistory.listHistory cacheHit=false offset=${offset} limit=${limit} hydrate=${options.hydrate !== false} sdk=${sdkHistory.length} visibleSdk=${visibleSdkHistory.length} legacy=${legacyHistory.length} result=${result.length} host=${hostElapsed}ms mergeSort=${Date.now() - mergeStartedAt}ms total=${Date.now() - startedAt}ms`,
 		)
 		return result
 	}
@@ -419,6 +444,7 @@ export class SdkTaskHistory {
 				},
 			})
 
+			this.invalidateMetadataHistoryCache()
 			Logger.log(`[SdkTaskHistory] Migrated legacy task to SDK session: ${taskId}`)
 			Logger.log(
 				`[HistoryPerf] SdkTaskHistory.migrateLegacyTaskIfNeeded taskId=${taskId} legacyMessages=${legacyApiHistory.length} initialMessages=${initialMessages.length} translate=${translateElapsed}ms start=${Date.now() - startStartedAt}ms total=${Date.now() - startedAt}ms`,
@@ -446,12 +472,14 @@ export class SdkTaskHistory {
 			}
 			await host.update(sessionId, { prompt: item.task, metadata, title: item.task })
 		})
+		this.invalidateMetadataHistoryCache()
 	}
 
 	private async deleteSession(sessionId: string): Promise<void> {
 		await this.withHistoryHost(async (host) => {
 			await host.delete(sessionId)
 		})
+		this.invalidateMetadataHistoryCache()
 	}
 
 	async findHistoryItem(taskId: string): Promise<HistoryItem | undefined> {
