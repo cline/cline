@@ -1,6 +1,7 @@
 import {
 	createCoreSettingsService,
 	setDisabledPlugin,
+	setDisabledTools,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import {
@@ -57,7 +58,7 @@ export function createInteractiveConfigDataLoader(input: {
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
 			setDisabledPlugin(item.path, item.enabled);
-			return await loadConfigData(options);
+			return undefined;
 		}
 
 		if (item.kind === "mcp" && typeof item.enabled === "boolean") {
@@ -87,18 +88,22 @@ export function createInteractiveConfigDataLoader(input: {
 				? item.toolNames
 				: [item.name];
 		const toolNames = [...new Set(rawToolNames.filter(Boolean))];
+		if (typeof item.enabled === "boolean") {
+			setDisabledTools(toolNames, item.enabled);
+			return undefined;
+		}
+
 		for (const name of toolNames) {
 			await settings.toggle({
 				type: "tools",
 				name,
-				enabled: typeof item.enabled === "boolean" ? !item.enabled : undefined,
 				cwd: input.config.cwd,
 				workspaceRoot: workspaceRoot(),
 				userInstructionService: input.userInstructionService,
 				availabilityContext: availabilityContext(),
 			});
 		}
-		return await loadConfigData(options);
+		return undefined;
 	};
 
 	return {
