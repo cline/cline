@@ -1,6 +1,6 @@
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import type { ContentBlock, MessageWithMetadata } from "@cline/shared"
+import { type ContentBlock, formatDisplayUserInput, type MessageWithMetadata } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpHub } from "@/services/mcp/McpHub"
@@ -64,6 +64,7 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 
 function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRecord {
 	const startedAt = new Date(item.ts || Date.now()).toISOString()
+	const displayTask = formatDisplayUserInput(item.task)
 	return {
 		sessionId: item.id,
 		source: "vscode",
@@ -81,9 +82,9 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 		enableSpawn: false,
 		enableTeams: false,
 		isSubagent: false,
-		prompt: item.task,
+		prompt: displayTask,
 		metadata: {
-			title: item.task,
+			title: displayTask,
 			isFavorited: item.isFavorited ?? false,
 			size: item.size ?? 0,
 			totalCost: item.totalCost ?? 0,
@@ -132,6 +133,28 @@ function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefin
 	}
 }
 
+function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkMessage[] {
+	return messages.map((message) => {
+		if (message.role !== "user") {
+			return message
+		}
+		if (typeof message.content === "string") {
+			return { ...message, content: formatDisplayUserInput(message.content) }
+		}
+		if (Array.isArray(message.content)) {
+			return {
+				...message,
+				content: message.content.map((block) =>
+					block.type === "text" && typeof block.text === "string"
+						? { ...block, text: formatDisplayUserInput(block.text) }
+						: block,
+				),
+			}
+		}
+		return message
+	})
+}
+
 function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: HistoryItem): MessageWithMetadata[] {
 	const messages = apiHistory.flatMap((raw): MessageWithMetadata[] => {
 		if (!raw || typeof raw !== "object") {
@@ -144,12 +167,15 @@ function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: Histo
 		}
 
 		if (typeof record.content === "string") {
-			return [{ role, content: record.content }]
+			return [{ role, content: role === "user" ? formatDisplayUserInput(record.content) : record.content }]
 		}
 
 		if (Array.isArray(record.content)) {
 			const content = record.content.flatMap((block) => {
 				const converted = anthropicContentBlockToSdkBlock(block)
+				if (role === "user" && converted?.type === "text") {
+					return [{ ...converted, text: formatDisplayUserInput(converted.text) }]
+				}
 				return converted ? [converted] : []
 			})
 			return content.length > 0 ? [{ role, content }] : []
@@ -178,7 +204,7 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 	return {
 		id: item.sessionId,
 		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
-		task: metadataString(metadata, "title") ?? item.prompt ?? "",
+		task: formatDisplayUserInput(metadataString(metadata, "title") ?? item.prompt ?? ""),
 		tokensIn: metadataNumber(metadata, "tokensIn") ?? 0,
 		tokensOut: metadataNumber(metadata, "tokensOut") ?? 0,
 		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
@@ -370,7 +396,7 @@ export class SdkTaskHistory {
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
 		const readElapsed = Date.now() - readStartedAt
 		const translateStartedAt = Date.now()
-		const clineMessages = sdkMessagesToClineMessages(sdkMessages)
+		const clineMessages = sdkMessagesToClineMessages(sanitizeSdkUserMessagesForDisplay(sdkMessages))
 		Logger.log(
 			`[HistoryPerf] SdkTaskHistory.getClineMessages taskId=${taskId} migrated=${migrated} sdkMessages=${sdkMessages.length} clineMessages=${clineMessages.length} migrate=${migrateElapsed}ms read=${readElapsed}ms translate=${Date.now() - translateStartedAt}ms total=${Date.now() - startedAt}ms`,
 		)
