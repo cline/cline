@@ -112,16 +112,23 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
+		const startedAt = Date.now()
 		try {
 			if (!options.skipHistoryLookup) {
+				const lookupStartedAt = Date.now()
 				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
+				Logger.log(
+					`[HistoryPerf] SdkTaskControlCoordinator.showTaskWithId taskId=${taskId} historyLookup=${Date.now() - lookupStartedAt}ms`,
+				)
 				if (!historyItem) {
 					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
 					return
 				}
 			}
 
+			const teardownStartedAt = Date.now()
 			this.silentlyTearDownActiveSession()
+			const teardownElapsed = Date.now() - teardownStartedAt
 
 			const currentTask = this.options.getTask()
 			if (currentTask) {
@@ -132,9 +139,13 @@ export class SdkTaskControlCoordinator {
 
 			// Load messages before installing the new task proxy so any concurrent
 			// postStateToWebview() caller never sees the new id with empty messages.
+			const loadMessagesStartedAt = Date.now()
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+			const loadMessagesElapsed = Date.now() - loadMessagesStartedAt
+			const finalizeStartedAt = Date.now()
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 			const cleanedMessages = messages.length > 0 ? this.appendFreshResumeMessage(messages) : []
+			const finalizeElapsed = Date.now() - finalizeStartedAt
 
 			const task = createTaskProxy(
 				taskId,
@@ -146,17 +157,25 @@ export class SdkTaskControlCoordinator {
 			}
 			this.options.setTask(task)
 
+			let pushElapsed = 0
 			if (cleanedMessages.length > 0) {
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
 				const { pushMessageToWebview } = await import("./webview-grpc-bridge")
+				const pushStartedAt = Date.now()
 				for (const msg of cleanedMessages) {
 					await pushMessageToWebview(msg)
 				}
+				pushElapsed = Date.now() - pushStartedAt
 			} else {
 				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
 			}
 
+			const postStateStartedAt = Date.now()
 			await this.options.postStateToWebview()
+			const postStateElapsed = Date.now() - postStateStartedAt
+			Logger.log(
+				`[HistoryPerf] SdkTaskControlCoordinator.showTaskWithId taskId=${taskId} rawMessages=${rawMessages.length} cleanedMessages=${cleanedMessages.length} teardown=${teardownElapsed}ms loadMessages=${loadMessagesElapsed}ms finalize=${finalizeElapsed}ms push=${pushElapsed}ms postState=${postStateElapsed}ms total=${Date.now() - startedAt}ms`,
+			)
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
 		} catch (error) {
 			Logger.error("[SdkController] Failed to show task:", error)
