@@ -162,6 +162,8 @@ Expected impact: much faster viewing of old tasks.
 
 ## 9. Batch or replace per-message webview pushes when opening a task
 
+Status: implemented by removing the serial per-message partial-message push loop when opening a task from history. `showTaskWithId` now installs the loaded messages on the task proxy and relies on the subsequent state update, which includes `clineMessages`, to render the task in the webview.
+
 Current issue:
 
 - `showTaskWithId` loops through loaded messages and awaits `pushMessageToWebview(msg)` for each message.

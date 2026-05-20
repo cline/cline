@@ -157,24 +157,20 @@ export class SdkTaskControlCoordinator {
 			}
 			this.options.setTask(task)
 
-			let pushElapsed = 0
 			if (cleanedMessages.length > 0) {
 				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
-				const { pushMessageToWebview } = await import("./webview-grpc-bridge")
-				const pushStartedAt = Date.now()
-				for (const msg of cleanedMessages) {
-					await pushMessageToWebview(msg)
-				}
-				pushElapsed = Date.now() - pushStartedAt
 			} else {
 				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
 			}
 
+			// The final state update below includes the loaded clineMessages. Avoid pushing
+			// each historical message through the partial-message stream one-by-one; for
+			// long tasks that serial loop can dominate history-open latency.
 			const postStateStartedAt = Date.now()
 			await this.options.postStateToWebview()
 			const postStateElapsed = Date.now() - postStateStartedAt
 			Logger.log(
-				`[HistoryPerf] SdkTaskControlCoordinator.showTaskWithId taskId=${taskId} rawMessages=${rawMessages.length} cleanedMessages=${cleanedMessages.length} teardown=${teardownElapsed}ms loadMessages=${loadMessagesElapsed}ms finalize=${finalizeElapsed}ms push=${pushElapsed}ms postState=${postStateElapsed}ms total=${Date.now() - startedAt}ms`,
+				`[HistoryPerf] SdkTaskControlCoordinator.showTaskWithId taskId=${taskId} rawMessages=${rawMessages.length} cleanedMessages=${cleanedMessages.length} teardown=${teardownElapsed}ms loadMessages=${loadMessagesElapsed}ms finalize=${finalizeElapsed}ms push=skipped postState=${postStateElapsed}ms total=${Date.now() - startedAt}ms`,
 			)
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
 		} catch (error) {
