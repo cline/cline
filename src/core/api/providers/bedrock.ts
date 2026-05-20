@@ -263,12 +263,11 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		}
 
-		// Create AWS credentials by executing an AWS provider chain
-		const providerChain = fromNodeProviderChain(providerOptions)
 		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
 				if (useProfile) {
+					AwsBedrockHandler.setEnv("AWS_SDK_LOAD_CONFIG", "1")
 					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
 				} else {
 					delete process.env["AWS_PROFILE"]
@@ -277,8 +276,12 @@ export class AwsBedrockHandler implements ApiHandler {
 					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
 				}
 			},
-			() => providerChain(),
+			() => this.createAwsCredentialProvider(providerOptions)(),
 		)
+	}
+
+	private createAwsCredentialProvider(providerOptions: ProviderChainOptions) {
+		return fromNodeProviderChain(providerOptions)
 	}
 
 	/**

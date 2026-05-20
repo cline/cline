@@ -20,6 +20,20 @@ export function resolveProviderConfigAwsRegion(
 	return values.awsRegion?.trim() || getDefaultAwsRegion(values.awsProfile);
 }
 
+export function getNextProviderConfigField(
+	fields: Partial<Record<ProviderConfigFieldKey, unknown>>,
+	fieldOrder: readonly ProviderConfigFieldKey[],
+	currentField: ProviderConfigFieldKey,
+): ProviderConfigFieldKey | undefined {
+	const visible = fieldOrder.filter((field) => fields[field] !== undefined);
+	const currentIndex = visible.indexOf(currentField);
+	if (currentIndex === -1 || currentIndex >= visible.length - 1) {
+		return undefined;
+	}
+
+	return visible[currentIndex + 1];
+}
+
 export function updateProviderConfigValue(
 	previous: ProviderConfigValues,
 	field: ProviderConfigFieldKey,

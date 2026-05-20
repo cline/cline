@@ -25,11 +25,13 @@ import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
 import { getProviderSection } from "../../utils/provider-sections";
 import {
+	getNextProviderConfigField,
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
 	updateProviderConfigValue,
 	type ProviderConfigValues,
 } from "../../utils/provider-config-values";
+import { FIELD_ORDER } from "../../views/onboarding/fields";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -327,14 +329,6 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	awsProfile: "default",
 };
 
-/** Render order for cycling focus with Tab. */
-const FIELD_ORDER: ProviderConfigFieldKey[] = [
-	"awsRegion",
-	"baseUrl",
-	"apiKey",
-	"awsProfile",
-];
-
 export type ProviderConfigInputFields = Partial<
 	Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
 >;
@@ -397,8 +391,18 @@ export function ProviderConfigInputContent(
 	const [focusedField, setFocusedField] = useState<ProviderConfigFieldKey>(
 		() => fieldKeys[0] ?? "apiKey",
 	);
+	const nextField = getNextProviderConfigField(
+		config.fields,
+		FIELD_ORDER,
+		focusedField,
+	);
 
 	const submit = () => {
+		if (nextField) {
+			setFocusedField(nextField);
+			return;
+		}
+
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
@@ -465,9 +469,7 @@ export function ProviderConfigInputContent(
 							<input
 								value={values[key] ?? ""}
 								onInput={(v: string) =>
-									setValues((prev) =>
-										updateProviderConfigValue(prev, key, v),
-									)
+									setValues((prev) => updateProviderConfigValue(prev, key, v))
 								}
 								placeholder={placeholder}
 								flexGrow={1}
@@ -481,7 +483,7 @@ export function ProviderConfigInputContent(
 			<text fg="gray">
 				<em>
 					{fieldKeys.length > 1
-						? "Tab to switch fields, Enter to save, Esc to go back"
+						? `Tab to switch fields, Enter to ${nextField ? "continue" : "save"}, Esc to go back`
 						: "Enter to save, Esc to go back"}
 				</em>
 			</text>

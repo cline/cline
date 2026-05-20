@@ -1,6 +1,7 @@
 import { ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
 import { bedrockModels, vertexGlobalModels, vertexModels } from "@shared/api"
 import should from "should"
+import sinon from "sinon"
 import { Readable } from "stream"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import type { AwsBedrockHandlerOptions } from "../bedrock"
@@ -201,6 +202,58 @@ describe("AwsBedrockHandler", () => {
 			)
 
 			process.env["AWS_BEARER_TOKEN_BEDROCK"]!.should.equal(preAWSProfile)
+		})
+	})
+
+	describe("AWS profile credentials", () => {
+		const originalEnv = { ...process.env }
+
+		afterEach(() => {
+			sinon.restore()
+			process.env = { ...originalEnv }
+		})
+
+		it("loads shared AWS config before resolving profile credentials", async () => {
+			process.env.AWS_SDK_LOAD_CONFIG = "0"
+			const handler = new AwsBedrockHandler({
+				...mockOptions,
+				awsAuthentication: "profile",
+				awsUseProfile: true,
+				awsProfile: "bedrock",
+			})
+			let capturedOptions: any
+			let capturedEnv: Record<string, string | undefined> | undefined
+
+			sinon.stub(handler as any, "createAwsCredentialProvider").callsFake((options: any) => {
+				capturedOptions = options
+				return async () => {
+					capturedEnv = {
+						AWS_PROFILE: process.env.AWS_PROFILE,
+						AWS_REGION: process.env.AWS_REGION,
+						AWS_SDK_LOAD_CONFIG: process.env.AWS_SDK_LOAD_CONFIG,
+					}
+					return {
+						accessKeyId: "test-access-key",
+						secretAccessKey: "test-secret-key",
+						sessionToken: "test-session-token",
+					}
+				}
+			})
+
+			const credentials = await (handler as any).getAwsCredentials()
+
+			credentials.should.deepEqual({
+				accessKeyId: "test-access-key",
+				secretAccessKey: "test-secret-key",
+				sessionToken: "test-session-token",
+			})
+			capturedOptions.profile.should.equal("bedrock")
+			capturedOptions.ignoreCache.should.equal(true)
+			should.exist(capturedEnv)
+			capturedEnv!.AWS_PROFILE!.should.equal("bedrock")
+			capturedEnv!.AWS_REGION!.should.equal("us-east-1")
+			capturedEnv!.AWS_SDK_LOAD_CONFIG!.should.equal("1")
+			process.env.AWS_SDK_LOAD_CONFIG!.should.equal("0")
 		})
 	})
 
