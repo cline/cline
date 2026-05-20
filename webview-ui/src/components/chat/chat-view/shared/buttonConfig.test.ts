@@ -1,6 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { BUTTON_CONFIGS, getButtonConfig } from "./buttonConfig"
+import { BUTTON_CONFIGS, getButtonConfig, getButtonConfigForMessages } from "./buttonConfig"
 
 describe("getButtonConfig", () => {
 	// Test default behavior
@@ -131,6 +131,47 @@ describe("getButtonConfig", () => {
 		}
 		const config = getButtonConfig(apiReqMessage)
 		expect(config).toEqual(BUTTON_CONFIGS.api_req_active)
+	})
+
+	describe("getButtonConfigForMessages", () => {
+		it("keeps web fetch approval buttons when a bookkeeping API usage message is appended after the ask", () => {
+			const messages: ClineMessage[] = [
+				{ type: "say", say: "task", text: "fetch docs", ts: 1 },
+				{
+					type: "ask",
+					ask: "tool",
+					text: JSON.stringify({ tool: "webFetch", path: "https://docs.cline.bot" }),
+					ts: 2,
+				},
+				{
+					type: "say",
+					say: "api_req_started",
+					text: JSON.stringify({ tokensIn: 10, tokensOut: 2, cost: 0.001 }),
+					ts: 3,
+				},
+			]
+
+			expect(getButtonConfigForMessages(messages)).toEqual(BUTTON_CONFIGS.tool_approve)
+		})
+
+		it("keeps MCP approval buttons when an MCP request-start marker is appended after the ask", () => {
+			const messages: ClineMessage[] = [
+				{ type: "say", say: "task", text: "use mcp", ts: 1 },
+				{ type: "ask", ask: "use_mcp_server", text: "{}", ts: 2 },
+				{ type: "say", say: "mcp_server_request_started", ts: 3 },
+			]
+
+			expect(getButtonConfigForMessages(messages)).toEqual(BUTTON_CONFIGS.use_mcp_server)
+		})
+
+		it("still shows cancel for an active API request", () => {
+			const messages: ClineMessage[] = [
+				{ type: "say", say: "task", text: "think", ts: 1 },
+				{ type: "say", say: "api_req_started", text: JSON.stringify({ request: undefined }), ts: 2 },
+			]
+
+			expect(getButtonConfigForMessages(messages)).toEqual(BUTTON_CONFIGS.api_req_active)
+		})
 	})
 
 	// Test mode parameter (though not extensively used in the current implementation)

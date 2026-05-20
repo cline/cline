@@ -308,3 +308,46 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 
 	return BUTTON_CONFIGS.partial
 }
+
+function isInertStatusMessage(message: ClineMessage): boolean {
+	if (message.type !== "say") {
+		return false
+	}
+
+	if (message.say === "api_req_started") {
+		try {
+			const info = JSON.parse(message.text || "{}")
+			return info.cost != null || info.cancelReason != null || info.streamingFailedMessage != null
+		} catch {
+			return false
+		}
+	}
+
+	return [
+		"api_req_finished",
+		"api_req_retried",
+		"deleted_api_reqs",
+		"mcp_server_request_started",
+		"subagent_usage",
+		"task_progress",
+	].includes(message.say || "")
+}
+
+/**
+ * Finds the message that should control footer buttons.
+ *
+ * The raw stream can append bookkeeping/status messages after an approval ask
+ * (for example API usage updates or MCP request-start markers). Those rows are
+ * filtered out of the visible chat, but using the raw last message would hide
+ * Approve/Reject and leave the user stuck. Prefer the last non-inert message.
+ */
+export function getButtonConfigForMessages(messages: ClineMessage[], mode: Mode = "act"): ButtonConfig {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index]
+		if (!isInertStatusMessage(message)) {
+			return getButtonConfig(message, mode)
+		}
+	}
+
+	return BUTTON_CONFIGS.default
+}
