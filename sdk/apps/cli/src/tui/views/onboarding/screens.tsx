@@ -19,6 +19,7 @@ import {
 } from "../../components/tracked-robot";
 import { useTerminalBackground } from "../../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../../palette";
+import { getNextProviderConfigField } from "../../utils/provider-config-values";
 import { FIELD_ORDER } from "./fields";
 import { MAIN_MENU, THINKING_LEVELS } from "./model";
 
@@ -253,6 +254,11 @@ export function OnboardingProviderConfigScreen(props: {
 	const visibleFields = FIELD_ORDER.filter(
 		(key) => props.fields[key] !== undefined,
 	);
+	const nextField = getNextProviderConfigField(
+		props.fields,
+		FIELD_ORDER,
+		props.focusedField,
+	);
 
 	return (
 		<OnboardingFrame
@@ -309,7 +315,7 @@ export function OnboardingProviderConfigScreen(props: {
 				<text fg="gray">
 					<em>
 						{visibleFields.length > 1
-							? "Tab to switch fields, Enter to continue, Esc to go back, Ctrl+C to exit"
+							? `Tab to switch fields, Enter to ${nextField ? "continue" : "save"}, Esc to go back, Ctrl+C to exit`
 							: "Enter to save, Esc to go back, Ctrl+C to exit"}
 					</em>
 				</text>

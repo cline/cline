@@ -31,6 +31,7 @@ import {
 	updateProviderConfigValue,
 	type ProviderConfigValues,
 } from "../../utils/provider-config-values";
+import { FIELD_ORDER } from "../../views/onboarding/fields";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -328,14 +329,6 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	awsProfile: "default",
 };
 
-/** Render order for cycling focus with Tab. */
-const FIELD_ORDER: ProviderConfigFieldKey[] = [
-	"awsRegion",
-	"awsProfile",
-	"baseUrl",
-	"apiKey",
-];
-
 export type ProviderConfigInputFields = Partial<
 	Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
 >;
@@ -398,13 +391,13 @@ export function ProviderConfigInputContent(
 	const [focusedField, setFocusedField] = useState<ProviderConfigFieldKey>(
 		() => fieldKeys[0] ?? "apiKey",
 	);
+	const nextField = getNextProviderConfigField(
+		config.fields,
+		FIELD_ORDER,
+		focusedField,
+	);
 
 	const submit = () => {
-		const nextField = getNextProviderConfigField(
-			config.fields,
-			FIELD_ORDER,
-			focusedField,
-		);
 		if (nextField) {
 			setFocusedField(nextField);
 			return;
@@ -490,7 +483,7 @@ export function ProviderConfigInputContent(
 			<text fg="gray">
 				<em>
 					{fieldKeys.length > 1
-						? "Tab to switch fields, Enter to continue, Esc to go back"
+						? `Tab to switch fields, Enter to ${nextField ? "continue" : "save"}, Esc to go back`
 						: "Enter to save, Esc to go back"}
 				</em>
 			</text>
