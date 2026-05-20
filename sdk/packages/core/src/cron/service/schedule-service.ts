@@ -204,6 +204,7 @@ export class HubScheduleService {
 			store: this.store,
 			materializer: this.materializer,
 			runtimeHandlers: options.runtimeHandlers,
+			eventPublisher: options.eventPublisher,
 			workspaceRoot: "",
 			logger: options.logger,
 			pollIntervalMs: options.pollIntervalMs,
