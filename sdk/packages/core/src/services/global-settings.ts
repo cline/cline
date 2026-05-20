@@ -76,19 +76,26 @@ function invalidateSettingsCache(): void {
 	settingsCache = undefined;
 }
 
-export function readGlobalSettings(): GlobalSettings {
-	const filePath = resolveGlobalSettingsPath();
-
-	let mtimeMs = 0;
-	let size = 0;
-	let fileExists = true;
+function loadSettingsFromDisk(filePath: string): GlobalSettings {
+	let raw: string;
 	try {
-		const stats = statSync(filePath);
-		mtimeMs = stats.mtimeMs;
-		size = stats.size;
+		raw = readFileSync(filePath, "utf8");
 	} catch {
-		fileExists = false;
+		return defaultGlobalSettings();
 	}
+	try {
+		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
+		return result.success ? result.data : defaultGlobalSettings();
+	} catch {
+		return defaultGlobalSettings();
+	}
+}
+
+function getCachedSettings(): CachedSettings {
+	const filePath = resolveGlobalSettingsPath();
+	const stats = statSync(filePath, { throwIfNoEntry: false });
+	const mtimeMs = stats?.mtimeMs ?? 0;
+	const size = stats?.size ?? 0;
 
 	const cached = settingsCache;
 	if (
@@ -97,27 +104,18 @@ export function readGlobalSettings(): GlobalSettings {
 		cached.mtimeMs === mtimeMs &&
 		cached.size === size
 	) {
-		return cached.value;
+		return cached;
 	}
 
-	if (!fileExists) {
-		const value = defaultGlobalSettings();
-		settingsCache = { path: filePath, mtimeMs, size, value };
-		return value;
-	}
-
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(readFileSync(filePath, "utf8"));
-	} catch {
-		const value = defaultGlobalSettings();
-		settingsCache = { path: filePath, mtimeMs, size, value };
-		return value;
-	}
-	const result = GlobalSettingsSchema.safeParse(parsed);
-	const value = result.success ? result.data : defaultGlobalSettings();
+	const value = stats
+		? loadSettingsFromDisk(filePath)
+		: defaultGlobalSettings();
 	settingsCache = { path: filePath, mtimeMs, size, value };
-	return value;
+	return settingsCache;
+}
+
+export function readGlobalSettings(): GlobalSettings {
+	return getCachedSettings().value;
 }
 
 export function writeGlobalSettings(
@@ -171,17 +169,16 @@ export function isToolDisabledGlobally(toolName: string): boolean {
 }
 
 export function toggleDisabledTool(toolName: string): boolean {
-	const disabled = resolveDisabledToolNames();
 	const settings = readGlobalSettings();
-	if (disabled.has(toolName)) {
+	const disabled = new Set(settings.disabledTools ?? []);
+	const wasDisabled = disabled.has(toolName);
+	if (wasDisabled) {
 		disabled.delete(toolName);
-		writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
-		return false;
+	} else {
+		disabled.add(toolName);
 	}
-
-	disabled.add(toolName);
 	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
-	return true;
+	return !wasDisabled;
 }
 
 export function setDisabledTools(
