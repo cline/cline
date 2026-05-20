@@ -583,7 +583,6 @@ export async function runInteractive(
 				...readGlobalSettings(),
 				runCommandsTimeoutMs: timeoutMs,
 			});
-			config.runCommandsTimeoutMs = timeoutMs;
 			await sessionRuntime.ensureReady();
 			await sessionRuntime.restartWithCurrentMessages();
 		},

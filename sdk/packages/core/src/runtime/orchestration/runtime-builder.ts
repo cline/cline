@@ -109,7 +109,6 @@ function createBuiltinToolsList(
 		createBuiltinTools({
 			cwd,
 			...preset,
-			bashTimeoutMs: runCommandsTimeoutMs,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
 			executorOptions: {

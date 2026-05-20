@@ -118,7 +118,6 @@ export async function runCli(): Promise<void> {
 		setClineDir(configDir);
 	}
 	setHomeDir(homedir());
-	const { readGlobalSettings } = await import("@cline/core");
 
 	// Capture activation telemetry only after config/home directory selection
 	// has been applied, so the telemetry singleton's persisted distinct-id
@@ -864,7 +863,6 @@ export async function runCli(): Promise<void> {
 		});
 
 		const config: Config = {
-			runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs,
 			providerId: provider,
 			modelId:
 				args.model ??

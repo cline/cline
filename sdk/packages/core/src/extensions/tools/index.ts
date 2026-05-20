@@ -178,6 +178,8 @@ export function createBuiltinTools(
 
 	return createDefaultTools({
 		...toolsConfig,
+		bashTimeoutMs:
+			toolsConfig.bashTimeoutMs ?? executorOptions.bash?.timeoutMs,
 		executors,
 	});
 }
