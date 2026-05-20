@@ -58,6 +58,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 	const isLoadingHistoryRef = useRef(false)
 	const historyRequestIdRef = useRef(0)
+	const hasRequestedTotalTasksSizeRef = useRef(false)
 
 	// Load and refresh task history
 	const loadTaskHistory = useCallback(
@@ -189,10 +190,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [setTotalTasksSize])
 
-	// Request total tasks size when component mounts
+	// Defer the expensive recursive task/checkpoint size scan until after the first
+	// history page loads, so it does not compete with the initial history request.
 	useEffect(() => {
-		fetchTotalTasksSize()
-	}, [fetchTotalTasksSize])
+		if (hasRequestedTotalTasksSizeRef.current || isLoadingHistory || nextHistoryOffset === 0 || totalTasksSize !== null) {
+			return
+		}
+
+		hasRequestedTotalTasksSizeRef.current = true
+		const timeout = window.setTimeout(() => {
+			void fetchTotalTasksSize()
+		}, 750)
+		return () => window.clearTimeout(timeout)
+	}, [fetchTotalTasksSize, isLoadingHistory, nextHistoryOffset, totalTasksSize])
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
