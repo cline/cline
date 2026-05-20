@@ -4,6 +4,7 @@ import {
 	mkdir,
 	mkdtemp,
 	readdir,
+	readFile,
 	rm,
 	writeFile,
 } from "node:fs/promises";
@@ -15,6 +16,7 @@ import {
 	DIRECT_PUBLISH_GUARD_MESSAGE,
 	shouldAllowDirectPublish,
 } from "../../script/guard-direct-publish";
+import { createPlatformPackageJson } from "../../script/platform-package";
 
 describe("CLI distribution package shape", () => {
 	it("rejects direct source package publishing by default", () => {
@@ -87,6 +89,52 @@ describe("CLI distribution package shape", () => {
 			expect(result.status).toBe(0);
 			const files = await readdir(packageDir);
 			expect(files.some((file) => file.endsWith(".tgz"))).toBe(true);
+		} finally {
+			await rm(packageDir, { recursive: true, force: true });
+		}
+	});
+
+	it("treats platform package extension bootstrap files as ESM", async () => {
+		const packageDir = await mkdtemp(join(tmpdir(), "cline-cli-platform-"));
+		try {
+			await mkdir(join(packageDir, "extensions"), { recursive: true });
+			const platformPackageJson = createPlatformPackageJson({
+				name: "@cline/cli-linux-x64",
+				version: "1.2.3",
+				description: "Cline CLI binary for linux x64",
+				os: "linux",
+				arch: "x64",
+				binaryName: "cline",
+			});
+			await writeFile(
+				join(packageDir, "package.json"),
+				`${JSON.stringify(platformPackageJson, null, 2)}\n`,
+			);
+			await writeFile(
+				join(packageDir, "extensions", "plugin-sandbox-bootstrap.js"),
+				[
+					'import { fileURLToPath } from "node:url";',
+					"console.log(fileURLToPath(import.meta.url).endsWith('plugin-sandbox-bootstrap.js'));",
+					"",
+				].join("\n"),
+			);
+
+			const packageJson = JSON.parse(
+				await readFile(join(packageDir, "package.json"), "utf8"),
+			) as { type?: string };
+			expect(packageJson.type).toBe("module");
+
+			const result = spawnSync(
+				process.execPath,
+				[join(packageDir, "extensions", "plugin-sandbox-bootstrap.js")],
+				{ cwd: packageDir, encoding: "utf8" },
+			);
+
+			expect(result.status).toBe(0);
+			expect(result.stdout.trim()).toBe("true");
+			expect(result.stderr).not.toContain(
+				"Cannot use 'import.meta' outside a module",
+			);
 		} finally {
 			await rm(packageDir, { recursive: true, force: true });
 		}

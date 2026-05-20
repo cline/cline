@@ -8,6 +8,7 @@ import {
 	shouldInstallNativeVariants,
 	validateBuildOptions,
 } from "./build-options";
+import { createPlatformPackageJson } from "./platform-package";
 
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
@@ -195,17 +196,15 @@ for (const item of targets) {
 	await Bun.write(
 		join(cliDir, `dist/${dirName}/package.json`),
 		`${JSON.stringify(
-			{
+			createPlatformPackageJson({
 				name,
 				version,
 				description: `Cline CLI binary for ${displayOs} ${item.arch}`,
-				os: [item.os],
-				cpu: [item.arch],
-				...(repository ? { repository } : {}),
-				bin: {
-					cline: `bin/${binaryName}`,
-				},
-			},
+				os: item.os,
+				arch: item.arch,
+				binaryName,
+				repository,
+			}),
 			null,
 			2,
 		)}\n`,
