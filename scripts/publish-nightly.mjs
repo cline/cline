@@ -92,15 +92,6 @@ const config = {
 	get vsixPath() {
 		return path.join(this.distDir, "cline-nightly.vsix")
 	},
-	get nodeModulesPath() {
-		return path.join(this.projectRoot, "node_modules")
-	},
-	get originalWorkspaceLinkPath() {
-		return path.join(this.nodeModulesPath, this.originalName)
-	},
-	get nightlyWorkspaceLinkPath() {
-		return path.join(this.nodeModulesPath, this.nightlyName)
-	},
 }
 
 // Utility class for managing the publish process
@@ -108,32 +99,7 @@ class NightlyPublisher {
 	constructor() {
 		this.originalPackageJson = null
 		this.hasBackup = false
-		this.didRenameWorkspaceLink = false
-		this.didCreateNightlyWorkspaceLink = false
 		this.didSwapMarketplaceReadme = false
-	}
-
-	/**
-	 * Resolve symlink target to an absolute path.
-	 */
-	resolveSymlinkTarget(linkPath) {
-		const target = fs.readlinkSync(linkPath)
-		return path.resolve(path.dirname(linkPath), target)
-	}
-
-	/**
-	 * Validate that a path is the expected workspace self-link to project root.
-	 */
-	isExpectedWorkspaceSelfLink(linkPath) {
-		try {
-			if (!fs.lstatSync(linkPath).isSymbolicLink()) {
-				return false
-			}
-
-			return this.resolveSymlinkTarget(linkPath) === path.resolve(config.projectRoot)
-		} catch {
-			return false
-		}
 	}
 
 	/**
@@ -200,98 +166,6 @@ class NightlyPublisher {
 			fs.unlinkSync(config.packageBackupPath)
 			this.hasBackup = false
 		}
-	}
-
-	/**
-	 * Keep workspace self-link consistent with package name during nightly packaging.
-	 *
-	 * The repo root is a workspace package ("."). When npm installs dependencies,
-	 * it creates a self-link at node_modules/<package-name>. Nightly packaging
-	 * changes package.json name from "claude-dev" to "cline-nightly". If we don't
-	 * align this link, vsce's dependency detection (`npm list --production`) fails
-	 * with ELSPROBLEMS (missing cline-nightly + extraneous claude-dev).
-	 */
-	reconcileWorkspaceSelfLinkForNightly() {
-		const originalPath = config.originalWorkspaceLinkPath
-		const nightlyPath = config.nightlyWorkspaceLinkPath
-
-		if (!fs.existsSync(config.nodeModulesPath)) {
-			log.warn("node_modules not found, skipping workspace self-link reconciliation")
-			return
-		}
-
-		if (fs.existsSync(nightlyPath)) {
-			if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
-				throw new Error(
-					`Refusing to continue: unexpected path at ${nightlyPath}. Expected a workspace symlink to ${config.projectRoot}`,
-				)
-			}
-
-			log.info("Nightly workspace self-link already exists")
-			return
-		}
-
-		if (fs.existsSync(originalPath)) {
-			if (!this.isExpectedWorkspaceSelfLink(originalPath)) {
-				throw new Error(
-					`Refusing to continue: unexpected path at ${originalPath}. Expected a workspace symlink to ${config.projectRoot}`,
-				)
-			}
-
-			log.info(`Renaming workspace self-link: ${config.originalName} -> ${config.nightlyName}`)
-			fs.renameSync(originalPath, nightlyPath)
-			this.didRenameWorkspaceLink = true
-			return
-		}
-
-		// In some environments npm may not have created the workspace self-link yet.
-		// Create it explicitly so `npm list --production` can resolve the renamed
-		// package name during vsce dependency detection.
-		log.warn("Original workspace self-link not found, creating nightly workspace self-link")
-		fs.symlinkSync(config.projectRoot, nightlyPath, "dir")
-
-		if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
-			throw new Error(`Failed to create expected workspace symlink at ${nightlyPath}`)
-		}
-
-		this.didCreateNightlyWorkspaceLink = true
-	}
-
-	/**
-	 * Restore workspace self-link after packaging.
-	 */
-	restoreWorkspaceSelfLink() {
-		if (!this.didRenameWorkspaceLink && !this.didCreateNightlyWorkspaceLink) {
-			return
-		}
-
-		const originalPath = config.originalWorkspaceLinkPath
-		const nightlyPath = config.nightlyWorkspaceLinkPath
-
-		if (fs.existsSync(nightlyPath) && !fs.existsSync(originalPath)) {
-			if (this.didRenameWorkspaceLink) {
-				if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
-					throw new Error(
-						`Refusing to restore: unexpected path at ${nightlyPath}. Expected a workspace symlink to ${config.projectRoot}`,
-					)
-				}
-
-				log.info(`Restoring workspace self-link: ${config.nightlyName} -> ${config.originalName}`)
-				fs.renameSync(nightlyPath, originalPath)
-			} else if (this.didCreateNightlyWorkspaceLink) {
-				if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
-					throw new Error(
-						`Refusing to remove: unexpected path at ${nightlyPath}. Expected a workspace symlink to ${config.projectRoot}`,
-					)
-				}
-
-				log.info(`Removing temporary workspace self-link: ${config.nightlyName}`)
-				fs.unlinkSync(nightlyPath)
-			}
-		}
-
-		this.didRenameWorkspaceLink = false
-		this.didCreateNightlyWorkspaceLink = false
 	}
 
 	/**
@@ -493,10 +367,7 @@ class NightlyPublisher {
 			// Step 3: Update package.json
 			const newVersion = this.updatePackageJson()
 
-			// Step 3.5: Keep npm workspace self-link aligned with nightly package name
-			this.reconcileWorkspaceSelfLinkForNightly()
-
-			// Step 3.6: Swap in marketplace README before packaging
+			// Step 3.5: Swap in marketplace README before packaging
 			this.swapMarketplaceReadme()
 
 			// Step 4: Package extension
@@ -525,9 +396,6 @@ class NightlyPublisher {
 			log.error(`Publish failed: ${error.message}`)
 			process.exit(1)
 		} finally {
-			// Always restore workspace link first
-			this.restoreWorkspaceSelfLink()
-
 			// Always restore package.json
 			this.restorePackageJson()
 
@@ -541,14 +409,12 @@ class NightlyPublisher {
 const publisher = new NightlyPublisher()
 
 process.on("exit", () => {
-	publisher.restoreWorkspaceSelfLink()
 	publisher.restorePackageJson()
 	publisher.restoreMarketplaceReadme()
 })
 
 process.on("SIGINT", () => {
 	log.info("\nInterrupted, cleaning up...")
-	publisher.restoreWorkspaceSelfLink()
 	publisher.restorePackageJson()
 	publisher.restoreMarketplaceReadme()
 	process.exit(130)
@@ -556,7 +422,6 @@ process.on("SIGINT", () => {
 
 process.on("SIGTERM", () => {
 	log.info("\nTerminated, cleaning up...")
-	publisher.restoreWorkspaceSelfLink()
 	publisher.restorePackageJson()
 	publisher.restoreMarketplaceReadme()
 	process.exit(143)
