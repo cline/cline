@@ -36,6 +36,16 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 
 **Note:** If you are using a different OpenAI-compatible provider (such as Together AI, Anyscale, etc.), the available model IDs will differ. Always refer to your specific provider's documentation for their supported model names and any unique configuration details.
 
+### Tuning Engines
+
+Tuning Engines exposes an OpenAI-compatible inference endpoint that can be used with Cline's **OpenAI Compatible** provider.
+
+1. In Cline settings, select **OpenAI Compatible** as the API provider.
+2. Set **Base URL** to `https://api.tuningengines.com/v1`.
+3. Paste your Tuning Engines inference key, for example `sk-te-...`.
+4. Set **Model ID** to a model alias that is enabled for your Tuning Engines key.
+5. Click **Verify** to confirm the connection.
+
 ### v0 (Vercel SDK) in Cline:
 
 -   For developers working with v0, their [AI SDK documentation](https://vercel.com/docs/v0/cline) provides valuable insights and examples for integrating various models, many of which are OpenAI-compatible. This can be a helpful resource for understanding how to structure calls and manage configurations when using Cline with services deployed on or integrated with Vercel.
