@@ -4004,6 +4004,15 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "Intelligent model with ~1400 tokens/s",
 	},
+	"llama3.1-8b": {
+		maxTokens: 8000,
+		contextWindow: 32000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Llama 3.1 8B served on Cerebras.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Groq
