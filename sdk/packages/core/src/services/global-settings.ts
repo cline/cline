@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
@@ -63,16 +63,61 @@ function defaultGlobalSettings(): GlobalSettings {
 	return GlobalSettingsSchema.parse({});
 }
 
+interface CachedSettings {
+	path: string;
+	mtimeMs: number;
+	size: number;
+	value: GlobalSettings;
+}
+
+let settingsCache: CachedSettings | undefined;
+
+function invalidateSettingsCache(): void {
+	settingsCache = undefined;
+}
+
 export function readGlobalSettings(): GlobalSettings {
 	const filePath = resolveGlobalSettingsPath();
+
+	let mtimeMs = 0;
+	let size = 0;
+	let fileExists = true;
+	try {
+		const stats = statSync(filePath);
+		mtimeMs = stats.mtimeMs;
+		size = stats.size;
+	} catch {
+		fileExists = false;
+	}
+
+	const cached = settingsCache;
+	if (
+		cached &&
+		cached.path === filePath &&
+		cached.mtimeMs === mtimeMs &&
+		cached.size === size
+	) {
+		return cached.value;
+	}
+
+	if (!fileExists) {
+		const value = defaultGlobalSettings();
+		settingsCache = { path: filePath, mtimeMs, size, value };
+		return value;
+	}
+
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(readFileSync(filePath, "utf8"));
 	} catch {
-		return defaultGlobalSettings();
+		const value = defaultGlobalSettings();
+		settingsCache = { path: filePath, mtimeMs, size, value };
+		return value;
 	}
 	const result = GlobalSettingsSchema.safeParse(parsed);
-	return result.success ? result.data : defaultGlobalSettings();
+	const value = result.success ? result.data : defaultGlobalSettings();
+	settingsCache = { path: filePath, mtimeMs, size, value };
+	return value;
 }
 
 export function writeGlobalSettings(
@@ -87,6 +132,7 @@ export function writeGlobalSettings(
 		captureTelemetryOptOut(options.telemetry);
 	}
 	writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+	invalidateSettingsCache();
 }
 
 export function isTelemetryOptedOutGlobally(): boolean {
