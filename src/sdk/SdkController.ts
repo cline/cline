@@ -922,8 +922,10 @@ export class Controller {
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
+		const offset = request.offset > 0 ? request.offset : 0
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false })
+		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false, limit: limit + 1, offset })
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -985,7 +987,8 @@ export class Controller {
 			}
 		})
 
-		const tasks = filteredTasks.map((item) => {
+		const hasMore = sessionHistory.length > limit
+		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
 				id: item.sessionId,
@@ -1002,7 +1005,7 @@ export class Controller {
 			}
 		})
 
-		return TaskHistoryArray.create({ tasks })
+		return TaskHistoryArray.create({ tasks, hasMore })
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
