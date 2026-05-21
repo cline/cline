@@ -342,8 +342,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			normalized.enableTools &&
 			skillsEnabled &&
 			Boolean(userInstructionService) &&
-			(userInstructionServiceProvided ||
-				userInstructionService?.hasConfiguredSkills(config.skills) === true) &&
+			userInstructionService?.hasConfiguredSkills(config.skills) === true &&
 			isSkillsToolEnabledForSession({
 				cwd: config.cwd,
 				providerId: config.providerId,

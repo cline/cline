@@ -18,6 +18,10 @@ import {
 	type WorkflowConfig,
 } from "@cline/core";
 import { getToolCatalog } from "../runtime/tools";
+import {
+	type InteractiveSlashCommand,
+	listInteractiveSlashCommands,
+} from "./interactive-welcome";
 
 export type InteractiveConfigTab =
 	| "general"
@@ -70,6 +74,7 @@ export interface InteractiveConfigData {
 	plugins: InteractiveConfigItem[];
 	mcp: InteractiveConfigItem[];
 	tools: InteractiveConfigItem[];
+	workflowSlashCommands: InteractiveSlashCommand[];
 }
 
 export interface LoadInteractiveConfigDataOptions {
@@ -264,6 +269,9 @@ export async function loadInteractiveConfigData(input: {
 	const plugins: InteractiveConfigItem[] = [];
 	const mcp: InteractiveConfigItem[] = [];
 	const tools: InteractiveConfigItem[] = [];
+	const workflowSlashCommands = listInteractiveSlashCommands(
+		input.userInstructionService,
+	);
 
 	if (input.userInstructionService) {
 		for (const record of input.userInstructionService.listRecords<WorkflowConfig>(
@@ -425,5 +433,6 @@ export async function loadInteractiveConfigData(input: {
 		plugins: toSorted(plugins.filter((item) => existsSync(item.path))),
 		mcp: toSorted(mcp.filter((item) => existsSync(item.path))),
 		tools: toSorted(tools),
+		workflowSlashCommands,
 	};
 }
