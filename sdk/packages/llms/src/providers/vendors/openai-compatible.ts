@@ -6,6 +6,7 @@ import type {
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
 import { resolveApiKey } from "../http";
+import { composeMiddleware, createRetryMiddleware } from "../middleware/retry";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -26,24 +27,53 @@ export async function createOpenAICompatibleProviderModule(
 		...(config.fetch ? { fetch: config.fetch } : {}),
 		includeUsage: true,
 	} as never);
+
+	// Extract retry options from provider config
+	const retryOptions = config.options?.retry as
+		| {
+				maxRetries?: number;
+				baseDelayMs?: number;
+				maxDelayMs?: number;
+				retryAllErrors?: boolean;
+		  }
+		| undefined;
+
+	// Create retry middleware with logging support
+	const retryMiddleware = createRetryMiddleware({
+		maxRetries: retryOptions?.maxRetries ?? 3,
+		baseDelayMs: retryOptions?.baseDelayMs ?? 1000,
+		maxDelayMs: retryOptions?.maxDelayMs ?? 30000,
+		retryAllErrors: retryOptions?.retryAllErrors ?? false,
+		onRetryAttempt: (attempt, maxRetries, delayMs, error) => {
+			context.logger?.warn?.(
+				`[${context.provider.id}] Retry attempt ${attempt}/${maxRetries} after ${delayMs}ms`,
+				{ error, modelId: context.model.id },
+			);
+		},
+		signal: context.signal,
+	});
+
+	// Compose middlewares: retry wraps the outer layer, splitToolImages
+	// transforms the prompt before the request is made
+	const composedMiddleware = composeMiddleware(
+		retryMiddleware,
+		splitToolImagesMiddleware,
+	);
+
 	return {
-		// Wrap each constructed model with `splitToolImagesMiddleware` so
-		// `role:"tool"` messages whose `output.type === 'content'` carries
-		// image-data parts get split into a placeholder text + a synthetic
-		// `role:"user"` message carrying the images. The OpenAI Chat
-		// Completions wire format does NOT support multimodal tool messages
-		// (the `@ai-sdk/openai-compatible` chat-messages converter
-		// `JSON.stringify`s the parts array, losing image bytes). The
-		// middleware operates on the typed `LanguageModelV3Prompt` BEFORE
-		// the converter runs, so the converter sees only text-only tool
-		// messages with adjacent multimodal user messages — the wire
-		// pattern that classic Cline used in production for years (see
-		// `convertToOpenAiMessages` in `src/core/api/transform/openai-format.ts`
-		// on origin/main).
+		// Wrap each constructed model with composed middleware:
+		// 1. `retryMiddleware` handles transient errors (429, 5xx, network)
+		//    with exponential backoff and respects retry-after headers.
+		// 2. `splitToolImagesMiddleware` rewrites `role:"tool"` messages
+		//    whose `output.type === 'content'` carries image-data parts
+		//    into a placeholder text + a synthetic `role:"user"` message
+		//    carrying the images. The OpenAI Chat Completions wire format
+		//    does NOT support multimodal tool messages (the converter
+		//    `JSON.stringify`s the parts array, losing image bytes).
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider(modelId) as LanguageModelV3,
-				middleware: splitToolImagesMiddleware,
+				middleware: composedMiddleware,
 			}),
 	};
 }
