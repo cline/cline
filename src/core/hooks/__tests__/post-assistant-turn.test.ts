@@ -192,7 +192,8 @@ console.log(JSON.stringify({
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PostAssistantTurn")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const toolCount = input.postAssistantTurn.toolNames.length;
+const toolNames = input.postAssistantTurn.toolNames || [];
+const toolCount = toolNames.length;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: "tool_count=" + toolCount
