@@ -29,6 +29,19 @@ interface AgentEventDeps {
 	verbose: boolean;
 }
 
+// FIXME: Replace this brittle error-string parsing with a structured auth error.
+const CLINE_REAUTH_ERROR_MESSAGE = "cline requires re-authentication.";
+
+export const CLINE_SESSION_TIMED_OUT_MESSAGE =
+	"Your Cline session has timed out. Please use /account to log back in.";
+
+export function createAgentFailureEntry(message: string): ChatEntry {
+	if (message.trim().toLowerCase() === CLINE_REAUTH_ERROR_MESSAGE) {
+		return { kind: "status", text: CLINE_SESSION_TIMED_OUT_MESSAGE };
+	}
+	return { kind: "error", text: message };
+}
+
 export function useAgentEventHandlers(deps: AgentEventDeps) {
 	const {
 		appendEntry,
@@ -171,7 +184,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
 					if (!event.recoverable || verbose) {
-						appendEntry({ kind: "error", text: event.error.message });
+						appendEntry(createAgentFailureEntry(event.error.message));
 					}
 					break;
 				case "notice":
