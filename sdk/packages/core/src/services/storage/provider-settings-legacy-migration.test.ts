@@ -296,6 +296,62 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 		expect(manager.getProviderSettings("openai")).toBeUndefined();
 	});
+
+	it("migrates Bedrock profile auth profile names without requiring legacy awsUseProfile", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					actModeApiModelId: "global.anthropic.claude-opus-4-6-v1",
+					awsRegion: "us-east-1",
+					awsAuthentication: "profile",
+					awsProfile: "bedrock",
+					awsBedrockUsePromptCache: true,
+					awsUseCrossRegionInference: true,
+					awsUseGlobalInference: false,
+					actModeAwsBedrockCustomModelBaseId:
+						"anthropic.claude-sonnet-4-5-20250929-v1:0",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 1,
+			lastUsedProvider: "bedrock",
+		});
+		expect(manager.getProviderSettings("bedrock")).toEqual({
+			provider: "bedrock",
+			model: "global.anthropic.claude-opus-4-6-v1",
+			aws: {
+				region: "us-east-1",
+				authentication: "profile",
+				profile: "bedrock",
+				usePromptCache: true,
+				useCrossRegionInference: true,
+				useGlobalInference: false,
+				customModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			},
+		});
+		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
+	});
 });
 
 // =============================================================================
