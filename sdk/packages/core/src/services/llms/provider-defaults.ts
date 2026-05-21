@@ -358,6 +358,34 @@ interface HicapModelResponse {
 	id?: string;
 }
 
+interface PoolsideModelResponse {
+	id?: string;
+	name?: string;
+	description?: string;
+	context_length?: number;
+	max_completion_tokens?: number;
+	supported_features?: string[];
+	supported_sampling_parameters?: string[];
+	input_modalities?: string[];
+	pricing?: {
+		prompt?: number | string;
+		completion?: number | string;
+	};
+}
+
+function parseOptionalNumber(
+	value: number | string | undefined,
+): number | undefined {
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? value : undefined;
+	}
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
 async function fetchHicapPrivateModels(
 	_config: ProviderConfig,
 	token: string,
@@ -389,6 +417,81 @@ async function fetchHicapPrivateModels(
 			supportsImages: true,
 			supportsPromptCache: true,
 		});
+	}
+	return models;
+}
+
+async function fetchPoolsidePrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl =
+		normalizeBaseUrl(config.baseUrl) || "https://inference.poolside.ai/v1";
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`Poolside model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: PoolsideModelResponse[] };
+	const entries = payload?.data ?? [];
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id) {
+			continue;
+		}
+
+		const supportedFeatures = model.supported_features ?? [];
+		const supportedSamplingParameters =
+			model.supported_sampling_parameters ?? [];
+		const inputModalities = model.input_modalities ?? [];
+		const capabilities: NonNullable<ModelInfo["capabilities"]> = ["streaming"];
+		includeCapability(
+			capabilities,
+			"tools",
+			supportedFeatures.includes("tools"),
+		);
+		includeCapability(
+			capabilities,
+			"reasoning",
+			supportedFeatures.includes("reasoning"),
+		);
+		includeCapability(
+			capabilities,
+			"temperature",
+			supportedSamplingParameters.includes("temperature"),
+		);
+		includeCapability(
+			capabilities,
+			"images",
+			inputModalities.includes("image"),
+		);
+
+		const pricing = {
+			input: parseOptionalNumber(model.pricing?.prompt),
+			output: parseOptionalNumber(model.pricing?.completion),
+		};
+		models[id] = {
+			id,
+			name: model.name ?? id,
+			description: model.description,
+			contextWindow: model.context_length,
+			maxInputTokens: model.context_length,
+			maxTokens: model.max_completion_tokens,
+			capabilities,
+			pricing:
+				pricing.input !== undefined || pricing.output !== undefined
+					? pricing
+					: undefined,
+			status: "active",
+		};
 	}
 	return models;
 }
@@ -487,6 +590,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
+	poolside: fetchPoolsidePrivateModels,
 };
 
 const PUBLIC_MODELS_CACHE = new Map<

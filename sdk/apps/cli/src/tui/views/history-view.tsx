@@ -11,10 +11,7 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listSessions } from "../../session/session";
-import {
-	formatSessionStatusLabel,
-	mergeHistoryStatusRows,
-} from "../../utils/history-format";
+import { mergeHistoryStatusRows } from "../../utils/history-format";
 import { formatUsd } from "../../utils/output";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import { palette } from "../palette";
@@ -76,25 +73,6 @@ type HistoryListContentProps = HistoryListActions & {
 		handler: (key: HistoryKeyEvent | undefined) => void,
 	) => void;
 };
-
-function getStatusColor(
-	status: SessionHistoryRecord["status"],
-	selected: boolean,
-): string {
-	if (selected) {
-		return palette.textOnSelection;
-	}
-	switch (status) {
-		case "running":
-			return palette.success;
-		case "failed":
-			return "red";
-		case "cancelled":
-			return "yellow";
-		case "completed":
-			return "gray";
-	}
-}
 
 function HistoryListContent({
 	initialRows,
@@ -353,7 +331,6 @@ function HistoryListContent({
 					const showCost = shouldShowCliUsageCost(row.provider);
 					const title = formatTitle(row, titleMaxLen);
 					const date = formatRelativeDate(row.startedAt);
-					const status = formatSessionStatusLabel(row.status);
 
 					return (
 						<box
@@ -376,11 +353,6 @@ function HistoryListContent({
 								flexGrow={1}
 							>
 								{title}
-							</text>
-							<text fg={getStatusColor(row.status, isSel)} flexShrink={0}>
-								{"  ["}
-								{status}
-								{"]"}
 							</text>
 							{showCost && cost != null && cost > 0 && (
 								<text

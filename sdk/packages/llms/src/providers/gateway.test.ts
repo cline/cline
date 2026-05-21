@@ -1,7 +1,12 @@
 import type { AgentMessage, AgentModelEvent } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
-import { createGateway } from "./gateway";
+import {
+	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+	createGateway,
+	estimateRequestInputTokens,
+	resolveGatewayRequestMaxTokens,
+} from "./gateway";
 
 const streamTextSpy = vi.fn();
 const openaiCompatibleFactorySpy = vi.fn();
@@ -136,6 +141,117 @@ describe("sdk-gateway", () => {
 		} else {
 			process.env.OPENROUTER_API_KEY = originalOpenRouterApiKey;
 		}
+	});
+
+	it("resolves request max tokens from explicit, model, default, and context caps", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 8_192,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(8_192);
+
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 202_800,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 201_500,
+				outputReserveTokens: 1_024,
+			}),
+		).toBe(276);
+
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: {},
+				estimatedInputTokens: 1_000,
+			}),
+		).toBeUndefined();
+	});
+
+	it("does not collapse to one output token when estimated input exceeds context", () => {
+		const onContextOverflow = vi.fn();
+
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 8_192,
+				model: { maxOutputTokens: 202_800, contextWindow: 10_000 },
+				estimatedInputTokens: 9_500,
+				outputReserveTokens: 1_024,
+				onContextOverflow,
+			}),
+		).toBeUndefined();
+		expect(onContextOverflow).toHaveBeenCalledWith({
+			contextWindow: 10_000,
+			estimatedInputTokens: 9_500,
+			reserveTokens: 1_024,
+		});
+	});
+
+	it("keeps estimating when request tools cannot be JSON stringified", () => {
+		const circularTool = {
+			name: "large_tool",
+			description: "x".repeat(12_000),
+		} as Record<string, unknown>;
+		circularTool.self = circularTool;
+
+		const estimatedTokens = estimateRequestInputTokens({
+			systemPrompt: "system",
+			messages: baseMessages,
+			tools: [circularTool] as never,
+		});
+
+		expect(estimatedTokens).toBeGreaterThan(4_000);
+	});
+
+	it("applies a conservative default output cap for catalog models", async () => {
+		const createProvider = vi.fn(() => ({
+			async *stream(request: { maxTokens?: number }) {
+				expect(request.maxTokens).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-provider",
+						name: "CustomProvider",
+						defaultModelId: "large-output",
+						models: [
+							{
+								id: "large-output",
+								name: "Large Output",
+								providerId: "custom-provider",
+								contextWindow: 202_800,
+								maxInputTokens: 202_800,
+								maxOutputTokens: 202_800,
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-provider",
+				modelId: "large-output",
+				messages: baseMessages,
+			}),
+		);
 	});
 
 	it("keeps custom provider loading lazy until first use", async () => {

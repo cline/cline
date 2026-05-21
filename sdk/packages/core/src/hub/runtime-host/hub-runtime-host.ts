@@ -54,7 +54,11 @@ import type {
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
 } from "../../settings";
-import { SessionSource, type SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	SessionSource,
+	type SessionStatus,
+} from "../../types/common";
 import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
@@ -1691,7 +1695,10 @@ export class HubRuntimeHost implements RuntimeHost {
 						reason,
 					},
 				});
-				if (snapshot?.interactive === true && snapshot.status === "running") {
+				if (
+					snapshot?.interactive === true &&
+					isNonTerminalSessionStatus(snapshot.status)
+				) {
 					return;
 				}
 				this.events.emit({

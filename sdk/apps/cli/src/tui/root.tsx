@@ -87,6 +87,9 @@ function App(props: TuiProps) {
 			: "home";
 	});
 	const [toast, setToast] = useState<ToastState | null>(null);
+	const [workflowSlashCommands, setWorkflowSlashCommands] = useState(
+		props.workflowSlashCommands,
+	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
 
@@ -102,13 +105,17 @@ function App(props: TuiProps) {
 		[appView, props.initialPrompt, session.entries],
 	);
 
+	useEffect(() => {
+		setWorkflowSlashCommands(props.workflowSlashCommands);
+	}, [props.workflowSlashCommands]);
+
 	const {
 		registry: slashCommandRegistry,
 		systemCommands,
 		skillCommands,
 		invokableSkillCommands,
 	} = useSlashCommands({
-		workflowSlashCommands: props.workflowSlashCommands,
+		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
 	});
@@ -187,6 +194,19 @@ function App(props: TuiProps) {
 		onSessionRestart: props.onSessionRestart,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+	const propsOnToggleConfigItem = props.onToggleConfigItem;
+	const onToggleConfigItem = useMemo<TuiProps["onToggleConfigItem"]>(() => {
+		if (!propsOnToggleConfigItem) {
+			return undefined;
+		}
+		return async (item, options) => {
+			const data = await propsOnToggleConfigItem(item, options);
+			if (data) {
+				setWorkflowSlashCommands(data.workflowSlashCommands);
+			}
+			return data;
+		};
+	}, [propsOnToggleConfigItem]);
 
 	const openConfig = useConfigPanel({
 		dialog,
@@ -198,7 +218,7 @@ function App(props: TuiProps) {
 		setCompactionMode: session.setCompactionMode,
 		termHeight,
 		loadConfigData: props.loadConfigData,
-		onToggleConfigItem: props.onToggleConfigItem,
+		onToggleConfigItem,
 		openModelSelector,
 		openMcpManager,
 		refocusTextarea: () => refocusTextareaRef.current(),

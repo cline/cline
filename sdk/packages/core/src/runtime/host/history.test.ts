@@ -100,6 +100,22 @@ async function writeManifest(
 	);
 }
 
+async function writeMessagesFile(
+	filename: string,
+	messages: unknown[] = [{ role: "user", content: "hi" }],
+): Promise<string> {
+	if (!tempSessionDataDir) {
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "cline-core-history-"));
+	}
+	const path = join(tempSessionDataDir, filename);
+	await writeFile(
+		path,
+		`${JSON.stringify({ version: 1, messages }, null, 2)}\n`,
+		"utf8",
+	);
+	return path;
+}
+
 describe("session history", () => {
 	afterEach(async () => {
 		vi.clearAllMocks();
@@ -183,7 +199,9 @@ describe("session history", () => {
 	});
 
 	it("falls back to nested metadata provider/model ids before reading messages", async () => {
-		const readSessionMessages = vi.fn().mockResolvedValue([]);
+		const readSessionMessages = vi
+			.fn()
+			.mockResolvedValue([{ role: "user" as const, content: "hi" }]);
 
 		const [row] = await hydrateSessionHistory({ readSessionMessages }, [
 			createRow({
@@ -202,7 +220,9 @@ describe("session history", () => {
 	});
 
 	it("preserves host ordering when no manifest fallback rows are merged", async () => {
-		const readSessionMessages = vi.fn().mockResolvedValue([]);
+		const readSessionMessages = vi
+			.fn()
+			.mockResolvedValue([{ role: "user" as const, content: "hi" }]);
 		const first = createRow({
 			sessionId: "sess_first",
 			startedAt: "2026-04-19T00:00:00.000Z",
@@ -274,7 +294,67 @@ describe("session history", () => {
 		]);
 	});
 
+	it("projects legacy interactive running sessions with completed assistant turns as idle", async () => {
+		const list = vi.fn().mockResolvedValue([
+			createRow({
+				sessionId: "sess_legacy_idle",
+				status: "running",
+				interactive: true,
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			}),
+		]);
+		const readSessionMessages = vi.fn().mockResolvedValue([
+			{ role: "user" as const, content: "hi" },
+			{
+				role: "assistant" as const,
+				content: [{ type: "text", text: "hello" }],
+			},
+		]);
+
+		const rows = await listSessionHistory(
+			{ listSessions: list, readSessionMessages },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(readSessionMessages).toHaveBeenCalledWith("sess_legacy_idle");
+		expect(rows).toEqual([
+			expect.objectContaining({
+				sessionId: "sess_legacy_idle",
+				status: "idle",
+			}),
+		]);
+	});
+
+	it("keeps legacy interactive running sessions running when the last turn is not complete", async () => {
+		const list = vi.fn().mockResolvedValue([
+			createRow({
+				sessionId: "sess_legacy_running",
+				status: "running",
+				interactive: true,
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			}),
+		]);
+		const readSessionMessages = vi
+			.fn()
+			.mockResolvedValue([{ role: "user" as const, content: "keep going" }]);
+
+		const rows = await listSessionHistory(
+			{ listSessions: list, readSessionMessages },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(rows).toEqual([
+			expect.objectContaining({
+				sessionId: "sess_legacy_running",
+				status: "running",
+			}),
+		]);
+	});
+
 	it("filters child sessions from history by default", async () => {
+		const rootMessagesPath = await writeMessagesFile("root.messages.json");
 		const listSessions = vi.fn().mockResolvedValue([
 			createBackendRow({
 				sessionId: "root-session__teamtask__java-haiku-agent__abc123",
@@ -292,6 +372,7 @@ describe("session history", () => {
 			}),
 			createBackendRow({
 				sessionId: "root-session",
+				messagesPath: rootMessagesPath,
 			}),
 		]);
 
@@ -305,6 +386,8 @@ describe("session history", () => {
 	});
 
 	it("can include child sessions when explicitly requested", async () => {
+		const childMessagesPath = await writeMessagesFile("child.messages.json");
+		const rootMessagesPath = await writeMessagesFile("root.messages.json");
 		const listSessions = vi.fn().mockResolvedValue([
 			createBackendRow({
 				sessionId: "root-session__teamtask__java-haiku-agent__abc123",
@@ -312,9 +395,11 @@ describe("session history", () => {
 				parentAgentId: "lead",
 				agentId: "java-haiku-agent",
 				isSubagent: true,
+				messagesPath: childMessagesPath,
 			}),
 			createBackendRow({
 				sessionId: "root-session",
+				messagesPath: rootMessagesPath,
 			}),
 		]);
 
@@ -330,15 +415,20 @@ describe("session history", () => {
 		]);
 	});
 
-	it("keeps backend history listing lightweight without validating message artifacts", async () => {
+	it("keeps backend history rows even when messages are empty or unreadable", async () => {
+		const fullMessagesPath = await writeMessagesFile("full.messages.json");
+		const emptyMessagesPath = await writeMessagesFile(
+			"empty.messages.json",
+			[],
+		);
 		const listSessions = vi.fn().mockResolvedValue([
 			createBackendRow({
 				sessionId: "sess_full",
-				messagesPath: "/tmp/full.messages.json",
+				messagesPath: fullMessagesPath,
 			}),
 			createBackendRow({
 				sessionId: "sess_empty",
-				messagesPath: "/tmp/empty.messages.json",
+				messagesPath: emptyMessagesPath,
 			}),
 			createBackendRow({
 				sessionId: "sess_unreadable",

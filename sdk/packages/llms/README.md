@@ -70,6 +70,9 @@ AI SDK provider implementations. Shared gateway contracts are exported from both
 Use `@cline/llms/models` when you need generated provider/model metadata for
 selection UIs, defaults, or validation.
 
+For generated catalog field semantics and token-limit behavior, see
+[`src/catalog/README.md`](./src/catalog/README.md).
+
 ## Entry Points
 
 - `@cline/llms`: runtime-focused convenience entrypoint

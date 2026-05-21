@@ -456,6 +456,7 @@ export function ProviderConfigInputContent(
 				return (
 					<box key={key} flexDirection="column">
 						<text fg="gray">{label}</text>
+						{requirement.note && <text fg="gray">{requirement.note}</text>}
 						<box
 							border
 							borderStyle="rounded"

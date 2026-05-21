@@ -11,6 +11,7 @@ import {
 } from "../palette";
 import type { ChatEntry } from "../types";
 import { getSyntaxStyle } from "../utils/syntax-style";
+import { isWarningToolError } from "../utils/tool-errors";
 import {
 	parseApplyPatchInput,
 	parseAskQuestionInput,
@@ -212,6 +213,7 @@ function ToolCallView(props: {
 		defaultFg,
 	} = props;
 	const failed = result?.error != null;
+	const warningFailure = isWarningToolError(result?.error);
 	const params = formatToolParams(toolName, props.rawInput, inputSummary);
 
 	return (
@@ -220,6 +222,8 @@ function ToolCallView(props: {
 				<box width={2}>
 					{streaming ? (
 						<spinner name="dots" color="gray" />
+					) : warningFailure ? (
+						<text fg="yellow">!</text>
 					) : failed ? (
 						<text fg="red">x</text>
 					) : (
