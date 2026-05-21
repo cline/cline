@@ -77,6 +77,8 @@ interface PluginPackageManifest {
 
 const INSTALLS_DIRECTORY_NAME = "_installed";
 const PACKAGE_DIRECTORY_NAME = "package";
+const REMOTE_PLUGIN_FETCH_TIMEOUT_MS = 30_000;
+const REMOTE_PLUGIN_MAX_BYTES = 10 * 1024 * 1024;
 const HOST_PROVIDED_SDK_PREFIX = "@cline/";
 const DEPENDENCY_FIELDS = [
 	"dependencies",
@@ -228,11 +230,20 @@ function normalizeRemotePluginFileUrl(
 	const host = parsed.hostname.toLowerCase();
 	const filename = filenameFromUrlPath(parsed.pathname);
 	const isPluginFile = isPluginModulePath(filename);
+	const isGitHubFile =
+		(host === "github.com" || host === "www.github.com") &&
+		isGitHubFilePath(parsed.pathname);
+
+	if (parsed.protocol !== "https:") {
+		if (isGitHubFile || host === "raw.githubusercontent.com" || isPluginFile) {
+			throw new Error(`Remote plugin file URLs must use https: ${source}`);
+		}
+		return null;
+	}
 
 	if (host === "github.com" || host === "www.github.com") {
 		const parts = parsed.pathname.split("/").filter(Boolean);
-		const filePath = isGitHubFilePath(parsed.pathname);
-		if (!filePath) {
+		if (!isGitHubFile) {
 			return null;
 		}
 		if (!isPluginFile) {
@@ -718,24 +729,94 @@ async function installGitPackage(
 	return packageRoot;
 }
 
+function remotePluginSizeLimitError(url: string): Error {
+	return new Error(
+		`Remote plugin file from ${url} exceeds the ${REMOTE_PLUGIN_MAX_BYTES} byte limit`,
+	);
+}
+
+function getContentLength(response: Response): number | undefined {
+	const raw = response.headers.get("content-length");
+	if (!raw) {
+		return undefined;
+	}
+	const value = Number(raw);
+	if (!Number.isFinite(value) || value < 0) {
+		return undefined;
+	}
+	return value;
+}
+
+async function readRemotePluginBody(
+	response: Response,
+	url: string,
+): Promise<Buffer> {
+	const contentLength = getContentLength(response);
+	if (contentLength !== undefined && contentLength > REMOTE_PLUGIN_MAX_BYTES) {
+		throw remotePluginSizeLimitError(url);
+	}
+
+	if (!response.body) {
+		const body = Buffer.from(await response.text(), "utf8");
+		if (body.byteLength > REMOTE_PLUGIN_MAX_BYTES) {
+			throw remotePluginSizeLimitError(url);
+		}
+		return body;
+	}
+
+	const reader = response.body.getReader();
+	const chunks: Buffer[] = [];
+	let received = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			const chunk = Buffer.from(value);
+			received += chunk.byteLength;
+			if (received > REMOTE_PLUGIN_MAX_BYTES) {
+				await reader.cancel().catch(() => undefined);
+				throw remotePluginSizeLimitError(url);
+			}
+			chunks.push(chunk);
+		}
+		return Buffer.concat(chunks, received);
+	} finally {
+		reader.releaseLock();
+	}
+}
+
 async function installRemoteFile(
 	parsed: Extract<ParsedPluginSource, { type: "remote" }>,
 	stagingRoot: string,
 ): Promise<string> {
-	const response = await fetch(parsed.url);
-	if (!response.ok) {
-		const suffix = response.statusText ? ` ${response.statusText}` : "";
-		throw new Error(
-			`Failed to download plugin file from ${parsed.url}: ${response.status}${suffix}`,
-		);
+	const controller = new AbortController();
+	const timeout = setTimeout(() => {
+		controller.abort();
+	}, REMOTE_PLUGIN_FETCH_TIMEOUT_MS);
+	try {
+		const response = await fetch(parsed.url, { signal: controller.signal });
+		if (!response.ok) {
+			const suffix = response.statusText ? ` ${response.statusText}` : "";
+			throw new Error(
+				`Failed to download plugin file from ${parsed.url}: ${response.status}${suffix}`,
+			);
+		}
+		const body = await readRemotePluginBody(response, parsed.url);
+		mkdirSync(stagingRoot, { recursive: true });
+		await writeFile(join(stagingRoot, parsed.filename), body);
+		return stagingRoot;
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error(
+				`Timed out downloading plugin file from ${parsed.url} after ${REMOTE_PLUGIN_FETCH_TIMEOUT_MS}ms`,
+			);
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
 	}
-	mkdirSync(stagingRoot, { recursive: true });
-	await writeFile(
-		join(stagingRoot, parsed.filename),
-		await response.text(),
-		"utf8",
-	);
-	return stagingRoot;
 }
 
 async function installLocalPackage(

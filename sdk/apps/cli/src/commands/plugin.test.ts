@@ -48,6 +48,7 @@ describe("plugin install command", () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.unstubAllGlobals();
 		if (originalHome === undefined) {
 			delete process.env.HOME;
@@ -114,6 +115,12 @@ describe("plugin install command", () => {
 		});
 	});
 
+	it("rejects HTTP plugin file URLs", () => {
+		expect(() =>
+			parsePluginSource("http://example.com/plugins/weather-metrics.ts"),
+		).toThrow(/must use https/);
+	});
+
 	it("installs a local plugin file into the global plugin root", async () => {
 		const source = join(root, "weather.ts");
 		writeFileSync(
@@ -160,6 +167,69 @@ describe("plugin install command", () => {
 		expect(
 			discoverPluginModulePaths(join(workspace, ".cline", "plugins")),
 		).toEqual(result.entryPaths);
+	});
+
+	it("times out stalled remote plugin downloads", async () => {
+		vi.useFakeTimers();
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>((_input, init) => {
+			return new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () => {
+					const error = new Error("Aborted");
+					error.name = "AbortError";
+					reject(error);
+				});
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const install = installPlugin({ source, cwd: workspace });
+		const rejection = expect(install).rejects.toThrow(/Timed out downloading/);
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		await vi.advanceTimersByTimeAsync(30_000);
+
+		await rejection;
+	});
+
+	it("rejects remote plugin files with oversized content length", async () => {
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>(async () => {
+			return new Response(
+				"export default { name: 'remote-weather', manifest: { capabilities: ['tools'] } };",
+				{
+					headers: {
+						"content-length": String(10 * 1024 * 1024 + 1),
+					},
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(installPlugin({ source, cwd: workspace })).rejects.toThrow(
+			/exceeds the 10485760 byte limit/,
+		);
+	});
+
+	it("rejects remote plugin files that stream past the size limit", async () => {
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>(async () => {
+			return new Response(
+				new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.enqueue(new Uint8Array(10 * 1024 * 1024 + 1));
+						controller.close();
+					},
+				}),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(installPlugin({ source, cwd: workspace })).rejects.toThrow(
+			/exceeds the 10485760 byte limit/,
+		);
 	});
 
 	it("installs into cwd plugin root when cwd is provided", async () => {
