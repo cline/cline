@@ -194,18 +194,19 @@ function App(props: TuiProps) {
 		onSessionRestart: props.onSessionRestart,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+	const propsOnToggleConfigItem = props.onToggleConfigItem;
 	const onToggleConfigItem = useMemo<TuiProps["onToggleConfigItem"]>(() => {
-		if (!props.onToggleConfigItem) {
+		if (!propsOnToggleConfigItem) {
 			return undefined;
 		}
 		return async (item, options) => {
-			const data = await props.onToggleConfigItem?.(item, options);
+			const data = await propsOnToggleConfigItem(item, options);
 			if (data) {
 				setWorkflowSlashCommands(data.workflowSlashCommands);
 			}
 			return data;
 		};
-	}, [props.onToggleConfigItem]);
+	}, [propsOnToggleConfigItem]);
 
 	const openConfig = useConfigPanel({
 		dialog,
