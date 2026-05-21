@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ConnectTelegramOptions } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { __test__, telegramConnector } from "./telegram";
 
 const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
@@ -8,6 +11,28 @@ const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
 			parseArgs(rawArgs: string[]): ConnectTelegramOptions;
 		}
 	).parseArgs(rawArgs);
+
+const originalClineDataDir = process.env.CLINE_DATA_DIR;
+const tempDataDirs: string[] = [];
+
+function useTempClineDataDir(): string {
+	const dataDir = mkdtempSync(join(tmpdir(), "cline-telegram-test-"));
+	tempDataDirs.push(dataDir);
+	process.env.CLINE_DATA_DIR = dataDir;
+	return dataDir;
+}
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	if (originalClineDataDir === undefined) {
+		delete process.env.CLINE_DATA_DIR;
+	} else {
+		process.env.CLINE_DATA_DIR = originalClineDataDir;
+	}
+	for (const dir of tempDataDirs.splice(0)) {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
 
 describe("telegramConnector", () => {
 	it("honors --no-tools", () => {
@@ -35,6 +60,129 @@ describe("telegramConnector", () => {
 		]);
 
 		expect(options.enableTools).toBe(true);
+	});
+
+	it("does not require the bot username", () => {
+		const options = parseTelegramArgs([
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+		]);
+
+		expect(options.botUsername).toBeUndefined();
+		expect(options.botToken).toBe("123:test");
+	});
+
+	it("normalizes an explicit bot username", () => {
+		const options = parseTelegramArgs([
+			"--bot-username",
+			"  @test_bot  ",
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+		]);
+
+		expect(options.botUsername).toBe("test_bot");
+	});
+
+	it("does not call getMe when the token-only connector is already running", async () => {
+		const dataDir = useTempClineDataDir();
+		const connectorDir = join(dataDir, "connectors", "telegram");
+		mkdirSync(connectorDir, { recursive: true });
+		writeFileSync(
+			join(connectorDir, "resolved_bot.json"),
+			JSON.stringify({
+				botUsername: "resolved_bot",
+				botId: "123",
+				pid: process.pid,
+				rpcAddress: "127.0.0.1:54321",
+				startedAt: new Date().toISOString(),
+			}),
+		);
+		const fetchImpl = vi.fn(async () => {
+			throw new Error("unexpected getMe call");
+		});
+		vi.stubGlobal("fetch", fetchImpl);
+		const output: string[] = [];
+		const errors: string[] = [];
+
+		await expect(
+			telegramConnector.run(["--bot-token", "123:test", "--cwd", "/tmp/work"], {
+				writeln: (text = "") => output.push(text),
+				writeErr: (text) => errors.push(text),
+			}),
+		).resolves.toBe(0);
+
+		expect(fetchImpl).not.toHaveBeenCalled();
+		expect(errors).toEqual([]);
+		expect(output).toEqual([
+			`[telegram] connector already running pid=${process.pid} rpc=127.0.0.1:54321`,
+		]);
+	});
+});
+
+describe("telegram bot username resolution", () => {
+	it("reads the public Telegram bot id from a token", () => {
+		expect(__test__.readTelegramBotId("123456:secret")).toBe("123456");
+		expect(__test__.readTelegramBotId("not-a-token")).toBeUndefined();
+	});
+
+	it("uses the configured username without calling Telegram", async () => {
+		const fetchImpl = vi.fn(async () => {
+			throw new Error("unexpected fetch");
+		});
+
+		await expect(
+			__test__.resolveTelegramBotUsername(
+				{
+					botToken: "123:test",
+					botUsername: "@configured_bot",
+					cwd: "/tmp/work",
+					mode: "act",
+					interactive: true,
+					enableTools: true,
+					rpcAddress: "127.0.0.1:0",
+				},
+				fetchImpl,
+			),
+		).resolves.toBe("configured_bot");
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
+	it("fetches the username from Telegram getMe when omitted", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					result: { username: "resolved_bot" },
+				}),
+			);
+		});
+
+		await expect(
+			__test__.fetchTelegramBotUsername("123:test", fetchImpl),
+		).resolves.toBe("resolved_bot");
+		expect(fetchImpl).toHaveBeenCalledWith(
+			"https://api.telegram.org/bot123:test/getMe",
+		);
+	});
+
+	it("surfaces Telegram getMe failures", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					ok: false,
+					description: "Unauthorized",
+				}),
+				{ status: 401, statusText: "Unauthorized" },
+			);
+		});
+
+		await expect(
+			__test__.fetchTelegramBotUsername("bad-token", fetchImpl),
+		).rejects.toThrow("Telegram getMe failed");
 	});
 });
 
