@@ -27,6 +27,10 @@ permissions:
     checks: write
     pull-requests: write
 
+defaults:
+  run:
+    working-directory: apps/vscode
+
 jobs:
     test:
         uses: ./.github/workflows/ext-vscode-test.yml

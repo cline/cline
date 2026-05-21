@@ -15,6 +15,10 @@ permissions:
     contents: read # Needed to check out code
     pull-requests: read # Needed for changed-file detection on pull requests
 
+defaults:
+  run:
+    working-directory: apps/vscode
+
 jobs:
     detect-changes:
         runs-on: ubuntu-latest
