@@ -18,16 +18,15 @@ env:
     # Keep the publish source pinned to one reviewed branch instead of accepting arbitrary refs.
     SDK_NIGHTLY_REF: dpc/sdk-migration-simpler-login
 
-defaults:
-  run:
-    working-directory: apps/vscode
-
 jobs:
     publish:
         name: Publish Cline New SDK Extension Nightly
         if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         environment: PublishNightly
+        defaults:
+          run:
+            working-directory: apps/vscode
 
         steps:
             - name: Checkout trusted SDK nightly branch

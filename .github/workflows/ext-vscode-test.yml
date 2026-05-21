@@ -15,10 +15,6 @@ permissions:
     contents: read # Needed to check out code
     pull-requests: read # Needed for changed-file detection on pull requests
 
-defaults:
-  run:
-    working-directory: apps/vscode
-
 jobs:
     detect-changes:
         runs-on: ubuntu-latest
@@ -79,6 +75,9 @@ jobs:
         if: needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         name: Quality Checks
+        defaults:
+          run:
+            working-directory: apps/vscode
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -89,8 +88,8 @@ jobs:
                   node-version: 22
                   cache: 'npm'
                   cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -117,6 +116,7 @@ jobs:
         defaults:
             run:
                 shell: bash
+                working-directory: apps/vscode
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -127,8 +127,8 @@ jobs:
                   node-version: 22
                   cache: 'npm'
                   cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -212,6 +212,9 @@ jobs:
         needs: [detect-changes, quality-checks]
         if: needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
+        defaults:
+          run:
+            working-directory: apps/vscode
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -222,9 +225,9 @@ jobs:
                   node-version: 22
                   cache: 'npm'
                   cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
-                      testing-platform/package-lock.json
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+                      apps/vscode/testing-platform/package-lock.json
 
             - name: Install root dependencies
               run: npm ci

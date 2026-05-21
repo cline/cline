@@ -16,10 +16,6 @@ permissions:
     contents: read
     pull-requests: read
 
-defaults:
-  run:
-    working-directory: apps/vscode
-
 jobs:
     detect-changes:
         runs-on: ubuntu-latest
@@ -83,6 +79,9 @@ jobs:
         permissions:
             id-token: write
             contents: read
+        defaults:
+            run:
+                working-directory: apps/vscode
         steps:
             - uses: actions/checkout@v4
             - name: Setup Node.js environment
@@ -95,24 +94,24 @@ jobs:
               uses: actions/cache@v4
               id: root-cache
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  path: apps/vscode/node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('apps/vscode/package-lock.json') }}
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  path: apps/vscode/webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('apps/vscode/webview-ui/package-lock.json') }}
 
             # Cache VS Code installation
             - name: Cache VS Code
               uses: actions/cache@v4
               id: vscode-cache
               with:
-                  path: .vscode-test
-                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('.vscode-test.mjs', 'package.json') }}
+                  path: apps/vscode/.vscode-test
+                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('apps/vscode/.vscode-test.mjs', 'apps/vscode/package.json') }}
                   restore-keys: |
                       vscode-${{ runner.os }}-stable-
 
@@ -125,7 +124,7 @@ jobs:
                       ~/.cache/ms-playwright
                       ~/Library/Caches/ms-playwright
                       ~/AppData/Local/ms-playwright
-                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('apps/vscode/package-lock.json') }}
                   restore-keys: |
                       playwright-browsers-${{ runner.os }}-
 
