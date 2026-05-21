@@ -21,7 +21,7 @@ cline connect
 
 | Platform | Direct Command | Required Credentials |
 |----------|---------------|---------------------|
-| Telegram | `cline connect telegram` | Bot username, bot token |
+| Telegram | `cline connect telegram` | Bot token |
 | Slack | `cline connect slack` | Bot token, signing secret, base URL |
 | Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
 | Google Chat | `cline connect gchat` | Service account credentials JSON, base URL |
@@ -41,8 +41,10 @@ cline connect
 
   <Step title="Start the connector">
     ```bash
-    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN>
+    cline connect telegram -k <BOT-TOKEN>
     ```
+
+    The connector discovers the bot username from the token. Use `--bot-username` only if you need to override it.
   </Step>
 
   <Step title="Chat with your bot">
@@ -63,7 +65,7 @@ By default, anyone who finds your bot can message it and it will execute tasks o
     Replace `12345` with your actual Telegram user ID:
 
     ```bash
-    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN> \
+    cline connect telegram -k <BOT-TOKEN> \
       --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "telegram:id:12345" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
     ```
   </Step>
@@ -147,7 +149,7 @@ Multiple connectors can run simultaneously. They all share the same hub:
 
 ```bash
 # Terminal 1
-cline connect telegram -m my_bot -k $TELEGRAM_TOKEN
+cline connect telegram -k $TELEGRAM_TOKEN
 
 # Terminal 2
 cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
