@@ -84,6 +84,11 @@ function normalizeTelegramBotUsername(value: string): string {
 	return value.trim().replace(/^@+/, "");
 }
 
+function readTelegramBotId(botToken: string): string | undefined {
+	const [botId] = botToken.trim().split(":", 1);
+	return /^\d+$/.test(botId) ? botId : undefined;
+}
+
 function describeTelegramGetMeFailure(
 	response: Response,
 	body: string,
@@ -99,18 +104,16 @@ async function readTelegramGetMeResponse(
 	response: Response,
 ): Promise<TelegramGetMeResponse> {
 	const text = await response.text();
+	let parsed: TelegramGetMeResponse;
 	try {
-		const parsed = JSON.parse(text) as TelegramGetMeResponse;
-		if (!response.ok || parsed.ok !== true) {
-			throw new Error(describeTelegramGetMeFailure(response, text, parsed));
-		}
-		return parsed;
-	} catch (error) {
-		if (error instanceof SyntaxError) {
-			throw new Error(describeTelegramGetMeFailure(response, text, undefined));
-		}
-		throw error;
+		parsed = JSON.parse(text) as TelegramGetMeResponse;
+	} catch {
+		throw new Error(describeTelegramGetMeFailure(response, text, undefined));
 	}
+	if (!response.ok || parsed.ok !== true) {
+		throw new Error(describeTelegramGetMeFailure(response, text, parsed));
+	}
+	return parsed;
 }
 
 async function fetchTelegramBotUsername(
@@ -519,6 +522,28 @@ class TelegramConnector extends ConnectorBase<
 		this.writeStateFile(statePath, state);
 	}
 
+	private findRunningConnectorStateByBotId(
+		botId: string | undefined,
+	): TelegramConnectorState | undefined {
+		if (!botId) {
+			return undefined;
+		}
+		for (const statePath of this.listConnectorStatePaths()) {
+			const state = this.readConnectorState(statePath);
+			if (!state) {
+				continue;
+			}
+			if (!isProcessRunning(state.pid)) {
+				this.removeStateFile(statePath);
+				continue;
+			}
+			if (state.botId === botId) {
+				return state;
+			}
+		}
+		return undefined;
+	}
+
 	private async stopTelegramConnectorInstance(
 		statePath: string,
 		io: ConnectIo,
@@ -553,6 +578,21 @@ class TelegramConnector extends ConnectorBase<
 		rawArgs: string[],
 		io: ConnectIo,
 	): Promise<number> {
+		if (
+			!inputOptions.botUsername &&
+			!inputOptions.interactive &&
+			process.env.CLINE_TELEGRAM_CONNECT_CHILD !== "1"
+		) {
+			const runningState = this.findRunningConnectorStateByBotId(
+				readTelegramBotId(inputOptions.botToken),
+			);
+			if (runningState) {
+				io.writeln(
+					`[telegram] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress}`,
+				);
+				return 0;
+			}
+		}
 		let resolvedBotUsername: string;
 		try {
 			resolvedBotUsername = await resolveTelegramBotUsername(inputOptions);
@@ -662,6 +702,7 @@ class TelegramConnector extends ConnectorBase<
 		await client.connect();
 		this.writeConnectorState(statePath, {
 			botUsername: options.botUsername,
+			botId: readTelegramBotId(options.botToken),
 			pid: process.pid,
 			rpcAddress,
 			startedAt: new Date().toISOString(),
@@ -1046,6 +1087,7 @@ export const telegramConnector: ConnectCommandDefinition =
 
 export const __test__ = {
 	fetchTelegramBotUsername,
+	readTelegramBotId,
 	resolveTelegramBotUsername,
 	resolveTelegramParticipant,
 	findBindingForThread: (

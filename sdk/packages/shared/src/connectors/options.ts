@@ -50,6 +50,7 @@ export type ConnectTelegramOptions = {
 
 export type TelegramConnectorState = {
 	botUsername: string;
+	botId?: string;
 	pid: number;
 	rpcAddress: string;
 	startedAt: string;
