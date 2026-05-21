@@ -158,73 +158,58 @@ function extractCheckpoint(
 }
 
 function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
-	const payload = cloneRecord(event.payload);
-	const payloadSessionId =
-		typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
-	const sessionId = event.sessionId?.trim() || payloadSessionId;
+	const sessionId = event.sessionId?.trim();
 	if (!sessionId) {
 		return undefined;
 	}
 	switch (event.event) {
-		case "schedule.execution_completed":
-			return {
-				sessionId,
-				eventType: "schedule.execution.completed",
-				payload,
-			};
-		case "schedule.execution_failed":
-			return {
-				sessionId,
-				eventType: "schedule.execution.failed",
-				payload,
-			};
 		case "iteration.started":
 			return {
 				sessionId,
 				eventType: "runtime.chat.iteration_start",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "iteration.finished":
 			return {
 				sessionId,
 				eventType: "runtime.chat.iteration_end",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "assistant.delta":
 			return {
 				sessionId,
 				eventType: "runtime.chat.text_delta",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "usage.updated":
 			return {
 				sessionId,
 				eventType: "runtime.chat.usage",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "tool.started":
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_start",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "tool.finished":
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_end",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "approval.requested":
 			return {
 				sessionId,
 				eventType: "approval.requested",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "run.aborted":
 			return {
 				sessionId,
 				eventType: "runtime.chat.aborted",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		case "run.failed":
 			return {
@@ -236,7 +221,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 			return {
 				sessionId,
 				eventType: "runtime.chat.completed",
-				payload,
+				payload: cloneRecord(event.payload),
 			};
 		default:
 			return undefined;

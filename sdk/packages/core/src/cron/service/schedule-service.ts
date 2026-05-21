@@ -209,18 +209,6 @@ export class HubScheduleService {
 			pollIntervalMs: options.pollIntervalMs,
 			claimLeaseSeconds: options.claimLeaseSeconds,
 			globalMaxConcurrency: options.globalMaxConcurrency,
-			onRunComplete: ({ run, spec, status, sessionId, error }) => {
-				if (spec.source !== "hub-schedule") {
-					return;
-				}
-				options.eventPublisher?.("schedule.execution.completed", {
-					scheduleId: spec.externalId,
-					executionId: run.runId,
-					sessionId,
-					status: runStatusToScheduleStatus(status),
-					...(error ? { errorMessage: error } : {}),
-				});
-			},
 		});
 	}
 

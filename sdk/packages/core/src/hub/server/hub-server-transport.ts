@@ -227,16 +227,13 @@ export class HubServerTransport implements NativeHubTransport {
 				if (!mapped) {
 					return;
 				}
-				const eventPayload =
-					payload && typeof payload === "object"
-						? (payload as Record<string, unknown>)
-						: undefined;
-				const sessionId =
-					typeof eventPayload?.sessionId === "string"
-						? eventPayload.sessionId.trim()
-						: undefined;
 				this.publish(
-					buildHubEvent(mapped, eventPayload, sessionId || undefined),
+					buildHubEvent(
+						mapped,
+						payload && typeof payload === "object"
+							? (payload as Record<string, unknown>)
+							: undefined,
+					),
 				);
 			},
 		});

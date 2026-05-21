@@ -129,13 +129,6 @@ export interface CronRunnerOptions {
 	pollIntervalMs?: number;
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
-	onRunComplete?: (event: {
-		run: CronRunRecord;
-		spec: CronSpecRecord;
-		status: CronRunRecord["status"];
-		sessionId?: string;
-		error?: string;
-	}) => void;
 }
 
 export class CronRunner {
@@ -347,12 +340,6 @@ export class CronRunner {
 				claimToken: claim.claimToken,
 			});
 			this.store.updateSpecLastRunAt(spec.specId, nowIso());
-			this.notifyRunComplete({
-				run,
-				spec,
-				status: "done",
-				sessionId,
-			});
 		} catch (err) {
 			const isTimeout = err instanceof TimeoutError;
 			if (sessionId && isTimeout) {
@@ -378,13 +365,6 @@ export class CronRunner {
 				error: message,
 				claimToken: claim.claimToken,
 			});
-			this.notifyRunComplete({
-				run,
-				spec,
-				status: "failed",
-				sessionId,
-				error: message,
-			});
 		} finally {
 			releaseLeaseHeartbeat?.();
 			if (sessionId) {
@@ -396,25 +376,6 @@ export class CronRunner {
 			}
 			this.activeRuns.delete(run.runId);
 			this.limiter.release(spec.specId, run.runId);
-		}
-	}
-
-	private notifyRunComplete(event: {
-		run: CronRunRecord;
-		spec: CronSpecRecord;
-		status: CronRunRecord["status"];
-		sessionId?: string;
-		error?: string;
-	}): void {
-		try {
-			this.options.onRunComplete?.(event);
-		} catch (error) {
-			const log = this.options.logger;
-			if (log) {
-				if (log.error)
-					log.error("cron.runner.run_complete_callback.failed", { error });
-				else log.log("cron.runner.run_complete_callback.failed", { error });
-			}
 		}
 	}
 

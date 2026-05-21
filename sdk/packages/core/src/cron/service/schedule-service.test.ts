@@ -37,7 +37,6 @@ describe("HubScheduleService", () => {
 	sqliteIt("creates, triggers, and reports schedule history", async () => {
 		const dbPath = await createTempDbPath();
 		cleanupPaths.push(dbPath);
-		const events: Array<{ eventType: string; payload: unknown }> = [];
 		const service = new HubScheduleService({
 			dbPath,
 			runtimeHandlers: {
@@ -53,9 +52,6 @@ describe("HubScheduleService", () => {
 				})),
 				abortSession: vi.fn(async () => ({ applied: true })),
 				stopSession: vi.fn(async () => ({ applied: true })),
-			},
-			eventPublisher: (eventType, payload) => {
-				events.push({ eventType, payload });
 			},
 		});
 		try {
@@ -77,17 +73,6 @@ describe("HubScheduleService", () => {
 			const execution = await service.triggerScheduleNow(created.scheduleId);
 			expect(execution?.status).toBe("success");
 			expect(execution?.sessionId).toBe("session-1");
-			expect(events).toEqual([
-				{
-					eventType: "schedule.execution.completed",
-					payload: {
-						scheduleId: created.scheduleId,
-						executionId: execution?.executionId,
-						sessionId: "session-1",
-						status: "success",
-					},
-				},
-			]);
 
 			const schedule = service.getSchedule(created.scheduleId);
 			expect(schedule?.metadata).toEqual({
