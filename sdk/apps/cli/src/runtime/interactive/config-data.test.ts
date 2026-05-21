@@ -353,6 +353,32 @@ Use this skill.`,
 		).toBe(true);
 	});
 
+	it("loads runCommandsTimeoutMs from global settings and defaults invalid values", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		await writeFile(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ runCommandsTimeoutMs: "invalid" }, null, 2),
+		);
+
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+		const invalidData = await loader.loadConfigData();
+		expect(invalidData.general.runCommandsTimeoutMs).toBe(30000);
+
+		await writeFile(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ runCommandsTimeoutMs: 120000 }, null, 2),
+		);
+		const configuredData = await loader.loadConfigData();
+		expect(configuredData.general.runCommandsTimeoutMs).toBe(120000);
+	});
+
 	it("uses the package name for package-backed plugin entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);

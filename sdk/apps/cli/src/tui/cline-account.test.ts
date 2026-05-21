@@ -48,6 +48,7 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
 		mode: "act",
 		defaultToolAutoApprove: false,
 		toolPolicies: {},
+		runCommandsTimeoutMs: 30000,
 		enableTools: true,
 		cwd: "/tmp/workspace",
 		logger: {

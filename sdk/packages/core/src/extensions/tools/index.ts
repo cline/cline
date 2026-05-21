@@ -7,7 +7,13 @@
 // Zod Utilities
 export { validateWithZod, zodToJsonSchema } from "@cline/shared";
 // Constants
-export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
+export {
+	ALL_DEFAULT_TOOL_NAMES,
+	DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+	DefaultToolNames,
+	MAX_RUN_COMMANDS_TIMEOUT_MS,
+	MIN_RUN_COMMANDS_TIMEOUT_MS,
+} from "./constants";
 // AgentTool Definitions
 export {
 	createApplyPatchTool,
@@ -178,6 +184,8 @@ export function createBuiltinTools(
 
 	return createDefaultTools({
 		...toolsConfig,
+		bashTimeoutMs:
+			toolsConfig.bashTimeoutMs ?? executorOptions.bash?.timeoutMs,
 		executors,
 	});
 }

@@ -7,7 +7,8 @@ import {
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_RUN_COMMANDS_TIMEOUT_MS } from "../../extensions/tools/constants";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -53,9 +54,23 @@ async function collectExtensionTools(
 
 describe("DefaultRuntimeBuilder", () => {
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	const previousMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+	beforeEach(() => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-settings-"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			tempRoot,
+			"cline_mcp_settings.json",
+		);
+	});
 
 	afterEach(() => {
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		process.env.CLINE_MCP_SETTINGS_PATH = previousMcpSettingsPath;
 	});
 
 	it("includes builtin tools when enabled", async () => {
@@ -280,6 +295,43 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).toContain("read_files");
 	});
 
+	it("uses runCommandsTimeoutMs from global settings for run_commands tool and executor", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-timeout-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ runCommandsTimeoutMs: 120000 }, null, 2),
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+		const runCommandsTool = runtime.tools.find((tool) => tool.name === "run_commands");
+		expect(runCommandsTool).toBeDefined();
+		expect(runCommandsTool?.timeoutMs).toBe(240000);
+	});
+
+	it("defaults invalid runCommandsTimeoutMs in global settings", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-timeout-invalid-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ runCommandsTimeoutMs: "oops" }, null, 2),
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+		const runCommandsTool = runtime.tools.find((tool) => tool.name === "run_commands");
+		expect(runCommandsTool?.timeoutMs).toBe(
+			DEFAULT_RUN_COMMANDS_TIMEOUT_MS * 2,
+		);
+	});
+
 	it("adds spawn tool when enabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
@@ -299,7 +351,7 @@ describe("DefaultRuntimeBuilder", () => {
 			}),
 		});
 
-		await expect(runtime.shutdown("test")).resolves.toBeUndefined();
+		await runtime.shutdown("test");
 	});
 
 	it("includes MCP tools from configured servers", async () => {

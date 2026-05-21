@@ -34,6 +34,7 @@ import {
 } from "../../extensions/tools/team";
 import {
 	filterDisabledTools,
+	readGlobalSettings,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -96,6 +97,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
+	const { runCommandsTimeoutMs } = readGlobalSettings();
 	const toolRoutingConfig = resolveToolRoutingConfig(
 		providerId,
 		modelId,
@@ -109,6 +111,9 @@ function createBuiltinToolsList(
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
+			executorOptions: {
+				bash: { timeoutMs: runCommandsTimeoutMs },
+			},
 			executors: {
 				...(skillsExecutor
 					? {

@@ -288,6 +288,7 @@ Use this skill.`,
 			),
 		).toEqual({
 			disabledTools: ["plugin-tool"],
+			runCommandsTimeoutMs: 30000,
 			telemetryOptOut: false,
 		});
 
@@ -297,6 +298,6 @@ Use this skill.`,
 			JSON.parse(
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
-		).toEqual({ telemetryOptOut: false });
+		).toEqual({ runCommandsTimeoutMs: 30000, telemetryOptOut: false });
 	});
 });

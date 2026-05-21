@@ -1,6 +1,7 @@
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { DEFAULT_RUN_COMMANDS_TIMEOUT_MS } from "@cline/core";
 import { useEffect, useMemo, useState } from "react";
 import type {
 	InteractiveConfigData,
@@ -131,6 +132,7 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	onToggleMode: () => void;
 	onToggleAutoApprove: () => void;
 	onSetCompactionMode: (mode: CliCompactionMode) => void;
+	onSetRunCommandsTimeoutMs: (value: number) => void;
 }
 
 function groupToolItems(
@@ -315,6 +317,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [compactionMode, setCompactionMode] = useState(
 		props.currentCompactionMode,
 	);
+	const [runCommandsTimeoutMs, setRunCommandsTimeoutMs] = useState(
+		props.configData.general.runCommandsTimeoutMs,
+	);
 	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>("general");
 	const [configData, setConfigData] = useState(props.configData);
 	const [pluginToolsLoaded, setPluginToolsLoaded] = useState(
@@ -329,6 +334,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+	const runCommandsTimeoutPresets = [
+		DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+		60_000,
+		120_000,
+		300_000,
+	];
 
 	useEffect(() => {
 		if (
@@ -383,6 +394,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				label: "Auto-approve all",
 			});
 			r.push({ kind: "toggle", id: "verbose", label: "Verbose" });
+			r.push({
+				kind: "toggle",
+				id: "run-commands-timeout",
+				label: "Run Command timeout",
+			});
 		} else {
 			const activeItems = resolveActiveConfigItems(configData, activeTab);
 			r.push({
@@ -442,7 +458,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 
 		return r;
-	}, [activeTab, configData, pluginToolsError, pluginToolsLoading]);
+	}, [
+		activeTab,
+		configData,
+		pluginToolsError,
+		pluginToolsLoading,
+	]);
 
 	const navIndices = useMemo(
 		() => rows.map((r, i) => (isNavigable(r) ? i : -1)).filter((i) => i >= 0),
@@ -518,6 +539,18 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						config.verbose = !verbose;
 						setVerbose(!verbose);
 						break;
+					case "run-commands-timeout": {
+						const currentIndex = runCommandsTimeoutPresets.indexOf(
+							runCommandsTimeoutMs,
+						);
+						const nextTimeoutMs =
+							runCommandsTimeoutPresets[
+								(currentIndex + 1) % runCommandsTimeoutPresets.length
+							] ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS;
+						setRunCommandsTimeoutMs(nextTimeoutMs);
+						props.onSetRunCommandsTimeoutMs(nextTimeoutMs);
+						break;
+					}
 				}
 				break;
 			case "ext": {
@@ -692,6 +725,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						} else if (row.id === "compaction") {
 							value = formatCliCompactionMode(compactionMode);
 							valueColor = COMPACTION_MODE_COLORS[compactionMode];
+						} else if (row.id === "run-commands-timeout") {
+							value = `${runCommandsTimeoutMs / 1000}s`;
+							valueColor = "white";
 						} else {
 							value = verbose ? "● on" : "○ off";
 							valueColor = verbose ? palette.success : "gray";

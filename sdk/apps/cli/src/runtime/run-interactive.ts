@@ -2,7 +2,9 @@ import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	readGlobalSettings,
 	type UserInstructionConfigService,
+	writeGlobalSettings,
 } from "@cline/core";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
@@ -574,6 +576,14 @@ export async function runInteractive(
 		onCompactionModeChange: async (mode) => {
 			await sessionRuntime.ensureReady();
 			applyCliCompactionMode(config, mode);
+			await sessionRuntime.restartWithCurrentMessages();
+		},
+		onRunCommandsTimeoutChange: async (timeoutMs) => {
+			writeGlobalSettings({
+				...readGlobalSettings(),
+				runCommandsTimeoutMs: timeoutMs,
+			});
+			await sessionRuntime.ensureReady();
 			await sessionRuntime.restartWithCurrentMessages();
 		},
 		onModeChange: async (mode) => {

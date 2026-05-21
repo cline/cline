@@ -147,6 +147,7 @@ export interface TuiProps {
 	onTurnErrorReported: (reported: boolean) => void;
 	onAutoApproveChange: (enabled: boolean) => void;
 	onCompactionModeChange: (mode: CliCompactionMode) => Promise<void>;
+	onRunCommandsTimeoutChange: (timeoutMs: number) => Promise<void>;
 	onModelChange: () => Promise<void>;
 	onModeChange: (mode: AgentMode) => Promise<void>;
 	onSessionRestart: () => Promise<void>;

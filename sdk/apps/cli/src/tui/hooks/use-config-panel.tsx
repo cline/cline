@@ -1,4 +1,4 @@
-import { Llms } from "@cline/core";
+import { Llms, readGlobalSettings } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback, useMemo } from "react";
@@ -21,6 +21,7 @@ export function useConfigPanel(opts: {
 	toggleMode: () => void;
 	toggleAutoApprove: () => void;
 	setCompactionMode: (mode: CliCompactionMode) => void;
+	setRunCommandsTimeoutMs: (value: number) => void;
 	termHeight: number;
 	loadConfigData: (
 		options?: LoadInteractiveConfigDataOptions,
@@ -35,6 +36,9 @@ export function useConfigPanel(opts: {
 }) {
 	const emptyConfigData = useMemo(
 		() => ({
+			general: {
+				runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs,
+			},
 			workflows: [] as InteractiveConfigItem[],
 			rules: [] as InteractiveConfigItem[],
 			skills: [] as InteractiveConfigItem[],
@@ -74,6 +78,7 @@ export function useConfigPanel(opts: {
 						onToggleMode={opts.toggleMode}
 						onToggleAutoApprove={opts.toggleAutoApprove}
 						onSetCompactionMode={opts.setCompactionMode}
+						onSetRunCommandsTimeoutMs={opts.setRunCommandsTimeoutMs}
 					/>
 				),
 			});

@@ -19,6 +19,10 @@ import {
 } from "@cline/core";
 import { getToolCatalog } from "../runtime/tools";
 
+export interface InteractiveGeneralConfig {
+	runCommandsTimeoutMs: number;
+}
+
 export type InteractiveConfigTab =
 	| "general"
 	| "tools"
@@ -62,6 +66,7 @@ export interface InteractiveConfigItem {
 }
 
 export interface InteractiveConfigData {
+	general: InteractiveGeneralConfig;
 	workflows: InteractiveConfigItem[];
 	rules: InteractiveConfigItem[];
 	skills: InteractiveConfigItem[];
@@ -262,6 +267,9 @@ export async function loadInteractiveConfigData(input: {
 	const hooks: InteractiveConfigItem[] = [];
 	const agents: InteractiveConfigItem[] = [];
 	const plugins: InteractiveConfigItem[] = [];
+	const general = {
+		runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs,
+	};
 	const mcp: InteractiveConfigItem[] = [];
 	const tools: InteractiveConfigItem[] = [];
 
@@ -417,6 +425,7 @@ export async function loadInteractiveConfigData(input: {
 	}
 
 	return {
+		general,
 		workflows: toSorted(workflows.filter((item) => existsSync(item.path))),
 		rules: toSorted(rules.filter((item) => existsSync(item.path))),
 		skills: toSorted(skills.filter((item) => existsSync(item.path))),
