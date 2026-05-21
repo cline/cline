@@ -498,7 +498,8 @@ INPUT=$(cat)
 if command -v jq &> /dev/null; then
   TASK_ID=$(echo "$INPUT" | jq -r '.taskId')
   TURN=$(echo "$INPUT" | jq -r '.postAssistantTurn.turnNumber')
-  TOOLS=$(echo "$INPUT" | jq -r '.postAssistantTurn.toolNames | join(", ")')
+  # toolNames may be absent when empty (proto3 omits default values) — default to []
+  TOOLS=$(echo "$INPUT" | jq -r '(.postAssistantTurn.toolNames // []) | join(", ")')
   TEXT_LEN=$(echo "$INPUT" | jq -r '.postAssistantTurn.assistantText | length')
 else
   TASK_ID="<taskId>"
