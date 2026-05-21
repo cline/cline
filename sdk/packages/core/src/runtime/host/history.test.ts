@@ -283,7 +283,7 @@ describe("session history", () => {
 		);
 
 		expect(list).toHaveBeenCalledWith(20);
-		expect(readSessionMessages).toHaveBeenCalledWith("sess_lightweight");
+		expect(readSessionMessages).not.toHaveBeenCalled();
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_lightweight",
@@ -415,7 +415,7 @@ describe("session history", () => {
 		]);
 	});
 
-	it("filters backend history rows without readable messages", async () => {
+	it("keeps backend history rows even when messages are empty or unreadable", async () => {
 		const fullMessagesPath = await writeMessagesFile("full.messages.json");
 		const emptyMessagesPath = await writeMessagesFile(
 			"empty.messages.json",
@@ -442,7 +442,11 @@ describe("session history", () => {
 		);
 
 		expect(listSessions).toHaveBeenCalledWith(20);
-		expect(rows.map((row) => row.sessionId)).toEqual(["sess_full"]);
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"sess_full",
+			"sess_empty",
+			"sess_unreadable",
+		]);
 	});
 
 	it("lists directly from a session backend without a runtime host", async () => {

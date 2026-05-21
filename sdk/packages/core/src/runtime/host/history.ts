@@ -383,23 +383,21 @@ function shouldProjectLegacyRunningSessionAsIdle(
 	);
 }
 
-async function filterAndProjectHistoryRows(
+async function projectLegacyRunningRowsAsIdle(
 	host: Pick<RuntimeHost, "readSessionMessages">,
 	rows: SessionRecord[],
 ): Promise<SessionRecord[]> {
-	const prepared = await Promise.all(
-		rows.map(async (row) => ({
-			row,
-			messages: await host.readSessionMessages(row.sessionId),
-		})),
-	);
-	return prepared
-		.filter(({ messages }) => messages.length > 0)
-		.map(({ row, messages }) =>
-			shouldProjectLegacyRunningSessionAsIdle(row, messages)
+	return await Promise.all(
+		rows.map(async (row) => {
+			if (row.status !== "running" || row.interactive !== true) {
+				return row;
+			}
+			const messages = await host.readSessionMessages(row.sessionId);
+			return shouldProjectLegacyRunningSessionAsIdle(row, messages)
 				? { ...row, status: "idle" }
-				: row,
-		);
+				: row;
+		}),
+	);
 }
 
 export async function hydrateSessionHistory(
@@ -459,7 +457,7 @@ export async function listSessionHistory(
 			: Array.from(merged.values())
 					.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
 					.slice(0, limit);
-	const projectedRows = await filterAndProjectHistoryRows(host, rows);
+	const projectedRows = await projectLegacyRunningRowsAsIdle(host, rows);
 	if (options.hydrate === false) {
 		return projectedRows.map((row) => normalizeHistoryRow(row));
 	}
