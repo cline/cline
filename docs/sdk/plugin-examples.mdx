@@ -1,10 +1,10 @@
 ---
 title: "Plugin Examples"
 sidebarTitle: "Plugin Examples"
-description: "Explore ready-to-run plugin examples from the Cline SDK repository."
+description: "Explore installable plugin examples from the Cline SDK repository."
 ---
 
-The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes ready-to-run plugin examples under [`examples/plugins/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins). Use them as starting points for tools, lifecycle hooks, message rewriting, policy enforcement, background jobs, and multi-agent workflows.
+The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes installable plugin examples under [`examples/plugins/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins). Use them as starting points for tools, lifecycle hooks, message rewriting, policy enforcement, background jobs, and multi-agent workflows.
 
 ## Examples
 
@@ -25,8 +25,7 @@ The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes read
 The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system plugins folder.
 
 ```sh
-mkdir -p .cline/plugins
-cp examples/plugins/weather-metrics.ts .cline/plugins/
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
@@ -37,8 +36,7 @@ Swap `weather-metrics.ts` for any other single-file plugin example.
 Use `gitignore-read-files-guard.ts` to block tools from reading or editing files ignored by workspace `.gitignore` files:
 
 ```sh
-mkdir -p .cline/plugins
-cp examples/plugins/gitignore-read-files-guard.ts .cline/plugins/
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
 cline -i "Read the ignored .env file"
 ```
 
@@ -59,8 +57,7 @@ See [Installing Plugins](/sdk/plugin-install) for more install options.
 The `web-search.ts` plugin registers a `web_search` tool backed by Exa. Use `web_search` to discover relevant URLs, then use `fetch_web_content` when the agent needs to inspect a specific page.
 
 ```sh
-mkdir -p .cline/plugins
-cp examples/plugins/web-search.ts .cline/plugins/web-search.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts --cwd .
 
 export EXA_API_KEY=...
 export OPENROUTER_API_KEY=...

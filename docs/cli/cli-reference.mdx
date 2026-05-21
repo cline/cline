@@ -171,7 +171,7 @@ cat payload.json | cline hook
 
 ### `plugin`
 
-Manage Cline plugins. Install plugins from npm, git repositories, or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
+Manage Cline plugins. Install plugins from HTTPS file URLs, npm, git repositories, or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
 
 ```bash
 cline plugin install <source>  # Install a plugin
@@ -190,6 +190,12 @@ Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescri
 
 ```bash
 cline plugin install https://github.com/cline/typescript-lsp-plugin.git
+```
+
+Install a single-file example plugin from GitHub:
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
 ```
 
 ### `schedule`
