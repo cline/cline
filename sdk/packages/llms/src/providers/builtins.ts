@@ -330,6 +330,16 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.groq.com/openai/v1" },
 	},
 	{
+		id: "poolside",
+		name: "Poolside",
+		description: "OpenAI-compatible code intelligence models",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "poolside/laguna-m.1",
+		apiKeyEnv: ["POOLSIDE_API_KEY"],
+		defaults: { baseUrl: "https://inference.poolside.ai/v1" },
+	},
+	{
 		id: "cerebras",
 		name: "Cerebras",
 		description: "Fast inference on Cerebras wafer-scale chips",
