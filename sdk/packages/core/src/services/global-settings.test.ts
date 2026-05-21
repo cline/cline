@@ -204,6 +204,7 @@ describe("global-settings", () => {
 
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["read_files"],
+					runCommandsTimeoutMs: 30000,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -226,6 +227,7 @@ describe("global-settings", () => {
 
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["read_files"],
+					runCommandsTimeoutMs: 30000,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -244,6 +246,7 @@ describe("global-settings", () => {
 				writeGlobalSettings({ disabledTools: ["editor"] });
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["editor"],
+					runCommandsTimeoutMs: 30000,
 					telemetryOptOut: false,
 				});
 
@@ -251,12 +254,14 @@ describe("global-settings", () => {
 				writeGlobalSettings({ disabledTools: ["read_files"] });
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["read_files"],
+					runCommandsTimeoutMs: 30000,
 					telemetryOptOut: false,
 				});
 
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = pathA;
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["editor"],
+					runCommandsTimeoutMs: 30000,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -271,8 +276,14 @@ describe("global-settings", () => {
 				const settingsPath = join(root, "missing-global-settings.json");
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
-				expect(readGlobalSettings()).toEqual({ telemetryOptOut: false });
-				expect(readGlobalSettings()).toEqual({ telemetryOptOut: false });
+				expect(readGlobalSettings()).toEqual({
+					runCommandsTimeoutMs: 30000,
+					telemetryOptOut: false,
+				});
+				expect(readGlobalSettings()).toEqual({
+					runCommandsTimeoutMs: 30000,
+					telemetryOptOut: false,
+				});
 			} finally {
 				await rm(root, { recursive: true, force: true });
 			}
@@ -310,7 +321,10 @@ describe("global-settings", () => {
 				const settingsPath = join(root, "global-settings.json");
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
-				expect(readGlobalSettings()).toEqual({ telemetryOptOut: false });
+				expect(readGlobalSettings()).toEqual({
+					runCommandsTimeoutMs: 30000,
+					telemetryOptOut: false,
+				});
 
 				await writeFile(
 					settingsPath,
@@ -319,6 +333,7 @@ describe("global-settings", () => {
 
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["editor"],
+					runCommandsTimeoutMs: 30000,
 					telemetryOptOut: false,
 				});
 			} finally {
