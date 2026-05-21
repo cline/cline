@@ -7,7 +7,7 @@ import {
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_RUN_COMMANDS_TIMEOUT_MS } from "../../extensions/tools/constants";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
@@ -54,9 +54,23 @@ async function collectExtensionTools(
 
 describe("DefaultRuntimeBuilder", () => {
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	const previousMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+	beforeEach(() => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-settings-"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			tempRoot,
+			"cline_mcp_settings.json",
+		);
+	});
 
 	afterEach(() => {
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		process.env.CLINE_MCP_SETTINGS_PATH = previousMcpSettingsPath;
 	});
 
 	it("includes builtin tools when enabled", async () => {
@@ -337,7 +351,7 @@ describe("DefaultRuntimeBuilder", () => {
 			}),
 		});
 
-		await expect(runtime.shutdown("test")).resolves.toBeUndefined();
+		await runtime.shutdown("test");
 	});
 
 	it("includes MCP tools from configured servers", async () => {
