@@ -111,6 +111,11 @@ cline schedule create "Daily summary" \
   --delivery-thread telegram:123456789
 ```
 
+`--delivery-bot` is still supported after token-only connector setup. Use
+the Telegram bot username shown by `/whereami` as `deliveryUserName` when you
+need to target one specific Telegram connector, or omit the flag when the
+schedule does not need to be restricted to a specific bot.
+
 The connector must be running when the scheduled result is delivered, and the target thread must have an existing thread binding.
 
 ## Limitations
