@@ -1287,7 +1287,9 @@ describe("getProviderConfigFields", () => {
 	it("returns api-key auth with apiKey + baseUrl for ollama", () => {
 		const result = getProviderConfigFields("ollama");
 		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
+		expect(result.fields.apiKey).toEqual({
+			note: "Keep empty if no API key for local inference.",
+		});
 		expect(result.fields.baseUrl?.defaultValue).toBe(
 			"http://localhost:11434/v1",
 		);

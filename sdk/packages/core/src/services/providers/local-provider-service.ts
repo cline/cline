@@ -813,6 +813,7 @@ export type ProviderConfigFieldKey =
 export interface ProviderConfigFieldRequirement {
 	defaultValue?: string;
 	label?: string;
+	note?: string;
 	placeholder?: string;
 	optional?: boolean;
 }
@@ -903,7 +904,14 @@ export function getProviderConfigFields(
 	}
 
 	const defaultBaseUrl = collection?.provider.baseUrl;
-	const fields: ProviderConfigFields["fields"] = { apiKey: {} };
+	const fields: ProviderConfigFields["fields"] = {
+		apiKey:
+			id === "ollama"
+				? {
+						note: "Keep empty if no API key for local inference.",
+					}
+				: {},
+	};
 	if (shouldExposeBaseUrlField(id, collection)) {
 		fields.baseUrl = { defaultValue: defaultBaseUrl };
 	}
