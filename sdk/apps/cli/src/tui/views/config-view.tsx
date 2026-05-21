@@ -463,7 +463,6 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		configData,
 		pluginToolsError,
 		pluginToolsLoading,
-		runCommandsTimeoutMs,
 	]);
 
 	const navIndices = useMemo(
