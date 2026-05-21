@@ -72,8 +72,25 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
+		TOOL_TIMEOUT: "sdk.tool_timeout",
 	},
 } as const;
+
+export interface RunCommandsTimeoutTelemetryProperties {
+	tool_name: "run_commands";
+	effective_timeout_ms: number;
+	timeout_source: "default_setting" | "command_parameter";
+	command_count: number;
+	duration_ms: number;
+	mode?: string;
+	source?: string;
+	session_id?: string;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
@@ -223,14 +240,9 @@ export function captureAuthLoggedOut(
 }
 
 /**
- * Fires when the user finishes configuring a "bring your own provider"
- * (API-key based) provider during onboarding or via settings.
- *
- * Unlike the OAuth/device-code `captureAuth*` events, the configure step is a
- * synchronous local credential save with no network roundtrip, so there is no
- * start/fail counterpart — the credential is validated lazily on the first
- * subsequent API call. Mirrors the `{ provider }` payload shape of
- * {@link captureAuthSucceeded} for funnel consistency.
+ * Records that a user configured a provider credential in settings.
+ * This is a normal opt-out-respecting event because configuration has no
+ * start/fail counterpart and credential validity is checked lazily later.
  */
 export function captureProviderConfigured(
 	telemetry: ITelemetryService | undefined,
@@ -247,6 +259,15 @@ export function captureTelemetryOptOut(
 		CORE_TELEMETRY_EVENTS.USER.TELEMETRY_OPT_OUT,
 		properties,
 	);
+}
+
+export function captureRunCommandsTimeout(
+	telemetry: ITelemetryService | undefined,
+	properties: RunCommandsTimeoutTelemetryProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT, {
+		...properties,
+	});
 }
 
 export function identifyAccount(

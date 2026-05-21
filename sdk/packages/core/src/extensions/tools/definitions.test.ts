@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ITelemetryService } from "@cline/shared";
 import {
 	createBashTool,
 	createBuiltinTools,
@@ -8,7 +9,7 @@ import {
 	createWindowsShellTool,
 } from ".";
 import { MAX_RUN_COMMANDS_TIMEOUT_MS } from "./constants";
-import { withTimeout } from "./helpers";
+import { TimeoutError, withTimeout } from "./helpers";
 import {
 	INPUT_ARG_CHAR_LIMIT,
 	RunCommandsInputSchema,
@@ -419,6 +420,16 @@ describe("default apply_patch tool", () => {
 });
 
 describe("default run_commands tool", () => {
+	function createTelemetryStub(): ITelemetryService {
+		return {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			identify: vi.fn(),
+		} as unknown as ITelemetryService;
+	}
+
 	it("clears wrapper timers after fast commands resolve", async () => {
 		vi.useFakeTimers();
 		try {
@@ -869,6 +880,183 @@ describe("default run_commands tool", () => {
 		);
 
 		expect(tool.timeoutMs).toBe(MAX_RUN_COMMANDS_TIMEOUT_MS);
+	});
+
+	it("emits timeout telemetry per timed-out command without leaking raw command data", async () => {
+		const execute = vi.fn(
+			async (
+				_command: unknown,
+				_cwd: string,
+				_context: unknown,
+				timeoutMs?: number,
+			): Promise<string> => {
+				throw new TimeoutError(`Command timed out after ${timeoutMs}ms`);
+			},
+		);
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 5 });
+		const telemetry = createTelemetryStub();
+
+		await tool.execute(
+			{
+				commands: [
+					{ command: "echo", args: ["secret-token"], timeout: 120000 },
+					"pwd",
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				runId: "run-1",
+				iteration: 1,
+				toolCallId: "tool-call-1",
+				metadata: {
+					telemetry,
+					mode: "act",
+					source: "sdk-test",
+				},
+			},
+		);
+
+		expect(telemetry.capture).toHaveBeenCalled();
+		const timeoutCalls = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls
+			.map((call) => call[0])
+			.filter((event) => event.event === "sdk.tool_timeout");
+		expect(timeoutCalls).toHaveLength(2);
+		expect(timeoutCalls[0].properties).toMatchObject({
+			tool_name: "run_commands",
+			effective_timeout_ms: 120000,
+			timeout_source: "command_parameter",
+			command_count: 2,
+			mode: "act",
+			source: "sdk-test",
+		});
+		expect(timeoutCalls[1].properties).toMatchObject({
+			tool_name: "run_commands",
+			effective_timeout_ms: 5,
+			timeout_source: "default_setting",
+			command_count: 2,
+			mode: "act",
+			source: "sdk-test",
+		});
+		for (const call of timeoutCalls) {
+			const payload = JSON.stringify(call.properties);
+			expect(payload).not.toContain("echo secret-token");
+			expect(payload).not.toContain("pwd");
+			expect(payload).not.toContain("stdout");
+			expect(payload).not.toContain("stderr");
+			expect(payload).not.toContain("env");
+			expect(call.properties).not.toHaveProperty("timeout_origin");
+		}
+	});
+
+	it("emits timeout telemetry for default-setting timeouts", async () => {
+		const execute = vi.fn(
+			async (): Promise<string> =>
+				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
+		);
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 5 });
+		const telemetry = createTelemetryStub();
+
+		await tool.execute({ commands: ["echo slow"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { telemetry },
+		});
+
+		const timeoutCalls = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls
+			.map((call) => call[0])
+			.filter((event) => event.event === "sdk.tool_timeout");
+		expect(timeoutCalls).toHaveLength(1);
+		expect(timeoutCalls[0]?.properties).toMatchObject({
+			effective_timeout_ms: 5,
+			timeout_source: "default_setting",
+		});
+		expect(timeoutCalls[0]?.properties).not.toHaveProperty("timeout_origin");
+	});
+
+	it("emits timeout telemetry for TimeoutError without matching plain error text", async () => {
+		const executorTimeout = vi.fn(async () => {
+			throw new TimeoutError("Command timed out after 5000ms");
+		});
+		const plainFailure = vi.fn(async () => {
+			throw new Error("Command timed out after 5000ms");
+		});
+		const telemetry = createTelemetryStub();
+
+		await createWindowsShellTool(executorTimeout, {
+			bashTimeoutMs: 5000,
+		}).execute({ commands: ["echo timeout"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { telemetry },
+		});
+		await createWindowsShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
+			{ commands: ["echo not-timeout"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				metadata: { telemetry },
+			},
+		);
+
+		const timeoutCalls = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls
+			.map((call) => call[0])
+			.filter((event) => event.event === "sdk.tool_timeout");
+		expect(timeoutCalls).toHaveLength(1);
+		expect(timeoutCalls[0]?.properties).toMatchObject({
+			effective_timeout_ms: 5000,
+			timeout_source: "default_setting",
+		});
+		expect(timeoutCalls[0]?.properties).not.toHaveProperty("timeout_origin");
+	});
+
+	it("does not emit timeout telemetry for normal command success", async () => {
+		const execute = vi.fn(async () => "ok");
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 50 });
+		const telemetry = createTelemetryStub();
+
+		await tool.execute({ commands: ["echo hi"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { telemetry },
+		});
+
+		expect(
+			(telemetry.capture as ReturnType<typeof vi.fn>).mock.calls
+				.map((call) => call[0])
+				.filter((event) => event.event === "sdk.tool_timeout"),
+		).toEqual([]);
+	});
+
+	it("does not emit timeout telemetry for normal non-timeout failures", async () => {
+		const execute = vi.fn(async () => {
+			throw new Error("exit code 1");
+		});
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 50 });
+		const telemetry = createTelemetryStub();
+
+		await tool.execute({ commands: ["false"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { telemetry },
+		});
+
+		expect(
+			(telemetry.capture as ReturnType<typeof vi.fn>).mock.calls
+				.map((call) => call[0])
+				.filter((event) => event.event === "sdk.tool_timeout"),
+		).toEqual([]);
 	});
 });
 

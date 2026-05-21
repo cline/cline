@@ -22,6 +22,70 @@ Tools are functions the model can call during execution. Tools consist of a name
 | `ask_question` | Ask the user for input |
 | `submit_and_exit` | Submit a final answer and stop |
 
+### `run_commands` timeout
+
+`run_commands` accepts an optional per-command `timeout` in milliseconds on structured command entries. Plain string commands use the configured default.
+
+```json
+{
+  "commands": [{ "command": "bun", "args": ["install"], "timeout": 120000 }]
+}
+```
+
+Defaults and bounds:
+
+- default: `30000` ms
+- minimum: `1000` ms
+- maximum: `3600000` ms
+- type: integer milliseconds
+- scope: per structured command entry
+
+Do not put `timeout` at the top level of the tool call. The `commands` array runs concurrently, so each command resolves its own timeout from `command.timeout` or the configured default.
+
+```json
+{
+  "commands": ["bun install"],
+  "timeout": 120000
+}
+```
+
+### `run_commands` timeout telemetry
+
+When the built-in `run_commands` tool hits a timeout, the SDK emits a dedicated telemetry event:
+
+- event: `sdk.tool_timeout`
+- `tool_name`: always `run_commands`
+- `effective_timeout_ms`: the timeout that actually fired
+- `timeout_source`: `default_setting` or `command_parameter`
+- `command_count`: number of commands in the tool call
+- `command_index`: zero-based index when the timeout is attributable to one command
+- `duration_ms`: observed duration before timeout handling
+- optional context when available: `mode`, `source`, `session_id`, `agent_id`, `conversation_id`, `run_id`, `iteration`, `tool_call_id`
+
+Privacy note:
+
+- the SDK does **not** include raw command text
+- the SDK does **not** include stdout/stderr
+- the SDK does **not** include env vars, workspace paths, API keys, or tokens
+
+Example payload:
+
+```json
+{
+  "event": "sdk.tool_timeout",
+  "properties": {
+    "tool_name": "run_commands",
+    "effective_timeout_ms": 5000,
+    "timeout_source": "command_parameter",
+    "command_count": 2,
+    "command_index": 1,
+    "duration_ms": 5004,
+    "mode": "act",
+    "source": "cli"
+  }
+}
+```
+
 <Note>
   If you need more control you can use the `Agents` package directly. This does not include built-in tools. You pass in only the tools you want when constructing the agent.
 </Note>

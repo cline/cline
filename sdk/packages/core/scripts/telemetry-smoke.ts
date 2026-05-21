@@ -1,12 +1,13 @@
 /**
  * Telemetry smoke test for ENG-1902.
  *
- * Runs each activation/workspace funnel event through the SDK telemetry
- * helpers using a minimal capturing telemetry service. Prints the captured
- * event names and event-specific payloads so a human can verify no raw
- * paths leak and that the legacy snake_case schema is preserved. Activation
- * and workspace events are routed through normal `capture` so they respect
- * the user's telemetry opt-out setting.
+ * Runs each activation/workspace funnel event and the run_commands timeout
+ * event through the SDK telemetry helpers using a minimal capturing telemetry
+ * service. Prints the captured event names and event-specific payloads so a
+ * human can verify no raw paths, command text, stdout, stderr, env vars, or
+ * secrets leak and that the legacy snake_case schema is preserved. Activation,
+ * workspace, and timeout events are routed through normal `capture` so they
+ * respect the user's telemetry opt-out setting.
  *
  * Usage:
  *   bunx --bun tsx packages/core/scripts/telemetry-smoke.ts
@@ -17,6 +18,7 @@ import type { ITelemetryService, TelemetryProperties } from "@cline/shared";
 import {
 	captureConversationTurnEvent,
 	captureExtensionActivated,
+	captureRunCommandsTimeout,
 	captureTaskCompleted,
 	captureTaskCreated,
 	captureTaskRestarted,
@@ -220,6 +222,45 @@ async function main() {
 			{ fallback_to_single_root: true, workspace_count: 0 },
 		);
 		dumpEvents(t.events);
+	}
+
+	header("explicit sdk.tool_timeout payload sample (run_commands)");
+	{
+		const t = new CapturingTelemetry();
+		captureRunCommandsTimeout(asITelemetryService(t), {
+			tool_name: "run_commands",
+			effective_timeout_ms: 5000,
+			timeout_source: "command_parameter",
+			command_count: 2,
+			duration_ms: 5004,
+			mode: "act",
+			source: "smoke",
+			session_id: "session-smoke",
+			agent_id: "agent-smoke",
+			iteration: 1,
+		});
+		dumpEvents(t.events);
+		const payload = t.events[0]?.properties ?? {};
+		assertSmoke(
+			"run_commands timeout omits raw command field",
+			"command" in payload,
+			false,
+		);
+		assertSmoke(
+			"run_commands timeout omits raw commands field",
+			"commands" in payload,
+			false,
+		);
+		assertSmoke(
+			"run_commands timeout omits stdout field",
+			"stdout" in payload,
+			false,
+		);
+		assertSmoke(
+			"run_commands timeout omits stderr field",
+			"stderr" in payload,
+			false,
+		);
 	}
 
 	header("explicit captureWorkspacePathResolved payload sample");
