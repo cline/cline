@@ -16,6 +16,10 @@ function mapLocalStatusToHubStatus(
 	status: LocalSessionRecord["status"],
 ): HubSessionRecord["status"] {
 	switch (status) {
+		case "idle":
+			return "idle";
+		case "pending":
+			return "pending";
 		case "completed":
 			return "completed";
 		case "failed":
