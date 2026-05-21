@@ -15,6 +15,10 @@ concurrency:
 
 permissions: {}
 
+defaults:
+  run:
+    working-directory: apps/vscode
+
 jobs:
   test:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
