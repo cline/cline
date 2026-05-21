@@ -50,6 +50,14 @@ describe("retry middleware", () => {
 			expect(isRetriableError({ code: "ENOTFOUND" })).toBe(true);
 		});
 
+		it("returns false for AbortError (intentional cancellation)", () => {
+			expect(isRetriableError({ name: "AbortError" })).toBe(false);
+		});
+
+		it("returns true for FetchError", () => {
+			expect(isRetriableError({ name: "FetchError" })).toBe(true);
+		});
+
 		it("returns true for rate limit messages", () => {
 			expect(isRetriableError({ message: "Rate limit exceeded" })).toBe(true);
 			expect(isRetriableError({ message: "Too many requests" })).toBe(true);

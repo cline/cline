@@ -113,11 +113,15 @@ export function isRetriableError(error: unknown): boolean {
 			}
 		}
 
-		// Check for fetch/network error types
+		// Check for fetch/network error types (but NOT AbortError - that's intentional cancellation)
 		const name = err.name;
 		if (typeof name === "string") {
-			if (name === "FetchError" || name === "AbortError") {
+			if (name === "FetchError") {
 				return true;
+			}
+			// AbortError means intentional cancellation - do NOT retry
+			if (name === "AbortError") {
+				return false;
 			}
 		}
 
@@ -245,10 +249,18 @@ async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 	}
 
 	return new Promise((resolve, reject) => {
-		const timeout = setTimeout(resolve, ms);
+		let onAbort: (() => void) | undefined;
+
+		const timeout = setTimeout(() => {
+			// Clean up abort listener when timeout completes normally
+			if (signal && onAbort) {
+				signal.removeEventListener("abort", onAbort);
+			}
+			resolve();
+		}, ms);
 
 		if (signal) {
-			const onAbort = () => {
+			onAbort = () => {
 				clearTimeout(timeout);
 				reject(new Error("Retry aborted"));
 			};
