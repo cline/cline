@@ -241,6 +241,9 @@ service UiService {
   
   // Subscribe to map button clicked events
   rpc subscribeToMapButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to connectors button clicked events
+  rpc subscribeToConnectorsButtonClicked(EmptyRequest) returns (stream Empty);
   
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);

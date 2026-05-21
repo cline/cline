@@ -5,7 +5,6 @@ import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import HeroTooltip from "../common/HeroTooltip"
 
-// Custom MCP Server Icon component using VSCode codicon
 const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
 	<span
 		className={`codicon codicon-server flex items-center ${className || ""}`}
@@ -13,8 +12,16 @@ const McpServerIcon = ({ className, size }: { className?: string; size?: number 
 	/>
 )
 
+const ConnectorsIcon = ({ className, size }: { className?: string; size?: number }) => (
+	<span
+		className={`codicon codicon-plug flex items-center ${className || ""}`}
+		style={{ fontSize: size ? `${size}px` : "12.5px", marginBottom: "1px" }}
+	/>
+)
+
 export const Navbar = () => {
-	const { navigateToHistory, navigateToSettings, navigateToMcp, navigateToMap, navigateToChat } = useExtensionState()
+	const { navigateToHistory, navigateToSettings, navigateToMcp, navigateToMap, navigateToConnectors, navigateToChat } =
+		useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
 		() => [
@@ -24,7 +31,6 @@ export const Navbar = () => {
 				tooltip: "New Task",
 				icon: PlusIcon,
 				navigate: () => {
-					// Close the current task, then navigate to the chat view
 					TaskServiceClient.clearTask({})
 						.catch((error) => {
 							console.error("Failed to clear task:", error)
@@ -38,6 +44,13 @@ export const Navbar = () => {
 				tooltip: "MCP Servers",
 				icon: McpServerIcon,
 				navigate: navigateToMcp,
+			},
+			{
+				id: "connectors",
+				name: "Connectors",
+				tooltip: "External Connectors",
+				icon: ConnectorsIcon,
+				navigate: navigateToConnectors,
 			},
 			{
 				id: "map",
@@ -61,7 +74,7 @@ export const Navbar = () => {
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToChat, navigateToHistory, navigateToMap, navigateToMcp, navigateToSettings],
+		[navigateToChat, navigateToHistory, navigateToMap, navigateToMcp, navigateToConnectors, navigateToSettings],
 	)
 
 	return (

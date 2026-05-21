@@ -14,6 +14,7 @@ const AiHydroCommands = {
 	MapButton: prefix + ".mapButtonClicked",
 	SettingsButton: prefix + ".settingsButtonClicked",
 	HistoryButton: prefix + ".historyButtonClicked",
+	ConnectorsButton: prefix + ".connectorsButtonClicked",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
 	AddToChat: prefix + ".addToChat",
 	FixWithAiHydro: prefix + ".fixWithAiHydro",

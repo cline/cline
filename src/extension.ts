@@ -6,6 +6,7 @@ import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import * as vscode from "vscode"
 import { loadGeojsonCommand } from "./core/controller/map/loadGeojsonCommand"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
+import { sendConnectorsButtonClickedEvent } from "./core/controller/ui/subscribeToConnectorsButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
@@ -86,6 +87,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.McpButton, () => {
 			sendMcpButtonClickedEvent()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ConnectorsButton, () => {
+			sendConnectorsButtonClickedEvent()
 		}),
 	)
 

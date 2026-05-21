@@ -146,6 +146,11 @@
 				"icon": "$(history)"
 			},
 			{
+				"command": "aihydro.connectorsButtonClicked",
+				"title": "External Connectors",
+				"icon": "$(plug)"
+			},
+			{
 				"command": "aihydro.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -262,8 +267,13 @@
 					"when": "view == aihydro.SidebarProvider"
 				},
 				{
-					"command": "aihydro.settingsButtonClicked",
+					"command": "aihydro.connectorsButtonClicked",
 					"group": "navigation@5",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
+					"command": "aihydro.settingsButtonClicked",
+					"group": "navigation@6",
 					"when": "view == aihydro.SidebarProvider"
 				}
 			],

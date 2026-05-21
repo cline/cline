@@ -1,6 +1,7 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { useEffect } from "react"
 import ChatView from "./components/chat/ChatView"
+import ConnectorsView from "./components/connectors/ConnectorsView"
 import HistoryView from "./components/history/HistoryView"
 import MapPanel from "./components/map/MapPanel"
 import MapView from "./components/map/MapView"
@@ -27,6 +28,7 @@ const AppContent = () => {
 		showSettings,
 		showHistory,
 		showMap,
+		showConnectors,
 		showAnnouncement,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
@@ -35,6 +37,7 @@ const AppContent = () => {
 		hideSettings,
 		hideHistory,
 		hideMap,
+		hideConnectors,
 		hideAnnouncement,
 	} = useExtensionState()
 
@@ -74,11 +77,12 @@ const AppContent = () => {
 			{showSettings && <SettingsView onDone={hideSettings} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
+			{showConnectors && <ConnectorsView onDone={hideConnectors} />}
 			{showMap && <MapPanel />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMcp || showMap}
+				isHidden={showSettings || showHistory || showMcp || showConnectors || showMap}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>
