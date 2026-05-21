@@ -8,29 +8,31 @@ Create a bot with `@BotFather`:
 
 1. Open Telegram and start a chat with `@BotFather`.
 2. Send `/newbot` and follow the prompts.
-3. Copy the bot username without the leading `@`.
-4. Copy the bot token. Treat it like a password.
+3. Copy the bot token. Treat it like a password.
 
 Start the connector:
 
 ```bash
-cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN"
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN"
 ```
+
+The connector discovers the bot username from the token. Use `--bot-username`
+only if you need to override it.
 
 Useful variants:
 
 ```bash
 # Keep logs in the active terminal while debugging.
-cline connect telegram -i -m my_bot -k "$TELEGRAM_BOT_TOKEN"
+cline connect telegram -i -k "$TELEGRAM_BOT_TOKEN"
 
 # Read credentials from env vars.
-TELEGRAM_BOT_USERNAME=my_bot TELEGRAM_BOT_TOKEN=123456:ABCDEF... cline connect telegram
+TELEGRAM_BOT_TOKEN=123456:ABCDEF... cline connect telegram
 
 # Override the workspace and model used for Telegram sessions.
-cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN" --cwd /path/to/repo --provider cline --model openai/gpt-5.3-codex
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN" --cwd /path/to/repo --provider cline --model openai/gpt-5.3-codex
 
 # Disable tools for untrusted Telegram surfaces.
-cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN" --no-tools
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN" --no-tools
 
 # Stop Telegram connector processes and sessions.
 cline connect --stop telegram
@@ -69,7 +71,7 @@ Tools are enabled by default for Telegram sessions. That means anyone who can su
 Use `--no-tools` when the Telegram surface is not trusted:
 
 ```bash
-cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN" --no-tools
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN" --no-tools
 ```
 
 When the connector starts with `--no-tools`, chat commands such as `/tools on` and `/yolo on` cannot re-enable tools for that connector run.

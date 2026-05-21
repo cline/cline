@@ -34,7 +34,7 @@ export type WhatsAppConnectorState = {
 
 export type ConnectTelegramOptions = {
 	botToken: string;
-	botUsername: string;
+	botUsername?: string;
 	cwd: string;
 	model?: string;
 	provider?: string;

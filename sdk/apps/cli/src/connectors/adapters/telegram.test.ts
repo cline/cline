@@ -1,5 +1,5 @@
 import type { ConnectTelegramOptions } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { __test__, telegramConnector } from "./telegram";
 
 const parseTelegramArgs = (rawArgs: string[]): ConnectTelegramOptions =>
@@ -35,6 +35,89 @@ describe("telegramConnector", () => {
 		]);
 
 		expect(options.enableTools).toBe(true);
+	});
+
+	it("does not require the bot username", () => {
+		const options = parseTelegramArgs([
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+		]);
+
+		expect(options.botUsername).toBeUndefined();
+		expect(options.botToken).toBe("123:test");
+	});
+
+	it("normalizes an explicit bot username", () => {
+		const options = parseTelegramArgs([
+			"--bot-username",
+			"  @test_bot  ",
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+		]);
+
+		expect(options.botUsername).toBe("test_bot");
+	});
+});
+
+describe("telegram bot username resolution", () => {
+	it("uses the configured username without calling Telegram", async () => {
+		const fetchImpl = vi.fn(async () => {
+			throw new Error("unexpected fetch");
+		});
+
+		await expect(
+			__test__.resolveTelegramBotUsername(
+				{
+					botToken: "123:test",
+					botUsername: "@configured_bot",
+					cwd: "/tmp/work",
+					mode: "act",
+					interactive: true,
+					enableTools: true,
+					rpcAddress: "127.0.0.1:0",
+				},
+				fetchImpl,
+			),
+		).resolves.toBe("configured_bot");
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
+	it("fetches the username from Telegram getMe when omitted", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					result: { username: "resolved_bot" },
+				}),
+			);
+		});
+
+		await expect(
+			__test__.fetchTelegramBotUsername("123:test", fetchImpl),
+		).resolves.toBe("resolved_bot");
+		expect(fetchImpl).toHaveBeenCalledWith(
+			"https://api.telegram.org/bot123:test/getMe",
+		);
+	});
+
+	it("surfaces Telegram getMe failures", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					ok: false,
+					description: "Unauthorized",
+				}),
+				{ status: 401, statusText: "Unauthorized" },
+			);
+		});
+
+		await expect(
+			__test__.fetchTelegramBotUsername("bad-token", fetchImpl),
+		).rejects.toThrow("Telegram getMe failed");
 	});
 });
 
