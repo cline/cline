@@ -760,7 +760,10 @@ class GoogleChatConnector extends ConnectorBase<
 						requestStop("rpc_server_shutting_down");
 						return;
 					}
-					if (event.eventType !== "schedule.execution.completed") {
+					if (
+						event.eventType !== "schedule.execution.completed" &&
+						event.eventType !== "schedule.execution.failed"
+					) {
 						return;
 					}
 					const scheduleId =
