@@ -25,7 +25,6 @@ function createConfig(cwd: string): Config {
 		outputMode: "text",
 		defaultToolAutoApprove: false,
 		toolPolicies: { "*": { autoApprove: false } },
-		runCommandsTimeoutMs: 30000,
 		enableTools: true,
 		enableSpawnAgent: true,
 		enableAgentTeams: true,

@@ -21,7 +21,6 @@ function makeConfig(autoApprove = true): Config {
 		toolPolicies: {
 			"*": { autoApprove },
 		},
-		runCommandsTimeoutMs: 30000,
 		cwd: process.cwd(),
 	};
 }
