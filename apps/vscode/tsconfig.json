@@ -25,45 +25,45 @@
 		"useUnknownInCatchVariables": false,
 		"paths": {
 			"@/*": [
-				"apps/vscode/src/*"
+				"./src/*"
 			],
 			"@api/*": [
-				"apps/vscode/src/core/api/*"
+				"./src/core/api/*"
 			],
 			"@core/*": [
-				"apps/vscode/src/core/*"
+				"./src/core/*"
 			],
 			"@generated/*": [
-				"apps/vscode/src/generated/*"
+				"./src/generated/*"
 			],
 			"@hosts/*": [
-				"apps/vscode/src/hosts/*"
+				"./src/hosts/*"
 			],
 			"@integrations/*": [
-				"apps/vscode/src/integrations/*"
+				"./src/integrations/*"
 			],
 			"@packages/*": [
-				"apps/vscode/src/packages/*"
+				"./src/packages/*"
 			],
 			"@services/*": [
-				"apps/vscode/src/services/*"
+				"./src/services/*"
 			],
 			"@shared/*": [
-				"apps/vscode/src/shared/*"
+				"./src/shared/*"
 			],
 			"@utils/*": [
-				"apps/vscode/src/utils/*"
+				"./src/utils/*"
 			]
 		}
 	},
 	"include": [
-		"apps/vscode/src/**/*"
+		"src/**/*"
 	],
 	"exclude": [
 		"node_modules",
 		".vscode-test",
 		"webview-ui",
-		"apps/vscode/src/test/e2e/**/*",
-		"apps/vscode/src/test/scenarios/**/*"
+		"src/test/e2e/**/*",
+		"src/test/scenarios/**/*"
 	]
 }
