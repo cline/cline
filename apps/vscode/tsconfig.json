@@ -1,0 +1,69 @@
+{
+	"compilerOptions": {
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"jsx": "react",
+		"lib": [
+			"es2022",
+			"DOM"
+		],
+		"module": "esnext",
+		"moduleResolution": "Bundler",
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": false,
+		"resolveJsonModule": true,
+		"rootDir": ".",
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"target": "es2022",
+		"useDefineForClassFields": true,
+		"useUnknownInCatchVariables": false,
+		"paths": {
+			"@/*": [
+				"apps/vscode/src/*"
+			],
+			"@api/*": [
+				"apps/vscode/src/core/api/*"
+			],
+			"@core/*": [
+				"apps/vscode/src/core/*"
+			],
+			"@generated/*": [
+				"apps/vscode/src/generated/*"
+			],
+			"@hosts/*": [
+				"apps/vscode/src/hosts/*"
+			],
+			"@integrations/*": [
+				"apps/vscode/src/integrations/*"
+			],
+			"@packages/*": [
+				"apps/vscode/src/packages/*"
+			],
+			"@services/*": [
+				"apps/vscode/src/services/*"
+			],
+			"@shared/*": [
+				"apps/vscode/src/shared/*"
+			],
+			"@utils/*": [
+				"apps/vscode/src/utils/*"
+			]
+		}
+	},
+	"include": [
+		"apps/vscode/src/**/*"
+	],
+	"exclude": [
+		"node_modules",
+		".vscode-test",
+		"webview-ui",
+		"apps/vscode/src/test/e2e/**/*",
+		"apps/vscode/src/test/scenarios/**/*"
+	]
+}
