@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1779302019893,
+	version: 1779326530734,
 	providers: {
 		aihubmix: {
 			"glm-5v-turbo": {
@@ -114,7 +114,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.3",
 				contextWindow: 1000000,
 				maxInputTokens: 1000000,
-				maxTokens: 50000,
+				maxTokens: 1000000,
 				capabilities: [
 					"images",
 					"tools",
@@ -1669,7 +1669,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.6",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -1708,7 +1708,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5",
 				contextWindow: 204000,
 				maxInputTokens: 204000,
-				maxTokens: 10200,
+				maxTokens: 204000,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.3,
@@ -1772,7 +1772,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.6",
 				contextWindow: 200000,
 				maxInputTokens: 200000,
-				maxTokens: 10000,
+				maxTokens: 200000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -1804,7 +1804,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT OSS 120B",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -2738,7 +2738,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen/Qwen3-VL-235B-A22B-Instruct",
 				contextWindow: 262000,
 				maxInputTokens: 262000,
-				maxTokens: 13100,
+				maxTokens: 262000,
 				capabilities: ["images", "tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.3,
@@ -2935,7 +2935,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 32B (dense)",
 				contextWindow: 16384,
 				maxInputTokens: 16384,
-				maxTokens: 819,
+				maxTokens: 16384,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -2988,7 +2988,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen/Qwen3-Next-80B-A3B-Instruct",
 				contextWindow: 262000,
 				maxInputTokens: 262000,
-				maxTokens: 13100,
+				maxTokens: 262000,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.14,
@@ -3655,7 +3655,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.6",
 				contextWindow: 262000,
 				maxInputTokens: 262000,
-				maxTokens: 13100,
+				maxTokens: 262000,
 				capabilities: [
 					"images",
 					"tools",
@@ -3677,7 +3677,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.7",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
@@ -3731,7 +3731,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
@@ -3763,7 +3763,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: [
 					"images",
 					"tools",
@@ -3785,7 +3785,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5 Turbo",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0,
@@ -3801,7 +3801,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.1",
 				contextWindow: 200000,
 				maxInputTokens: 200000,
-				maxTokens: 10000,
+				maxTokens: 200000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
@@ -3817,7 +3817,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.7",
 				contextWindow: 198000,
 				maxInputTokens: 198000,
-				maxTokens: 9900,
+				maxTokens: 198000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
@@ -3833,7 +3833,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.2",
 				contextWindow: 160000,
 				maxInputTokens: 160000,
-				maxTokens: 8000,
+				maxTokens: 160000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.56,
@@ -3849,7 +3849,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
@@ -3865,7 +3865,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.1",
 				contextWindow: 163840,
 				maxInputTokens: 163840,
-				maxTokens: 8192,
+				maxTokens: 163840,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.56,
@@ -3913,7 +3913,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.5 Air",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.22,
@@ -3929,7 +3929,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.5",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.55,
@@ -4496,7 +4496,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama 3.1 8B Instant",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.05,
@@ -4536,7 +4536,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi-K2.6",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -4660,7 +4660,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi-K2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -4746,7 +4746,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi-K2-Thinking",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
@@ -4874,7 +4874,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek-R1-0528",
 				contextWindow: 163840,
 				maxInputTokens: 163840,
-				maxTokens: 8192,
+				maxTokens: 163840,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 3,
@@ -5003,7 +5003,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "IBM: Granite 4.1 8B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.05,
@@ -5018,7 +5018,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral: Mistral Medium 3.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -5192,7 +5192,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MoonshotAI: Kimi Latest",
 				contextWindow: 262142,
 				maxInputTokens: 262142,
-				maxTokens: 13107,
+				maxTokens: 262142,
 				capabilities: [
 					"images",
 					"tools",
@@ -5399,7 +5399,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Tencent: Hy3 Preview",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.066,
@@ -5540,7 +5540,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemma 4 26B A4B",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.12,
@@ -5570,7 +5570,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Arcee AI: Trinity Large Thinking",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.22,
@@ -5606,7 +5606,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 4.20",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -5658,7 +5658,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Reka Edge",
 				contextWindow: 16384,
 				maxInputTokens: 16384,
-				maxTokens: 819,
+				maxTokens: 16384,
 				capabilities: ["images", "tools", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -5758,7 +5758,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral: Mistral Small 4",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -5869,7 +5869,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "NVIDIA: Nemotron 3 Super (free)",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0,
@@ -5884,7 +5884,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "NVIDIA: Nemotron 3 Super",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.1,
@@ -6169,7 +6169,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax: MiniMax M2.5",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
@@ -6250,7 +6250,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "StepFun: Step 3.5 Flash",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.1,
@@ -6573,7 +6573,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Arcee AI: Trinity Mini",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.045,
@@ -6603,7 +6603,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Prime Intellect: INTELLECT-3",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.2,
@@ -6760,7 +6760,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax: MiniMax M2",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.255,
@@ -6916,7 +6916,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.6",
 				contextWindow: 204800,
 				maxInputTokens: 204800,
-				maxTokens: 10240,
+				maxTokens: 204800,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.39,
@@ -6931,7 +6931,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.6V",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.3,
@@ -7035,7 +7035,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Tongyi DeepResearch 30B A3B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.09,
@@ -7221,7 +7221,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "StepFun: Step 3.5 Flash (free)",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0,
@@ -7459,7 +7459,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 30B A3B Instruct 2507",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.09,
@@ -7519,7 +7519,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 235B A22B Thinking 2507",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.11,
@@ -7691,7 +7691,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral: Mistral Small 3.2 24B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
@@ -8044,7 +8044,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 14B",
 				contextWindow: 40960,
 				maxInputTokens: 40960,
-				maxTokens: 2048,
+				maxTokens: 40960,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
@@ -8074,7 +8074,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 30B A3B",
 				contextWindow: 40960,
 				maxInputTokens: 40960,
-				maxTokens: 2048,
+				maxTokens: 40960,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.08,
@@ -8171,7 +8171,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral: Saba",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.2,
@@ -8372,7 +8372,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek: DeepSeek V3",
 				contextWindow: 163840,
 				maxInputTokens: 163840,
-				maxTokens: 8192,
+				maxTokens: 163840,
 				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.32,
@@ -8417,7 +8417,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 32B",
 				contextWindow: 40960,
 				maxInputTokens: 40960,
-				maxTokens: 2048,
+				maxTokens: 40960,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.08,
@@ -8483,7 +8483,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "TheDrummer: UnslopNemo 12B",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.4,
@@ -8528,7 +8528,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "TheDrummer: Rocinante 12B",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.17,
@@ -8684,7 +8684,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Meta: Llama 3.1 8B Instruct",
 				contextWindow: 16384,
 				maxInputTokens: 16384,
-				maxTokens: 819,
+				maxTokens: 16384,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.02,
@@ -8809,7 +8809,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Sao10k: Llama 3 Euryale 70B v2.1",
 				contextWindow: 8192,
 				maxInputTokens: 8192,
-				maxTokens: 409,
+				maxTokens: 8192,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 1.48,
@@ -9205,7 +9205,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.6",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -9228,7 +9228,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -9250,7 +9250,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
@@ -9266,7 +9266,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking Turbo",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.15,
@@ -9282,7 +9282,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 0905",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
@@ -9298,7 +9298,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Turbo",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2.4,
@@ -9935,7 +9935,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "deepseek-v4-flash",
 				contextWindow: 1048576,
 				maxInputTokens: 1048576,
-				maxTokens: 52428,
+				maxTokens: 1048576,
 				capabilities: ["tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -9951,7 +9951,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "deepseek-v4-pro",
 				contextWindow: 1048576,
 				maxInputTokens: 1048576,
-				maxTokens: 52428,
+				maxTokens: 1048576,
 				capabilities: ["tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -9967,7 +9967,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "kimi-k2.6",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -9983,7 +9983,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gemma4:31b",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -10015,7 +10015,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "minimax-m2.7",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: ["tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -10111,7 +10111,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "kimi-k2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -10191,7 +10191,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "devstral-2:123b",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools"],
 				pricing: {
 					input: 0,
@@ -10207,7 +10207,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "devstral-small-2:24b",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools"],
 				pricing: {
 					input: 0,
@@ -10239,7 +10239,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "mistral-large-3:675b",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools"],
 				pricing: {
 					input: 0,
@@ -10271,7 +10271,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "kimi-k2-thinking",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -10367,7 +10367,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "deepseek-v3.1:671b",
 				contextWindow: 163840,
 				maxInputTokens: 163840,
-				maxTokens: 8192,
+				maxTokens: 163840,
 				capabilities: ["tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -10431,7 +10431,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "kimi-k2:1t",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools"],
 				pricing: {
 					input: 0,
@@ -11333,7 +11333,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4",
 				contextWindow: 8192,
 				maxInputTokens: 8192,
-				maxTokens: 409,
+				maxTokens: 8192,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 30,
@@ -11491,7 +11491,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Granite 4.1 8B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"tools",
 					"structured_output",
@@ -11512,7 +11512,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Medium 3.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"files",
@@ -11535,7 +11535,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.3",
 				contextWindow: 1000000,
 				maxInputTokens: 1000000,
-				maxTokens: 50000,
+				maxTokens: 1000000,
 				capabilities: [
 					"images",
 					"tools",
@@ -11716,7 +11716,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MoonshotAI Kimi Latest",
 				contextWindow: 262142,
 				maxInputTokens: 262142,
-				maxTokens: 13107,
+				maxTokens: 262142,
 				capabilities: [
 					"images",
 					"tools",
@@ -11829,7 +11829,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3.6 35B A3B",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -12022,7 +12022,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Hy3 preview",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.066,
@@ -12126,7 +12126,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.6",
 				contextWindow: 262142,
 				maxInputTokens: 262142,
-				maxTokens: 13107,
+				maxTokens: 262142,
 				capabilities: [
 					"images",
 					"tools",
@@ -12196,7 +12196,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 5.1",
 				contextWindow: 202800,
 				maxInputTokens: 202800,
-				maxTokens: 10140,
+				maxTokens: 202800,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -12217,7 +12217,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemma 4 26B A4B ",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -12316,7 +12316,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Trinity Large Thinking",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -12376,7 +12376,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -12421,7 +12421,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Reka Edge",
 				contextWindow: 16384,
 				maxInputTokens: 16384,
-				maxTokens: 819,
+				maxTokens: 16384,
 				capabilities: ["images", "tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -12542,7 +12542,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Small 4",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -12581,7 +12581,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron 3 Super",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.09,
@@ -12597,7 +12597,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron 3 Super (free)",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13027,7 +13027,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.5",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13131,7 +13131,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder Next",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"tools",
 					"structured_output",
@@ -13189,7 +13189,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Trinity Large Preview",
 				contextWindow: 131000,
 				maxInputTokens: 131000,
-				maxTokens: 6550,
+				maxTokens: 131000,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -13205,7 +13205,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -13228,7 +13228,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Solar Pro 3",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13370,7 +13370,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.1",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13454,7 +13454,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron 3 Nano 30B A3B (free)",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0,
@@ -13553,7 +13553,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Devstral 2 2512",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"files",
 					"tools",
@@ -13628,7 +13628,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Rnj 1 Instruct",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -13682,7 +13682,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 3 14B 2512",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -13704,7 +13704,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 3 3B 2512",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"images",
 					"tools",
@@ -13726,7 +13726,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 3 8B 2512",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -13748,7 +13748,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Trinity Mini",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13791,7 +13791,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Large 3 2512",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"files",
@@ -13814,7 +13814,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "INTELLECT-3",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13948,7 +13948,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -13985,7 +13985,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Voxtral Small 24B 2507",
 				contextWindow: 32000,
 				maxInputTokens: 32000,
-				maxTokens: 1600,
+				maxTokens: 32000,
 				capabilities: [
 					"files",
 					"tools",
@@ -14023,7 +14023,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron Nano 12B 2 VL (free)",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0,
@@ -14039,7 +14039,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -14473,7 +14473,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Tongyi DeepResearch 30B A3B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -14527,7 +14527,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Next 80B A3B Instruct (free)",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0,
@@ -14623,7 +14623,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron Nano 9B V2 (free)",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -14644,7 +14644,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 0905",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -14660,7 +14660,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 30B A3B Thinking 2507",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -14927,7 +14927,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-120b (free)",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0,
@@ -14943,7 +14943,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-20b",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -14980,7 +14980,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Codestral 2508",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: [
 					"files",
 					"tools",
@@ -15018,7 +15018,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 30B A3B Instruct 2507",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.09,
@@ -15103,7 +15103,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4 32B ",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -15135,7 +15135,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder 480B A35B (free)",
 				contextWindow: 262000,
 				maxInputTokens: 262000,
-				maxTokens: 13100,
+				maxTokens: 262000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0,
@@ -15207,7 +15207,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Devstral Medium",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"files",
 					"tools",
@@ -15229,7 +15229,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Devstral Small 1.1",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"files",
 					"tools",
@@ -15469,7 +15469,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Medium 3",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"images",
 					"files",
@@ -15507,7 +15507,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 14B",
 				contextWindow: 40960,
 				maxInputTokens: 40960,
-				maxTokens: 2048,
+				maxTokens: 40960,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -15837,7 +15837,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Saba",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: [
 					"files",
 					"tools",
@@ -16105,7 +16105,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Large 2407",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"files",
 					"tools",
@@ -16127,7 +16127,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Large 2411",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"files",
 					"tools",
@@ -16149,7 +16149,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Pixtral Large 2411",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: [
 					"images",
 					"files",
@@ -16172,7 +16172,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "UnslopNemo 12B",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.4,
@@ -16203,7 +16203,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen2.5 7B Instruct",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.04,
@@ -16219,7 +16219,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Rocinante 12B",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.17,
@@ -16337,7 +16337,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama 3.1 8B Instruct",
 				contextWindow: 16384,
 				maxInputTokens: 16384,
-				maxTokens: 819,
+				maxTokens: 16384,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.02,
@@ -16353,7 +16353,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Nemo",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.02,
@@ -16415,7 +16415,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama 3 Euryale 70B v2.1",
 				contextWindow: 8192,
 				maxInputTokens: 8192,
-				maxTokens: 409,
+				maxTokens: 8192,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 1.48,
@@ -16475,7 +16475,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mixtral 8x22B Instruct",
 				contextWindow: 65536,
 				maxInputTokens: 65536,
-				maxTokens: 3276,
+				maxTokens: 65536,
 				capabilities: [
 					"files",
 					"tools",
@@ -16529,7 +16529,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Large",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: [
 					"files",
 					"tools",
@@ -16583,7 +16583,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Auto Router",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -18117,7 +18117,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder Next FP8",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.5,
@@ -18133,7 +18133,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.5,
@@ -18149,7 +18149,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Rnj-1 Instruct",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -18165,7 +18165,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.1",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -18181,7 +18181,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT OSS 120B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -18197,7 +18197,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 235B A22B Instruct 2507 FP8",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.2,
@@ -18213,7 +18213,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder 480B A35B Instruct",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 2,
@@ -18229,7 +18229,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 1.25,
@@ -18245,7 +18245,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama 3.3 70B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.88,
@@ -18336,7 +18336,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.3",
 				contextWindow: 1000000,
 				maxInputTokens: 1000000,
-				maxTokens: 50000,
+				maxTokens: 1000000,
 				capabilities: [
 					"images",
 					"files",
@@ -18430,7 +18430,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen 3.6 27B",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -18507,7 +18507,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.6",
 				contextWindow: 262000,
 				maxInputTokens: 262000,
-				maxTokens: 13100,
+				maxTokens: 262000,
 				capabilities: [
 					"images",
 					"files",
@@ -18546,7 +18546,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 5.1",
 				contextWindow: 202752,
 				maxInputTokens: 202752,
-				maxTokens: 10137,
+				maxTokens: 202752,
 				capabilities: [
 					"images",
 					"files",
@@ -18663,7 +18663,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kat Coder Pro V2",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
@@ -18786,7 +18786,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Small (latest)",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -18834,7 +18834,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Multi Agent Beta",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
@@ -18850,7 +18850,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Beta Non-Reasoning",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -18872,7 +18872,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Beta Reasoning",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -18895,7 +18895,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Multi-Agent",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
@@ -18911,7 +18911,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Non-Reasoning",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -18933,7 +18933,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Reasoning",
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
-				maxTokens: 100000,
+				maxTokens: 2000000,
 				capabilities: [
 					"images",
 					"files",
@@ -19064,7 +19064,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mercury 2",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
@@ -19243,7 +19243,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -19314,7 +19314,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Devstral 2",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0,
@@ -19369,7 +19369,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "INTELLECT 3",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.2,
@@ -19431,7 +19431,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 216144,
 				maxInputTokens: 216144,
-				maxTokens: 10807,
+				maxTokens: 216144,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.47,
@@ -19447,7 +19447,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking Turbo",
 				contextWindow: 262114,
 				maxInputTokens: 262114,
-				maxTokens: 13105,
+				maxTokens: 262114,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.15,
@@ -19463,7 +19463,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2",
 				contextWindow: 262114,
 				maxInputTokens: 262114,
-				maxTokens: 13105,
+				maxTokens: 262114,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.27,
@@ -19634,7 +19634,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.2 Exp",
 				contextWindow: 163840,
 				maxInputTokens: 163840,
-				maxTokens: 8192,
+				maxTokens: 163840,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.27,
@@ -19910,7 +19910,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nvidia Nemotron Nano 9B V2",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.04,
@@ -19926,7 +19926,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.5V",
 				contextWindow: 66000,
 				maxInputTokens: 66000,
-				maxTokens: 3300,
+				maxTokens: 66000,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -20194,7 +20194,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT OSS 120B",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -20226,7 +20226,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.5",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.6,
@@ -20258,7 +20258,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder Plus",
 				contextWindow: 1000000,
 				maxInputTokens: 1000000,
-				maxTokens: 50000,
+				maxTokens: 1000000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 1,
@@ -20274,7 +20274,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder Next",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.5,
@@ -20524,7 +20524,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Devstral Small 2",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0,
@@ -20781,7 +20781,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 235B A22B Thinking 2507",
 				contextWindow: 262114,
 				maxInputTokens: 262114,
-				maxTokens: 13105,
+				maxTokens: 262114,
 				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.3,
@@ -20893,7 +20893,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Magistral Small",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.5,
@@ -21028,7 +21028,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Trinity Large Preview",
 				contextWindow: 131000,
 				maxInputTokens: 131000,
-				maxTokens: 6550,
+				maxTokens: 131000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.25,
@@ -21229,7 +21229,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nvidia Nemotron Nano 12B V2 VL",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["images", "tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.2,
@@ -21261,7 +21261,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Pixtral Large (latest)",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["images", "tools", "temperature"],
 				pricing: {
 					input: 2,
@@ -21321,7 +21321,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 3B (latest)",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.04,
@@ -21337,7 +21337,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 8B (latest)",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -21385,7 +21385,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Pixtral 12B",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["images", "tools", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -21395,22 +21395,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2024-09-01",
 				family: "pixtral",
-			},
-			"xai/grok-2-vision": {
-				id: "xai/grok-2-vision",
-				name: "Grok 2 Vision",
-				contextWindow: 8192,
-				maxInputTokens: 8192,
-				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-08-20",
-				family: "grok",
 			},
 			"meta/llama-3.1-70b": {
 				id: "meta/llama-3.1-70b",
@@ -21559,7 +21543,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mixtral 8x22B",
 				contextWindow: 64000,
 				maxInputTokens: 64000,
-				maxTokens: 3200,
+				maxTokens: 64000,
 				capabilities: ["tools", "temperature"],
 				pricing: {
 					input: 2,
@@ -21928,7 +21912,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "NVIDIA Nemotron 3 Super 120B",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.2,
@@ -21944,7 +21928,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.5",
 				contextWindow: 196608,
 				maxInputTokens: 196608,
-				maxTokens: 9830,
+				maxTokens: 196608,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.3,
@@ -21960,7 +21944,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 5",
 				contextWindow: 200000,
 				maxInputTokens: 200000,
-				maxTokens: 10000,
+				maxTokens: 200000,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 1,
@@ -21976,7 +21960,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"images",
 					"tools",
@@ -21998,7 +21982,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.1",
 				contextWindow: 161000,
 				maxInputTokens: 161000,
-				maxTokens: 8050,
+				maxTokens: 161000,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.55,
@@ -22014,7 +21998,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-120b",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
@@ -22030,7 +22014,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-20b",
 				contextWindow: 131072,
 				maxInputTokens: 131072,
-				maxTokens: 6553,
+				maxTokens: 131072,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.05,
@@ -22046,7 +22030,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 30B A3B Instruct 2507",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -22062,7 +22046,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3-235B-A22B-Thinking-2507",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -22083,7 +22067,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3-Coder-480B-A35B-Instruct",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 1,
@@ -22099,7 +22083,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenPipe Qwen3 14B Instruct",
 				contextWindow: 32768,
 				maxInputTokens: 32768,
-				maxTokens: 1638,
+				maxTokens: 32768,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.05,
@@ -22115,7 +22099,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 235B A22B Instruct 2507",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 13107,
+				maxTokens: 262144,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.1,
@@ -22131,7 +22115,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama 4 Scout 17B 16E Instruct",
 				contextWindow: 64000,
 				maxInputTokens: 64000,
-				maxTokens: 3200,
+				maxTokens: 64000,
 				capabilities: [
 					"images",
 					"tools",
@@ -22153,7 +22137,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Phi-4-mini-instruct",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -22174,7 +22158,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama-3.3-70B-Instruct",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -22195,7 +22179,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama 3.1 70B",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.8,
@@ -22211,7 +22195,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Meta-Llama-3.1-8B-Instruct",
 				contextWindow: 128000,
 				maxInputTokens: 128000,
-				maxTokens: 6400,
+				maxTokens: 128000,
 				capabilities: [
 					"tools",
 					"reasoning",
@@ -22234,9 +22218,10 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok Build 0.1",
 				contextWindow: 256000,
 				maxInputTokens: 256000,
-				maxTokens: 12800,
+				maxTokens: 256000,
 				capabilities: [
 					"images",
+					"files",
 					"tools",
 					"reasoning",
 					"structured_output",
@@ -22260,6 +22245,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				maxTokens: 30000,
 				capabilities: [
 					"images",
+					"files",
 					"tools",
 					"reasoning",
 					"temperature",
@@ -22271,7 +22257,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheRead: 0.2,
 					cacheWrite: 0,
 				},
-				releaseDate: "2026-05-01",
+				releaseDate: "2026-04-17",
 				family: "grok",
 			},
 			"grok-4.20-0309-non-reasoning": {
@@ -22280,10 +22266,16 @@ export const GENERATED_PROVIDER_MODELS: {
 				contextWindow: 2000000,
 				maxInputTokens: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "temperature", "prompt-cache"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
-					input: 2,
-					output: 6,
+					input: 1.25,
+					output: 2.5,
 					cacheRead: 0.2,
 					cacheWrite: 0,
 				},
@@ -22298,146 +22290,19 @@ export const GENERATED_PROVIDER_MODELS: {
 				maxTokens: 30000,
 				capabilities: [
 					"images",
+					"files",
 					"tools",
 					"reasoning",
 					"temperature",
 					"prompt-cache",
 				],
 				pricing: {
-					input: 2,
-					output: 6,
+					input: 1.25,
+					output: 2.5,
 					cacheRead: 0.2,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-03-09",
-				family: "grok",
-			},
-			"grok-2-1212": {
-				id: "grok-2-1212",
-				name: "Grok 2 (1212)",
-				contextWindow: 131072,
-				maxInputTokens: 131072,
-				maxTokens: 8192,
-				capabilities: ["tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-12-12",
-				family: "grok",
-			},
-			"grok-beta": {
-				id: "grok-beta",
-				name: "Grok Beta",
-				contextWindow: 131072,
-				maxInputTokens: 131072,
-				maxTokens: 4096,
-				capabilities: ["tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 5,
-					output: 15,
-					cacheRead: 5,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-11-01",
-				family: "grok-beta",
-			},
-			"grok-vision-beta": {
-				id: "grok-vision-beta",
-				name: "Grok Vision Beta",
-				contextWindow: 8192,
-				maxInputTokens: 8192,
-				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 5,
-					output: 15,
-					cacheRead: 5,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-11-01",
-				family: "grok-vision",
-			},
-			"grok-2": {
-				id: "grok-2",
-				name: "Grok 2",
-				contextWindow: 131072,
-				maxInputTokens: 131072,
-				maxTokens: 8192,
-				capabilities: ["tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-08-20",
-				family: "grok",
-			},
-			"grok-2-latest": {
-				id: "grok-2-latest",
-				name: "Grok 2 Latest",
-				contextWindow: 131072,
-				maxInputTokens: 131072,
-				maxTokens: 8192,
-				capabilities: ["tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-08-20",
-				family: "grok",
-			},
-			"grok-2-vision": {
-				id: "grok-2-vision",
-				name: "Grok 2 Vision",
-				contextWindow: 8192,
-				maxInputTokens: 8192,
-				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-08-20",
-				family: "grok",
-			},
-			"grok-2-vision-1212": {
-				id: "grok-2-vision-1212",
-				name: "Grok 2 Vision (1212)",
-				contextWindow: 8192,
-				maxInputTokens: 8192,
-				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-08-20",
-				family: "grok",
-			},
-			"grok-2-vision-latest": {
-				id: "grok-2-vision-latest",
-				name: "Grok 2 Vision Latest",
-				contextWindow: 8192,
-				maxInputTokens: 8192,
-				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature", "prompt-cache"],
-				pricing: {
-					input: 2,
-					output: 10,
-					cacheRead: 2,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-08-20",
 				family: "grok",
 			},
 		},

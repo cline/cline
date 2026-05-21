@@ -1,6 +1,56 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGatewayApiHandler, toGatewayRequestMessages } from "./compat";
 import type { Message } from "./types";
+
+const streamTextSpy = vi.fn();
+const openaiCompatibleFactorySpy = vi.fn();
+const openaiCompatibleSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "openai-compatible",
+}));
+
+vi.mock("ai", () => ({
+	jsonSchema: (schema: unknown, options: unknown) => ({
+		jsonSchema: schema,
+		...(options && typeof options === "object" ? options : {}),
+	}),
+	streamText: (input: unknown) => streamTextSpy(input),
+	wrapLanguageModel: ({ model }: { model: unknown }) => model,
+}));
+
+vi.mock("@ai-sdk/openai-compatible", () => ({
+	createOpenAICompatible: (config: unknown) => {
+		openaiCompatibleFactorySpy(config);
+		return (modelId: string) => openaiCompatibleSpy(modelId);
+	},
+}));
+
+vi.mock("@ai-sdk/openai", () => ({
+	createOpenAI: () => ({
+		responses: (modelId: string) => ({ modelId, family: "openai" }),
+	}),
+}));
+
+vi.mock("@ai-sdk/anthropic", () => ({
+	createAnthropic: () => (modelId: string) => ({
+		modelId,
+		family: "anthropic",
+	}),
+}));
+
+vi.mock("@ai-sdk/google", () => ({
+	createGoogleGenerativeAI: () => (modelId: string) => ({
+		modelId,
+		family: "google",
+	}),
+}));
+
+vi.mock("ai-sdk-provider-codex-cli", () => ({
+	createCodexExec: () => (modelId: string) => ({
+		modelId,
+		family: "openai-codex",
+	}),
+}));
 
 describe("createGatewayApiHandler.getMessages", () => {
 	it("preserves structured tool_result content for gateway requests", () => {
@@ -296,6 +346,90 @@ describe("createGatewayApiHandler.getMessages", () => {
 				},
 			],
 		});
+	});
+});
+
+describe("createGatewayApiHandler.createMessage", () => {
+	beforeEach(() => {
+		streamTextSpy.mockReset();
+		openaiCompatibleFactorySpy.mockReset();
+		openaiCompatibleSpy.mockClear();
+	});
+
+	it("caps catalog maxTokens before passing maxOutputTokens to AI SDK", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "z-ai/glm-5.1",
+			apiKey: "test-key",
+			knownModels: {
+				"z-ai/glm-5.1": {
+					id: "z-ai/glm-5.1",
+					name: "GLM 5.1",
+					contextWindow: 202_800,
+					maxInputTokens: 202_800,
+					maxTokens: 202_800,
+					capabilities: ["tools"],
+				},
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxOutputTokens: 32_000,
+			}),
+		);
+	});
+
+	it("uses catalog maxTokens as the model output cap when below the default cap", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "small-output",
+			apiKey: "test-key",
+			knownModels: {
+				"small-output": {
+					id: "small-output",
+					name: "Small Output",
+					contextWindow: 202_800,
+					maxInputTokens: 202_800,
+					maxTokens: 8_192,
+					capabilities: ["tools"],
+				},
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxOutputTokens: 8_192,
+			}),
+		);
 	});
 });
 
