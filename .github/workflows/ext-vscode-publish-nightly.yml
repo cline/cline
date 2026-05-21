@@ -15,10 +15,6 @@ concurrency:
 
 permissions: {}
 
-defaults:
-  run:
-    working-directory: apps/vscode
-
 jobs:
   test:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
@@ -34,6 +30,9 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
     environment: PublishNightly
+    defaults:
+      run:
+        working-directory: apps/vscode
 
     steps:
       - name: Checkout selected branch
@@ -44,6 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Show build source
+        working-directory: ${{ github.workspace }}
         run: |
           echo "Building ref: $GITHUB_REF"
           echo "Building sha: $GITHUB_SHA"
@@ -82,6 +82,7 @@ jobs:
         run: npm run publish:marketplace:nightly
 
       - name: Tag published commit
+        working-directory: ${{ github.workspace }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
