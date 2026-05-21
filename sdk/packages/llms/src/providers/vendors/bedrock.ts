@@ -1,6 +1,12 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type {
+	GatewayProviderContext,
+	GatewayResolvedProviderConfig,
+} from "@cline/shared";
+import { wrapLanguageModel } from "ai";
+import { createRetryMiddleware } from "../middleware/retry";
 import type { ProviderFactoryResult } from "./types";
 
 type BedrockCredentials = {
@@ -25,6 +31,7 @@ const NON_BEDROCK_API_KEY_ENV = new Set([
 
 export async function createBedrockProviderModule(
 	config: GatewayResolvedProviderConfig,
+	context?: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	const authentication = readAuthentication(config.options?.authentication);
 	const usesApiKeyAuth =
@@ -73,8 +80,39 @@ export async function createBedrockProviderModule(
 		credentialProvider,
 	});
 
+	// Extract retry options from provider config
+	const retryOptions = config.options?.retry as
+		| {
+				maxRetries?: number;
+				baseDelayMs?: number;
+				maxDelayMs?: number;
+				retryAllErrors?: boolean;
+		  }
+		| undefined;
+
+	// Create retry middleware with logging support
+	const retryMiddleware = createRetryMiddleware({
+		maxRetries: retryOptions?.maxRetries ?? 3,
+		baseDelayMs: retryOptions?.baseDelayMs ?? 1000,
+		maxDelayMs: retryOptions?.maxDelayMs ?? 30000,
+		retryAllErrors: retryOptions?.retryAllErrors ?? false,
+		onRetryAttempt: context?.logger
+			? (attempt, maxRetries, delayMs, error) => {
+					context.logger?.warn?.(
+						`[bedrock] Retry attempt ${attempt}/${maxRetries} after ${delayMs}ms`,
+						{ error, modelId: context.model?.id },
+					);
+				}
+			: undefined,
+		signal: context?.signal,
+	});
+
 	return {
-		model: (modelId) => provider(modelId),
+		model: (modelId) =>
+			wrapLanguageModel({
+				model: provider(modelId) as LanguageModelV3,
+				middleware: retryMiddleware,
+			}),
 	};
 }
 
