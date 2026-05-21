@@ -4,6 +4,11 @@ import { join } from "node:path";
 import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+	MAX_RUN_COMMANDS_TIMEOUT_MS,
+	MIN_RUN_COMMANDS_TIMEOUT_MS,
+} from "../extensions/tools/constants";
+import {
 	GlobalSettingsSchema,
 	readGlobalSettings,
 	setDisabledPlugin,
@@ -28,7 +33,7 @@ describe("global-settings", () => {
 		).toEqual({
 			disabledPlugins: ["/plugins/example.js"],
 			disabledTools: ["editor", "read_files"],
-			runCommandsTimeoutMs: 30000,
+			runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 			telemetryOptOut: false,
 		});
 		expect(
@@ -36,9 +41,12 @@ describe("global-settings", () => {
 				disabledTools: [],
 				telemetryOptOut: true,
 			}),
-		).toEqual({ telemetryOptOut: true, runCommandsTimeoutMs: 30000 });
+		).toEqual({
+			telemetryOptOut: true,
+			runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+		});
 		expect(GlobalSettingsSchema.parse({ disabledTools: [] })).toEqual({
-			runCommandsTimeoutMs: 30000,
+			runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 			telemetryOptOut: false,
 		});
 		expect(
@@ -48,7 +56,7 @@ describe("global-settings", () => {
 			}),
 		).toEqual({
 			disabledTools: ["read_files"],
-			runCommandsTimeoutMs: 30000,
+			runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 			telemetryOptOut: false,
 		});
 		expect(
@@ -58,7 +66,7 @@ describe("global-settings", () => {
 				telemetryOptOut: true,
 			}),
 		).toEqual({
-			runCommandsTimeoutMs: 30000,
+			runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 			telemetryOptOut: true,
 		});
 	});
@@ -96,7 +104,7 @@ describe("global-settings", () => {
 			);
 			expect(readGlobalSettings()).toEqual({
 				disabledTools: ["read_files"],
-				runCommandsTimeoutMs: 30000,
+				runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 				telemetryOptOut: true,
 			});
 
@@ -109,7 +117,7 @@ describe("global-settings", () => {
 				}),
 			);
 			expect(readGlobalSettings()).toEqual({
-				runCommandsTimeoutMs: 30000,
+				runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 				telemetryOptOut: true,
 			});
 		} finally {
@@ -130,13 +138,13 @@ describe("global-settings", () => {
 			expect(readGlobalSettings()).toEqual({
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
-				runCommandsTimeoutMs: 30000,
+				runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 				telemetryOptOut: false,
 			});
 			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
-				runCommandsTimeoutMs: 30000,
+				runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 				telemetryOptOut: false,
 			});
 		} finally {
@@ -161,7 +169,7 @@ describe("global-settings", () => {
 			expect(captureRequired).toHaveBeenCalledTimes(1);
 			expect(captureRequired).toHaveBeenCalledWith("user.opt_out", undefined);
 			expect(readGlobalSettings()).toEqual({
-				runCommandsTimeoutMs: 30000,
+				runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 				telemetryOptOut: false,
 			});
 		} finally {
@@ -179,13 +187,45 @@ describe("global-settings", () => {
 				settingsPath,
 				JSON.stringify({ runCommandsTimeoutMs: "bad" }),
 			);
-			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(30000);
+			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(
+				DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+			);
 
 			await writeFile(
 				settingsPath,
-				JSON.stringify({ runCommandsTimeoutMs: 120000 }),
+				JSON.stringify({
+					runCommandsTimeoutMs: MIN_RUN_COMMANDS_TIMEOUT_MS - 1,
+				}),
 			);
-			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(120000);
+			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(
+				DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+			);
+
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					runCommandsTimeoutMs: MAX_RUN_COMMANDS_TIMEOUT_MS + 1,
+				}),
+			);
+			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(
+				DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+			);
+
+			await writeFile(
+				settingsPath,
+				JSON.stringify({ runCommandsTimeoutMs: MIN_RUN_COMMANDS_TIMEOUT_MS }),
+			);
+			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(
+				MIN_RUN_COMMANDS_TIMEOUT_MS,
+			);
+
+			await writeFile(
+				settingsPath,
+				JSON.stringify({ runCommandsTimeoutMs: MAX_RUN_COMMANDS_TIMEOUT_MS }),
+			);
+			expect(readGlobalSettings().runCommandsTimeoutMs).toBe(
+				MAX_RUN_COMMANDS_TIMEOUT_MS,
+			);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -204,7 +244,7 @@ describe("global-settings", () => {
 
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["read_files"],
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -227,7 +267,7 @@ describe("global-settings", () => {
 
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["read_files"],
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -246,7 +286,7 @@ describe("global-settings", () => {
 				writeGlobalSettings({ disabledTools: ["editor"] });
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["editor"],
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 
@@ -254,14 +294,14 @@ describe("global-settings", () => {
 				writeGlobalSettings({ disabledTools: ["read_files"] });
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["read_files"],
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = pathA;
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["editor"],
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -277,11 +317,11 @@ describe("global-settings", () => {
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
 				expect(readGlobalSettings()).toEqual({
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 				expect(readGlobalSettings()).toEqual({
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 			} finally {
@@ -322,7 +362,7 @@ describe("global-settings", () => {
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
 				expect(readGlobalSettings()).toEqual({
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 
@@ -333,7 +373,7 @@ describe("global-settings", () => {
 
 				expect(readGlobalSettings()).toEqual({
 					disabledTools: ["editor"],
-					runCommandsTimeoutMs: 30000,
+					runCommandsTimeoutMs: DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
 					telemetryOptOut: false,
 				});
 			} finally {

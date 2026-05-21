@@ -8,6 +8,7 @@ import {
 	type Message,
 } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_RUN_COMMANDS_TIMEOUT_MS } from "../../extensions/tools/constants";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -298,7 +299,7 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(runCommandsTool?.timeoutMs).toBe(240000);
 	});
 
-	it("defaults invalid runCommandsTimeoutMs in global settings to 30000", async () => {
+	it("defaults invalid runCommandsTimeoutMs in global settings", async () => {
 		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-timeout-invalid-"));
 		const settingsPath = join(tempRoot, "global-settings.json");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
@@ -312,7 +313,9 @@ describe("DefaultRuntimeBuilder", () => {
 			config: makeBaseConfig(),
 		});
 		const runCommandsTool = runtime.tools.find((tool) => tool.name === "run_commands");
-		expect(runCommandsTool?.timeoutMs).toBe(60000);
+		expect(runCommandsTool?.timeoutMs).toBe(
+			DEFAULT_RUN_COMMANDS_TIMEOUT_MS * 2,
+		);
 	});
 
 	it("adds spawn tool when enabled", async () => {

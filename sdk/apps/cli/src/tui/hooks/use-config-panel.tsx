@@ -37,7 +37,7 @@ export function useConfigPanel(opts: {
 	const emptyConfigData = useMemo(
 		() => ({
 			general: {
-				runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs ?? 30000,
+				runCommandsTimeoutMs: readGlobalSettings().runCommandsTimeoutMs,
 			},
 			workflows: [] as InteractiveConfigItem[],
 			rules: [] as InteractiveConfigItem[],

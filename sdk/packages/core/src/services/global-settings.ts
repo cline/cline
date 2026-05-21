@@ -3,6 +3,11 @@ import { dirname } from "node:path";
 import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import {
+	DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+	MAX_RUN_COMMANDS_TIMEOUT_MS,
+	MIN_RUN_COMMANDS_TIMEOUT_MS,
+} from "../extensions/tools/constants";
 import { captureTelemetryOptOut } from "./telemetry/core-events";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -37,9 +42,10 @@ export const GlobalSettingsSchema = z
 		runCommandsTimeoutMs: z
 			.number()
 			.int()
-			.positive()
-			.catch(30000)
-			.default(30000),
+			.min(MIN_RUN_COMMANDS_TIMEOUT_MS)
+			.max(MAX_RUN_COMMANDS_TIMEOUT_MS)
+			.catch(DEFAULT_RUN_COMMANDS_TIMEOUT_MS)
+			.default(DEFAULT_RUN_COMMANDS_TIMEOUT_MS),
 	})
 	.strip()
 	.transform((settings) => {

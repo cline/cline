@@ -1,6 +1,7 @@
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { DEFAULT_RUN_COMMANDS_TIMEOUT_MS } from "@cline/core";
 import { useEffect, useMemo, useState } from "react";
 import type {
 	InteractiveConfigData,
@@ -333,7 +334,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
-	const runCommandsTimeoutPresets = [30000, 60000, 120000, 300000];
+	const runCommandsTimeoutPresets = [
+		DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+		60_000,
+		120_000,
+		300_000,
+	];
 
 	useEffect(() => {
 		if (
@@ -541,7 +547,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						const nextTimeoutMs =
 							runCommandsTimeoutPresets[
 								(currentIndex + 1) % runCommandsTimeoutPresets.length
-							] ?? 30000;
+							] ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS;
 						setRunCommandsTimeoutMs(nextTimeoutMs);
 						props.onSetRunCommandsTimeoutMs(nextTimeoutMs);
 						break;

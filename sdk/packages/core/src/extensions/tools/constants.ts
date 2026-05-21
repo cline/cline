@@ -6,6 +6,10 @@
 
 import type { DefaultToolName } from "./types";
 
+export const DEFAULT_RUN_COMMANDS_TIMEOUT_MS = 30_000;
+export const MIN_RUN_COMMANDS_TIMEOUT_MS = 1_000;
+export const MAX_RUN_COMMANDS_TIMEOUT_MS = 3_600_000;
+
 /**
  * Constants for default tool names
  */
