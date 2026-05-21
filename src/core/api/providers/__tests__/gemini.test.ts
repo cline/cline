@@ -44,6 +44,51 @@ describe("GeminiHandler", () => {
 		requestArgs.config.should.have.property("maxOutputTokens", 8_192)
 	})
 
+	it("supports Gemini 3.5 Flash model metadata", async () => {
+		const handler = new GeminiHandler({
+			geminiApiKey: "test-api-key",
+			apiModelId: "gemini-3.5-flash",
+		})
+
+		const model = handler.getModel()
+		model.id.should.equal("gemini-3.5-flash")
+		model.info.contextWindow!.should.equal(1_048_576)
+		model.info.inputPrice!.should.equal(1.5)
+		model.info.outputPrice!.should.equal(9)
+		model.info.cacheReadsPrice!.should.equal(0.15)
+		model.info.supportsReasoning!.should.equal(true)
+
+		const generateContentStream = sinon.stub().resolves(
+			createAsyncIterable([
+				{
+					responseId: "resp-35",
+					usageMetadata: {
+						promptTokenCount: 10,
+						candidatesTokenCount: 20,
+						cachedContentTokenCount: 0,
+						thoughtsTokenCount: 0,
+					},
+				},
+			]),
+		)
+		sinon.stub(handler as any, "ensureClient").returns({
+			models: { generateContentStream },
+		} as any)
+
+		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }] as any)) {
+			// Consume stream to trigger request execution.
+		}
+
+		const requestArgs = generateContentStream.firstCall.args[0] as Record<string, any>
+		requestArgs.model.should.equal("gemini-3.5-flash")
+		requestArgs.config.should.have.property("maxOutputTokens", 8_192)
+		requestArgs.config.thinkingConfig.should.deepEqual({
+			thinkingBudget: undefined,
+			thinkingLevel: "LOW",
+			includeThoughts: true,
+		})
+	})
+
 	it("does not set maxOutputTokens for non-Flash models", async () => {
 		const handler = new GeminiHandler({
 			geminiApiKey: "test-api-key",
