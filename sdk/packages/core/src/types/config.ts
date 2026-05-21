@@ -204,7 +204,6 @@ export interface CoreSessionConfig
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;
 	checkpoint?: CoreCheckpointConfig;
-	runCommandsTimeoutMs?: number;
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

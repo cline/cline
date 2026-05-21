@@ -6,6 +6,10 @@
  */
 
 import { z } from "zod";
+import {
+	MAX_RUN_COMMANDS_TIMEOUT_MS,
+	MIN_RUN_COMMANDS_TIMEOUT_MS,
+} from "./constants";
 
 export const INPUT_ARG_CHAR_LIMIT = 6000;
 
@@ -102,38 +106,17 @@ const CommandInputSchema = z
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
 
-export const MAX_RUN_COMMANDS_TIMEOUT_MS = 2147483647;
-
-const RunCommandsTimeoutSchema = z
+export const RunCommandsTimeoutSchema = z
 	.number()
 	.int()
-	.positive()
+	.min(MIN_RUN_COMMANDS_TIMEOUT_MS)
 	.max(MAX_RUN_COMMANDS_TIMEOUT_MS)
 	.describe(
-		"Optional timeout for the entire run_commands call, in milliseconds. Normally omit this and use the configured default. Only raise it for expected long-running installs/builds/tests, or after a timeout.",
+		"Optional timeout for this command in milliseconds. Omit or set null to use the configured default. Only raise it for expected long-running installs/builds/tests, or after a timeout.",
 	);
 
-/**
- * Schema for run_commands tool input
- */
-export const RunCommandsInputSchema = z.object({
-	commands: z
-		.array(CommandInputSchema)
-		.describe("Array of shell commands to execute"),
-	timeout: RunCommandsTimeoutSchema.optional(),
-});
-
-/**
- * Union schema for run_commands tool input. More flexible.
- */
-export const RunCommandsInputUnionSchema = z.union([
-	RunCommandsInputSchema,
-	z.object({ commands: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
-	z.object({ command: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
-	z.object({ cmd: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
-	z.array(z.string()),
-	z.string(),
-]);
+export const OptionalRunCommandsTimeoutSchema =
+	RunCommandsTimeoutSchema.nullable().optional();
 
 export const StructuredCommandInputSchema = z
 	.object({
@@ -145,29 +128,39 @@ export const StructuredCommandInputSchema = z
 			.array(z.string())
 			.optional()
 			.describe("Optional argv list passed directly to the executable."),
+		timeout: OptionalRunCommandsTimeoutSchema,
 	})
-	.catchall(z.any())
-	.refine((input) => !("timeout" in input), {
-		message:
-			"Per-command timeout is not supported; provide timeout at the top level.",
-	});
-
-const DirectStructuredCommandInputSchema = z.object({
-	command: z
-		.string()
-		.min(1)
-		.describe("The executable to run directly without shell parsing."),
-	args: z
-		.array(z.string())
-		.optional()
-		.describe("Optional argv list passed directly to the executable."),
-	timeout: RunCommandsTimeoutSchema.optional(),
-});
+	.catchall(z.any());
 
 export const StructuredCommandEntrySchema = z.union([
 	CommandInputSchema,
 	StructuredCommandInputSchema,
 ]);
+
+/**
+ * Schema for run_commands tool input
+ */
+export const RunCommandsInputSchema = z.object({
+	commands: z
+		.array(StructuredCommandEntrySchema)
+		.describe(
+			"Array of shell commands to execute concurrently. Plain strings use the configured default timeout; structured { command, args, timeout } entries may set a per-command timeout in milliseconds.",
+		),
+});
+
+/**
+ * Union schema for run_commands tool input. More flexible.
+ */
+export const RunCommandsInputUnionSchema = z.union([
+	RunCommandsInputSchema,
+	z.object({ commands: StructuredCommandEntrySchema }),
+	StructuredCommandInputSchema,
+	z.object({ cmd: CommandInputSchema }),
+	z.array(StructuredCommandEntrySchema),
+	z.array(z.string()),
+	z.string(),
+]);
+
 /**
  * Schema for run_commands tool input
  */
@@ -175,9 +168,8 @@ export const StructuredCommandsInputSchema = z.object({
 	commands: z
 		.array(StructuredCommandEntrySchema)
 		.describe(
-			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
+			"Array of commands to execute concurrently. Prefer structured { command, args, timeout } entries for portability and per-command timeouts in milliseconds; plain strings are still supported and are interpreted by the active shell.",
 		),
-	timeout: RunCommandsTimeoutSchema.optional(),
 });
 
 /**
@@ -186,13 +178,11 @@ export const StructuredCommandsInputSchema = z.object({
 export const StructuredCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
 	StructuredCommandsInputSchema,
-	z.object({
-		commands: StructuredCommandEntrySchema,
-		timeout: RunCommandsTimeoutSchema.optional(),
-	}),
-	DirectStructuredCommandInputSchema,
+	z.object({ commands: StructuredCommandEntrySchema }),
+	StructuredCommandInputSchema,
 	z.array(StructuredCommandInputSchema),
-	z.object({ cmd: CommandInputSchema, timeout: RunCommandsTimeoutSchema.optional() }),
+	z.array(StructuredCommandEntrySchema),
+	z.object({ cmd: CommandInputSchema }),
 	z.array(z.string()),
 	z.string(),
 ]);

@@ -34,6 +34,7 @@ import {
 } from "../../extensions/tools/team";
 import {
 	filterDisabledTools,
+	readGlobalSettings,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -92,12 +93,11 @@ function createBuiltinToolsList(
 	modelId: string,
 	toolRoutingRules: ToolRoutingRule[] | undefined,
 	toolPolicies: CoreSessionConfig["toolPolicies"],
-	runCommandsTimeoutMs: number | undefined,
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
-	const bashTimeoutMs = runCommandsTimeoutMs ?? 30000;
+	const { runCommandsTimeoutMs } = readGlobalSettings();
 	const toolRoutingConfig = resolveToolRoutingConfig(
 		providerId,
 		modelId,
@@ -112,7 +112,7 @@ function createBuiltinToolsList(
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
 			executorOptions: {
-				bash: { timeoutMs: bashTimeoutMs },
+				bash: { timeoutMs: runCommandsTimeoutMs },
 			},
 			executors: {
 				...(skillsExecutor
@@ -134,7 +134,6 @@ function isSkillsToolEnabledForSession(input: {
 	modelId: string;
 	toolRoutingRules?: ToolRoutingRule[];
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
-	runCommandsTimeoutMs?: number;
 	toolExecutors?: Partial<ToolExecutors>;
 }): boolean {
 	return createBuiltinToolsList(
@@ -144,7 +143,6 @@ function isSkillsToolEnabledForSession(input: {
 		input.modelId,
 		input.toolRoutingRules,
 		input.toolPolicies,
-		input.runCommandsTimeoutMs,
 		SKILLS_PROBE_EXECUTOR,
 		input.toolExecutors,
 	).some((tool) => tool.name === "skills");
@@ -358,7 +356,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				modelId: config.modelId,
 				toolRoutingRules: config.toolRoutingRules,
 				toolPolicies: config.toolPolicies,
-				runCommandsTimeoutMs: config.runCommandsTimeoutMs,
 				toolExecutors,
 			});
 
@@ -385,7 +382,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.modelId,
 					config.toolRoutingRules,
 					config.toolPolicies,
-					config.runCommandsTimeoutMs,
 					undefined,
 					toolExecutors,
 				),
@@ -518,7 +514,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.modelId,
 									config.toolRoutingRules,
 									config.toolPolicies,
-									config.runCommandsTimeoutMs,
 									undefined,
 									toolExecutors,
 								)
