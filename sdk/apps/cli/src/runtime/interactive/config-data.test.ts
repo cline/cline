@@ -4,6 +4,10 @@ import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	buildSlashCommandRegistry,
+	expandUserCommandPrompt,
+} from "../../tui/commands/slash-command-registry";
+import {
 	applyPluginFailures,
 	type InteractiveConfigItem,
 } from "../../tui/interactive-config";
@@ -91,6 +95,19 @@ Use this skill.`,
 				calls.push(`refreshType:${type}`);
 				refreshed = true;
 			},
+			listRuntimeCommands() {
+				calls.push("listRuntimeCommands");
+				return refreshed
+					? []
+					: [
+							{
+								name: "skill-one",
+								instructions: "Use this skill.",
+								description: "Skill one",
+								kind: "skill",
+							},
+						];
+			},
 			listRecords(type: string) {
 				calls.push(`listRecords:${type}`);
 				if (type !== "skill") {
@@ -130,10 +147,95 @@ Use this skill.`,
 
 		expect(written).toContain("disabled: true");
 		expect(data?.skills[0]?.enabled).toBe(false);
+		expect(
+			data?.workflowSlashCommands.map((command) => command.name),
+		).not.toContain("skill-one");
 		expect(calls).toContain("refreshType:skill");
 		expect(calls.lastIndexOf("listRecords:skill")).toBeGreaterThan(
 			calls.indexOf("refreshType:skill"),
 		);
+	});
+
+	it("returns refreshed slash commands so disabled skills stop expanding before submit", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		const skillPath = join(tempRoot, "SKILL.md");
+		await writeFile(
+			skillPath,
+			`---
+name: find-skills
+---
+Find installable skills.`,
+		);
+
+		let refreshed = false;
+		const userInstructionService = {
+			async refreshType() {
+				refreshed = true;
+			},
+			listRuntimeCommands() {
+				return refreshed
+					? []
+					: [
+							{
+								name: "find-skills",
+								instructions: "Find installable skills.",
+								description: "Find skills",
+								kind: "skill",
+							},
+						];
+			},
+			listRecords(type: string) {
+				if (type !== "skill") {
+					return [];
+				}
+				return [
+					{
+						id: "find-skills",
+						type: "skill",
+						filePath: skillPath,
+						item: {
+							name: "find-skills",
+							disabled: refreshed,
+							description: "Find skills",
+							instructions: "Find installable skills.",
+							frontmatter: {},
+						},
+					},
+				];
+			},
+		} as unknown as UserInstructionConfigService;
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+			userInstructionService,
+		});
+		const initialData = await loader.loadConfigData();
+		const initialRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: initialData.workflowSlashCommands,
+		});
+
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", initialRegistry),
+		).toContain("<user_command");
+
+		const nextData = await loader.onToggleConfigItem({
+			id: "find-skills",
+			name: "find-skills",
+			path: skillPath,
+			enabled: true,
+			source: "workspace",
+			kind: "skill",
+		});
+		const refreshedRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: nextData?.workflowSlashCommands,
+		});
+
+		expect(
+			nextData?.workflowSlashCommands.map((command) => command.name),
+		).not.toContain("find-skills");
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", refreshedRegistry),
+		).toBe("/find-skills what can u do?");
 	});
 
 	it("keeps plugin tool toggle behavior", async () => {

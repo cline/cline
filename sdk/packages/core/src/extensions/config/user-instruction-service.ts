@@ -102,8 +102,8 @@ class DefaultUserInstructionConfigService
 	}
 
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean {
-		return (
-			getConfiguredSkillsFromWatcher(this.watcher, allowedSkillNames).length > 0
+		return getConfiguredSkillsFromWatcher(this.watcher, allowedSkillNames).some(
+			(skill) => !skill.disabled,
 		);
 	}
 
