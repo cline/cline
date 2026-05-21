@@ -62,7 +62,11 @@ import {
 	shouldAutoContinueTeamRuns,
 	waitForTeamRunUpdates,
 } from "../../session/team";
-import { SessionSource, type SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	SessionSource,
+	type SessionStatus,
+} from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
@@ -438,7 +442,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			toolPolicies: bootstrap.toolPolicies,
-			requestToolApproval: bootstrap.requestToolApproval,
+			requestToolApproval: bootstrap.requestToolApproval
+				? async (request) => {
+						const requestToolApproval = bootstrap.requestToolApproval;
+						const liveSession = this.sessions.get(sessionId);
+						if (liveSession) {
+							await this.markTurnPending(liveSession);
+						}
+						try {
+							if (!requestToolApproval) {
+								return {
+									approved: false,
+									reason: "Tool approval callback is not configured.",
+								};
+							}
+							return await requestToolApproval(request);
+						} finally {
+							const currentSession = this.sessions.get(sessionId);
+							if (currentSession?.status === "pending") {
+								await this.markTurnRunning(currentSession);
+							}
+						}
+					}
+				: undefined,
 			telemetry: configWithProvider.telemetry,
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
@@ -744,7 +770,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.stopped",
 			properties: { sessionId },
 		});
-		if (session.interactive && session.status !== "running") {
+		if (session.interactive && !isNonTerminalSessionStatus(session.status)) {
 			await this.releaseSessionRuntime(session, "session_stop");
 			return;
 		}
@@ -773,7 +799,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
-				session.interactive && session.status !== "running"
+				session.interactive && !isNonTerminalSessionStatus(session.status)
 					? this.releaseSessionRuntime(session, reason)
 					: session.interactive && session.agent.canStartRun()
 						? this.shutdownSession(session, {
@@ -963,7 +989,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
 		session.lastInteractiveTurnFinishReason = finishReason;
-		await this.markTurnRunning(session);
+		await this.markTurnIdle(session);
 		session.aborting = false;
 	}
 
@@ -1251,6 +1277,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.updateStatus(session, "running", null);
 	}
 
+	private async markTurnPending(session: ActiveSession): Promise<void> {
+		if (session.status === "pending") return;
+		await this.updateStatus(session, "pending", null);
+	}
+
+	private async markTurnIdle(session: ActiveSession): Promise<void> {
+		if (session.status === "idle") return;
+		await this.updateStatus(session, "idle", null);
+	}
+
 	private async persistSessionMetadata(
 		sessionId: string,
 		resolveMetadata: (
@@ -1464,7 +1500,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				session.sessionId,
 			)) ?? session.artifacts.manifest;
 		latestManifest.status = status;
-		if (status === "running") {
+		if (isNonTerminalSessionStatus(status)) {
 			delete latestManifest.ended_at;
 			latestManifest.exit_code = null;
 		} else {
@@ -1474,7 +1510,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.artifacts.manifest = latestManifest;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
-		session.endedAt = status === "running" ? null : latestManifest.ended_at;
+		session.endedAt = isNonTerminalSessionStatus(status)
+			? null
+			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
 		await this.invoke<void>(
 			"writeSessionManifest",

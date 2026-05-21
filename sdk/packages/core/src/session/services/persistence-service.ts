@@ -19,7 +19,11 @@ import {
 	withLatestAssistantTurnMetadata,
 	withOccRetry,
 } from "../../services/session-data";
-import type { SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	type SessionStatus,
+	type TerminalSessionStatus,
+} from "../../types/common";
 import type {
 	PersistedSessionUpdateInput,
 	SessionMessagesArtifactUploader,
@@ -180,17 +184,16 @@ export class UnifiedSessionPersistenceService {
 		const result = await withOccRetry(
 			() => this.adapter.getSession(sessionId),
 			async (row) => {
-				endedAt = status === "running" ? undefined : nowIso();
+				endedAt = isNonTerminalSessionStatus(status) ? undefined : nowIso();
 				return this.adapter.updateSession({
 					sessionId,
 					status,
 					endedAt: endedAt ?? null,
-					exitCode:
-						status === "running"
-							? null
-							: typeof exitCode === "number"
-								? exitCode
-								: null,
+					exitCode: isNonTerminalSessionStatus(status)
+						? null
+						: typeof exitCode === "number"
+							? exitCode
+							: null,
 					expectedStatusLock: row.statusLock,
 				});
 			},
@@ -336,7 +339,7 @@ export class UnifiedSessionPersistenceService {
 
 	applyStatusToRunningChildSessions(
 		parentSessionId: string,
-		status: Exclude<SessionStatus, "running">,
+		status: TerminalSessionStatus,
 	): Promise<void> {
 		return this.teamChildren.applyStatusToRunningChildSessions(
 			parentSessionId,
@@ -416,7 +419,12 @@ export class UnifiedSessionPersistenceService {
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
-		if (row.status !== "running" || this.isPidAlive(row.pid)) return row;
+		if (
+			isNonTerminalSessionStatus(row.status) === false ||
+			this.isPidAlive(row.pid)
+		) {
+			return row;
+		}
 
 		const detectedAt = nowIso();
 		const reason = UnifiedSessionPersistenceService.STALE_REASON;
@@ -424,7 +432,7 @@ export class UnifiedSessionPersistenceService {
 		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const latest = await this.adapter.getSession(row.sessionId);
 			if (!latest) return undefined;
-			if (latest.status !== "running") return latest;
+			if (isNonTerminalSessionStatus(latest.status) === false) return latest;
 
 			const nextMetadata = {
 				...(latest.metadata ?? {}),
@@ -501,10 +509,17 @@ export class UnifiedSessionPersistenceService {
 	}
 
 	async reconcileDeadSessions(limit = 2000): Promise<number> {
-		const rows = await this.adapter.listSessions({
-			limit: Math.max(1, Math.floor(limit)),
-			status: "running",
-		});
+		const requestedLimit = Math.max(1, Math.floor(limit));
+		const rows = (
+			await Promise.all(
+				(["idle", "running", "pending"] as const).map((status) =>
+					this.adapter.listSessions({
+						limit: requestedLimit,
+						status,
+					}),
+				),
+			)
+		).flat();
 		let reconciled = 0;
 		for (const row of rows) {
 			const updated = await this.reconcileDeadRunningSession(row);
