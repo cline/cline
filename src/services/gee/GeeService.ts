@@ -16,6 +16,8 @@ interface GeeRunResult {
 	raw?: string
 }
 
+const PYTHON_CACHE_FILE = path.join(process.env.HOME ?? process.env.USERPROFILE ?? "/tmp", ".aihydro", "cache", "python_path.txt")
+
 export class GeeService {
 	// Cached after the first async detection — subsequent calls return instantly.
 	private static _cachedPythonCmd: string | undefined
@@ -49,6 +51,28 @@ export class GeeService {
 	static invalidatePythonCache(): void {
 		GeeService._cachedPythonCmd = undefined
 		GeeService._detectingPromise = undefined
+		fs.unlink(PYTHON_CACHE_FILE).catch(() => {})
+	}
+
+	private static async loadCachedPythonPath(): Promise<string | undefined> {
+		try {
+			const cached = (await fs.readFile(PYTHON_CACHE_FILE, "utf-8")).trim()
+			if (cached && (await GeeService.canImportEarthEngineAsync(cached))) {
+				return cached
+			}
+		} catch {
+			// no cache or stale
+		}
+		return undefined
+	}
+
+	private static async saveCachedPythonPath(cmd: string): Promise<void> {
+		try {
+			await fs.mkdir(path.dirname(PYTHON_CACHE_FILE), { recursive: true })
+			await fs.writeFile(PYTHON_CACHE_FILE, cmd, "utf-8")
+		} catch {
+			// best-effort
+		}
 	}
 
 	private static resolvePythonCommandAsync(): Promise<string> {
@@ -60,6 +84,14 @@ export class GeeService {
 			return GeeService._detectingPromise
 		}
 		GeeService._detectingPromise = (async () => {
+			// Check disk cache first — avoids 4s+ import probe on every extension restart
+			const cached = await GeeService.loadCachedPythonPath()
+			if (cached) {
+				GeeService._cachedPythonCmd = cached
+				GeeService._detectingPromise = undefined
+				return cached
+			}
+
 			const configured = GeeService.getConfiguredPythonCommand().trim()
 			// Known-good absolute paths first — avoids 6s × N timeout cascade on systems
 			// where the PATH-based shims don't have ai_hydro.gee / ee installed.
@@ -85,6 +117,7 @@ export class GeeService {
 				if (await GeeService.canImportEarthEngineAsync(candidate)) {
 					GeeService._cachedPythonCmd = candidate
 					GeeService._detectingPromise = undefined
+					GeeService.saveCachedPythonPath(candidate)
 					return candidate
 				}
 			}
