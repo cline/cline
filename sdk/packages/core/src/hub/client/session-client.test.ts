@@ -189,4 +189,122 @@ describe("HubSessionClient", () => {
 		unsubscribe();
 		client.close();
 	});
+
+	it("maps schedule execution events without requiring an envelope session id", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+		const socket = MockWebSocket.instances[0];
+		if (!socket) {
+			throw new Error("expected websocket");
+		}
+		const received: Array<{
+			sessionId: string;
+			eventType: string;
+			payload: Record<string, unknown>;
+		}> = [];
+		const unsubscribe = client.streamEvents(
+			{ clientId: "schedule-listener" },
+			{
+				onEvent: (event) => {
+					received.push(event);
+				},
+			},
+		);
+
+		socket.emitFrame({
+			kind: "event",
+			envelope: {
+				version: "v1",
+				eventId: "evt-schedule",
+				event: "schedule.execution_completed",
+				timestamp: Date.now(),
+				payload: {
+					scheduleId: "sched_1",
+					executionId: "run_1",
+					sessionId: "session-1",
+					status: "success",
+				},
+			},
+		});
+
+		expect(received).toEqual([
+			{
+				sessionId: "session-1",
+				eventType: "schedule.execution.completed",
+				payload: {
+					scheduleId: "sched_1",
+					executionId: "run_1",
+					sessionId: "session-1",
+					status: "success",
+				},
+			},
+		]);
+
+		unsubscribe();
+		client.close();
+	});
+
+	it("maps failed schedule execution events", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+		const socket = MockWebSocket.instances[0];
+		if (!socket) {
+			throw new Error("expected websocket");
+		}
+		const received: Array<{
+			sessionId: string;
+			eventType: string;
+			payload: Record<string, unknown>;
+		}> = [];
+		const unsubscribe = client.streamEvents(
+			{ clientId: "schedule-listener" },
+			{
+				onEvent: (event) => {
+					received.push(event);
+				},
+			},
+		);
+
+		socket.emitFrame({
+			kind: "event",
+			envelope: {
+				version: "v1",
+				eventId: "evt-schedule-failed",
+				event: "schedule.execution_failed",
+				timestamp: Date.now(),
+				payload: {
+					scheduleId: "sched_1",
+					executionId: "run_1",
+					sessionId: "session-1",
+					status: "failed",
+					errorMessage: "runtime failed",
+				},
+			},
+		});
+
+		expect(received).toEqual([
+			{
+				sessionId: "session-1",
+				eventType: "schedule.execution.failed",
+				payload: {
+					scheduleId: "sched_1",
+					executionId: "run_1",
+					sessionId: "session-1",
+					status: "failed",
+					errorMessage: "runtime failed",
+				},
+			},
+		]);
+
+		unsubscribe();
+		client.close();
+	});
 });

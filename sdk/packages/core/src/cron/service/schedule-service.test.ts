@@ -37,6 +37,10 @@ describe("HubScheduleService", () => {
 	sqliteIt("creates, triggers, and reports schedule history", async () => {
 		const dbPath = await createTempDbPath();
 		cleanupPaths.push(dbPath);
+		const publishedEvents: Array<{
+			eventType: string;
+			payload: Record<string, unknown>;
+		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
 			runtimeHandlers: {
@@ -52,6 +56,9 @@ describe("HubScheduleService", () => {
 				})),
 				abortSession: vi.fn(async () => ({ applied: true })),
 				stopSession: vi.fn(async () => ({ applied: true })),
+			},
+			eventPublisher: (eventType, payload) => {
+				publishedEvents.push({ eventType, payload });
 			},
 		});
 		try {
@@ -73,6 +80,17 @@ describe("HubScheduleService", () => {
 			const execution = await service.triggerScheduleNow(created.scheduleId);
 			expect(execution?.status).toBe("success");
 			expect(execution?.sessionId).toBe("session-1");
+			expect(publishedEvents).toEqual([
+				{
+					eventType: "schedule.execution.completed",
+					payload: expect.objectContaining({
+						scheduleId: created.scheduleId,
+						executionId: execution?.executionId,
+						sessionId: "session-1",
+						status: "success",
+					}),
+				},
+			]);
 
 			const schedule = service.getSchedule(created.scheduleId);
 			expect(schedule?.metadata).toEqual({
@@ -83,6 +101,58 @@ describe("HubScheduleService", () => {
 			).toHaveLength(1);
 			expect(service.getScheduleStats(created.scheduleId).totalRuns).toBe(1);
 			expect(service.getUpcomingRuns(10)).toHaveLength(1);
+		} finally {
+			await service.dispose();
+		}
+	});
+
+	sqliteIt("publishes failed schedule execution events", async () => {
+		const dbPath = await createTempDbPath();
+		cleanupPaths.push(dbPath);
+		const publishedEvents: Array<{
+			eventType: string;
+			payload: Record<string, unknown>;
+		}> = [];
+		const service = new HubScheduleService({
+			dbPath,
+			runtimeHandlers: {
+				startSession: vi.fn(async () => ({ sessionId: "session-failed" })),
+				sendSession: vi.fn(async () => {
+					throw new Error("runtime failed");
+				}),
+				abortSession: vi.fn(async () => ({ applied: true })),
+				stopSession: vi.fn(async () => ({ applied: true })),
+			},
+			eventPublisher: (eventType, payload) => {
+				publishedEvents.push({ eventType, payload });
+			},
+		});
+		try {
+			const created = service.createSchedule({
+				name: "Failure routine",
+				cronPattern: "0 * * * *",
+				prompt: "Run and fail",
+				workspaceRoot: "/workspace",
+				modelSelection: {
+					providerId: "openai",
+					modelId: "gpt-5.3-codex",
+				},
+			});
+
+			const execution = await service.triggerScheduleNow(created.scheduleId);
+			expect(execution?.status).toBe("failed");
+			expect(publishedEvents).toEqual([
+				{
+					eventType: "schedule.execution.failed",
+					payload: expect.objectContaining({
+						scheduleId: created.scheduleId,
+						executionId: execution?.executionId,
+						sessionId: "session-failed",
+						status: "failed",
+						errorMessage: "runtime failed",
+					}),
+				},
+			]);
 		} finally {
 			await service.dispose();
 		}
