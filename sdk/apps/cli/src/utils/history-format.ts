@@ -42,6 +42,22 @@ function formatHistoryTitle(
 	return truncateStr(normalized.replace(/\s+/g, " "), 40);
 }
 
+export function isFileBasedCronSession(row: SessionHistoryRecord): boolean {
+	const cron = row.metadata?.cron;
+	if (!cron || typeof cron !== "object") return false;
+	const specPath = (cron as { specPath?: unknown }).specPath;
+	return typeof specPath === "string" && specPath.length > 0;
+}
+
+export function fileBasedCronPrefix(
+	row: SessionHistoryRecord,
+): string | undefined {
+	if (!isFileBasedCronSession(row)) return undefined;
+	const specPath = (row.metadata?.cron as { specPath?: string }).specPath;
+	const base = specPath ? specPath.split("/").pop() : undefined;
+	return base ? `[file-based: ${base}] ` : "[file-based] ";
+}
+
 export function formatCheckpointBadge(
 	row: SessionHistoryRecord,
 ): string | undefined {
@@ -104,5 +120,6 @@ export function formatHistoryListLine(row: SessionHistoryRecord): string {
 			: new Date(row.startedAt).getTime();
 	const date = formatUtcDate(new Date(timestamp));
 	const costSegment = cost ? ` | ${cost}` : "";
-	return `${date} ${provider}:${model} [${formatSessionStatusLabel(row.status)}]${costSegment} | ${title}`;
+	const prefix = fileBasedCronPrefix(row) ?? "";
+	return `${date} ${provider}:${model} [${formatSessionStatusLabel(row.status)}]${costSegment} | ${prefix}${title}`;
 }

@@ -104,6 +104,7 @@ export function createClineCoreAutomationRuntimeHandlers(
 			const started = await host.startSession({
 				source: request.source?.trim() || SessionSource.CLI,
 				interactive: false,
+				sessionMetadata: request.sessionMetadata,
 				config: {
 					providerId: normalizeProviderId(request.provider),
 					modelId: request.model,

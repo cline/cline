@@ -362,6 +362,10 @@ export async function runCli(): Promise<void> {
 		.option("--json", "Output as JSON")
 		.option("--limit <count>", "Maximum number of sessions to show", "50")
 		.option("--page <number>", "Page number for paginated results")
+		.option(
+			"--file-based",
+			"Only show sessions started by file-based cron specs",
+		)
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();
@@ -374,6 +378,7 @@ export async function runCli(): Promise<void> {
 			const result = await runHistoryList({
 				limit,
 				outputMode,
+				fileBasedOnly: opts.fileBased === true,
 				io,
 			});
 			if (typeof result === "string") {

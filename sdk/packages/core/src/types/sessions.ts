@@ -38,6 +38,11 @@ export interface SessionHistoryMetadata extends Record<string, unknown> {
 			runCount?: number;
 		}>;
 	};
+	cron?: {
+		specId?: string;
+		specPath?: string;
+		triggerKind?: "one_off" | "schedule" | "event";
+	};
 }
 
 export interface SessionHistoryRecord extends Omit<SessionRecord, "metadata"> {

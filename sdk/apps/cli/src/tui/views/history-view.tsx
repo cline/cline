@@ -12,6 +12,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listSessions } from "../../session/session";
 import {
+	fileBasedCronPrefix,
 	formatSessionStatusLabel,
 	mergeHistoryStatusRows,
 } from "../../utils/history-format";
@@ -28,7 +29,8 @@ function formatTitle(row: SessionHistoryRecord, maxLen: number): string {
 	const raw = row.metadata?.title?.trim() || row.prompt?.trim() || "Untitled";
 	const forkTitle =
 		hasForkMetadata(row) && !raw.endsWith(" (fork)") ? `${raw} (fork)` : raw;
-	const normalized = formatDisplayUserInput(forkTitle);
+	const prefix = fileBasedCronPrefix(row) ?? "";
+	const normalized = formatDisplayUserInput(`${prefix}${forkTitle}`);
 	return truncateStr(normalized.replace(/\s+/g, " "), maxLen);
 }
 

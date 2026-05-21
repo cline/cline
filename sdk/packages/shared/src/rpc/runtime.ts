@@ -38,6 +38,7 @@ export interface ChatStartSessionRequest extends ChatRuntimeConfig {
 	model: string;
 	source?: string;
 	interactive?: boolean;
+	sessionMetadata?: Record<string, unknown>;
 }
 
 export interface ChatStartSessionArtifacts {

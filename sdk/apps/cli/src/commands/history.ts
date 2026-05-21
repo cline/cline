@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import type { SessionHistoryRecord } from "@cline/core";
 import { generateConversationHTML } from "../session/export";
 import {
 	deleteSession,
@@ -8,12 +9,15 @@ import {
 	updateSession,
 } from "../session/session";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
+import { isFileBasedCronSession } from "../utils/history-format";
 import { writeln } from "../utils/output";
 import type { CliOutputMode } from "../utils/types";
 
 export {
+	fileBasedCronPrefix,
 	formatCheckpointDetail,
 	formatHistoryListLine,
+	isFileBasedCronSession,
 	mergeHistoryStatusRows,
 } from "../utils/history-format";
 
@@ -160,6 +164,7 @@ export async function runHistoryList(input: {
 	limit: number;
 	outputMode: CliOutputMode;
 	workspaceRoot?: string;
+	fileBasedOnly?: boolean;
 	io?: HistoryIo;
 }): Promise<number | string> {
 	const io = input.io ?? {
@@ -168,15 +173,24 @@ export async function runHistoryList(input: {
 	};
 	const limit = Number.isFinite(input.limit) ? input.limit : 50;
 
-	const rows = await listSessions(limit, {
-		workspaceRoot: input.workspaceRoot,
-		hydrate: input.outputMode !== "json",
-	});
+	const applyFilter = (rows: SessionHistoryRecord[]) =>
+		input.fileBasedOnly ? rows.filter(isFileBasedCronSession) : rows;
+
+	const rows = applyFilter(
+		await listSessions(limit, {
+			workspaceRoot: input.workspaceRoot,
+			hydrate: input.outputMode !== "json",
+		}),
+	);
 	if (rows.length === 0) {
 		if (input.outputMode === "json") {
 			process.stdout.write(JSON.stringify([]));
 		} else {
-			io.writeln("No history found.");
+			io.writeln(
+				input.fileBasedOnly
+					? "No file-based cron sessions found."
+					: "No history found.",
+			);
 		}
 		return 0;
 	}
@@ -191,10 +205,12 @@ export async function runHistoryList(input: {
 	return await renderHistoryStandalone({
 		rows,
 		refreshRows: async () =>
-			await listSessions(limit, {
-				workspaceRoot: input.workspaceRoot,
-				hydrate: false,
-			}),
+			applyFilter(
+				await listSessions(limit, {
+					workspaceRoot: input.workspaceRoot,
+					hydrate: false,
+				}),
+			),
 		onExport: async (sessionId: string) =>
 			await exportHistorySession(sessionId, undefined),
 	});

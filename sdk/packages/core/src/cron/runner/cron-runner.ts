@@ -470,13 +470,22 @@ export class CronRunner {
 		}
 		const mode =
 			spec.mode === "plan" ? "plan" : spec.mode === "act" ? "act" : "yolo";
+		const fileBasedMetadata = isFileBasedSpec(spec)
+			? {
+					cron: {
+						specId: spec.specId,
+						specPath: spec.sourcePath,
+						triggerKind: spec.triggerKind,
+					},
+				}
+			: undefined;
 		return {
 			workspaceRoot,
 			cwd,
 			provider,
 			model,
 			mode,
-			source: spec.source?.trim() || "user",
+			source: fileBasedMetadata ? "cron" : spec.source?.trim() || "user",
 			systemPrompt: await this.buildSystemPrompt(
 				spec,
 				workspaceRoot,
@@ -492,6 +501,12 @@ export class CronRunner {
 			configExtensions: DEFAULT_CRON_EXTENSIONS.filter((extension) =>
 				cronExtensionEnabled(spec, extension),
 			),
+			sessionMetadata: fileBasedMetadata,
 		};
 	}
+}
+
+function isFileBasedSpec(spec: CronSpecRecord): boolean {
+	const path = spec.sourcePath ?? "";
+	return path.length > 0 && !path.startsWith("hub/schedules/");
 }
