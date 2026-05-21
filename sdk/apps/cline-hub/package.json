@@ -1,0 +1,16 @@
+{
+	"name": "@cline/cline-hub",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Browser dashboard for the Cline hub: live clients, sessions, streaming chat, and hub restart.",
+	"type": "module",
+	"scripts": {
+		"start": "bun run src/server.ts",
+		"smoke:options": "bun run src/validate-options.ts",
+		"typecheck": "bun tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@cline/core": "latest",
+		"@cline/shared": "latest"
+	}
+}

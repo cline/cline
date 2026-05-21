@@ -42,6 +42,8 @@ pnpm-lock.yaml
 # Session files / User data
 .cline/data
 .cline/tmp
+.cline/remote-config
+.cline/cache
 *.db
 *.db-shm
 *.db-wal
