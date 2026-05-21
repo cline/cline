@@ -14,12 +14,16 @@ import {
 	setClineDir,
 	setHomeDir,
 } from "@cline/shared/storage";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	installPlugin,
 	parsePluginSource,
 	runPluginInstallCommand,
 } from "./plugin";
+
+type FetchCall = (
+	...args: Parameters<typeof fetch>
+) => ReturnType<typeof fetch>;
 
 describe("plugin install command", () => {
 	let root = "";
@@ -44,6 +48,7 @@ describe("plugin install command", () => {
 	});
 
 	afterEach(() => {
+		vi.unstubAllGlobals();
 		if (originalHome === undefined) {
 			delete process.env.HOME;
 		} else {
@@ -85,6 +90,30 @@ describe("plugin install command", () => {
 		);
 	});
 
+	it("parses GitHub plugin file URLs as remote sources", () => {
+		expect(
+			parsePluginSource(
+				"https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts",
+			),
+		).toEqual({
+			type: "remote",
+			url: "https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts",
+			filename: "weather-metrics.ts",
+		});
+	});
+
+	it("parses raw plugin file URLs as remote sources", () => {
+		expect(
+			parsePluginSource(
+				"https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts",
+			),
+		).toEqual({
+			type: "remote",
+			url: "https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts",
+			filename: "weather-metrics.ts",
+		});
+	});
+
 	it("installs a local plugin file into the global plugin root", async () => {
 		const source = join(root, "weather.ts");
 		writeFileSync(
@@ -102,6 +131,35 @@ describe("plugin install command", () => {
 			join(home, ".cline", "plugins"),
 		);
 		expect(discovered).toEqual(result.entryPaths);
+	});
+
+	it("installs a remote plugin file into the workspace plugin root", async () => {
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>(async (input) => {
+			expect(String(input)).toBe(
+				"https://raw.githubusercontent.com/acme/plugins/main/weather-metrics.ts",
+			);
+			return new Response(
+				"export default { name: 'remote-weather', manifest: { capabilities: ['tools'] } };",
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await installPlugin({ source, cwd: workspace });
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result.installPath).toContain(
+			join(workspace, ".cline", "plugins", "_installed", "remote"),
+		);
+		expect(result.entryPaths).toHaveLength(1);
+		expect(existsSync(result.entryPaths[0] ?? "")).toBe(true);
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"remote-weather",
+		);
+		expect(
+			discoverPluginModulePaths(join(workspace, ".cline", "plugins")),
+		).toEqual(result.entryPaths);
 	});
 
 	it("installs into cwd plugin root when cwd is provided", async () => {

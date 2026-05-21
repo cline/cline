@@ -53,11 +53,16 @@ type ParsedPluginSource =
 			path: string;
 	  }
 	| {
+			type: "remote";
+			url: string;
+			filename: string;
+	  }
+	| {
 			type: "local";
 			path: string;
 	  };
 
-type PluginInstallSourceType = "npm" | "git" | "local";
+type PluginInstallSourceType = "npm" | "git" | "local" | "remote";
 
 interface PluginPackageManifest {
 	cline?: {
@@ -189,6 +194,71 @@ function splitGitRef(input: string): { repo: string; ref?: string } {
 	};
 }
 
+function decodePathSegment(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
+
+function filenameFromUrlPath(pathname: string): string {
+	const filename = basename(decodePathSegment(pathname));
+	return filename || "plugin";
+}
+
+function isGitHubFilePath(pathname: string): boolean {
+	const parts = pathname.split("/").filter(Boolean);
+	return parts.length >= 5 && (parts[2] === "blob" || parts[2] === "raw");
+}
+
+function normalizeRemotePluginFileUrl(
+	source: string,
+): Extract<ParsedPluginSource, { type: "remote" }> | null {
+	if (!/^https?:\/\//i.test(source)) {
+		return null;
+	}
+	let parsed: URL;
+	try {
+		parsed = new URL(source);
+	} catch {
+		return null;
+	}
+
+	const host = parsed.hostname.toLowerCase();
+	const filename = filenameFromUrlPath(parsed.pathname);
+	const isPluginFile = isPluginModulePath(filename);
+
+	if (host === "github.com" || host === "www.github.com") {
+		const parts = parsed.pathname.split("/").filter(Boolean);
+		const filePath = isGitHubFilePath(parsed.pathname);
+		if (!filePath) {
+			return null;
+		}
+		if (!isPluginFile) {
+			throw new Error(`Remote plugin file must be .js or .ts: ${source}`);
+		}
+		const rawParts = [parts[0], parts[1], ...parts.slice(3)];
+		return {
+			type: "remote",
+			url: `https://raw.githubusercontent.com/${rawParts.join("/")}`,
+			filename,
+		};
+	}
+
+	if (host === "raw.githubusercontent.com") {
+		if (!isPluginFile) {
+			throw new Error(`Remote plugin file must be .js or .ts: ${source}`);
+		}
+		return { type: "remote", url: parsed.toString(), filename };
+	}
+
+	if (!isPluginFile) {
+		return null;
+	}
+	return { type: "remote", url: parsed.toString(), filename };
+}
+
 function parseGitSource(
 	source: string,
 	options: { force?: boolean } = {},
@@ -261,6 +331,13 @@ export function parsePluginSource(
 	if (sourceType === "local") {
 		return { type: "local", path: source };
 	}
+	if (sourceType === "remote") {
+		const remote = normalizeRemotePluginFileUrl(trimmed);
+		if (!remote) {
+			throw new Error(`Invalid remote plugin source: ${source}`);
+		}
+		return remote;
+	}
 	if (trimmed.startsWith("npm:")) {
 		const spec = trimmed.slice("npm:".length).trim();
 		const { name } = parseNpmSpec(spec);
@@ -274,6 +351,10 @@ export function parsePluginSource(
 		/^[A-Za-z]:[\\/]|^\\\\/.test(trimmed);
 	if (localPathLike) {
 		return { type: "local", path: source };
+	}
+	const remote = normalizeRemotePluginFileUrl(trimmed);
+	if (remote) {
+		return remote;
 	}
 	const git = parseGitSource(trimmed);
 	if (git) {
@@ -315,6 +396,14 @@ function getInstallPath(
 			`${sanitizeSegment(parsed.path)}-${hashSource(sourceKey)}`,
 		);
 	}
+	if (parsed.type === "remote") {
+		return join(
+			pluginRoot,
+			INSTALLS_DIRECTORY_NAME,
+			"remote",
+			`${sanitizeSegment(parsed.filename)}-${hashSource(sourceKey)}`,
+		);
+	}
 	return join(
 		pluginRoot,
 		INSTALLS_DIRECTORY_NAME,
@@ -329,6 +418,9 @@ function getInstallSourceKey(parsed: ParsedPluginSource, cwd: string): string {
 	}
 	if (parsed.type === "git") {
 		return `git:${parsed.repo}${parsed.ref ? `#${parsed.ref}` : ""}`;
+	}
+	if (parsed.type === "remote") {
+		return `remote:${parsed.url}`;
 	}
 	return `local:${resolve(cwd, resolveHomePath(parsed.path))}`;
 }
@@ -626,6 +718,26 @@ async function installGitPackage(
 	return packageRoot;
 }
 
+async function installRemoteFile(
+	parsed: Extract<ParsedPluginSource, { type: "remote" }>,
+	stagingRoot: string,
+): Promise<string> {
+	const response = await fetch(parsed.url);
+	if (!response.ok) {
+		const suffix = response.statusText ? ` ${response.statusText}` : "";
+		throw new Error(
+			`Failed to download plugin file from ${parsed.url}: ${response.status}${suffix}`,
+		);
+	}
+	mkdirSync(stagingRoot, { recursive: true });
+	await writeFile(
+		join(stagingRoot, parsed.filename),
+		await response.text(),
+		"utf8",
+	);
+	return stagingRoot;
+}
+
 async function installLocalPackage(
 	parsed: Extract<ParsedPluginSource, { type: "local" }>,
 	stagingRoot: string,
@@ -737,6 +849,8 @@ export async function installPlugin(
 			packageRoot = await installNpmPackage(parsed, stagingRoot, npmCommand);
 		} else if (parsed.type === "git") {
 			packageRoot = await installGitPackage(parsed, stagingRoot, npmCommand);
+		} else if (parsed.type === "remote") {
+			packageRoot = await installRemoteFile(parsed, stagingRoot);
 		} else {
 			packageRoot = await installLocalPackage(
 				parsed,
@@ -747,7 +861,8 @@ export async function installPlugin(
 		}
 
 		const entryPaths =
-			parsed.type === "local" && packageRoot === stagingRoot
+			(parsed.type === "local" || parsed.type === "remote") &&
+			packageRoot === stagingRoot
 				? collectPluginEntries(stagingRoot).map(
 						(entry) => `./${toPosixPath(relative(stagingRoot, entry))}`,
 					)
