@@ -7,7 +7,10 @@ import {
 } from "../../../extensions/tools";
 import { createSpawnAgentTool } from "../../../extensions/tools/team";
 import { buildTelemetryAgentIdentity } from "../../../services/agent-events";
-import { filterDisabledTools } from "../../../services/global-settings";
+import {
+	filterDisabledTools,
+	readGlobalSettings,
+} from "../../../services/global-settings";
 import {
 	captureAgentCreated,
 	captureSubagentExecution,
@@ -38,10 +41,14 @@ export function createSessionSpawnTool(
 	toolExecutors?: Partial<ToolExecutors>,
 ): AgentTool {
 	const createSubAgentTools = () => {
+		const { runCommandsTimeoutMs } = readGlobalSettings();
 		const tools: AgentTool[] = config.enableTools
 			? createBuiltinTools({
 					cwd: config.cwd,
 					...ToolPresets[resolveToolPresetName({ mode: config.mode })],
+					executorOptions: {
+						bash: { timeoutMs: runCommandsTimeoutMs },
+					},
 					executors: toolExecutors,
 				})
 			: [];

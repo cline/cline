@@ -544,9 +544,15 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 							runCommandsTimeoutMs,
 						);
 						const nextTimeoutMs =
-							runCommandsTimeoutPresets[
-								(currentIndex + 1) % runCommandsTimeoutPresets.length
-							] ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS;
+							currentIndex >= 0
+								? (runCommandsTimeoutPresets[
+										(currentIndex + 1) % runCommandsTimeoutPresets.length
+									] ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS)
+								: (runCommandsTimeoutPresets.find(
+										(timeoutMs) => timeoutMs > runCommandsTimeoutMs,
+									) ??
+									runCommandsTimeoutPresets[0] ??
+									DEFAULT_RUN_COMMANDS_TIMEOUT_MS);
 						setRunCommandsTimeoutMs(nextTimeoutMs);
 						props.onSetRunCommandsTimeoutMs(nextTimeoutMs);
 						break;

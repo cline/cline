@@ -10,6 +10,7 @@ import {
 	getDefaultShell,
 	getShellArgs,
 } from "@cline/shared";
+import { TimeoutError } from "../helpers";
 import type { BashExecutor } from "../types";
 
 /**
@@ -108,7 +109,10 @@ function spawnAndCollect(
 		};
 
 		const timeout = setTimeout(
-			() => killAndReject(new Error(`Command timed out after ${timeoutMs}ms`)),
+			() =>
+				killAndReject(
+					new TimeoutError(`Command timed out after ${timeoutMs}ms`),
+				),
 			timeoutMs,
 		);
 
@@ -187,8 +191,9 @@ export function createBashExecutor(
 		combineOutput = true,
 	} = options;
 
-	return (command, cwd, context) => {
+	return (command, cwd, context, timeoutOverrideMs) => {
 		const isStructured = typeof command !== "string";
+		const effectiveTimeoutMs = timeoutOverrideMs ?? timeoutMs;
 		return spawnAndCollect(
 			{
 				executable: isStructured ? command.command : shell,
@@ -199,7 +204,7 @@ export function createBashExecutor(
 				env,
 			},
 			context,
-			timeoutMs,
+			effectiveTimeoutMs,
 			maxOutputBytes,
 			combineOutput,
 		);

@@ -11,15 +11,20 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import {
+	assertNoTopLevelRunCommandsTimeout,
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQuery,
 	getEditorSizeError,
 	getReadFileRangeError,
 	normalizeReadFileRequests,
-	normalizeRunCommandsInput,
+	normalizeValidatedRunCommandsInputWithTimeouts,
 	withTimeout,
 } from "./helpers";
+import {
+	DEFAULT_RUN_COMMANDS_TIMEOUT_MS,
+	MAX_RUN_COMMANDS_TIMEOUT_MS,
+} from "./constants";
 import {
 	type ApplyPatchInput,
 	ApplyPatchInputSchema,
@@ -42,6 +47,7 @@ import {
 	SkillsInputSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputSchema,
+	StructuredCommandsInputUnionSchema,
 	type SubmitInput,
 	SubmitInputSchema,
 } from "./schemas";
@@ -203,7 +209,8 @@ export function createBashTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const defaultTimeoutMs =
+		config.bashTimeoutMs ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS;
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<RunCommandsInput, ToolOperationResult[]>({
@@ -212,51 +219,47 @@ export function createBashTool(
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
 			"Commands should be properly shell-escaped and targeted to avoid error or timeout. " +
-			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
+			"Commands in the array run concurrently. A structured command entry may include an optional per-command timeout in milliseconds; omit it to use the configured default. " +
+			"Only raise per-command timeout for expected long-running installs/builds/tests, or after a timeout. For commands intended to keep running independently, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
-		timeoutMs: timeoutMs * 2,
+		// Static SDK tool-runner ceiling. Individual command timeouts are
+		// resolved per command from command.timeout ?? configured default.
+		timeoutMs: MAX_RUN_COMMANDS_TIMEOUT_MS,
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
+			assertNoTopLevelRunCommandsTimeout(input);
 			const validate = validateWithZod(RunCommandsInputUnionSchema, input);
-			let commands: string[];
-			if (typeof validate === "string") {
-				commands = [validate];
-			} else if (Array.isArray(validate)) {
-				commands = validate;
-			} else if ("commands" in validate) {
-				commands = Array.isArray(validate.commands)
-					? validate.commands
-					: [validate.commands];
-			} else if ("command" in validate) {
-				commands = [validate.command];
-			} else {
-				commands = [validate.cmd];
-			}
+			const commands = normalizeValidatedRunCommandsInputWithTimeouts(
+				validate,
+				defaultTimeoutMs,
+			);
 
 			return Promise.all(
-				commands.map(async (command: string): Promise<ToolOperationResult> => {
-					try {
-						const output = await withTimeout(
-							executor(command, cwd, context),
-							timeoutMs,
-							`Command timed out after ${timeoutMs}ms`,
-						);
-						return {
-							query: command,
-							result: output,
-							success: true,
-						};
-					} catch (error) {
-						const msg = formatError(error);
-						return {
-							query: command,
-							result: "",
-							error: `Command failed: ${msg}`,
-							success: false,
-						};
-					}
-				}),
+				commands.map(
+					async ({ command, timeoutMs }): Promise<ToolOperationResult> => {
+						try {
+							const output = await withTimeout(
+								executor(command, cwd, context, timeoutMs),
+								timeoutMs,
+								`Command timed out after ${timeoutMs}ms`,
+							);
+							return {
+								query: formatRunCommandQuery(command),
+								result: output,
+								success: true,
+							};
+						} catch (error) {
+							const msg = formatError(error);
+							return {
+								query: formatRunCommandQuery(command),
+								result: "",
+								error: `Command failed: ${msg}`,
+								success: false,
+							};
+						}
+					},
+				),
 			);
 		},
 	});
@@ -271,45 +274,60 @@ export function createWindowsShellTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const defaultTimeoutMs =
+		config.bashTimeoutMs ?? DEFAULT_RUN_COMMANDS_TIMEOUT_MS;
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
 		name: "run_commands",
 		description:
-			"Run shell commands from the root of the workspacein Windows environment. " +
+			"Run shell commands from the root of the workspace in a Windows environment. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped.",
+			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. " +
+			"Commands in the array run concurrently. A structured command entry may include an optional per-command timeout in milliseconds; omit it to use the configured default. " +
+			"Only raise per-command timeout for expected long-running installs/builds/tests, or after a timeout. For commands intended to keep running independently, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
-		timeoutMs: timeoutMs * 2,
+		// Static SDK tool-runner ceiling. Individual command timeouts are
+		// resolved per command from command.timeout ?? configured default.
+		timeoutMs: MAX_RUN_COMMANDS_TIMEOUT_MS,
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const commands = normalizeRunCommandsInput(input);
+			assertNoTopLevelRunCommandsTimeout(input);
+			const validate = validateWithZod(
+				StructuredCommandsInputUnionSchema,
+				input,
+			);
+			const commands = normalizeValidatedRunCommandsInputWithTimeouts(
+				validate,
+				defaultTimeoutMs,
+			);
 
 			return Promise.all(
-				commands.map(async (command): Promise<ToolOperationResult> => {
-					try {
-						const output = await withTimeout(
-							executor(command, cwd, context),
-							timeoutMs,
-							`Command timed out after ${timeoutMs}ms`,
-						);
-						return {
-							query: formatRunCommandQuery(command),
-							result: output,
-							success: true,
-						};
-					} catch (error) {
-						const msg = formatError(error);
-						return {
-							query: formatRunCommandQuery(command),
-							result: "",
-							error: `Command failed: ${msg}`,
-							success: false,
-						};
-					}
-				}),
+				commands.map(
+					async ({ command, timeoutMs }): Promise<ToolOperationResult> => {
+						try {
+							const output = await withTimeout(
+								executor(command, cwd, context, timeoutMs),
+								timeoutMs,
+								`Command timed out after ${timeoutMs}ms`,
+							);
+							return {
+								query: formatRunCommandQuery(command),
+								result: output,
+								success: true,
+							};
+						} catch (error) {
+							const msg = formatError(error);
+							return {
+								query: formatRunCommandQuery(command),
+								result: "",
+								error: `Command failed: ${msg}`,
+								success: false,
+							};
+						}
+					},
+				),
 			);
 		},
 	});

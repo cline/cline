@@ -80,6 +80,7 @@ export type BashExecutor = (
 	command: string | StructuredCommandInput,
 	cwd: string,
 	context: AgentToolContext,
+	timeoutMs?: number,
 ) => Promise<string>;
 
 /**

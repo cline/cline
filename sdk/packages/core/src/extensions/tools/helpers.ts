@@ -8,6 +8,14 @@ import {
 	StructuredCommandsInputUnionSchema,
 } from "./schemas";
 
+export interface NormalizedRunCommand {
+	command: string | StructuredCommandInput;
+	timeoutMs: number;
+}
+
+const TOP_LEVEL_TIMEOUT_ERROR =
+	'Top-level timeout is not supported for run_commands; set timeout on each structured command entry, for example { "commands": [{ "command": "npm test", "timeout": 120000 }] }.';
+
 /**
  * Format an error into a string message
  */
@@ -36,17 +44,38 @@ export function getEditorSizeError(input: EditFileInput): string | null {
 /**
  * Create a timeout-wrapped promise
  */
+export class TimeoutError extends Error {
+	/**
+	 * Shared brand for tool wrapper/executor timeouts. Use this when callers
+	 * need to distinguish real timeout failures from ordinary error text.
+	 */
+	readonly type = "timeout";
+}
+
 export function withTimeout<T>(
 	promise: Promise<T>,
 	ms: number,
 	message: string,
 ): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new Error(message)), ms);
-		}),
-	]);
+	return new Promise<T>((resolve, reject) => {
+		let settled = false;
+		const timeout = setTimeout(() => {
+			settle(() => reject(new TimeoutError(message)));
+		}, ms);
+		const settle = (callback: () => void) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeout);
+			callback();
+		};
+
+		promise.then(
+			(value) => settle(() => resolve(value)),
+			(error: unknown) => settle(() => reject(error)),
+		);
+	});
 }
 
 export function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
@@ -108,24 +137,62 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
+	assertNoTopLevelRunCommandsTimeout(input);
 	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
 
+	return normalizeValidatedRunCommandsInput(validate);
+}
+
+export function assertNoTopLevelRunCommandsTimeout(input: unknown): void {
+	if (
+		typeof input === "object" &&
+		input !== null &&
+		!Array.isArray(input) &&
+		"timeout" in input &&
+		("commands" in input || "cmd" in input)
+	) {
+		throw new Error(TOP_LEVEL_TIMEOUT_ERROR);
+	}
+}
+
+function normalizeStructuredCommandInput(
+	command: StructuredCommandInput,
+): StructuredCommandInput {
+	return command.args === undefined
+		? { command: command.command }
+		: { command: command.command, args: command.args };
+}
+
+export function normalizeValidatedRunCommandsInput(
+	validate: ReturnType<typeof StructuredCommandsInputUnionSchema.parse>,
+): Array<string | StructuredCommandInput> {
 	if (typeof validate === "string") {
 		return [validate];
 	}
 
 	if (Array.isArray(validate)) {
-		return validate;
+		return validate.map((command) =>
+			typeof command === "string"
+				? command
+				: normalizeStructuredCommandInput(command),
+		);
 	}
 
 	if ("commands" in validate) {
-		return Array.isArray(validate.commands)
+		const commands = Array.isArray(validate.commands)
 			? validate.commands
 			: [validate.commands];
+		return commands.map((command) =>
+			typeof command === "string"
+				? command
+				: normalizeStructuredCommandInput(command),
+		);
 	}
 
 	if ("command" in validate) {
-		return "args" in validate ? [validate] : [validate.command];
+		return "args" in validate
+			? [normalizeStructuredCommandInput(validate)]
+			: [validate.command];
 	}
 
 	if ("cmd" in validate) {
@@ -133,6 +200,62 @@ export function normalizeRunCommandsInput(
 	}
 
 	return [validate];
+}
+
+function resolveCommandTimeoutMs(
+	command: string | StructuredCommandInput,
+	defaultTimeoutMs: number,
+): number {
+	return typeof command === "string"
+		? defaultTimeoutMs
+		: (command.timeout ?? defaultTimeoutMs);
+}
+
+function normalizeRunCommandWithTimeout(
+	command: string | StructuredCommandInput,
+	defaultTimeoutMs: number,
+): NormalizedRunCommand {
+	return {
+		command:
+			typeof command === "string"
+				? command
+				: normalizeStructuredCommandInput(command),
+		timeoutMs: resolveCommandTimeoutMs(command, defaultTimeoutMs),
+	};
+}
+
+export function normalizeValidatedRunCommandsInputWithTimeouts(
+	validate: ReturnType<typeof StructuredCommandsInputUnionSchema.parse>,
+	defaultTimeoutMs: number,
+): NormalizedRunCommand[] {
+	if (typeof validate === "string") {
+		return [normalizeRunCommandWithTimeout(validate, defaultTimeoutMs)];
+	}
+
+	if (Array.isArray(validate)) {
+		return validate.map((command) =>
+			normalizeRunCommandWithTimeout(command, defaultTimeoutMs),
+		);
+	}
+
+	if ("commands" in validate) {
+		const commands = Array.isArray(validate.commands)
+			? validate.commands
+			: [validate.commands];
+		return commands.map((command) =>
+			normalizeRunCommandWithTimeout(command, defaultTimeoutMs),
+		);
+	}
+
+	if ("command" in validate) {
+		return [normalizeRunCommandWithTimeout(validate, defaultTimeoutMs)];
+	}
+
+	if ("cmd" in validate) {
+		return [normalizeRunCommandWithTimeout(validate.cmd, defaultTimeoutMs)];
+	}
+
+	return [normalizeRunCommandWithTimeout(validate, defaultTimeoutMs)];
 }
 
 export function formatRunCommandQuery(
