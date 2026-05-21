@@ -929,7 +929,6 @@ describe("default run_commands tool", () => {
 			effective_timeout_ms: 120000,
 			timeout_source: "command_parameter",
 			command_count: 2,
-			command_index: 0,
 			mode: "act",
 			source: "sdk-test",
 		});
@@ -938,7 +937,6 @@ describe("default run_commands tool", () => {
 			effective_timeout_ms: 5,
 			timeout_source: "default_setting",
 			command_count: 2,
-			command_index: 1,
 			mode: "act",
 			source: "sdk-test",
 		});

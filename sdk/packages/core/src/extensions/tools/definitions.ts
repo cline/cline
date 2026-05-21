@@ -232,7 +232,6 @@ function captureRunCommandsTimeoutFromContext(
 		effectiveTimeoutMs: number;
 		timeoutSource: "default_setting" | "command_parameter";
 		commandCount: number;
-		commandIndex: number;
 		durationMs: number;
 	},
 ): void {
@@ -241,7 +240,6 @@ function captureRunCommandsTimeoutFromContext(
 		effective_timeout_ms: properties.effectiveTimeoutMs,
 		timeout_source: properties.timeoutSource,
 		command_count: properties.commandCount,
-		command_index: properties.commandIndex,
 		duration_ms: properties.durationMs,
 		mode:
 			typeof context.metadata?.mode === "string"
@@ -296,10 +294,11 @@ export function createBashTool(
 
 			return Promise.all(
 				commands.map(
-					async (
-						{ command, timeoutMs, timeoutSource },
-						commandIndex,
-					): Promise<ToolOperationResult> => {
+					async ({
+						command,
+						timeoutMs,
+						timeoutSource,
+					}): Promise<ToolOperationResult> => {
 						const startedAt = Date.now();
 						try {
 							const output = await withTimeout(
@@ -318,7 +317,6 @@ export function createBashTool(
 									effectiveTimeoutMs: timeoutMs,
 									timeoutSource,
 									commandCount: commands.length,
-									commandIndex,
 									durationMs: Date.now() - startedAt,
 								});
 							}
@@ -377,10 +375,11 @@ export function createWindowsShellTool(
 
 			return Promise.all(
 				commands.map(
-					async (
-						{ command, timeoutMs, timeoutSource },
-						commandIndex,
-					): Promise<ToolOperationResult> => {
+					async ({
+						command,
+						timeoutMs,
+						timeoutSource,
+					}): Promise<ToolOperationResult> => {
 						const startedAt = Date.now();
 						try {
 							const output = await withTimeout(
@@ -399,7 +398,6 @@ export function createWindowsShellTool(
 									effectiveTimeoutMs: timeoutMs,
 									timeoutSource,
 									commandCount: commands.length,
-									commandIndex,
 									durationMs: Date.now() - startedAt,
 								});
 							}

@@ -81,7 +81,6 @@ export interface RunCommandsTimeoutTelemetryProperties {
 	effective_timeout_ms: number;
 	timeout_source: "default_setting" | "command_parameter";
 	command_count: number;
-	command_index?: number;
 	duration_ms: number;
 	mode?: string;
 	source?: string;

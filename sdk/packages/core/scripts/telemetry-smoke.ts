@@ -232,7 +232,6 @@ async function main() {
 			effective_timeout_ms: 5000,
 			timeout_source: "command_parameter",
 			command_count: 2,
-			command_index: 1,
 			duration_ms: 5004,
 			mode: "act",
 			source: "smoke",

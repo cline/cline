@@ -351,7 +351,6 @@ describe("captureRunCommandsTimeout", () => {
 			effective_timeout_ms: 1500,
 			timeout_source: "command_parameter",
 			command_count: 2,
-			command_index: 1,
 			duration_ms: 1502,
 			mode: "act",
 			source: "sdk-test",
@@ -371,7 +370,6 @@ describe("captureRunCommandsTimeout", () => {
 			effective_timeout_ms: 1500,
 			timeout_source: "command_parameter",
 			command_count: 2,
-			command_index: 1,
 			duration_ms: 1502,
 			mode: "act",
 			source: "sdk-test",
@@ -548,7 +546,6 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			effective_timeout_ms: 1500,
 			timeout_source: "command_parameter",
 			command_count: 2,
-			command_index: 1,
 			duration_ms: 1502,
 		});
 		expect(emitRequired).not.toHaveBeenCalled();
@@ -630,7 +627,6 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			effective_timeout_ms: 1500,
 			timeout_source: "command_parameter",
 			command_count: 2,
-			command_index: 1,
 			duration_ms: 1502,
 		});
 		expect(observed).toEqual([]);
