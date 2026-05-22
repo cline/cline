@@ -20,16 +20,6 @@ export type ConnectorStatus = "connected" | "disconnected" | "error" | "unknown"
 
 export type ConnectorAuthType = "oauth" | "api-key" | "service-account" | "none"
 
-export type ConnectorActionId = "connect" | "test" | "configure" | "docs" | "disconnect"
-
-export interface ConnectorAction {
-	id: ConnectorActionId
-	label: string
-	/** VS Code command ID to invoke. May not be registered yet; the UI handles that. */
-	commandId?: string
-	primary?: boolean
-}
-
 export interface ConnectorDefinition {
 	id: string
 	displayName: string
@@ -41,7 +31,8 @@ export interface ConnectorDefinition {
 	tags: string[]
 	docsUrl?: string
 	comingSoon: boolean
-	actions: ConnectorAction[]
+	/** Pre-filled chat prompt for the "Set up with AI →" button. Omit for coming-soon connectors. */
+	setupPrompt?: string
 }
 
 export interface ConnectorStatusEntry {
@@ -72,12 +63,6 @@ const docs = {
 	earthdata: "https://www.earthdata.nasa.gov/",
 }
 
-/**
- * The seven initial connectors. GEE has action entries pointing at command IDs
- * that may or may not be registered yet; the UI disables buttons whose commands
- * don't exist. The other six are marked `comingSoon: true` and render as
- * read-only previews.
- */
 export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 	{
 		id: "google_earth_engine",
@@ -90,13 +75,8 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["raster", "satellite", "remote-sensing", "cloud-compute"],
 		docsUrl: docs.gee,
 		comingSoon: false,
-		actions: [
-			{ id: "connect", label: "Connect", commandId: "aihydro.gee.connect", primary: true },
-			{ id: "test", label: "Test", commandId: "aihydro.gee.test" },
-			{ id: "configure", label: "Configure Project", commandId: "aihydro.gee.chooseProject" },
-			{ id: "docs", label: "Docs ↗" },
-			{ id: "disconnect", label: "Disconnect", commandId: "aihydro.gee.disconnect" },
-		],
+		setupPrompt:
+			"Help me set up Google Earth Engine in AI-Hydro. I need to authenticate with my Google account, select a GEE cloud project, and verify the connection. Please walk me through the steps.",
 	},
 	{
 		id: "hawqs",
@@ -109,7 +89,6 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["SWAT", "water-quality", "modelling", "HUC12"],
 		docsUrl: docs.hawqs,
 		comingSoon: true,
-		actions: [],
 	},
 	{
 		id: "usgs_nwis",
@@ -122,7 +101,6 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["streamflow", "groundwater", "USA", "real-time"],
 		docsUrl: docs.nwis,
 		comingSoon: true,
-		actions: [],
 	},
 	{
 		id: "hydroshare",
@@ -135,7 +113,6 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["data-sharing", "citation", "FAIR", "CUAHSI"],
 		docsUrl: docs.hydroshare,
 		comingSoon: true,
-		actions: [],
 	},
 	{
 		id: "planetary_computer",
@@ -148,7 +125,6 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["STAC", "Landsat", "Sentinel", "Dask", "raster"],
 		docsUrl: docs.planetary,
 		comingSoon: true,
-		actions: [],
 	},
 	{
 		id: "opentopography",
@@ -161,7 +137,6 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["DEM", "lidar", "topography", "terrain"],
 		docsUrl: docs.opentopo,
 		comingSoon: true,
-		actions: [],
 	},
 	{
 		id: "nasa_earthdata",
@@ -174,7 +149,6 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
 		tags: ["NASA", "MODIS", "GPM", "SMAP", "satellite"],
 		docsUrl: docs.earthdata,
 		comingSoon: true,
-		actions: [],
 	},
 ]
 
