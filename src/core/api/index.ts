@@ -129,7 +129,10 @@ function createHandlerForProvider(
 			return new VertexHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				vertexProjectId: options.vertexProjectId,
-				vertexRegion: options.vertexRegion,
+				vertexRegion:
+					mode === "plan"
+						? options.planVertexRegion || options.vertexRegion
+						: options.actVertexRegion || options.vertexRegion,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
@@ -170,7 +173,10 @@ function createHandlerForProvider(
 			return new GeminiHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				vertexProjectId: options.vertexProjectId,
-				vertexRegion: options.vertexRegion,
+				vertexRegion:
+					mode === "plan"
+						? options.planVertexRegion || options.vertexRegion
+						: options.actVertexRegion || options.vertexRegion,
 				geminiApiKey: options.geminiApiKey,
 				geminiBaseUrl: options.geminiBaseUrl,
 				thinkingBudgetTokens:
