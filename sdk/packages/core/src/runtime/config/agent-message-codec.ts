@@ -184,7 +184,7 @@ function toolResultContentToAgentPart(
 	return {
 		type: "tool-result",
 		toolCallId: block.tool_use_id,
-		toolName: "",
+		toolName: block.name,
 		output: block.content,
 		isError: block.is_error,
 	};
@@ -249,6 +249,7 @@ function agentPartToContentBlock(
 			return {
 				type: "tool_result",
 				tool_use_id: part.toolCallId,
+				name: part.toolName,
 				content,
 				is_error: part.isError,
 			} satisfies ToolResultContent;

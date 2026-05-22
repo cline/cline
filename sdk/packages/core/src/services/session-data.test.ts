@@ -102,7 +102,14 @@ describe("withLatestAssistantTurnMetadata", () => {
 				},
 				{
 					role: "user",
-					content: [{ type: "tool_result", tool_use_id: "1", content: "ok" }],
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "spawn",
+							content: "ok",
+						},
+					],
 				},
 				{
 					role: "assistant",
@@ -173,7 +180,14 @@ describe("withLatestAssistantTurnMetadata", () => {
 				},
 				{
 					role: "user",
-					content: [{ type: "tool_result", tool_use_id: "1", content: "done" }],
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "bash",
+							content: "done",
+						},
+					],
 				},
 				{
 					role: "assistant",
@@ -238,7 +252,14 @@ describe("withLatestAssistantTurnMetadata", () => {
 				},
 				{
 					role: "user",
-					content: [{ type: "tool_result", tool_use_id: "1", content: "done" }],
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "bash",
+							content: "done",
+						},
+					],
 				},
 				{
 					role: "assistant",
