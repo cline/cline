@@ -9,6 +9,7 @@ import type {
 } from "../../tui/interactive-config";
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { ExtDetailContent } from "../components/dialogs/config-dialogs";
+import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { ConfigPanelContent } from "../views/config-view";
 import type { ConfigAction } from "../views/config-view-helpers";
 import type { OpenModelSelectorOptions } from "./use-model-selector";
@@ -51,12 +52,17 @@ export function useConfigPanel(opts: {
 	const openConfig = useCallback(async () => {
 		let keepOpen = true;
 		while (keepOpen) {
-			const [data, providerInfo] = await Promise.all([
-				opts
-					.loadConfigData({ includePluginTools: false })
-					.catch(() => emptyConfigData),
-				Llms.getProvider(opts.config.providerId).catch(() => undefined),
-			]);
+			const [data, providerInfo] = await withLoadingDialog(
+				opts.dialog,
+				"Loading settings...",
+				async () =>
+					await Promise.all([
+						opts
+							.loadConfigData({ includePluginTools: false })
+							.catch(() => emptyConfigData),
+						Llms.getProvider(opts.config.providerId).catch(() => undefined),
+					]),
+			);
 			const providerDisplayName = providerInfo?.name ?? opts.config.providerId;
 			const action = await opts.dialog.choice<ConfigAction>({
 				size: "large",
