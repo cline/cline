@@ -60,9 +60,9 @@
       "name": "@cline/cline-hub",
       "version": "0.0.0",
       "dependencies": {
-        "@cline/core": "latest",
-        "@cline/llms": "latest",
-        "@cline/shared": "latest",
+        "@cline/core": "workspace:*",
+        "@cline/llms": "workspace:*",
+        "@cline/shared": "workspace:*",
       },
     },
     "apps/cline-hub/src/webview": {
@@ -3156,12 +3156,6 @@
 
     "@babel/helper-compilation-targets/lru-cache": ["lru-cache@5.1.1", "", { "dependencies": { "yallist": "^3.0.2" } }, "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w=="],
 
-    "@cline/cline-hub/@cline/core": ["@cline/core@0.0.42", "", { "dependencies": { "@cline/agents": "0.0.42", "@cline/llms": "0.0.42", "@cline/shared": "0.0.42", "@modelcontextprotocol/sdk": "^1.29.0", "@opentelemetry/api": "^1.9.0", "@opentelemetry/api-logs": "^0.214.0", "@opentelemetry/exporter-logs-otlp-http": "^0.214.0", "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0", "@opentelemetry/exporter-trace-otlp-http": "^0.214.0", "@opentelemetry/resources": "^2.6.1", "@opentelemetry/sdk-logs": "^0.214.0", "@opentelemetry/sdk-metrics": "^2.6.1", "@opentelemetry/sdk-trace-base": "^2.6.1", "@opentelemetry/sdk-trace-node": "^2.6.1", "@opentelemetry/semantic-conventions": "^1.40.0", "jiti": "^2.7.0", "nanoid": "^5.1.7", "node-machine-id": "^1.1.12", "simple-git": "3.36.0", "ws": "^8.20.0", "yaml": "^2.8.2", "zod": "^4.3.6" } }, "sha512-PM2WjcCL10msR6fOZMBvBdHyILx/aMY+/SOonjY5FVLukjArJtWL/3TpBhYgPOLhN3fLO836w/iwdttmUxM27w=="],
-
-    "@cline/cline-hub/@cline/llms": ["@cline/llms@0.0.42", "", { "dependencies": { "@ai-sdk/amazon-bedrock": "^4.0.89", "@ai-sdk/anthropic": "^3.0.68", "@ai-sdk/google": "^3.0.60", "@ai-sdk/google-vertex": "^4.0.100", "@ai-sdk/mistral": "^3.0.28", "@ai-sdk/openai": "^3.0.52", "@ai-sdk/openai-compatible": "^2.0.38", "@ai-sdk/provider": "^3.0.8", "@aws-sdk/credential-providers": "^3.922.0", "@cline/shared": "0.0.42", "@langfuse/otel": "^4.0.0", "@opentelemetry/api": "^1.9.0", "@opentelemetry/sdk-trace-node": "^2.6.1", "@streamparser/json": "^0.0.21", "ai": "^6.0.144", "ai-sdk-provider-claude-code": "^3.4.3", "ai-sdk-provider-codex-cli": "^1.1.0", "ai-sdk-provider-opencode-sdk": "^3.0.1", "dify-ai-provider": "^1.1.0", "nanoid": "^5.1.7", "zod": "^4.3.6" }, "peerDependencies": { "@aws-sdk/client-bedrock-runtime": "^3.0.0" }, "optionalPeers": ["@aws-sdk/client-bedrock-runtime"] }, "sha512-j/jcQ0v9ig+ULntmT2XZiLDTdeNc2h82pWbuh2gyE5CnsP3YNUydyQqwqPb3KhBCsyTLHf+9mZqMfOgvB9J/OA=="],
-
-    "@cline/cline-hub/@cline/shared": ["@cline/shared@0.0.42", "", { "dependencies": { "aws4fetch": "^1.0.20", "jsonrepair": "^3.13.2", "zod": "^4.3.6", "zod-to-json-schema": "^3.25.1" } }, "sha512-F3l1BO/v3fnnFn8t4CQCT1wz+Kgs/KCokyXIwum/IZtq1LjsPUfceRUb9djOaOm6A1Uo/7YfnmHoS5YW2Kr/aw=="],
-
     "@cline/cline-hub-webview/@types/node": ["@types/node@24.12.4", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA=="],
 
     "@cline/code/lucide-react": ["lucide-react@0.564.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-JJ8GVTQqFwuliifD48U6+h7DXEHdkhJ/E87kksGByII3qHxtPciVb8T8woQONHBQgHVOl7rSMrrip3SeVNy7Fg=="],
@@ -3557,12 +3551,6 @@
     "yargs/string-width": ["string-width@4.2.3", "", { "dependencies": { "emoji-regex": "^8.0.0", "is-fullwidth-code-point": "^3.0.0", "strip-ansi": "^6.0.1" } }, "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g=="],
 
     "@cline/cline-hub-webview/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
-
-    "@cline/cline-hub/@cline/core/@cline/llms": ["@cline/llms@workspace:packages/llms"],
-
-    "@cline/cline-hub/@cline/core/@cline/shared": ["@cline/shared@workspace:packages/shared"],
-
-    "@cline/cline-hub/@cline/llms/@cline/shared": ["@cline/shared@workspace:packages/shared"],
 
     "@dotenvx/dotenvx/execa/get-stream": ["get-stream@6.0.1", "", {}, "sha512-ts6Wi+2j3jQjqi70w5AlN8DFnkSwC+MqmxEzdEALB2qXZYV3X/b1CTfgPLGJNMeAWxdPfU8FO1ms3NUfaHCPYg=="],
 

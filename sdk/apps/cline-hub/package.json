@@ -12,8 +12,8 @@
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
-		"@cline/core": "latest",
-		"@cline/llms": "latest",
-		"@cline/shared": "latest"
+		"@cline/core": "workspace:*",
+		"@cline/llms": "workspace:*",
+		"@cline/shared": "workspace:*"
 	}
 }
