@@ -8,6 +8,7 @@ export async function withShownDialog<T>(
 	run: () => Promise<T>,
 ): Promise<T> {
 	const loadingDialogId = show();
+	// Give OpenTUI a microtask to mount the loading dialog before work starts.
 	await Promise.resolve();
 	try {
 		return await run();
