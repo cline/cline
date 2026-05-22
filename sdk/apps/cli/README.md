@@ -169,7 +169,7 @@ Bridge a chat surface into RPC-backed Cline sessions. Each conversation thread m
 
 ```sh
 # Telegram (polling mode)
-cline connect telegram -m my_bot -k 123456:ABCDEF...
+cline connect telegram -k 123456:ABCDEF...
 
 # Slack (webhook mode)
 cline connect slack --bot-token $SLACK_BOT_TOKEN --signing-secret $SLACK_SIGNING_SECRET --base-url https://your-domain.com

@@ -28,7 +28,7 @@ test.describe("cline --model (interactive mode, flag ignored)", () => {
 
 	test("starts interactive mode", async ({ terminal }) => {
 		await waitForChatReady(terminal);
-		await expectVisible(terminal, "GPT-5.3-Codex");
+		await expectVisible(terminal, "GPT-5.3 Codex");
 	});
 });
 

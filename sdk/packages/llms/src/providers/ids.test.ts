@@ -81,6 +81,28 @@ describe("provider-ids", () => {
 		);
 	});
 
+	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("poolside");
+
+		await expect(getProvider("poolside")).resolves.toMatchObject({
+			id: "poolside",
+			name: "Poolside",
+			baseUrl: "https://inference.poolside.ai/v1",
+			defaultModelId: "poolside/laguna-m.1",
+			client: "openai-compatible",
+		});
+		await expect(getModelsForProvider("poolside")).resolves.toHaveProperty(
+			"poolside/laguna-m.1",
+		);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "poolside",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		for (const providerId of ["litellm", "v0"]) {
 			const provider = await getProvider(providerId);

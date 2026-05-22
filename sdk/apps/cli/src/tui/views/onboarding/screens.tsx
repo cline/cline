@@ -284,6 +284,7 @@ export function OnboardingProviderConfigScreen(props: {
 							width={props.contentWidth}
 						>
 							<text fg="gray">{label}</text>
+							{requirement.note && <text fg="gray">{requirement.note}</text>}
 							<box
 								border
 								borderStyle="rounded"

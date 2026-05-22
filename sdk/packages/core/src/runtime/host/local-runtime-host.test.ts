@@ -374,7 +374,7 @@ describe("LocalRuntimeHost", () => {
 			} as never,
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: (config) => {
-				expect(config.requestToolApproval).toBe(requestToolApproval);
+				expect(typeof config.requestToolApproval).toBe("function");
 				return agent as never;
 			},
 		});
@@ -401,6 +401,124 @@ describe("LocalRuntimeHost", () => {
 			undefined,
 			undefined,
 		);
+	});
+
+	it("marks interactive sessions pending while awaiting tool approval", async () => {
+		const sessionId = "sess-pending-approval-status";
+		const manifest = createManifest(sessionId);
+		let resolveApproval:
+			| ((result: { approved: boolean; reason?: string }) => void)
+			| undefined;
+		const requestToolApproval = vi.fn(
+			() =>
+				new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+					resolveApproval = resolve;
+				}),
+		);
+		let capturedConfig: AgentConfig | undefined;
+		const updateSessionStatus = vi.fn().mockResolvedValue({ updated: true });
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn(async () => {
+				const approval = await capturedConfig?.requestToolApproval?.({
+					sessionId,
+					agentId: "agent-root-1",
+					conversationId: "conv-root-1",
+					iteration: 1,
+					toolCallId: "call-approval-1",
+					toolName: "edit_file",
+					input: { path: "README.md" },
+					policy: { autoApprove: false },
+				});
+				expect(approval?.approved).toBe(true);
+				return createResult();
+			}),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus,
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: (config) => {
+				capturedConfig = config;
+				return agent as never;
+			},
+		});
+		const pendingStatus = new Promise<void>((resolve) => {
+			manager.subscribe((event) => {
+				if (
+					event.type === "status" &&
+					event.payload.sessionId === sessionId &&
+					event.payload.status === "pending"
+				) {
+					resolve();
+				}
+			});
+		});
+
+		const started = manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: true,
+				capabilities: { requestToolApproval },
+			}),
+		);
+		await pendingStatus;
+
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "pending",
+		});
+		resolveApproval?.({ approved: true });
+		await started;
+
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			1,
+			sessionId,
+			"pending",
+			null,
+		);
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			3,
+			sessionId,
+			"idle",
+			null,
+		);
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
 	});
 
 	it("ingests automation events emitted by sandbox plugins during setup", async () => {
@@ -688,7 +806,7 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.readSessionManifest).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("keeps interactive sessions running after a completed turn", async () => {
+	it("marks interactive sessions idle after a completed turn", async () => {
 		const sessionId = "sess-interactive-turn-status";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -703,7 +821,7 @@ describe("LocalRuntimeHost", () => {
 				.fn()
 				.mockImplementation(async (_sessionId: string, status: string) => ({
 					updated: true,
-					...(status === "running"
+					...(status === "running" || status === "idle" || status === "pending"
 						? {}
 						: { endedAt: "2026-01-01T00:00:05.000Z" }),
 				})),
@@ -741,10 +859,14 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
-		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
+		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"idle",
+			null,
+		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
-			status: "running",
+			status: "idle",
 		});
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
@@ -2223,13 +2345,30 @@ describe("LocalRuntimeHost", () => {
 		});
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
-			status: "running",
+			status: "idle",
 		});
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(continueTurn).toHaveBeenCalledTimes(1);
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
-		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			1,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			3,
+			sessionId,
+			"idle",
+			null,
+		);
 		expect(events).not.toContainEqual(
 			expect.objectContaining({
 				type: "ended",
@@ -2922,7 +3061,13 @@ describe("LocalRuntimeHost", () => {
 			"running",
 			null,
 		);
-		expect(updateSessionStatus).toHaveBeenCalledTimes(1);
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(updateSessionStatus).toHaveBeenCalledTimes(2);
 		const persistedMetadata = updateSession.mock.calls[0]?.[0]
 			.metadata as Record<string, unknown>;
 		expect(persistedMetadata.title).toBe("saved title");

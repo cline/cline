@@ -1,5 +1,35 @@
 # Cline CLI Changelog
 
+## 3.0.12
+
+- Show a loading dialog while the config screen switches provider or model so the transition no longer looks frozen.
+- Render the ask question tool prompt inline with the conversation so the question and suggested answers stay attached to the assistant turn that asked them, instead of appearing in a separate modal.
+- Allow manual `cline update` runs to install the latest published version immediately, bypassing the release age gate that delays automatic updates.
+- Refresh the bundled SDK to 0.0.42, updating the model catalog.
+
+## 3.0.11
+
+- Fix a regression in the ChatGPT OAuth provider where requests failed with `max_output_tokens not supported`, by restoring the full output token budget instead of applying an implicit cap.
+- Hide the `Space toggle` hint in the config footer when the highlighted row is not toggleable (rules, agents, hooks).
+- Authenticate Vertex Gemini through Google auth when `gcp.projectId` is configured, and surface the full Vertex model list instead of only Claude models.
+- Include tool names in tool result content blocks so message logs and session history consistently track which tool produced each result.
+
+## 3.0.10
+
+- Install plugins from `file://` URLs in addition to npm and git sources.
+- Show Ollama API key note in TUI settings so users know when to provide an API key.
+- Keep interactive sessions alive when idle or awaiting approval instead of treating them as ended, and stop reading message files for every session when `hydrate: false`.
+- Add Poolside as a provider.
+- Add Gemini 3.5 Flash to the Gemini provider model list.
+- Auto-detect Telegram bot username from the bot token so the Telegram connector no longer requires it to be configured separately.
+- Notify connectors when a scheduled execution fails, not just when it succeeds.
+- Bake OTEL telemetry variables into the CLI at build time so telemetry works in nightly and production builds.
+- Preserve model output token limits from the SDK model catalog so context window math matches the upstream provider.
+- Soften the visual treatment of rejected tool calls in the TUI.
+- Hide the skills tool from the system prompt when skills are disabled, and refresh slash commands after toggling a skill.
+- Restore AWS Bedrock profile-based auth during legacy config migration so profiles set via `awsAuthentication: "profile"` are preserved without `awsUseProfile`.
+- Cache global settings reads keyed by file mtime so repeated reads skip the JSON parse and zod validation on the hot path.
+
 ## 3.0.9
 
 - Speed up CLI startup with plugins by loading sandboxed plugins concurrently and caching plugin tool descriptors per plugin, provider, and model.

@@ -16,6 +16,7 @@ import {
 	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
+import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	CodexCliStatusContent,
 	type ExistingProviderAction,
@@ -91,8 +92,12 @@ async function runProviderChange(
 	});
 	if (!newProviderId) return false;
 
-	const displayName = await getProviderDisplayName(newProviderId);
 	const manager = new ProviderSettingsManager();
+	const displayName = await withLoadingDialog(
+		dialog,
+		"Loading provider...",
+		async () => await getProviderDisplayName(newProviderId),
+	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
 
 	let needsAuth = true;
@@ -153,40 +158,48 @@ async function runProviderChange(
 		}
 		if (!saved) return false;
 	}
-	await refreshProviderModelsFromSource(manager, newProviderId).catch(() => {});
-	const newSettings = manager.getProviderSettings(newProviderId);
-	const newApiKey =
-		getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
+	await withLoadingDialog(
+		dialog,
+		`Loading ${displayName} models...`,
+		async () => {
+			await refreshProviderModelsFromSource(manager, newProviderId).catch(
+				() => {},
+			);
+			const newSettings = manager.getProviderSettings(newProviderId);
+			const newApiKey =
+				getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
 
-	manager.saveProviderSettings(
-		{
-			...(newSettings ?? {}),
-			provider: newProviderId,
+			manager.saveProviderSettings(
+				{
+					...(newSettings ?? {}),
+					provider: newProviderId,
+				},
+				{ setLastUsed: true },
+			);
+
+			config.providerId = newProviderId;
+			config.apiKey = newApiKey;
+
+			const resolved = await resolveProviderConfig(
+				newProviderId,
+				{
+					loadLatestOnInit: true,
+					loadPrivateOnAuth: true,
+					failOnError: false,
+				},
+				manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
+			);
+			config.knownModels = resolved?.knownModels;
+			const modelIds = Object.keys(resolved?.knownModels ?? {});
+			if (newSettings?.model) {
+				config.modelId = newSettings.model;
+			} else if (modelIds[0]) {
+				config.modelId = modelIds[0];
+			}
+
+			await onModelChange();
 		},
-		{ setLastUsed: true },
 	);
-
-	config.providerId = newProviderId;
-	config.apiKey = newApiKey;
-
-	const resolved = await resolveProviderConfig(
-		newProviderId,
-		{
-			loadLatestOnInit: true,
-			loadPrivateOnAuth: true,
-			failOnError: false,
-		},
-		manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
-	);
-	config.knownModels = resolved?.knownModels;
-	const modelIds = Object.keys(resolved?.knownModels ?? {});
-	if (newSettings?.model) {
-		config.modelId = newSettings.model;
-	} else if (modelIds[0]) {
-		config.modelId = modelIds[0];
-	}
-
-	await onModelChange();
 	return true;
 }
 
@@ -209,11 +222,10 @@ export function useModelSelector(opts: {
 				refocusTextarea();
 			};
 
-			await refreshCurrentProviderModels(config);
 			let modelOptions = buildModelOptions(
 				config.knownModels as Record<string, Llms.ModelInfo>,
 			);
-			let providerDisplayName = await getProviderDisplayName(config.providerId);
+			let providerDisplayName = config.providerId;
 
 			const refreshProviderContext = async () => {
 				modelOptions = buildModelOptions(
@@ -222,6 +234,13 @@ export function useModelSelector(opts: {
 				providerDisplayName = await getProviderDisplayName(config.providerId);
 			};
 
+			if (!options?.startWithProviderChange) {
+				await withLoadingDialog(dialog, "Loading models...", async () => {
+					await refreshCurrentProviderModels(config);
+					await refreshProviderContext();
+				});
+			}
+
 			const changeProvider = async (): Promise<boolean> => {
 				const changed = await runProviderChange(
 					dialog,
@@ -229,7 +248,11 @@ export function useModelSelector(opts: {
 					termHeight,
 					onModelChange,
 				);
-				if (changed) await refreshProviderContext();
+				if (changed) {
+					await withLoadingDialog(dialog, "Loading models...", async () => {
+						await refreshProviderContext();
+					});
+				}
 				return changed;
 			};
 
@@ -446,7 +469,9 @@ export function useModelSelector(opts: {
 				pickingModel = false;
 			}
 
-			await onModelChange();
+			await withLoadingDialog(dialog, "Applying model...", async () => {
+				await onModelChange();
+			});
 			refocusTextarea();
 		},
 		[dialog, config, termHeight, onModelChange, refocusTextarea],

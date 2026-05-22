@@ -234,7 +234,7 @@ cline "Refactor the auth module to use JWT"
 cline schedule create "PR summary" --cron "0 9 * * MON-FRI" --prompt "Summarize open PRs"
 
 # Connect a Telegram bot created with @BotFather
-cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN"
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN"
 # Then send /help or /start to the bot in Telegram
 ```
 

@@ -106,7 +106,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "baseten",
 	},
 	{ modelsDevKey: "zai-coding-plan", generatedProviderId: "zai-coding-plan" },
-	{ modelsDevKey: "google-vertex-anthropic", generatedProviderId: "vertex" },
+	{ modelsDevKey: "google-vertex", generatedProviderId: "vertex" },
 	{ modelsDevKey: "lmstudio", generatedProviderId: "lmstudio" },
 	{ modelsDevKey: "zai", generatedProviderId: "zai" },
 	{ modelsDevKey: "requesty", generatedProviderId: "requesty" },

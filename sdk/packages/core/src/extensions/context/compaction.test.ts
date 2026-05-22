@@ -100,6 +100,7 @@ function toolResultMessage(
 			{
 				type: "tool_result",
 				tool_use_id: id,
+				name: "read_files",
 				content,
 			},
 		],
@@ -161,6 +162,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "tool-1",
+					name: "tool",
 					content: longToolOutput,
 				},
 			],
@@ -171,6 +173,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "tool-1",
+					name: "tool",
 					content: [{ type: "text", text: longToolOutput }],
 				},
 			],
@@ -211,6 +214,7 @@ describe("createContextCompactionPrepareTurn", () => {
 							{
 								type: "tool_result",
 								tool_use_id: "tool-custom",
+								name: "tool",
 								content: [{ type: "text", text: longToolOutput }],
 							},
 						],
@@ -453,6 +457,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "file contents",
 						},
 					],
@@ -480,6 +485,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "file contents",
 						},
 					],
@@ -585,6 +591,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
+							name: "tool",
 							content: [{ type: "text", text: longToolOutput }],
 						},
 					],
@@ -612,6 +619,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
+							name: "tool",
 							content: [{ type: "text", text: longToolOutput }],
 						},
 					],
@@ -700,6 +708,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result" as const,
 						tool_use_id: "tool-pair",
+						name: "tool",
 						content: heavyToolOutput,
 					},
 				],
@@ -860,6 +869,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "tool output that should be removed",
 						},
 					],
@@ -908,6 +918,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "tool output that should be removed",
 						},
 					],
@@ -1101,6 +1112,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool-large",
+						name: "tool",
 						content: [{ type: "text", text: largeToolResult }],
 					},
 				],
@@ -1375,6 +1387,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "x".repeat(1000),
 						},
 					],
@@ -1388,6 +1401,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "x".repeat(100),
 						},
 					],

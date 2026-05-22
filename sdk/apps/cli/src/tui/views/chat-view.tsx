@@ -6,6 +6,7 @@ import {
 	ChatMessageList,
 	type TranscriptScrollHandle,
 } from "../components/chat-message-list";
+import { InlineToolResponse } from "../components/inline-tool-response";
 import { InputBar, type TextareaHandle } from "../components/input-bar";
 import { QueuedPrompts } from "../components/queued-prompts";
 import {
@@ -24,7 +25,11 @@ import {
 	getModeInputForeground,
 	getModeInputPlaceholder,
 } from "../palette";
-import type { QueuedPromptItem, TuiProps } from "../types";
+import type {
+	QueuedPromptItem,
+	RuntimeToolInteraction,
+	TuiProps,
+} from "../types";
 
 export function ChatView(props: {
 	config: TuiProps["config"];
@@ -51,6 +56,9 @@ export function ChatView(props: {
 	editingQueuedPrompt?: QueuedPromptItem;
 	onQueuedPromptEditConfirm: (id: string, prompt: string) => void;
 	onToggleMode: () => void;
+	runtimeInteraction?: RuntimeToolInteraction | null;
+	onResolveToolApproval: (id: number, approved: boolean) => void;
+	onResolveAskQuestion: (id: number, answer: string | null) => void;
 }) {
 	const {
 		config,
@@ -73,6 +81,7 @@ export function ChatView(props: {
 		session.uiMode === "plan" ? "Plan something..." : "Ask anything...";
 	const modelDisplayName = resolveModelDisplayName(config);
 	const maxInputTokens = resolveModelMaxInputTokens(config);
+	const runtimeInteraction = props.runtimeInteraction ?? null;
 
 	return (
 		<box flexDirection="column" width="100%" height="100%">
@@ -84,36 +93,53 @@ export function ChatView(props: {
 			/>
 
 			<box flexDirection="column" flexShrink={0}>
-				{props.autocomplete && (
-					<AutocompleteDropdown {...props.autocomplete} accent={accent} />
-				)}
+				{runtimeInteraction ? (
+					<box marginBottom={1}>
+						<InlineToolResponse
+							key={runtimeInteraction.id}
+							interaction={runtimeInteraction}
+							accent={accent}
+							inputBackground={inputBackground}
+							inputForeground={inputForeground}
+							inputPlaceholder={inputPlaceholder}
+							onResolveToolApproval={props.onResolveToolApproval}
+							onResolveAskQuestion={props.onResolveAskQuestion}
+						/>
+					</box>
+				) : (
+					<>
+						{props.autocomplete && (
+							<AutocompleteDropdown {...props.autocomplete} accent={accent} />
+						)}
 
-				{props.queuedPrompts && props.queuedPrompts.length > 0 && (
-					<QueuedPrompts
-						items={props.queuedPrompts}
-						selectedId={props.selectedQueuedPromptId ?? null}
-						editingId={props.editingQueuedPrompt?.id ?? null}
-						onEditConfirm={props.onQueuedPromptEditConfirm}
-					/>
-				)}
+						{props.queuedPrompts && props.queuedPrompts.length > 0 && (
+							<QueuedPrompts
+								items={props.queuedPrompts}
+								selectedId={props.selectedQueuedPromptId ?? null}
+								editingId={props.editingQueuedPrompt?.id ?? null}
+								onEditConfirm={props.onQueuedPromptEditConfirm}
+							/>
+						)}
 
-				<box marginBottom={1}>
-					<InputBar
-						accent={accent}
-						inputBackground={inputBackground}
-						inputForeground={inputForeground}
-						inputPlaceholder={inputPlaceholder}
-						placeholder={placeholder}
-						initialValue={inputValue}
-						inputKey={inputKey}
-						onSubmit={onSubmit}
-						onContentChange={onContentChange}
-						onImagePaste={onImagePaste}
-						onLargeTextPaste={onLargeTextPaste}
-						onFocusRequest={props.onInputFocusRequest}
-						textareaRef={props.textareaRef}
-					/>
-				</box>
+						<box marginBottom={1}>
+							<InputBar
+								accent={accent}
+								inputBackground={inputBackground}
+								inputForeground={inputForeground}
+								inputPlaceholder={inputPlaceholder}
+								placeholder={placeholder}
+								initialValue={inputValue}
+								inputKey={inputKey}
+								onSubmit={onSubmit}
+								onContentChange={onContentChange}
+								onImagePaste={onImagePaste}
+								onLargeTextPaste={onLargeTextPaste}
+								onFocusRequest={props.onInputFocusRequest}
+								textareaRef={props.textareaRef}
+							/>
+						</box>
+					</>
+				)}
 
 				<StatusBar
 					providerId={config.providerId}

@@ -3,6 +3,7 @@ import { useTerminalTheme } from "../hooks/use-terminal-background";
 import { diffPalettes, palette, type TerminalTheme } from "../palette";
 import { makeUnifiedDiff } from "../utils/diff";
 import { getSyntaxStyle } from "../utils/syntax-style";
+import { getToolErrorPresentation } from "../utils/tool-errors";
 import {
 	detectLanguage,
 	extractFullOutputText,
@@ -292,13 +293,29 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 export function ToolOutput(props: ToolOutputProps) {
 	const { toolName, outputSummary, rawOutput, rawInput, error } = props;
 	const terminalTheme = useTerminalTheme();
+	const [errorExpanded, setErrorExpanded] = useState(false);
 
 	if (error) {
+		const presentation = getToolErrorPresentation(error);
+		const isWarning = presentation.severity === "warning";
+		const showDetail =
+			errorExpanded && presentation.detail !== presentation.summary.trim();
 		return (
-			<box paddingLeft={2}>
-				<text fg="red" selectable>
-					{"  "} Error: {error}
+			<box
+				flexDirection="column"
+				paddingLeft={2}
+				onMouseDown={() => setErrorExpanded(!errorExpanded)}
+			>
+				<text fg={isWarning ? "yellow" : "red"} selectable>
+					{"  "} {isWarning ? "!" : "Error:"} {presentation.summary}
 				</text>
+				{showDetail && (
+					<box paddingLeft={3}>
+						<text fg="gray" selectable>
+							{presentation.detail}
+						</text>
+					</box>
+				)}
 			</box>
 		);
 	}

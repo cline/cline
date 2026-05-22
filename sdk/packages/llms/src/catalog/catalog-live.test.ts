@@ -34,7 +34,7 @@ describe("models-dev-catalog", () => {
 		).toBe(128_000);
 	});
 
-	it("discounts max output tokens only when the raw context limit matches output", () => {
+	it("preserves reported output limits even when context matches output", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			openai: {
 				models: {
@@ -62,7 +62,7 @@ describe("models-dev-catalog", () => {
 		).toBe(272_000);
 		expect(
 			providerModels["openai-native"]?.["context-output-equal"]?.maxTokens,
-		).toBe(204);
+		).toBe(4096);
 	});
 
 	it("normalizes payload with model filtering and defaults", () => {
@@ -174,7 +174,7 @@ describe("models-dev-catalog", () => {
 					name: "claude-defaults",
 					contextWindow: undefined,
 					maxInputTokens: 4096,
-					maxTokens: 204,
+					maxTokens: 4096,
 					capabilities: ["tools"],
 					pricing: {
 						input: 0,
@@ -191,7 +191,7 @@ describe("models-dev-catalog", () => {
 					name: "claude-older",
 					contextWindow: undefined,
 					maxInputTokens: 4096,
-					maxTokens: 204,
+					maxTokens: 4096,
 					capabilities: ["tools"],
 					pricing: {
 						input: 0,

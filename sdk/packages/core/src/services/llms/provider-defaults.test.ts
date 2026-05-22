@@ -147,6 +147,70 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("loads Poolside models from the authenticated models endpoint", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "poolside/laguna-xs.2",
+							name: "Poolside: Laguna XS.2",
+							description: "Poolside coding model",
+							context_length: 131_072,
+							max_completion_tokens: 8192,
+							supported_features: ["tools", "reasoning"],
+							supported_sampling_parameters: ["temperature"],
+							input_modalities: ["text"],
+							pricing: { prompt: "0", completion: "0" },
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"poolside",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "poolside",
+				modelId: "poolside/laguna-m.1",
+				apiKey: "poolside-key",
+				baseUrl: "https://inference.poolside.ai/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://inference.poolside.ai/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer poolside-key",
+				}),
+			}),
+		);
+		expect(resolved?.knownModels?.["poolside/laguna-xs.2"]).toEqual(
+			expect.objectContaining({
+				name: "Poolside: Laguna XS.2",
+				contextWindow: 131_072,
+				maxInputTokens: 131_072,
+				maxTokens: 8192,
+				capabilities: expect.arrayContaining([
+					"streaming",
+					"tools",
+					"reasoning",
+					"temperature",
+				]),
+				pricing: { input: 0, output: 0 },
+				status: "active",
+			}),
+		);
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");
