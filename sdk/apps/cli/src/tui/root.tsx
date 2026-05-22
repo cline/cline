@@ -728,6 +728,15 @@ function App(props: TuiProps) {
 	removeLocalCommandInvocationRef.current = (invocation) => {
 		promptInput.removeLocalCommandInvocation(invocation);
 	};
+	const runtimeBridge = useRuntimeDialogBridge({
+		setToolApprover: props.setToolApprover,
+		setAskQuestion: props.setAskQuestion,
+		setModeChangeNotifier: props.setModeChangeNotifier,
+		setUiMode: session.setUiMode,
+		refocusTextarea: promptInput.refocusTextarea,
+	});
+	const runtimeInteraction = runtimeBridge.interaction;
+	const isRuntimeInteractionOpen = runtimeInteraction !== null;
 	const saveQueuedPromptEdit = useCallback(
 		async (promptId: string, text: string) => {
 			if (!promptId) return;
@@ -777,9 +786,11 @@ function App(props: TuiProps) {
 	const initialPromptSubmittedRef = useRef(false);
 
 	useEffect(() => {
-		if (isDialogOpen || appView === "onboarding") return;
+		if (isDialogOpen || isRuntimeInteractionOpen || appView === "onboarding") {
+			return;
+		}
 		focusPromptTextarea();
-	}, [isDialogOpen, appView, focusPromptTextarea]);
+	}, [isDialogOpen, isRuntimeInteractionOpen, appView, focusPromptTextarea]);
 
 	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
@@ -794,7 +805,7 @@ function App(props: TuiProps) {
 	}, [appView, submitInitialPrompt, props.initialPrompt]);
 
 	useRootKeyboard({
-		isDialogOpen,
+		isDialogOpen: isDialogOpen || isRuntimeInteractionOpen,
 		appView,
 		autocomplete,
 		inputHistory: promptInput.inputHistory,
@@ -822,14 +833,6 @@ function App(props: TuiProps) {
 		onRestoreCheckpoint: openCheckpointRestore,
 		onOpenCommandPalette: openCommandPalette,
 		onCommandPaletteShortcut: runCommandPaletteShortcut,
-	});
-
-	useRuntimeDialogBridge({
-		setToolApprover: props.setToolApprover,
-		setAskQuestion: props.setAskQuestion,
-		setModeChangeNotifier: props.setModeChangeNotifier,
-		setUiMode: session.setUiMode,
-		refocusTextarea: promptInput.refocusTextarea,
 	});
 
 	const acOptions = autocomplete.getFilteredOptions();
@@ -863,6 +866,9 @@ function App(props: TuiProps) {
 			void saveQueuedPromptEdit(id, prompt);
 		},
 		onToggleMode: toggleMode,
+		runtimeInteraction,
+		onResolveToolApproval: runtimeBridge.resolveToolApproval,
+		onResolveAskQuestion: runtimeBridge.resolveAskQuestion,
 		autocomplete: {
 			mode: autocomplete.mode,
 			options: acOptions,
