@@ -191,10 +191,11 @@ export function handleAgentEvent(
 		captureToolUsage(telemetry, {
 			ulid: sessionId,
 			tool: toolName,
-			autoApproved: undefined,
+			autoApproved: event.autoApproved,
 			success,
 			modelId: config.modelId,
 			provider: config.providerId,
+			isNativeToolCall: event.isNativeToolCall,
 			...agentIdentity,
 		});
 		if (!success && (toolName === "editor" || toolName === "apply_patch")) {
@@ -250,6 +251,7 @@ export function handleAgentEvent(
 			});
 			captureTokenUsage(telemetry, {
 				ulid: sessionId,
+				provider: config.providerId,
 				tokensIn: event.inputTokens,
 				tokensOut: event.outputTokens,
 				cacheWriteTokens: event.cacheWriteTokens,

@@ -195,6 +195,7 @@ interface PreparedToolExecution {
 	tool?: AgentTool;
 	input: unknown;
 	skipReason?: string;
+	autoApproved?: boolean;
 }
 
 interface HookBag {
@@ -1132,6 +1133,7 @@ export class AgentRuntime {
 			}
 		}
 
+		let autoApproved: boolean | undefined;
 		if (tool && !skipReason) {
 			const policy = resolveToolPolicy(
 				toolCall.toolName,
@@ -1139,15 +1141,18 @@ export class AgentRuntime {
 			);
 			if (policy.enabled === false) {
 				skipReason = `Tool "${toolCall.toolName}" is disabled by policy`;
-			} else if (policy.autoApprove === false) {
-				const approval = await this.requestToolApproval(
-					toolCall,
-					input,
-					policy,
-				);
-				if (!approval.approved) {
-					skipReason =
-						approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
+			} else {
+				autoApproved = policy.autoApprove;
+				if (policy.autoApprove === false) {
+					const approval = await this.requestToolApproval(
+						toolCall,
+						input,
+						policy,
+					);
+					if (!approval.approved) {
+						skipReason =
+							approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
+					}
 				}
 			}
 		}
@@ -1157,6 +1162,7 @@ export class AgentRuntime {
 			tool,
 			input,
 			skipReason,
+			autoApproved,
 		};
 	}
 
@@ -1293,6 +1299,9 @@ export class AgentRuntime {
 			iteration: this.state.iteration,
 			toolCall: prepared.toolCall,
 			message,
+			...(prepared.autoApproved !== undefined
+				? { autoApproved: prepared.autoApproved }
+				: {}),
 		});
 
 		return message;

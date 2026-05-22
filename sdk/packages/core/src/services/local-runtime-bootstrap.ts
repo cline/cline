@@ -324,6 +324,7 @@ export async function prepareLocalRuntimeBootstrap(
 		durationMs,
 		initError,
 		featureFlagEnabled: true,
+		isRemoteWorkspace: extensionContext.workspace?.isRemoteWorkspace,
 	});
 
 	const fileHookExtension = createHookConfigFileExtension({

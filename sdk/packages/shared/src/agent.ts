@@ -515,6 +515,7 @@ export type AgentRuntimeEvent =
 			iteration: number;
 			toolCall: AgentToolCallPart;
 			message: AgentMessage;
+			autoApproved?: boolean;
 	  }
 	| {
 			type: "usage-updated";

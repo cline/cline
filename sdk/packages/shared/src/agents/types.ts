@@ -112,6 +112,10 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	error?: string;
 	/** Time taken in milliseconds for tool content */
 	durationMs?: number;
+	/** Whether the completed tool call ran without a user approval prompt */
+	autoApproved?: boolean;
+	/** Whether this event came from a provider-native tool call */
+	isNativeToolCall?: boolean;
 }
 
 export interface AgentIterationStartEvent extends AgentEventMetadata {

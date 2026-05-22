@@ -298,6 +298,7 @@ export class RuntimeEventAdapter {
 	private translateToolFinished(event: {
 		toolCall: { toolCallId: string; toolName: string };
 		message: AgentMessage;
+		autoApproved?: boolean;
 	}): AgentEvent[] {
 		const startedAt = this.toolStartedAt.get(event.toolCall.toolCallId);
 		const durationMs =
@@ -315,6 +316,9 @@ export class RuntimeEventAdapter {
 				output,
 				error,
 				durationMs,
+				...(event.autoApproved !== undefined
+					? { autoApproved: event.autoApproved }
+					: {}),
 			},
 		];
 	}

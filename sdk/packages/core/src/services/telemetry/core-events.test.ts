@@ -7,9 +7,12 @@ import {
 	captureExtensionActivated,
 	captureProviderConfigured,
 	captureTelemetryOptOut,
+	captureTokenUsage,
+	captureToolUsage,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryService } from "./TelemetryService";
@@ -216,6 +219,113 @@ describe("captureWorkspaceInitError", () => {
 				fallback_to_single_root: false,
 			}),
 		).not.toThrow();
+	});
+});
+
+describe("task telemetry compatibility", () => {
+	test("captureTokenUsage includes provider and model attribution", () => {
+		const stub = createTelemetryStub();
+		captureTokenUsage(stub.telemetry, {
+			ulid: "task-1",
+			provider: "openrouter",
+			model: "anthropic/claude-sonnet-4.6",
+			tokensIn: 123,
+			tokensOut: 45,
+			cacheReadTokens: 10,
+			cacheWriteTokens: 0,
+			totalCost: 0.0123,
+		});
+
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.tokens");
+		expect(properties).toMatchObject({
+			ulid: "task-1",
+			provider: "openrouter",
+			model: "anthropic/claude-sonnet-4.6",
+			tokensIn: 123,
+			tokensOut: 45,
+			cacheReadTokens: 10,
+			cacheWriteTokens: 0,
+			totalCost: 0.0123,
+		});
+	});
+
+	test("captureToolUsage emits boolean autoApproved when known", () => {
+		const stub = createTelemetryStub();
+		captureToolUsage(stub.telemetry, {
+			ulid: "task-1",
+			tool: "read_files",
+			modelId: "anthropic/claude-sonnet-4.6",
+			provider: "cline",
+			autoApproved: true,
+			success: true,
+		});
+
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.tool_used");
+		expect(properties).toMatchObject({
+			tool: "read_files",
+			provider: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			autoApproved: true,
+			success: true,
+		});
+	});
+
+	test("captureToolUsage omits autoApproved when unknown", () => {
+		const stub = createTelemetryStub();
+		captureToolUsage(stub.telemetry, {
+			ulid: "task-1",
+			tool: "read_files",
+			provider: "cline",
+			success: true,
+		});
+
+		const { properties } = captureCallAt(stub, 0);
+		expect(properties).not.toHaveProperty("autoApproved");
+	});
+});
+
+describe("identifyAccount", () => {
+	test("sets legacy user fields alongside SDK account fields", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			id: "usr-1",
+			email: "user@example.com",
+			displayName: "User One",
+			provider: "cline",
+			organizationId: "org-1",
+			organizationName: "Acme",
+			memberId: "mem-1",
+		});
+
+		expect(stub.telemetry.setDistinctId).toHaveBeenCalledWith("usr-1");
+		expect(stub.telemetry.updateCommonProperties).toHaveBeenCalledWith({
+			user_id: "usr-1",
+			user_name: "User One",
+			account_id: "usr-1",
+			account_email: "user@example.com",
+			provider: "cline",
+			organization_id: "org-1",
+			organization_name: "Acme",
+			member_id: "mem-1",
+		});
+	});
+
+	test("defaults legacy user_name to an empty string when displayName is unavailable", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			id: "usr-1",
+			provider: "cline",
+		});
+
+		expect(stub.telemetry.updateCommonProperties).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: "usr-1",
+				user_name: "",
+				account_id: "usr-1",
+			}),
+		);
 	});
 });
 

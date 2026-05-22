@@ -24,6 +24,7 @@ describe("OpenTelemetryAdapter", () => {
 			},
 			items: ["a", "b"],
 			nullable: null,
+			optional: undefined,
 		});
 
 		expect(emit).toHaveBeenCalledWith({
@@ -33,7 +34,6 @@ describe("OpenTelemetryAdapter", () => {
 				ulid: "01HXYZ",
 				"nested.mode": "act",
 				items: JSON.stringify(["a", "b"]),
-				nullable: "null",
 				distinct_id: "user-123",
 				organization_id: "org-1",
 				extension_version: "1.2.3",
@@ -41,6 +41,44 @@ describe("OpenTelemetryAdapter", () => {
 				platform: "terminal",
 			}),
 		});
+		const attributes = emit.mock.calls[0]?.[0].attributes as Record<
+			string,
+			unknown
+		>;
+		expect(attributes).not.toHaveProperty("nullable");
+		expect(attributes).not.toHaveProperty("optional");
+		expect(Object.values(attributes)).not.toContain("undefined");
+	});
+
+	it("omits unset optional telemetry fields instead of serializing undefined", () => {
+		const emit = vi.fn();
+		const adapter = new OpenTelemetryAdapter({
+			metadata: makeMetadata(),
+			loggerProvider: {
+				getLogger: () => ({ emit }),
+			} as unknown as LoggerProvider,
+		});
+
+		adapter.emit("task.tool_used", {
+			ulid: "01HXYZ",
+			tool: "read_files",
+			autoApproved: undefined,
+			teamId: undefined,
+			parentAgentId: undefined,
+		});
+
+		const attributes = emit.mock.calls[0]?.[0].attributes as Record<
+			string,
+			unknown
+		>;
+		expect(attributes).toMatchObject({
+			ulid: "01HXYZ",
+			tool: "read_files",
+		});
+		expect(attributes).not.toHaveProperty("autoApproved");
+		expect(attributes).not.toHaveProperty("teamId");
+		expect(attributes).not.toHaveProperty("parentAgentId");
+		expect(Object.values(attributes)).not.toContain("undefined");
 	});
 
 	it("marks required events with the expected flag", () => {

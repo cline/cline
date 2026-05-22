@@ -254,6 +254,7 @@ export function identifyAccount(
 	account: {
 		id?: string;
 		email?: string;
+		displayName?: string;
 		provider?: string;
 		organizationId?: string;
 		organizationName?: string;
@@ -265,6 +266,8 @@ export function identifyAccount(
 		telemetry?.setDistinctId(distinctId);
 	}
 	telemetry?.updateCommonProperties({
+		user_id: account.id,
+		user_name: account.displayName ?? "",
 		account_id: account.id,
 		account_email: account.email,
 		provider: account.provider,
@@ -343,6 +346,7 @@ export function captureTokenUsage(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
+		provider?: string;
 		tokensIn: number;
 		tokensOut: number;
 		cacheWriteTokens?: number;
@@ -371,6 +375,7 @@ export function captureToolUsage(
 		provider?: string;
 		autoApproved?: boolean;
 		success: boolean;
+		isNativeToolCall?: boolean;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.TOOL_USED, properties);

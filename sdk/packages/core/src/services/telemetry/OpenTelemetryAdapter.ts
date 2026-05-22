@@ -271,7 +271,6 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 			const fullKey = prefix ? `${prefix}.${key}` : key;
 
 			if (value === null || value === undefined) {
-				flattened[fullKey] = String(value);
 				continue;
 			}
 

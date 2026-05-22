@@ -67,6 +67,8 @@ export interface WorkspaceContext extends WorkspaceInfo {
 	ide?: string;
 	/** Node process.platform string, e.g. "darwin", "win32", "linux" */
 	platform?: string;
+	/** Whether the workspace is hosted through a remote IDE connection */
+	isRemoteWorkspace?: boolean;
 }
 
 /**
