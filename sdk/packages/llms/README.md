@@ -131,6 +131,7 @@ Optional:
 - Point `LLMS_LIVE_REASONING_PROVIDERS_PATH` to a custom file for reasoning-enabled suites.
 - Point `LLMS_LIVE_TOOL_PROVIDERS_PATH` to a custom file for tool-use suites.
 - Use `apiKeyEnv`, `baseUrlEnv`, and `headersEnv` in a provider entry when a live config needs secrets without writing them to JSON.
+- When recording provider cassettes for committed replay tests, set `CLINE_VCR=record` and `CLINE_VCR_INCLUDE_REQUEST_BODY=1` so playback also verifies the sanitized request body contract.
 
 OpenAI Codex subscription live runs use the saved OAuth credentials from `~/.cline/data/settings/providers.json` after `cline auth --provider openai-codex`. Point the plain or reasoning suite at `packages/llms/src/tests/live-providers.openai-codex.example.json` or `packages/llms/src/tests/live-providers.openai-codex.reasoning.example.json`.
 
