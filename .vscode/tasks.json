@@ -11,6 +11,9 @@
 			"problemMatcher": [],
 			"presentation": {
 				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
 			}
 		},
 		{
@@ -23,6 +26,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
@@ -74,6 +78,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
@@ -94,6 +99,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true",
 					"IS_TEST": "true"
@@ -131,6 +137,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
@@ -169,6 +176,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
@@ -207,6 +215,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true",
 					"IS_TEST": "true"
@@ -226,6 +235,9 @@
 			"presentation": {
 				"group": "watch",
 				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
 			}
 		},
 		{
@@ -240,7 +252,10 @@
 				"reveal": "always",
 				"group": "watchers"
 			},
-			"group": "build"
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
+			}
 		},
 		{
 			"label": "tasks: watch-tests",
@@ -262,7 +277,7 @@
 			"dependsOn": [
 				"watch"
 			],
-			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
+			"command": "rm -rf ${workspaceFolder}/apps/vscode/dist/tmp/user && mkdir -p ${workspaceFolder}/apps/vscode/dist/tmp/user"
 		},
 		{
 			"type": "npm",
@@ -279,6 +294,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}

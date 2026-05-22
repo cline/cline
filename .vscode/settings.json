@@ -17,7 +17,7 @@
 	// Protobuf settings
 	"protoc": {
 		"options": [
-			"--proto_path=proto"
+			"--proto_path=apps/vscode/proto"
 		]
 	},
 	// Enable Lint and format using Biome

@@ -24,6 +24,9 @@ jobs:
         if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         environment: PublishNightly
+        defaults:
+          run:
+            working-directory: apps/vscode
 
         steps:
             - name: Checkout trusted SDK nightly branch
