@@ -1,5 +1,21 @@
 # Cline CLI Changelog
 
+## 3.0.10
+
+- Install plugins from `file://` URLs in addition to npm and git sources.
+- Show Ollama API key note in TUI settings so users know when to provide an API key.
+- Keep interactive sessions alive when idle or awaiting approval instead of treating them as ended, and stop reading message files for every session when `hydrate: false`.
+- Add Poolside as a provider.
+- Add Gemini 3.5 Flash to the Gemini provider model list.
+- Auto-detect Telegram bot username from the bot token so the Telegram connector no longer requires it to be configured separately.
+- Notify connectors when a scheduled execution fails, not just when it succeeds.
+- Bake OTEL telemetry variables into the CLI at build time so telemetry works in nightly and production builds.
+- Preserve model output token limits from the SDK model catalog so context window math matches the upstream provider.
+- Soften the visual treatment of rejected tool calls in the TUI.
+- Hide the skills tool from the system prompt when skills are disabled, and refresh slash commands after toggling a skill.
+- Restore AWS Bedrock profile-based auth during legacy config migration so profiles set via `awsAuthentication: "profile"` are preserved without `awsUseProfile`.
+- Cache global settings reads keyed by file mtime so repeated reads skip the JSON parse and zod validation on the hot path.
+
 ## 3.0.9
 
 - Speed up CLI startup with plugins by loading sandboxed plugins concurrently and caching plugin tool descriptors per plugin, provider, and model.
