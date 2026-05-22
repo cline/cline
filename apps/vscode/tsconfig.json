@@ -63,7 +63,7 @@
 		"node_modules",
 		".vscode-test",
 		"webview-ui",
-		"apps/vscode/src/test/e2e/**/*",
-		"apps/vscode/src/test/scenarios/**/*"
+		"src/test/e2e/**/*",
+		"src/test/scenarios/**/*"
 	]
 }
