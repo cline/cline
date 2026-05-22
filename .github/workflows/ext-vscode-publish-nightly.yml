@@ -30,9 +30,6 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
     environment: PublishNightly
-    defaults:
-      run:
-        working-directory: apps/vscode
 
     steps:
       - name: Checkout selected branch
