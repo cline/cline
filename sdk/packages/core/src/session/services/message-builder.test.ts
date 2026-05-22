@@ -40,6 +40,7 @@ describe("MessageBuilder", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "tool_1",
+					name: "search_codebase",
 					content: [
 						{
 							type: "text",
@@ -80,6 +81,7 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "read",
 						content: "contents",
 					},
 				],
@@ -102,11 +104,13 @@ describe("MessageBuilder", () => {
 			{
 				type: "tool_result",
 				tool_use_id: "tool_1",
+				name: "read",
 				content: "contents",
 			},
 			{
 				type: "tool_result",
 				tool_use_id: "tool_2",
+				name: "bash",
 				content: [
 					{
 						type: "text",
@@ -172,6 +176,7 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "read",
 						content: "a".repeat(250),
 					},
 				],
@@ -220,11 +225,13 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "read",
 						content: "a".repeat(15_000),
 					},
 					{
 						type: "tool_result",
 						tool_use_id: "tool_2",
+						name: "bash",
 						content: "b".repeat(15_000),
 					},
 				],
@@ -280,6 +287,7 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "tool",
 						content: "🙂".repeat(5_000),
 					},
 				],
@@ -330,6 +338,7 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "tool",
 						content: [{ type: "text", text: originalText }],
 					},
 				],

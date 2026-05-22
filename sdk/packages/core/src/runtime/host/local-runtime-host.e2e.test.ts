@@ -446,6 +446,7 @@ describe("LocalRuntimeHost e2e", () => {
 							{
 								type: "tool_result",
 								tool_use_id: assistantToolUseId,
+								name: "tool",
 								content: "README content",
 							},
 						],

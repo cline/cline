@@ -348,7 +348,7 @@ export function formatMessagesForAiSdk(
 						});
 					}
 					break;
-				case "tool-result":
+				case "tool-result": {
 					toolResultParts.push({
 						type: "tool-result",
 						toolCallId: part.toolCallId,
@@ -356,6 +356,7 @@ export function formatMessagesForAiSdk(
 						output: toAiSdkToolResultOutput(part.output, part.isError ?? false),
 					});
 					break;
+				}
 			}
 		}
 
