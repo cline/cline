@@ -4,7 +4,7 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { resolveApiKey } from "../http";
+import { ensureFetch, resolveApiKey } from "../http";
 import { isClaudeModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
@@ -18,6 +18,13 @@ export async function createVertexProviderModule(
 	const location = String(
 		config.options?.location ?? config.options?.region ?? "us-central1",
 	);
+	const googleAuthProjectId =
+		typeof config.options?.project === "string"
+			? config.options.project
+			: typeof config.options?.projectId === "string"
+				? config.options.projectId
+				: undefined;
+	const fetch = ensureFetch(config.fetch);
 
 	if (isClaudeModelId(context.model.id)) {
 		const provider = createVertexAnthropic({
@@ -25,7 +32,7 @@ export async function createVertexProviderModule(
 			location,
 			baseURL: config.baseUrl,
 			headers: config.headers,
-			fetch: config.fetch,
+			fetch,
 		});
 		return { model: (modelId) => provider(modelId) };
 	}
@@ -33,10 +40,15 @@ export async function createVertexProviderModule(
 	const provider = createVertex({
 		project,
 		location,
-		apiKey: await resolveApiKey(config),
+		apiKey: googleAuthProjectId ? undefined : await resolveApiKey(config),
+		googleAuthOptions: googleAuthProjectId
+			? {
+					projectId: googleAuthProjectId,
+				}
+			: undefined,
 		baseURL: config.baseUrl,
 		headers: config.headers,
-		fetch: config.fetch,
+		fetch,
 	});
 	return {
 		model: (modelId) => provider(modelId),

@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.8",
+      "version": "3.0.9",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -192,17 +192,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@cline/sdk": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/security-review-bot": {
-      "name": "@cline/example-security-review-bot",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-        "zod": "^4.3.6",
       },
       "devDependencies": {
         "typescript": "^5.9.3",
@@ -634,8 +623,6 @@
     "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
 
     "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
-
-    "@cline/example-security-review-bot": ["@cline/example-security-review-bot@workspace:apps/examples/security-review-bot"],
 
     "@cline/llms": ["@cline/llms@workspace:packages/llms"],
 

@@ -194,4 +194,42 @@ describe("createAgentModelFromConfig", () => {
 			}),
 		);
 	});
+
+	it("forwards Vertex GCP settings as gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "vertex",
+					modelId: "gemini-3-flash-preview",
+					gcp: {
+						projectId: "test-project",
+						region: "global",
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "vertex",
+						options: expect.objectContaining({
+							project: "test-project",
+							projectId: "test-project",
+							location: "global",
+							region: "global",
+						}),
+					}),
+				],
+			}),
+		);
+	});
 });
