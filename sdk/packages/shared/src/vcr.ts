@@ -79,6 +79,7 @@ interface InternalVcrRecording extends VcrRecording {
 /** Keys whose values are always fully redacted (case-insensitive exact match). */
 const REDACT_KEYS_EXACT = new Set([
 	// Secrets & tokens
+	// Exact keys are compared after lowercasing, so accessToken matches accesstoken.
 	"accesskeyid",
 	"secretaccesskey",
 	"idtoken",

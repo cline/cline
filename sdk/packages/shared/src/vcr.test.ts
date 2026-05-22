@@ -147,6 +147,33 @@ describe("VCR request body contracts", () => {
 		expect(await response.text()).toBe("ok");
 	});
 
+	it("plays back legacy cassettes without request body contracts", async () => {
+		const cassettePath = createTempCassettePath();
+		const recording: VcrRecording = {
+			scope: "https://api.example.test",
+			method: "POST",
+			path: "/v1/chat",
+			status: 200,
+			response: "ok",
+			responseIsBinary: false,
+			contentType: "text/plain",
+		};
+		writeFileSync(cassettePath, JSON.stringify([recording], null, 2));
+		process.env.CLINE_VCR_CASSETTE = cassettePath;
+
+		initVcr("playback");
+
+		const response = await fetch("https://api.example.test/v1/chat", {
+			method: "POST",
+			body: JSON.stringify({
+				model: "changed-model",
+				api_key: "runtime-secret",
+			}),
+		});
+
+		expect(await response.text()).toBe("ok");
+	});
+
 	it("fails playback when the sanitized request body changes", async () => {
 		const cassettePath = createTempCassettePath();
 		const recording: VcrRecording = {
