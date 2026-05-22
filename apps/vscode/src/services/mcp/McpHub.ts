@@ -194,10 +194,20 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (_error) {
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
-				})
+				HostProvider.window
+					.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Invalid JSON in MCP settings file. Please check the syntax.`,
+						options: {
+							detail: settingsPath,
+							items: ["Open Settings File"],
+						},
+					})
+					.then((response) => {
+						if (response.selectedOption === "Open Settings File") {
+							HostProvider.window.showTextDocument({ path: settingsPath, options: {} })
+						}
+					})
 				return undefined
 			}
 
@@ -208,10 +218,40 @@ export class McpHub {
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Invalid MCP settings schema.",
-				})
+				// Build a human-readable summary of what failed.
+				// Zod paths look like ["mcpServers", "linear", "transport", "url"] — we want to surface
+				// the server name (index 1) and the field path so users know exactly what to fix.
+				const issuesByServer = new Map<string, string[]>()
+				for (const issue of result.error.issues) {
+					// path[0] === "mcpServers", path[1] === serverName
+					const serverName = issue.path.length >= 2 ? String(issue.path[1]) : "(unknown server)"
+					const fieldPath = issue.path.slice(2).join(".") // e.g. "transport.url" or "command"
+					const detail = fieldPath ? `${fieldPath}: ${issue.message}` : issue.message
+					if (!issuesByServer.has(serverName)) {
+						issuesByServer.set(serverName, [])
+					}
+					issuesByServer.get(serverName)!.push(detail)
+				}
+
+				const serverSummaries = Array.from(issuesByServer.entries())
+					.map(([server, details]) => `  • ${server}: ${details.join(", ")}`)
+					.join("\n")
+
+				HostProvider.window
+					.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `MCP settings schema error — no servers were loaded.`,
+						options: {
+							detail: `${settingsPath}\n\n${serverSummaries}`,
+							modal: false,
+							items: ["Open Settings File"],
+						},
+					})
+					.then((response) => {
+						if (response.selectedOption === "Open Settings File") {
+							HostProvider.window.showTextDocument({ path: settingsPath, options: {} })
+						}
+					})
 				return undefined
 			}
 
