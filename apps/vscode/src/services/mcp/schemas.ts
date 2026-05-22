@@ -11,11 +11,74 @@ export const BaseConfigSchema = z.object({
 	// Marker for servers that were added by remote config sync.
 	// Used to identify which servers should be removed when they are no longer in the remote config.
 	remoteConfigured: z.boolean().optional(),
+	// OAuth state written by the CLI — preserved as-is (VSCode doesn't implement OAuth flows yet)
+	oauth: z.unknown().optional(),
+	// Arbitrary metadata written by the CLI — preserved as-is
+	metadata: z.unknown().optional(),
 })
+
+// Transport schemas for the nested format (as written by the Cline CLI)
+const nestedStdioTransportSchema = z.object({
+	type: z.literal("stdio"),
+	command: z.string().min(1),
+	args: z.array(z.string()).optional(),
+	cwd: z.string().optional(),
+	env: z.record(z.string(), z.string()).optional(),
+})
+
+const nestedSseTransportSchema = z.object({
+	type: z.literal("sse"),
+	url: z.string().url("URL must be a valid URL format"),
+	headers: z.record(z.string(), z.string()).optional(),
+})
+
+const nestedStreamableHttpTransportSchema = z.object({
+	type: z.literal("streamableHttp"),
+	url: z.string().url("URL must be a valid URL format"),
+	headers: z.record(z.string(), z.string()).optional(),
+})
+
+/**
+ * Nested transport format as produced by the Cline CLI (`cline mcp add`).
+ *
+ * The CLI writes:
+ * ```json
+ * { "transport": { "type": "streamableHttp", "url": "..." }, "disabled": false, "oauth": { ... } }
+ * ```
+ *
+ * This arm normalises it to the flat format used internally by the extension:
+ * ```json
+ * { "type": "streamableHttp", "url": "...", "disabled": false, "oauth": { ... } }
+ * ```
+ *
+ * Placed first in the union so the `transport` key acts as an unambiguous discriminator.
+ */
+const nestedTransportConfigSchema = z
+	.object({
+		transport: z.discriminatedUnion("type", [
+			nestedStdioTransportSchema,
+			nestedSseTransportSchema,
+			nestedStreamableHttpTransportSchema,
+		]),
+		disabled: z.boolean().optional(),
+		autoApprove: AutoApproveSchema.optional(),
+		timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
+		remoteConfigured: z.boolean().optional(),
+		oauth: z.unknown().optional(),
+		metadata: z.unknown().optional(),
+	})
+	.transform((data) => {
+		const { transport, ...rest } = data
+		// Flatten: hoist transport fields to the top level (matches the flat format)
+		return { ...transport, ...rest }
+	})
 
 // Helper function to create a refined schema with better error messages
 const createServerTypeSchema = () => {
 	return z.union([
+		// Nested transport format (as written by the CLI: { transport: { type, ... }, ... })
+		// Must be first so the presence of a `transport` key is an unambiguous discriminator.
+		nestedTransportConfigSchema,
 		// Stdio config (has command field)
 		BaseConfigSchema.extend({
 			type: z.literal("stdio").optional(),
