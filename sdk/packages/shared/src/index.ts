@@ -389,6 +389,12 @@ export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export * from "./team";
 export { createTool } from "./tools/create";
+export {
+	assertToolInputSchemaPortable,
+	collectToolInputSchemaCompatibilityIssues,
+	type ToolInputSchemaCompatibilityContext,
+	type ToolInputSchemaCompatibilityIssue,
+} from "./tools/schema-compat";
 export * from "./types";
 export type { OAuthProviderId } from "./types/auth";
 export {

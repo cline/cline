@@ -112,6 +112,27 @@ describe("createTool", () => {
 		).toThrow(/top level/i);
 	});
 
+	it("throws when inputSchema contains regex lookaround patterns", () => {
+		expect(() =>
+			createTool({
+				name: "lookaround_schema_tool",
+				description: "Tool with a provider-incompatible path pattern",
+				inputSchema: {
+					type: "object",
+					properties: {
+						path: {
+							type: "string",
+							pattern:
+								"^(?!\\/)(?!.*(?:^|\\/)\\.\\.(?:\\/|$))[A-Za-z0-9._/-]+$",
+						},
+					},
+					required: ["path"],
+				},
+				execute: async () => ({ ok: true }),
+			}),
+		).toThrow(/\$\.properties\.path\.pattern.*lookaround/i);
+	});
+
 	it("infers type:object for allOf when at least one branch has type:object", () => {
 		// The canonical allOf case: one branch sets type + properties, another
 		// adds required without repeating type: "object".  The current input is

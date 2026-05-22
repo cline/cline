@@ -3,6 +3,7 @@ import type { AutomationEventEnvelope } from "../cron";
 import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
+import { assertToolInputSchemaPortable } from "../tools/schema-compat";
 import type { ClientContext, UserContext } from "./context";
 
 export interface AgentExtensionCommand {
@@ -359,6 +360,23 @@ function normalizeAutomationEventType(
 	};
 }
 
+function validateRegisteredToolInputSchema<TTool>(
+	tool: TTool,
+	extensionName: string,
+): void {
+	if (!tool || typeof tool !== "object") {
+		return;
+	}
+	const record = tool as Record<string, unknown>;
+	if (!Object.hasOwn(record, "inputSchema")) {
+		return;
+	}
+	assertToolInputSchemaPortable(record.inputSchema, {
+		extensionName,
+		toolName: typeof record.name === "string" ? record.name : undefined,
+	});
+}
+
 export class ContributionRegistry<
 	TExtension extends ContributionRegistryExtension<TTool, TMessage>,
 	TTool = AgentTool,
@@ -421,7 +439,10 @@ export class ContributionRegistry<
 			if (extension.disabled) continue;
 			const extensionName = asExtensionName(extension, entry.order);
 			const api: AgentExtensionApi<TTool, TMessage> = {
-				registerTool: (tool) => this.registry.tools.push(tool),
+				registerTool: (tool) => {
+					validateRegisteredToolInputSchema(tool, extensionName);
+					this.registry.tools.push(tool);
+				},
 				registerCommand: (command) => this.registry.commands.push(command),
 				registerRule: (rule) => {
 					if (!entry.manifest.capabilities.has("rules")) {
