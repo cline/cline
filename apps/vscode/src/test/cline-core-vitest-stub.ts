@@ -16,6 +16,88 @@ export interface SessionHistoryRecord {
 
 export type CoreSessionEvent = { type: string; payload?: unknown }
 
+export type TelemetryProperties = Record<string, unknown>
+
+export interface TelemetryMetadata {
+	extension_version: string
+	cline_type: string
+	platform: string
+	platform_version: string
+	os_type: string
+	os_version: string
+	is_dev?: string
+}
+
+export interface ITelemetryService {
+	setDistinctId(distinctId?: string): void
+	setMetadata(metadata: Partial<TelemetryMetadata>): void
+	updateMetadata(metadata: Partial<TelemetryMetadata>): void
+	setCommonProperties(properties: TelemetryProperties): void
+	updateCommonProperties(properties: TelemetryProperties): void
+	isEnabled(): boolean
+	capture(input: { event: string; properties?: TelemetryProperties }): void
+	captureRequired(event: string, properties?: TelemetryProperties): void
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
+	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
+	recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required?: boolean,
+	): void
+	flush(): Promise<void>
+	dispose(): Promise<void>
+}
+
+export interface ConfiguredTelemetryHandle {
+	readonly telemetry: ITelemetryService
+	flush(): Promise<void>
+	dispose(): Promise<void>
+}
+
+function createNoopTelemetry(): ITelemetryService {
+	return {
+		setDistinctId() {},
+		setMetadata() {},
+		updateMetadata() {},
+		setCommonProperties() {},
+		updateCommonProperties() {},
+		isEnabled: () => false,
+		capture() {},
+		captureRequired() {},
+		recordCounter() {},
+		recordHistogram() {},
+		recordGauge() {},
+		flush: async () => {},
+		dispose: async () => {},
+	}
+}
+
+export function createClineTelemetryServiceConfig(config: Record<string, unknown> = {}) {
+	return {
+		enabled: false,
+		metadata: {
+			extension_version: "test",
+			cline_type: "test",
+			platform: "test",
+			platform_version: "test",
+			os_type: "test",
+			os_version: "test",
+		},
+		...config,
+	}
+}
+
+export function createConfiguredTelemetryHandle(): ConfiguredTelemetryHandle {
+	const telemetry = createNoopTelemetry()
+	return {
+		telemetry,
+		flush: async () => {},
+		dispose: async () => {},
+	}
+}
+
 interface ProviderSettingsState {
 	providers: Record<string, Record<string, unknown>>
 	lastUsedProvider?: string
