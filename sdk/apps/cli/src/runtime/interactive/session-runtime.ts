@@ -78,7 +78,7 @@ export function createInteractiveSessionRuntime(input: {
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
 
-	const initialResumeSessionId = input.resumeSessionId?.trim() || undefined;
+	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
@@ -220,15 +220,19 @@ export function createInteractiveSessionRuntime(input: {
 		}
 		startupPromise = (async () => {
 			const manager = await ensureSessionManager();
+			const resumeSessionId = pendingResumeSessionId;
 			const initialMessages = await loadInteractiveResumeMessages(
 				manager,
-				input.resumeSessionId,
+				resumeSessionId,
 			);
 			if (shutdownRequested) {
 				return;
 			}
-			if (initialResumeSessionId) {
-				await startResumedSession(initialResumeSessionId, initialMessages);
+			if (resumeSessionId) {
+				await startResumedSession(resumeSessionId, initialMessages);
+				if (pendingResumeSessionId === resumeSessionId) {
+					pendingResumeSessionId = undefined;
+				}
 			} else {
 				await startFreshSession(initialMessages);
 			}
@@ -285,6 +289,7 @@ export function createInteractiveSessionRuntime(input: {
 		sessionMetadata?: Record<string, unknown>,
 	): Promise<void> => {
 		sessionStartGeneration += 1;
+		pendingResumeSessionId = undefined;
 		startupPromise = undefined;
 		startupError = undefined;
 		await stopCurrentSession();
@@ -303,6 +308,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const resetForNewSession = async (): Promise<void> => {
 		sessionStartGeneration += 1;
+		pendingResumeSessionId = undefined;
 		startupPromise = undefined;
 		startupError = undefined;
 		const manager = sessionManager;

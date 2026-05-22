@@ -94,7 +94,7 @@ function makeSwitchToActModeTool(): AgentTool {
 
 function makeManager() {
 	let startCount = 0;
-	const start = vi.fn(async () => {
+	const start = vi.fn(async (_input?: unknown) => {
 		startCount += 1;
 		const sessionId = `session-${startCount}`;
 		return {
@@ -124,12 +124,16 @@ function makeManager() {
 	};
 }
 
-function makeRuntime(manager: ReturnType<typeof makeManager>) {
+function makeRuntime(
+	manager: ReturnType<typeof makeManager>,
+	options: { resumeSessionId?: string } = {},
+) {
 	mockCreateCliCore.mockResolvedValue(manager);
 	const config = makeConfig();
 	return createInteractiveSessionRuntime({
 		config,
 		providerSettingsManager: {} as ProviderSettingsManager,
+		resumeSessionId: options.resumeSessionId,
 		chatCommandState: makeChatCommandState(config),
 		requestToolApproval: async (
 			_request: ToolApprovalRequest,
@@ -173,6 +177,47 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("starts fresh after resetting an initially resumed session", async () => {
+		const manager = makeManager();
+		const runtime = makeRuntime(manager, {
+			resumeSessionId: "resumed-session",
+		});
+
+		await runtime.ensureReady();
+
+		expect(mockLoadInteractiveResumeMessages).toHaveBeenNthCalledWith(
+			1,
+			manager,
+			"resumed-session",
+		);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				config: expect.objectContaining({
+					sessionId: "resumed-session",
+				}),
+			}),
+		);
+
+		await runtime.resetForNewSession();
+		await runtime.ensureReady();
+
+		expect(mockLoadInteractiveResumeMessages).toHaveBeenNthCalledWith(
+			2,
+			manager,
+			undefined,
+		);
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				config: expect.not.objectContaining({
+					sessionId: "resumed-session",
+				}),
+			}),
+		);
 	});
 
 	it("keeps explicit empty restarts eager for config-driven restarts", async () => {
