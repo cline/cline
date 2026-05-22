@@ -106,6 +106,33 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 		}
 	}
 
+	const loadHucsForView = async () => {
+		if (!conus) {
+			setMsg("WBD hydrologic units are available for CONUS only.")
+			return
+		}
+		setBusy(true)
+		setMsg(`Loading WBD HUC${hucLevel} for this view…`)
+		try {
+			const bb = viewBbox()
+			const layers = await sendHydroMapCommand("wbdLayers", {
+				lat: center.lat,
+				lon: center.lon,
+				...bb,
+				hucLevel,
+			})
+			setMsg(
+				layers.ok
+					? layers.message || `WBD HUC${hucLevel} loaded for this view`
+					: layers.error || layers.message || "Could not load HUC layers",
+			)
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e))
+		} finally {
+			setBusy(false)
+		}
+	}
+
 	const btn: React.CSSProperties = {
 		padding: "6px 10px",
 		fontSize: 11,
@@ -272,7 +299,7 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 				<button
 					disabled={busy || !conus}
 					onClick={() => void loadHucsForView()}
-					style={btn}
+					style={primaryBtn}
 					title={conus ? "Add WBD polygons clipped to map view" : "Pan to CONUS to enable WBD layers"}
 					type="button">
 					🗺 Add HUCs for this view

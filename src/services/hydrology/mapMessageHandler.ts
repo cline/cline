@@ -50,11 +50,14 @@ export function buildMeritMapLayer(spec: MeritLayerSpec): MapLayer {
 			? spec.geojson
 			: JSON.stringify(spec.geojson ?? { type: "FeatureCollection", features: [] })
 
-	const metadata: Record<string, string> = { source: "merit" }
+	const metadata: Record<string, string> = {}
 	if (spec.metadata) {
 		for (const [k, v] of Object.entries(spec.metadata)) {
 			metadata[k] = String(v)
 		}
+	}
+	if (!metadata.source) {
+		metadata.source = spec.style_preset === "huc" ? "wbd" : spec.style_preset === "gauge" ? "nwis" : "merit"
 	}
 
 	return MapLayer.create({

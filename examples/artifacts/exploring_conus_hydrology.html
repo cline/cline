@@ -107,7 +107,7 @@ west, south, east, north = {{west}}, {{south}}, {{east}}, {{north}}
 lon, lat = (west + east) / 2, (south + north) / 2
 wbd = WBD("huc8")
 pt = Point(lon, lat)
-gdf = wbd.bygeometry(pt, predicate="intersects")
+gdf = wbd.bygeom((lon - 0.02, lat - 0.02, lon + 0.02, lat + 0.02), geo_crs=4326)
 if gdf.empty:
     print("No HUC8 polygon at center — adjust extent.")
 else:
@@ -116,7 +116,7 @@ else:
     print("Containing HUC8 unit:")
     for c in cols[:6]:
         print(f"  {c}: {row[c]}")
-gdf2 = WBD("huc8").bygeometry((west, south, east, north))
+gdf2 = WBD("huc8").bygeom((west, south, east, north), geo_crs=4326)
 print(f"\nHUC8 polygons intersecting view: {len(gdf2)}")
 </pre>
 <div class="aihydro-output" aria-live="polite"></div>

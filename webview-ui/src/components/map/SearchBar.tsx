@@ -13,6 +13,8 @@ export interface SearchResult {
 
 interface SearchBarProps {
 	mapStyle?: "dark" | "light"
+	/** When true, search lives inside the ribbon panel (no floating overlay). */
+	embedded?: boolean
 	viewBbox?: { minLon: number; minLat: number; maxLon: number; maxLat: number }
 	mapCenter?: { lat: number; lon: number }
 	onResultSelect?: (result: SearchResult) => void
@@ -40,35 +42,18 @@ function parseCoordinateInput(raw: string): SearchResult | null {
 		const lat = parseFloat(ddMatch[1])
 		const lon = parseFloat(ddMatch[2])
 		if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-			return {
-				label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
-				lat,
-				lon,
-				source: "coordinate",
-			}
+			return { label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, lat, lon, source: "coordinate" }
 		}
 	}
 
 	const dmsMatch = trimmed.match(/^(\d+)°(\d+)'\s*([NnSs])\s*[,\s]\s*(\d+)°(\d+)'\s*([EeWw])$/)
 	if (dmsMatch) {
-		const latDeg = parseInt(dmsMatch[1], 10)
-		const latMin = parseInt(dmsMatch[2], 10)
-		const latDir = dmsMatch[3].toUpperCase()
-		const lonDeg = parseInt(dmsMatch[4], 10)
-		const lonMin = parseInt(dmsMatch[5], 10)
-		const lonDir = dmsMatch[6].toUpperCase()
-		const lat = (latDeg + latMin / 60) * (latDir === "S" ? -1 : 1)
-		const lon = (lonDeg + lonMin / 60) * (lonDir === "W" ? -1 : 1)
+		const lat = (parseInt(dmsMatch[1], 10) + parseInt(dmsMatch[2], 10) / 60) * (dmsMatch[3].toUpperCase() === "S" ? -1 : 1)
+		const lon = (parseInt(dmsMatch[4], 10) + parseInt(dmsMatch[5], 10) / 60) * (dmsMatch[6].toUpperCase() === "W" ? -1 : 1)
 		if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-			return {
-				label: trimmed,
-				lat,
-				lon,
-				source: "coordinate",
-			}
+			return { label: trimmed, lat, lon, source: "coordinate" }
 		}
 	}
-
 	return null
 }
 
@@ -104,20 +89,20 @@ function hydroHitsToResults(
 		}))
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbox, mapCenter, onResultSelect, onStatus }) => {
+const SOURCE_ICON: Record<SearchResult["source"], string> = {
+	gauge: "🌊",
+	dam: "🏗",
+	coordinate: "📍",
+	nominatim: "🌍",
+}
+
+export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox, mapCenter, onResultSelect, onStatus }) => {
 	const [query, setQuery] = useState("")
 	const [results, setResults] = useState<SearchResult[]>([])
 	const [loading, setLoading] = useState(false)
 	const [gaugesBusy, setGaugesBusy] = useState(false)
 	const [selectedIdx, setSelectedIdx] = useState(-1)
-	const inputRef = useRef<HTMLInputElement>(null)
 	const abortRef = useRef<AbortController | null>(null)
-
-	const isDark = mapStyle === "dark"
-	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
-	const bg = isDark ? "rgba(20,20,28,0.96)" : "rgba(248,248,250,0.97)"
-	const border = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)"
-	const accent = "var(--vscode-button-background, #0e639c)"
 
 	const conus = mapCenter !== undefined ? isConus(mapCenter.lat, mapCenter.lon) : false
 
@@ -128,7 +113,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbo
 				return
 			}
 			setLoading(true)
-
 			const coord = parseCoordinateInput(q)
 			const localGauges = localGaugeSearch(q)
 
@@ -149,12 +133,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbo
 							meta?: Record<string, string>
 						}>) ?? []
 					hydro = hydroHitsToResults(hits).filter(
-						(h) =>
-							!localGauges.some((g) => g.meta?.gauge_id === h.meta?.gauge_id) &&
-							(h.meta?.dam_search_hint === undefined || h.source === "dam"),
+						(h) => !localGauges.some((g) => g.meta?.gauge_id === h.meta?.gauge_id),
 					)
 				} catch {
-					/* host hydro unavailable */
+					/* hydro CLI unavailable */
 				}
 			}
 
@@ -205,17 +187,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbo
 		return () => window.clearTimeout(id)
 	}, [query, doSearch])
 
-	useEffect(() => {
-		return () => {
-			abortRef.current?.abort()
-		}
-	}, [])
+	useEffect(() => () => abortRef.current?.abort(), [])
 
 	const handleSelect = (result: SearchResult) => {
-		if (result.meta?.dam_search_hint) {
-			setQuery(result.meta.dam_search_hint)
-			return
-		}
 		setQuery(result.label)
 		setResults([])
 		setSelectedIdx(-1)
@@ -224,7 +198,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbo
 
 	const showGaugesInView = async () => {
 		if (!viewBbox || !mapCenter || !conus) {
-			onStatus?.("Pan to CONUS and open search to load gauges in view.")
+			onStatus?.("Pan to CONUS to load gauges in the current map extent.")
 			return
 		}
 		setGaugesBusy(true)
@@ -251,90 +225,47 @@ export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbo
 		} else if (e.key === "ArrowUp") {
 			e.preventDefault()
 			setSelectedIdx((i) => Math.max(i - 1, 0))
-		} else if (e.key === "Enter") {
+		} else if (e.key === "Enter" && selectedIdx >= 0) {
 			e.preventDefault()
-			if (selectedIdx >= 0 && selectedIdx < results.length) {
-				handleSelect(results[selectedIdx])
-			}
+			handleSelect(results[selectedIdx])
 		} else if (e.key === "Escape") {
 			setResults([])
 			setSelectedIdx(-1)
 		}
 	}
 
-	const sourceIcon = (source: SearchResult["source"]) => {
-		if (source === "gauge") return "🌊"
-		if (source === "dam") return "🏗"
-		if (source === "coordinate") return "📍"
-		return "🌍"
-	}
+	const rootClass = embedded ? "map-search-root map-search-root--embedded" : "map-search-root"
 
 	return (
-		<div style={{ position: "relative", width: 280 }}>
-			<input
-				aria-autocomplete="list"
-				aria-controls="search-results-list"
-				aria-expanded={results.length > 0}
-				aria-label="Search places, coordinates, gauges, or dams"
-				onChange={(e) => setQuery(e.target.value)}
-				onKeyDown={handleKeyDown}
-				placeholder="Place, gauge ID, dam, or 40.45,-86.85"
-				ref={inputRef}
-				style={{
-					width: "100%",
-					padding: "6px 10px 6px 28px",
-					fontSize: 12,
-					borderRadius: 4,
-					border: `1px solid ${border}`,
-					background: bg,
-					color: fg,
-					outline: "none",
-					fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
-				}}
-				type="text"
-				value={query}
-			/>
-			<span
-				style={{
-					position: "absolute",
-					left: 8,
-					top: "50%",
-					transform: "translateY(-50%)",
-					fontSize: 13,
-					opacity: 0.5,
-					pointerEvents: "none",
-				}}>
-				🔍
-			</span>
-			{loading && (
-				<span
-					style={{
-						position: "absolute",
-						right: 8,
-						top: "50%",
-						transform: "translateY(-50%)",
-						fontSize: 10,
-						opacity: 0.6,
-					}}>
-					⏳
+		<div className={rootClass}>
+			<div className="map-search-field-wrap">
+				<span aria-hidden="true" className="map-search-field-icon">
+					🔍
 				</span>
-			)}
+				<input
+					aria-autocomplete="list"
+					aria-controls="search-results-list"
+					aria-expanded={results.length > 0}
+					aria-label="Search places, coordinates, gauges, or dams"
+					className="map-search-input"
+					onChange={(e) => setQuery(e.target.value)}
+					onKeyDown={handleKeyDown}
+					placeholder="Place, gauge ID, dam, or lat,lon"
+					type="text"
+					value={query}
+				/>
+				{loading && (
+					<span aria-hidden="true" className="map-search-field-spinner">
+						⏳
+					</span>
+				)}
+			</div>
 
 			{conus && viewBbox && (
 				<button
+					className="map-search-gauges-btn"
 					disabled={gaugesBusy}
 					onClick={() => void showGaugesInView()}
-					style={{
-						marginTop: 6,
-						width: "100%",
-						padding: "5px 8px",
-						fontSize: 10,
-						borderRadius: 4,
-						border: `1px solid ${border}`,
-						background: "transparent",
-						color: fg,
-						cursor: gaugesBusy ? "wait" : "pointer",
-					}}
 					title="Query NWIS for streamgages in the current map extent"
 					type="button">
 					{gaugesBusy ? "Loading gauges…" : "Show gauges in view"}
@@ -343,54 +274,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({ mapStyle = "dark", viewBbo
 
 			{results.length > 0 && (
 				<div
-					aria-expanded={results.length > 0}
 					aria-label={`${results.length} search results`}
+					className="map-search-results"
 					id="search-results-list"
-					role="listbox"
-					style={{
-						position: "absolute",
-						top: conus && viewBbox ? "calc(100% + 34px)" : "calc(100% + 4px)",
-						left: 0,
-						right: 0,
-						zIndex: 10,
-						background: bg,
-						border: `1px solid ${border}`,
-						borderRadius: 4,
-						boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-						maxHeight: 280,
-						overflowY: "auto",
-					}}>
+					role="listbox">
 					{results.map((r, idx) => (
 						<button
 							aria-selected={idx === selectedIdx}
+							className={`map-search-result-item${idx === selectedIdx ? " map-search-result-item--selected" : ""}`}
 							key={`${r.source}-${r.label}-${idx}`}
 							onClick={() => handleSelect(r)}
 							role="option"
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: 6,
-								width: "100%",
-								padding: "6px 10px",
-								background: idx === selectedIdx ? `${accent}33` : "transparent",
-								border: "none",
-								borderBottom: `1px solid ${border}`,
-								color: fg,
-								cursor: "pointer",
-								textAlign: "left",
-								fontSize: 11,
-								fontFamily: "inherit",
-							}}
 							type="button">
-							<span style={{ fontSize: 12, flexShrink: 0 }}>{sourceIcon(r.source)}</span>
-							<span
-								style={{
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									whiteSpace: "nowrap",
-								}}>
-								{r.label}
+							<span aria-hidden="true" className="map-search-result-icon">
+								{SOURCE_ICON[r.source]}
 							</span>
+							<span className="map-search-result-label">{r.label}</span>
 						</button>
 					))}
 				</div>

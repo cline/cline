@@ -1374,39 +1374,6 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 
 			{layers.length === 0 && <MapEmptyState mapStyle={mapStyle} />}
 
-			{searchOpen && (
-				<div className="map-search-container">
-					<SearchBar
-						mapCenter={{ lat: viewState.latitude, lon: viewState.longitude }}
-						mapStyle={mapStyle === "dark" ? "dark" : "light"}
-						onResultSelect={(result) => {
-							setViewState((prev) => ({
-								...prev,
-								longitude: result.lon,
-								latitude: result.lat,
-								zoom: result.bbox ? Math.min(16, prev.zoom + 3) : 12,
-							}))
-							setSearchPin({ lon: result.lon, lat: result.lat, label: result.label })
-							setSearchStatus("")
-						}}
-						onStatus={setSearchStatus}
-						viewBbox={mapViewBbox()}
-					/>
-					{searchStatus && (
-						<div
-							style={{
-								marginTop: 4,
-								fontSize: 10,
-								opacity: 0.85,
-								maxWidth: 280,
-								lineHeight: 1.35,
-							}}>
-							{searchStatus}
-						</div>
-					)}
-				</div>
-			)}
-
 			{/* Search pin clear button */}
 			{searchPin && (
 				<div className="map-search-pin-card">
@@ -1537,6 +1504,25 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				onVisibilityChange={handleVisibilityChange}
 				onZoomToLayer={handleZoomToLayer}
 				searchOpen={searchOpen}
+				searchPanel={
+					<SearchBar
+						embedded
+						mapCenter={{ lat: viewState.latitude, lon: viewState.longitude }}
+						onResultSelect={(result) => {
+							setViewState((prev) => ({
+								...prev,
+								longitude: result.lon,
+								latitude: result.lat,
+								zoom: result.bbox ? Math.min(16, prev.zoom + 3) : 12,
+							}))
+							setSearchPin({ lon: result.lon, lat: result.lat, label: result.label })
+							setSearchStatus("")
+						}}
+						onStatus={setSearchStatus}
+						viewBbox={mapViewBbox()}
+					/>
+				}
+				searchStatus={searchStatus}
 				viewState={viewState}
 				visibleLayerIds={visibleLayerIds}
 			/>

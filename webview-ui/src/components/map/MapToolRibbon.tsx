@@ -56,6 +56,9 @@ interface MapToolRibbonProps {
 	onShowAllLayers?: () => void
 	onHideAllLayers?: () => void
 	viewState?: MapViewState
+	/** Search UI rendered inside the Search ribbon panel */
+	searchPanel?: React.ReactNode
+	searchStatus?: string
 }
 
 export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
@@ -85,6 +88,8 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	onShowAllLayers,
 	onHideAllLayers,
 	viewState,
+	searchPanel,
+	searchStatus,
 }) => {
 	const persisted = loadMapWorkspace()
 	const [active, setActive] = useState<RibbonTool>(null)
@@ -94,6 +99,12 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	useEffect(() => {
 		saveMapWorkspace({ ribbonPanel: { width: panelWidth, height: panelHeight } })
 	}, [panelWidth, panelHeight])
+
+	useEffect(() => {
+		if (searchOpen && active !== "search") {
+			setActive("search")
+		}
+	}, [searchOpen, active])
 
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
@@ -306,10 +317,23 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 						)}
 						{active === "search" && (
 							<div style={{ padding: 10 }}>
-								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
-									Use the search box that appears on the map canvas (top-left) when this tool is active. Type a
-									place name, USGS gauge ID, or coordinates (e.g. 40.45,-86.85).
-								</div>
+								<p style={{ fontSize: 11, opacity: 0.75, margin: "0 0 10px", lineHeight: 1.5 }}>
+									Find places (Nominatim), USGS gauges, or dams. Coordinates:{" "}
+									<code style={{ fontSize: 10 }}>40.45,-86.85</code>
+								</p>
+								{searchPanel}
+								{searchStatus ? (
+									<p
+										style={{
+											marginTop: 8,
+											fontSize: 10,
+											opacity: 0.85,
+											lineHeight: 1.4,
+											color: "var(--vscode-descriptionForeground, inherit)",
+										}}>
+										{searchStatus}
+									</p>
+								) : null}
 							</div>
 						)}
 						{active === "measure" && (
@@ -457,7 +481,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				<RibbonButton
 					accent={accent}
 					active={active === "basemap"}
-					fg={fg}
 					icon="🗺️"
 					label="Basemap"
 					onClick={() => toggle("basemap")}
@@ -466,7 +489,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 					accent={accent}
 					active={active === "layers"}
 					badge={layerCount > 0 ? layerCount : undefined}
-					fg={fg}
 					icon="📑"
 					label={layerCount > 0 ? `Layer manager (${layerCount})` : "Layer manager"}
 					onClick={() => toggle("layers")}
@@ -474,16 +496,14 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				<RibbonButton
 					accent={accent}
 					active={active === "hydrography"}
-					fg={fg}
 					icon="🌊"
-					label="Reference vectors (MERIT hydrography, more coming)"
+					label="Reference vectors (MERIT rivers, WBD HUCs)"
 					onClick={() => toggle("hydrography")}
 				/>
 				<RibbonButton
 					accent={accent}
 					active={false}
 					disabled={layerCount === 0}
-					fg={fg}
 					icon="⛶"
 					label="Fit to layers"
 					onClick={() => onFitExtent?.()}
@@ -491,7 +511,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				<RibbonButton
 					accent={accent}
 					active={active === "search" || !!searchOpen}
-					fg={fg}
 					icon="🔍"
 					label="Search"
 					onClick={() => {
@@ -502,7 +521,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				<RibbonButton
 					accent={accent}
 					active={active === "draw" || !!drawMode}
-					fg={fg}
 					icon="✏️"
 					label="Create vector"
 					onClick={() => {
@@ -513,7 +531,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				<RibbonButton
 					accent={accent}
 					active={active === "measure" || !!measureMode}
-					fg={fg}
 					icon="📏"
 					label="Measure"
 					onClick={() => {
@@ -524,7 +541,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				<RibbonButton
 					accent={accent}
 					active={active === "export" || !!exportOpen}
-					fg={fg}
 					icon="🖼️"
 					label="Export snapshot"
 					onClick={() => toggle("export")}
@@ -539,60 +555,21 @@ interface RibbonButtonProps {
 	label: string
 	active: boolean
 	accent: string
-	fg: string
 	onClick: () => void
 	badge?: number
 	disabled?: boolean
 }
 
-const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, accent, fg, onClick, badge, disabled }) => (
+const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, onClick, badge, disabled }) => (
 	<button
 		aria-label={label}
+		className={`map-ribbon-button${active ? " map-ribbon-button--active" : ""}`}
 		disabled={disabled}
 		onClick={onClick}
-		style={{
-			width: 32,
-			height: 32,
-			padding: 0,
-			border: active ? `1px solid ${accent}` : "1px solid transparent",
-			borderRadius: 4,
-			background: active ? "rgba(14,99,156,0.18)" : "transparent",
-			color: fg,
-			cursor: disabled ? "not-allowed" : "pointer",
-			opacity: disabled ? 0.45 : 1,
-			fontSize: 18,
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-			position: "relative",
-			fontFamily: "inherit",
-		}}
 		title={label}
 		type="button">
 		<span aria-hidden="true">{icon}</span>
-		{badge !== undefined && (
-			<span
-				style={{
-					position: "absolute",
-					top: -2,
-					right: -2,
-					minWidth: 14,
-					height: 14,
-					padding: "0 3px",
-					borderRadius: 7,
-					background: accent,
-					color: "#fff",
-					fontSize: 9,
-					fontWeight: 700,
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					fontVariantNumeric: "tabular-nums",
-					boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
-				}}>
-				{badge > 99 ? "99+" : badge}
-			</span>
-		)}
+		{badge !== undefined && <span className="map-ribbon-badge">{badge > 99 ? "99+" : badge}</span>}
 	</button>
 )
 
