@@ -103,6 +103,19 @@ export interface PendingPromptMutationResult {
 
 export type AppView = "onboarding" | "home" | "chat";
 
+export type RuntimeToolInteraction =
+	| {
+			id: number;
+			kind: "tool_approval";
+			request: ToolApprovalRequest;
+	  }
+	| {
+			id: number;
+			kind: "ask_question";
+			question: string;
+			options: string[];
+	  };
+
 export interface TuiProps {
 	config: Config;
 	initialView?: "chat" | "config";
