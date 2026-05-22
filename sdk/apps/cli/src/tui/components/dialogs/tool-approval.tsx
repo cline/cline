@@ -14,7 +14,7 @@ import {
 	shortenPath,
 } from "../../utils/tool-parsing";
 
-function formatApprovalParams(
+export function formatApprovalParams(
 	toolName: string,
 	rawInput: unknown,
 ): React.ReactNode {
