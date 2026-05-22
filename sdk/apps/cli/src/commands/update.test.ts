@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { getInstallationInfo, PackageManager } from "./update";
+import {
+	getInstallationInfo,
+	PackageManager,
+	withMinimumReleaseAgeBypass,
+} from "./update";
 
 const originalArgv = [...process.argv];
 const originalWrapperPath = process.env.CLINE_WRAPPER_PATH;
@@ -65,5 +69,33 @@ describe("getInstallationInfo", () => {
 			packageManager: PackageManager.UNKNOWN,
 			packageName: "cline",
 		});
+	});
+});
+
+describe("withMinimumReleaseAgeBypass", () => {
+	it("adds the package-manager-specific cooldown bypass", () => {
+		expect(
+			withMinimumReleaseAgeBypass(
+				"npm install -g cline@latest",
+				PackageManager.NPM,
+			).command,
+		).toBe("npm install -g cline@latest --min-release-age=0");
+		expect(
+			withMinimumReleaseAgeBypass("bun add -g cline@latest", PackageManager.BUN)
+				.command,
+		).toBe("bun add -g cline@latest --minimum-release-age=0");
+		expect(
+			withMinimumReleaseAgeBypass(
+				"yarn global add cline@latest",
+				PackageManager.YARN,
+			).command,
+		).toBe("yarn global add cline@latest --no-time-gate");
+
+		expect(
+			withMinimumReleaseAgeBypass(
+				"pnpm add -g cline@latest",
+				PackageManager.PNPM,
+			).env?.npm_config_minimum_release_age,
+		).toBe("0");
 	});
 });

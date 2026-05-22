@@ -36,6 +36,11 @@ interface InstallationInfo {
 	updateCommand?: string;
 }
 
+interface ManualUpdateCommand {
+	command: string;
+	env?: Readonly<Record<string, string>>;
+}
+
 function isNightlyVersion(v: string): boolean {
 	return v.includes("-nightly.");
 }
@@ -133,6 +138,31 @@ export function getInstallationInfo(currentVersion: string): InstallationInfo {
 	};
 }
 
+export function withMinimumReleaseAgeBypass(
+	updateCommand: string,
+	packageManager: PackageManager,
+): ManualUpdateCommand {
+	switch (packageManager) {
+		case PackageManager.NPM:
+			return { command: `${updateCommand} --min-release-age=0` };
+		case PackageManager.PNPM:
+			return {
+				command: updateCommand,
+				env: {
+					PNPM_CONFIG_MINIMUM_RELEASE_AGE: "0",
+					pnpm_config_minimum_release_age: "0",
+					npm_config_minimum_release_age: "0",
+				},
+			};
+		case PackageManager.YARN:
+			return { command: `${updateCommand} --no-time-gate` };
+		case PackageManager.BUN:
+			return { command: `${updateCommand} --minimum-release-age=0` };
+		default:
+			return { command: updateCommand };
+	}
+}
+
 async function getLatestVersion(
 	packageName: CliPackageName,
 	currentVersion: string,
@@ -168,11 +198,15 @@ function waitForProcessExit(child: ChildProcess): Promise<number> {
 	});
 }
 
-async function runCliUpdate(updateCommand: string): Promise<number> {
-	const updateProcess = spawn(updateCommand, {
+async function runCliUpdate(
+	updateCommand: ManualUpdateCommand,
+): Promise<number> {
+	const updateProcess = spawn(updateCommand.command, {
 		stdio: "inherit",
 		shell: true,
-		env: process.env,
+		env: updateCommand.env
+			? { ...process.env, ...updateCommand.env }
+			: process.env,
 		windowsHide: true,
 	});
 	return waitForProcessExit(updateProcess);
@@ -432,17 +466,21 @@ export async function checkForUpdates(
 				);
 				hadFailure = true;
 			} else {
+				const manualUpdateCommand = withMinimumReleaseAgeBypass(
+					updateCommand,
+					packageManager,
+				);
 				writeln(
 					`${c.cyan}Installing ${packageName}@${latestVersion}…${c.reset}`,
 				);
 				try {
-					const exitCode = await runCliUpdate(updateCommand);
+					const exitCode = await runCliUpdate(manualUpdateCommand);
 					if (exitCode === 0) {
 						installedUpdates.push(`${packageName}@${latestVersion}`);
 						await restartHubServerIfRunning();
 					} else {
 						writeErr(
-							`Cline update failed (exit code ${exitCode}). Try running: ${updateCommand}`,
+							`Cline update failed (exit code ${exitCode}). Try running: ${manualUpdateCommand.command}`,
 						);
 						hadFailure = true;
 					}
@@ -450,7 +488,7 @@ export async function checkForUpdates(
 					const message =
 						error instanceof Error ? error.message : String(error);
 					writeErr(
-						`Failed to run Cline update command ${updateCommand}: ${message}`,
+						`Failed to run Cline update command ${manualUpdateCommand.command}: ${message}`,
 					);
 					hadFailure = true;
 				}
