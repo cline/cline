@@ -409,8 +409,7 @@ echo '{"tool_call": {"name": "read_files", "input": {"filePath": "test.ts"}}}' |
 File hooks observe lifecycle events. For more advanced use cases like message compaction, use a TypeScript **runtime hook** plugin:
 
 ```bash
-mkdir -p .cline/plugins
-cp examples/hooks/custom-compaction-hook.example.ts .cline/plugins/custom-compaction-hook.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/hooks/custom-compaction-hook.example.ts --cwd .
 
 cline -i "Search the codebase for dispatcher usage, then summarize it"
 ```

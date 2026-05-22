@@ -5,8 +5,7 @@
  * workspace .gitignore file.
  *
  * CLI usage:
- *   mkdir -p .cline/plugins
- *   cp examples/plugins/gitignore-read-files-guard.ts .cline/plugins/gitignore-read-files-guard.ts
+ *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
  *   cline -i "Read the ignored .env file"
  */
 
