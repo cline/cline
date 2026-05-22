@@ -50,6 +50,8 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 -   4. Set the Model ID to the model your instance is serving (e.g., `llama-3.1-8b`, `qwen2.5-14b`, `mistral-nemo-12b`).
 -   5. Click Verify to confirm the connection.
 
+-   **Cost estimates:** Auxen bills per-minute of GPU runtime rather than per token. Set **Input Price** and **Output Price** to `0` in Cline's Model Configuration panel — the token-based cost estimates inside Cline do not apply to Auxen instances.
+
 ### v0 (Vercel SDK) in Cline:
 
 -   For developers working with v0, their [AI SDK documentation](https://vercel.com/docs/v0/cline) provides valuable insights and examples for integrating various models, many of which are OpenAI-compatible. This can be a helpful resource for understanding how to structure calls and manage configurations when using Cline with services deployed on or integrated with Vercel.
