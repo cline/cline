@@ -466,10 +466,10 @@ function RecentSessionRow({
 					>
 						{session.workspaceRoot}
 					</span>
-					{runDetails.map((detail, index) => (
+					{runDetails.map((detail) => (
 						<span
 							className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
-							key={`${detail}-${index}`}
+							key={detail}
 							title={detail}
 						>
 							{detail}

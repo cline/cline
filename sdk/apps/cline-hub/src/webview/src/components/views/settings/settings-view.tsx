@@ -10,6 +10,7 @@ import type {
 	Provider,
 	ProviderCatalogResponse,
 	ProviderModelsResponse,
+	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import { AccountView } from "./account-view";
@@ -19,6 +20,7 @@ import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
+	toSettingsPatch,
 } from "./provider-list-view";
 import { RoutineSchedulesContent } from "./routine-view";
 
@@ -32,7 +34,6 @@ const navCategories = [
 	"Extensions",
 	"MCP",
 	"Routine",
-	"Features",
 	"Account",
 ] as const;
 
@@ -146,6 +147,7 @@ export function SettingsView({
 				enabled?: boolean;
 				apiKey?: string;
 				baseUrl?: string;
+				configValues?: ProviderSettingsUpdate["configValues"];
 			},
 		) => {
 			try {
@@ -154,6 +156,9 @@ export function SettingsView({
 					enabled: updates.enabled,
 					api_key: updates.apiKey,
 					base_url: updates.baseUrl,
+					settings: updates.configValues
+						? toSettingsPatch(updates.configValues)
+						: undefined,
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -180,13 +185,27 @@ export function SettingsView({
 	);
 
 	const updateProvider = useCallback(
-		(id: string, updates: Partial<Provider>) => {
+		(id: string, updates: ProviderSettingsUpdate) => {
 			setProvidersWithCache((prev) =>
-				prev.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+				prev.map((p) =>
+					p.id === id
+						? {
+								...p,
+								...updates,
+								configValues: updates.configValues
+									? {
+											...(p.configValues ?? {}),
+											...updates.configValues,
+										}
+									: p.configValues,
+							}
+						: p,
+				),
 			);
 			void persistProviderSettings(id, {
 				apiKey: updates.apiKey,
 				baseUrl: updates.baseUrl,
+				configValues: updates.configValues,
 			});
 		},
 		[persistProviderSettings, setProvidersWithCache],

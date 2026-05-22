@@ -1069,18 +1069,14 @@ export default function Chat({ initialSessionId }: ChatProps) {
 	const respondToApproval = (approvalId: string, approved: boolean) => {
 		setPendingApprovals((current) =>
 			current.map((item) =>
-				item.approvalId === approvalId
-					? { ...item, responding: true }
-					: item,
+				item.approvalId === approvalId ? { ...item, responding: true } : item,
 			),
 		);
 		postToHost({
 			type: "approval_response",
 			approvalId,
 			approved,
-			reason: approved
-				? "Approved in Cline Hub."
-				: "Rejected in Cline Hub.",
+			reason: approved ? "Approved in Cline Hub." : "Rejected in Cline Hub.",
 		});
 		setStatus(approved ? "Approval sent." : "Rejection sent.");
 	};

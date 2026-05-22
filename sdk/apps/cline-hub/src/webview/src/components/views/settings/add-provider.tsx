@@ -209,7 +209,8 @@ export function AddProviderContent({
 				<div className="mb-6 flex items-center gap-3">
 					<Button
 						onClick={onBack}
-						className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						variant="secondary"
+						className="rounded-md p-1.5 transition-colors"
 						aria-label="Back to providers"
 					>
 						<ArrowLeft className="h-4 w-4" />
@@ -377,7 +378,8 @@ export function AddProviderContent({
 							<div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
 								<Button
 									onClick={() => setShowApiKey(!showApiKey)}
-									className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+									variant="ghost"
+									className="rounded-md p-1 transition-colors"
 									aria-label={showApiKey ? "Hide API key" : "Show API key"}
 								>
 									{showApiKey ? (
@@ -388,7 +390,8 @@ export function AddProviderContent({
 								</Button>
 								<Button
 									onClick={() => navigator.clipboard.writeText(form.apiKey)}
-									className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+									variant="ghost"
+									className="rounded-md p-1 transition-colors"
 									aria-label="Copy API key"
 								>
 									<Copy className="h-4 w-4" />
@@ -422,7 +425,8 @@ export function AddProviderContent({
 					<div className="rounded-lg border border-border overflow-hidden">
 						<Button
 							onClick={() => setShowAdvanced(!showAdvanced)}
-							className="flex w-full items-center justify-between px-5 py-4 text-sm font-medium text-foreground hover:bg-accent/30 transition-colors"
+							className="flex w-full items-center justify-between px-5 py-4 text-sm font-medium transition-colors text-foreground/40"
+							variant="ghost"
 						>
 							Advanced Settings
 							<ChevronDown

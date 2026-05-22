@@ -46,10 +46,7 @@ class HubDesktopClient {
 		pending.reject(new Error(message.error));
 	}
 
-	async invoke<T>(
-		command: string,
-		args?: Record<string, unknown>,
-	): Promise<T> {
+	async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
 		const id = `desktop_${Date.now()}_${this.requestCounter++}`;
 		return await new Promise<T>((resolve, reject) => {
 			const timeoutId = setTimeout(() => {

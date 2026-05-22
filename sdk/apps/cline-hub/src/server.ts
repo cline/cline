@@ -24,6 +24,7 @@ import type {
 	ProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
+	SaveProviderSettingsActionRequest,
 	SessionRecord,
 } from "@cline/core";
 import {
@@ -92,6 +93,16 @@ import type {
 } from "./webview-protocol";
 
 type BrowserFrame = WebviewInboundMessage | { type: "restart_hub" };
+
+function readProviderSettingsUpdate(
+	args: Record<string, unknown> | undefined,
+): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
+	return args?.settings && typeof args.settings === "object"
+		? (args.settings as Partial<
+				Omit<SaveProviderSettingsActionRequest, "action" | "providerId">
+			>)
+		: {};
+}
 
 function toRuntimeReasoningOptions(
 	reasonLevel?: WebviewReasonLevel,
@@ -1189,6 +1200,7 @@ async function handleDesktopCommand(
 	}
 	if (command === "save_provider_settings") {
 		return saveLocalProviderSettings(providerSettingsManager, {
+			...readProviderSettingsUpdate(args),
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,

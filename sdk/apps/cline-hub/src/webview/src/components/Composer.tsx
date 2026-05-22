@@ -378,7 +378,7 @@ export function Composer({
 			<PromptInput
 				accept="image/*,.txt,.md,.json,.ts,.tsx,.js,.jsx"
 				globalDrop
-				className="[&>div]:border-0 rounded-none"
+				className="rounded-none [&>[data-slot=input-group]]:border-0! [&>[data-slot=input-group]]:ring-0! [&>[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:border-0! [&>[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:ring-0!"
 				maxFiles={8}
 				multiple
 				onError={(error) => toast.error(error.message)}
@@ -425,9 +425,9 @@ export function Composer({
 						onChange={(event) =>
 							controller.textInput.setInput(event.target.value)
 						}
-						placeholder="Enter your question here..."
+						placeholder="Type @ for context and / for skills"
 						value={controller.textInput.value}
-						className="text-sm"
+						className="text-sm outline-none ring-0"
 					/>
 				</PromptInputBody>
 				<PromptInputFooter className="flex-col items-stretch gap-1 px-0">
