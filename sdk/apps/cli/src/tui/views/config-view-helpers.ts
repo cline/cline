@@ -162,8 +162,35 @@ export function isInlineConfigAction(
 	return action?.kind === "toggle-item";
 }
 
-export function getConfigFooterText(): string {
-	return "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select, Space toggle, Esc close";
+export function canToggleConfigFooterRow(
+	row:
+		| { kind: "toggle" }
+		| { kind: "ext"; enabled?: boolean; item: InteractiveConfigItem }
+		| { kind: string }
+		| undefined,
+): boolean {
+	if (!row) {
+		return false;
+	}
+	if (row.kind === "toggle") {
+		return true;
+	}
+	return (
+		row.kind === "ext" &&
+		"item" in row &&
+		typeof row.enabled === "boolean" &&
+		isToggleableConfigItem(row.item)
+	);
+}
+
+export function getConfigFooterText({
+	canToggle = false,
+}: {
+	canToggle?: boolean;
+} = {}): string {
+	return canToggle
+		? "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select, Space toggle, Esc close"
+		: "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select, Esc close";
 }
 
 export function getConfigItemDisplayName(name: string): string {

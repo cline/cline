@@ -17,6 +17,7 @@ import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
 import {
 	type ConfigAction,
+	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
@@ -451,6 +452,8 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	const clampedNavPos = Math.min(navPos, Math.max(0, navIndices.length - 1));
 	const selectedRowIdx = navIndices[clampedNavPos] ?? 0;
+	const selectedRow = rows[selectedRowIdx];
+	const canToggleSelectedRow = canToggleConfigFooterRow(selectedRow);
 
 	const setNavPosition = (nextNavPos: number) => {
 		setNavPos(nextNavPos);
@@ -774,7 +777,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			<text> </text>
 			{toggleError && <text fg="red">{toggleError}</text>}
 			<text fg="gray">
-				<em>{togglingItemId ? "Applying settings" : getConfigFooterText()}</em>
+				<em>
+					{togglingItemId
+						? "Applying settings"
+						: getConfigFooterText({ canToggle: canToggleSelectedRow })}
+				</em>
 			</text>
 		</box>
 	);

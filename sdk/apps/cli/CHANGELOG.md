@@ -1,5 +1,12 @@
 # Cline CLI Changelog
 
+## 3.0.11
+
+- Fix a regression in the ChatGPT OAuth provider where requests failed with `max_output_tokens not supported`, by restoring the full output token budget instead of applying an implicit cap.
+- Hide the `Space toggle` hint in the config footer when the highlighted row is not toggleable (rules, agents, hooks).
+- Authenticate Vertex Gemini through Google auth when `gcp.projectId` is configured, and surface the full Vertex model list instead of only Claude models.
+- Include tool names in tool result content blocks so message logs and session history consistently track which tool produced each result.
+
 ## 3.0.10
 
 - Install plugins from `file://` URLs in addition to npm and git sources.

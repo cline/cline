@@ -77,14 +77,13 @@ while generating the catalog. Conceptually:
 safeOutputTokens = min(
 	modelReportedMaxOutput,
 	contextWindow - estimatedPromptTokens - reserveTokens,
-	productDefaultOutputCap,
 	userConfiguredOutputCap,
 )
 ```
 
-The SDK gateway currently uses `DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000` as
-the default product-level output cap when the request does not provide
-`request.options.maxTokens`.
+The SDK gateway only sends an output token limit when the caller provides
+`request.options.maxTokens` or an equivalent host configuration. Catalog
+metadata does not become a request parameter by itself.
 
 The exact request-limit policy belongs in the provider/gateway/core request
 path, not in generated catalog data.

@@ -2,7 +2,6 @@ import type { AgentMessage, AgentModelEvent } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import {
-	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
 	createGateway,
 	estimateRequestInputTokens,
 	resolveGatewayRequestMaxTokens,
@@ -143,15 +142,17 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("resolves request max tokens from explicit, model, default, and context caps", () => {
+	it("does not synthesize request max tokens from catalog metadata", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 			}),
-		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+		).toBeUndefined();
+	});
 
+	it("resolves explicit request max tokens from model and context caps", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: 8_192,
@@ -213,10 +214,10 @@ describe("sdk-gateway", () => {
 		expect(estimatedTokens).toBeGreaterThan(4_000);
 	});
 
-	it("applies a conservative default output cap for catalog models", async () => {
+	it("does not apply catalog output caps when the request omits max tokens", async () => {
 		const createProvider = vi.fn(() => ({
 			async *stream(request: { maxTokens?: number }) {
-				expect(request.maxTokens).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+				expect(request.maxTokens).toBeUndefined();
 				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
 			},
 		}));
@@ -1708,6 +1709,31 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("does not send maxOutputTokens to ChatGPT OAuth when the request omits max tokens", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { maxOutputTokens?: unknown }
+			| undefined;
+		expect(call).not.toHaveProperty("maxOutputTokens");
+	});
+
 	it("passes Codex instructions through provider options and removes the system message from messages", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -1756,8 +1782,12 @@ describe("sdk-gateway", () => {
 			}),
 		);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
-			| { providerOptions?: Record<string, Record<string, unknown>> }
+			| {
+					maxOutputTokens?: unknown;
+					providerOptions?: Record<string, Record<string, unknown>>;
+			  }
 			| undefined;
+		expect(call).not.toHaveProperty("maxOutputTokens");
 		expect(call?.providerOptions?.openai).not.toHaveProperty("truncation");
 		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
 			"truncation",

@@ -888,7 +888,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					temperature: request.temperature,
-					maxOutputTokens: request.maxTokens,
+					...(request.maxTokens !== undefined
+						? { maxOutputTokens: request.maxTokens }
+						: {}),
 					abortSignal: request.signal,
 					experimental_telemetry: {
 						isEnabled: langfuse,
