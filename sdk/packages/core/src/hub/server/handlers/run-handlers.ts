@@ -64,6 +64,12 @@ function parseRunTimeoutMs(
 	return undefined;
 }
 
+function errorCode(error: unknown): string | undefined {
+	return error && typeof error === "object" && "code" in error
+		? String((error as { code?: unknown }).code)
+		: undefined;
+}
+
 async function runTurnWithRuntimeHealth(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -221,6 +227,13 @@ export async function handleSessionInput(
 			"run.start.reply"
 		) {
 			ctx.suppressNextTerminalEventBySession.delete(sessionId);
+		}
+		if (errorCode(error) === "session_not_found") {
+			return errorReply(
+				envelope,
+				"session_not_found",
+				error instanceof Error ? error.message : String(error),
+			);
 		}
 		ctx.publish(
 			ctx.buildEvent(

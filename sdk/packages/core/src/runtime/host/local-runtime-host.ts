@@ -1573,7 +1573,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			const error = new Error(`session not found: ${sessionId}`);
+			const error = Object.assign(
+				new Error(`session not found: ${sessionId}`),
+				{ code: "session_not_found" as const },
+			);
 			captureSdkError(this.defaultTelemetry, {
 				component: "core",
 				operation: "session.active_lookup",
