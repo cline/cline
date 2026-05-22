@@ -60,3 +60,4 @@ progress.md
 .aihydrorules/research.md
 FEATURE_DELIVERY_SUMMARY.md
 .claude/worktrees/
+*.tsbuildinfo
