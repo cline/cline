@@ -149,6 +149,63 @@ Rules consume context tokens. Avoid lengthy explanations or pasting entire style
 ```
 
 
+## Workflows
+
+Workflows are reusable step-by-step instructions that you can invoke from chat with a slash command. They live alongside rules in the **Rules & Workflows** menu, but they are only loaded when you explicitly call them.
+
+Use workflows when you want Cline to follow a repeatable process, such as:
+
+- Preparing and submitting a pull request
+- Running a release checklist
+- Deploying a service
+- Triage, debugging, or code review procedures
+
+### Where Workflows Live
+
+Workspace workflows go in `.clinerules/workflows/` at your project root. Global workflows go in your system's Cline Workflows directory.
+
+```text
+your-project/
+├── .clinerules/
+│   ├── coding.md
+│   └── workflows/
+│       ├── submit-pr.md
+│       └── deploy-service.md
+└── ...
+```
+
+### Creating Workflows
+
+<Steps>
+  <Step title="Open the Rules & Workflows menu">
+    Click the scale icon at the bottom of the Cline panel, to the left of the model selector.
+  </Step>
+  <Step title="Switch to Workflows">
+    Select the **Workflows** tab.
+  </Step>
+  <Step title="Create a new workflow file">
+    Click "New workflow file..." and enter a filename (for example, `submit-pr`). Cline creates the file in the appropriate workflows directory.
+  </Step>
+  <Step title="Write your workflow">
+    Add the instructions Cline should follow when the workflow is invoked. Keep the workflow focused on one repeatable process.
+  </Step>
+</Steps>
+
+### Invoking Workflows
+
+Type `/` in chat and select your workflow command, or type it directly using the workflow filename:
+
+```text
+/submit-pr
+```
+
+If your workflow file includes an extension, the command may appear with that extension in the slash command list. For example, `submit-pr.md` appears as `/submit-pr.md`.
+
+### Toggling Workflows
+
+Every workflow has a toggle to enable or disable it. Disable workflows you do not want to appear as slash commands without deleting the workflow file.
+
+
 ## Conditional Rules
 
 Conditional rules let you scope rules to specific parts of your codebase. Rules activate only when you're working with matching files, keeping your context focused and relevant.
