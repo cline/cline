@@ -38,6 +38,19 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("passes shared telemetry to the VSCode session host", async () => {
+		const telemetry = { capture: vi.fn() }
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		const lifecycle = makeLifecycle({ telemetry: telemetry as any })
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		expect(mockCreateSessionHost).toHaveBeenCalledWith(expect.objectContaining({ telemetry }))
+	})
+
 	it("marks the active session idle after a non-queued send completes", async () => {
 		const onSendComplete = vi.fn()
 		const sdkHost = makeSdkHost({ send: vi.fn().mockResolvedValue(undefined) })

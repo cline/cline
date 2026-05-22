@@ -1,37 +1,105 @@
+import type { ClineCoreStartInput, ITelemetryService } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { clineCoreCreate, createVscodeExtraTools } = vi.hoisted(() => ({
-	clineCoreCreate: vi.fn(),
-	createVscodeExtraTools: vi.fn(),
-}))
+const mockClineCoreCreate = vi.hoisted(() => vi.fn())
+const mockCreateVscodeExtraTools = vi.hoisted(() => vi.fn(async () => []))
 
-vi.mock("@cline/core", () => ({
-	ClineCore: { create: clineCoreCreate },
+vi.mock("@cline/core", async () => {
+	const actual = await vi.importActual<typeof import("@cline/core")>("@cline/core")
+	return {
+		...actual,
+		ClineCore: {
+			create: mockClineCoreCreate,
+		},
+	}
+})
+
+vi.mock("@/services/logging/distinctId", () => ({
+	getDistinctId: () => "distinct-id",
 }))
 
 vi.mock("./vscode-runtime-builder", () => ({
-	createVscodeExtraTools,
+	createVscodeExtraTools: mockCreateVscodeExtraTools,
 }))
-
-vi.mock("@/services/logging/distinctId", () => ({ getDistinctId: () => "distinct-id" }))
-vi.mock("@/shared/services/Logger", () => ({ Logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }))
 
 import { VscodeSessionHost } from "./vscode-session-host"
 
-describe("VscodeSessionHost remote config composition", () => {
+describe("VscodeSessionHost telemetry wiring", () => {
 	beforeEach(() => {
-		clineCoreCreate.mockReset()
-		createVscodeExtraTools.mockReset().mockResolvedValue([{ name: "vscode-tool" }])
-		clineCoreCreate.mockResolvedValue({
-			runtimeAddress: undefined,
-			start: vi.fn(),
-			send: vi.fn(),
-			subscribe: vi.fn(),
+		mockClineCoreCreate.mockReset()
+		mockClineCoreCreate.mockResolvedValue({ runtimeAddress: undefined })
+		mockCreateVscodeExtraTools.mockReset().mockResolvedValue([])
+	})
+
+	it("passes shared telemetry to ClineCore.create", async () => {
+		const telemetry = makeTelemetry()
+
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			telemetry,
 		})
+
+		expect(mockClineCoreCreate).toHaveBeenCalledWith(expect.objectContaining({ telemetry }))
+	})
+
+	it("injects shared telemetry into CoreSessionConfig when remote config did not provide one", async () => {
+		const telemetry = makeTelemetry()
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			telemetry,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		const prepared = await bootstrap.applyToStartSessionInput({
+			source: undefined,
+			config: {
+				cwd: "/tmp/workspace",
+				extraTools: [],
+			},
+		})
+
+		expect(prepared.source).toBe("vscode")
+		expect(prepared.config.telemetry).toBe(telemetry)
+	})
+
+	it("preserves telemetry already supplied by remote config", async () => {
+		const telemetry = makeTelemetry()
+		const remoteTelemetry = makeTelemetry()
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			telemetry,
+			getRemoteConfigIntegration: () =>
+				({
+					applyToStartSessionInput: (input: ClineCoreStartInput) => ({
+						...input,
+						config: {
+							...input.config,
+							telemetry: remoteTelemetry,
+						},
+					}),
+				}) as never,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		const prepared = await bootstrap.applyToStartSessionInput({
+			source: undefined,
+			config: {
+				cwd: "/tmp/workspace",
+				extraTools: [],
+			},
+		})
+
+		expect(prepared.config.telemetry).toBe(remoteTelemetry)
 	})
 
 	it("applies remote config before appending VS Code extra tools", async () => {
-		const applyToStartSessionInput = vi.fn(async (input) => ({
+		mockCreateVscodeExtraTools.mockResolvedValueOnce([{ name: "vscode-tool" }] as never)
+		const applyToStartSessionInput = vi.fn(async (input: ClineCoreStartInput) => ({
 			...input,
 			config: {
 				...input.config,
@@ -40,7 +108,8 @@ describe("VscodeSessionHost remote config composition", () => {
 			},
 		}))
 		await VscodeSessionHost.create({
-			mcpHub: {} as never,
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
 			getRemoteConfigIntegration: () =>
 				({
 					applyToStartSessionInput,
@@ -48,12 +117,12 @@ describe("VscodeSessionHost remote config composition", () => {
 				}) as never,
 		})
 
-		const createArg = clineCoreCreate.mock.calls[0]?.[0]
-		const bootstrap = await createArg.prepare({ config: { cwd: "/workspace" } })
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
 		const result = await bootstrap.applyToStartSessionInput({ config: { cwd: "/workspace" } })
 
 		expect(applyToStartSessionInput).toHaveBeenCalledWith({ config: { cwd: "/workspace" } })
-		expect(createVscodeExtraTools).toHaveBeenCalledWith({} as never, {
+		expect(mockCreateVscodeExtraTools).toHaveBeenCalledWith({} as never, {
 			cwd: "/workspace",
 			getTerminalManager: undefined,
 		})
@@ -62,3 +131,21 @@ describe("VscodeSessionHost remote config composition", () => {
 		expect(result.config.extraTools).toEqual([{ name: "remote-tool" }, { name: "vscode-tool" }])
 	})
 })
+
+function makeTelemetry(): ITelemetryService {
+	return {
+		setDistinctId() {},
+		setMetadata() {},
+		updateMetadata() {},
+		setCommonProperties() {},
+		updateCommonProperties() {},
+		isEnabled: () => true,
+		capture() {},
+		captureRequired() {},
+		recordCounter() {},
+		recordHistogram() {},
+		recordGauge() {},
+		flush: async () => {},
+		dispose: async () => {},
+	}
+}
