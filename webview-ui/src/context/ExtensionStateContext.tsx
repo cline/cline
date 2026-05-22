@@ -260,7 +260,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
-		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
+		mcpResponsesCollapsed: true, // Default collapsed — responses can be very large
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		customPrompt: undefined,

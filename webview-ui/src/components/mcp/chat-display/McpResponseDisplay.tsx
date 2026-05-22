@@ -54,8 +54,9 @@ const ResponseContainer = styled.div`
 
 	.response-content {
 		overflow-x: auto;
-		overflow-y: hidden;
+		overflow-y: auto;
 		max-width: 100%;
+		max-height: 320px;
 		padding: 10px;
 	}
 `

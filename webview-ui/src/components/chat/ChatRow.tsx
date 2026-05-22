@@ -62,7 +62,7 @@ const TimestampLabel = styled.div`
 	font-weight: 500;
 	color: var(--vscode-descriptionForeground);
 	opacity: 0;
-	transition: opacity 0.2s ease-out;
+	transition: opacity 0.1s ease-out;
 	margin-top: 4px;
 	letter-spacing: 0.03em;
 	text-transform: uppercase;
@@ -216,7 +216,7 @@ const CommandOutput = memo(
 					ref={outputRef}
 					style={{
 						color: "#FFFFFF",
-						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
+						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "360px" : "75px",
 						overflowY: shouldAutoShow ? "visible" : "auto",
 						scrollBehavior: "smooth",
 						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
@@ -1206,6 +1206,31 @@ export const ChatRowContent = memo(
 					<div className="chat-row-header">
 						{icon}
 						{title}
+						{isMcpServerResponding && (
+							<span
+								style={{
+									marginLeft: "auto",
+									display: "inline-flex",
+									alignItems: "center",
+									gap: "5px",
+									fontSize: "11px",
+									color: "var(--ai-hydro-teal, var(--vscode-charts-blue))",
+									opacity: 0.9,
+									animation: "pulse 1.5s ease-in-out infinite",
+								}}>
+								<span
+									style={{
+										width: "6px",
+										height: "6px",
+										borderRadius: "50%",
+										backgroundColor: "currentColor",
+										display: "inline-block",
+										animation: "pulse 1.5s ease-in-out infinite",
+									}}
+								/>
+								Running…
+							</span>
+						)}
 					</div>
 
 					<div
@@ -1250,20 +1275,12 @@ export const ChatRowContent = memo(
 								</div>
 								{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
 									<div style={{ marginTop: "8px" }}>
-										<div
-											style={{
-												marginBottom: "4px",
-												opacity: 0.8,
-												fontSize: "12px",
-												textTransform: "uppercase",
-											}}>
-											Arguments
-										</div>
 										<CodeAccordian
 											code={useMcpServer.arguments}
-											isExpanded={true}
+											isExpanded={isExpanded}
 											language="json"
 											onToggleExpand={handleToggle}
+											path="arguments"
 										/>
 									</div>
 								)}
