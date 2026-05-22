@@ -12,7 +12,7 @@ A browser dashboard for the local Cline hub. Open it to see who's connected, wha
 - **Restart Hub** button: gracefully stops the local detached hub and respawns a fresh one
 - optional LAN/tunnel exposure gated by a shared `ROOM_SECRET`
 
-The dashboard registers two clients with the hub: a `cline-hub-server` (via `ClineCore`) for driving sessions and a `cline-hub-monitor` (via `HubUIClient`) for the admin view.
+The dashboard registers two clients with the hub: a `cline-hub-server` (via `ClineCore`) for driving sessions and a `cline-hub-server` (via `HubUIClient`) for the admin view.
 
 ## Run
 
@@ -23,6 +23,15 @@ bun run start
 
 Open <http://127.0.0.1:8787> and click **Connect**. The server will discover or spawn a local detached hub on startup; the hub endpoint is printed in the console and shown in the sidebar.
 
+For webview development with Vite hot reload:
+
+```bash
+cd apps/cline-hub
+bun run dev
+```
+
+This starts the Vite webview server on <http://127.0.0.1:5173> and the hub dashboard on <http://127.0.0.1:8787>. Open the dashboard URL; the served page loads webview modules from Vite, so changes under `src/webview/src` hot reload without rebuilding. Use `CLINE_HUB_WEBVIEW_DEV_PORT` or `CLINE_HUB_WEBVIEW_DEV_HOST` to change the Vite bind address.
+
 To start a brand-new session, the dashboard needs to know which provider and model to use. It picks them up automatically from the most recent session on the hub. If there are no recent sessions, set `CLINE_PROVIDER` and `CLINE_MODEL` in the environment before running.
 
 ## Configuration
@@ -32,7 +41,7 @@ Environment variables:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | Bind host for the dashboard. Use the default for same-machine development. Set `HOST=0.0.0.0` only when intentionally exposing the dashboard on a LAN/tunnel. |
-| `PORT` | `8787` | Dashboard HTTP/WebSocket port. |
+| `CLINE_HUB_DASHBOARD_PORT` | `8787` | Dashboard HTTP/WebSocket port. |
 | `PUBLIC_URL` | `http://<HOST>:<PORT>` (`127.0.0.1` when binding `0.0.0.0`) | URL printed for humans to open/copy. Set this to your LAN URL or tunnel URL. |
 | `ROOM_SECRET` | unset | Shared invite secret required for browser WebSocket connections when `HOST` is non-local. |
 | `WORKSPACE_ROOT` | current directory | Workspace passed to the hub on startup. |
@@ -54,7 +63,7 @@ Choose a strong room secret and bind explicitly to all interfaces:
 ```bash
 cd apps/cline-hub
 HOST=0.0.0.0 \
-PORT=8787 \
+CLINE_HUB_DASHBOARD_PORT=8787 \
 PUBLIC_URL=http://YOUR_LAN_IP:8787 \
 ROOM_SECRET='use-a-long-random-secret' \
 bun run start

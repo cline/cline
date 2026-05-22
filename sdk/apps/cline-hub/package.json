@@ -5,12 +5,15 @@
 	"description": "Browser dashboard for the Cline hub: live clients, sessions, streaming chat, and hub restart.",
 	"type": "module",
 	"scripts": {
+		"build:webview": "bun --cwd src/webview run build",
+		"dev": "bun run src/dev.ts",
 		"start": "bun run src/server.ts",
 		"smoke:options": "bun run src/validate-options.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
 		"@cline/core": "latest",
+		"@cline/llms": "latest",
 		"@cline/shared": "latest"
 	}
 }

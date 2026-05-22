@@ -25,7 +25,7 @@ expectEqual(defaults.roomSecret, undefined, "default room secret");
 
 const lan = resolveClineHubServerOptions({
 	HOST: "0.0.0.0",
-	PORT: "9000",
+	CLINE_HUB_DASHBOARD_PORT: "9000",
 	PUBLIC_URL: "https://example.ngrok-free.app/",
 	ROOM_SECRET: "invite-123",
 	WORKSPACE_ROOT: "/tmp/workspace",
@@ -46,8 +46,8 @@ expectThrows(
 	"non-local bind without ROOM_SECRET",
 );
 expectThrows(
-	() => resolveClineHubServerOptions({ PORT: "70000" }),
-	"invalid PORT",
+	() => resolveClineHubServerOptions({ CLINE_HUB_DASHBOARD_PORT: "70000" }),
+	"invalid dashboard port",
 );
 expectThrows(
 	() => resolveClineHubServerOptions({ PUBLIC_URL: "ftp://example.test" }),
