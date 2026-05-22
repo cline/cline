@@ -92,6 +92,8 @@ bun run test
 bun --cwd apps/cli run build:platforms
 ```
 
+Known local-only test failure: `src/commands/distribution-package.test.ts > rejects direct source package packing by default` will fail on machines that have `ignore-scripts=true` in `~/.npmrc` (set by the npm supply-chain hardening guide). Bun reads npm's `ignore-scripts` from `~/.npmrc`, so `bun pm pack --dry-run` skips the source-publish `prepack` guard and exits 0, which the test reads as a failure. CI does not set `ignore-scripts`, so the test passes there. Confirm by running `bun pm pack --dry-run` directly: with `~/.npmrc` in place it exits 0 with no guard output; with `~/.npmrc` moved aside it exits 1 and prints the guard message. This is not a release blocker by itself, but it does mean the local-publish path (`bun release cli`) will also bypass the source-publish guard on this machine; prefer the GitHub Actions publish path on machines with `ignore-scripts=true` set globally, or temporarily unset it (`npm config delete ignore-scripts` or `mv ~/.npmrc ~/.npmrc.bak`) for the duration of a local publish.
+
 7. Commit release changes.
 
 Only after the user approves the notes and version:
