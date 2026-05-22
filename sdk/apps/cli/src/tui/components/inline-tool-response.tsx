@@ -86,13 +86,15 @@ function ToolApprovalResponse(
 	const selectedRef = useRef(selected);
 	selectedRef.current = selected;
 	const request = props.interaction.request;
+	const interactionId = props.interaction.id;
+	const onResolveToolApproval = props.onResolveToolApproval;
 	const params = formatApprovalParams(request.toolName, request.input);
 
 	const resolve = useCallback(
 		(approved: boolean) => {
-			props.onResolveToolApproval(props.interaction.id, approved);
+			onResolveToolApproval(interactionId, approved);
 		},
-		[props],
+		[interactionId, onResolveToolApproval],
 	);
 
 	useKeyboard((key) => {
@@ -155,27 +157,39 @@ function AskQuestionResponse(
 	const { interaction } = props;
 	const [selected, setSelected] = useState(0);
 	const [customValue, setCustomValue] = useState("");
+	const [customEmptyAttempted, setCustomEmptyAttempted] = useState(false);
 	const selectedRef = useRef(0);
 	const customValueRef = useRef("");
+	const interactionId = interaction.id;
+	const onResolveAskQuestion = props.onResolveAskQuestion;
 	const customIndex = interaction.options.length;
 	const isTyping = selected === customIndex;
 	const totalChoices = interaction.options.length + 1;
 
-	const selectIndex = useCallback((index: number) => {
-		selectedRef.current = index;
-		setSelected(index);
-	}, []);
+	const selectIndex = useCallback(
+		(index: number) => {
+			selectedRef.current = index;
+			setSelected(index);
+			if (index !== customIndex) {
+				setCustomEmptyAttempted(false);
+			}
+		},
+		[customIndex],
+	);
 
 	const setCustomText = useCallback((value: string) => {
 		customValueRef.current = value;
 		setCustomValue(value);
+		if (value.trim()) {
+			setCustomEmptyAttempted(false);
+		}
 	}, []);
 
 	const resolveAnswer = useCallback(
 		(answer: string | null) => {
-			props.onResolveAskQuestion(interaction.id, answer);
+			onResolveAskQuestion(interactionId, answer);
 		},
-		[interaction.id, props],
+		[interactionId, onResolveAskQuestion],
 	);
 
 	useKeyboard((key) => {
@@ -201,7 +215,9 @@ function AskQuestionResponse(
 				const answer = customValueRef.current.trim();
 				if (answer) {
 					resolveAnswer(answer);
+					return;
 				}
+				setCustomEmptyAttempted(true);
 				return;
 			}
 			resolveAnswer(interaction.options[selectedRef.current] ?? "");
@@ -292,7 +308,11 @@ function AskQuestionResponse(
 					</text>
 					{isTyping ? (
 						<text fg={palette.textOnSelection} flexGrow={1}>
-							{customValue ? `${customValue}|` : "Type a response..."}
+							{customValue
+								? `${customValue}|`
+								: customEmptyAttempted
+									? "Type a response first..."
+									: "Type a response..."}
 						</text>
 					) : (
 						<text fg={props.inputPlaceholder}>Type a response...</text>
