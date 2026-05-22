@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { isConus } from "./mapHydroGuards"
 import { sendHydroMapCommand } from "./mapHydrologyBridge"
 
 export interface SearchResult {
@@ -16,9 +15,7 @@ interface SearchBarProps {
 	/** When true, search lives inside the ribbon panel (no floating overlay). */
 	embedded?: boolean
 	viewBbox?: { minLon: number; minLat: number; maxLon: number; maxLat: number }
-	mapCenter?: { lat: number; lon: number }
 	onResultSelect?: (result: SearchResult) => void
-	onStatus?: (text: string) => void
 }
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -96,15 +93,12 @@ const SOURCE_ICON: Record<SearchResult["source"], string> = {
 	nominatim: "🌍",
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox, mapCenter, onResultSelect, onStatus }) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox, onResultSelect }) => {
 	const [query, setQuery] = useState("")
 	const [results, setResults] = useState<SearchResult[]>([])
 	const [loading, setLoading] = useState(false)
-	const [gaugesBusy, setGaugesBusy] = useState(false)
 	const [selectedIdx, setSelectedIdx] = useState(-1)
 	const abortRef = useRef<AbortController | null>(null)
-
-	const conus = mapCenter !== undefined ? isConus(mapCenter.lat, mapCenter.lon) : false
 
 	const doSearch = useCallback(
 		async (q: string) => {
@@ -196,27 +190,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox
 		onResultSelect?.(result)
 	}
 
-	const showGaugesInView = async () => {
-		if (!viewBbox || !mapCenter || !conus) {
-			onStatus?.("Pan to CONUS to load gauges in the current map extent.")
-			return
-		}
-		setGaugesBusy(true)
-		onStatus?.("Loading USGS gauges in view…")
-		try {
-			const r = await sendHydroMapCommand("gaugesInView", {
-				lat: mapCenter.lat,
-				lon: mapCenter.lon,
-				...viewBbox,
-			})
-			onStatus?.(r.ok ? r.message || "Gauges added to map" : r.error || r.message || "No gauges found")
-		} catch (e) {
-			onStatus?.(e instanceof Error ? e.message : String(e))
-		} finally {
-			setGaugesBusy(false)
-		}
-	}
-
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 		if (results.length === 0) return
 		if (e.key === "ArrowDown") {
@@ -260,17 +233,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox
 					</span>
 				)}
 			</div>
-
-			{conus && viewBbox && (
-				<button
-					className="map-search-gauges-btn"
-					disabled={gaugesBusy}
-					onClick={() => void showGaugesInView()}
-					title="Query NWIS for streamgages in the current map extent"
-					type="button">
-					{gaugesBusy ? "Loading gauges…" : "Show gauges in view"}
-				</button>
-			)}
 
 			{results.length > 0 && (
 				<div

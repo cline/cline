@@ -133,6 +133,50 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 		}
 	}
 
+	const loadGaugesInView = async () => {
+		if (!conus) {
+			setMsg("Gauge layers are available for CONUS only.")
+			return
+		}
+		setBusy(true)
+		setMsg("Loading USGS gauges in view…")
+		try {
+			const bb = viewBbox()
+			const r = await sendHydroMapCommand("gaugesInView", {
+				lat: center.lat,
+				lon: center.lon,
+				...bb,
+			})
+			setMsg(r.ok ? r.message || "Gauges added to map" : r.error || r.message || "No gauges found")
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e))
+		} finally {
+			setBusy(false)
+		}
+	}
+
+	const loadDamsInView = async () => {
+		if (!conus) {
+			setMsg("Dam layers are available for CONUS only.")
+			return
+		}
+		setBusy(true)
+		setMsg("Loading NID dams in view…")
+		try {
+			const bb = viewBbox()
+			const r = await sendHydroMapCommand("damsInView", {
+				lat: center.lat,
+				lon: center.lon,
+				...bb,
+			})
+			setMsg(r.ok ? r.message || "Dams added to map" : r.error || r.message || "No dams found")
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e))
+		} finally {
+			setBusy(false)
+		}
+	}
+
 	const btn: React.CSSProperties = {
 		padding: "6px 10px",
 		fontSize: 11,
@@ -306,6 +350,38 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 				</button>
 				{!conus && (
 					<p style={{ margin: "6px 0 0", fontSize: 10, color: muted }}>Pan to the contiguous US to load WBD layers.</p>
+				)}
+			</div>
+
+			<div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${border}` }}>
+				<p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 600, color: muted, letterSpacing: 0.2 }}>
+					Points in view (CONUS)
+				</p>
+				<p style={{ margin: "0 0 8px", color: muted, lineHeight: 1.45 }}>
+					Add USGS streamgages and NID dam locations as point layers for the current map extent.
+				</p>
+				<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+					<button
+						disabled={busy || !conus}
+						onClick={() => void loadGaugesInView()}
+						style={btn}
+						title="NWIS streamgages in current extent"
+						type="button">
+						🌊 Show gauges in view
+					</button>
+					<button
+						disabled={busy || !conus}
+						onClick={() => void loadDamsInView()}
+						style={btn}
+						title="NID dams in current extent"
+						type="button">
+						🏗 Show dams in view
+					</button>
+				</div>
+				{!conus && (
+					<p style={{ margin: "6px 0 0", fontSize: 10, color: muted }}>
+						Pan to the contiguous US to load gauge and dam layers.
+					</p>
 				)}
 			</div>
 

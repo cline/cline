@@ -12,7 +12,19 @@ pip install aihydro-tools          # production
 pip install -e ".[all,dev]"        # development (clone the standalone repo)
 ```
 
+**Local development (canonical checkout):**
+
+```bash
+pip install -e "/Users/mgalib/Documents/AI-Hydro/MCP/aihydro-tools[all,dev]"
+# verify map orchestration tools are registered:
+aihydro-mcp --check
+```
+
+The VS Code extension runs whatever `aihydro-mcp` resolves on PATH (see `ensureDefaultMcpServer.ts`). It does **not** import this `python/` tree.
+
 Standalone repo: **github.com/AI-Hydro/aihydro-tools**
+
+Recent map orchestration (`map_get_state`, `map_update_layer`, `map_apply_symbology`, …) lives only in the standalone package — the copies under `python/ai_hydro/mcp/` here are mirrors and may lag behind.
 
 ## Why this copy is stale
 

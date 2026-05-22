@@ -11,6 +11,7 @@ export const hydroCommandSchema = z.object({
 		"hucAtPoint",
 		"searchHydrology",
 		"gaugesInView",
+		"damsInView",
 		"delineatePoint",
 		"listPresets",
 	]),
@@ -75,6 +76,8 @@ export const gaugesInViewPayloadSchema = z.object({
 	maxLat: z.number(),
 	limit: z.number().optional(),
 })
+
+export const damsInViewPayloadSchema = gaugesInViewPayloadSchema
 
 export const delineatePointPayloadSchema = z.object({
 	lat: z.number(),

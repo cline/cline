@@ -2,6 +2,7 @@ import type { Controller } from "@core/controller"
 import { MapHydrologyService } from "./MapHydrologyService"
 import { buildMeritMapLayer } from "./mapMessageHandler"
 import {
+	damsInViewPayloadSchema,
 	delineatePointPayloadSchema,
 	gaugesInViewPayloadSchema,
 	hucAtPointPayloadSchema,
@@ -152,6 +153,31 @@ export async function handleHydroMapCommand(
 			case "gaugesInView": {
 				const p = gaugesInViewPayloadSchema.parse(payload ?? {})
 				const result = await MapHydrologyService.gaugesInView({
+					lat: p.lat,
+					lon: p.lon,
+					minLon: p.minLon,
+					minLat: p.minLat,
+					maxLon: p.maxLon,
+					maxLat: p.maxLat,
+					limit: p.limit,
+				})
+				if (result.ok && result.layers?.length) {
+					for (const spec of result.layers) {
+						controller.addMapLayer(buildMeritMapLayer(spec))
+					}
+				}
+				await postMessage({
+					type: "aihydro-hydro-result",
+					requestId,
+					ok: result.ok,
+					message: result.message,
+					result,
+				})
+				break
+			}
+			case "damsInView": {
+				const p = damsInViewPayloadSchema.parse(payload ?? {})
+				const result = await MapHydrologyService.damsInView({
 					lat: p.lat,
 					lon: p.lon,
 					minLon: p.minLon,

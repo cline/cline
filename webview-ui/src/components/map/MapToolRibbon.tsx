@@ -58,7 +58,6 @@ interface MapToolRibbonProps {
 	viewState?: MapViewState
 	/** Search UI rendered inside the Search ribbon panel */
 	searchPanel?: React.ReactNode
-	searchStatus?: string
 }
 
 export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
@@ -89,7 +88,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	onHideAllLayers,
 	viewState,
 	searchPanel,
-	searchStatus,
 }) => {
 	const persisted = loadMapWorkspace()
 	const [active, setActive] = useState<RibbonTool>(null)
@@ -318,22 +316,11 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 						{active === "search" && (
 							<div style={{ padding: 10 }}>
 								<p style={{ fontSize: 11, opacity: 0.75, margin: "0 0 10px", lineHeight: 1.5 }}>
-									Find places (Nominatim), USGS gauges, or dams. Coordinates:{" "}
+									Search and pan to a location. Gauges, dams, and layers in view are under{" "}
+									<strong>Reference vectors</strong>. Coordinates:{" "}
 									<code style={{ fontSize: 10 }}>40.45,-86.85</code>
 								</p>
 								{searchPanel}
-								{searchStatus ? (
-									<p
-										style={{
-											marginTop: 8,
-											fontSize: 10,
-											opacity: 0.85,
-											lineHeight: 1.4,
-											color: "var(--vscode-descriptionForeground, inherit)",
-										}}>
-										{searchStatus}
-									</p>
-								) : null}
 							</div>
 						)}
 						{active === "measure" && (

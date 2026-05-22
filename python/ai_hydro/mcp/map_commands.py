@@ -61,3 +61,53 @@ def push_show_map(open_map: bool = True) -> bool:
 
 def push_fit_extent() -> bool:
     return write_map_command({"type": "fit_extent"})
+
+
+def push_update_layer(
+    *,
+    layer_id: str,
+    style: dict[str, Any] | None = None,
+    metadata: dict[str, str] | None = None,
+    visible: bool | None = None,
+    display_name: str | None = None,
+    clear_graduated: bool = False,
+) -> bool:
+    payload: dict[str, Any] = {
+        "type": "update_layer",
+        "layer_id": layer_id,
+    }
+    if style is not None:
+        payload["style"] = style
+    if metadata is not None:
+        payload["metadata"] = metadata
+    if visible is not None:
+        payload["visible"] = visible
+    if display_name is not None:
+        payload["display_name"] = display_name
+    if clear_graduated:
+        payload["clear_graduated"] = True
+    return write_map_command(payload)
+
+
+def push_remove_layer(layer_id: str) -> bool:
+    return write_map_command({"type": "remove_layer", "layer_id": layer_id})
+
+
+def push_set_layer_visibility(layer_id: str, visible: bool) -> bool:
+    return write_map_command(
+        {"type": "set_layer_visibility", "layer_id": layer_id, "visible": visible}
+    )
+
+
+def push_set_basemap(basemap_id: str, basemap_name: str | None = None) -> bool:
+    return write_map_command(
+        {
+            "type": "set_basemap",
+            "basemap_id": basemap_id,
+            "basemap_name": basemap_name or basemap_id,
+        }
+    )
+
+
+def push_fit_layer(layer_id: str) -> bool:
+    return write_map_command({"type": "fit_layer", "layer_id": layer_id})

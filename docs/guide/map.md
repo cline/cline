@@ -155,6 +155,28 @@ show_on_map(
 
 ---
 
+## Agent map orchestration (symbology)
+
+The agent can **style layers already on the map** without writing duplicate GeoJSON files.
+
+1. Call **`map_get_state`** or **`map_list_layers`** to read `layer_id`, current symbology, and numeric attribute names from `~/.aihydro/map_layer_catalog.json`.
+2. Call **`map_update_layer`** with that `layer_id` (fill/stroke colors, visibility, display name).
+3. For choropleth / graduated styling, use **`map_apply_symbology`** or pass `graduated_attribute`, `graduated_method`, `graduated_classes`, and `color_ramp` to **`map_update_layer`**.
+
+| MCP tool | Purpose |
+|---|---|
+| `map_get_state` | Basemap, view, ROI, **layer catalog** (ids, styles, numeric attrs) |
+| `map_list_layers` | Layer catalog only |
+| `map_update_layer` | In-place style/metadata update by `layer_id` |
+| `map_apply_symbology` | Graduated (choropleth) symbology on an existing layer |
+| `map_remove_layer` | Remove layer from map |
+| `map_set_basemap` | Change basemap |
+| `map_fit_layer` / `map_fit_extent` | Zoom viewport |
+
+**Do not** create a second workspace GeoJSON file just to change colors or class breaks on a layer that is already loaded — use `map_update_layer` instead. Use `show_on_map` only when adding **new** geometry.
+
+---
+
 ## Basemaps
 
 Click the dropdown in the top-right corner to switch basemap. All 13 options are free — no API token needed.

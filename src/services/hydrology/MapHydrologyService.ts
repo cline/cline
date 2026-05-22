@@ -285,6 +285,38 @@ export class MapHydrologyService {
 		return { ok: false, type: "gauges_in_view", message: run.error || "gauges_in_view failed" }
 	}
 
+	static async damsInView(params: {
+		lat: number
+		lon: number
+		minLon: number
+		minLat: number
+		maxLon: number
+		maxLat: number
+		limit?: number
+	}): Promise<MeritLayersResult> {
+		const args = [
+			"dams-in-view",
+			"--lat",
+			String(params.lat),
+			"--lon",
+			String(params.lon),
+			"--min-lon",
+			String(params.minLon),
+			"--min-lat",
+			String(params.minLat),
+			"--max-lon",
+			String(params.maxLon),
+			"--max-lat",
+			String(params.maxLat),
+		]
+		if (params.limit !== undefined) args.push("--limit", String(params.limit))
+		const run = await MapHydrologyService.runHydroCli(args, 120_000)
+		if (run.result) {
+			return run.result as unknown as MeritLayersResult
+		}
+		return { ok: false, type: "dams_in_view", message: run.error || "dams_in_view failed" }
+	}
+
 	static async delineatePoint(params: {
 		lat: number
 		lon: number

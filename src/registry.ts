@@ -35,6 +35,7 @@ const AiHydroCommands = {
 	HtmlPreviewButton: prefix + ".htmlPreviewButtonClicked",
 	AddFileToHtmlPreview: prefix + ".addFileToHtmlPreview",
 	ConnectorsButton: prefix + ".connectorsButtonClicked",
+	SkillsButton: prefix + ".skillsButtonClicked",
 }
 
 /**

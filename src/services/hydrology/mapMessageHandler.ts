@@ -33,6 +33,14 @@ const STYLE_PRESETS: Record<string, Partial<MapLayerStyle>> = {
 		color: "#f59e0b",
 		opacity: 1,
 	},
+	dam: {
+		fillColor: "#ef4444",
+		fillOpacity: 0.9,
+		strokeColor: "#991b1b",
+		strokeWidth: 2,
+		color: "#ef4444",
+		opacity: 1,
+	},
 	default: {
 		fillColor: "#0066CC",
 		fillOpacity: 0.15,
@@ -57,7 +65,8 @@ export function buildMeritMapLayer(spec: MeritLayerSpec): MapLayer {
 		}
 	}
 	if (!metadata.source) {
-		metadata.source = spec.style_preset === "huc" ? "wbd" : spec.style_preset === "gauge" ? "nwis" : "merit"
+		const styleKey = spec.style_preset || "default"
+		metadata.source = styleKey === "huc" ? "wbd" : styleKey === "gauge" ? "nwis" : styleKey === "dam" ? "nid" : "merit"
 	}
 
 	return MapLayer.create({

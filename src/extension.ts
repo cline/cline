@@ -11,6 +11,7 @@ import { sendConnectorsButtonClickedEvent } from "./core/controller/ui/subscribe
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
+import { sendSkillsButtonClickedEvent } from "./core/controller/ui/subscribeToSkillsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createAiHydroAPI } from "./exports"
 import { VscodeHtmlPreviewProvider } from "./hosts/vscode/VscodeHtmlPreviewProvider"
@@ -220,6 +221,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.ConnectorsButton, () => {
 			sendConnectorsButtonClickedEvent()
+		}),
+	)
+
+	// Register AI-Hydro: Skills command
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.SkillsButton, () => {
+			sendSkillsButtonClickedEvent()
 		}),
 	)
 

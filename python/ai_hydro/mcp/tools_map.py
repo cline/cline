@@ -1,8 +1,6 @@
 """
-Map orchestration MCP tools — read/write host map session via file bridge.
-
-Agents use these tools to inspect map state, set ROI, open the map panel,
-and persist ROI to the workspace without holding a gRPC connection.
+MIRROR ONLY — canonical implementation: aihydro-tools (pip install -e …/aihydro-tools).
+The VS Code extension uses the installed aihydro-mcp package, not this file.
 """
 from __future__ import annotations
 
@@ -20,11 +18,29 @@ from ai_hydro.mcp.helpers import (
     _tool_error_to_dict,
     _workspace_write,
 )
-from ai_hydro.mcp.map_commands import push_fit_extent, push_set_roi, push_show_map
+from ai_hydro.mcp.map_commands import (
+    push_fit_extent,
+    push_fit_layer,
+    push_remove_layer,
+    push_set_basemap,
+    push_set_roi,
+    push_set_layer_visibility,
+    push_show_map,
+    push_update_layer,
+)
+from ai_hydro.mcp.map_events import STYLES
+from ai_hydro.mcp.map_layer_catalog import (
+    compute_graduated_metadata,
+    find_catalog_layer,
+    list_layer_ids,
+    load_geojson_for_layer,
+    read_layer_catalog,
+)
 
 log = logging.getLogger("ai_hydro.mcp")
 
 _MAP_SESSION_FILE = Path.home() / ".aihydro" / "map_session.json"
+_MAP_LAYER_CATALOG_FILE = Path.home() / ".aihydro" / "map_layer_catalog.json"
 _MAP_EVENTS_OUTBOUND = Path.home() / ".aihydro" / "map_events" / "outbound"
 
 
@@ -82,6 +98,8 @@ def map_get_state(session_id: str | None = None, event_limit: int = 10) -> dict:
         basemap_id = persisted.get("basemapId") or persisted.get("basemap_id")
         basemap_name = persisted.get("basemapName") or persisted.get("basemap_name")
 
+        catalog = read_layer_catalog()
+
         return {
             "active_roi": roi_summary,
             "basemap": (
@@ -94,6 +112,8 @@ def map_get_state(session_id: str | None = None, event_limit: int = 10) -> dict:
             or persisted.get("visible_layer_ids"),
             "workspace_root": persisted.get("workspaceRoot") or persisted.get("workspace_root"),
             "updated_at_ms": persisted.get("updatedAtMs") or persisted.get("updated_at_ms"),
+            "layer_order": catalog.get("layer_order") or [],
+            "layers": catalog.get("layers") or [],
             "resolved_roi_for_session": resolved,
             "recent_events": _recent_outbound_events(max(1, min(event_limit, 50))),
         }
@@ -162,6 +182,158 @@ def map_fit_extent() -> dict:
     """Ask the map to fit the viewport to the active ROI or visible layers."""
     ok = push_fit_extent()
     return {"ok": ok, "message": "Fit extent requested" if ok else "Failed to queue fit"}
+
+
+@mcp.tool()
+def map_list_layers() -> dict:
+    """List map layer ids and catalog entries from the host (~/.aihydro/map_layer_catalog.json)."""
+    try:
+        catalog = read_layer_catalog()
+        return {
+            "ok": True,
+            "layer_order": catalog.get("layer_order") or [],
+            "layers": catalog.get("layers") or [],
+            "layer_ids": list_layer_ids(),
+        }
+    except Exception as e:
+        return _tool_error_to_dict(e)
+
+
+def _layer_not_found(layer_id: str) -> dict:
+    ids = list_layer_ids()
+    return {
+        "ok": False,
+        "message": f"Unknown layer_id '{layer_id}'. Known layers: {ids or '(none — open map and load layers first)'}",
+        "layer_ids": ids,
+    }
+
+
+@mcp.tool()
+def map_update_layer(
+    layer_id: str,
+    style_preset: str | None = None,
+    fill_color: str | None = None,
+    stroke_color: str | None = None,
+    fill_opacity: float | None = None,
+    stroke_width: int | None = None,
+    visible: bool | None = None,
+    display_name: str | None = None,
+    raster_colormap: str | None = None,
+    raster_opacity: float | None = None,
+    clear_graduated: bool = False,
+    graduated_attribute: str | None = None,
+    graduated_method: str = "quantile",
+    graduated_classes: int = 5,
+    color_ramp: str = "viridis",
+) -> dict:
+    """
+    Update symbology or visibility of an existing map layer by id (in-place).
+    Do not write a new GeoJSON file to change styling.
+
+    For choropleth styling, set graduated_attribute (and optional method/classes/ramp).
+    """
+    try:
+        entry = find_catalog_layer(layer_id)
+        if not entry:
+            return _layer_not_found(layer_id)
+
+        style: dict[str, Any] = {}
+        metadata: dict[str, str] = {}
+
+        if style_preset:
+            preset = STYLES.get(style_preset, STYLES["default"])
+            style = {k: v for k, v in preset.items() if isinstance(v, (str, int, float))}
+        if fill_color:
+            style["fillColor"] = fill_color
+        if stroke_color:
+            style["strokeColor"] = stroke_color
+            style["color"] = stroke_color
+        if fill_opacity is not None:
+            style["fillOpacity"] = fill_opacity
+        if stroke_width is not None:
+            style["strokeWidth"] = stroke_width
+            style["weight"] = stroke_width
+
+        if raster_colormap:
+            metadata["raster_colormap"] = raster_colormap
+        if raster_opacity is not None:
+            metadata["raster_opacity"] = str(raster_opacity)
+
+        if graduated_attribute:
+            persisted = _read_map_session_file()
+            workspace_root = persisted.get("workspaceRoot") or persisted.get("workspace_root")
+            geojson = load_geojson_for_layer(entry, workspace_root)
+            metadata.update(
+                compute_graduated_metadata(
+                    geojson,
+                    attribute=graduated_attribute,
+                    method=graduated_method,
+                    num_classes=graduated_classes,
+                    color_ramp=color_ramp,
+                )
+            )
+            clear_graduated = False
+
+        ok = push_update_layer(
+            layer_id=layer_id,
+            style=style or None,
+            metadata=metadata or None,
+            visible=visible,
+            display_name=display_name,
+            clear_graduated=clear_graduated,
+        )
+        if visible is not None:
+            push_set_layer_visibility(layer_id, visible)
+        return {
+            "ok": ok,
+            "layer_id": layer_id,
+            "message": "Layer update queued for map host" if ok else "Failed to queue update",
+        }
+    except Exception as e:
+        return _tool_error_to_dict(e)
+
+
+@mcp.tool()
+def map_apply_symbology(
+    layer_id: str,
+    attribute: str,
+    method: str = "quantile",
+    num_classes: int = 5,
+    color_ramp: str = "viridis",
+) -> dict:
+    """Apply graduated (choropleth) symbology to an existing vector layer on the map."""
+    return map_update_layer(
+        layer_id=layer_id,
+        graduated_attribute=attribute,
+        graduated_method=method,
+        graduated_classes=num_classes,
+        color_ramp=color_ramp,
+    )
+
+
+@mcp.tool()
+def map_remove_layer(layer_id: str) -> dict:
+    """Remove a layer from the map by id."""
+    if not find_catalog_layer(layer_id):
+        return _layer_not_found(layer_id)
+    ok = push_remove_layer(layer_id)
+    return {"ok": ok, "layer_id": layer_id}
+
+
+@mcp.tool()
+def map_set_basemap(basemap_id: str, basemap_name: str | None = None) -> dict:
+    """Set the map basemap (e.g. esri-imagery, usgs-topo)."""
+    ok = push_set_basemap(basemap_id, basemap_name)
+    return {"ok": ok, "basemap_id": basemap_id}
+
+
+@mcp.tool()
+def map_fit_layer(layer_id: str) -> dict:
+    """Zoom the map viewport to a layer's extent."""
+    if not find_catalog_layer(layer_id):
+        return _layer_not_found(layer_id)
+    ok = push_fit_layer(layer_id)
+    return {"ok": ok, "layer_id": layer_id}
 
 
 @mcp.tool()

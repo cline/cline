@@ -93,5 +93,6 @@ export type HydroMapCommand =
 	| "hucAtPoint"
 	| "searchHydrology"
 	| "gaugesInView"
+	| "damsInView"
 	| "delineatePoint"
 	| "listPresets"

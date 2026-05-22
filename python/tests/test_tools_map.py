@@ -97,3 +97,71 @@ def test_map_get_state_reads_session_file(tmp_path, monkeypatch):
     state = tools_map.map_get_state(session_id=None, event_limit=5)
     assert state["active_roi"]["name"] == "Basin A"
     assert state["active_roi"]["area_ha"] == 500
+
+
+def test_push_update_layer_command(tmp_path, monkeypatch):
+    from ai_hydro.mcp import map_commands
+
+    cmd_dir = tmp_path / "map_commands"
+    monkeypatch.setattr(map_commands, "_MAP_COMMANDS_DIR", cmd_dir)
+
+    ok = map_commands.push_update_layer(
+        layer_id="file_vectors_basin",
+        style={"fillColor": "#FF5733", "fillOpacity": 0.5},
+        metadata={"display_name": "Styled basin"},
+    )
+    assert ok is True
+    payload = json.loads(list(cmd_dir.glob("*.json"))[0].read_text())
+    assert payload["type"] == "update_layer"
+    assert payload["layer_id"] == "file_vectors_basin"
+    assert payload["style"]["fillColor"] == "#FF5733"
+
+
+def test_map_get_state_includes_layer_catalog(tmp_path, monkeypatch):
+    from ai_hydro.mcp import map_layer_catalog, tools_map
+
+    monkeypatch.setattr(tools_map, "_MAP_SESSION_FILE", tmp_path / "map_session.json")
+    (tmp_path / "map_session.json").write_text("{}", encoding="utf-8")
+    catalog_file = tmp_path / "map_layer_catalog.json"
+    catalog_file.write_text(
+        json.dumps(
+            {
+                "layer_order": ["l1"],
+                "layers": [
+                    {
+                        "id": "l1",
+                        "name": "Test",
+                        "layer_type": "polygon",
+                        "visible": True,
+                        "symbology_mode": "basic",
+                        "numeric_attributes": [],
+                        "feature_count": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(map_layer_catalog, "MAP_LAYER_CATALOG_FILE", catalog_file)
+
+    state = tools_map.map_get_state()
+    assert state["layers"][0]["id"] == "l1"
+
+
+def test_compute_graduated_metadata():
+    from ai_hydro.mcp.map_layer_catalog import compute_graduated_metadata
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {"properties": {"twi": 1.0}},
+            {"properties": {"twi": 5.0}},
+            {"properties": {"twi": 10.0}},
+        ],
+    }
+    meta = compute_graduated_metadata(geojson, attribute="twi", num_classes=3)
+    assert meta["graduated_attr"] == "twi"
+    breaks = json.loads(meta["graduated_breaks"])
+    assert len(breaks) >= 2
+    colors = json.loads(meta["graduated_colors"])
+    assert len(colors) >= 2

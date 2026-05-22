@@ -1,10 +1,9 @@
 /**
  * MapCommandWatcher — polls ~/.aihydro/map_commands/ for commands from Python MCP tools.
- *
- * Commands: set_roi, fit_extent, show_map
  */
 
 import type { Controller } from "@core/controller"
+import type { MapLayerPatch } from "@core/map/mergeMapLayerPatch"
 import { MapRoi } from "@shared/proto/cline/map"
 import * as fs from "fs/promises"
 import * as os from "os"
@@ -15,6 +14,7 @@ const POLL_INTERVAL_MS = 250
 
 interface MapCommandPayload {
 	type: string
+	layer_id?: string
 	roi?: {
 		id?: string
 		name?: string
@@ -24,6 +24,13 @@ interface MapCommandPayload {
 		workspace_path?: string
 	}
 	open_map?: boolean
+	visible?: boolean
+	display_name?: string
+	clear_graduated?: boolean
+	style?: Record<string, string | number>
+	metadata?: Record<string, string>
+	basemap_id?: string
+	basemap_name?: string
 }
 
 export class MapCommandWatcher {
@@ -79,6 +86,15 @@ export class MapCommandWatcher {
 		}
 	}
 
+	private appendAgentCommandEvent(type: string, payload: Record<string, unknown> = {}): void {
+		this.controller.mapSessionService.appendEvent({
+			type,
+			payloadJson: JSON.stringify(payload),
+			timestampMs: Date.now(),
+			source: "agent",
+		})
+	}
+
 	private async applyCommand(cmd: MapCommandPayload): Promise<void> {
 		switch (cmd.type) {
 			case "set_roi": {
@@ -110,14 +126,65 @@ export class MapCommandWatcher {
 				break
 			}
 			case "fit_extent":
-				// Webview handles fit via session; emit event for UI
-				this.controller.mapSessionService.appendEvent({
-					type: "command.fit_extent",
-					payloadJson: "{}",
-					timestampMs: Date.now(),
-					source: "agent",
-				})
+				this.appendAgentCommandEvent("command.fit_extent")
 				break
+			case "fit_layer": {
+				if (cmd.layer_id) {
+					this.appendAgentCommandEvent("command.fit_layer", { layerId: cmd.layer_id })
+				}
+				break
+			}
+			case "update_layer": {
+				if (!cmd.layer_id) {
+					break
+				}
+				const patch: MapLayerPatch = {}
+				if (cmd.style) {
+					patch.style = cmd.style as MapLayerPatch["style"]
+				}
+				if (cmd.metadata) {
+					patch.metadata = cmd.metadata
+				}
+				if (cmd.visible !== undefined) {
+					patch.visible = cmd.visible
+				}
+				if (cmd.display_name) {
+					patch.metadata = { ...(patch.metadata ?? {}), display_name: cmd.display_name }
+					patch.name = cmd.display_name
+				}
+				if (cmd.clear_graduated) {
+					patch.clear_graduated = true
+				}
+				const updated = this.controller.updateMapLayer(cmd.layer_id, patch)
+				if (!updated) {
+					console.warn("[MapCommandWatcher] update_layer: unknown layer", cmd.layer_id)
+				}
+				break
+			}
+			case "remove_layer": {
+				if (cmd.layer_id) {
+					this.controller.removeMapLayer(cmd.layer_id)
+				}
+				break
+			}
+			case "set_layer_visibility": {
+				if (!cmd.layer_id || cmd.visible === undefined) {
+					break
+				}
+				this.controller.updateMapLayer(cmd.layer_id, { visible: cmd.visible })
+				const visibleIds = this.controller
+					.getMapLayers()
+					.filter((l) => l.visible !== false)
+					.map((l) => l.id)
+				this.controller.mapSessionService.setVisibleLayerIds(visibleIds)
+				break
+			}
+			case "set_basemap": {
+				if (cmd.basemap_id) {
+					this.controller.mapSessionService.setBasemap(cmd.basemap_id, cmd.basemap_name)
+				}
+				break
+			}
 			default:
 				console.warn("[MapCommandWatcher] Unknown command type:", cmd.type)
 		}

@@ -156,6 +156,11 @@
 				"icon": "$(plug)"
 			},
 			{
+				"command": "aihydro.skillsButtonClicked",
+				"title": "Skills",
+				"icon": "$(book)"
+			},
+			{
 				"command": "aihydro.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -317,8 +322,13 @@
 					"when": "view == aihydro.SidebarProvider"
 				},
 				{
-					"command": "aihydro.settingsButtonClicked",
+					"command": "aihydro.skillsButtonClicked",
 					"group": "navigation@6",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
+					"command": "aihydro.settingsButtonClicked",
+					"group": "navigation@7",
 					"when": "view == aihydro.SidebarProvider"
 				}
 			],

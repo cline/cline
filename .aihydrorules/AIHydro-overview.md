@@ -190,6 +190,17 @@ When contributing to AI-Hydro:
    - Modify relevant documentation
    - Add examples for new features
 
+## Map panel — agent orchestration
+
+The map is controlled via MCP tools in the **standalone** `aihydro-tools` package (`ai_hydro/mcp/tools_map.py`) and file commands in `~/.aihydro/map_commands/`. Do not develop against the frozen `python/` copy in this extension repo.
+
+- **Read state**: `map_get_state` / `map_list_layers` (layer ids, styles, numeric attributes from `~/.aihydro/map_layer_catalog.json`).
+- **Style in place**: `map_update_layer(layer_id=…)` or `map_apply_symbology` — **never** write a duplicate GeoJSON file only to change symbology on a layer already on the map.
+- **Add geometry**: `show_on_map` / `push_layer` for new layers only.
+- Host: `MapCommandWatcher`, `mergeMapLayerPatch`, catalog sync in `Controller.addMapLayer`.
+
+See `docs/guide/map.md` for the full tool table.
+
 ## Best Practices
 
 ### For Python Tools

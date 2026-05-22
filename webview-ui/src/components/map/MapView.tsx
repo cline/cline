@@ -2,9 +2,11 @@ import type { MapViewState } from "@deck.gl/core"
 import { TileLayer } from "@deck.gl/geo-layers"
 import { BitmapLayer, GeoJsonLayer, TextLayer } from "@deck.gl/layers"
 import DeckGL from "@deck.gl/react"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
+import { MapServiceClient } from "../../services/grpc-client"
 import { BASE_MAP_STYLES } from "./BaseMapSelector"
 import FeatureIdentifier, { type ClickedFeature, type MapInspectPoint } from "./FeatureIdentifier"
 import { loadAndPushFiles } from "./formats"
@@ -413,8 +415,6 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	const [toolHoverCoord, setToolHoverCoord] = useState<{ lon: number; lat: number } | null>(null)
 	// Search result pin — { lon, lat, label } or null
 	const [searchPin, setSearchPin] = useState<{ lon: number; lat: number; label: string } | null>(null)
-	const [searchStatus, setSearchStatus] = useState("")
-
 	const mapViewBbox = useCallback(() => {
 		const z = viewState.zoom ?? 8
 		const deg = 360 / 2 ** (z + 1)
@@ -787,6 +787,51 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		}
 		setViewState((previousViewState) => fitViewStateToBounds(bounds, dimensions, previousViewState))
 	}, [layers, visibleLayerIds, dimensions])
+
+	const handleFitExtentRef = useRef(handleFitExtent)
+	const handleZoomToLayerRef = useRef(handleZoomToLayer)
+	handleFitExtentRef.current = handleFitExtent
+	handleZoomToLayerRef.current = handleZoomToLayer
+
+	// Agent map commands (map_fit_extent, map_fit_layer) via host event stream
+	useEffect(() => {
+		const processedCommandKeys = new Set<string>()
+		const unsub = MapServiceClient.subscribeToMapEvents(EmptyRequest.create({}), {
+			onResponse: (event) => {
+				if (!event.type?.startsWith("command.")) {
+					return
+				}
+				const key = `${event.type}:${event.timestampMs ?? 0}:${event.payloadJson ?? ""}`
+				if (processedCommandKeys.has(key)) {
+					return
+				}
+				processedCommandKeys.add(key)
+				if (event.type === "command.fit_extent") {
+					handleFitExtentRef.current()
+					return
+				}
+				if (event.type === "command.fit_layer") {
+					let layerId = ""
+					try {
+						const payload = JSON.parse(event.payloadJson || "{}") as { layerId?: string }
+						layerId = payload.layerId ?? ""
+					} catch {
+						/* ignore */
+					}
+					if (!layerId) {
+						return
+					}
+					const layer = layers.find((l) => l.id === layerId)
+					if (layer) {
+						handleZoomToLayerRef.current(layer)
+					}
+				}
+			},
+			onError: (err) => console.error("[MapView] map events subscription error:", err),
+			onComplete: () => {},
+		})
+		return () => unsub()
+	}, [layers])
 
 	const getTooltip = useCallback(
 		({ object, layer: deckLayer }: any) => {
@@ -1507,7 +1552,6 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				searchPanel={
 					<SearchBar
 						embedded
-						mapCenter={{ lat: viewState.latitude, lon: viewState.longitude }}
 						onResultSelect={(result) => {
 							setViewState((prev) => ({
 								...prev,
@@ -1516,13 +1560,10 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 								zoom: result.bbox ? Math.min(16, prev.zoom + 3) : 12,
 							}))
 							setSearchPin({ lon: result.lon, lat: result.lat, label: result.label })
-							setSearchStatus("")
 						}}
-						onStatus={setSearchStatus}
 						viewBbox={mapViewBbox()}
 					/>
 				}
-				searchStatus={searchStatus}
 				viewState={viewState}
 				visibleLayerIds={visibleLayerIds}
 			/>

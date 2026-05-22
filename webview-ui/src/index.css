@@ -2082,29 +2082,6 @@ vscode-dropdown::part(listbox) {
 		box-shadow 0.2s ease-out;
 }
 
-.map-search-gauges-btn {
-	margin-top: 8px;
-	width: 100%;
-	padding: 6px 10px;
-	font-size: 11px;
-	border-radius: 4px;
-	border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 50%, transparent);
-	background: color-mix(in srgb, var(--vscode-button-background) 12%, transparent);
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	font-family: inherit;
-	transition: background 0.12s ease-out;
-}
-
-.map-search-gauges-btn:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--vscode-button-background) 22%, transparent);
-}
-
-.map-search-gauges-btn:disabled {
-	opacity: 0.6;
-	cursor: wait;
-}
-
 .map-search-result-icon {
 	flex-shrink: 0;
 	font-size: 12px;
