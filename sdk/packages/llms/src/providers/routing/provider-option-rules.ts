@@ -208,19 +208,29 @@ const openRouterReasoningRule: ProviderOptionRule = {
 const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
-	description: "Google/Gemini maps reasoning effort to google.thinkingConfig.",
+	description: "Google/Gemini/Vertex maps reasoning to thinkingConfig.",
 	applies: (input) =>
 		(input.request.providerId === "google" ||
-			input.request.providerId === "gemini") &&
-		!!input.request.reasoning?.effort,
-	build: (input) => ({
-		google: {
-			thinkingConfig: {
-				thinkingLevel: input.request.reasoning?.effort,
-				includeThoughts: true,
+			input.request.providerId === "gemini" ||
+			input.request.providerId === "vertex") &&
+		(!!input.request.reasoning?.effort ||
+			input.request.reasoning?.enabled === false),
+	build: (input) => {
+		const providerOptionsName =
+			input.request.providerId === "vertex" ? "vertex" : "google";
+		const thinkingConfig =
+			input.request.reasoning?.enabled === false
+				? { thinkingLevel: "minimal", includeThoughts: false }
+				: {
+						thinkingLevel: input.request.reasoning?.effort,
+						includeThoughts: true,
+					};
+		return {
+			[providerOptionsName]: {
+				thinkingConfig,
 			},
-		},
-	}),
+		};
+	},
 };
 
 const clineReasoningDisabledThinkingRule: ProviderOptionRule = {

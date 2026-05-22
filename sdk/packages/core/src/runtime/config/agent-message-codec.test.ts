@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { messageToAgentMessages } from "./agent-message-codec";
+import {
+	agentMessageToMessageWithMetadata,
+	messageToAgentMessages,
+	messagesToAgentMessages,
+} from "./agent-message-codec";
 
 describe("agent message codec", () => {
 	it("preserves mixed tool result and user text order", () => {
@@ -67,5 +71,44 @@ describe("agent message codec", () => {
 				toolName: "read_files",
 			}),
 		]);
+	});
+
+	it("round-trips Gemini tool call thought signatures", () => {
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_tool_call",
+			role: "assistant",
+			createdAt: 1,
+			content: [
+				{
+					type: "tool-call",
+					toolCallId: "toolu_4",
+					toolName: "editor",
+					input: { path: "/tmp/out.txt" },
+					metadata: {
+						thoughtSignature: "sig_4",
+					},
+				},
+			],
+		});
+
+		expect(persisted.content).toEqual([
+			expect.objectContaining({
+				type: "tool_use",
+				id: "toolu_4",
+				name: "editor",
+				signature: "sig_4",
+			}),
+		]);
+
+		const [restored] = messagesToAgentMessages([persisted]);
+		expect(restored?.content[0]).toMatchObject({
+			type: "tool-call",
+			toolCallId: "toolu_4",
+			toolName: "editor",
+			metadata: {
+				signature: "sig_4",
+				thoughtSignature: "sig_4",
+			},
+		});
 	});
 });

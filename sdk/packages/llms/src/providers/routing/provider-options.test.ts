@@ -1454,4 +1454,46 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.google).not.toHaveProperty("reasoningEffort");
 		expect(result.google).not.toHaveProperty("reasoningSummary");
 	});
+
+	it("emits Gemini thinkingConfig in the vertex bucket for Vertex providers", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+			}),
+		);
+		expect(result.google).toBeUndefined();
+	});
+
+	it("maps disabled Vertex thinking to minimal thinkingConfig", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingLevel: "minimal", includeThoughts: false },
+			}),
+		);
+		expect(result.google).toBeUndefined();
+	});
 });

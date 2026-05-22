@@ -171,7 +171,12 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 				toolCallId: block.id,
 				toolName: block.name,
 				input: block.input,
-				metadata: block.signature ? { signature: block.signature } : undefined,
+				metadata: block.signature
+					? {
+							signature: block.signature,
+							thoughtSignature: block.signature,
+						}
+					: undefined,
 			};
 		case "tool_result":
 			return toolResultContentToAgentPart(block);
@@ -229,15 +234,21 @@ function agentPartToContentBlock(
 				path: part.path,
 				content: part.content,
 			} satisfies FileContent;
-		case "tool-call":
+		case "tool-call": {
+			const metadata = part.metadata as
+				| {
+						signature?: string;
+						thoughtSignature?: string;
+				  }
+				| undefined;
 			return {
 				type: "tool_use",
 				id: part.toolCallId,
 				name: part.toolName,
 				input: (part.input as Record<string, unknown>) ?? {},
-				signature: (part.metadata as { signature?: string } | undefined)
-					?.signature,
+				signature: metadata?.thoughtSignature ?? metadata?.signature,
 			} satisfies ToolUseContent;
+		}
 		case "tool-result": {
 			const output = part.output;
 			const content =
