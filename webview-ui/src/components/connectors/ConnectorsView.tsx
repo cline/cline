@@ -13,6 +13,7 @@ type ConnectorsTab = "catalog" | "configure"
 
 type StatusMap = Record<string, ConnectorStatus>
 type DetailsMap = Record<string, Record<string, string>>
+type ErrorMap = Record<string, string>
 
 type ConnectorsViewProps = {
 	onDone: () => void
@@ -28,8 +29,10 @@ function postInvokeCommand(command: string) {
 const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 	const { environment } = useExtensionState()
 	const [activeTab, setActiveTab] = useState<ConnectorsTab>("catalog")
-	const [statuses, setStatuses] = useState<StatusMap>({})
+	// Default to "disconnected" — no auto-probe, status only updates on explicit user action
+	const [statuses, setStatuses] = useState<StatusMap>({ [GEE_ID]: "disconnected" })
 	const [details, setDetails] = useState<DetailsMap>({})
+	const [errors, setErrors] = useState<ErrorMap>({})
 	const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
 	const [connectors, setConnectors] = useState<ConnectorDefinition[]>(BUILTIN_CONNECTORS)
 	const mountedRef = useRef(true)
@@ -42,6 +45,19 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 		if (mountedRef.current) setDetails((prev) => ({ ...prev, [id]: d }))
 	}, [])
 
+	const setConnectorError = useCallback((id: string, msg: string) => {
+		if (mountedRef.current) setErrors((prev) => ({ ...prev, [id]: msg }))
+	}, [])
+
+	const clearConnectorError = useCallback((id: string) => {
+		if (mountedRef.current)
+			setErrors((prev) => {
+				const n = { ...prev }
+				delete n[id]
+				return n
+			})
+	}, [])
+
 	const setBusy = useCallback((id: string, busy: boolean) => {
 		if (mountedRef.current) {
 			setBusyIds((prev) => {
@@ -52,8 +68,9 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 		}
 	}, [])
 
-	// Fetch remote catalog and merge with BUILTIN_CONNECTORS (remote wins on overlap by id)
+	// Fetch remote catalog and merge with BUILTIN_CONNECTORS on mount
 	useEffect(() => {
+		mountedRef.current = true
 		UiServiceClient.refreshConnectorsCatalog(EmptyRequest.create({}))
 			.then((resp) => {
 				if (!mountedRef.current) return
@@ -67,83 +84,61 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 				}
 			})
 			.catch(() => {})
+		return () => {
+			mountedRef.current = false
+		}
 	}, [])
 
-	// commandResult listener — handles responses from invokeCommand
+	// Listen for commandResult messages — used for Connect / Disconnect / Test / ChooseProject
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
 			const msg = event.data
 			if (msg?.type !== "commandResult" || !msg.commandResult) return
-			const { command, ok } = msg.commandResult as {
+			const cr = msg.commandResult as {
 				command: string
 				ok: boolean
 				project_id?: string
 				message?: string
-				runtime?: { ee_version?: string; python_executable?: string; credentials_path?: string }
+				runtime?: { ee_version?: string; python_executable?: string }
 			}
 
-			if ([GEE_STATUS_CMD, "aihydro.gee.connect", "aihydro.gee.test"].includes(command)) {
-				setStatus(GEE_ID, ok ? "connected" : "disconnected")
+			if ([GEE_STATUS_CMD, "aihydro.gee.connect", "aihydro.gee.test"].includes(cr.command)) {
 				setBusy(GEE_ID, false)
-				if (ok && msg.commandResult.project_id) {
+				setStatus(GEE_ID, cr.ok ? "connected" : "disconnected")
+				if (cr.ok && cr.project_id) {
+					clearConnectorError(GEE_ID)
 					setConnectorDetails(GEE_ID, {
-						"Project ID": msg.commandResult.project_id,
-						"EE Version": msg.commandResult.runtime?.ee_version ?? "",
-						Python: msg.commandResult.runtime?.python_executable ?? "",
+						"Project ID": cr.project_id,
+						"EE version": cr.runtime?.ee_version ?? "",
+						Python: cr.runtime?.python_executable ?? "",
 					})
+				} else if (!cr.ok) {
+					setConnectorError(GEE_ID, cr.message ?? "Connection failed")
+					setConnectorDetails(GEE_ID, {})
 				}
-			} else if (command === "aihydro.gee.disconnect") {
+			} else if (cr.command === "aihydro.gee.disconnect") {
+				setBusy(GEE_ID, false)
 				setStatus(GEE_ID, "disconnected")
 				setConnectorDetails(GEE_ID, {})
-				setBusy(GEE_ID, false)
-			} else if (command === "aihydro.gee.chooseProject") {
-				// Re-check status after project is picked
+				clearConnectorError(GEE_ID)
+			} else if (cr.command === "aihydro.gee.chooseProject") {
+				// After project is chosen, trigger a status refresh
 				setBusy(GEE_ID, true)
 				postInvokeCommand(GEE_STATUS_CMD)
 			}
 		}
 		window.addEventListener("message", handler)
 		return () => window.removeEventListener("message", handler)
-	}, [setStatus, setBusy, setConnectorDetails])
+	}, [setStatus, setBusy, setConnectorDetails, setConnectorError, clearConnectorError])
 
-	// GEE status probe on mount via gRPC (reliable path, no invokeCommand)
-	useEffect(() => {
-		mountedRef.current = true
-		setBusy(GEE_ID, true)
-
-		// Race gRPC call against a 20s client-side timeout so the spinner never hangs forever
-		const timeoutPromise = new Promise<never>((_, reject) =>
-			setTimeout(() => reject(new Error("GEE status timeout")), 20_000),
-		)
-		Promise.race([UiServiceClient.getGeeStatus(EmptyRequest.create({})), timeoutPromise])
-			.then((resp) => {
-				if (!mountedRef.current) return
-				setStatus(GEE_ID, resp.ok ? "connected" : "disconnected")
-				setBusy(GEE_ID, false)
-				if (resp.ok && resp.projectId) {
-					setConnectorDetails(GEE_ID, {
-						"Project ID": resp.projectId,
-						"EE Version": resp.eeVersion,
-						Python: resp.pythonExecutable,
-					})
-				}
-			})
-			.catch(() => {
-				if (!mountedRef.current) return
-				setStatus(GEE_ID, "disconnected")
-				setBusy(GEE_ID, false)
-			})
-		return () => {
-			mountedRef.current = false
-		}
-	}, [setBusy, setStatus, setConnectorDetails])
-
+	// Handle action button clicks — sets busy and fires the VS Code command
 	const handleAction = useCallback(
 		(connectorId: string, commandId: string) => {
 			setBusy(connectorId, true)
+			if (connectorId === GEE_ID) clearConnectorError(GEE_ID)
 			postInvokeCommand(commandId)
 		},
-		[setBusy],
+		[setBusy, clearConnectorError],
 	)
 
 	return (
@@ -176,6 +171,7 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 							busyIds={busyIds}
 							connectors={connectors}
 							details={details}
+							errors={errors}
 							onAction={handleAction}
 							statuses={statuses}
 						/>
@@ -185,6 +181,7 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 							busyIds={busyIds}
 							connectors={connectors}
 							details={details}
+							errors={errors}
 							onAction={handleAction}
 							statuses={statuses}
 						/>
@@ -196,18 +193,19 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 }
 
 // ---------------------------------------------------------------------------
-// Catalog tab
+// Tabs
 // ---------------------------------------------------------------------------
 
 type TabContentProps = {
 	connectors: ConnectorDefinition[]
 	statuses: StatusMap
 	details: DetailsMap
+	errors: ErrorMap
 	busyIds: Set<string>
 	onAction: (connectorId: string, commandId: string) => void
 }
 
-const CatalogTab = ({ connectors, statuses, details, busyIds, onAction }: TabContentProps) => (
+const CatalogTab = ({ connectors, statuses, details, errors, busyIds, onAction }: TabContentProps) => (
 	<div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
 		<p style={{ margin: 0, fontSize: "13px", color: "var(--vscode-descriptionForeground)" }}>
 			Connect AI-Hydro to external data sources and compute services. Credentials are stored securely in VS Code&apos;s
@@ -218,20 +216,17 @@ const CatalogTab = ({ connectors, statuses, details, busyIds, onAction }: TabCon
 				busy={busyIds.has(c.id)}
 				connector={c}
 				details={details[c.id] ?? {}}
+				error={errors[c.id]}
 				key={c.id}
 				onAction={onAction}
-				status={statuses[c.id] ?? (c.comingSoon ? "coming-soon" : "unknown")}
+				status={statuses[c.id] ?? (c.comingSoon ? "coming-soon" : "disconnected")}
 			/>
 		))}
 		<SubmitCard />
 	</div>
 )
 
-// ---------------------------------------------------------------------------
-// Configure tab — live connectors only
-// ---------------------------------------------------------------------------
-
-const ConfigureTab = ({ connectors, statuses, details, busyIds, onAction }: TabContentProps) => {
+const ConfigureTab = ({ connectors, statuses, details, errors, busyIds, onAction }: TabContentProps) => {
 	const live = connectors.filter((c) => !c.comingSoon)
 	const connected = live.filter((c) => statuses[c.id] === "connected")
 
@@ -247,9 +242,10 @@ const ConfigureTab = ({ connectors, statuses, details, busyIds, onAction }: TabC
 					busy={busyIds.has(c.id)}
 					connector={c}
 					details={details[c.id] ?? {}}
+					error={errors[c.id]}
 					key={c.id}
 					onAction={onAction}
-					status={statuses[c.id] ?? "unknown"}
+					status={statuses[c.id] ?? "disconnected"}
 				/>
 			))}
 		</div>
@@ -257,31 +253,27 @@ const ConfigureTab = ({ connectors, statuses, details, busyIds, onAction }: TabC
 }
 
 // ---------------------------------------------------------------------------
-// Connector card — smart contextual action
+// Status pill — no "Checking" state, only connected / disconnected / error
 // ---------------------------------------------------------------------------
 
-type ConnectorCardProps = {
-	connector: ConnectorDefinition
-	status: ConnectorStatus
-	details: Record<string, string>
-	busy: boolean
-	onAction: (connectorId: string, commandId: string) => void
-}
-
-// ---------------------------------------------------------------------------
-// Status pill — visible, solid color, never blends into the card background
-// ---------------------------------------------------------------------------
-
-const PILL_STYLES: Record<ConnectorStatus, { bg: string; color: string; border: string }> = {
-	connected: { bg: "#166534", color: "#4ade80", border: "#166534" },
+const PILL: Record<ConnectorStatus, { bg: string; color: string; border: string; dot?: string }> = {
+	connected: { bg: "rgba(34,197,94,0.12)", color: "#4ade80", border: "rgba(34,197,94,0.3)", dot: "#4ade80" },
 	disconnected: { bg: "transparent", color: "var(--vscode-descriptionForeground)", border: "var(--vscode-panel-border)" },
-	error: { bg: "#450a0a", color: "#f87171", border: "#450a0a" },
+	error: { bg: "rgba(239,68,68,0.12)", color: "#f87171", border: "rgba(239,68,68,0.3)" },
 	unknown: { bg: "transparent", color: "var(--vscode-descriptionForeground)", border: "var(--vscode-panel-border)" },
 	"coming-soon": { bg: "transparent", color: "var(--vscode-badge-foreground)", border: "var(--vscode-panel-border)" },
 }
 
-const StatusPill = ({ status, checking }: { status: ConnectorStatus; checking: boolean }) => {
-	const s = PILL_STYLES[status]
+const STATUS_LABEL: Record<ConnectorStatus, string> = {
+	connected: "Connected",
+	disconnected: "Disconnected",
+	error: "Error",
+	unknown: "Unknown",
+	"coming-soon": "Coming soon",
+}
+
+const StatusPill = ({ status, busy }: { status: ConnectorStatus; busy: boolean }) => {
+	const s = PILL[status]
 	return (
 		<span
 			style={{
@@ -297,43 +289,37 @@ const StatusPill = ({ status, checking }: { status: ConnectorStatus; checking: b
 				border: `1px solid ${s.border}`,
 				flexShrink: 0,
 			}}>
-			{checking ? (
+			{busy ? (
 				<span className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: "10px" }} />
-			) : status === "connected" ? (
-				<span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />
+			) : s.dot ? (
+				<span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
 			) : null}
-			{checking ? "Checking…" : STATUS_LABEL[status]}
+			{busy ? "Working…" : STATUS_LABEL[status]}
 		</span>
 	)
 }
 
-const STATUS_DOT: Record<ConnectorStatus, string> = {
-	connected: "#22c55e",
-	disconnected: "var(--vscode-descriptionForeground)",
-	error: "var(--vscode-testing-iconFailed)",
-	unknown: "var(--vscode-descriptionForeground)",
-	"coming-soon": "var(--vscode-badge-foreground)",
+// ---------------------------------------------------------------------------
+// Connector card
+// ---------------------------------------------------------------------------
+
+type ConnectorCardProps = {
+	connector: ConnectorDefinition
+	status: ConnectorStatus
+	details: Record<string, string>
+	error?: string
+	busy: boolean
+	onAction: (connectorId: string, commandId: string) => void
 }
 
-const STATUS_LABEL: Record<ConnectorStatus, string> = {
-	connected: "Connected",
-	disconnected: "Disconnected",
-	error: "Error",
-	unknown: "Checking…",
-	"coming-soon": "Coming soon",
-}
-
-const ConnectorCard = ({ connector, status, details, busy, onAction }: ConnectorCardProps) => {
+const ConnectorCard = ({ connector, status, details, error, busy, onAction }: ConnectorCardProps) => {
 	const effectiveStatus: ConnectorStatus = connector.comingSoon ? "coming-soon" : status
 	const isConnected = effectiveStatus === "connected"
-	const isChecking = effectiveStatus === "unknown" || (effectiveStatus !== "coming-soon" && busy)
 
-	// Find primary connect/disconnect actions from connector definition
 	const connectAction = connector.actions.find((a) => a.id === "connect")
 	const disconnectAction = connector.actions.find((a) => a.id === "disconnect")
 	const configureAction = connector.actions.find((a) => a.id === "configure")
 	const testAction = connector.actions.find((a) => a.id === "test")
-	const docsAction = connector.actions.find((a) => a.id === "docs")
 
 	return (
 		<div
@@ -345,7 +331,7 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 				opacity: connector.comingSoon ? 0.6 : 1,
 				transition: "border-color 0.2s",
 			}}>
-			{/* Header row */}
+			{/* Header */}
 			<div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
 				<span
 					className={`codicon codicon-${connector.icon}`}
@@ -354,8 +340,7 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 				<div style={{ flex: 1, minWidth: 0 }}>
 					<div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
 						<span style={{ fontWeight: 600, fontSize: "13px" }}>{connector.displayName}</span>
-						{/* Status pill */}
-						<StatusPill checking={isChecking} status={effectiveStatus} />
+						<StatusPill busy={busy} status={effectiveStatus} />
 					</div>
 
 					<p
@@ -387,7 +372,23 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 				</div>
 			</div>
 
-			{/* Connected details panel */}
+			{/* Error banner */}
+			{error && (
+				<div
+					style={{
+						marginTop: "10px",
+						padding: "8px 10px",
+						borderRadius: "5px",
+						background: "rgba(239,68,68,0.08)",
+						border: "1px solid rgba(239,68,68,0.25)",
+						fontSize: "12px",
+						color: "#f87171",
+					}}>
+					{error}
+				</div>
+			)}
+
+			{/* Connected details */}
 			{isConnected && Object.keys(details).length > 0 && (
 				<div
 					style={{
@@ -408,7 +409,7 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 								<span
 									style={{
 										fontFamily: "var(--vscode-editor-font-family, monospace)",
-										color: "#22c55e",
+										color: "#4ade80",
 										wordBreak: "break-all",
 									}}>
 									{v}
@@ -418,12 +419,11 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 				</div>
 			)}
 
-			{/* Action row — smart contextual */}
+			{/* Action row */}
 			{!connector.comingSoon && (
 				<div style={{ display: "flex", gap: "6px", marginTop: "12px", flexWrap: "wrap", alignItems: "center" }}>
 					{isConnected ? (
 						<>
-							{/* Test / verify link */}
 							{testAction?.commandId && (
 								<button
 									disabled={busy}
@@ -437,10 +437,9 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 										padding: "4px 2px",
 										opacity: busy ? 0.5 : 1,
 									}}>
-									{busy ? "Testing…" : "Verify connection"}
+									{busy ? "Verifying…" : "Verify connection"}
 								</button>
 							)}
-							{/* Configure project */}
 							{configureAction?.commandId && (
 								<VSCodeButton
 									appearance="secondary"
@@ -450,8 +449,7 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 									Change project
 								</VSCodeButton>
 							)}
-							{/* Docs */}
-							{docsAction && connector.docsUrl && (
+							{connector.docsUrl && (
 								<a
 									href={connector.docsUrl}
 									rel="noopener noreferrer"
@@ -466,7 +464,6 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 									Docs ↗
 								</a>
 							)}
-							{/* Disconnect — pushed right */}
 							{disconnectAction?.commandId && (
 								<button
 									disabled={busy}
@@ -480,7 +477,6 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 										fontSize: "12px",
 										padding: "4px 10px",
 										opacity: busy ? 0.5 : 1,
-										marginLeft: docsAction ? "0" : "auto",
 									}}>
 									Disconnect
 								</button>
@@ -488,27 +484,24 @@ const ConnectorCard = ({ connector, status, details, busy, onAction }: Connector
 						</>
 					) : (
 						<>
-							{/* Primary connect button */}
 							{connectAction?.commandId && (
 								<VSCodeButton
 									appearance="primary"
-									disabled={busy || isChecking}
+									disabled={busy}
 									onClick={() => onAction(connector.id, connectAction.commandId!)}
 									style={{ fontSize: "12px" }}>
 									{busy ? "Connecting…" : "Connect"}
 								</VSCodeButton>
 							)}
-							{/* Configure project while disconnected */}
 							{configureAction?.commandId && (
 								<VSCodeButton
 									appearance="secondary"
-									disabled={busy || isChecking}
+									disabled={busy}
 									onClick={() => onAction(connector.id, configureAction.commandId!)}
 									style={{ fontSize: "12px" }}>
 									Configure project
 								</VSCodeButton>
 							)}
-							{/* Docs */}
 							{connector.docsUrl && (
 								<a
 									href={connector.docsUrl}
@@ -562,12 +555,7 @@ const SubmitCard = () => (
 		<a
 			href="https://github.com/AI-Hydro/Connectors/issues/new?template=new_connector.md"
 			rel="noopener noreferrer"
-			style={{
-				fontSize: "12px",
-				color: "var(--vscode-textLink-foreground)",
-				marginTop: "4px",
-				display: "inline-block",
-			}}
+			style={{ fontSize: "12px", color: "var(--vscode-textLink-foreground)", marginTop: "4px", display: "inline-block" }}
 			target="_blank">
 			Submit on GitHub ↗
 		</a>
