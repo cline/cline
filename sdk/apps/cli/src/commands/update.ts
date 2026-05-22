@@ -155,7 +155,10 @@ export function withMinimumReleaseAgeBypass(
 				},
 			};
 		case PackageManager.YARN:
-			return { command: `${updateCommand} --no-time-gate` };
+			return {
+				command: updateCommand,
+				env: { YARN_NPM_MINIMAL_AGE_GATE: "0" },
+			};
 		case PackageManager.BUN:
 			return { command: `${updateCommand} --minimum-release-age=0` };
 		default:

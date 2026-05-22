@@ -89,13 +89,19 @@ describe("withMinimumReleaseAgeBypass", () => {
 				"yarn global add cline@latest",
 				PackageManager.YARN,
 			).command,
-		).toBe("yarn global add cline@latest --no-time-gate");
+		).toBe("yarn global add cline@latest");
+		expect(
+			withMinimumReleaseAgeBypass(
+				"yarn global add cline@latest",
+				PackageManager.YARN,
+			).env?.YARN_NPM_MINIMAL_AGE_GATE,
+		).toBe("0");
 
 		expect(
 			withMinimumReleaseAgeBypass(
 				"pnpm add -g cline@latest",
 				PackageManager.PNPM,
-			).env?.npm_config_minimum_release_age,
+			).env?.pnpm_config_minimum_release_age,
 		).toBe("0");
 	});
 });
