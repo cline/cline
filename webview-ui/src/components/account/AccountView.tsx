@@ -48,7 +48,7 @@ const AccountView = ({ onDone, aihydroUser, organizations, activeOrganization }:
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className="m-0" style={{ color: titleColor }}>
+				<h3 className="account-title m-0" style={{ color: titleColor }}>
 					Account {environment !== "production" ? ` - ${environment} environment` : ""}
 				</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>

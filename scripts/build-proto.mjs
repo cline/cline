@@ -12,7 +12,24 @@ import { main as generateHostBridgeClient } from "./generate-host-bridge-client.
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+// Prefer a system-installed `protoc` (typically the ARM64 build from Homebrew on
+// Apple Silicon) over the x86_64-only binary bundled with grpc-tools, which
+// requires Rosetta 2 to run on Apple Silicon. Override via PROTOC_PATH.
+function resolveProtoc() {
+	const envOverride = process.env.PROTOC_PATH
+	if (envOverride) return envOverride
+	const candidates = ["/opt/homebrew/bin/protoc", "/usr/local/bin/protoc"]
+	for (const c of candidates) {
+		try {
+			execSync(`"${c}" --version`, { stdio: "ignore" })
+			return c
+		} catch {
+			/* try next */
+		}
+	}
+	return path.join(require.resolve("grpc-tools"), "../bin/protoc")
+}
+const PROTOC = resolveProtoc()
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
@@ -155,33 +172,34 @@ async function cleanup() {
 	}
 }
 
-// Check for Apple Silicon compatibility
+// Check for Apple Silicon compatibility.
+//
+// We only require Rosetta when we are falling back to the x86_64 protoc
+// bundled with grpc-tools. If `resolveProtoc()` found a native ARM64 binary
+// (e.g. /opt/homebrew/bin/protoc), Rosetta is not needed and this check is
+// skipped.
 function checkAppleSiliconCompatibility() {
-	// Only run check on macOS
-	if (process.platform !== "darwin") {
-		return
-	}
+	if (process.platform !== "darwin") return
+	if (os.arch() !== "arm64") return
 
-	// Check if running on Apple Silicon
-	const cpuArchitecture = os.arch()
-	if (cpuArchitecture === "arm64") {
-		try {
-			// Check if Rosetta is installed
-			const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
+	// If we picked a non-grpc-tools protoc, it's a native binary — no Rosetta needed.
+	const grpcToolsProtoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+	if (PROTOC !== grpcToolsProtoc) return
 
-			if (rosettaCheck === "NOT_INSTALLED") {
-				console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
-				console.log(
-					chalk.red("Rosetta 2 is NOT installed. The npm version of protoc is not compatible with Apple Silicon."),
-				)
-				console.log(chalk.cyan("Please install Rosetta 2 using the following command:"))
-				console.log(chalk.cyan("  softwareupdate --install-rosetta --agree-to-license"))
-				console.log(chalk.red("Aborting build process."))
-				process.exit(1)
-			}
-		} catch (_error) {
-			console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
+	try {
+		const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()
+		if (rosettaCheck === "NOT_INSTALLED") {
+			console.log(chalk.yellow("Detected Apple Silicon (ARM64) architecture."))
+			console.log(
+				chalk.red("Rosetta 2 is NOT installed and no native protoc was found. The npm version of protoc is x86_64."),
+			)
+			console.log(chalk.cyan("Either install a native protoc (e.g. `brew install protobuf`)"))
+			console.log(chalk.cyan("or install Rosetta 2: `softwareupdate --install-rosetta --agree-to-license`"))
+			console.log(chalk.red("Aborting build process."))
+			process.exit(1)
 		}
+	} catch (_error) {
+		console.log(chalk.yellow("Could not determine Rosetta installation status. Proceeding anyway."))
 	}
 }
 

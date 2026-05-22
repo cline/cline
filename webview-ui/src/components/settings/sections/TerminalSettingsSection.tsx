@@ -91,8 +91,12 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 			{renderSectionHeader("terminal")}
 			<Section>
 				<div className="mb-5" id="terminal-settings-section">
-					<div className="mb-4">
-						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
+					<div className="settings-card mb-3">
+						<div className="settings-section-header">
+							<span className="codicon codicon-terminal" />
+							Terminal Profile
+						</div>
+						<label className="settings-label" htmlFor="default-terminal-profile">
 							Default Terminal Profile
 						</label>
 						<VSCodeDropdown
@@ -106,14 +110,18 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								</VSCodeOption>
 							))}
 						</VSCodeDropdown>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
+						<p className="toggle-description">
 							Select the default terminal AI-Hydro will use. 'Default' uses your VSCode global setting.
 						</p>
 					</div>
 
-					<div className="mb-4">
+					<div className="settings-card mb-3">
+						<div className="settings-section-header">
+							<span className="codicon codicon-watch" />
+							Integration Settings
+						</div>
 						<div className="mb-2">
-							<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
+							<label className="settings-label">Shell integration timeout (seconds)</label>
 							<div className="flex items-center">
 								<VSCodeTextField
 									className="w-full"
@@ -125,13 +133,17 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							</div>
 							{inputError && <div className="text-[var(--vscode-errorForeground)] text-xs mt-1">{inputError}</div>}
 						</div>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="toggle-description">
 							Set how long AI-Hydro waits for shell integration to activate before executing commands. Increase this
 							value if you experience terminal connection timeouts.
 						</p>
 					</div>
 
-					<div className="mb-4">
+					<div className="settings-card mb-3">
+						<div className="settings-section-header">
+							<span className="codicon codicon-sync" />
+							Reuse & Execution
+						</div>
 						<div className="flex items-center mb-2">
 							<VSCodeCheckbox
 								checked={terminalReuseEnabled ?? true}
@@ -139,7 +151,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								Enable aggressive terminal reuse
 							</VSCodeCheckbox>
 						</div>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="toggle-description">
 							When enabled, AI-Hydro will reuse existing terminal windows that aren't in the current working
 							directory. Disable this if you experience issues with task lockout after a terminal command.
 						</p>

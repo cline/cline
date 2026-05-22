@@ -189,13 +189,14 @@ const remarkPreventBoldFilenames = () => {
 const StyledMarkdown = styled.div<{ compact?: boolean }>`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
-		border-radius: 3px;
+		border-radius: 6px;
 		margin: 13px 0;
-		padding: 10px 10px;
+		padding: 12px 14px;
 		max-width: calc(100vw - 20px);
 		overflow-x: auto;
 		overflow-y: hidden;
 		padding-right: 70px;
+		border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 30%, transparent);
 	}
 
 	pre > code {
@@ -226,12 +227,13 @@ const StyledMarkdown = styled.div<{ compact?: boolean }>`
 		font-family: var(--vscode-editor-font-family, monospace);
 		color: var(--vscode-textPreformat-foreground, #f78383);
 		background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
-		padding: 0px 2px;
-		border-radius: 3px;
-		border: 1px solid var(--vscode-textSeparator-foreground, #424242);
+		padding: 1px 5px;
+		border-radius: 4px;
+		border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 40%, transparent);
 		white-space: pre-line;
 		word-break: break-word;
 		overflow-wrap: anywhere;
+		font-size: calc(var(--vscode-editor-font-size, var(--vscode-font-size, 12px)) - 1px);
 	}
 
 	font-family:

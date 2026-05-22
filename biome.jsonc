@@ -144,7 +144,14 @@
 				"!src/integrations/terminal/**",
 				"!src/core/controller/ui/openWalkthrough.ts",
 				"!src/core/workspace/**",
-				"!src/core/controller/index.ts"
+				"!src/core/controller/index.ts",
+				"!src/core/controller/htmlPreview/**",
+				"!src/services/artifact-preview/**",
+				"!src/services/gee/geeUiHelpers.ts",
+				"!src/core/controller/ui/geeConnect.ts",
+				"!src/core/controller/ui/geeDisconnect.ts",
+				"!src/core/controller/ui/geeChooseProject.ts",
+				"!src/core/controller/ui/getGeeStatus.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"

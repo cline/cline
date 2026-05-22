@@ -54,7 +54,23 @@ mkdocs.yml
 docs/
 
 # AI-Hydro specific — exclude large directories not needed in .vsix
-python/
+python/*
+!python/aihydro_gee
+!python/aihydro_gee/
+python/aihydro_gee/__pycache__/**
+python/cache/**
+python/tests/**
+python/ai_hydro/**
+python/ai_hydro.egg-info/**
+python/__pycache__/**
+python/.pytest_cache/**
+python/*.py
+python/*.md
+python/*.toml
+python/*.txt
+python/.DS_Store
+!python/aihydro_gee/*.py
+python/aihydro_gee/__pycache__/*
 cache/
 output/
 knowledge/

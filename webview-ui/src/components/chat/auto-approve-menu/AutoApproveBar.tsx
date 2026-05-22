@@ -58,14 +58,13 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		return [
 			...favorites.map((favId) => renderFavoritedItem(favId)),
 			minusFavorites.length > 0 ? (
-				<span className="text-[color:var(--vscode-foreground-muted)] pl-[10px] opacity-60" key="separator">
-					✓
+				<span className="chip chip-emerald" key="separator">
+					<span className="codicon codicon-check" style={{ fontSize: "9px" }} />
 				</span>
 			) : null,
-			...minusFavorites.map((action, index) => (
-				<span className="text-[color:var(--vscode-foreground-muted)] opacity-60" key={action?.id}>
+			...minusFavorites.map((action) => (
+				<span className="chip" key={action?.id}>
 					{action?.shortName}
-					{index < minusFavorites.length - 1 && ","}
 				</span>
 			)),
 		]
@@ -86,21 +85,29 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 					setIsModalVisible((prev) => !prev)
 				}}
 				ref={buttonRef}>
+				{" "}
 				<div
-					className="flex flex-nowrap items-center overflow-x-auto gap-[4px] whitespace-nowrap"
+					className="flex flex-nowrap items-center overflow-x-auto gap-2 whitespace-nowrap"
 					style={{
 						msOverflowStyle: "none",
 						scrollbarWidth: "none",
 						WebkitOverflowScrolling: "touch",
 					}}>
-					<span>Auto-approve:</span>
-					{getQuickAccessItems()}
+					<span className="chip text-[10px] font-medium uppercase tracking-wider">Auto-approve</span>
+					<div className="flex flex-nowrap items-center gap-1.5">{getQuickAccessItems()}</div>
 				</div>
-				{isModalVisible ? (
-					<span className="codicon codicon-chevron-down" />
-				) : (
-					<span className="codicon codicon-chevron-up" />
-				)}
+				<button
+					className="modern-badge h-[22px] px-1.5 smooth-transition hover:opacity-80 cursor-pointer border-0"
+					onClick={(e) => {
+						e.stopPropagation()
+						setIsModalVisible((prev) => !prev)
+					}}>
+					{isModalVisible ? (
+						<span className="codicon codicon-chevron-down" style={{ fontSize: "11px" }} />
+					) : (
+						<span className="codicon codicon-chevron-up" style={{ fontSize: "11px" }} />
+					)}
+				</button>
 			</div>
 
 			<AutoApproveModal

@@ -1,7 +1,11 @@
 export interface WebviewMessage {
-	type: "grpc_request" | "grpc_request_cancel"
+	type: "grpc_request" | "grpc_request_cancel" | "invokeCommand" | "aihydro-hydro-command" | "aihydro-map-agent-task"
 	grpc_request?: GrpcRequest
 	grpc_request_cancel?: GrpcCancel
+	command?: string
+	requestId?: string
+	payload?: Record<string, unknown>
+	prompt?: string
 }
 
 export type GrpcRequest = {

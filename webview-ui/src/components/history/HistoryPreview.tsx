@@ -39,66 +39,16 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	}
 
 	return (
-		<div style={{ flexShrink: 0 }}>
-			<style>
-				{`
-					.history-preview-item {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
-						border-radius: 4px;
-						position: relative;
-						overflow: hidden;
-						opacity: 0.8;
-						cursor: pointer;
-						margin-bottom: 12px;
-					}
-					.history-preview-item:hover {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
-						opacity: 1;
-						pointer-events: auto;
-					}
-					.history-header {
-						cursor: pointer;
-						user-select: none;
-					}
-					.history-header:hover {
-						opacity: 0.8;
-					}
-				`}
-			</style>
-
-			<div
-				className="history-header"
-				onClick={toggleExpanded}
-				style={{
-					color: "var(--vscode-descriptionForeground)",
-					margin: "10px 20px 10px 20px",
-					display: "flex",
-					alignItems: "center",
-				}}>
-				<span
-					className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
-					style={{
-						marginRight: "4px",
-						transform: "scale(0.9)",
-					}}></span>
-				<span
-					className="codicon codicon-comment-discussion"
-					style={{
-						marginRight: "4px",
-						transform: "scale(0.9)",
-					}}></span>
-				<span
-					style={{
-						fontWeight: 500,
-						fontSize: "0.85em",
-						textTransform: "uppercase",
-					}}>
-					Recent Tasks
-				</span>
+		<div className="shrink-0">
+			<div className="cursor-pointer select-none history-preview-toggle" onClick={toggleExpanded}>
+				{" "}
+				<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} mr-1 scale-90 inline-block`} />
+				<span className="codicon codicon-comment-discussion mr-1 scale-90 inline-block" />
+				<span className="font-medium text-[0.85em] uppercase">Recent Tasks</span>
 			</div>
 
 			{isExpanded && (
-				<div style={{ padding: "0px 20px 0 20px" }}>
+				<div className="px-5">
 					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
 						<>
 							{taskHistory
@@ -106,109 +56,60 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								.slice(0, 3)
 								.map((item) => (
 									<div
-										className="history-preview-item"
+										className="modern-card cursor-pointer relative overflow-hidden mb-2.5"
 										key={item.id}
 										onClick={() => handleHistorySelect(item.id)}>
-										<div style={{ padding: "12px" }}>
-											<div style={{ marginBottom: "8px" }}>
-												<span
-													style={{
-														color: "var(--vscode-descriptionForeground)",
-														fontWeight: 500,
-														fontSize: "0.85em",
-														textTransform: "uppercase",
-													}}>
-													{formatDate(item.ts)}
-												</span>
-											</div>
-											{item.isFavorited && (
-												<div
-													style={{
-														position: "absolute",
-														top: "12px",
-														right: "12px",
-														color: "var(--vscode-button-background)",
-													}}>
-													<span aria-label="Favorited" className="codicon codicon-star-full" />
-												</div>
-											)}
-
-											<div
-												className="history-preview-task"
-												id={`history-preview-task-${item.id}`}
-												style={{
-													fontSize: "var(--vscode-font-size)",
-													color: "var(--vscode-descriptionForeground)",
-													marginBottom: "8px",
-													display: "-webkit-box",
-													WebkitLineClamp: 3,
-													WebkitBoxOrient: "vertical",
-													overflow: "hidden",
-													whiteSpace: "pre-wrap",
-													wordBreak: "break-word",
-													overflowWrap: "anywhere",
-												}}>
+										<div className="p-3">
+											<div className="flex items-center gap-2 mb-2">
+												<span className="timestamp-text">{formatDate(item.ts)}</span>
+												{item.isFavorited && (
+													<span className="chip chip-ocean ml-auto">
+														<span className="codicon codicon-star-full text-[10px]" />
+														Favorited
+													</span>
+												)}
+											</div>{" "}
+											<div className="history-preview-task-text" id={`history-preview-task-${item.id}`}>
 												<span className="ph-no-capture">{item.task}</span>
 											</div>
-											<div
-												style={{
-													fontSize: "0.85em",
-													color: "var(--vscode-descriptionForeground)",
-												}}>
-												<span>
-													Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
+											<div className="flex flex-wrap items-center gap-2">
+												<span className="modern-badge">
+													<span className="codicon codicon-arrow-up text-[10px]" />
+													{formatLargeNumber(item.tokensIn || 0)}
+												</span>
+												<span className="modern-badge">
+													<span className="codicon codicon-arrow-down text-[10px]" />
 													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 												{!!item.cacheWrites && (
-													<>
-														{" • "}
-														<span>
-															Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
-															{formatLargeNumber(item.cacheReads || 0)}
-														</span>
-													</>
+													<span className="modern-badge">
+														<span className="codicon codicon-database text-[10px]" />+
+														{formatLargeNumber(item.cacheWrites || 0)}
+													</span>
 												)}
 												{!!item.totalCost && (
-													<>
-														{" • "}
-														<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
-													</>
+													<span className="chip chip-teal">
+														<span className="codicon codicon-credit-card text-[10px]" />$
+														{item.totalCost?.toFixed(4)}
+													</span>
 												)}
 											</div>
 										</div>
 									</div>
 								))}
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-								}}>
+							<div className="flex items-center justify-center mt-2">
 								<VSCodeButton
 									appearance="icon"
 									aria-label="View all history"
-									onClick={() => showHistoryView()}
-									style={{
-										opacity: 0.9,
-									}}>
-									<div
-										style={{
-											fontSize: "var(--vscode-font-size)",
-											color: "var(--vscode-descriptionForeground)",
-										}}>
-										View all history
-									</div>
+									className="opacity-90 hover:opacity-100 transition-opacity"
+									onClick={() => showHistoryView()}>
+									<div className="history-preview-view-all">View all history</div>
 								</VSCodeButton>
 							</div>
 						</>
 					) : (
-						<div
-							style={{
-								textAlign: "center",
-								color: "var(--vscode-descriptionForeground)",
-								fontSize: "var(--vscode-font-size)",
-								padding: "10px 0",
-							}}>
+						<div className="modern-card history-preview-empty">
+							<span className="codicon codicon-history mr-1.5" />
 							No recent tasks
 						</div>
 					)}

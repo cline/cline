@@ -20,6 +20,7 @@ import {
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { AiHydroIgnoreController } from "@core/ignore/AiHydroIgnoreController"
+import { buildMapContextForTask } from "@core/map/MapContextForTask"
 import { parseMentions } from "@core/mentions"
 import { summarizeTask } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
@@ -464,6 +465,7 @@ export class Task {
 			this.aihydroIgnoreController,
 			this.contextManager,
 			this.stateManager,
+			this.controller,
 			cwd,
 			this.taskId,
 			this.ulid,
@@ -3147,6 +3149,11 @@ export class Task {
 			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
 		} else {
 			details += "\nACT MODE"
+		}
+
+		const mapContext = buildMapContextForTask(this.controller)
+		if (mapContext) {
+			details += mapContext
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`

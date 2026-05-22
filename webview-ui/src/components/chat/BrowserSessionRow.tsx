@@ -3,7 +3,7 @@ import { AiHydroMessage, AiHydroSayBrowserAction, BrowserAction, BrowserActionRe
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
@@ -23,92 +23,10 @@ interface BrowserSessionRowProps {
 	onSetQuote: (text: string) => void
 }
 
-const browserSessionRowContainerInnerStyle: CSSProperties = {
-	display: "flex",
-	alignItems: "center",
-	gap: "10px",
-	marginBottom: "10px",
-}
-const browserIconStyle: CSSProperties = {
-	color: "var(--vscode-foreground)",
-	marginBottom: "-1.5px",
-}
-const approveTextStyle: CSSProperties = { fontWeight: "bold" }
-const urlBarContainerStyle: CSSProperties = {
-	margin: "5px auto",
-	width: "calc(100% - 10px)",
-	display: "flex",
-	alignItems: "center",
-	gap: "4px",
-}
-const urlTextStyle: CSSProperties = {
-	textOverflow: "ellipsis",
-	overflow: "hidden",
-	whiteSpace: "nowrap",
-	width: "100%",
-	textAlign: "center",
-}
-const imgScreenshotStyle: CSSProperties = {
-	position: "absolute",
-	top: 0,
-	left: 0,
-	width: "100%",
-	height: "100%",
-	objectFit: "contain",
-	cursor: "pointer",
-}
-const noScreenshotContainerStyle: CSSProperties = {
-	position: "absolute",
-	top: "50%",
-	left: "50%",
-	transform: "translate(-50%, -50%)",
-}
-const noScreenshotIconStyle: CSSProperties = {
-	fontSize: "80px",
-	color: "var(--vscode-descriptionForeground)",
-}
-const consoleLogsContainerStyle: CSSProperties = { width: "100%" }
-const consoleLogsTextStyle: CSSProperties = { fontSize: "0.8em" }
-const paginationContainerStyle: CSSProperties = {
-	display: "flex",
-	justifyContent: "space-between",
-	alignItems: "center",
-	padding: "8px 0px",
-	marginTop: "15px",
-	borderTop: "1px solid var(--vscode-editorGroup-border)",
-}
-const paginationButtonGroupStyle: CSSProperties = { display: "flex", gap: "4px" }
-const browserSessionStartedTextStyle: CSSProperties = { fontWeight: "bold" }
-const codeBlockContainerStyle: CSSProperties = {
-	borderRadius: 3,
-	border: "1px solid var(--vscode-editorGroup-border)",
-	overflow: "hidden",
-	backgroundColor: CODE_BLOCK_BG_COLOR,
-}
-const browserActionBoxContainerStyle: CSSProperties = { padding: "10px 0 0 0" }
-const browserActionBoxContainerInnerStyle: CSSProperties = {
-	borderRadius: 3,
-	backgroundColor: CODE_BLOCK_BG_COLOR,
-	overflow: "hidden",
-	border: "1px solid var(--vscode-editorGroup-border)",
-}
-const browseActionRowContainerStyle: CSSProperties = {
-	display: "flex",
-	alignItems: "center",
-	padding: "9px 10px",
-}
-const browseActionRowStyle: CSSProperties = {
-	whiteSpace: "normal",
-	wordBreak: "break-word",
-}
-const browseActionTextStyle: CSSProperties = { fontWeight: 500 }
-const chatRowContentContainerStyle: CSSProperties = { padding: "10px 0 10px 0" }
-const headerStyle: CSSProperties = {
-	display: "flex",
-	alignItems: "center",
-	gap: "10px",
-	marginBottom: "10px",
-}
+// CSS classes moved to index.css: .browser-row-inner, .browser-row-icon, .browser-row-approve-text,
+// .browser-url-text, .browser-screenshot-img, .browser-no-screenshot-container, .browser-no-screenshot-icon,
+// .browser-pagination-group, .browser-started-text, .browser-code-block-container, .browser-action-box,
+// .browser-action-box-inner, .browser-action-row, .browser-action-text, .browser-action-label, .browser-chat-row-content, .browser-header
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
@@ -358,13 +276,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		// We don't declare a constant for the inline style here because `useSize` will try to modify the style object
 		// Which will cause `Uncaught TypeError: Cannot assign to read only property 'position' of object '#<Object>'`
 		<BrowserSessionRowContainer style={{ marginBottom: -10 }}>
-			<div style={browserSessionRowContainerInnerStyle}>
+			<div className="browser-row-inner">
 				{isBrowsing && !isLastMessageResume ? (
 					<ProgressIndicator />
 				) : (
-					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
-				)}
-				<span style={approveTextStyle}>
+					<span className="codicon codicon-inspect browser-row-icon"></span>
+				)}{" "}
+				<span className="browser-row-approve-text">
 					{isAutoApproved ? "AI-Hydro is using the browser:" : "AI-Hydro wants to use the browser:"}
 				</span>
 			</div>
@@ -379,45 +297,39 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					margin: "0 auto 10px auto", // Center the container
 				}}>
 				{/* URL Bar */}
-				<div style={urlBarContainerStyle}>
+				<div className="browser-url-bar my-1 mx-auto w-[calc(100%-10px)]">
 					<div
+						className="flex-1 min-w-0 text-xs"
 						style={{
-							flex: 1,
-							backgroundColor: "var(--vscode-input-background)",
-							border: "1px solid var(--vscode-input-border)",
-							borderRadius: "4px",
-							padding: "3px 5px",
-							minWidth: 0,
 							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
-							fontSize: "12px",
 						}}>
-						<div style={urlTextStyle}>{displayState.url || "http"}</div>
+						<div className="browser-url-text">{displayState.url || "http"}</div>
 					</div>
 					<BrowserSettingsMenu />
 				</div>
 
 				{/* Screenshot Area */}
 				<div
+					className="browser-screenshot-container"
 					style={{
 						width: "100%",
 						paddingBottom: `${(browserSettings.viewport.height / browserSettings.viewport.width) * 100}%`,
 						position: "relative",
-						backgroundColor: "var(--vscode-input-background)",
 					}}>
 					{displayState.screenshot ? (
 						<img
 							alt="Browser screenshot"
+							className="browser-screenshot-img"
 							onClick={() =>
 								FileServiceClient.openImage(StringRequest.create({ value: displayState.screenshot })).catch(
 									(err) => console.error("Failed to open image:", err),
 								)
 							}
 							src={displayState.screenshot}
-							style={imgScreenshotStyle}
 						/>
 					) : (
-						<div style={noScreenshotContainerStyle}>
-							<span className="codicon codicon-globe" style={noScreenshotIconStyle} />
+						<div className="browser-no-screenshot-container">
+							<span className="codicon codicon-globe browser-no-screenshot-icon" />
 						</div>
 					)}
 					{displayState.mousePosition && (
@@ -432,25 +344,19 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					)}
 				</div>
 
-				<div style={consoleLogsContainerStyle}>
+				<div className="modern-card mt-1 rounded-md overflow-hidden">
 					<div
+						className="flex items-center gap-1 cursor-pointer px-2 py-1.5 hover:bg-[var(--vscode-list-hoverBackground)] transition-colors"
 						onClick={() => {
 							setConsoleLogsExpanded(!consoleLogsExpanded)
-						}}
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "4px",
-							// width: "100%",
-							justifyContent: "flex-start",
-							cursor: "pointer",
-							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
 						}}>
-						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
-						<span style={consoleLogsTextStyle}>Console Logs</span>
+						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"} text-xs`}></span>
+						<span className="text-xs font-medium text-[var(--vscode-descriptionForeground)]">Console Logs</span>
 					</div>
 					{consoleLogsExpanded && (
-						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+						<div className="border-t border-[var(--vscode-panel-border)]">
+							<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+						</div>
 					)}
 				</div>
 			</div>
@@ -460,17 +366,19 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 			{/* Pagination moved to bottom */}
 			{pages.length > 1 && (
-				<div style={paginationContainerStyle}>
-					<div>
+				<div className="browser-pagination">
+					<div className="text-xs font-medium text-[var(--vscode-descriptionForeground)]">
 						Step {currentPageIndex + 1} of {pages.length}
 					</div>
-					<div style={paginationButtonGroupStyle}>
+					<div className="browser-pagination-group">
 						<VSCodeButton
+							appearance="secondary"
 							disabled={currentPageIndex === 0 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i - 1)}>
 							Previous
 						</VSCodeButton>
 						<VSCodeButton
+							appearance="secondary"
 							disabled={currentPageIndex === pages.length - 1 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i + 1)}>
 							Next
@@ -523,10 +431,11 @@ const BrowserSessionRowContent = memo(
 		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 			return (
 				<>
-					<div style={headerStyle}>
-						<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
+					{" "}
+					<div className="browser-header">
+						<span className="browser-started-text">Browser Session Started</span>
 					</div>
-					<div style={codeBlockContainerStyle}>
+					<div className="browser-code-block-container">
 						<CodeBlock forceWrap={true} source={`${"```"}shell\n${message.text}\n${"```"}`} />
 					</div>
 				</>
@@ -540,7 +449,7 @@ const BrowserSessionRowContent = memo(
 					case "text":
 					case "reasoning":
 						return (
-							<div style={chatRowContentContainerStyle}>
+							<div className="browser-chat-row-content">
 								<ChatRowContent
 									isExpanded={expandedRows[message.ts] ?? false}
 									isLast={isLast}
@@ -596,11 +505,11 @@ const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction;
 		}
 	}
 	return (
-		<div style={browserActionBoxContainerStyle}>
-			<div style={browserActionBoxContainerInnerStyle}>
-				<div style={browseActionRowContainerStyle}>
-					<span style={browseActionRowStyle}>
-						<span style={browseActionTextStyle}>Browse Action: </span>
+		<div className="browser-action-box">
+			<div className="browser-action-box-inner">
+				<div className="browser-action-row">
+					<span className="browser-action-text">
+						<span className="browser-action-label">Browse Action: </span>
 						{getBrowserActionText(action, coordinate, text)}
 					</span>
 				</div>

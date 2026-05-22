@@ -36,19 +36,9 @@ export class ChatErrorBoundary extends React.Component<ChatErrorBoundaryProps, C
 
 		if (this.state.hasError) {
 			return (
-				<div
-					style={{
-						padding: "10px",
-						color: "var(--vscode-errorForeground)",
-						height: height || "auto",
-						maxWidth: "512px",
-						overflow: "auto",
-						border: "1px solid var(--vscode-editorError-foreground)",
-						borderRadius: "4px",
-						backgroundColor: "var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1))",
-					}}>
-					<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || "Something went wrong displaying this content"}</h3>
-					<p style={{ margin: "0" }}>{errorBody || `Error: ${this.state.error?.message || "Unknown error"}`}</p>
+				<div className="chat-error-boundary" style={{ height: height || "auto" }}>
+					<h3 className="mb-2 m-0">{errorTitle || "Something went wrong displaying this content"}</h3>
+					<p className="m-0">{errorBody || `Error: ${this.state.error?.message || "Unknown error"}`}</p>
 				</div>
 			)
 		}

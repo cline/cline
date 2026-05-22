@@ -21,6 +21,7 @@ export enum AiHydroDefaultTool {
 	SUMMARIZE_TASK = "summarize_task",
 	REPORT_BUG = "report_bug",
 	NEW_RULE = "new_rule",
+	PREVIEW_HTML = "preview_html",
 }
 
 // Array of all tool names for compatibility

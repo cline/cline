@@ -14,13 +14,31 @@ const STORAGE_KEY = "aihydro.map.workspace.v1"
 /** @deprecated Kept for old localStorage payloads only — the ribbon is fixed-position. */
 export type DockSide = "left" | "right" | "floating" | "collapsed"
 
+/** Session ROI until MCP pushes authoritative ROIContract geometry. */
+export interface ActiveRoi {
+	id?: string
+	name?: string
+	source?: string
+	/** Hectares when known */
+	areaHa?: number
+}
+
 export interface MapWorkspace {
 	version: 1
 	basemap?: string
 	viewState?: MapViewState
 	visibleLayerIds?: string[]
+	layerOpacities?: Record<string, number>
+	clusterLayerIds?: string[]
+	activeRoi?: ActiveRoi
 	layerPanel?: {
 		showDetails: boolean
+	}
+	/** User-facing display names keyed by layer id (does not change server layer name). */
+	layerAliases?: Record<string, string>
+	ribbonPanel?: {
+		width?: number
+		height?: number
 	}
 }
 

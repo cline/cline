@@ -1,5 +1,6 @@
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { AiHydroCheckpointRestore } from "@shared/WebviewMessage"
+import { User } from "lucide-react"
 import React, { forwardRef, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
@@ -87,43 +88,20 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
-			onClick={handleClick}
-			style={{
-				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
-				color: "var(--vscode-badge-foreground)",
-				borderRadius: "3px",
-				padding: "9px",
-				whiteSpace: "pre-line",
-				wordWrap: "break-word",
-			}}>
+			className={`user-message ${isEditing ? "user-message--editing" : "message-bubble-user animate-message-in-right user-message--display"}`}
+			onClick={handleClick}>
 			{isEditing ? (
 				<>
 					<DynamicTextArea
 						autoFocus
+						className="user-message-textarea"
 						onBlur={(e) => handleBlur(e)}
 						onChange={(e) => setEditedText(e.target.value)}
 						onKeyDown={handleKeyDown}
 						ref={textAreaRef}
-						style={{
-							width: "100%",
-							backgroundColor: "var(--vscode-input-background)",
-							color: "var(--vscode-input-foreground)",
-							borderColor: "var(--vscode-input-border)",
-							border: "1px solid",
-							borderRadius: "2px",
-							padding: "6px",
-							fontFamily: "inherit",
-							fontSize: "inherit",
-							lineHeight: "inherit",
-							boxSizing: "border-box",
-							resize: "none",
-							overflowX: "hidden",
-							overflowY: "scroll",
-							scrollbarWidth: "none",
-						}}
 						value={editedText}
 					/>
-					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
+					<div className="user-message-btn-row">
 						{!checkpointManagerErrorMessage && (
 							<RestoreButton
 								isPrimary={false}
@@ -145,12 +123,20 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</>
 			) : (
-				<span className="ph-no-capture" style={{ display: "block" }}>
-					{highlightText(editedText || text)}
-				</span>
+				<div className="flex items-start gap-2">
+					<div
+						className="user-message-avatar"
+						style={{
+							background: `linear-gradient(135deg, var(--ai-hydro-ocean-blue) 0%, var(--ai-hydro-teal) 100%)`,
+							boxShadow: `0 0 8px color-mix(in srgb, var(--ai-hydro-ocean-blue) 30%, transparent)`,
+						}}>
+						<User className="text-white" size={14} />
+					</div>
+					<span className="ph-no-capture flex-1 min-w-0 user-message-text">{highlightText(editedText || text)}</span>
+				</div>
 			)}
 			{((images && images.length > 0) || (files && files.length > 0)) && (
-				<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "8px" }} />
+				<Thumbnails className="mt-2" files={files ?? []} images={images ?? []} />
 			)}
 		</div>
 	)
@@ -173,21 +159,9 @@ const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type,
 
 	return (
 		<button
+			className={`restore-btn ${isPrimary ? "restore-btn--primary" : "restore-btn--secondary"}`}
 			onClick={handleClick}
 			ref={ref}
-			style={{
-				backgroundColor: isPrimary
-					? "var(--vscode-button-background)"
-					: "var(--vscode-button-secondaryBackground, var(--vscode-descriptionForeground))",
-				color: isPrimary
-					? "var(--vscode-button-foreground)"
-					: "var(--vscode-button-secondaryForeground, var(--vscode-foreground))",
-				border: "none",
-				padding: "4px 8px",
-				borderRadius: "2px",
-				fontSize: "9px",
-				cursor: "pointer",
-			}}
 			title={title}>
 			{label}
 		</button>

@@ -92,22 +92,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.Git:
 				if (option.value) {
 					return (
-						<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-							<span className="ph-no-capture" style={{ lineHeight: "1.2" }}>
-								{option.label}
-							</span>
-							<span
-								className="ph-no-capture"
-								style={{
-									fontSize: "0.85em",
-									opacity: 0.7,
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									lineHeight: "1.2",
-								}}>
-								{option.description}
-							</span>
+						<div className="flex flex-col">
+							<span className="ph-no-capture leading-snug">{option.label}</span>
+							<span className="ph-no-capture context-menu-git-desc">{option.description}</span>
 						</div>
 					)
 				} else {
@@ -125,13 +112,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							{!displayText.includes(":") && <span>/</span>}
 							{displayText.startsWith("/.") && <span>.</span>}
 							<span
-								className="ph-no-capture"
+								className="ph-no-capture context-menu-file-name"
 								style={{
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
 									direction: displayText.includes(":") ? "ltr" : "rtl",
-									textAlign: "left",
 								}}>
 								{displayText.includes(":") ? displayText : cleanPathPrefix(displayText) + "\u200E"}
 							</span>
@@ -169,39 +152,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}
 
 	return (
-		<div
-			onMouseDown={onMouseDown}
-			style={{
-				position: "absolute",
-				bottom: "calc(100% - 10px)",
-				left: 15,
-				right: 15,
-				overflowX: "hidden",
-			}}>
-			<div
-				ref={menuRef}
-				style={{
-					backgroundColor: "var(--vscode-dropdown-background)",
-					border: "1px solid var(--vscode-editorGroup-border)",
-					borderRadius: "3px",
-					boxShadow: "0 4px 10px rgba(0, 0, 0, 0.25)",
-					zIndex: 1000,
-					display: "flex",
-					flexDirection: "column",
-					maxHeight: "200px",
-					overflowY: "auto",
-				}}>
+		<div className="context-menu-outer" onMouseDown={onMouseDown}>
+			<div className="context-menu-inner" ref={menuRef}>
 				{/* Can't use virtuoso since it requires fixed height and menu height is dynamic based on # of items */}
 				{showDelayedLoading && searchQuery && (
-					<div
-						style={{
-							padding: "8px 12px",
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-							opacity: 0.7,
-						}}>
-						<i className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: "14px" }} />
+					<div className="context-menu-loading">
+						<i className="codicon codicon-loading codicon-modifier-spin text-sm" />
 						<span>Searching...</span>
 					</div>
 				)}
@@ -212,6 +168,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 					return (
 						<div
+							className={`context-menu-item ${index === selectedIndex && isOptionSelectable(option) ? "context-menu-item--selected" : ""}`}
 							key={generatedKey}
 							onClick={() => {
 								if (isOptionSelectable(option)) {
@@ -222,67 +179,22 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							}}
 							onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}
 							style={{
-								padding: "8px 12px",
 								cursor: isOptionSelectable(option) ? "pointer" : "default",
-								color:
-									index === selectedIndex && isOptionSelectable(option)
-										? "var(--vscode-quickInputList-focusForeground)"
-										: "",
-								borderBottom: "1px solid var(--vscode-editorGroup-border)",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "space-between",
-								backgroundColor:
-									index === selectedIndex && isOptionSelectable(option)
-										? "var(--vscode-quickInputList-focusBackground)"
-										: "",
 							}}>
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									flex: 1,
-									minWidth: 0,
-									overflow: "hidden",
-								}}>
-								<i
-									className={`codicon codicon-${getIconForOption(option)}`}
-									style={{
-										marginRight: "8px",
-										flexShrink: 0,
-										fontSize: "14px",
-									}}
-								/>
+							<div className="context-menu-item-content">
+								<i className={`codicon codicon-${getIconForOption(option)} context-menu-icon`} />
 								{renderOptionContent(option)}
 							</div>
 							{(option.type === ContextMenuOptionType.File ||
 								option.type === ContextMenuOptionType.Folder ||
 								option.type === ContextMenuOptionType.Git) &&
-								!option.value && (
-									<i
-										className="codicon codicon-chevron-right"
-										style={{
-											fontSize: "14px",
-											flexShrink: 0,
-											marginLeft: 8,
-										}}
-									/>
-								)}
+								!option.value && <i className="codicon codicon-chevron-right context-menu-chevron" />}
 							{(option.type === ContextMenuOptionType.Problems ||
 								option.type === ContextMenuOptionType.Terminal ||
 								((option.type === ContextMenuOptionType.File ||
 									option.type === ContextMenuOptionType.Folder ||
 									option.type === ContextMenuOptionType.Git) &&
-									option.value)) && (
-								<i
-									className="codicon codicon-add"
-									style={{
-										fontSize: "14px",
-										flexShrink: 0,
-										marginLeft: 8,
-									}}
-								/>
-							)}
+									option.value)) && <i className="codicon codicon-add context-menu-chevron" />}
 						</div>
 					)
 				})}

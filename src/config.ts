@@ -9,6 +9,8 @@ export interface EnvironmentConfig {
 	appBaseUrl: string
 	apiBaseUrl: string
 	mcpBaseUrl: string
+	modulesBaseUrl: string
+	connectorsBaseUrl: string
 	firebase: {
 		apiKey: string
 		authDomain: string
@@ -71,6 +73,14 @@ class AiHydroEndpoint {
 					appBaseUrl: getEnvOrDefault("AI_HYDRO_APP_BASE_URL_STAGING", "https://github.com/AI-Hydro/AI-Hydro"),
 					apiBaseUrl: getEnvOrDefault("AI_HYDRO_API_BASE_URL_STAGING", "http://127.0.0.1:7777"),
 					mcpBaseUrl: getEnvOrDefault("AI_HYDRO_MCP_BASE_URL_STAGING", "https://ai-hydro.github.io/Marketplace/api"),
+					modulesBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_MODULES_BASE_URL_STAGING",
+						"https://ai-hydro.github.io/Modules/api",
+					),
+					connectorsBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_CONNECTORS_BASE_URL_STAGING",
+						"https://ai-hydro.github.io/Connectors/api",
+					),
 					firebase: {
 						apiKey: getEnvOrDefault("AI_HYDRO_FIREBASE_API_KEY_STAGING", ""),
 						authDomain: getEnvOrDefault("AI_HYDRO_FIREBASE_AUTH_DOMAIN_STAGING", ""),
@@ -86,6 +96,11 @@ class AiHydroEndpoint {
 					appBaseUrl: getEnvOrDefault("AI_HYDRO_APP_BASE_URL_LOCAL", "http://localhost:3000"),
 					apiBaseUrl: getEnvOrDefault("AI_HYDRO_API_BASE_URL_LOCAL", "http://localhost:7777"),
 					mcpBaseUrl: getEnvOrDefault("AI_HYDRO_MCP_BASE_URL_LOCAL", "https://ai-hydro.github.io/Marketplace/api"),
+					modulesBaseUrl: getEnvOrDefault("AI_HYDRO_MODULES_BASE_URL_LOCAL", "https://ai-hydro.github.io/Modules/api"),
+					connectorsBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_CONNECTORS_BASE_URL_LOCAL",
+						"https://ai-hydro.github.io/Connectors/api",
+					),
 					firebase: {
 						apiKey: getEnvOrDefault("AI_HYDRO_FIREBASE_API_KEY_LOCAL", ""),
 						authDomain: getEnvOrDefault("AI_HYDRO_FIREBASE_AUTH_DOMAIN_LOCAL", ""),
@@ -98,6 +113,11 @@ class AiHydroEndpoint {
 					appBaseUrl: getEnvOrDefault("AI_HYDRO_APP_BASE_URL", "https://github.com/AI-Hydro/AI-Hydro"),
 					apiBaseUrl: getEnvOrDefault("AI_HYDRO_API_BASE_URL", "http://127.0.0.1:7777"),
 					mcpBaseUrl: getEnvOrDefault("AI_HYDRO_MCP_BASE_URL", "https://ai-hydro.github.io/Marketplace/api"),
+					modulesBaseUrl: getEnvOrDefault("AI_HYDRO_MODULES_BASE_URL", "https://ai-hydro.github.io/Modules/api"),
+					connectorsBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_CONNECTORS_BASE_URL",
+						"https://ai-hydro.github.io/Connectors/api",
+					),
 					firebase: {
 						apiKey: getEnvOrDefault("AI_HYDRO_FIREBASE_API_KEY", ""),
 						authDomain: getEnvOrDefault("AI_HYDRO_FIREBASE_AUTH_DOMAIN", ""),

@@ -106,6 +106,7 @@ function convertAiHydroSayToProtoEnum(say: AppAiHydroSay | undefined): ClineSay 
 		checkpoint_created: ClineSay.CHECKPOINT_CREATED,
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
+		html_preview: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
 	}

@@ -1,22 +1,41 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
-import type { MapLayer } from "@shared/proto/cline/map"
+import type { MapLayer, MapRoi } from "@shared/proto/cline/map"
+import { SetActiveRoiRequest } from "@shared/proto/cline/map"
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import type { ActiveRoi } from "../components/map/mapWorkspace"
 import { MapServiceClient } from "../services/grpc-client"
 
 interface MapContextType {
 	layers: MapLayer[]
+	activeRoi: ActiveRoi | undefined
 	addLayer: (layer: MapLayer) => void
 	removeLayer: (layerId: string) => void
 	clearLayers: () => void
 	getLayer: (layerId: string) => MapLayer | undefined
+	setActiveRoiOnHost: (roi: ActiveRoi | undefined, geojson?: string) => Promise<void>
+	refreshSessionRoi: () => Promise<void>
 }
 
 const MapContext = createContext<MapContextType | undefined>(undefined)
 const MAP_OPERATION_KEY = "__operation"
 
+function protoToActiveRoi(roi?: MapRoi): ActiveRoi | undefined {
+	if (!roi?.name && !roi?.geojson) {
+		return undefined
+	}
+	return {
+		id: roi.id,
+		name: roi.name,
+		source: roi.source,
+		areaHa: roi.areaHa,
+	}
+}
+
 export const MapContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [layers, setLayers] = useState<MapLayer[]>([])
-	const subscriptionRef = useRef<(() => void) | null>(null)
+	const [activeRoi, setActiveRoi] = useState<ActiveRoi | undefined>()
+	const layerSubRef = useRef<(() => void) | null>(null)
+	const sessionSubRef = useRef<(() => void) | null>(null)
 
 	const applyIncomingLayer = useCallback((prevLayers: MapLayer[], incomingLayer: MapLayer): MapLayer[] => {
 		const operation = incomingLayer.metadata?.[MAP_OPERATION_KEY]
@@ -38,7 +57,6 @@ export const MapContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		return [...prevLayers, incomingLayer]
 	}, [])
 
-	// Subscribe to map layer updates from backend
 	useEffect(() => {
 		MapServiceClient.getMapState(EmptyRequest.create({}))
 			.then((response) => {
@@ -48,26 +66,65 @@ export const MapContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 				console.error("[MapContext] Failed to fetch initial map state:", error)
 			})
 
-		subscriptionRef.current = MapServiceClient.subscribeToMapLayers(EmptyRequest.create({}), {
+		MapServiceClient.getMapSession(EmptyRequest.create({}))
+			.then((session) => {
+				setActiveRoi(protoToActiveRoi(session.activeRoi))
+			})
+			.catch((error) => {
+				console.error("[MapContext] Failed to fetch map session:", error)
+			})
+
+		layerSubRef.current = MapServiceClient.subscribeToMapLayers(EmptyRequest.create({}), {
 			onResponse: (layer: MapLayer) => {
-				console.log("[MapContext] Received layer update:", layer.id)
 				setLayers((prevLayers) => applyIncomingLayer(prevLayers, layer))
 			},
 			onError: (error) => {
 				console.error("[MapContext] Error in layer subscription:", error)
 			},
-			onComplete: () => {
-				console.log("[MapContext] Layer subscription completed")
+			onComplete: () => {},
+		})
+
+		sessionSubRef.current = MapServiceClient.subscribeToMapSession(EmptyRequest.create({}), {
+			onResponse: (session) => {
+				setActiveRoi(protoToActiveRoi(session.activeRoi))
 			},
+			onError: (error) => {
+				console.error("[MapContext] Error in map session subscription:", error)
+			},
+			onComplete: () => {},
 		})
 
 		return () => {
-			if (subscriptionRef.current) {
-				subscriptionRef.current()
-				subscriptionRef.current = null
-			}
+			layerSubRef.current?.()
+			sessionSubRef.current?.()
 		}
 	}, [applyIncomingLayer])
+
+	const setActiveRoiOnHost = useCallback(async (roi: ActiveRoi | undefined, geojson?: string) => {
+		if (!roi?.name && !geojson) {
+			await MapServiceClient.setActiveRoi(SetActiveRoiRequest.create({}))
+			setActiveRoi(undefined)
+			return
+		}
+		await MapServiceClient.setActiveRoi(
+			SetActiveRoiRequest.create({
+				roi: {
+					id: roi.id || `roi_${Date.now()}`,
+					name: roi.name || "ROI",
+					source: roi.source || "map_draw",
+					geojson: geojson || "",
+					areaHa: roi.areaHa ?? 0,
+					workspacePath: "",
+				},
+			}),
+		)
+		setActiveRoi(roi)
+	}, [])
+
+	const refreshSessionRoi = useCallback(async () => {
+		const session = await MapServiceClient.getMapSession(EmptyRequest.create({}))
+		setActiveRoi(protoToActiveRoi(session.activeRoi))
+	}, [])
 
 	const addLayer = useCallback((layer: MapLayer) => {
 		setLayers((prevLayers) => {
@@ -96,7 +153,21 @@ export const MapContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		[layers],
 	)
 
-	return <MapContext.Provider value={{ layers, addLayer, removeLayer, clearLayers, getLayer }}>{children}</MapContext.Provider>
+	return (
+		<MapContext.Provider
+			value={{
+				layers,
+				activeRoi,
+				addLayer,
+				removeLayer,
+				clearLayers,
+				getLayer,
+				setActiveRoiOnHost,
+				refreshSessionRoi,
+			}}>
+			{children}
+		</MapContext.Provider>
+	)
 }
 
 export const useMapContext = () => {

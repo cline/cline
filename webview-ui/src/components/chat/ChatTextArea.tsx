@@ -1452,6 +1452,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<div
 							className={cn(
 								"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-all ease-in-out duration-300 left-3.5 right-3.5 top-2.5 bottom-2.5",
+								"ring-2 ring-aihydro-ocean-blue/40 ring-offset-1 ring-offset-transparent",
 							)}>
 							<PulsingBorder
 								bloom={1}
@@ -1519,10 +1520,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					)}
 					<div
 						className={cn(
-							"absolute bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs overflow-hidden bg-input-background",
-							isTextAreaFocused || isVoiceRecording
-								? "left-3.5 right-3.5"
-								: "left-3.5 right-3.5 border border-input-border",
+							"absolute bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-lg overflow-hidden",
+							"bg-input-background",
+							isTextAreaFocused || isVoiceRecording ? "left-3.5 right-3.5 shadow-lg" : "left-3.5 right-3.5",
 						)}
 						ref={highlightLayerRef}
 						style={{
@@ -1535,7 +1535,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
-							borderRadius: 2,
+							borderRadius: 8,
 							borderLeft: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
 							borderRight: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
 							borderTop: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
@@ -1583,8 +1583,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							boxSizing: "border-box",
 							backgroundColor: "transparent",
 							color: "var(--vscode-input-foreground)",
-							//border: "1px solid var(--vscode-input-border)",
-							borderRadius: 2,
+							borderRadius: 8,
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
@@ -1592,28 +1591,23 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							overflowX: "hidden",
 							overflowY: "scroll",
 							scrollbarWidth: "none",
-							// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-							// borderTop: "9px solid transparent",
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
 							borderBottom: `${thumbnailsHeight}px solid transparent`,
 							borderColor: "transparent",
-							// borderRight: "54px solid transparent",
-							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
-							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
-							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: `9px ${dictationSettings?.dictationEnabled ? "48" : "28"}px 9px 9px`,
+							padding: `12px ${dictationSettings?.dictationEnabled ? "52" : "32"}px 12px 14px`,
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
 							outline:
-								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
+								isDraggingOver && !showUnsupportedFileError
 									? "2px dashed var(--vscode-focusBorder)"
 									: isTextAreaFocused
-										? `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR}`
+										? `2px solid ${mode === "plan" ? PLAN_MODE_COLOR : ACT_MODE_COLOR}`
 										: "none",
-							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
+							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "2px" : "0px",
+							transition: "outline 0.15s ease-out",
 						}}
 						value={inputValue}
 					/>
@@ -1642,7 +1636,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div
 						className="absolute flex items-end bottom-4.5 right-5 z-10 h-8 text-xs"
 						style={{ height: textAreaBaseHeight }}>
-						<div className="flex flex-row items-center">
+						<div className="flex flex-row items-center gap-1">
 							{dictationSettings?.dictationEnabled === true && dictationSettings?.featureEnabled && (
 								<VoiceRecorder
 									disabled={sendingDisabled}
@@ -1681,20 +1675,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								/>
 							)}
 							{!isVoiceRecording && (
-								<div
+								<button
+									aria-label="Send message"
 									className={cn(
-										"input-icon-button",
-										{ disabled: sendingDisabled },
-										"codicon codicon-send text-sm",
+										"flex items-center justify-center w-8 h-8 rounded-md transition-all duration-200",
+										sendingDisabled
+											? "opacity-40 cursor-not-allowed text-[var(--vscode-descriptionForeground)]"
+											: "cursor-pointer text-white bg-gradient-to-br from-aihydro-ocean-blue to-aihydro-teal hover:shadow-lg hover:shadow-aihydro-ocean-blue/20 hover:scale-105 active:scale-95",
 									)}
 									data-testid="send-button"
+									disabled={sendingDisabled}
 									onClick={() => {
 										if (!sendingDisabled) {
 											setIsTextAreaFocused(false)
 											onSend()
 										}
-									}}
-								/>
+									}}>
+									<span className="codicon codicon-send text-sm" />
+								</button>
 							)}
 						</div>
 					</div>

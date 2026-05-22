@@ -118,10 +118,9 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 		return (
 			<div className="flex px-[15px]">
-				<VSCodeButton
-					appearance="icon"
+				<button
 					aria-label={showScrollToBottom ? "Scroll to bottom" : "Scroll to top"}
-					className="text-lg text-[var(--vscode-primaryButton-foreground)] bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
+					className="modern-badge flex-1 h-[26px] justify-center gap-1.5 smooth-transition hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_80%,transparent)] active:scale-[0.97] cursor-pointer border-0"
 					onClick={showScrollToBottom ? handleScrollToBottom : handleScrollToTop}
 					onKeyDown={(e) => {
 						if (e.key === "Enter" || e.key === " ") {
@@ -134,11 +133,17 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 						}
 					}}>
 					{showScrollToBottom ? (
-						<span className="codicon codicon-chevron-down" />
+						<>
+							<span className="codicon codicon-chevron-down text-[12px]" />
+							<span className="text-[11px] font-medium">Scroll to bottom</span>
+						</>
 					) : (
-						<span className="codicon codicon-chevron-up" />
+						<>
+							<span className="codicon codicon-chevron-up text-[12px]" />
+							<span className="text-[11px] font-medium">Scroll to top</span>
+						</>
 					)}
-				</VSCodeButton>
+				</button>
 			</div>
 		)
 	}

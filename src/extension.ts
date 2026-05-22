@@ -4,16 +4,23 @@
 import assert from "node:assert"
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import * as vscode from "vscode"
+import { previewHtml } from "./core/controller/htmlPreview/previewHtml"
 import { loadGeojsonCommand } from "./core/controller/map/loadGeojsonCommand"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
+import { sendConnectorsButtonClickedEvent } from "./core/controller/ui/subscribeToConnectorsButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createAiHydroAPI } from "./exports"
+import { VscodeHtmlPreviewProvider } from "./hosts/vscode/VscodeHtmlPreviewProvider"
 import { VscodeMapPanelProvider } from "./hosts/vscode/VscodeMapPanelProvider"
+import { GeeService } from "./services/gee/GeeService"
+import { GeeTileProxyService } from "./services/gee/GeeTileProxyService"
+import type { GeeProjectInfo, GeeStatusResult } from "./services/gee/types"
 import { Logger } from "./services/logging/Logger"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
+import { PreviewHtmlRequest } from "./shared/proto/cline/html_preview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import path from "node:path"
@@ -40,6 +47,85 @@ import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
+function geeNeedsProject(result: GeeStatusResult): boolean {
+	const text = `${result.message ?? ""}\n${result.error ?? ""}`.toLowerCase()
+	return text.includes("project") && (text.includes("registered") || text.includes("serviceusage"))
+}
+
+async function chooseGeeProject(): Promise<string | undefined> {
+	const projectsResult = await GeeService.listProjects()
+	if (!projectsResult.ok || (projectsResult.projects ?? []).length === 0) {
+		const projectId = await vscode.window.showInputBox({
+			title: "AI-Hydro: Google Earth Engine Project",
+			prompt: `${projectsResult.message} Enter a Google Cloud project ID registered for Earth Engine.`,
+			placeHolder: "my-earthengine-project",
+			ignoreFocusOut: true,
+			validateInput: (value) => (value.trim().length < 3 ? "Enter a valid Google Cloud project ID." : undefined),
+		})
+		if (!projectId) {
+			return undefined
+		}
+		await vscode.workspace
+			.getConfiguration("aihydro.gee")
+			.update("projectId", projectId.trim(), vscode.ConfigurationTarget.Global)
+		await GeeService.setProject(projectId.trim())
+		return projectId.trim()
+	}
+
+	const manualItem = {
+		label: "$(edit) Enter project ID manually",
+		description: "Type your project ID manually",
+		project: undefined as GeeProjectInfo | undefined,
+	}
+	const items = [
+		...(projectsResult.projects ?? []).map((project) => ({
+			label: project.project_id,
+			description: project.name,
+			detail: project.project_number ? `Project number: ${project.project_number}` : undefined,
+			project,
+		})),
+		manualItem,
+	]
+	const selected = await vscode.window.showQuickPick(items, {
+		title: "AI-Hydro: Select Google Earth Engine Project",
+		placeHolder: "Choose a Google Cloud project registered for Earth Engine",
+		ignoreFocusOut: true,
+	})
+	if (!selected) {
+		return undefined
+	}
+	let projectId = selected.project?.project_id
+	if (!projectId) {
+		projectId = await vscode.window.showInputBox({
+			title: "AI-Hydro: Google Earth Engine Project",
+			prompt: "Enter a Google Cloud project ID registered for Earth Engine. AI-Hydro will save it to settings.",
+			placeHolder: "my-earthengine-project",
+			ignoreFocusOut: true,
+			validateInput: (value) => (value.trim().length < 3 ? "Enter a valid Google Cloud project ID." : undefined),
+		})
+	}
+	if (!projectId) {
+		return undefined
+	}
+	await vscode.workspace
+		.getConfiguration("aihydro.gee")
+		.update("projectId", projectId.trim(), vscode.ConfigurationTarget.Global)
+	await GeeService.setProject(projectId.trim())
+	return projectId.trim()
+}
+
+async function promptForGeeProjectAndRetry(operation: "connect" | "status", result: GeeStatusResult): Promise<GeeStatusResult> {
+	if (!geeNeedsProject(result)) {
+		return result
+	}
+	const projectId = await chooseGeeProject()
+	if (!projectId) {
+		return result
+	}
+	return operation === "connect" ? GeeService.connect(projectId) : GeeService.status(projectId)
+}
+
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -105,6 +191,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize map panel provider with controller
 	VscodeMapPanelProvider.initialize(context, webview.controller)
 
+	// Initialize HTML preview panel provider with controller
+	VscodeHtmlPreviewProvider.initialize(context, webview.controller)
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.MapButton, async () => {
 			console.log("[DEBUG] aihydro.mapButtonClicked - opening side-by-side map panel")
@@ -114,6 +203,23 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// Auto-load workspace GeoJSON files as hidden layers
 			await webview.controller.loadWorkspaceGeoJsonLayers()
+		}),
+	)
+
+	// Register AI-Hydro: Preview HTML command
+	// Opens a standalone panel only — the sidebar chat stays visible.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.HtmlPreviewButton, async () => {
+			console.log("[DEBUG] aihydro.htmlPreviewButtonClicked - opening side-by-side HTML preview panel")
+			telemetryService.captureButtonClick("aihydro_htmlPreviewButton", webview.controller?.task?.ulid)
+			await VscodeHtmlPreviewProvider.createOrShow()
+		}),
+	)
+
+	// Register AI-Hydro: External Connectors command
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ConnectorsButton, () => {
+			sendConnectorsButtonClickedEvent()
 		}),
 	)
 
@@ -159,6 +265,110 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.GeeConnect, async () => {
+			let result = await GeeService.connect()
+			result = await promptForGeeProjectAndRetry("connect", result)
+			if (result.ok) {
+				vscode.window.showInformationMessage(`AI-Hydro GEE: ${result.message}`)
+			} else {
+				vscode.window.showWarningMessage(`AI-Hydro GEE: ${result.message}`)
+			}
+			return result
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.GeeStatus, async () => {
+			let result = await GeeService.status()
+			result = await promptForGeeProjectAndRetry("status", result)
+			if (result.ok) {
+				vscode.window.showInformationMessage(`AI-Hydro GEE: ${result.message}`)
+			} else {
+				vscode.window.showWarningMessage(`AI-Hydro GEE: ${result.message}`)
+			}
+			return result
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.GeeChooseProject, async () => {
+			const projectId = await chooseGeeProject()
+			if (projectId) {
+				vscode.window.showInformationMessage(`AI-Hydro GEE project saved: ${projectId}`)
+			}
+			return { ok: Boolean(projectId), project_id: projectId }
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.GeePreviewChirpsLayer, async () => {
+			const endDate = new Date().toISOString().slice(0, 10)
+			const startDate = new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString().slice(0, 10)
+			const result = await GeeService.previewChirpsLayer({ startDate, endDate })
+			if (!result.ok) {
+				vscode.window.showWarningMessage(`AI-Hydro GEE: ${result.message ?? "Failed to preview CHIRPS layer"}`)
+			}
+			return result
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.GeeTest, async () => {
+			let result = await GeeService.status()
+			result = await promptForGeeProjectAndRetry("status", result)
+			if (result.ok) {
+				vscode.window.showInformationMessage(`GEE: Connected ✓ — ${result.message}`)
+			} else {
+				vscode.window.showWarningMessage(`GEE: Not connected — ${result.message}`)
+			}
+			return result
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.GeeDisconnect, async () => {
+			await vscode.workspace.getConfiguration("aihydro").update("projectId", undefined, vscode.ConfigurationTarget.Global)
+			vscode.window.showInformationMessage("AI-Hydro GEE: Disconnected. Project credentials cleared.")
+			return { ok: true, message: "Disconnected" }
+		}),
+	)
+
+	// Register "Add to AI-Hydro HTML Preview" explorer context menu command.
+	// Accepts one or more URIs (VS Code passes selected items as args when multi-select).
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.AddFileToHtmlPreview, async (...args: unknown[]) => {
+			const uris: vscode.Uri[] = args.flat().filter((a): a is vscode.Uri => a instanceof vscode.Uri)
+			if (uris.length === 0) {
+				return
+			}
+			let addedCount = 0
+			for (const uri of uris) {
+				try {
+					await previewHtml(
+						webview.controller,
+						PreviewHtmlRequest.create({
+							htmlContent: "",
+							title: path.basename(uri.fsPath),
+							filePath: uri.fsPath,
+						}),
+					)
+					addedCount++
+				} catch (err) {
+					vscode.window.showErrorMessage(
+						`AI-Hydro HTML Preview: Failed to add ${path.basename(uri.fsPath)}: ${err instanceof Error ? err.message : String(err)}`,
+					)
+				}
+			}
+			if (addedCount > 0) {
+				await VscodeHtmlPreviewProvider.createOrShow()
+				vscode.window.showInformationMessage(
+					`Added ${addedCount} file${addedCount === 1 ? "" : "s"} to AI-Hydro HTML Preview.`,
+				)
+			}
+		}),
+	)
+
 	// Graceful drag-and-drop: when a geospatial file is dragged onto the VS Code window
 	// VS Code opens it in the editor. We intercept this and offer to add it to the map instead.
 	const GEO_EXTS_TEXT = new Set([".geojson", ".topojson", ".kml", ".gpx", ".csv"])
@@ -171,12 +381,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const promptAddToMap = async (uri: vscode.Uri) => {
 		const key = uri.toString()
-		if (promptedUris.has(key)) return
+		if (promptedUris.has(key)) {
+			return
+		}
 		promptedUris.add(key)
 		// Only offer when the map panel is already open (don't force-open the map for every geospatial file).
-		if (!VscodeMapPanelProvider.isOpen()) return
+		if (!VscodeMapPanelProvider.isOpen()) {
+			return
+		}
 		const ext = path.extname(uri.fsPath).toLowerCase()
-		if (!ALL_GEO_EXTS.has(ext)) return
+		if (!ALL_GEO_EXTS.has(ext)) {
+			return
+		}
 		const action = await vscode.window.showInformationMessage(
 			`"${path.basename(uri.fsPath)}" is a geospatial file. Add it to the AI-Hydro Map?`,
 			"Add to Map",
@@ -201,9 +417,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Text-based formats fire onDidOpenTextDocument.
 	context.subscriptions.push(
 		vscode.workspace.onDidOpenTextDocument((doc) => {
-			if (doc.uri.scheme !== "file") return
+			if (doc.uri.scheme !== "file") {
+				return
+			}
 			const ext = path.extname(doc.uri.fsPath).toLowerCase()
-			if (!GEO_EXTS_TEXT.has(ext)) return
+			if (!GEO_EXTS_TEXT.has(ext)) {
+				return
+			}
 			void promptAddToMap(doc.uri)
 		}),
 	)
@@ -217,26 +437,97 @@ export async function activate(context: vscode.ExtensionContext) {
 			for (const tab of event.opened) {
 				const input = tab.input
 				let uri: vscode.Uri | undefined
-				if (input instanceof vscode.TabInputText) uri = input.uri
-				else if (input instanceof vscode.TabInputCustom) uri = input.uri
-				if (!uri || uri.scheme !== "file") continue
+				if (input instanceof vscode.TabInputText) {
+					uri = input.uri
+				} else if (input instanceof vscode.TabInputCustom) {
+					uri = input.uri
+				}
+				if (!uri || uri.scheme !== "file") {
+					continue
+				}
 				const ext = path.extname(uri.fsPath).toLowerCase()
-				if (!GEO_EXTS_BINARY.has(ext)) continue
+				if (!GEO_EXTS_BINARY.has(ext)) {
+					continue
+				}
 				void promptAddToMap(uri)
 			}
 		}),
 	)
 
-	// Reset the prompt-once cache when a tab is closed so re-opening the same
-	// file gets a fresh prompt.
+	// ── HTML file tab-intercept ────────────────────────────────────────────
+	// When a user opens an HTML file in the editor and the HTML preview panel
+	// is already open, offer to add it to the panel (like geo files for Map).
+	const HTML_EXTS = new Set([".html", ".htm"])
+	const promptedHtmlUris = new Set<string>()
+
+	const promptAddToHtmlPreview = async (uri: vscode.Uri) => {
+		const key = uri.toString()
+		if (promptedHtmlUris.has(key)) {
+			return
+		}
+		promptedHtmlUris.add(key)
+		if (!VscodeHtmlPreviewProvider.isOpen()) {
+			return
+		}
+		const ext = path.extname(uri.fsPath).toLowerCase()
+		if (!HTML_EXTS.has(ext)) {
+			return
+		}
+		const action = await vscode.window.showInformationMessage(
+			`"${path.basename(uri.fsPath)}" is an HTML file. Add it to the AI-Hydro HTML Preview?`,
+			"Add to HTML Preview",
+			"Keep in Editor",
+		)
+		if (action === "Add to HTML Preview") {
+			try {
+				// Use filePath-only loading so previewHtml reads content on demand.
+				await previewHtml(
+					webview.controller,
+					PreviewHtmlRequest.create({
+						htmlContent: "",
+						title: path.basename(uri.fsPath),
+						filePath: uri.fsPath,
+					}),
+				)
+				// Best-effort: close the editor tab now that we've added it to the preview.
+				try {
+					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
+				} catch {
+					/* ignore */
+				}
+			} catch (err) {
+				vscode.window.showErrorMessage(`AI-Hydro HTML Preview: ${err instanceof Error ? err.message : String(err)}`)
+			}
+		}
+	}
+
+	context.subscriptions.push(
+		vscode.workspace.onDidOpenTextDocument((doc) => {
+			if (doc.uri.scheme !== "file") {
+				return
+			}
+			const ext = path.extname(doc.uri.fsPath).toLowerCase()
+			if (!HTML_EXTS.has(ext)) {
+				return
+			}
+			void promptAddToHtmlPreview(doc.uri)
+		}),
+	)
+
 	context.subscriptions.push(
 		vscode.window.tabGroups.onDidChangeTabs((event) => {
 			for (const tab of event.closed) {
 				const input = tab.input
 				let uri: vscode.Uri | undefined
-				if (input instanceof vscode.TabInputText) uri = input.uri
-				else if (input instanceof vscode.TabInputCustom) uri = input.uri
-				if (uri) promptedUris.delete(uri.toString())
+				if (input instanceof vscode.TabInputText) {
+					uri = input.uri
+				} else if (input instanceof vscode.TabInputCustom) {
+					uri = input.uri
+				}
+				if (uri) {
+					promptedUris.delete(uri.toString())
+					promptedHtmlUris.delete(uri.toString())
+				}
 			}
 		}),
 	)
@@ -582,6 +873,7 @@ async function getBinaryLocation(name: string): Promise<string> {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	GeeTileProxyService.dispose()
 	tearDown()
 
 	// Clean up test mode

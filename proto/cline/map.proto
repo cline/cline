@@ -54,6 +54,79 @@ message MapStateResponse {
     int32 layer_count = 2;
 }
 
+// Active region of interest (basin / study area)
+message MapRoi {
+    string id = 1;
+    string name = 2;
+    string source = 3;           // agent | map_draw | workspace | session_watershed
+    string geojson = 4;          // Feature or FeatureCollection JSON
+    double area_ha = 5;
+    string workspace_path = 6;     // e.g. roi/penobscot_basin.geojson
+}
+
+// Map camera state for session sync
+message MapSessionView {
+    double longitude = 1;
+    double latitude = 2;
+    double zoom = 3;
+    double bearing = 4;
+    double pitch = 5;
+}
+
+// Full map session snapshot (host-owned)
+message MapSessionState {
+    repeated MapLayer layers = 1;
+    MapRoi active_roi = 2;
+    MapSessionView view = 3;
+    repeated string visible_layer_ids = 4;
+    string workspace_root = 5;
+    int64 updated_at_ms = 6;
+    string basemap_id = 7;     // e.g. esri-imagery, usgs-topo
+    string basemap_name = 8;   // human label shown in map UI
+}
+
+// Outbound telemetry from map webview
+message MapEvent {
+    string type = 1;
+    string payload_json = 2;
+    int64 timestamp_ms = 3;
+    string source = 4; // user | agent | system
+}
+
+message SetActiveRoiRequest {
+    MapRoi roi = 1; // omit or empty geojson to clear
+}
+
+message SaveRoiToWorkspaceRequest {
+    string name = 1;       // slug for roi/<name>.geojson
+    MapRoi roi = 2;        // uses active roi when omitted
+}
+
+message SaveRoiToWorkspaceResponse {
+    string workspace_path = 1;
+    string active_pointer_path = 2;
+}
+
+message LoadRoiFromWorkspaceRequest {
+    string workspace_path = 1; // empty = load roi/active.json pointer
+}
+
+message LoadRoiFromWorkspaceResponse {
+    MapRoi roi = 1;
+}
+
+message ReportMapEventRequest {
+    MapEvent event = 1;
+}
+
+message GetRecentMapEventsRequest {
+    int32 limit = 1;
+}
+
+message MapEventsResponse {
+    repeated MapEvent events = 1;
+}
+
 // Service for map operations
 service MapService {
     // Add a layer to the map
@@ -73,4 +146,14 @@ service MapService {
     
     // Subscribe to map layer updates
     rpc subscribeToMapLayers(EmptyRequest) returns (stream MapLayer);
+
+    // Map session (ROI, view, orchestration)
+    rpc getMapSession(EmptyRequest) returns (MapSessionState);
+    rpc setActiveRoi(SetActiveRoiRequest) returns (Empty);
+    rpc saveRoiToWorkspace(SaveRoiToWorkspaceRequest) returns (SaveRoiToWorkspaceResponse);
+    rpc loadRoiFromWorkspace(LoadRoiFromWorkspaceRequest) returns (LoadRoiFromWorkspaceResponse);
+    rpc reportMapEvent(ReportMapEventRequest) returns (Empty);
+    rpc getRecentMapEvents(GetRecentMapEventsRequest) returns (MapEventsResponse);
+    rpc subscribeToMapSession(EmptyRequest) returns (stream MapSessionState);
+    rpc subscribeToMapEvents(EmptyRequest) returns (stream MapEvent);
 }

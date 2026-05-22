@@ -60,6 +60,10 @@ class TestToolRegistration:
         "get_researcher_profile",
         "update_researcher_profile",
         "log_researcher_observation",
+        # GEE (3)
+        "gee.status",
+        "gee.preview_layer",
+        "gee.extract_timeseries",
     }
 
     def test_import_mcp_singleton(self):

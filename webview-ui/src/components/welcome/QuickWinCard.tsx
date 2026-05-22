@@ -1,3 +1,4 @@
+import { ChevronRight, Code2, Gamepad2, LayoutTemplate, Terminal } from "lucide-react"
 import React from "react"
 import { QuickWinTask } from "./quickWinTasks"
 
@@ -6,44 +7,48 @@ interface QuickWinCardProps {
 	onExecute: () => void
 }
 
-const renderIcon = (iconName?: string) => {
-	if (!iconName) {
-		return <span className="codicon codicon-rocket !text-[28px] !leading-[1]"></span>
-	}
-
-	let iconClass = "codicon-rocket"
+const getIconConfig = (iconName?: string) => {
 	switch (iconName) {
 		case "WebAppIcon":
-			iconClass = "codicon-dashboard"
-			break
+			return { Icon: LayoutTemplate, bg: "bg-aihydro-ocean-blue/15", color: "#6BB6FF" }
 		case "TerminalIcon":
-			iconClass = "codicon-terminal"
-			break
+			return { Icon: Terminal, bg: "bg-aihydro-emerald/15", color: "#6ADE8F" }
 		case "GameIcon":
-			iconClass = "codicon-game"
-			break
+			return { Icon: Gamepad2, bg: "bg-aihydro-teal/15", color: "#48D1CC" }
 		default:
-			break
+			return { Icon: Code2, bg: "bg-aihydro-cyan/15", color: "#20E3E3" }
 	}
-	return <span className={`codicon ${iconClass} !text-[28px] !leading-[1]`}></span>
 }
 
 const QuickWinCard: React.FC<QuickWinCardProps> = ({ task, onExecute }) => {
+	const { Icon, bg, color } = getIconConfig(task.icon)
+
 	return (
 		<div
-			className="flex items-center mb-2 py-0 px-5 space-x-3 rounded-full cursor-pointer group transition-colors duration-150 ease-in-out bg-white/[0.02] border border-[var(--vscode-panel-border)] hover:bg-[var(--vscode-list-hoverBackground)]"
+			className="group flex items-center mb-2.5 py-3 px-4 rounded-xl cursor-pointer
+				border border-[var(--vscode-panel-border)]/60 bg-[var(--vscode-editor-background)]/50
+				hover:bg-[var(--vscode-list-hoverBackground)]/80 hover:border-aihydro-ocean-blue/30
+				card-hover-lift
+				transition-all duration-200 ease-out"
 			onClick={() => onExecute()}>
-			<div className="flex-shrink-0 flex items-center justify-center w-6 h-6 text-[var(--vscode-icon-foreground)]">
-				{renderIcon(task.icon)}
+			{/* Icon with colored background */}
+			<div className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg ${bg} mr-3`}>
+				<Icon size={20} style={{ color }} />
 			</div>
 
-			<div className="flex-grow min-w-0">
-				<h3 className="text-sm font-medium truncate text-[var(--vscode-editor-foreground)] leading-tight mb-0 mt-0 pt-3">
+			{/* Text content */}
+			<div className="flex-grow min-w-0 mr-2">
+				<h3 className="text-sm font-medium truncate text-[var(--vscode-editor-foreground)] leading-tight m-0">
 					{task.title}
 				</h3>
-				<p className="text-xs truncate text-[var(--vscode-descriptionForeground)] leading-tight mt-[1px]">
+				<p className="text-xs truncate text-[var(--vscode-descriptionForeground)] leading-tight mt-0.5 m-0">
 					{task.description}
 				</p>
+			</div>
+
+			{/* Arrow indicator */}
+			<div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+				<ChevronRight className="text-[var(--vscode-descriptionForeground)]" size={16} />
 			</div>
 		</div>
 	)

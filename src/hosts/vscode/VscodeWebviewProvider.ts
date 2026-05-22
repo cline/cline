@@ -1,9 +1,11 @@
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
+import { handleMapAgentTaskMessage } from "@core/map/handleMapAgentTask"
 import { WebviewProvider } from "@core/webview"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { handleHydroMapCommand } from "@/services/hydrology/handleHydroMapCommand"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewMessage } from "@/shared/WebviewMessage"
 
@@ -170,6 +172,37 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				if (message.grpc_request_cancel) {
 					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
 				}
+				break
+			}
+			case "invokeCommand": {
+				if (message.command) {
+					try {
+						const result = (await vscode.commands.executeCommand(message.command)) as
+							| Record<string, unknown>
+							| undefined
+						postMessageToWebview({
+							type: "commandResult",
+							commandResult: { command: message.command, ok: true, ...(result ?? {}) },
+						})
+					} catch (error) {
+						postMessageToWebview({
+							type: "commandResult",
+							commandResult: { command: message.command, ok: false, message: String(error) },
+						})
+					}
+				}
+				break
+			}
+			case "aihydro-hydro-command": {
+				await handleHydroMapCommand(this.controller, message, async (response) => {
+					await this.webview?.webview.postMessage(response)
+				})
+				break
+			}
+			case "aihydro-map-agent-task": {
+				await handleMapAgentTaskMessage(this.controller, message, async (response) => {
+					await this.webview?.webview.postMessage(response)
+				})
 				break
 			}
 			default: {

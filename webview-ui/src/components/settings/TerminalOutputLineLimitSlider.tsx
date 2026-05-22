@@ -11,24 +11,24 @@ const TerminalOutputLineLimitSlider: React.FC = () => {
 	}
 
 	return (
-		<div style={{ marginBottom: 15 }}>
-			<label htmlFor="terminal-output-limit" style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+		<div className="terminal-slider-container">
+			<label className="terminal-slider-label" htmlFor="terminal-output-limit">
 				Terminal output limit
 			</label>
-			<div style={{ display: "flex", alignItems: "center" }}>
+			<div className="terminal-slider-row">
 				<input
+					className="terminal-slider-input"
 					id="terminal-output-limit"
 					max="5000"
 					min="100"
 					onChange={handleSliderChange}
 					step="100"
-					style={{ flexGrow: 1, marginRight: "1rem" }}
 					type="range"
 					value={terminalOutputLineLimit ?? 500}
 				/>
 				<span>{terminalOutputLineLimit ?? 500}</span>
 			</div>
-			<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
+			<p className="terminal-slider-hint">
 				Maximum number of lines to include in terminal output when executing commands. When exceeded, lines will be
 				removed from the middle, saving tokens.
 			</p>

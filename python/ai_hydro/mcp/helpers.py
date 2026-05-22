@@ -91,6 +91,60 @@ def _session_store(
         log.debug("Session store skipped (%s): %s", slot, exc)
 
 
+def _resolve_active_roi_geojson(session_id: str) -> tuple[dict, str]:
+    """
+    Resolve study-basin geometry for current_map_basin / GEE tools.
+
+    Priority:
+    1. session.working_geometry_path (agent/user selected workspace file)
+    2. Workspace roi/active.json → GeoJSON file (legacy)
+    3. Host map session ~/.aihydro/map_session.json active_roi (legacy)
+    4. HydroSession watershed (agent delineation)
+    """
+    try:
+        from ai_hydro.session import HydroSession
+        session = HydroSession.load(session_id)
+        working = getattr(session, "working_geometry_path", None)
+        if working and session.workspace_dir:
+            geo_path = Path(session.workspace_dir) / working
+            if geo_path.exists():
+                with open(geo_path, encoding="utf-8") as gf:
+                    return json.load(gf), "working_geometry"
+        ws_dir = session.workspace_dir
+        if ws_dir:
+            pointer_path = Path(ws_dir) / "roi" / "active.json"
+            if pointer_path.exists():
+                with open(pointer_path, encoding="utf-8") as f:
+                    pointer = json.load(f)
+                rel = pointer.get("path")
+                if rel:
+                    geo_path = Path(ws_dir) / rel
+                    if geo_path.exists():
+                        with open(geo_path, encoding="utf-8") as gf:
+                            return json.load(gf), "workspace_roi"
+    except Exception as exc:
+        log.debug("Workspace ROI resolution skipped: %s", exc)
+
+    map_session_path = Path.home() / ".aihydro" / "map_session.json"
+    try:
+        if map_session_path.exists():
+            data = json.loads(map_session_path.read_text(encoding="utf-8"))
+            active = data.get("activeRoi") or data.get("active_roi")
+            if active:
+                raw = active.get("geojson")
+                if raw:
+                    if isinstance(raw, str):
+                        parsed = json.loads(raw)
+                    else:
+                        parsed = raw
+                    if isinstance(parsed, dict):
+                        return parsed, "map_session"
+    except Exception as exc:
+        log.debug("Map session ROI resolution skipped: %s", exc)
+
+    return _get_session_geometry(session_id), "session_watershed"
+
+
 def _get_session_geometry(session_id: str) -> dict:
     """
     Return the watershed GeoJSON dict from the cached session.

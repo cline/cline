@@ -19,10 +19,14 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 			<Section>
 				<PreferredLanguageSetting />
 
-				<div className="mb-[5px]">
+				<div className="settings-card">
+					<div className="settings-section-header">
+						<span className="codicon codicon-graph" />
+						Privacy & Telemetry
+					</div>
 					{isDisabledByRemoteConfig ? (
 						<HeroTooltip content="This setting is managed by your organization's remote configuration">
-							<div className="flex items-center gap-2 mb-[5px]">
+							<div className="flex items-center gap-2 mb-2">
 								<VSCodeCheckbox
 									checked={remoteConfigSettings?.telemetrySetting === "enabled"}
 									disabled={true}
@@ -38,7 +42,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 					) : (
 						<VSCodeCheckbox
 							checked={telemetrySetting === "enabled"}
-							className="mb-[5px]"
+							className="mb-1"
 							disabled={false}
 							onChange={(e: any) => {
 								const checked = e.target.checked === true
@@ -47,7 +51,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 							Allow error and usage reporting
 						</VSCodeCheckbox>
 					)}
-					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+					<p className="toggle-description">
 						Help improve AI-Hydro by sending usage data and error reports. No code, prompts, or personal information
 						are ever sent. See our{" "}
 						<VSCodeLink

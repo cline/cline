@@ -47,85 +47,53 @@ const CodeAccordian = ({
 
 	return (
 		<div
+			className="modern-card overflow-hidden"
 			style={{
-				borderRadius: 3,
+				borderRadius: 8,
 				backgroundColor: CODE_BLOCK_BG_COLOR,
-				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
-				border: "1px solid var(--vscode-editorGroup-border)",
+				border: "1px solid color-mix(in srgb, var(--vscode-editorGroup-border) 60%, transparent)",
 			}}>
 			{(path || isFeedback || isConsoleLogs) && (
 				<div
+					className={`code-block-header smooth-transition ${isLoading ? "cursor-wait" : "cursor-pointer"} ${isLoading ? "opacity-70" : "opacity-100"}`}
 					onClick={isLoading ? undefined : onToggleExpand}
 					style={{
-						color: "var(--vscode-descriptionForeground)",
-						display: "flex",
-						alignItems: "center",
-						padding: "9px 10px",
-						cursor: isLoading ? "wait" : "pointer",
-						opacity: isLoading ? 0.7 : 1,
-						// pointerEvents: isLoading ? "none" : "auto",
 						userSelect: "none",
 						WebkitUserSelect: "none",
 						MozUserSelect: "none",
 						msUserSelect: "none",
 					}}>
 					{isFeedback || isConsoleLogs ? (
-						<div style={{ display: "flex", alignItems: "center" }}>
-							<span
-								className={`codicon codicon-${isFeedback ? "feedback" : "output"}`}
-								style={{ marginRight: "6px" }}></span>
-							<span
-								style={{
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									marginRight: "8px",
-								}}>
+						<div className="flex items-center gap-1.5">
+							<span className={`codicon codicon-${isFeedback ? "feedback" : "output"} text-[13px]`}></span>
+							<span className="font-medium text-[var(--vscode-foreground)]">
 								{isFeedback ? "User Edits" : "Console Logs"}
 							</span>
 						</div>
 					) : (
-						<>
-							{path?.startsWith(".") && <span>.</span>}
-							{path && !path.startsWith(".") && <span>/</span>}
-							<span
-								style={{
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									marginRight: "8px",
-									// trick to get ellipsis at beginning of string
-									direction: "rtl",
-									textAlign: "left",
-								}}>
-								{cleanPathPrefix(path ?? "") + "\u200E"}
-							</span>
-						</>
+						<div className="flex items-center gap-1.5 min-w-0">
+							{inferredLanguage && <span className="chip chip-ocean mr-1.5">{inferredLanguage}</span>}
+							{path?.startsWith(".") && <span className="text-[var(--vscode-descriptionForeground)]">.</span>}
+							{path && !path.startsWith(".") && (
+								<span className="text-[var(--vscode-descriptionForeground)]">/</span>
+							)}
+							<span className="truncate direction-rtl text-left">{cleanPathPrefix(path ?? "") + "\u200E"}</span>
+						</div>
 					)}
-					<div style={{ flexGrow: 1 }}></div>
+					<div className="flex-1"></div>
 					{numberOfEdits !== undefined && (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								marginRight: "8px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							<span className="codicon codicon-diff-single" style={{ marginRight: "4px" }}></span>
+						<div className="modern-badge mr-2">
+							<span className="codicon codicon-diff-single text-[10px]"></span>
 							<span>{numberOfEdits}</span>
 						</div>
 					)}
-					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
+					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"} text-[13px] opacity-70`}></span>
 				</div>
 			)}
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
 				<div
 					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
-					style={{
-						overflowX: "auto",
-						overflowY: "hidden",
-						maxWidth: "100%",
-					}}>
+					className="overflow-x-auto overflow-y-hidden max-w-full">
 					<CodeBlock
 						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
 							code ?? diff ?? ""

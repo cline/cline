@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Exploring CONUS Hydrology — AI-Hydro Interactive Module</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Poppins:wght@400;500;600&family=Nunito:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<script type="application/vnd.aihydro.module+json">
+{
+  "id": "exploring-conus-hydrology",
+  "title": "Exploring CONUS Hydrology",
+  "version": "0.1.0",
+  "authors": [{ "name": "AI-Hydro", "affiliation": "AI-Hydro Project" }],
+  "license": "CC-BY-4.0",
+  "topic": "streamflow",
+  "level": "intro",
+  "estimated_minutes": 15,
+  "requires": { "executable": true, "python": ["pygeohydro", "matplotlib", "pandas"] },
+  "ai_hydro_preview_min_version": "0.1"
+}
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#00A3FF;--cyan:#00DDFF;--bg:#0a0a15;--navy:#1a1a2e;--text:#fff;--sub:#7dd3fc;--muted:#94a3b8;--border:rgba(125,211,252,0.15)}
+body{font-family:'Nunito',system-ui,sans-serif;font-size:16px;line-height:1.65;color:var(--sub);background:radial-gradient(ellipse at 10% 0%,rgba(0,163,255,0.15) 0%,transparent 45%),var(--bg);min-height:100vh}
+main{max-width:960px;margin:0 auto;padding:32px 24px 64px}
+h1{font-family:'Quicksand',sans-serif;color:var(--text);font-size:clamp(28px,4vw,44px);margin-bottom:8px}
+h2{font-family:'Poppins',sans-serif;color:var(--text);font-size:20px;margin:28px 0 10px}
+p{margin-bottom:12px}
+.card{background:rgba(26,26,46,0.85);border:1px solid var(--border);border-radius:20px;padding:22px 24px;margin:16px 0}
+label{font-size:13px;display:block;margin-bottom:6px}
+input[type=range]{width:100%;margin:4px 0 12px}
+.aihydro-cell{border:1px solid rgba(0,221,255,0.22);border-radius:16px;background:rgba(2,6,23,0.55);padding:16px 18px;margin:16px 0}
+.aihydro-source{font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;background:rgba(0,0,0,0.45);border-radius:8px;padding:12px;margin-bottom:10px;color:var(--text)}
+.aihydro-output{font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;min-height:2em;background:rgba(0,0,0,0.3);border-radius:8px;padding:10px;color:var(--sub)}
+code{font-family:'JetBrains Mono',monospace;font-size:0.9em;background:rgba(0,221,255,0.1);padding:2px 6px;border-radius:4px;color:var(--cyan)}
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+  <h1>Exploring CONUS Hydrology</h1>
+  <p>
+    This module mirrors the spirit of PyGeoHydro’s <code>interactive_map</code> — discover
+    <strong>USGS streamgages</strong>, <strong>NID dams</strong>, and <strong>WBD hydrologic units</strong>
+    for a map extent — inside AI-Hydro HTML Preview. Refine it here, then publish to the
+    <a href="https://github.com/AI-Hydro/Modules">AI-Hydro Modules</a> marketplace when ready.
+  </p>
+  <p style="font-size:14px;color:var(--muted)">
+    Tip: Use the native map panel’s <strong>Search</strong> and <strong>Hydrography → Add HUCs</strong>
+    for the same data while you work in a project.
+  </p>
+</div>
+
+<h2>Study extent</h2>
+<div class="card">
+  <p>Default: Wabash River region (Indiana). Adjust sliders, then run the cells below.</p>
+  <label>West lon: <span id="v-west">-88.5</span></label>
+  <input id="west" max="-66" min="-125" step="0.1" type="range" value="-88.5">
+  <label>South lat: <span id="v-south">39.5</span></label>
+  <input id="south" max="50" min="24" step="0.1" type="range" value="39.5">
+  <label>East lon: <span id="v-east">-85.5</span></label>
+  <input id="east" max="-66" min="-125" step="0.1" type="range" value="-85.5">
+  <label>North lat: <span id="v-north">41.5</span></label>
+  <input id="north" max="50" min="24" step="0.1" type="range" value="41.5">
+</div>
+
+<h2>1 — Streamgages in extent</h2>
+<div class="aihydro-cell" data-aihydro-cell-id="nwis-map" data-language="python" data-execution="kernel">
+<pre class="aihydro-source">import matplotlib.pyplot as plt
+from pygeohydro import NWIS
+
+west, south, east, north = {{west}}, {{south}}, {{east}}, {{north}}
+bbox = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
+nwis = NWIS()
+sites = nwis.get_info(
+    {"bBox": bbox, "siteTypeCd": "ST", "siteStatus": "all"},
+    expanded=True,
+)
+print(f"Found {len(sites)} USGS streamgages in bbox")
+if sites.empty:
+    print("Try widening the extent or panning to CONUS.")
+else:
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.scatter(sites.dec_long_va, sites.dec_lat_va, s=18, c="#00DDFF", edgecolors="#003366", linewidths=0.4)
+    ax.set_xlim(west, east)
+    ax.set_ylim(south, north)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_title("USGS streamgages (NWIS)")
+    ax.grid(True, alpha=0.25)
+    plt.tight_layout()
+    plt.show()
+    for _, row in sites.head(8).iterrows():
+        print(f"  {row.site_no}: {row.station_nm}")
+</pre>
+<div class="aihydro-output" aria-live="polite"></div>
+</div>
+
+<h2>2 — Hydrologic unit (WBD)</h2>
+<div class="aihydro-cell" data-aihydro-cell-id="wbd-context" data-language="python" data-execution="kernel">
+<pre class="aihydro-source">from pygeohydro import WBD
+from shapely.geometry import Point
+
+west, south, east, north = {{west}}, {{south}}, {{east}}, {{north}}
+lon, lat = (west + east) / 2, (south + north) / 2
+wbd = WBD("huc8")
+pt = Point(lon, lat)
+gdf = wbd.bygeometry(pt, predicate="intersects")
+if gdf.empty:
+    print("No HUC8 polygon at center — adjust extent.")
+else:
+    row = gdf.iloc[0]
+    cols = [c for c in row.index if "huc" in str(c).lower() or str(c).lower() in ("name", "areasqkm")]
+    print("Containing HUC8 unit:")
+    for c in cols[:6]:
+        print(f"  {c}: {row[c]}")
+gdf2 = WBD("huc8").bygeometry((west, south, east, north))
+print(f"\nHUC8 polygons intersecting view: {len(gdf2)}")
+</pre>
+<div class="aihydro-output" aria-live="polite"></div>
+</div>
+
+<h2>3 — Dams (NID)</h2>
+<div class="aihydro-cell" data-aihydro-cell-id="nid-dams" data-language="python" data-execution="kernel">
+<pre class="aihydro-source">from pygeohydro import NID
+
+west, south, east, north = {{west}}, {{south}}, {{east}}, {{north}}
+nid = NID()
+dams = nid.get_bygeom((west, south, east, north), 4326)
+print(f"NID dams in extent: {len(dams)}")
+for _, row in dams.head(10).iterrows():
+    name = row.get("dam_name", row.get("name", "?"))
+    did = row.get("id", "?")
+    print(f"  {did}: {name}")
+</pre>
+<div class="aihydro-output" aria-live="polite"></div>
+</div>
+
+<div class="card" style="font-size:14px;color:var(--muted)">
+  <strong>Next steps:</strong> Add Folium popups, quizzes, or a scrolly narrative — then copy to
+  <code>modules/exploring-conus-hydrology/</code> in the
+  <a href="https://github.com/AI-Hydro/Modules">Modules</a> repo with <code>manifest.json</code> for one-click install.
+</div>
+</main>
+<script>
+(function(){
+  function sync(){
+    var w=document.getElementById('west'),s=document.getElementById('south'),e=document.getElementById('east'),n=document.getElementById('north');
+    document.getElementById('v-west').textContent=w.value;
+    document.getElementById('v-south').textContent=s.value;
+    document.getElementById('v-east').textContent=e.value;
+    document.getElementById('v-north').textContent=n.value;
+    if(window.aihydro){
+      ['nwis-map','wbd-context','nid-dams'].forEach(function(id){
+        aihydro.rewriteCell(id,function(){
+          return document.querySelector('[data-aihydro-cell-id="'+id+'"] .aihydro-source').textContent
+            .replace(/\{\{west\}\}/,w.value).replace(/\{\{south\}\}/,s.value)
+            .replace(/\{\{east\}\}/,e.value).replace(/\{\{north\}\}/,n.value);
+        });
+      });
+    }
+  }
+  ['west','south','east','north'].forEach(function(id){
+    document.getElementById(id).addEventListener('input',sync);
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

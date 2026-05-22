@@ -39,10 +39,10 @@ const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
 
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
-		border-radius: 5px;
+		border-radius: 0 0 8px 8px;
 		margin: 0;
 		min-width: ${({ forceWrap }) => (forceWrap ? "auto" : "max-content")};
-		padding: 10px 10px;
+		padding: 12px 14px;
 	}
 
 	pre > code {
@@ -63,15 +63,17 @@ const StyledMarkdown = styled.div<{ forceWrap: boolean }>`
 			display: none;
 		}
 		word-wrap: break-word;
-		border-radius: 5px;
+		border-radius: 4px;
 		background-color: ${CODE_BLOCK_BG_COLOR};
-		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
+		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 13px));
 		font-family: var(--vscode-editor-font-family);
+		line-height: 1.6;
 	}
 
 	code:not(pre > code) {
 		font-family: var(--vscode-editor-font-family);
 		color: #f78383;
+		padding: 1px 4px;
 	}
 
 	background-color: ${CODE_BLOCK_BG_COLOR};
@@ -151,10 +153,12 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 
 	return (
 		<div
+			className="modern-scrollbar"
 			style={{
 				overflowY: forceWrap ? "visible" : "auto",
 				maxHeight: forceWrap ? "none" : "100%",
 				backgroundColor: CODE_BLOCK_BG_COLOR,
+				borderRadius: "0 0 8px 8px",
 			}}>
 			<StyledMarkdown className="ph-no-capture" forceWrap={forceWrap}>
 				{reactContent}

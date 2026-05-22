@@ -24,7 +24,11 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			<Section>
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
-					<div className="rounded-md mb-5">
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-symbol-misc" />
+							Mode Configuration
+						</div>
 						<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 							<TabButton
 								disabled={currentTab === "plan"}
@@ -54,32 +58,43 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 						</div>
 					</div>
 				) : (
-					<ApiOptions currentMode={mode} showModelOptions={true} />
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-plug" />
+							API Provider
+						</div>
+						<ApiOptions currentMode={mode} showModelOptions={true} />
+					</div>
 				)}
 
-				<div className="mb-[5px]">
-					<VSCodeCheckbox
-						checked={planActSeparateModelsSetting}
-						className="mb-[5px]"
-						onChange={async (e: any) => {
-							const checked = e.target.checked === true
-							try {
-								// If unchecking the toggle, wait a bit for state to update, then sync configurations
-								if (!checked) {
-									await syncModeConfigurations(apiConfiguration, currentTab, handleFieldsChange)
+				<div className="settings-card">
+					<div className="settings-section-header">
+						<span className="codicon codicon-gear" />
+						Mode Settings
+					</div>
+					<div className="settings-toggle-row">
+						<VSCodeCheckbox
+							checked={planActSeparateModelsSetting}
+							onChange={async (e: any) => {
+								const checked = e.target.checked === true
+								try {
+									// If unchecking the toggle, wait a bit for state to update, then sync configurations
+									if (!checked) {
+										await syncModeConfigurations(apiConfiguration, currentTab, handleFieldsChange)
+									}
+									await StateServiceClient.updateSettings(
+										UpdateSettingsRequest.create({
+											planActSeparateModelsSetting: checked,
+										}),
+									)
+								} catch (error) {
+									console.error("Failed to update separate models setting:", error)
 								}
-								await StateServiceClient.updateSettings(
-									UpdateSettingsRequest.create({
-										planActSeparateModelsSetting: checked,
-									}),
-								)
-							} catch (error) {
-								console.error("Failed to update separate models setting:", error)
-							}
-						}}>
-						Use different models for Plan and Act modes
-					</VSCodeCheckbox>
-					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+							}}>
+							Use different models for Plan and Act modes
+						</VSCodeCheckbox>
+					</div>
+					<p className="toggle-description">
 						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
 						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
 					</p>

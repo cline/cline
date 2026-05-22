@@ -1,5 +1,90 @@
 import type { Controller } from "@core/controller"
+import { handleMapAgentTaskMessage } from "@core/map/handleMapAgentTask"
 import * as vscode from "vscode"
+import { GeeService } from "@/services/gee/GeeService"
+import { GeeTileProxyService } from "@/services/gee/GeeTileProxyService"
+import { buildGeeMapLayer } from "@/services/gee/mapMessageHandler"
+import { geeCommandSchema, geePreviewChirpsPayloadSchema, geeStatusPayloadSchema } from "@/services/gee/schemas"
+import type { GeeProjectInfo, GeeStatusResult } from "@/services/gee/types"
+import { handleHydroMapCommand } from "@/services/hydrology/handleHydroMapCommand"
+
+function geeNeedsProject(result: GeeStatusResult): boolean {
+	const text = `${result.message ?? ""}\n${result.error ?? ""}`.toLowerCase()
+	return text.includes("project") && (text.includes("registered") || text.includes("serviceusage"))
+}
+
+async function promptForGeeProjectAndRetry(operation: "connect" | "status", result: GeeStatusResult): Promise<GeeStatusResult> {
+	if (!geeNeedsProject(result)) {
+		return result
+	}
+	const projectId = await chooseGeeProject()
+	if (!projectId) {
+		return result
+	}
+	return operation === "connect" ? GeeService.connect(projectId) : GeeService.status(projectId)
+}
+
+async function chooseGeeProject(): Promise<string | undefined> {
+	const projectsResult = await GeeService.listProjects()
+	if (!projectsResult.ok || (projectsResult.projects ?? []).length === 0) {
+		const projectId = await vscode.window.showInputBox({
+			title: "AI-Hydro: Google Earth Engine Project",
+			prompt: `${projectsResult.message} Enter a Google Cloud project ID registered for Earth Engine.`,
+			placeHolder: "my-earthengine-project",
+			ignoreFocusOut: true,
+			validateInput: (value) => (value.trim().length < 3 ? "Enter a valid Google Cloud project ID." : undefined),
+		})
+		if (!projectId) {
+			return undefined
+		}
+		await vscode.workspace
+			.getConfiguration("aihydro.gee")
+			.update("projectId", projectId.trim(), vscode.ConfigurationTarget.Global)
+		await GeeService.setProject(projectId.trim())
+		return projectId.trim()
+	}
+
+	const manualItem = {
+		label: "$(edit) Enter project ID manually",
+		description: "Type your project ID manually",
+		project: undefined as GeeProjectInfo | undefined,
+	}
+	const items = [
+		...(projectsResult.projects ?? []).map((project) => ({
+			label: project.project_id,
+			description: project.name,
+			detail: project.project_number ? `Project number: ${project.project_number}` : undefined,
+			project,
+		})),
+		manualItem,
+	]
+	const selected = await vscode.window.showQuickPick(items, {
+		title: "AI-Hydro: Select Google Earth Engine Project",
+		placeHolder: "Choose a Google Cloud project registered for Earth Engine",
+		ignoreFocusOut: true,
+	})
+	if (!selected) {
+		return undefined
+	}
+	let projectId = selected.project?.project_id
+	if (!projectId) {
+		projectId = await vscode.window.showInputBox({
+			title: "AI-Hydro: Google Earth Engine Project",
+			prompt: "Enter a Google Cloud project ID registered for Earth Engine. AI-Hydro will save it to settings.",
+			placeHolder: "my-earthengine-project",
+			ignoreFocusOut: true,
+			validateInput: (value) => (value.trim().length < 3 ? "Enter a valid Google Cloud project ID." : undefined),
+		})
+	}
+	if (!projectId) {
+		return undefined
+	}
+	await vscode.workspace
+		.getConfiguration("aihydro.gee")
+		.update("projectId", projectId.trim(), vscode.ConfigurationTarget.Global)
+	await GeeService.setProject(projectId.trim())
+	return projectId.trim()
+}
 
 export class VscodeMapPanelProvider {
 	private static currentPanel: vscode.WebviewPanel | undefined
@@ -119,6 +204,93 @@ export class VscodeMapPanelProvider {
 						}
 						break
 					}
+					case "aihydro-hydro-command": {
+						if (mainWebview?.controller) {
+							await handleHydroMapCommand(mainWebview.controller, message, async (response) => {
+								await postMessageToWebview(response)
+							})
+						}
+						break
+					}
+					case "aihydro-map-agent-task": {
+						if (mainWebview?.controller) {
+							await handleMapAgentTaskMessage(mainWebview.controller, message, async (response) => {
+								await postMessageToWebview(response)
+							})
+						}
+						break
+					}
+					case "aihydro-gee-command": {
+						try {
+							const parsed = geeCommandSchema.parse(message)
+							const requestId = parsed.requestId
+							if (parsed.command === "connect") {
+								const payload = geeStatusPayloadSchema.parse(parsed.payload)
+								let result = await GeeService.connect(payload?.projectId)
+								result = await promptForGeeProjectAndRetry("connect", result)
+								await panel.webview.postMessage({
+									type: "aihydro-gee-result",
+									requestId,
+									ok: result.ok,
+									message: result.message,
+									result,
+								})
+							} else if (parsed.command === "status") {
+								const payload = geeStatusPayloadSchema.parse(parsed.payload)
+								let result = await GeeService.status(payload?.projectId)
+								result = await promptForGeeProjectAndRetry("status", result)
+								await panel.webview.postMessage({
+									type: "aihydro-gee-result",
+									requestId,
+									ok: result.ok,
+									message: result.message,
+									result,
+								})
+							} else if (parsed.command === "chooseProject") {
+								const projectId = await chooseGeeProject()
+								await panel.webview.postMessage({
+									type: "aihydro-gee-result",
+									requestId,
+									ok: Boolean(projectId),
+									message: projectId ? `Saved GEE project: ${projectId}` : "No GEE project selected",
+									result: { ok: Boolean(projectId), project_id: projectId },
+								})
+							} else if (parsed.command === "previewChirpsLayer") {
+								const payload = geePreviewChirpsPayloadSchema.parse(parsed.payload ?? {})
+								const result = await GeeService.previewChirpsLayer(payload)
+								if (result.ok && (result.tile_url_template || result.tile_url)) {
+									const remoteTemplate = result.tile_url_template || result.tile_url || ""
+									const proxiedTemplate = await GeeTileProxyService.proxify(remoteTemplate)
+									const layer = buildGeeMapLayer(
+										{
+											...result,
+											tile_url: proxiedTemplate,
+											tile_url_template: proxiedTemplate,
+											remote_tile_url_template: remoteTemplate,
+										} as any,
+										(result as any).provenance_path,
+									)
+									mainWebview.controller.addMapLayer(layer)
+								}
+								await panel.webview.postMessage({
+									type: "aihydro-gee-result",
+									requestId,
+									ok: result.ok,
+									message: result.message || (result.ok ? "CHIRPS layer added" : "CHIRPS layer failed"),
+									result,
+									error: result.error,
+								})
+							}
+						} catch (err) {
+							await panel.webview.postMessage({
+								type: "aihydro-gee-result",
+								requestId: message.requestId,
+								ok: false,
+								error: err instanceof Error ? err.message : String(err),
+							})
+						}
+						break
+					}
 					default: {
 						console.error("[VscodeMapPanelProvider] Received unhandled message type:", JSON.stringify(message))
 					}
@@ -150,7 +322,7 @@ export class VscodeMapPanelProvider {
 		script-src 'nonce-${nonce}';
 		img-src ${webview.cspSource} https: data: blob:;
 		font-src ${webview.cspSource} https: data:;
-		connect-src https: ${webview.cspSource};
+		connect-src https: http://127.0.0.1:* http://localhost:* ${webview.cspSource};
 		worker-src blob:;">
 	<link href="${styleUri}" rel="stylesheet">
 	<title>AI-Hydro Map</title>

@@ -26,6 +26,15 @@ const AiHydroCommands = {
 	ReconstructTaskHistory: prefix + ".reconstructTaskHistory",
 	LoadGeojsonToMap: prefix + ".loadGeojsonToMap",
 	AddFileToMap: prefix + ".addFileToMap",
+	GeeConnect: prefix + ".gee.connect",
+	GeeStatus: prefix + ".gee.status",
+	GeeTest: prefix + ".gee.test",
+	GeeChooseProject: prefix + ".gee.chooseProject",
+	GeePreviewChirpsLayer: prefix + ".gee.previewChirpsLayer",
+	GeeDisconnect: prefix + ".gee.disconnect",
+	HtmlPreviewButton: prefix + ".htmlPreviewButtonClicked",
+	AddFileToHtmlPreview: prefix + ".addFileToHtmlPreview",
+	ConnectorsButton: prefix + ".connectorsButtonClicked",
 }
 
 /**

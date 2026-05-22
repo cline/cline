@@ -117,8 +117,8 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 		return <>{renderErrorContent()}</>
 	}
 
-	// For other error types, show header + content
-	return <>{renderErrorContent()}</>
+	// For other error types, show header + content with error accent card
+	return <div className="error-message-card">{renderErrorContent()}</div>
 })
 
 export default ErrorRow

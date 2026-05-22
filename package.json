@@ -2,7 +2,7 @@
 	"name": "ai-hydro",
 	"displayName": "AI-Hydro",
 	"description": "An open platform for AI-driven hydrological research. Describe your intent — the agent delineates watersheds, retrieves streamflow, calibrates models, and builds reproducible provenance. Community-extensible via MCP.",
-	"version": "0.1.12",
+	"version": "0.1.24",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -141,9 +141,19 @@
 				"icon": "$(map)"
 			},
 			{
+				"command": "aihydro.htmlPreviewButtonClicked",
+				"title": "HTML Preview",
+				"icon": "$(preview)"
+			},
+			{
 				"command": "aihydro.historyButtonClicked",
 				"title": "Analysis History",
 				"icon": "$(history)"
+			},
+			{
+				"command": "aihydro.connectorsButtonClicked",
+				"title": "External Connectors",
+				"icon": "$(plug)"
 			},
 			{
 				"command": "aihydro.settingsButtonClicked",
@@ -215,6 +225,41 @@
 				"command": "aihydro.addFileToMap",
 				"title": "Add to AI-Hydro Map",
 				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.gee.connect",
+				"title": "AI-Hydro: Connect Google Earth Engine",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.gee.status",
+				"title": "AI-Hydro: Test Google Earth Engine Connection",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.gee.chooseProject",
+				"title": "AI-Hydro: Select Google Earth Engine Project",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.gee.previewChirpsLayer",
+				"title": "AI-Hydro: Add CHIRPS Demo Layer",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.gee.test",
+				"title": "AI-Hydro: Test Google Earth Engine Connection",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.gee.disconnect",
+				"title": "AI-Hydro: Disconnect Google Earth Engine",
+				"category": "AI-Hydro"
+			},
+			{
+				"command": "aihydro.addFileToHtmlPreview",
+				"title": "Add to AI-Hydro HTML Preview",
+				"category": "AI-Hydro"
 			}
 		],
 		"keybindings": [
@@ -257,13 +302,23 @@
 					"when": "view == aihydro.SidebarProvider"
 				},
 				{
+					"command": "aihydro.htmlPreviewButtonClicked",
+					"group": "navigation@3.5",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
 					"command": "aihydro.historyButtonClicked",
 					"group": "navigation@4",
 					"when": "view == aihydro.SidebarProvider"
 				},
 				{
-					"command": "aihydro.settingsButtonClicked",
+					"command": "aihydro.connectorsButtonClicked",
 					"group": "navigation@5",
+					"when": "view == aihydro.SidebarProvider"
+				},
+				{
+					"command": "aihydro.settingsButtonClicked",
+					"group": "navigation@6",
 					"when": "view == aihydro.SidebarProvider"
 				}
 			],
@@ -272,6 +327,11 @@
 					"command": "aihydro.addFileToMap",
 					"group": "aihydro@1",
 					"when": "resourceExtname == .geojson || resourceExtname == .json || resourceExtname == .topojson || resourceExtname == .kml || resourceExtname == .kmz || resourceExtname == .gpx || resourceExtname == .zip || resourceExtname == .tif || resourceExtname == .tiff || resourceExtname == .csv"
+				},
+				{
+					"command": "aihydro.addFileToHtmlPreview",
+					"group": "aihydro@2",
+					"when": "resourceExtname == .html || resourceExtname == .htm"
 				}
 			],
 			"editor/context": [
@@ -312,7 +372,45 @@
 		},
 		"configuration": {
 			"title": "AI-Hydro",
-			"properties": {}
+			"properties": {
+				"aihydro.htmlPreview.pythonExecution": {
+					"type": "string",
+					"enum": [
+						"prompt",
+						"always",
+						"never"
+					],
+					"default": "prompt",
+					"description": "Whether HTML Preview may run Python code cells via a persistent kernel (equivalent trust to terminal commands)."
+				},
+				"aihydro.htmlPreview.pythonInterpreter": {
+					"type": "string",
+					"default": "",
+					"description": "Absolute path to a Python interpreter for HTML Preview kernels. When empty, AI-Hydro discovers VS Code's interpreter, .venv, and .aihydro/venv."
+				},
+				"aihydro.htmlPreview.pythonTimeoutSeconds": {
+					"type": "number",
+					"default": 120,
+					"minimum": 30,
+					"maximum": 600,
+					"description": "Maximum seconds for a single Python cell execution in HTML Preview."
+				},
+				"aihydro.htmlPreview.shareKernelAcrossArtifacts": {
+					"type": "boolean",
+					"default": false,
+					"description": "When true, all HTML previews in a workspace share one Python kernel namespace per profile. Default is false (one kernel per artifact)."
+				},
+				"aihydro.gee.projectId": {
+					"type": "string",
+					"default": "",
+					"description": "Google Cloud project ID used for Earth Engine initialization."
+				},
+				"aihydro.gee.pythonPath": {
+					"type": "string",
+					"default": "python3",
+					"description": "Python executable used to run the AI-Hydro GEE adapter CLI."
+				}
+			}
 		}
 	},
 	"scripts": {

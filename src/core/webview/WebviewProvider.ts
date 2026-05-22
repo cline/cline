@@ -110,11 +110,12 @@ export abstract class WebviewProvider {
 				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
 				<link href="${codiconsUrl}" rel="stylesheet" />
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
-					connect-src https://*.posthog.com https://*.cline.bot https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; 
-					font-src ${this.getCspSource()} data:; 
-					style-src ${this.getCspSource()} 'unsafe-inline'; 
-					img-src ${this.getCspSource()} https: data:; 
-					script-src 'nonce-${nonce}' 'unsafe-eval';">
+					connect-src https://*.posthog.com https://*.cline.bot https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com;
+					font-src ${this.getCspSource()} data:;
+					style-src ${this.getCspSource()} 'unsafe-inline';
+					img-src ${this.getCspSource()} https: data:;
+					script-src 'nonce-${nonce}' 'unsafe-eval';
+					frame-src 'self' blob:;">
 				<title>AI-Hydro</title>
 			</head>
 			<body>
@@ -203,6 +204,7 @@ export abstract class WebviewProvider {
 			`img-src ${this.getCspSource()} https: data:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
+			"frame-src 'self' blob:",
 		]
 
 		return /*html*/ `

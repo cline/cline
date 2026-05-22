@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TWI Executable Artifact (AI-Hydro demo)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; line-height: 1.5; }
+    h1 { font-size: 1.25rem; }
+    p.note { opacity: 0.85; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <h1>Topographic Wetness Index — AI-Hydro HTML Preview demo</h1>
+  <p class="note">
+    Use the <strong>HTML Preview panel toolbar</strong>: Run Cell, Run All, Restart &amp; Run All, Stop, Clear.
+    Each artifact has its own Python kernel session (variables do not leak to other open previews).
+  </p>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="js-hello" data-language="javascript">
+    <pre class="aihydro-source">return { message: "Hello from in-iframe JavaScript", twi: 6.75 }</pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+
+  <script type="application/vnd.aihydro.cell+json">
+  {"id":"twi-python","language":"python","execution":"kernel"}
+  </script>
+  <div class="aihydro-cell" data-aihydro-cell-id="twi-python" data-language="python" data-execution="kernel">
+    <pre class="aihydro-source">import math
+area = 120
+slope_degrees = 8
+slope_radians = math.radians(slope_degrees)
+twi = math.log(area / math.tan(slope_radians))
+print(f"TWI = {twi:.3f}")</pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="matplotlib-demo" data-language="python" data-execution="kernel">
+    <pre class="aihydro-source">import matplotlib.pyplot as plt
+plt.figure(figsize=(4, 2))
+plt.plot([1, 2, 3], [1, 4, 2])
+plt.title("Demo plot")
+plt.tight_layout()</pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="error-demo" data-language="python" data-execution="kernel">
+    <pre class="aihydro-source">raise ValueError("Intentional error for demo")</pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="slow-demo" data-language="python" data-execution="kernel">
+    <pre class="aihydro-source">import time
+print("Starting long cell…")
+time.sleep(30)
+print("Done (should not reach if Stop works)")</pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+</body>
+</html>

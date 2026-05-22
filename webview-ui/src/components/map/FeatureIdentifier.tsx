@@ -1,4 +1,5 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
+import type { CursorRasterReading } from "./mapLayerAdapters"
 
 export interface ClickedFeature {
 	layerId: string
@@ -6,196 +7,300 @@ export interface ClickedFeature {
 	properties: Record<string, unknown>
 }
 
-interface FeatureIdentifierProps {
-	features: ClickedFeature[]
-	mapStyle: string
-	onClose: () => void
+export interface MapInspectPoint {
+	lon: number
+	lat: number
 }
 
-const FeatureIdentifier: React.FC<FeatureIdentifierProps> = ({ features, mapStyle, onClose }) => {
+interface FeatureIdentifierProps {
+	features: ClickedFeature[]
+	inspectPoint?: MapInspectPoint | null
+	rasterReading?: CursorRasterReading | null
+	mapStyle: string
+	onClose: () => void
+	onAgentDelineate?: (point: MapInspectPoint) => void | Promise<void>
+	onAgentAsk?: (point: MapInspectPoint) => void | Promise<void>
+	onQuickDelineate?: (point: MapInspectPoint) => void | Promise<void>
+	agentStarting?: boolean
+	agentStatus?: string | null
+	delineating?: boolean
+	delineateStatus?: string | null
+}
+
+/** Bottom-right inspector — clear of the top-right tool ribbon. */
+const FeatureIdentifier: React.FC<FeatureIdentifierProps> = ({
+	features,
+	inspectPoint,
+	rasterReading,
+	mapStyle,
+	onClose,
+	onAgentDelineate,
+	onAgentAsk,
+	onQuickDelineate,
+	agentStarting = false,
+	agentStatus,
+	delineating = false,
+	delineateStatus,
+}) => {
 	const [currentIndex, setCurrentIndex] = useState(0)
 
-	if (features.length === 0) {
+	useEffect(() => {
+		setCurrentIndex(0)
+	}, [features])
+
+	if (features.length === 0 && !inspectPoint && !rasterReading) {
 		return null
 	}
 
 	const current = features[currentIndex]
+	const hasFeatures = features.length > 0
 	const isDark = mapStyle === "dark"
-	const bg = isDark ? "rgba(30,30,30,0.95)" : "rgba(248,248,248,0.95)"
-	const fg = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.90)"
-	const bdClr = isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)"
-	const accentBg = isDark ? "rgba(14,99,156,0.25)" : "rgba(14,99,156,0.12)"
-	const accentText = isDark ? "#6ab7ff" : "#0e639c"
+	const bg = isDark ? "rgba(22,22,30,0.94)" : "rgba(252,252,252,0.96)"
+	const fg = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)"
+	const bdClr = isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)"
+	const muted = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)"
+	const accentText = isDark ? "#7ec8ff" : "#0e639c"
 
-	const entries = Object.entries(current.properties)
-		.filter(([k]) => !k.startsWith("_"))
-		.slice(0, 12)
-	const extra = Object.entries(current.properties).filter(([k]) => !k.startsWith("_")).length - entries.length
+	const entries = hasFeatures
+		? Object.entries(current.properties)
+				.filter(([k]) => !k.startsWith("_"))
+				.slice(0, 6)
+		: []
+	const extra = hasFeatures ? Object.entries(current.properties).filter(([k]) => !k.startsWith("_")).length - entries.length : 0
 
-	const handlePrev = () => {
-		setCurrentIndex((i) => (i === 0 ? features.length - 1 : i - 1))
+	const coordLine =
+		inspectPoint &&
+		`${Math.abs(inspectPoint.lat).toFixed(5)}°${inspectPoint.lat >= 0 ? "N" : "S"}, ${Math.abs(inspectPoint.lon).toFixed(5)}°${inspectPoint.lon >= 0 ? "E" : "W"}`
+
+	const btnStyle: React.CSSProperties = {
+		width: 22,
+		height: 22,
+		padding: 0,
+		border: `1px solid ${bdClr}`,
+		background: "transparent",
+		color: fg,
+		cursor: "pointer",
+		borderRadius: 3,
+		fontSize: 11,
+		lineHeight: 1,
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
 	}
 
-	const handleNext = () => {
-		setCurrentIndex((i) => (i === features.length - 1 ? 0 : i + 1))
+	const primaryBtn: React.CSSProperties = {
+		width: "100%",
+		padding: "5px 8px",
+		fontSize: 10,
+		fontWeight: 600,
+		cursor: agentStarting ? "wait" : "pointer",
+		border: `1px solid ${bdClr}`,
+		borderRadius: 4,
+		background: isDark ? "rgba(30,90,140,0.55)" : "rgba(14,99,156,0.18)",
+		color: accentText,
+		opacity: agentStarting ? 0.7 : 1,
 	}
+
+	const secondaryBtn: React.CSSProperties = {
+		...primaryBtn,
+		fontWeight: 500,
+		background: "transparent",
+		marginTop: 4,
+	}
+
+	const showActions = inspectPoint && (onAgentDelineate || onAgentAsk || onQuickDelineate)
+	const askLabel = hasFeatures ? "Ask about this outlet" : "Ask about map layers & outlet"
 
 	return (
 		<div
+			aria-label="Feature inspector"
+			role="dialog"
 			style={{
 				position: "absolute",
-				top: 12,
-				right: 12,
+				bottom: 48,
+				right: 52,
 				zIndex: 5,
-				width: 300,
-				maxHeight: "65vh",
-				overflowY: "auto",
+				width: "max-content",
+				minWidth: 200,
+				maxWidth: 260,
+				maxHeight: 280,
+				display: "flex",
+				flexDirection: "column",
 				background: bg,
 				border: `1px solid ${bdClr}`,
 				borderRadius: 6,
-				boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+				boxShadow: "0 2px 10px rgba(0,0,0,0.32)",
 				fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
-				fontSize: 12,
+				fontSize: 11,
 				color: fg,
 				pointerEvents: "auto",
 			}}>
-			{/* Header with layer name and stack indicator */}
+			{/* Compact header */}
 			<div
 				style={{
-					padding: "8px 12px",
-					borderBottom: `1px solid ${bdClr}`,
+					padding: "6px 8px",
+					borderBottom: entries.length > 0 || rasterReading || showActions ? `1px solid ${bdClr}` : undefined,
 					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-					gap: 8,
+					alignItems: "flex-start",
+					gap: 6,
+					flexShrink: 0,
 				}}>
 				<div style={{ flex: 1, minWidth: 0 }}>
-					<div style={{ fontSize: 10, opacity: 0.65 }}>Layer</div>
-					<div
-						style={{
-							fontSize: 13,
-							fontWeight: 600,
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
-						}}>
-						{current.layerName}
-					</div>
-				</div>
-
-				{/* Stack indicator and navigation */}
-				{features.length > 1 && (
-					<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-						<button
-							onClick={handlePrev}
+					{hasFeatures ? (
+						<div
 							style={{
-								width: 24,
-								height: 24,
-								padding: 0,
-								border: `1px solid ${bdClr}`,
-								background: "transparent",
-								color: fg,
-								cursor: "pointer",
-								borderRadius: 3,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								fontSize: 10,
-								opacity: 0.8,
+								fontSize: 12,
+								fontWeight: 600,
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								whiteSpace: "nowrap",
+								lineHeight: 1.3,
 							}}
+							title={current.layerName}>
+							{current.layerName}
+						</div>
+					) : (
+						<div style={{ fontSize: 11, fontWeight: 600 }}>Map click</div>
+					)}
+					{coordLine && (
+						<div
+							style={{
+								fontSize: 9,
+								color: muted,
+								fontFamily: "var(--vscode-editor-font-family, monospace)",
+								marginTop: 2,
+								lineHeight: 1.3,
+							}}>
+							{coordLine}
+						</div>
+					)}
+				</div>
+				{hasFeatures && features.length > 1 && (
+					<div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+						<button
+							onClick={() => setCurrentIndex((i) => (i === 0 ? features.length - 1 : i - 1))}
+							style={btnStyle}
 							title="Previous feature"
 							type="button">
-							←
+							‹
 						</button>
-						<div style={{ fontSize: 10, opacity: 0.65, minWidth: 24, textAlign: "center" }}>
+						<span style={{ fontSize: 9, color: muted, minWidth: 28, textAlign: "center" }}>
 							{currentIndex + 1}/{features.length}
-						</div>
+						</span>
 						<button
-							onClick={handleNext}
-							style={{
-								width: 24,
-								height: 24,
-								padding: 0,
-								border: `1px solid ${bdClr}`,
-								background: "transparent",
-								color: fg,
-								cursor: "pointer",
-								borderRadius: 3,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								fontSize: 10,
-								opacity: 0.8,
-							}}
+							onClick={() => setCurrentIndex((i) => (i === features.length - 1 ? 0 : i + 1))}
+							style={btnStyle}
 							title="Next feature"
 							type="button">
-							→
+							›
 						</button>
 					</div>
 				)}
+				<button
+					aria-label="Close inspector"
+					onClick={onClose}
+					style={{ ...btnStyle, flexShrink: 0, opacity: 0.85 }}
+					title="Close"
+					type="button">
+					✕
+				</button>
 			</div>
 
-			{/* Attributes */}
-			<div style={{ padding: "8px 12px", maxHeight: "calc(65vh - 80px)", overflowY: "auto" }}>
-				{entries.length === 0 ? (
-					<div style={{ fontSize: 11, opacity: 0.55, fontStyle: "italic" }}>No attributes</div>
-				) : (
-					entries.map(([key, value]) => (
+			{(rasterReading || entries.length > 0 || (!hasFeatures && !rasterReading) || showActions) && (
+				<div style={{ padding: "6px 8px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+					{rasterReading && (
+						<div style={{ marginBottom: entries.length > 0 ? 6 : 0, fontSize: 10 }}>
+							<span style={{ color: muted }}>{rasterReading.layerName}: </span>
+							<span style={{ color: accentText, fontFamily: "monospace" }}>
+								{Number.isFinite(rasterReading.value) ? rasterReading.value.toPrecision(4) : "—"}
+								{rasterReading.units ? ` ${rasterReading.units}` : ""}
+							</span>
+						</div>
+					)}
+					{!hasFeatures && !rasterReading && (
+						<div style={{ fontSize: 10, color: muted, fontStyle: "italic" }}>No features at this point.</div>
+					)}
+					{entries.map(([key, value]) => (
 						<div
 							key={key}
 							style={{
-								marginBottom: 6,
-								paddingBottom: 6,
-								borderBottom: `1px solid ${accentBg}`,
-								fontSize: 11,
+								display: "grid",
+								gridTemplateColumns: "72px 1fr",
+								gap: "2px 8px",
+								marginBottom: 3,
+								fontSize: 10,
+								alignItems: "start",
 							}}>
-							<div style={{ opacity: 0.65, marginBottom: 2, fontWeight: 500 }}>{key}</div>
-							<div
+							<span style={{ color: muted, overflow: "hidden", textOverflow: "ellipsis" }} title={key}>
+								{key}
+							</span>
+							<span
 								style={{
-									background: accentBg,
-									padding: "4px 6px",
-									borderRadius: 3,
-									wordBreak: "break-word",
-									fontFamily: "var(--vscode-editor-font-family, monospace)",
-									fontSize: 10,
 									color: accentText,
-									maxHeight: 60,
-									overflowY: "auto",
+									fontFamily: "var(--vscode-editor-font-family, monospace)",
+									wordBreak: "break-word",
+									lineHeight: 1.35,
 								}}>
 								{String(value ?? "—")}
-							</div>
+							</span>
 						</div>
-					))
-				)}
-				{extra > 0 && (
-					<div style={{ fontSize: 10, opacity: 0.55, marginTop: 6, fontStyle: "italic" }}>+{extra} more attributes</div>
-				)}
-			</div>
-
-			{/* Close button */}
-			<div
-				style={{
-					padding: "6px 12px",
-					borderTop: `1px solid ${bdClr}`,
-					display: "flex",
-					justifyContent: "flex-end",
-				}}>
-				<button
-					onClick={onClose}
-					style={{
-						padding: "4px 12px",
-						fontSize: 11,
-						border: `1px solid ${bdClr}`,
-						background: "transparent",
-						color: fg,
-						cursor: "pointer",
-						borderRadius: 3,
-						opacity: 0.8,
-					}}
-					type="button">
-					Close
-				</button>
-			</div>
+					))}
+					{extra > 0 && <div style={{ fontSize: 9, color: muted, fontStyle: "italic" }}>+{extra} more</div>}
+					{showActions && (
+						<div style={{ marginTop: 8 }}>
+							{onAgentDelineate && (
+								<button
+									disabled={agentStarting || delineating}
+									onClick={() => void onAgentDelineate(inspectPoint)}
+									style={primaryBtn}
+									title="Start an agent task to delineate and push the watershed to the map"
+									type="button">
+									{agentStarting ? "Opening chat…" : "Delineate with agent"}
+								</button>
+							)}
+							{onAgentAsk && (
+								<button
+									disabled={agentStarting || delineating}
+									onClick={() => void onAgentAsk(inspectPoint)}
+									style={secondaryBtn}
+									title="Ask the agent about this outlet, layers, or next steps"
+									type="button">
+									{askLabel}
+								</button>
+							)}
+							{onQuickDelineate && (
+								<div style={{ marginTop: 6 }}>
+									<button
+										disabled={delineating || agentStarting}
+										onClick={() => void onQuickDelineate(inspectPoint)}
+										style={{
+											...secondaryBtn,
+											marginTop: 0,
+											fontSize: 9,
+											padding: "3px 6px",
+											textDecoration: delineating ? "none" : "underline",
+											border: "none",
+										}}
+										title="Fast cloud-DEM delineation after river snap — approximate boundary"
+										type="button">
+										{delineating ? "Delineating…" : "Quick delineate"}
+									</button>
+									<div style={{ marginTop: 4, fontSize: 8, color: muted, lineHeight: 1.35 }}>
+										{delineating
+											? "Delineating… (this may take several minutes)"
+											: "Approximate watershed (cloud DEM + snap). Area and shape can differ from gauges or field data — use Delineate with agent for a fuller check."}
+									</div>
+								</div>
+							)}
+							{(agentStatus || delineateStatus) && (
+								<div style={{ marginTop: 6, fontSize: 9, color: muted, lineHeight: 1.35 }}>
+									{agentStatus || delineateStatus}
+								</div>
+							)}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	)
 }

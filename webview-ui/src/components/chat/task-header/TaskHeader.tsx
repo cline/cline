@@ -100,11 +100,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			{/* Task Header */}
 			<div
 				className={cn(
-					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-[var(--vscode-toolbar-hoverBackground)]/65",
-					{
-						"opacity-100 border-1": isTaskExpanded, // No hover effects when expanded, add border
-						"hover:bg-[var(--vscode-toolbar-hoverBackground)] border-1": !isTaskExpanded, // Hover effects only when collapsed
-					},
+					"task-header-card relative overflow-hidden cursor-pointer flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2",
+					isTaskExpanded ? "task-header-card--expanded" : "",
 				)}
 				style={{
 					borderColor: environmentBorderColor,
@@ -137,10 +134,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 					<div className="inline-flex items-center justify-end select-none flex-shrink-0">
 						{isCostAvailable && (
-							<div
-								className="mr-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
-								id="price-tag">
-								<span className="text-xs">${totalCost?.toFixed(4)}</span>
+							<div className="task-header-chip mr-1" id="price-tag">
+								<span className="codicon codicon-credit-card text-[10px] opacity-70"></span>
+								<span>${totalCost?.toFixed(4)}</span>
 							</div>
 						)}
 						<NewTaskButton className={BUTTON_CLASS} onClick={onClose} />

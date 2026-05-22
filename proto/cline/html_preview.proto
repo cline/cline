@@ -1,0 +1,281 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "cline/common.proto";
+
+// Message representing an HTML preview item.
+//
+// IMPORTANT (post-redesign): `html_content` is no longer streamed to the
+// webview. The webview always renders the artifact by setting an <iframe>
+// src to `webview_uri`, which is a URL produced by
+// `vscode.Webview.asWebviewUri()` and served by VS Code as a real HTTP
+// response from disk. This makes relative paths, CDN scripts (Folium,
+// Leaflet, Plotly), and large files work the same way they would in a
+// real browser. `html_content` is kept for backward compatibility only
+// and is intentionally left empty by the extension.
+message HtmlPreviewItem {
+    string id = 1;                    // Unique preview identifier
+    string title = 2;                 // Display title
+    string html_content = 3;          // Deprecated. Kept empty; never sent to the webview.
+    string file_path = 4;             // Workspace-relative or absolute filesystem path
+    bool interactive = 5;             // Deprecated convenience flag. See resolved_mode.
+    map<string, string> metadata = 6; // Free-form metadata (timestamp, source, contentType, …)
+    string webview_uri = 7;           // URL the webview iframe should load (asWebviewUri(file_path))
+    string dir_uri = 8;               // Webview URL for the artifact's parent directory (debug only)
+    string content_hash = 9;          // SHA-256 of the on-disk file content; cache key for the iframe
+    HtmlPreviewMode resolved_mode = 10; // Mode actually chosen after auto-detection
+}
+
+// Execution mode for HTML preview.
+//
+// IMPORTANT: `UNSPECIFIED = 0` is the proto3 default and MUST stay at 0,
+// because every `PreviewHtmlRequest` whose sender doesn't explicitly set
+// `mode` will arrive with `mode = 0`. Treating that as "auto-detect" is
+// what lets `detectMode()` actually run. If `SAFE` were 0 (as in earlier
+// drafts), every untagged request would be pinned to safe mode and Folium/
+// Plotly/Leaflet artifacts would render as static HTML — exactly the
+// regression we hit and fixed here.
+enum HtmlPreviewMode {
+    UNSPECIFIED = 0;                  // Sender did not pick a mode — auto-detect.
+    SAFE = 1;                         // No scripts, sandboxed iframe.
+    INTERACTIVE = 2;                  // Scripts allowed for charts/dashboards.
+    EXTERNAL_BROWSER = 3;             // Open in user's default browser.
+}
+
+// Request to preview HTML content
+message PreviewHtmlRequest {
+    string html_content = 1;          // Raw HTML string to preview
+    string title = 2;                 // Optional title for the preview
+    bool interactive = 3;             // Deprecated: use mode instead. Allow scripts execution
+    string file_path = 4;             // Optional associated file path
+    HtmlPreviewMode mode = 5;         // Execution mode (safe, interactive, external_browser)
+}
+
+// Request to show the HTML preview panel
+message ShowHtmlPreviewRequest {}
+
+// Request to clear HTML previews
+message ClearHtmlPreviewRequest {}
+
+// Request to remove a specific HTML preview item
+message RemoveHtmlPreviewItemRequest {
+    string id = 1;
+}
+
+// Response with current HTML preview state
+message HtmlPreviewStateResponse {
+    repeated HtmlPreviewItem items = 1;
+    int32 item_count = 2;
+}
+
+// Language for executable artifact code cells.
+enum ArtifactCodeLanguage {
+    ARTIFACT_CODE_LANGUAGE_UNSPECIFIED = 0;
+    ARTIFACT_CODE_LANGUAGE_PYTHON = 1;
+}
+
+// Kernel lifecycle state exposed to the webview.
+enum ArtifactKernelState {
+    ARTIFACT_KERNEL_STATE_UNSPECIFIED = 0;
+    ARTIFACT_KERNEL_STATE_STOPPED = 1;
+    ARTIFACT_KERNEL_STATE_STARTING = 2;
+    ARTIFACT_KERNEL_STATE_READY = 3;
+    ARTIFACT_KERNEL_STATE_BUSY = 4;
+    ARTIFACT_KERNEL_STATE_ERROR = 5;
+}
+
+// Source of a discovered Python environment.
+enum PythonEnvironmentSource {
+    PYTHON_ENV_SOURCE_UNSPECIFIED = 0;
+    PYTHON_ENV_SOURCE_VSCODE = 1;
+    PYTHON_ENV_SOURCE_WORKSPACE_VENV = 2;
+    PYTHON_ENV_SOURCE_AIHYDRO_VENV = 3;
+    PYTHON_ENV_SOURCE_CUSTOM = 4;
+    PYTHON_ENV_SOURCE_PATH = 5;
+}
+
+message PythonEnvironment {
+    string profile_id = 1;
+    string interpreter_path = 2;
+    string label = 3;
+    PythonEnvironmentSource source = 4;
+    string cwd = 5;
+}
+
+message PythonEnvironmentListResponse {
+    repeated PythonEnvironment environments = 1;
+    string active_profile_id = 2;
+}
+
+message SetArtifactKernelProfileRequest {
+    string profile_id = 1;
+}
+
+message ProbePythonEnvironmentRequest {
+    string profile_id = 1;
+    string artifact_id = 2;
+}
+
+message ProbePythonEnvironmentResponse {
+    string stdout = 1;
+    string stderr = 2;
+    string status = 3;
+    string error = 4;
+}
+
+message RunArtifactCodeRequest {
+    string artifact_id = 1;
+    ArtifactCodeLanguage language = 2;
+    string code = 3;
+    string cell_id = 4;
+    string profile_id = 5;
+}
+
+message ArtifactCellOutput {
+    string type = 1;
+    string text = 2;
+    string data = 3;
+    string html = 4;
+}
+
+message RunArtifactCodeResponse {
+    string stdout = 1;
+    string stderr = 2;
+    string status = 3;
+    string error = 4;
+    string result_repr = 5;
+    repeated string images_png_base64 = 6;
+    string cell_id = 7;
+    uint32 execution_count = 8;
+    repeated ArtifactCellOutput outputs = 9;
+    bool truncated = 10;
+    string provenance_id = 11;
+}
+
+message RestartArtifactKernelRequest {
+    string artifact_id = 1;
+    string profile_id = 2;
+}
+
+message InterruptArtifactKernelRequest {
+    string artifact_id = 1;
+    string profile_id = 2;
+}
+
+message InterruptArtifactKernelResponse {
+    bool recovered = 1;
+    string error = 2;
+}
+
+message GetArtifactKernelInfoRequest {
+    string artifact_id = 1;
+    string profile_id = 2;
+}
+
+message ArtifactKernelInfoResponse {
+    string artifact_id = 1;
+    string interpreter_path = 2;
+    ArtifactKernelState state = 3;
+    string cwd = 4;
+    string last_error = 5;
+    string profile_id = 6;
+    string label = 7;
+    string python_version = 8;
+    string packages_probe = 9;
+    bool kernel_dirty = 10;
+    uint32 execution_count = 11;
+    bool workspace_trusted = 12;
+}
+
+message LearningModuleItem {
+  string module_id = 1;
+  string title = 2;
+  string description = 3;
+  string version = 4;
+  string author = 5;
+  string license = 6;
+  string topic = 7;
+  string level = 8;
+  int32 estimated_minutes = 9;
+  repeated string tags = 10;
+  string thumbnail_url = 11;
+  string download_url = 12;
+  string github_url = 13;
+  bool is_installed = 14;
+  string created_at = 15;
+  string updated_at = 16;
+  int32 download_count = 17;
+  int32 github_reactions = 18;
+  bool is_featured = 19;
+  string discussion_url = 20;
+}
+
+message LearningModuleCatalog {
+  repeated LearningModuleItem items = 1;
+}
+
+message InstallModuleRequest {
+  string module_id = 1;
+  string download_url = 2;
+  string title = 3;
+}
+
+message InstallModuleResponse {
+  string module_id = 1;
+  string local_path = 2;
+  bool success = 3;
+  optional string error = 4;
+}
+
+// Service for HTML preview operations
+service HtmlPreviewService {
+    // Preview HTML content (adds or updates a preview)
+    rpc previewHtml(PreviewHtmlRequest) returns (Empty);
+
+    // Show the HTML preview panel
+    rpc showHtmlPreview(ShowHtmlPreviewRequest) returns (Empty);
+
+    // Clear all HTML previews
+    rpc clearHtmlPreview(ClearHtmlPreviewRequest) returns (Empty);
+
+    // Remove a specific HTML preview item
+    rpc removeHtmlPreviewItem(RemoveHtmlPreviewItemRequest) returns (Empty);
+
+    // Get current HTML preview state
+    rpc getHtmlPreviewState(EmptyRequest) returns (HtmlPreviewStateResponse);
+
+    // Subscribe to HTML preview updates
+    rpc subscribeToHtmlPreviews(EmptyRequest) returns (stream HtmlPreviewItem);
+
+    // Execute Python in a persistent kernel for an artifact preview
+    rpc runArtifactCode(RunArtifactCodeRequest) returns (RunArtifactCodeResponse);
+
+    // Restart the Python kernel for an artifact (clears namespace)
+    rpc restartArtifactKernel(RestartArtifactKernelRequest) returns (Empty);
+
+    // Interrupt the current cell execution (SIGINT)
+    rpc interruptArtifactKernel(InterruptArtifactKernelRequest) returns (InterruptArtifactKernelResponse);
+
+    // Query kernel / interpreter status for an artifact
+    rpc getArtifactKernelInfo(GetArtifactKernelInfoRequest) returns (ArtifactKernelInfoResponse);
+
+    // List discoverable Python environments for the kernel picker
+    rpc listPythonEnvironments(EmptyRequest) returns (PythonEnvironmentListResponse);
+
+    // Set the active kernel profile for the current workspace
+    rpc setArtifactKernelProfile(SetArtifactKernelProfileRequest) returns (Empty);
+
+    // Run import probe against the active or specified kernel profile
+    rpc probePythonEnvironment(ProbePythonEnvironmentRequest) returns (ProbePythonEnvironmentResponse);
+
+    // Fetch the learning modules marketplace catalog
+    rpc refreshModulesMarketplace(EmptyRequest) returns (LearningModuleCatalog);
+
+    // Download and install a learning module locally
+    rpc installModule(InstallModuleRequest) returns (InstallModuleResponse);
+}

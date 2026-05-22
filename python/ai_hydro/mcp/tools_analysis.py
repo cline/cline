@@ -241,6 +241,12 @@ def delineate_watershed(
         # Push watershed boundary to map panel (non-fatal if VS Code not open)
         from ai_hydro.mcp.map_events import push_layer, push_gauge_point
         geojson_for_map = geojson if geojson else {}
+        ws_rel = f"watershed_{resolved_gauge_id}.geojson"
+        if session.workspace_dir:
+            from ai_hydro.session import HydroSession
+            _sess_geom = HydroSession.load(session_id)
+            _sess_geom.working_geometry_path = ws_rel
+            _sess_geom.save()
         push_layer(
             layer_id=f"watershed_{resolved_gauge_id}",
             name=f"Watershed: {d['data'].get('gauge_name', resolved_gauge_id)}",

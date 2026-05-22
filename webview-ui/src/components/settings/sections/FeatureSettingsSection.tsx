@@ -68,55 +68,23 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		<div>
 			{renderSectionHeader("features")}
 			<Section>
-				<div style={{ marginBottom: 20 }}>
+				<div className="mb-5">
 					{/* Subagents - Only show on macOS (for now) */}
 					{isMacOS && (
-						<div
-							className="relative p-3 mb-3 rounded-md"
-							id="subagents-section"
-							style={{
-								border: "1px solid var(--vscode-widget-border)",
-								backgroundColor: "var(--vscode-list-hoverBackground)",
-							}}>
-							<div
-								className="absolute -top-2 -right-2 px-2 py-0.5 rounded text-xs font-semibold"
-								style={{
-									backgroundColor: "var(--vscode-button-secondaryBackground)",
-									color: "var(--vscode-button-secondaryForeground)",
-								}}>
-								NEW
-							</div>
-
-							<div
-								className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded"
-								style={{
-									backgroundColor: "color-mix(in srgb, var(--vscode-sideBar-background) 99%, black)",
-								}}>
-								<p
-									className="text-xs mb-2 flex items-start"
-									style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
+						<div className="settings-card relative" id="subagents-section">
+							<div className="new-badge absolute -top-2 -right-2">NEW</div>{" "}
+							<div className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded bg-[var(--vscode-inputValidation-warningBackground)] bg-opacity-20">
+								<p className="text-xs mb-2 flex items-start text-[var(--vscode-inputValidation-warningForeground)]">
 									<span
 										className="codicon codicon-warning mr-1"
 										style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
 									<span>
-										AI-Hydro CLI is required for subagents. Install it with:
-										<code
-											className="ml-1 px-1 rounded"
-											style={{
-												backgroundColor: "var(--vscode-editor-background)",
-												color: "var(--vscode-foreground)",
-												opacity: 0.9,
-											}}>
+										AI-Hydro CLI is required for subagents. Install it with:{" "}
+										<code className="ml-1 px-1 rounded bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] opacity-90">
 											npm install -g aihydro
 										</code>
 										, then run
-										<code
-											className="ml-1 px-1 rounded"
-											style={{
-												backgroundColor: "var(--vscode-editor-background)",
-												color: "var(--vscode-foreground)",
-												opacity: 0.9,
-											}}>
+										<code className="ml-1 px-1 rounded bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)] opacity-90">
 											aihydro auth
 										</code>
 										To authenticate with AI-Hydro or configure an API provider.
@@ -167,21 +135,31 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 
-					<div>
-						<VSCodeCheckbox
-							checked={enableCheckpointsSetting}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("enableCheckpointsSetting", checked)
-							}}>
-							Enable Checkpoints
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-checklist" />
+							Core Features
+						</div>
+						<div className="settings-toggle-row">
+							<VSCodeCheckbox
+								checked={enableCheckpointsSetting}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("enableCheckpointsSetting", checked)
+								}}>
+								Enable Checkpoints
+							</VSCodeCheckbox>
+						</div>
+						<p className="toggle-description">
 							Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which
 							may not work well with large workspaces.
 						</p>
 					</div>
-					<div style={{ marginTop: 10 }}>
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-extensions" />
+							MCP & Marketplace
+						</div>
 						{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined ? (
 							<HeroTooltip content="This setting is managed by your organization's remote configuration">
 								<div className="flex items-center gap-2">
@@ -208,121 +186,125 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable MCP Marketplace
 							</VSCodeCheckbox>
 						)}
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="toggle-description">
 							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<label
-							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"
-							htmlFor="mcp-display-mode-dropdown">
-							MCP Display Mode
-						</label>
-						<McpDisplayModeDropdown
-							className="w-full"
-							id="mcp-display-mode-dropdown"
-							onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
-							value={mcpDisplayMode}
-						/>
-						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
-							rendering.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpResponsesCollapsed}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpResponsesCollapsed", checked)
-							}}>
-							Collapse MCP Responses
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Sets the default display mode for MCP response panels
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<label
-							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"
-							htmlFor="openai-reasoning-effort-dropdown">
-							OpenAI Reasoning Effort
-						</label>
-						<VSCodeDropdown
-							className="w-full"
-							currentValue={openaiReasoningEffort || "medium"}
-							id="openai-reasoning-effort-dropdown"
-							onChange={(e: any) => {
-								const newValue = e.target.currentValue as OpenaiReasoningEffort
-								handleReasoningEffortChange(newValue)
-							}}>
-							<VSCodeOption value="minimal">Minimal</VSCodeOption>
-							<VSCodeOption value="low">Low</VSCodeOption>
-							<VSCodeOption value="medium">Medium</VSCodeOption>
-							<VSCodeOption value="high">High</VSCodeOption>
-						</VSCodeDropdown>
-						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={strictPlanModeEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("strictPlanModeEnabled", checked)
-							}}>
-							Enable strict plan mode
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-							Enforces strict tool use while in plan mode, preventing file edits.
-						</p>
-					</div>
-					{
-						<div style={{ marginTop: 10 }}>
+						<div className="mt-2">
+							<label className="settings-label" htmlFor="mcp-display-mode-dropdown">
+								MCP Display Mode
+							</label>
+							<McpDisplayModeDropdown
+								className="w-full"
+								id="mcp-display-mode-dropdown"
+								onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
+								value={mcpDisplayMode}
+							/>
+							<p className="toggle-description">
+								Controls how MCP responses are displayed: plain text, rich formatting with links/images, or
+								markdown rendering.
+							</p>
+						</div>
+						<div className="mt-2">
 							<VSCodeCheckbox
-								checked={focusChainSettings?.enabled || false}
+								checked={mcpResponsesCollapsed}
 								onChange={(e: any) => {
 									const checked = e.target.checked === true
-									updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
+									updateSetting("mcpResponsesCollapsed", checked)
 								}}>
-								Enable Focus Chain
+								Collapse MCP Responses
 							</VSCodeCheckbox>
-							<p className="text-xs text-[var(--vscode-descriptionForeground)]">
-								Enables enhanced task progress tracking and automatic focus chain list management throughout
-								tasks.
-							</p>
+							<p className="toggle-description">Sets the default display mode for MCP response panels</p>
 						</div>
-					}
-					{focusChainSettings?.enabled && (
-						<div style={{ marginTop: 10, marginLeft: 20 }}>
-							<label
-								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"
-								htmlFor="focus-chain-remind-interval">
-								Focus Chain Reminder Interval
+					</div>
+
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-brain" />
+							AI Reasoning & Planning
+						</div>
+						<div className="mb-2">
+							<label className="settings-label" htmlFor="openai-reasoning-effort-dropdown">
+								OpenAI Reasoning Effort
 							</label>
-							<VSCodeTextField
-								className="w-20"
-								id="focus-chain-remind-interval"
+							<VSCodeDropdown
+								className="w-full"
+								currentValue={openaiReasoningEffort || "medium"}
+								id="openai-reasoning-effort-dropdown"
 								onChange={(e: any) => {
-									const value = parseInt(e.target.value, 10)
-									if (!Number.isNaN(value) && value >= 1 && value <= 100) {
-										updateSetting("focusChainSettings", {
-											...focusChainSettings,
-											remindAiHydroInterval: value,
-										})
-									}
-								}}
-								value={String(focusChainSettings?.remindAiHydroInterval || 6)}
-							/>
-							<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
-								Interval (in messages) to remind AI-Hydro about its focus chain checklist (1-100). Lower values
-								provide more frequent reminders.
+									const newValue = e.target.currentValue as OpenaiReasoningEffort
+									handleReasoningEffortChange(newValue)
+								}}>
+								<VSCodeOption value="minimal">Minimal</VSCodeOption>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="medium">Medium</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+							</VSCodeDropdown>
+							<p className="toggle-description">
+								Reasoning effort for the OpenAI family of models (applies to all OpenAI model providers)
 							</p>
 						</div>
-					)}
+						<div className="mt-2">
+							<VSCodeCheckbox
+								checked={strictPlanModeEnabled}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("strictPlanModeEnabled", checked)
+								}}>
+								Enable strict plan mode
+							</VSCodeCheckbox>
+							<p className="toggle-description">
+								Enforces strict tool use while in plan mode, preventing file edits.
+							</p>
+						</div>
+						{
+							<div className="mt-2">
+								<VSCodeCheckbox
+									checked={focusChainSettings?.enabled || false}
+									onChange={(e: any) => {
+										const checked = e.target.checked === true
+										updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
+									}}>
+									Enable Focus Chain
+								</VSCodeCheckbox>
+								<p className="toggle-description">
+									Enables enhanced task progress tracking and automatic focus chain list management throughout
+									tasks.
+								</p>
+							</div>
+						}
+						{focusChainSettings?.enabled && (
+							<div className="mt-2 ml-5">
+								<label className="settings-label" htmlFor="focus-chain-remind-interval">
+									Focus Chain Reminder Interval
+								</label>
+								<VSCodeTextField
+									className="w-20"
+									id="focus-chain-remind-interval"
+									onChange={(e: any) => {
+										const value = parseInt(e.target.value, 10)
+										if (!Number.isNaN(value) && value >= 1 && value <= 100) {
+											updateSetting("focusChainSettings", {
+												...focusChainSettings,
+												remindAiHydroInterval: value,
+											})
+										}
+									}}
+									value={String(focusChainSettings?.remindAiHydroInterval || 6)}
+								/>
+								<p className="toggle-description">
+									Interval (in messages) to remind AI-Hydro about its focus chain checklist (1-100). Lower
+									values provide more frequent reminders.
+								</p>
+							</div>
+						)}
+					</div>
+
 					{dictationSettings?.featureEnabled && (
-						<>
+						<div className="settings-card">
+							<div className="settings-section-header">
+								<span className="codicon codicon-mic" />
+								Dictation
+							</div>
 							<div className="mt-2.5">
 								<VSCodeCheckbox
 									checked={dictationSettings?.dictationEnabled}
@@ -336,19 +318,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									}}>
 									Enable Dictation
 								</VSCodeCheckbox>
-								<p className="text-xs text-description mt-1">
+								<p className="toggle-description">
 									Enables speech-to-text transcription using your AI-Hydro account. Uses the Whisper model, at
 									$0.006 credits per minute of audio processed. 5 minutes max per message.
 								</p>
 							</div>
 
-							{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
-							<CollapsibleContent isOpen={dictationSettings?.dictationEnabled}> */}
 							{dictationSettings?.dictationEnabled && (
 								<div className="mt-2.5 ml-5">
-									<label
-										className="block text-sm font-medium text-foreground mb-1"
-										htmlFor="dictation-language-dropdown">
+									<label className="settings-label" htmlFor="dictation-language-dropdown">
 										Dictation Language
 									</label>
 									<VSCodeDropdown
@@ -369,24 +347,31 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											</VSCodeOption>
 										))}
 									</VSCodeDropdown>
-									<p className="text-xs mt-1 text-description">
+									<p className="toggle-description">
 										The language you want to speak to the Dictation service in. This is separate from your
 										preferred UI language.
 									</p>
 								</div>
 							)}
-						</>
+						</div>
 					)}
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={useAutoCondense}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("useAutoCondense", checked)
-							}}>
-							Enable Auto Compact
-						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-compress" />
+							Context Management
+						</div>
+						<div className="settings-toggle-row">
+							<VSCodeCheckbox
+								checked={useAutoCondense}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("useAutoCondense", checked)
+								}}>
+								Enable Auto Compact
+							</VSCodeCheckbox>
+						</div>
+						<p className="toggle-description">
 							Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
 							<a
 								className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
@@ -396,42 +381,45 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Learn more
 							</a>
 						</p>
-					</div>
-					{multiRootSetting.featureFlag && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={multiRootSetting.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("multiRootEnabled", checked)
-								}}>
-								Enable Multi-Root Workspace
-							</VSCodeCheckbox>
-							<p className="text-xs">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-								<span className="text-description">Allows AI-Hydro to work across multiple workspaces.</span>
-							</p>
-						</div>
-					)}
-					{hooksEnabled?.featureFlag && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={hooksEnabled.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("hooksEnabled", checked)
-								}}>
-								Enable Hooks
-							</VSCodeCheckbox>
-							<p className="text-xs">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-								<span className="text-description">
+						{multiRootSetting.featureFlag && (
+							<div className="mt-2">
+								<VSCodeCheckbox
+									checked={multiRootSetting.user}
+									onChange={(e: any) => {
+										const checked = e.target.checked === true
+										updateSetting("multiRootEnabled", checked)
+									}}>
+									Enable Multi-Root Workspace
+								</VSCodeCheckbox>
+								<p className="toggle-description">
+									<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>
+									Allows AI-Hydro to work across multiple workspaces.
+								</p>
+							</div>
+						)}
+						{hooksEnabled?.featureFlag && (
+							<div className="mt-2">
+								<VSCodeCheckbox
+									checked={hooksEnabled.user}
+									onChange={(e: any) => {
+										const checked = e.target.checked === true
+										updateSetting("hooksEnabled", checked)
+									}}>
+									Enable Hooks
+								</VSCodeCheckbox>
+								<p className="toggle-description">
+									<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>
 									Allows execution of hooks from .aihydrorules/hooks/ directory.
-								</span>
-							</p>
+								</p>
+							</div>
+						)}
+					</div>
+
+					<div className="settings-card">
+						<div className="settings-section-header">
+							<span className="codicon codicon-warning" />
+							Advanced / Dangerous
 						</div>
-					)}
-					<div style={{ marginTop: 10 }}>
 						{remoteConfigSettings?.yoloModeToggled !== undefined ? (
 							<HeroTooltip content="This setting is managed by your organization's remote configuration">
 								<div className="flex items-center gap-2">
@@ -458,7 +446,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable YOLO Mode
 							</VSCodeCheckbox>
 						)}
-						<p className="text-xs text-[var(--vscode-errorForeground)]">
+						<p className="toggle-description text-[var(--vscode-errorForeground)]">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. AI-Hydro will
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>

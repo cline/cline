@@ -42,6 +42,7 @@ export const TASK_SERVICES_KEYS = [
 	"aihydroIgnoreController",
 	"contextManager",
 	"stateManager",
+	"controller",
 ] as const
 
 /**

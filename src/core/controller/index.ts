@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { MapCommandWatcher } from "@core/map/MapCommandWatcher"
 import { MapEventWatcher } from "@core/map/MapEventWatcher"
 import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
@@ -9,6 +10,9 @@ import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { AiHydroAccountService } from "@services/account/AiHydroAccountService"
+import { ArtifactKernelService } from "@services/artifact-preview/ArtifactKernelService"
+import type { ArtifactRef } from "@services/artifact-preview/ArtifactPreviewService"
+import { ArtifactPreviewService } from "@services/artifact-preview/ArtifactPreviewService"
 import { geoFormatConverter } from "@services/geo/GeoFormatConverter"
 import { GeoConversionError } from "@services/geo/types"
 import { McpHub } from "@services/mcp/McpHub"
@@ -17,6 +21,7 @@ import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
+import { HtmlPreviewItem, HtmlPreviewMode, LearningModuleCatalog } from "@shared/proto/cline/html_preview"
 import { MapLayer } from "@shared/proto/cline/map"
 import { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@shared/storage/types"
@@ -37,6 +42,7 @@ import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { MapSessionService } from "@/services/map/MapSessionService"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
@@ -77,6 +83,8 @@ export class Controller {
 	private workspaceManager?: WorkspaceRootManager
 	private fileScanner?: FileScanner
 	private workspaceGeoJsonFiles: WorkspaceGeoJsonFile[] = []
+	private workspaceHtmlFiles: Array<{ uri: vscode.Uri; relativePath: string; name: string }> = []
+	private htmlFileWatcher?: vscode.FileSystemWatcher
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 
@@ -93,6 +101,28 @@ export class Controller {
 	private mapLayers: Map<string, MapLayer> = new Map()
 	private mapLayerSubscribers: Set<(layer: MapLayer) => void> = new Set()
 	private mapEventWatcher: MapEventWatcher
+	private mapCommandWatcher: MapCommandWatcher
+	readonly mapSessionService: MapSessionService
+
+	// HTML preview storage and streaming.
+	//
+	// `htmlPreviewService` is the canonical source of truth for artifacts;
+	// the controller only owns the streaming subscription set, the active-id
+	// pointer, and the monotonically-increasing version used as a state
+	// signal to the webview.
+	readonly htmlPreviewService: ArtifactPreviewService
+	readonly artifactKernelService: ArtifactKernelService
+	private htmlPreviewSubscribers: Set<(item: HtmlPreviewItem) => void> = new Set()
+	private htmlPreviewVersion = 0
+	private htmlPreviewActiveId: string | null = null
+
+	/**
+	 * Cap on the inline `htmlContent` payload we put on the wire. Folium
+	 * maps with embedded GeoJSON can be 4–8 MB; gRPC + JSON serialization
+	 * across the webview boundary tolerates that fine. Beyond this cap we
+	 * tell the webview to load via `webviewUri` instead.
+	 */
+	private static readonly MAX_INLINE_HTML_BYTES = 8 * 1024 * 1024
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -144,9 +174,22 @@ export class Controller {
 		// Initialize workspace GeoJSON file scanner
 		this.initializeFileScanner()
 
+		// Initialize workspace HTML file scanner
+		this.scanWorkspaceHtmlFiles()
+
+		// Owns artifact registration (file + inline) for the HTML preview panel.
+		this.htmlPreviewService = new ArtifactPreviewService(context)
+		this.htmlPreviewService.onChange(this.onArtifactChange)
+		this.artifactKernelService = new ArtifactKernelService(context)
+		context.subscriptions.push({ dispose: () => this.artifactKernelService.dispose() })
+
 		// Start watching ~/.aihydro/map_events/ for layers pushed by Python tools
 		this.mapEventWatcher = new MapEventWatcher(this)
 		this.mapEventWatcher.start()
+		this.mapSessionService = new MapSessionService()
+		void this.mapSessionService.initialize()
+		this.mapCommandWatcher = new MapCommandWatcher(this)
+		this.mapCommandWatcher.start()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
 				console.error("[Controller] Cache persistence failed, recovering:", error)
@@ -213,6 +256,12 @@ export class Controller {
 		if (this.fileScanner) {
 			this.fileScanner.dispose()
 			this.fileScanner = undefined
+		}
+
+		// Dispose HTML file watcher
+		if (this.htmlFileWatcher) {
+			this.htmlFileWatcher.dispose()
+			this.htmlFileWatcher = undefined
 		}
 
 		await this.clearTask()
@@ -676,6 +725,57 @@ export class Controller {
 		}
 	}
 
+	async silentlyRefreshModulesMarketplaceRPC(): Promise<LearningModuleCatalog | undefined> {
+		try {
+			const response = await axios.get(`${AiHydroEnv.config().modulesBaseUrl}/modules.json`, {
+				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+			})
+			if (!response.data) throw new Error("Invalid response from Modules marketplace API")
+			const catalog: LearningModuleCatalog = {
+				items: (Array.isArray(response.data) ? response.data : []).map((item: any) => ({
+					moduleId: item.moduleId || item.id || "",
+					title: item.title || "",
+					description: item.description || "",
+					version: item.version || "0.1.0",
+					author: item.author || "",
+					license: item.license || "CC-BY-4.0",
+					topic: item.topic || "",
+					level: item.level || "intro",
+					estimatedMinutes: item.estimatedMinutes || item.estimated_minutes || 0,
+					tags: item.tags || [],
+					thumbnailUrl: item.thumbnailUrl || item.thumbnail_url || "",
+					downloadUrl: item.downloadUrl || item.download_url || "",
+					githubUrl: item.githubUrl || item.github_url || "",
+					isInstalled: false,
+					createdAt: item.createdAt || item.created_at || "",
+					updatedAt: item.updatedAt || item.updated_at || "",
+					downloadCount: item.downloadCount || item.download_count || 0,
+					githubReactions: item.githubReactions || item.github_reactions || 0,
+					isFeatured: item.isFeatured || item.is_featured || false,
+					discussionUrl: item.discussionUrl || item.discussion_url || "",
+				})),
+			}
+			return catalog
+		} catch (error) {
+			console.error("Failed to fetch Modules marketplace:", error)
+			return undefined
+		}
+	}
+
+	async silentlyRefreshConnectorsCatalogRPC(): Promise<string | undefined> {
+		try {
+			const response = await axios.get(`${AiHydroEnv.config().connectorsBaseUrl}/connectors.json`, {
+				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+				timeout: 10000,
+			})
+			if (!response.data) throw new Error("Invalid response from Connectors catalog API")
+			return JSON.stringify(Array.isArray(response.data) ? response.data : [])
+		} catch (error) {
+			console.error("Failed to fetch Connectors catalog:", error)
+			return undefined
+		}
+	}
+
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
@@ -936,6 +1036,12 @@ export class Controller {
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 			lastDismissedCliBannerVersion,
 			subagentsEnabled,
+			workspaceHtmlFiles: this.workspaceHtmlFiles.map((f) => ({
+				path: f.relativePath,
+				name: f.name,
+			})),
+			htmlPreviewVersion: this.htmlPreviewVersion,
+			htmlPreviewActiveId: this.htmlPreviewActiveId,
 		}
 	}
 
@@ -1065,13 +1171,151 @@ export class Controller {
 		}
 	}
 
+	/** Refresh workspace root used for ROI persistence. */
+	async refreshMapSessionWorkspaceRoot(): Promise<void> {
+		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+		this.mapSessionService.setWorkspaceRoot(cwd)
+	}
+
+	// ─── HTML Preview management ─────────────────────────────────────────
+	//
+	// All artifact bookkeeping (file IO, hashing, mode detection) lives in
+	// `htmlPreviewService`. The controller is responsible for translating
+	// `ArtifactRef`s into the over-the-wire `HtmlPreviewItem` shape (with
+	// the webview URI populated) and notifying subscribers.
+
+	getArtifactPreviewService(): ArtifactPreviewService {
+		return this.htmlPreviewService
+	}
+
+	getArtifactKernelService(): ArtifactKernelService {
+		return this.artifactKernelService
+	}
+
+	/**
+	 * Build a wire-format `HtmlPreviewItem` for an artifact. The webview URI
+	 * is resolved through `VscodeHtmlPreviewProvider` so it matches the
+	 * panel that's actually rendering the iframe; if no panel is open yet,
+	 * we fall back to empty strings — the URI is recomputed and re-streamed
+	 * the next time the panel is opened.
+	 */
+	toHtmlPreviewItem(ref: ArtifactRef): HtmlPreviewItem {
+		// Lazy import to avoid a circular module dependency.
+		const { VscodeHtmlPreviewProvider } = require("@/hosts/vscode/VscodeHtmlPreviewProvider") as {
+			VscodeHtmlPreviewProvider: {
+				getArtifactWebviewUri: (r: ArtifactRef) => { src: string; dir: string }
+			}
+		}
+		const { src, dir } = VscodeHtmlPreviewProvider.getArtifactWebviewUri(ref)
+		// Ship HTML inline so the iframe can use `srcdoc` (same-origin with
+		// the parent webview, our CSP applies). For very large artifacts we
+		// skip the inline copy to keep gRPC messages reasonable; the webview
+		// can fall back to `webviewUri` in those cases.
+		const inlineHtml = ref.byteLength <= Controller.MAX_INLINE_HTML_BYTES ? ref.html : ""
+		return HtmlPreviewItem.create({
+			id: ref.id,
+			title: ref.title,
+			htmlContent: inlineHtml,
+			filePath: ref.fsPath,
+			interactive: ref.mode === "interactive",
+			metadata: { ...ref.metadata, byteLength: String(ref.byteLength) },
+			webviewUri: src,
+			dirUri: dir,
+			contentHash: ref.contentHash,
+			resolvedMode: ref.mode === "interactive" ? HtmlPreviewMode.INTERACTIVE : HtmlPreviewMode.SAFE,
+		})
+	}
+
+	/**
+	 * @deprecated Prefer `htmlPreviewService.registerFile` /
+	 * `registerInline`. This shim exists for backward compatibility with the
+	 * old `addHtmlPreview` flow used by `previewHtml`.
+	 */
+	addHtmlPreview(ref: ArtifactRef): void {
+		console.log(`[Controller] Adding HTML preview: ${ref.id}`)
+		// The service already stored it; we just need to update the
+		// active-id pointer + notify streaming subscribers + push state.
+		this.htmlPreviewActiveId = ref.id
+		this.htmlPreviewVersion++
+		const item = this.toHtmlPreviewItem(ref)
+		this.notifyHtmlPreviewSubscribers(item)
+		void this.postStateToWebview()
+	}
+
+	private notifyHtmlPreviewSubscribers(item: HtmlPreviewItem): void {
+		this.htmlPreviewSubscribers.forEach((subscriber) => {
+			try {
+				subscriber(item)
+			} catch (error) {
+				console.error("[Controller] Error notifying HTML preview subscriber:", error)
+			}
+		})
+	}
+
+	removeHtmlPreview(id: string): void {
+		console.log(`[Controller] Removing HTML preview: ${id}`)
+		this.artifactKernelService.stopSessionsForArtifact(id)
+		const removed = this.htmlPreviewService.remove(id)
+		if (!removed) return
+		this.htmlPreviewVersion++
+		if (this.htmlPreviewActiveId === id) {
+			const remaining = this.htmlPreviewService.list()
+			this.htmlPreviewActiveId = remaining.length > 0 ? remaining[remaining.length - 1].id : null
+		}
+		this.notifyHtmlPreviewSubscribers(HtmlPreviewItem.create({ id, metadata: { __operation: "remove" } }))
+		void this.postStateToWebview()
+	}
+
+	clearHtmlPreviews(): void {
+		console.log("[Controller] Clearing all HTML previews")
+		if (this.htmlPreviewService.list().length === 0) return
+		for (const ref of this.htmlPreviewService.list()) {
+			this.artifactKernelService.stopSessionsForArtifact(ref.id)
+		}
+		this.htmlPreviewService.clear()
+		this.htmlPreviewVersion++
+		this.htmlPreviewActiveId = null
+		this.notifyHtmlPreviewSubscribers(
+			HtmlPreviewItem.create({
+				id: `__html_preview_clear_${Date.now()}`,
+				metadata: { __operation: "clear" },
+			}),
+		)
+		void this.postStateToWebview()
+	}
+
+	getHtmlPreviews(): HtmlPreviewItem[] {
+		return this.htmlPreviewService.list().map((ref) => this.toHtmlPreviewItem(ref))
+	}
+
+	subscribeToHtmlPreviewUpdates(callback: (item: HtmlPreviewItem) => void): () => void {
+		console.log("[Controller] New HTML preview subscription added")
+		this.htmlPreviewSubscribers.add(callback)
+		return () => {
+			console.log("[Controller] HTML preview subscription removed")
+			this.htmlPreviewSubscribers.delete(callback)
+		}
+	}
+
+	/**
+	 * Service event handler — bound once in the constructor.
+	 *
+	 * Note: file-registration and inline-registration paths already call
+	 * `addHtmlPreview`/`removeHtmlPreview`/`clearHtmlPreviews` themselves
+	 * to update version/active-id atomically. This handler is reserved for
+	 * future service-driven changes (e.g. file watcher) so the wiring is
+	 * in place without duplicating state-update work today.
+	 */
+	private onArtifactChange = (_change: { kind: string; ref?: ArtifactRef }): void => {
+		// Reserved for future use (e.g. external file watcher updates).
+	}
+
 	// Workspace GeoJSON file scanner methods
 
 	/**
 	 * Initialize the workspace GeoJSON file scanner
 	 */
 	private async initializeFileScanner(): Promise<void> {
-		// biome-ignore lint/correctness/noNodejsModules: VSCode workspace API required
 		const workspaceFolders = vscode.workspace.workspaceFolders
 		if (!workspaceFolders || workspaceFolders.length === 0) {
 			console.log("[Controller] No workspace folders, skipping file scanner initialization")
@@ -1101,6 +1345,110 @@ export class Controller {
 	 */
 	getWorkspaceGeoJsonFiles(): WorkspaceGeoJsonFile[] {
 		return this.workspaceGeoJsonFiles
+	}
+
+	// ─── Workspace HTML file scanning ─────────────────────────────────────────
+
+	/**
+	 * Scan workspace for HTML files and set up a watcher
+	 */
+	private async scanWorkspaceHtmlFiles(): Promise<void> {
+		const workspaceFolders = vscode.workspace.workspaceFolders
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return
+		}
+
+		try {
+			this.workspaceHtmlFiles = []
+			for (const folder of workspaceFolders) {
+				const pattern = new vscode.RelativePattern(folder, "**/*.{html,htm}")
+				const uris = await vscode.workspace.findFiles(pattern, "**/node_modules/**")
+				for (const uri of uris) {
+					const relativePath = path.relative(folder.uri.fsPath, uri.fsPath)
+					this.workspaceHtmlFiles.push({
+						uri,
+						relativePath,
+						name: path.basename(uri.fsPath),
+					})
+				}
+			}
+			console.log(`[Controller] Found ${this.workspaceHtmlFiles.length} HTML files in workspace`)
+
+			// Set up file watcher for HTML files
+			this.htmlFileWatcher = vscode.workspace.createFileSystemWatcher("**/*.{html,htm}")
+			this.htmlFileWatcher.onDidCreate(async (uri) => {
+				if (uri.fsPath.includes("node_modules")) {
+					return
+				}
+				const folder = vscode.workspace.getWorkspaceFolder(uri)
+				if (folder) {
+					// Deduplicate: skip if already tracked
+					if (this.workspaceHtmlFiles.some((f) => f.uri.toString() === uri.toString())) {
+						return
+					}
+					this.workspaceHtmlFiles.push({
+						uri,
+						relativePath: path.relative(folder.uri.fsPath, uri.fsPath),
+						name: path.basename(uri.fsPath),
+					})
+					console.log(`[Controller] HTML file created: ${uri.fsPath}`)
+					await this.postStateToWebview()
+				}
+			})
+			this.htmlFileWatcher.onDidDelete(async (uri) => {
+				if (uri.fsPath.includes("node_modules")) {
+					return
+				}
+				const beforeLen = this.workspaceHtmlFiles.length
+				this.workspaceHtmlFiles = this.workspaceHtmlFiles.filter((f) => f.uri.toString() !== uri.toString())
+				if (this.workspaceHtmlFiles.length !== beforeLen) {
+					console.log(`[Controller] HTML file deleted: ${uri.fsPath}`)
+					await this.postStateToWebview()
+				}
+			})
+			this.htmlFileWatcher.onDidChange(async (uri) => {
+				if (uri.fsPath.includes("node_modules")) {
+					return
+				}
+				const folder = vscode.workspace.getWorkspaceFolder(uri)
+				if (folder) {
+					const idx = this.workspaceHtmlFiles.findIndex((f) => f.uri.toString() === uri.toString())
+					if (idx >= 0) {
+						this.workspaceHtmlFiles[idx] = {
+							uri,
+							relativePath: path.relative(folder.uri.fsPath, uri.fsPath),
+							name: path.basename(uri.fsPath),
+						}
+						console.log(`[Controller] HTML file changed: ${uri.fsPath}`)
+						await this.postStateToWebview()
+					}
+				}
+			})
+		} catch (error) {
+			console.error("[Controller] Failed to scan workspace HTML files:", error)
+		}
+	}
+
+	/**
+	 * Get list of workspace HTML files
+	 */
+	getWorkspaceHtmlFiles(): Array<{ uri: vscode.Uri; relativePath: string; name: string }> {
+		return this.workspaceHtmlFiles
+	}
+
+	/**
+	 * Surface the workspace HTML file list to the webview without loading
+	 * file contents. The previous behavior of pre-loading every HTML file
+	 * into memory on panel open was wasteful (hundreds of KB per file × up
+	 * to 20 files) and confused users by showing items as "loaded" before
+	 * they had clicked anything. The new flow is fully on-demand: clicking
+	 * a file in the sidebar calls `previewHtml` with `filePath`.
+	 */
+	async loadWorkspaceHtmlPreviews(): Promise<void> {
+		console.log(`[Controller] ${this.workspaceHtmlFiles.length} workspace HTML files available (lazy-load on click)`)
+		// Just refresh the state signal so the sidebar's file list re-renders.
+		this.htmlPreviewVersion++
+		await this.postStateToWebview()
 	}
 
 	/**
@@ -1160,7 +1508,7 @@ export class Controller {
 						let prjContent: string | undefined
 						try {
 							prjContent = await fs.readFile(prjPath, "utf8")
-						} catch (error) {
+						} catch (_error) {
 							console.log(`[Controller] No .prj file found (optional)`)
 						}
 
@@ -1224,7 +1572,7 @@ export class Controller {
 				}
 
 				// Parse to validate
-				const geojson = JSON.parse(geojsonContent)
+				const _geojson = JSON.parse(geojsonContent)
 
 				// Generate layer ID from file path
 				const layerId = `workspace_${file.relativePath.replace(/[^a-zA-Z0-9]/g, "_")}`
@@ -1236,9 +1584,9 @@ export class Controller {
 				const layer = {
 					id: layerId,
 					name: file.name,
-					layerType: "geojson" as const,
+					layerType: "polygon" as const,
 					geojson: geojsonContent,
-					visible: false, // Hidden by default as requested
+					visible: true,
 					style: {
 						fillColor: "#0066CC",
 						fillOpacity: 0.5,

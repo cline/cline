@@ -13,14 +13,11 @@ export const InfoBanner: React.FC = () => {
 	if (usePlatform().type === PlatformType.VSCODE) {
 		return (
 			<a
-				className="bg-banner-background px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm m-4 no-underline transition-colors hover:brightness-120"
+				className="info-banner bg-banner-background px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm m-4 no-underline transition-colors hover:brightness-120"
 				href="https://github.com/AI-Hydro/AI-Hydro#readme"
 				rel="noopener noreferrer"
-				style={{ color: "var(--vscode-foreground)", outline: "none" }}
 				target="_blank">
-				<h4 className="m-0" style={{ paddingRight: "18px" }}>
-					💡 AI-Hydro in the Right Sidebar
-				</h4>
+				<h4 className="info-banner-title m-0">💡 AI-Hydro in the Right Sidebar</h4>
 				<p className="m-0">
 					Keep your files visible when chatting with AI-Hydro. Drag the AI-Hydro icon to the right sidebar panel for a
 					better experience. <span className="text-link cursor-pointer">See how →</span>
@@ -29,9 +26,9 @@ export const InfoBanner: React.FC = () => {
 				{/* Close button */}
 				<VSCodeButton
 					appearance="icon"
+					className="info-banner-close"
 					data-testid="info-banner-close-button"
-					onClick={handleClose}
-					style={{ position: "absolute", top: "6px", right: "6px" }}>
+					onClick={handleClose}>
 					<span className="codicon codicon-close"></span>
 				</VSCodeButton>
 			</a>

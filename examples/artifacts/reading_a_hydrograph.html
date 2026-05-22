@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reading a Hydrograph — AI-Hydro Interactive Module</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Poppins:wght@400;500;600;700&family=Nunito:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+
+<script type="application/vnd.aihydro.module+json">
+{
+  "id": "reading-a-hydrograph",
+  "title": "Reading a Hydrograph",
+  "version": "0.1.0",
+  "authors": [{ "name": "Mohammad Galib", "affiliation": "Purdue University" }],
+  "license": "CC-BY-4.0",
+  "topic": "streamflow",
+  "level": "intro",
+  "estimated_minutes": 18,
+  "requires": { "executable": true, "python": ["numpy", "matplotlib"] },
+  "citation": { "text": "Lyne, V. & Hollick, M. (1979). Stochastic time-variable rainfall-runoff modelling. Inst. Eng. Australia Nat. Conf. Publ. 79/10, 89–93." },
+  "ai_hydro_preview_min_version": "0.1"
+}
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:#00A3FF;  --cyan:#00DDFF;  --bright:#00FFFF;
+  --bg:#0a0a15;    --navy:#1a1a2e;  --mid:#0f0f1e;
+  --text:#FFFFFF;  --sub:#7dd3fc;   --muted:#94a3b8;
+  --border:rgba(125,211,252,0.15);
+  --shadow:0 24px 64px rgba(0,0,0,0.55);
+  --rising:#f59e0b;  --peak:#00FFFF;  --falling:#a78bfa;  --base:#34d399;
+}
+
+body {
+  font-family:'Nunito',system-ui,sans-serif; font-size:16px; line-height:1.65;
+  color:var(--sub);
+  background:
+    radial-gradient(ellipse at 10% 0%,   rgba(0,163,255,0.18) 0%, transparent 45%),
+    radial-gradient(ellipse at 90% 100%, rgba(0,221,255,0.10) 0%, transparent 40%),
+    var(--bg);
+  min-height:100vh;
+}
+main { max-width:1160px; margin:0 auto; padding:32px 24px 80px; }
+
+h1 { font-family:'Quicksand',sans-serif; font-weight:700; color:var(--text);
+     font-size:clamp(34px,5vw,56px); line-height:1.05; letter-spacing:-0.03em; }
+h2 { font-family:'Poppins',sans-serif; font-weight:600; color:var(--text);
+     font-size:22px; letter-spacing:-0.01em; margin-bottom:10px; }
+h3 { font-family:'Poppins',sans-serif; font-weight:500; color:var(--sub);
+     font-size:13px; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px; }
+p  { color:var(--sub); margin-bottom:12px; }
+strong { color:var(--text); }
+code { font-family:'JetBrains Mono',monospace; font-size:0.88em;
+       background:rgba(0,221,255,0.10); padding:2px 7px; border-radius:5px; color:var(--cyan); }
+a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,255,0.3); }
+a:hover { border-bottom-color:var(--cyan); }
+
+.card {
+  background:rgba(26,26,46,0.82);
+  border:1px solid var(--border); border-radius:24px;
+  padding:26px 28px; box-shadow:var(--shadow);
+  backdrop-filter:blur(4px);
+}
+.card.glow { box-shadow:var(--shadow),0 0 0 1px rgba(0,221,255,0.18),inset 0 0 40px rgba(0,163,255,0.04); }
+.wide  { margin:20px 0; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0; }
+@media(max-width:860px){ .grid2{ grid-template-columns:1fr; } }
+
+/* ── Hero ────────────────────────────────────────────── */
+.hero {
+  border:1px solid rgba(0,221,255,0.25);
+  border-radius:28px; padding:36px 38px; margin-bottom:22px;
+  background:linear-gradient(135deg,rgba(0,163,255,0.09) 0%,rgba(0,221,255,0.04) 100%);
+  position:relative; overflow:hidden;
+}
+.hero::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at 0% 50%,rgba(0,221,255,0.09),transparent 60%);
+  pointer-events:none;
+}
+.brand-row { display:flex; align-items:center; gap:14px; margin-bottom:16px; position:relative; z-index:1; }
+.brand-logo { width:42px; height:42px; flex-shrink:0; }
+.brand-name {
+  font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; letter-spacing:0.02em;
+  background:linear-gradient(135deg,#00A3FF,#00FFFF);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.brand-tag {
+  font-family:'Poppins',sans-serif; font-size:11px; font-weight:600;
+  color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;
+  padding-left:14px; border-left:1px solid var(--border);
+}
+.gradient-text { background:linear-gradient(135deg,#00A3FF,#00FFFF); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero-sub { font-size:17px; color:var(--sub); max-width:640px; margin:12px 0 18px; position:relative; z-index:1; }
+.instruction {
+  display:inline-flex; gap:10px; align-items:flex-start;
+  background:rgba(0,221,255,0.07); border:1px solid rgba(0,221,255,0.20);
+  border-radius:14px; padding:12px 16px; color:var(--muted); font-size:14px; position:relative; z-index:1;
+}
+.instruction::before { content:'💡'; flex-shrink:0; }
+
+/* ── Workflow strip ──────────────────────────────────── */
+.workflow-strip {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:0;
+  margin:20px 0; position:relative;
+}
+.workflow-strip::before {
+  content:''; position:absolute; top:28px;
+  left:calc(100%/14); right:calc(100%/14); height:2px;
+  background:linear-gradient(90deg,var(--blue),var(--cyan)); z-index:0;
+}
+.wf-node {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  position:relative; z-index:1; padding:0 4px;
+  cursor:pointer;
+}
+.wf-icon {
+  width:56px; height:56px; border-radius:50%;
+  border:2px solid var(--border); background:var(--navy);
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+  box-shadow:0 0 0 4px rgba(0,163,255,0.08);
+  transition:transform 0.2s,box-shadow 0.2s;
+}
+.wf-node:hover .wf-icon { transform:scale(1.12); box-shadow:0 0 20px rgba(0,221,255,0.35); }
+.wf-label { font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--sub); text-align:center; letter-spacing:0.03em; }
+@media(max-width:700px){ .workflow-strip{ grid-template-columns:repeat(4,1fr); gap:16px; }
+  .workflow-strip::before{ display:none; } }
+
+/* ── Callouts ────────────────────────────────────────── */
+.callout {
+  border-left:3px solid var(--cyan); background:rgba(0,221,255,0.06);
+  padding:13px 16px; border-radius:0 12px 12px 0; margin:14px 0; font-size:15px;
+}
+.callout.agent { border-color:var(--blue); background:rgba(0,163,255,0.07); }
+.callout.tip   { border-color:#34d399;     background:rgba(52,211,153,0.07); }
+.callout-label { font-family:'Poppins',sans-serif; font-size:11px; font-weight:700;
+                 text-transform:uppercase; letter-spacing:0.07em; display:block; margin-bottom:5px; color:var(--cyan); }
+.callout.agent .callout-label { color:var(--blue); }
+.callout.tip   .callout-label { color:#34d399; }
+
+/* ── Scrollytelling ──────────────────────────────────── */
+.scrolly {
+  display:grid; grid-template-columns:1fr 1fr; gap:32px; margin:20px 0; position:relative;
+}
+.scrolly .scrolly-sticky {
+  position:sticky; top:24px; height:fit-content;
+  background:var(--mid); border:1px solid var(--border); border-radius:18px;
+  padding:18px; align-self:start;
+}
+.scrolly .scrolly-steps { display:flex; flex-direction:column; gap:80vh; padding:20vh 0; }
+.scrolly-step {
+  padding:22px 24px; border-radius:16px; border:1px solid var(--border);
+  background:rgba(15,15,30,0.7); transition:border-color 0.25s,box-shadow 0.25s,background 0.25s;
+  opacity:0.55; transform:translateY(8px); transition-property:opacity,transform,border-color,box-shadow,background;
+  transition-duration:0.35s;
+}
+.scrolly-step.active {
+  opacity:1; transform:translateY(0);
+  border-color:rgba(0,221,255,0.55); background:rgba(15,15,30,0.95);
+  box-shadow:0 0 0 1px rgba(0,221,255,0.22),0 16px 32px rgba(0,0,0,0.45);
+}
+.scrolly-step h3 { color:var(--cyan); font-size:11px; margin-bottom:8px; }
+.scrolly-step p { font-size:15px; margin-bottom:0; }
+@media(max-width:860px){ .scrolly{ grid-template-columns:1fr; }
+  .scrolly .scrolly-sticky{ position:relative; top:0; }
+  .scrolly .scrolly-steps{ padding:0; gap:20px; } }
+
+/* ── Plot ────────────────────────────────────────────── */
+.plot-wrap { background:var(--mid); border:1px solid var(--border); border-radius:18px; padding:16px; position:relative; }
+.plot-wrap svg { display:block; width:100%; height:auto; }
+.plot-tooltip {
+  position:absolute; pointer-events:none; background:rgba(2,6,23,0.95);
+  border:1px solid rgba(0,221,255,0.35); border-radius:10px; padding:8px 12px;
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--cyan);
+  opacity:0; transform:translate(-50%,-110%); transition:opacity 0.1s;
+  white-space:nowrap; box-shadow:0 8px 20px rgba(0,0,0,0.4); z-index:10;
+}
+.plot-tooltip.show { opacity:1; }
+.legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-size:12px; }
+.legend-item { display:flex; align-items:center; gap:6px; color:var(--muted); }
+.legend-swatch { width:14px; height:3px; border-radius:2px; }
+
+/* ── Parameter panel ─────────────────────────────────── */
+.param-block { margin:14px 0; }
+.param-block label {
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-family:'Poppins',sans-serif; font-size:12px; font-weight:600;
+  color:var(--sub); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;
+}
+.param-block label span { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--cyan); font-weight:700; text-transform:none; }
+input[type=range] { width:100%; accent-color:var(--cyan); height:4px; border-radius:4px; cursor:pointer; }
+select { font-family:'Poppins',sans-serif; font-size:13px; background:var(--navy); color:var(--sub);
+  border:1px solid var(--border); border-radius:8px; padding:6px 10px; cursor:pointer; }
+select:focus { outline:1px solid var(--cyan); }
+
+/* ── Metric cards ────────────────────────────────────── */
+.metric-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0; }
+.metric { background:var(--mid); border:1px solid var(--border); border-radius:18px; padding:16px; }
+.metric-label { font-family:'Poppins',sans-serif; font-size:10px; font-weight:700;
+                text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); }
+.metric-val   { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;
+                color:var(--text); margin:6px 0 2px; line-height:1;
+                transition:color 0.25s; }
+.metric-unit  { font-size:12px; color:var(--muted); }
+
+/* ── Tangle (draggable number in prose, à la Bret Victor) ─ */
+.tangle {
+  display:inline-block; cursor:ew-resize;
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  color:var(--cyan); padding:0 4px; border-radius:4px;
+  border-bottom:1.5px dashed rgba(0,221,255,0.45);
+  background:rgba(0,221,255,0.06);
+  user-select:none; transition:background 0.15s,border-color 0.15s;
+}
+.tangle:hover { background:rgba(0,221,255,0.14); border-bottom-color:var(--cyan); }
+.tangle.dragging { background:rgba(0,221,255,0.22); border-bottom-color:var(--bright); color:var(--bright); }
+.tangle::after { content:'⇔'; font-size:0.7em; opacity:0.5; margin-left:3px; }
+
+/* ── Toggle ──────────────────────────────────────────── */
+.toggle-row { display:flex; align-items:center; gap:14px; margin:12px 0; }
+.toggle-btn {
+  font-family:'Poppins',sans-serif; font-size:12px; font-weight:600;
+  background:rgba(15,15,30,0.6); color:var(--sub);
+  border:1px solid var(--border); border-radius:999px; padding:6px 14px; cursor:pointer;
+  transition:border-color 0.15s,background 0.15s,color 0.15s;
+}
+.toggle-btn.on { border-color:var(--cyan); background:rgba(0,221,255,0.12); color:var(--cyan); }
+
+/* ── Code cells ──────────────────────────────────────── */
+.aihydro-cell { border:1px solid rgba(0,221,255,0.22); border-radius:18px; background:rgba(2,6,23,0.55); padding:18px 20px; margin:16px 0; }
+.cell-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.cell-lang { font-family:'Poppins',sans-serif; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; background:rgba(0,221,255,0.12); color:var(--cyan); padding:3px 10px; border-radius:6px; }
+.cell-desc { font-size:13px; color:var(--muted); flex:1; }
+.run-btn { font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; letter-spacing:0.04em; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); border:none; border-radius:999px; padding:6px 16px; cursor:pointer; transition:transform 0.1s,box-shadow 0.2s; }
+.run-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(0,221,255,0.35); }
+.aihydro-source { font-family:'JetBrains Mono',monospace; font-size:13px; white-space:pre-wrap; overflow-x:auto; background:rgba(0,0,0,0.45); border-radius:10px; padding:14px; margin-bottom:12px; color:var(--text); border:1px solid rgba(125,211,252,0.08); max-height:340px; }
+.aihydro-output { font-family:'JetBrains Mono',monospace; font-size:13px; white-space:pre-wrap; min-height:2em; background:rgba(0,0,0,0.30); border-radius:10px; padding:12px; color:var(--sub); overflow:auto; max-height:420px; }
+.aihydro-output:empty::before { content:'(no output yet)'; color:var(--muted); font-style:italic; }
+.aihydro-output-images { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.aihydro-output-images img { max-width:100%; border-radius:8px; }
+
+/* ── Quiz ────────────────────────────────────────────── */
+.quiz-q { font-family:'Poppins',sans-serif; font-weight:500; color:var(--text); font-size:16px; margin-bottom:14px; }
+.quiz-choices { display:flex; flex-direction:column; gap:10px; }
+.quiz-btn { text-align:left; font-family:'Nunito',sans-serif; font-size:14px; padding:12px 16px; border-radius:12px; border:1px solid var(--border); background:rgba(15,15,30,0.7); color:var(--sub); cursor:pointer; transition:border-color 0.15s,background 0.15s; }
+.quiz-btn:hover { border-color:var(--cyan); color:var(--text); }
+.quiz-btn.correct   { border-color:#34d399; background:rgba(52,211,153,0.12); color:#d1fae5; }
+.quiz-btn.incorrect { border-color:#f87171; background:rgba(248,113,113,0.10); color:#fee2e2; }
+.quiz-feedback { margin-top:12px; padding:0; min-height:1.2em; font-size:14px; }
+.quiz-block { margin-bottom:22px; padding-bottom:22px; border-bottom:1px dashed var(--border); }
+.quiz-block:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+
+/* ── References ──────────────────────────────────────── */
+.refs ol { counter-reset:r; padding:0; list-style:none; }
+.refs li { counter-increment:r; padding-left:36px; position:relative; margin-bottom:12px; font-size:14px; color:var(--sub); line-height:1.55; }
+.refs li::before { content:counter(r); position:absolute; left:0; top:0; width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; }
+.refs em { color:var(--text); font-style:italic; }
+
+/* ── Provenance ──────────────────────────────────────── */
+.provenance { border-top:1px solid var(--border); margin-top:32px; padding:22px 0 0; display:grid; grid-template-columns:1fr 1fr; gap:16px 32px; }
+.prov-item dt { font-family:'Poppins',sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); margin-bottom:3px; }
+.prov-item dd { font-size:13px; color:var(--sub); }
+@media(max-width:600px){ .provenance{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  HERO                                                       -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="brand-row">
+    <svg class="brand-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-label="AI-Hydro logo">
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"  stop-color="#00A3FF"/>
+          <stop offset="100%" stop-color="#00FFFF"/>
+        </linearGradient>
+      </defs>
+      <path d="M20 4 C20 4, 8 18, 8 26 a12 12 0 0 0 24 0 C 32 18, 20 4, 20 4 Z" fill="url(#lg)" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"/>
+      <path d="M13 24 Q 20 30, 27 24" fill="none" stroke="rgba(10,10,21,0.55)" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M14 28 Q 20 33, 26 28" fill="none" stroke="rgba(10,10,21,0.35)" stroke-width="1.1" stroke-linecap="round"/>
+      <circle cx="20" cy="14" r="1.7" fill="#FFFFFF"/>
+    </svg>
+    <span class="brand-name">AI-Hydro</span>
+    <span class="brand-tag">Interactive Module · Streamflow</span>
+  </div>
+
+  <h1>Reading a <span class="gradient-text">Hydrograph</span></h1>
+  <p class="hero-sub">
+    A storm. A stream. A wiggly line. Learn how to read the shape — rising limb, peak,
+    recession — and pull baseflow apart from quickflow with a slider you control.
+  </p>
+  <div class="instruction">
+    Scroll the intro to step through limbs · Move sliders for live baseflow & rainfall response · Click workflow nodes to jump
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  WORKFLOW STRIP                                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="wide card" style="padding:22px 24px;">
+  <h3 style="margin-bottom:16px;">The seven-step tour — click to jump</h3>
+  <div class="workflow-strip">
+    <div class="wf-node" onclick="window.scrollToSection('sec-intro')" title="What is a hydrograph?">
+      <div class="wf-icon">📈</div><span class="wf-label">Intro</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-anatomy')" title="Anatomy panel">
+      <div class="wf-icon">🫀</div><span class="wf-label">Anatomy</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-bfi')" title="BFI explorer">
+      <div class="wf-icon">🌊</div><span class="wf-label">Baseflow</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-storm')" title="Storm comparison">
+      <div class="wf-icon">⛈️</div><span class="wf-label">Storms</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-quiz')" title="Checkpoint">
+      <div class="wf-icon">✓</div><span class="wf-label">Check</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-python')" title="Python cell">
+      <div class="wf-icon">🐍</div><span class="wf-label">Python</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-prov')" title="Provenance">
+      <div class="wf-icon" style="border-color:rgba(0,221,255,0.6);box-shadow:0 0 20px rgba(0,221,255,0.25);">📜</div>
+      <span class="wf-label" style="color:var(--cyan);">Provenance</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  1 · SCROLLYTELLING INTRO                                  -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-intro" class="wide card glow">
+  <h2>1 · What is a hydrograph?</h2>
+  <p>A hydrograph is a time-series of discharge — usually m³/s on the y-axis and hours or days on the x-axis. <strong>Scroll the panel on the right</strong> to walk through the three named regions.</p>
+
+  <div class="scrolly">
+    <div class="scrolly-sticky">
+      <svg id="introSvg" viewBox="0 0 400 240" aria-label="Annotated hydrograph silhouette">
+        <defs>
+          <linearGradient id="introFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(0,221,255,0.35)"/>
+            <stop offset="100%" stop-color="rgba(0,221,255,0)"/>
+          </linearGradient>
+        </defs>
+        <!-- axis -->
+        <line x1="40" y1="200" x2="380" y2="200" stroke="var(--border)" stroke-width="1"/>
+        <line x1="40" y1="20"  x2="40"  y2="200" stroke="var(--border)" stroke-width="1"/>
+        <text x="210" y="222" text-anchor="middle" font-family="Poppins,sans-serif" font-size="10" fill="var(--muted)">time →</text>
+        <text x="14" y="110" font-family="Poppins,sans-serif" font-size="10" fill="var(--muted)" transform="rotate(-90 14 110)">discharge Q →</text>
+        <!-- hydrograph curve -->
+        <path id="introCurve" d="M40,180 L120,180 C150,180 165,90 180,55 C200,30 215,30 230,55 C260,110 290,150 380,178"
+              fill="url(#introFill)" stroke="var(--cyan)" stroke-width="2.5"/>
+        <!-- segment overlays (shown by active step) -->
+        <path id="introRising" d="M120,180 C150,180 165,90 180,55"
+              fill="none" stroke="var(--rising)" stroke-width="3.5" stroke-linecap="round" opacity="0"/>
+        <circle id="introPeak" cx="205" cy="40" r="6" fill="var(--peak)" stroke="rgba(0,0,0,0.4)" stroke-width="1" opacity="0"/>
+        <path id="introFalling" d="M230,55 C260,110 290,150 380,178"
+              fill="none" stroke="var(--falling)" stroke-width="3.5" stroke-linecap="round" opacity="0"/>
+        <!-- annotations -->
+        <text id="introLabel" x="210" y="14" text-anchor="middle" font-family="Poppins,sans-serif" font-size="13" fill="var(--text)" font-weight="600">Hydrograph</text>
+        <!-- rainfall pulses -->
+        <g opacity="0.8">
+          <rect x="80"  y="20" width="3" height="14" fill="rgba(0,221,255,0.6)"/>
+          <rect x="90"  y="20" width="3" height="22" fill="rgba(0,221,255,0.8)"/>
+          <rect x="100" y="20" width="3" height="18" fill="rgba(0,221,255,0.7)"/>
+        </g>
+        <text x="92" y="50" text-anchor="middle" font-family="Poppins,sans-serif" font-size="9" fill="var(--muted)">rainfall pulse</text>
+      </svg>
+    </div>
+
+    <div class="scrolly-steps">
+      <div class="scrolly-step" data-step="rising">
+        <h3>Step 1 · Rising limb</h3>
+        <p>After rain falls, the channel doesn't respond instantly — water has to reach the stream. The discharge climbs steeply: <strong>this is the rising limb</strong>. Steeper limb → flashier catchment (small, urban, saturated).</p>
+      </div>
+      <div class="scrolly-step" data-step="peak">
+        <h3>Step 2 · Peak</h3>
+        <p>The flow tops out at the <strong>peak discharge</strong> — the largest instantaneous flow during the event. <em>Lag time</em> is the delay between the rainfall centroid and this peak. For flood design, the peak is everything.</p>
+      </div>
+      <div class="scrolly-step" data-step="falling">
+        <h3>Step 3 · Falling limb (recession)</h3>
+        <p>Once rain stops, the channel drains. The <strong>falling limb</strong>, or recession, often follows a near-exponential decay set by catchment storage. Slow recession → big groundwater reservoir; fast recession → little storage.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <span class="callout-label">Why this matters</span>
+    The shape encodes catchment memory. Flashy = small / impervious / wet. Damped = large / forested / dry.
+    It's the entry skill for flood forecasting, recession analysis, and model calibration.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  2 · ANATOMY PANEL                                         -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-anatomy" class="wide card">
+  <h2>2 · Anatomy of a single storm event</h2>
+  <p>
+    A 96-hour event: a 4-hour pulse drives a gamma-shaped response. Hover for hourly values.
+    The dashed line is a <em>straight-line baseflow separation</em> (event start → recession inflection).
+  </p>
+  <div class="toggle-row">
+    <button id="toggleBase" class="toggle-btn on" type="button">Baseflow line: ON</button>
+    <button id="toggleMarkers" class="toggle-btn on" type="button">Limb markers: ON</button>
+  </div>
+  <div class="plot-wrap">
+    <svg id="anatomySvg" viewBox="0 0 720 320" aria-label="Hydrograph anatomy plot"></svg>
+    <div id="anatomyTip" class="plot-tooltip"></div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--cyan);"></div>Discharge Q(t)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--base);"></div>Straight-line baseflow</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--rising);"></div>Rising limb</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--peak);box-width:14px;"></div>Peak</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--falling);"></div>Falling limb</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:rgba(125,211,252,0.55);"></div>Rainfall</div>
+  </div>
+  <p style="margin-top:14px;font-size:14px;">
+    Probe by dragging:
+    at hour <span class="tangle" id="t-probeHour" data-min="0" data-max="95" data-step="1" data-value="32" data-format="int" data-suffix="h"></span>
+    the discharge is <span id="probeQ" style="font-family:'JetBrains Mono',monospace;color:var(--cyan);font-weight:700;">—</span>.
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  3 · BFI EXPLORER                                          -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-bfi" class="grid2">
+  <div class="card">
+    <h2>3 · Baseflow separation — the Lyne–Hollick filter</h2>
+    <p>
+      Real baseflow isn't a straight line. The <strong>Lyne–Hollick filter</strong>
+      <span style="color:var(--muted);">[1]</span> runs three forward/backward passes of a one-parameter recursion:
+    </p>
+    <div style="background:var(--mid); border:1px solid var(--border); border-radius:14px; padding:14px 16px; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:2; margin:10px 0;">
+      f<sub>t</sub> = α · f<sub>t−1</sub> + <span style="color:var(--cyan);">(1+α)/2</span> · (Q<sub>t</sub> − Q<sub>t−1</sub>)<br>
+      b<sub>t</sub> = Q<sub>t</sub> − max(f<sub>t</sub>, 0)
+    </div>
+    <p>
+      Drag α inline:
+      <span class="tangle" id="t-alpha" data-min="0.900" data-max="0.995" data-step="0.005" data-value="0.925" data-format="f3"></span>
+      → higher values strip more quickflow, giving a smoother, lower baseflow line.
+      <strong>BFI</strong> = baseflow volume ÷ total volume.
+    </p>
+    <div class="param-block">
+      <label for="alphaSlider">Filter parameter, α <span id="alphaVal">0.925</span></label>
+      <input id="alphaSlider" type="range" min="0.900" max="0.995" step="0.005" value="0.925">
+    </div>
+    <div class="metric-row">
+      <div class="metric"><div class="metric-label">BFI</div><div class="metric-val" id="bfiVal">—</div><div class="metric-unit">baseflow / total</div></div>
+      <div class="metric"><div class="metric-label">Mean Q</div><div class="metric-val" id="meanQ">—</div><div class="metric-unit">m³/s</div></div>
+      <div class="metric"><div class="metric-label">Peak Q</div><div class="metric-val" id="peakQ">—</div><div class="metric-unit">m³/s</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Filtered baseflow</h2>
+    <p style="font-size:13px;color:var(--muted);">Drag the slider — both lines update at ~60 fps.</p>
+    <div class="plot-wrap">
+      <svg id="bfiSvg" viewBox="0 0 600 280" aria-label="Baseflow filter result"></svg>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--cyan);"></div>Total discharge</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--base);"></div>Filtered baseflow</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:rgba(0,163,255,0.35);"></div>Quickflow (shaded)</div>
+    </div>
+    <div class="callout tip" style="margin-top:14px;">
+      <span class="callout-label">Practical default</span>
+      <code>α = 0.925</code> with 3 passes (forward, backward, forward) is the published Lyne–Hollick default.
+      Move the slider above to <em>0.99</em> and see baseflow approach a near-flat line.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  4 · STORM COMPARISON                                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-storm" class="wide card">
+  <h2>4 · Doubling rainfall ≠ doubling peak</h2>
+  <p>
+    Two storms on the same catchment. Drag the number:
+    drop <span class="tangle" id="t-rainMult" data-min="1.0" data-max="4.0" data-step="0.1" data-value="2.0" data-format="f1" data-suffix="×"></span>
+    as much rain on the right panel as the left, and the peak grows <em>faster</em> than linearly. That's saturated soil at work.
+  </p>
+  <div class="param-block" style="max-width:480px;">
+    <label for="rainSlider">Or use the slider <span id="rainVal">2.0×</span></label>
+    <input id="rainSlider" type="range" min="1.0" max="4.0" step="0.1" value="2.0">
+  </div>
+  <div class="grid2" style="margin:18px 0 0;">
+    <div class="plot-wrap">
+      <h3 style="margin-bottom:10px;">Small storm (10 mm)</h3>
+      <svg id="smallSvg" viewBox="0 0 360 220" aria-label="Small storm hydrograph"></svg>
+      <div style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);">
+        Peak: <span id="smallPeak">—</span> m³/s · Volume: <span id="smallVol">—</span> m³ · Runoff coef: <span id="smallC">—</span>
+      </div>
+    </div>
+    <div class="plot-wrap">
+      <h3 style="margin-bottom:10px;">Large storm (<span id="largeMM">20</span> mm)</h3>
+      <svg id="largeSvg" viewBox="0 0 360 220" aria-label="Large storm hydrograph"></svg>
+      <div style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);">
+        Peak: <span id="largePeak">—</span> m³/s · Volume: <span id="largeVol">—</span> m³ · Runoff coef: <span id="largeC">—</span>
+      </div>
+    </div>
+  </div>
+  <div class="callout">
+    <span class="callout-label">Non-linearity, observed</span>
+    Notice how <em>peak ratio</em> (right peak ÷ left peak) grows faster than the rainfall ratio above ~2× — that's the
+    soil-moisture saturation effect. The model here uses a simple SCS curve-number-style runoff fraction:
+    <code>Q_runoff = P · (P − Ia)² / (P − Ia + S)</code>, scaled and convolved with a gamma unit-hydrograph kernel.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  5 · CHECKPOINT QUIZ                                       -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-quiz" class="wide card">
+  <h2>5 · Checkpoint</h2>
+
+  <div class="quiz-block">
+    <div class="quiz-q">A small headwater catchment after a brief storm shows a steep, narrow hydrograph that peaks in 2 hours and is back to baseflow within 6. What does that shape tell you?</div>
+    <div class="quiz-choices">
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q1','Larger catchments have damped, broader hydrographs because flow paths are longer and storage is higher.')">
+        The catchment is large and forested
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'q1','Exactly — short lag and rapid recession are hallmarks of a flashy, small / impervious / saturated catchment.')">
+        The catchment is small and/or impervious — it's flashy
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q1','Shape tells you about storage and routing — not directly about the rainfall amount.')">
+        The storm dropped a huge amount of rain
+      </button>
+    </div>
+    <div class="quiz-feedback" id="q1-fb"></div>
+  </div>
+
+  <div class="quiz-block">
+    <div class="quiz-q">You raise the Lyne–Hollick filter parameter from α = 0.925 to α = 0.985. What happens to the computed BFI?</div>
+    <div class="quiz-choices">
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q2','Higher α actually strips MORE quickflow signal out — the filter becomes more selective for slow components.')">
+        BFI goes up — more of the flow is classified as baseflow
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'q2','Right — higher α produces a smoother, lower baseflow estimate, so quickflow grabs more of the total volume and BFI drops.')">
+        BFI goes down — the filter strips more quickflow and baseflow becomes a smoother, lower line
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q2','α changes the filter shape directly — BFI is sensitive to it.')">
+        BFI is unchanged — it only depends on the discharge series
+      </button>
+    </div>
+    <div class="quiz-feedback" id="q2-fb"></div>
+  </div>
+
+  <div class="quiz-block">
+    <div class="quiz-q">If you double the rainfall on an already-wet catchment, what's the most likely outcome for the peak discharge?</div>
+    <div class="quiz-choices">
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q3','That would only be true if runoff response were perfectly linear — but saturated soils make additional rain run off proportionally more.')">
+        Peak exactly doubles — superposition holds
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q3','Quite the opposite — once the catchment saturates, more of each marginal mm of rain becomes runoff.')">
+        Peak is less than double — soil absorbs the extra
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'q3','Right — on a saturated catchment the marginal runoff coefficient is higher, so peak grows faster than rainfall.')">
+        Peak more than doubles — saturated soil sends a larger fraction to runoff
+      </button>
+    </div>
+    <div class="quiz-feedback" id="q3-fb"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  6 · PYTHON CELL — REAL DATA                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-python" class="wide card">
+  <h2>6 · Pull it together with real-shape data</h2>
+  <p>
+    Pick a gauge. The cell synthesises a year of daily streamflow shaped to mimic that catchment's character
+    (snowmelt, flashy, or baseflow-dominated), then overlays the Lyne–Hollick baseflow.
+    <strong>The source regenerates each time you change the gauge.</strong>
+  </p>
+  <div class="callout agent">
+    <span class="callout-label">AI-Hydro agent action</span>
+    For the real CAMELS series instead of synthesised data: in chat, ask
+    <em>"Fetch streamflow for gauge 14305500 from CAMELS and compute the Lyne–Hollick BFI."</em>
+    The agent runs <code>fetch_streamflow_data</code> and <code>extract_hydrological_signatures</code>.
+  </div>
+
+  <div style="margin:12px 0;">
+    <label for="gaugeSelect" style="display:block;font-family:'Poppins',sans-serif;font-size:12px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Gauge profile</label>
+    <select id="gaugeSelect">
+      <option value="snow">14305500 · Snowmelt-dominated (Cascades)</option>
+      <option value="flashy" selected>01031500 · Flashy forested headwater (Maine)</option>
+      <option value="base">02472000 · Baseflow-dominated coastal plain (Mississippi)</option>
+    </select>
+  </div>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="hydrograph-camels" data-language="python">
+    <div class="cell-header">
+      <span class="cell-lang">python</span>
+      <span class="cell-desc">CAMELS-shape annual hydrograph + Lyne–Hollick baseflow</span>
+      <button class="run-btn aihydro-run" type="button">Run ▶</button>
+    </div>
+    <pre class="aihydro-source" id="pySource"></pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  REFERENCES                                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="wide card refs">
+  <h2>References</h2>
+  <ol>
+    <li>
+      Lyne, V. &amp; Hollick, M. (1979). Stochastic time-variable rainfall-runoff modelling.
+      <em>Institute of Engineers Australia National Conference</em>, Publ. 79/10, 89–93.
+    </li>
+    <li>
+      Nathan, R.J. &amp; McMahon, T.A. (1990). Evaluation of automated techniques for base flow and recession analyses.
+      <em>Water Resources Research</em>, 26(7), 1465–1473.
+      <a href="https://doi.org/10.1029/WR026i007p01465" target="_blank" rel="noreferrer">DOI: 10.1029/WR026i007p01465</a>
+    </li>
+    <li>
+      Eckhardt, K. (2005). How to construct recursive digital filters for baseflow separation.
+      <em>Hydrological Processes</em>, 19(2), 507–515.
+      <a href="https://doi.org/10.1002/hyp.5675" target="_blank" rel="noreferrer">DOI: 10.1002/hyp.5675</a>
+    </li>
+    <li>
+      Addor, N., Newman, A.J., Mizukami, N. &amp; Clark, M.P. (2017).
+      The CAMELS data set: catchment attributes and meteorology for large-sample studies.
+      <em>Hydrology and Earth System Sciences</em>, 21, 5293–5313.
+      <a href="https://doi.org/10.5194/hess-21-5293-2017" target="_blank" rel="noreferrer">DOI: 10.5194/hess-21-5293-2017</a>
+    </li>
+    <li>
+      USDA-SCS (1972). <em>National Engineering Handbook, Section 4: Hydrology.</em>
+      Runoff curve-number method.
+    </li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  PROVENANCE                                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-prov" class="provenance">
+  <div class="prov-item"><dt>Module</dt><dd>reading-a-hydrograph · v0.1.0 · CC-BY-4.0</dd></div>
+  <div class="prov-item"><dt>Authors</dt><dd>Mohammad Galib, Purdue University</dd></div>
+  <div class="prov-item"><dt>Synthetic event</dt><dd>96-hour gamma response (shape=4, scale=6) on a 4-hour rainfall pulse, hand-tuned for instruction.</dd></div>
+  <div class="prov-item"><dt>Baseflow filter</dt><dd>Lyne–Hollick recursive digital filter (1979); 3 passes; default α = 0.925.</dd></div>
+  <div class="prov-item"><dt>Storm comparison model</dt><dd>SCS curve-number runoff fraction convolved with gamma UH.</dd></div>
+  <div class="prov-item"><dt>Annual series</dt><dd>Per-gauge seeded synthesis (snowmelt / flashy / baseflow profiles); replace with <code>fetch_streamflow_data</code> for real CAMELS.</dd></div>
+  <div class="prov-item"><dt>Environment</dt><dd>Python (numpy, matplotlib) via AI-Hydro preview kernel.</dd></div>
+</div>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ──────────────────────────────────────────────────────────────────
+     CORE DATA: 96-hour synthetic event used by Sections 2 & 3
+     ────────────────────────────────────────────────────────────────── */
+  var N = 96;
+  var BASEFLOW_C = 4.5;          // constant pre-event baseflow (m³/s)
+  var PEAK_SCALE = 28;           // tunes peak Q magnitude
+  /* gamma-kernel-ish response: t^k * exp(-t/θ) */
+  function gammaResp(t, k, theta) {
+    if (t < 0) return 0;
+    return Math.pow(t, k) * Math.exp(-t / theta);
+  }
+  /* normalize a kernel to unit area */
+  function normalize(arr) {
+    var s = 0; for (var i = 0; i < arr.length; i++) s += arr[i];
+    if (s === 0) return arr;
+    return arr.map(function (v) { return v / s; });
+  }
+  /* convolve rainfall pulse with kernel */
+  function convolve(input, kernel) {
+    var out = new Array(input.length).fill(0);
+    for (var i = 0; i < input.length; i++) {
+      for (var j = 0; j < kernel.length && i + j < out.length; j++) {
+        out[i + j] += input[i] * kernel[j];
+      }
+    }
+    return out;
+  }
+
+  /* Build the canonical event */
+  var KERNEL = (function () {
+    var k = [];
+    for (var t = 0; t < 60; t++) k.push(gammaResp(t, 4, 6));
+    return normalize(k);
+  })();
+  var RAIN = (function () {
+    var r = new Array(N).fill(0);
+    r[4] = 0.4; r[5] = 0.8; r[6] = 1.0; r[7] = 0.6;
+    return r;
+  })();
+  var EVENT_Q = (function () {
+    var responsePart = convolve(RAIN, KERNEL).map(function (v) { return v * PEAK_SCALE; });
+    return responsePart.map(function (v) { return v + BASEFLOW_C; });
+  })();
+
+  /* ────────────── helpers ────────────── */
+  window.scrollToSection = function (id) {
+    var el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  window.quizAnswer = function (btn, correct, qId, msg) {
+    var sib = btn.parentElement.querySelectorAll('.quiz-btn');
+    sib.forEach(function (b) { b.disabled = true; b.style.cursor = 'default'; });
+    btn.classList.add(correct ? 'correct' : 'incorrect');
+    var fb = document.getElementById(qId + '-fb');
+    if (fb) {
+      fb.textContent = (correct ? '✓ ' : '✗ ') + msg;
+      fb.style.color = correct ? '#86efac' : '#fca5a5';
+    }
+  };
+
+  /* ──────────────────────────────────────────────────────────────────
+     TANGLE — draggable inline numbers (Bret Victor pattern, vanilla impl)
+     Markup: <span class="tangle" id="t-foo" data-min="0" data-max="100" data-step="1" data-value="20" data-format="int" data-suffix=" mm"></span>
+     Wire:   tangle.bind('t-foo', function(v) { ... })   // fires on every change
+     ────────────────────────────────────────────────────────────────── */
+  var tangle = (function () {
+    var listeners = {};
+    function fmt(v, format) {
+      if (format === 'int') return String(Math.round(v));
+      if (format === 'pct') return (v * 100).toFixed(1) + '%';
+      if (format && format.indexOf('f') === 0) return v.toFixed(parseInt(format.slice(1), 10) || 1);
+      return v.toFixed(1);
+    }
+    function render(el) {
+      var v = parseFloat(el.dataset.value);
+      var prefix = el.dataset.prefix || '';
+      var suffix = el.dataset.suffix || '';
+      var format = el.dataset.format || 'f1';
+      el.textContent = prefix + fmt(v, format) + suffix;
+    }
+    function attach(el) {
+      render(el);
+      var dragging = false, startX = 0, startV = 0;
+      var min = parseFloat(el.dataset.min);
+      var max = parseFloat(el.dataset.max);
+      var step = parseFloat(el.dataset.step || '1');
+      var sensitivity = parseFloat(el.dataset.sensitivity || ((max - min) / 200));
+      el.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        dragging = true; startX = ev.clientX; startV = parseFloat(el.dataset.value);
+        el.classList.add('dragging');
+        document.body.style.cursor = 'ew-resize';
+      });
+      window.addEventListener('mousemove', function (ev) {
+        if (!dragging) return;
+        var dx = ev.clientX - startX;
+        var v = startV + dx * sensitivity;
+        v = Math.round(v / step) * step;
+        v = Math.max(min, Math.min(max, v));
+        if (parseFloat(el.dataset.value) === v) return;
+        el.dataset.value = v;
+        render(el);
+        var ls = listeners[el.id] || [];
+        ls.forEach(function (fn) { fn(v); });
+      });
+      window.addEventListener('mouseup', function () {
+        if (dragging) { dragging = false; el.classList.remove('dragging'); document.body.style.cursor = ''; }
+      });
+      /* touch */
+      el.addEventListener('touchstart', function (ev) {
+        if (!ev.touches.length) return;
+        dragging = true; startX = ev.touches[0].clientX; startV = parseFloat(el.dataset.value);
+        el.classList.add('dragging');
+      }, { passive: true });
+      window.addEventListener('touchmove', function (ev) {
+        if (!dragging || !ev.touches.length) return;
+        var dx = ev.touches[0].clientX - startX;
+        var v = startV + dx * sensitivity;
+        v = Math.round(v / step) * step;
+        v = Math.max(min, Math.min(max, v));
+        if (parseFloat(el.dataset.value) === v) return;
+        el.dataset.value = v;
+        render(el);
+        var ls = listeners[el.id] || [];
+        ls.forEach(function (fn) { fn(v); });
+      }, { passive: true });
+      window.addEventListener('touchend', function () {
+        if (dragging) { dragging = false; el.classList.remove('dragging'); }
+      });
+    }
+    function init() {
+      document.querySelectorAll('.tangle').forEach(attach);
+    }
+    return {
+      init: init,
+      bind: function (id, fn) {
+        (listeners[id] = listeners[id] || []).push(fn);
+      },
+      set: function (id, v) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.dataset.value = v; render(el);
+        var ls = listeners[id] || [];
+        ls.forEach(function (fn) { fn(v); });
+      }
+    };
+  })();
+  window.tangle = tangle;
+
+  function mkSvg(tag, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  /* ──────────────────────────────────────────────────────────────────
+     SECTION 1: SCROLLYTELLING
+     ────────────────────────────────────────────────────────────────── */
+  (function setupScrolly() {
+    var steps = document.querySelectorAll('.scrolly-step');
+    var rising = document.getElementById('introRising');
+    var peak = document.getElementById('introPeak');
+    var falling = document.getElementById('introFalling');
+    var label = document.getElementById('introLabel');
+
+    function setStep(name) {
+      steps.forEach(function (s) {
+        s.classList.toggle('active', s.dataset.step === name);
+      });
+      rising.setAttribute('opacity', name === 'rising' ? '1' : '0.25');
+      peak.setAttribute('opacity', name === 'peak' ? '1' : '0');
+      falling.setAttribute('opacity', name === 'falling' ? '1' : '0.25');
+      label.textContent = name === 'rising' ? 'Rising limb' :
+                          name === 'peak' ? 'Peak discharge' :
+                          name === 'falling' ? 'Falling limb (recession)' : 'Hydrograph';
+      label.setAttribute('fill', name === 'rising' ? 'var(--rising)' :
+                                  name === 'peak' ? 'var(--peak)' :
+                                  name === 'falling' ? 'var(--falling)' : 'var(--text)');
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      setStep('rising'); return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && e.intersectionRatio > 0.5) {
+          setStep(e.target.dataset.step);
+        }
+      });
+    }, { threshold: [0.5, 0.8], rootMargin: '-25% 0px -25% 0px' });
+    steps.forEach(function (s) { io.observe(s); });
+    setStep('rising');
+  })();
+
+  /* ──────────────────────────────────────────────────────────────────
+     SECTION 2: ANATOMY PANEL — hover-tracking SVG hydrograph
+     ────────────────────────────────────────────────────────────────── */
+  (function setupAnatomy() {
+    var svg = document.getElementById('anatomySvg');
+    var tip = document.getElementById('anatomyTip');
+    var W = 720, H = 320, padL = 50, padR = 16, padT = 30, padB = 56;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var maxQ = Math.max.apply(null, EVENT_Q) * 1.08;
+    var maxR = Math.max.apply(null, RAIN);
+
+    function xOf(t) { return padL + (t / (N - 1)) * plotW; }
+    function yOf(q) { return padT + plotH - (q / maxQ) * plotH; }
+    function rOf(r) { return (r / maxR) * 30; } // rainfall bar height
+
+    /* path for Q */
+    var pathQ = '';
+    for (var i = 0; i < N; i++) {
+      pathQ += (i === 0 ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(EVENT_Q[i]).toFixed(1) + ' ';
+    }
+    /* fill polygon below curve */
+    var fillQ = pathQ + 'L' + xOf(N - 1).toFixed(1) + ',' + (padT + plotH) + ' L' + xOf(0).toFixed(1) + ',' + (padT + plotH) + ' Z';
+
+    /* identify peak, rising/falling segments */
+    var iPeak = 0;
+    for (var k = 1; k < N; k++) if (EVENT_Q[k] > EVENT_Q[iPeak]) iPeak = k;
+    var iRiseStart = 4;
+    var iRecession = (function () {
+      // recession inflection: where second derivative changes from + to - again on falling limb
+      for (var i = iPeak + 4; i < N - 1; i++) {
+        var d2 = EVENT_Q[i + 1] - 2 * EVENT_Q[i] + EVENT_Q[i - 1];
+        if (d2 < 0.02) return i;
+      }
+      return N - 12;
+    })();
+
+    /* axis */
+    svg.innerHTML = '';
+    var axis = mkSvg('g', {});
+    /* y gridlines */
+    for (var g = 0; g <= 4; g++) {
+      var qv = maxQ * g / 4, yv = yOf(qv);
+      axis.appendChild(mkSvg('line', { x1: padL, y1: yv, x2: padL + plotW, y2: yv, stroke: 'rgba(125,211,252,0.08)', 'stroke-width': '1' }));
+      var lbl = mkSvg('text', { x: padL - 8, y: yv + 4, 'text-anchor': 'end', 'font-family': 'JetBrains Mono,monospace', 'font-size': '10', fill: '#94a3b8' });
+      lbl.textContent = qv.toFixed(1);
+      axis.appendChild(lbl);
+    }
+    /* x ticks every 12 h */
+    for (var t = 0; t <= 96; t += 12) {
+      var xv = xOf(t);
+      axis.appendChild(mkSvg('line', { x1: xv, y1: padT + plotH, x2: xv, y2: padT + plotH + 4, stroke: 'rgba(125,211,252,0.3)', 'stroke-width': '1' }));
+      var lbl2 = mkSvg('text', { x: xv, y: padT + plotH + 18, 'text-anchor': 'middle', 'font-family': 'JetBrains Mono,monospace', 'font-size': '10', fill: '#94a3b8' });
+      lbl2.textContent = t + 'h';
+      axis.appendChild(lbl2);
+    }
+    /* axis labels */
+    var xLab = mkSvg('text', { x: padL + plotW / 2, y: H - 14, 'text-anchor': 'middle', 'font-family': 'Poppins,sans-serif', 'font-size': '11', fill: '#7dd3fc' });
+    xLab.textContent = 'Time since storm start (hours)';
+    axis.appendChild(xLab);
+    var yLab = mkSvg('text', { x: 14, y: padT + plotH / 2, 'text-anchor': 'middle', 'font-family': 'Poppins,sans-serif', 'font-size': '11', fill: '#7dd3fc', transform: 'rotate(-90 14 ' + (padT + plotH / 2) + ')' });
+    yLab.textContent = 'Discharge Q (m³/s)';
+    axis.appendChild(yLab);
+    svg.appendChild(axis);
+
+    /* rainfall bars top-down */
+    var rainG = mkSvg('g', {});
+    for (var i = 0; i < N; i++) {
+      if (RAIN[i] > 0) {
+        var h = rOf(RAIN[i]);
+        rainG.appendChild(mkSvg('rect', {
+          x: xOf(i) - 2, y: padT - 30, width: 4, height: h, fill: 'rgba(125,211,252,0.55)', rx: 1
+        }));
+      }
+    }
+    var rLab = mkSvg('text', { x: padL + 110, y: padT - 4, 'text-anchor': 'middle', 'font-family': 'Poppins,sans-serif', 'font-size': '10', fill: '#94a3b8' });
+    rLab.textContent = 'rainfall (relative intensity ↓)';
+    rainG.appendChild(rLab);
+    svg.appendChild(rainG);
+
+    /* discharge fill + curve */
+    var fillEl = mkSvg('path', { d: fillQ, fill: 'rgba(0,221,255,0.12)' });
+    svg.appendChild(fillEl);
+    var curveEl = mkSvg('path', { d: pathQ, fill: 'none', stroke: 'var(--cyan)', 'stroke-width': '2.2' });
+    svg.appendChild(curveEl);
+
+    /* straight-line baseflow: from event start (i=4) at baseflow value, to recession inflection */
+    var baseLine = mkSvg('line', {
+      id: 'anatomyBaseLine',
+      x1: xOf(iRiseStart), y1: yOf(BASEFLOW_C),
+      x2: xOf(iRecession), y2: yOf(EVENT_Q[iRecession]),
+      stroke: 'var(--base)', 'stroke-width': '2', 'stroke-dasharray': '6 4'
+    });
+    /* extend baseflow before and after */
+    var baseLineBefore = mkSvg('line', {
+      id: 'anatomyBaseBefore',
+      x1: xOf(0), y1: yOf(BASEFLOW_C),
+      x2: xOf(iRiseStart), y2: yOf(BASEFLOW_C),
+      stroke: 'var(--base)', 'stroke-width': '2', 'stroke-dasharray': '6 4'
+    });
+    var baseLineAfter = mkSvg('line', {
+      id: 'anatomyBaseAfter',
+      x1: xOf(iRecession), y1: yOf(EVENT_Q[iRecession]),
+      x2: xOf(N - 1), y2: yOf(EVENT_Q[N - 1]),
+      stroke: 'var(--base)', 'stroke-width': '2', 'stroke-dasharray': '6 4'
+    });
+    svg.appendChild(baseLineBefore);
+    svg.appendChild(baseLine);
+    svg.appendChild(baseLineAfter);
+
+    /* limb markers */
+    var markersG = mkSvg('g', { id: 'anatomyMarkers' });
+    /* rising limb segment overlay */
+    var risingPath = '';
+    for (var i = iRiseStart; i <= iPeak; i++) {
+      risingPath += (i === iRiseStart ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(EVENT_Q[i]).toFixed(1) + ' ';
+    }
+    markersG.appendChild(mkSvg('path', { d: risingPath, fill: 'none', stroke: 'var(--rising)', 'stroke-width': '3', opacity: '0.8' }));
+    /* falling limb segment overlay */
+    var fallingPath = '';
+    for (var i = iPeak; i <= iRecession; i++) {
+      fallingPath += (i === iPeak ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(EVENT_Q[i]).toFixed(1) + ' ';
+    }
+    markersG.appendChild(mkSvg('path', { d: fallingPath, fill: 'none', stroke: 'var(--falling)', 'stroke-width': '3', opacity: '0.8' }));
+    /* peak dot */
+    markersG.appendChild(mkSvg('circle', { cx: xOf(iPeak), cy: yOf(EVENT_Q[iPeak]), r: 6, fill: 'var(--peak)', stroke: 'rgba(0,0,0,0.5)', 'stroke-width': '1.2' }));
+    /* peak label */
+    var pkLab = mkSvg('text', { x: xOf(iPeak), y: yOf(EVENT_Q[iPeak]) - 12, 'text-anchor': 'middle', 'font-family': 'Poppins,sans-serif', 'font-size': '11', fill: 'var(--peak)', 'font-weight': '700' });
+    pkLab.textContent = 'peak';
+    markersG.appendChild(pkLab);
+    svg.appendChild(markersG);
+
+    /* hover cursor */
+    var hoverDot = mkSvg('circle', { cx: 0, cy: 0, r: 5, fill: '#fff', stroke: 'var(--cyan)', 'stroke-width': '2', opacity: '0' });
+    var hoverLine = mkSvg('line', { x1: 0, y1: padT, x2: 0, y2: padT + plotH, stroke: 'rgba(125,211,252,0.3)', 'stroke-width': '1', opacity: '0' });
+    svg.appendChild(hoverLine);
+    svg.appendChild(hoverDot);
+
+    /* track mouse */
+    svg.addEventListener('mousemove', function (ev) {
+      var rect = svg.getBoundingClientRect();
+      var px = (ev.clientX - rect.left) / rect.width * W;
+      var t = Math.round((px - padL) / plotW * (N - 1));
+      if (t < 0 || t >= N) { hoverDot.setAttribute('opacity', '0'); hoverLine.setAttribute('opacity', '0'); tip.classList.remove('show'); return; }
+      var hx = xOf(t), hy = yOf(EVENT_Q[t]);
+      hoverDot.setAttribute('cx', hx); hoverDot.setAttribute('cy', hy); hoverDot.setAttribute('opacity', '1');
+      hoverLine.setAttribute('x1', hx); hoverLine.setAttribute('x2', hx); hoverLine.setAttribute('opacity', '1');
+      var pxLeft = (hx / W) * rect.width;
+      var pyTop = (hy / H) * rect.height;
+      tip.style.left = pxLeft + 'px';
+      tip.style.top = pyTop + 'px';
+      tip.innerHTML = 't = ' + t + 'h<br>Q = ' + EVENT_Q[t].toFixed(2) + ' m³/s' + (RAIN[t] > 0 ? '<br>P = ' + (RAIN[t] * 10).toFixed(1) + ' mm/h' : '');
+      tip.classList.add('show');
+    });
+    svg.addEventListener('mouseleave', function () {
+      hoverDot.setAttribute('opacity', '0'); hoverLine.setAttribute('opacity', '0'); tip.classList.remove('show');
+    });
+
+    /* toggles */
+    document.getElementById('toggleBase').addEventListener('click', function () {
+      var on = this.classList.toggle('on');
+      this.textContent = 'Baseflow line: ' + (on ? 'ON' : 'OFF');
+      [baseLine, baseLineBefore, baseLineAfter].forEach(function (e) { e.setAttribute('opacity', on ? '1' : '0'); });
+    });
+    document.getElementById('toggleMarkers').addEventListener('click', function () {
+      var on = this.classList.toggle('on');
+      this.textContent = 'Limb markers: ' + (on ? 'ON' : 'OFF');
+      markersG.setAttribute('opacity', on ? '1' : '0');
+    });
+    /* Probe tangle ⇄ EVENT_Q lookup */
+    var probeQEl = document.getElementById('probeQ');
+    function updateProbe(h) {
+      var i = Math.max(0, Math.min(N - 1, Math.round(h)));
+      probeQEl.textContent = EVENT_Q[i].toFixed(2) + ' m³/s';
+    }
+    tangle.bind('t-probeHour', updateProbe);
+    updateProbe(32);
+  })();
+
+  /* ──────────────────────────────────────────────────────────────────
+     SECTION 3: BFI EXPLORER — Lyne–Hollick recursive filter
+     ────────────────────────────────────────────────────────────────── */
+  /* 3-pass Lyne–Hollick (1979). Each pass runs the recursive filter against the
+     ORIGINAL discharge series and tightens the baseflow lower-envelope estimate. */
+  function lyneHollickProper(Qin, alpha) {
+    var n = Qin.length;
+    var baseEst = Qin.slice();
+    for (var pass = 0; pass < 3; pass++) {
+      var fwd = (pass % 2 === 0);
+      var quick = new Array(n).fill(0);
+      if (fwd) {
+        for (var i = 1; i < n; i++)
+          quick[i] = alpha * quick[i - 1] + ((1 + alpha) / 2) * (baseEst[i] !== undefined ? (Qin[i] - Qin[i - 1]) : 0);
+      } else {
+        for (var i = n - 2; i >= 0; i--)
+          quick[i] = alpha * quick[i + 1] + ((1 + alpha) / 2) * (Qin[i] - Qin[i + 1]);
+      }
+      for (var i = 0; i < n; i++) {
+        var qq = Math.max(quick[i], 0);
+        var newBase = Qin[i] - qq;
+        if (newBase < baseEst[i]) baseEst[i] = newBase;
+        if (baseEst[i] < 0) baseEst[i] = 0;
+      }
+    }
+    return baseEst;
+  }
+
+  (function setupBFI() {
+    var svg = document.getElementById('bfiSvg');
+    var slider = document.getElementById('alphaSlider');
+    var alphaVal = document.getElementById('alphaVal');
+    var bfiOut = document.getElementById('bfiVal');
+    var meanQOut = document.getElementById('meanQ');
+    var peakQOut = document.getElementById('peakQ');
+
+    var W = 600, H = 280, padL = 46, padR = 12, padT = 18, padB = 36;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var maxQ = Math.max.apply(null, EVENT_Q) * 1.08;
+
+    function xOf(t) { return padL + (t / (N - 1)) * plotW; }
+    function yOf(q) { return padT + plotH - (q / maxQ) * plotH; }
+
+    /* static layout */
+    svg.innerHTML = '';
+    /* gridlines */
+    for (var g = 0; g <= 4; g++) {
+      var qv = maxQ * g / 4, yv = yOf(qv);
+      svg.appendChild(mkSvg('line', { x1: padL, y1: yv, x2: padL + plotW, y2: yv, stroke: 'rgba(125,211,252,0.08)', 'stroke-width': '1' }));
+      var lbl = mkSvg('text', { x: padL - 8, y: yv + 4, 'text-anchor': 'end', 'font-family': 'JetBrains Mono,monospace', 'font-size': '10', fill: '#94a3b8' });
+      lbl.textContent = qv.toFixed(1);
+      svg.appendChild(lbl);
+    }
+    for (var t = 0; t <= 96; t += 24) {
+      var xv = xOf(t);
+      var lbl2 = mkSvg('text', { x: xv, y: H - 14, 'text-anchor': 'middle', 'font-family': 'JetBrains Mono,monospace', 'font-size': '10', fill: '#94a3b8' });
+      lbl2.textContent = t + 'h';
+      svg.appendChild(lbl2);
+    }
+    var qLab = mkSvg('text', { x: 14, y: padT + plotH / 2, 'text-anchor': 'middle', 'font-family': 'Poppins,sans-serif', 'font-size': '11', fill: '#7dd3fc', transform: 'rotate(-90 14 ' + (padT + plotH / 2) + ')' });
+    qLab.textContent = 'Q (m³/s)';
+    svg.appendChild(qLab);
+
+    /* dynamic layers */
+    var quickFill = mkSvg('path', { id: 'bfiQuick', fill: 'rgba(0,163,255,0.30)' });
+    svg.appendChild(quickFill);
+    var totalPath = mkSvg('path', { d: '', fill: 'none', stroke: 'var(--cyan)', 'stroke-width': '2.2' });
+    svg.appendChild(totalPath);
+    var basePath = mkSvg('path', { d: '', fill: 'none', stroke: 'var(--base)', 'stroke-width': '2.2', 'stroke-dasharray': '4 3' });
+    svg.appendChild(basePath);
+
+    /* compute total path once */
+    var totalD = '';
+    for (var i = 0; i < N; i++) totalD += (i === 0 ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(EVENT_Q[i]).toFixed(1) + ' ';
+    totalPath.setAttribute('d', totalD);
+
+    function redraw() {
+      var alpha = parseFloat(slider.value);
+      alphaVal.textContent = alpha.toFixed(3);
+      var base = lyneHollickProper(EVENT_Q, alpha);
+      var basePathD = '';
+      for (var i = 0; i < N; i++) basePathD += (i === 0 ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(base[i]).toFixed(1) + ' ';
+      basePath.setAttribute('d', basePathD);
+      /* quickflow fill = total - base */
+      var fillD = '';
+      for (var i = 0; i < N; i++) fillD += (i === 0 ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(EVENT_Q[i]).toFixed(1) + ' ';
+      for (var i = N - 1; i >= 0; i--) fillD += 'L' + xOf(i).toFixed(1) + ',' + yOf(base[i]).toFixed(1) + ' ';
+      fillD += 'Z';
+      quickFill.setAttribute('d', fillD);
+      /* metrics */
+      var totalVol = 0, baseVol = 0;
+      for (var i = 0; i < N; i++) { totalVol += EVENT_Q[i]; baseVol += base[i]; }
+      var bfi = baseVol / totalVol;
+      var meanQ = totalVol / N;
+      var peakQ = Math.max.apply(null, EVENT_Q);
+      bfiOut.textContent = bfi.toFixed(3);
+      meanQOut.textContent = meanQ.toFixed(1);
+      peakQOut.textContent = peakQ.toFixed(1);
+    }
+    slider.addEventListener('input', redraw);
+    /* Tangle ⇄ slider two-way sync for α */
+    tangle.bind('t-alpha', function (v) {
+      if (parseFloat(slider.value) !== v) { slider.value = v; redraw(); }
+    });
+    slider.addEventListener('input', function () {
+      tangle.set('t-alpha', parseFloat(slider.value));
+    });
+    redraw();
+  })();
+
+  /* ──────────────────────────────────────────────────────────────────
+     SECTION 4: STORM COMPARISON — SCS-CN runoff fraction × gamma UH
+     ────────────────────────────────────────────────────────────────── */
+  (function setupStorms() {
+    var slider = document.getElementById('rainSlider');
+    var rainVal = document.getElementById('rainVal');
+    var largeMM = document.getElementById('largeMM');
+    var smallSvg = document.getElementById('smallSvg');
+    var largeSvg = document.getElementById('largeSvg');
+    var W = 360, H = 220, padL = 42, padR = 10, padT = 16, padB = 30;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var T = 48; // 48 hours
+
+    /* SCS CN runoff: Q = (P - 0.2S)^2 / (P + 0.8S) for P > 0.2S
+       Use CN ≈ 75 → S = 25400/CN - 254 = 84.7 mm */
+    var S = 84.7;
+    function scsRunoff(P_mm) {
+      var Ia = 0.2 * S;
+      if (P_mm <= Ia) return 0;
+      return Math.pow(P_mm - Ia, 2) / (P_mm + 0.8 * S);
+    }
+
+    /* per-storm gamma UH and convolution */
+    var UH = (function () {
+      var k = [];
+      for (var t = 0; t < 36; t++) k.push(gammaResp(t, 4, 5));
+      return normalize(k);
+    })();
+    /* convert mm of runoff to m³/s peak via an area scaling — for visualisation only */
+    var AREA_SCALE = 0.55;
+    function buildHydrograph(P_mm) {
+      var Qrun_mm = scsRunoff(P_mm);
+      /* drop the runoff over 4-hour pulse, then convolve */
+      var rain_pulse = new Array(T).fill(0);
+      for (var i = 4; i < 8; i++) rain_pulse[i] = Qrun_mm / 4;
+      var resp = convolve(rain_pulse, UH).slice(0, T);
+      return resp.map(function (v) { return v * AREA_SCALE + 2.2; });
+    }
+
+    function findMaxStorm(mult) {
+      var P_small = 10, P_large = P_small * mult;
+      var q1 = buildHydrograph(P_small);
+      var q2 = buildHydrograph(P_large);
+      return Math.max(Math.max.apply(null, q1), Math.max.apply(null, q2)) * 1.08;
+    }
+
+    function drawOne(svg, q, P_mm, color) {
+      var maxQ = findMaxStorm(parseFloat(slider.value));
+      function xOf(t) { return padL + (t / (T - 1)) * plotW; }
+      function yOf(qv) { return padT + plotH - (qv / maxQ) * plotH; }
+      svg.innerHTML = '';
+      /* gridlines */
+      for (var g = 0; g <= 3; g++) {
+        var qv = maxQ * g / 3, yv = yOf(qv);
+        svg.appendChild(mkSvg('line', { x1: padL, y1: yv, x2: padL + plotW, y2: yv, stroke: 'rgba(125,211,252,0.08)', 'stroke-width': '1' }));
+        var lbl = mkSvg('text', { x: padL - 6, y: yv + 4, 'text-anchor': 'end', 'font-family': 'JetBrains Mono,monospace', 'font-size': '9', fill: '#94a3b8' });
+        lbl.textContent = qv.toFixed(0);
+        svg.appendChild(lbl);
+      }
+      for (var t = 0; t <= T; t += 12) {
+        var xv = xOf(t);
+        var lbl2 = mkSvg('text', { x: xv, y: H - 12, 'text-anchor': 'middle', 'font-family': 'JetBrains Mono,monospace', 'font-size': '9', fill: '#94a3b8' });
+        lbl2.textContent = t + 'h';
+        svg.appendChild(lbl2);
+      }
+      /* fill under curve */
+      var d = '';
+      for (var i = 0; i < T; i++) d += (i === 0 ? 'M' : 'L') + xOf(i).toFixed(1) + ',' + yOf(q[i]).toFixed(1) + ' ';
+      var fillD = d + 'L' + xOf(T - 1).toFixed(1) + ',' + (padT + plotH) + ' L' + xOf(0).toFixed(1) + ',' + (padT + plotH) + ' Z';
+      svg.appendChild(mkSvg('path', { d: fillD, fill: color.replace('1)', '0.18)') }));
+      svg.appendChild(mkSvg('path', { d: d, fill: 'none', stroke: color, 'stroke-width': '2.2' }));
+      /* peak marker */
+      var iPk = 0; for (var k = 1; k < T; k++) if (q[k] > q[iPk]) iPk = k;
+      svg.appendChild(mkSvg('circle', { cx: xOf(iPk), cy: yOf(q[iPk]), r: 4.5, fill: '#fff', stroke: color, 'stroke-width': '2' }));
+      /* rain marker text */
+      var lbl3 = mkSvg('text', { x: padL + plotW / 2, y: padT - 2, 'text-anchor': 'middle', 'font-family': 'Poppins,sans-serif', 'font-size': '10', fill: '#94a3b8' });
+      lbl3.textContent = P_mm.toFixed(1) + ' mm rainfall';
+      svg.appendChild(lbl3);
+    }
+
+    function update() {
+      var mult = parseFloat(slider.value);
+      rainVal.textContent = mult.toFixed(1) + '×';
+      var P_small = 10, P_large = 10 * mult;
+      largeMM.textContent = P_large.toFixed(1);
+      var qSmall = buildHydrograph(P_small);
+      var qLarge = buildHydrograph(P_large);
+      drawOne(smallSvg, qSmall, P_small, 'rgba(125,211,252,1)');
+      drawOne(largeSvg, qLarge, P_large, 'rgba(0,221,255,1)');
+      /* metrics */
+      var peakS = Math.max.apply(null, qSmall);
+      var peakL = Math.max.apply(null, qLarge);
+      var volS = qSmall.reduce(function (a, b) { return a + b; }, 0) * 3600; // m³ approx (Q in m³/s × 1h)
+      var volL = qLarge.reduce(function (a, b) { return a + b; }, 0) * 3600;
+      document.getElementById('smallPeak').textContent = peakS.toFixed(1);
+      document.getElementById('largePeak').textContent = peakL.toFixed(1);
+      document.getElementById('smallVol').textContent = volS.toExponential(2);
+      document.getElementById('largeVol').textContent = volL.toExponential(2);
+      document.getElementById('smallC').textContent = (scsRunoff(P_small) / P_small).toFixed(3);
+      document.getElementById('largeC').textContent = (scsRunoff(P_large) / P_large).toFixed(3);
+    }
+    slider.addEventListener('input', update);
+    /* Tangle ⇄ slider two-way sync */
+    tangle.bind('t-rainMult', function (v) {
+      if (parseFloat(slider.value) !== v) { slider.value = v; update(); }
+    });
+    slider.addEventListener('input', function () {
+      tangle.set('t-rainMult', parseFloat(slider.value));
+    });
+    update();
+  })();
+
+  /* ──────────────────────────────────────────────────────────────────
+     SECTION 6: PYTHON CELL SOURCE — regenerated from gauge dropdown
+     ────────────────────────────────────────────────────────────────── */
+  var GAUGE_PROFILES = {
+    snow:   { id: '14305500', name: 'Snowmelt-dominated (Cascades)', seed: 11, snow: 1.0, flash: 0.2, base: 1.4 },
+    flashy: { id: '01031500', name: 'Flashy forested headwater (Maine)', seed: 23, snow: 0.2, flash: 1.0, base: 1.0 },
+    base:   { id: '02472000', name: 'Baseflow-dominated coastal plain (Mississippi)', seed: 7, snow: 0.0, flash: 0.3, base: 2.4 }
+  };
+
+  function buildPySource(profileKey) {
+    var p = GAUGE_PROFILES[profileKey];
+    return [
+      'import numpy as np',
+      'import matplotlib.pyplot as plt',
+      'import matplotlib as mpl',
+      "mpl.rcParams.update({",
+      "    'figure.facecolor':'#0a0a15', 'axes.facecolor':'#0f0f1e',",
+      "    'text.color':'#7dd3fc',       'axes.labelcolor':'#7dd3fc',",
+      "    'xtick.color':'#94a3b8',      'ytick.color':'#94a3b8',",
+      "    'axes.edgecolor':'#334155',",
+      "})",
+      '',
+      '# ─── Gauge profile (CAMELS-shape synthetic; replace with fetch_streamflow_data for real)',
+      'GAUGE   = "' + p.id + '"',
+      'PROFILE = "' + p.name + '"',
+      'SEED    = ' + p.seed,
+      'SNOW    = ' + p.snow + '   # snowmelt component weight',
+      'FLASH   = ' + p.flash + '   # storm-event component weight',
+      'BASE    = ' + p.base + '   # baseflow component weight',
+      '',
+      'rng  = np.random.default_rng(SEED)',
+      'days = np.arange(365)',
+      '',
+      '# baseflow: seasonal sinusoid + slow drift',
+      'baseflow = BASE * (1.5 + 0.7*np.sin(2*np.pi*(days-80)/365))',
+      '',
+      '# snowmelt: a smooth April–June pulse',
+      'snow_pulse = SNOW * 12.0 * np.exp(-((days - 145)**2) / 800.0)',
+      '',
+      '# storm events: random pulses convolved with a gamma UH',
+      'storms = np.zeros(365)',
+      'n_events = int(20 + 30*FLASH)',
+      'event_days = rng.choice(365, size=n_events, replace=False)',
+      'storms[event_days] = rng.gamma(shape=1.8, scale=3.5*FLASH, size=n_events)',
+      'uh   = np.power(np.arange(20), 3) * np.exp(-np.arange(20)/3.5)',
+      'uh   = uh / uh.sum()',
+      'qfast = np.convolve(storms, uh, mode="full")[:365] * FLASH',
+      '',
+      'Q = baseflow + snow_pulse + qfast + rng.normal(0, 0.15, 365)',
+      'Q = np.clip(Q, 0.1, None)',
+      '',
+      '# ─── Lyne–Hollick recursive digital filter (α=0.925, 3 passes)',
+      'def lyne_hollick(Q, alpha=0.925, passes=3):',
+      '    b = Q.copy()',
+      '    for pi in range(passes):',
+      '        fwd = (pi % 2 == 0)',
+      '        f = np.zeros_like(Q)',
+      '        if fwd:',
+      '            for i in range(1, len(Q)):',
+      '                f[i] = alpha*f[i-1] + (1+alpha)/2*(Q[i]-Q[i-1])',
+      '        else:',
+      '            for i in range(len(Q)-2, -1, -1):',
+      '                f[i] = alpha*f[i+1] + (1+alpha)/2*(Q[i]-Q[i+1])',
+      '        f = np.clip(f, 0, None)',
+      '        b = np.minimum(b, Q - f)',
+      '        b = np.clip(b, 0, None)',
+      '    return b',
+      '',
+      'base = lyne_hollick(Q)',
+      'BFI  = base.sum() / Q.sum()',
+      '',
+      '# ─── Plot',
+      'fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 5.2), sharex=True,',
+      '                                gridspec_kw={"height_ratios":[3,1]})',
+      'ax1.fill_between(days, 0, Q, color="#00A3FF", alpha=0.20)',
+      'ax1.plot(days, Q,    color="#00DDFF", lw=1.4, label="Total Q")',
+      'ax1.plot(days, base, color="#34d399", lw=1.4, ls="--", label="Baseflow (LH α=0.925)")',
+      'ax1.fill_between(days, base, Q, color="#00A3FF", alpha=0.18, label="Quickflow")',
+      'ax1.set_ylabel("Q (m³/s)")',
+      'ax1.set_title(f"USGS {GAUGE} · {PROFILE} · BFI = {BFI:.3f}", color="#fff", fontsize=11)',
+      'ax1.legend(loc="upper left", framealpha=0.4, fontsize=9)',
+      '',
+      'ax2.bar(days, storms*5, width=1.0, color=(0.49, 0.83, 0.99, 0.5))',
+      'ax2.set_xlabel("Day of year"); ax2.set_ylabel("Rain (mm)")',
+      'ax2.invert_yaxis()',
+      '',
+      'plt.tight_layout()',
+      'plt.show()',
+      '',
+      'print(f"Gauge      : {GAUGE}")',
+      'print(f"Profile    : {PROFILE}")',
+      'print(f"Mean Q     : {Q.mean():.2f} m³/s")',
+      'print(f"Peak Q     : {Q.max():.2f} m³/s   (day {int(np.argmax(Q))})")',
+      'print(f"BFI (LH)   : {BFI:.3f}")',
+      'print(f"Annual vol : {Q.sum()*86400:.2e} m³")'
+    ].join('\n');
+  }
+
+  /* ──────────────────────────────────────────────────────────────────
+     Initialize all Tangles after page setup. Each section's setup function
+     can also call tangle.bind('<id>', fn) — bindings live below in the
+     section retrofit blocks.
+     ────────────────────────────────────────────────────────────────── */
+  tangle.init();
+
+  (function setupPyCell() {
+    var select = document.getElementById('gaugeSelect');
+    var src = document.getElementById('pySource');
+    function refresh() { src.textContent = buildPySource(select.value); }
+    refresh();
+    select.addEventListener('change', function () {
+      refresh();
+      if (window.aihydro && window.aihydro.rewriteCell) {
+        window.aihydro.rewriteCell('hydrograph-camels', function () { return src.textContent; }, false);
+      }
+    });
+  })();
+
+})();
+</script>
+
+</body>
+</html>

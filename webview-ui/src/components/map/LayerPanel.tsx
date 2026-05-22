@@ -14,23 +14,31 @@
  * Positioning is the parent's responsibility (see MapToolRibbon).
  */
 
+import { StringRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
-import { RemoveMapLayerRequest } from "@shared/proto/cline/map"
+import { AddMapLayerRequest, RemoveMapLayerRequest } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
-import { MapServiceClient } from "../../services/grpc-client"
+import { FileServiceClient, MapServiceClient } from "../../services/grpc-client"
 import { ACCEPTED_EXTENSIONS, loadAndPushFiles } from "./formats"
 import GraduatedSymbologyEditor from "./GraduatedSymbologyEditor"
+import { geeDisplayLines } from "./mapLayerAdapters"
 import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
 import { SymbologyEditor } from "./SymbologyEditor"
 
 interface LayerPanelContentProps {
 	onZoomToLayer?: (layer: MapLayer) => void
 	onVisibilityChange: (layerId: string, visible: boolean) => void
+	onOpacityChange?: (layerId: string, opacity: number) => void
 	visibleLayerIds: Set<string>
 	mapStyle?: string
 	layerOrder: string[]
 	onReorder: (newOrder: string[]) => void
+	layerOpacities?: Record<string, number>
+	clusterLayerIds?: Set<string>
+	onClusterToggle?: (layerId: string, enabled: boolean) => void
+	onShowAllLayers?: () => void
+	onHideAllLayers?: () => void
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -45,6 +53,8 @@ const layerTypeIcon = (t?: string): string => {
 			return "⬡"
 		case "raster":
 			return "▦"
+		case "gee_tile":
+			return "◉"
 		default:
 			return "◈"
 	}
@@ -52,6 +62,7 @@ const layerTypeIcon = (t?: string): string => {
 
 const sourceBadge = (layer: MapLayer): { icon: string; title: string } => {
 	const s = layer.metadata?.source
+	if (s === "gee") return { icon: "🛰", title: "Google Earth Engine layer" }
 	if (s === "workspace") return { icon: "📁", title: "Workspace file" }
 	if (s === "user") return { icon: "📥", title: "Loaded by you" }
 	if (layer.metadata?._run_id || layer.metadata?.tool) return { icon: "🐍", title: "Tool output" }
@@ -71,6 +82,8 @@ const HIDDEN_KEYS = new Set([
 	"raster_path",
 	"raster_colormap",
 	"raster_cached",
+	"gee_tile_url_template",
+	"gee_remote_tile_url_template",
 	"addedAt",
 ])
 
@@ -85,17 +98,47 @@ const niceMetadata = (layer: MapLayer): Array<[string, string]> => {
 			/* ignore */
 		}
 	}
-	const PRIORITY = ["format", "crs", "reprojected", "units", "variable", "tool", "_run_id", "rows"]
+	const PRIORITY = [
+		"format",
+		"crs",
+		"reprojected",
+		"units",
+		"variable",
+		"gee_dataset_id",
+		"gee_start_date",
+		"gee_end_date",
+		"tool",
+		"_run_id",
+		"rows",
+	]
 	for (const k of PRIORITY) {
 		if (meta[k]) out.push([k, meta[k]])
 	}
+	if (layer.layerType === "gee_tile") {
+		for (const [k, v] of geeDisplayLines(layer)) {
+			if (!out.some(([key]) => key === k)) {
+				out.push([k, v])
+			}
+		}
+	}
 	return out
+}
+
+const openProvenance = async (path: string) => {
+	try {
+		await FileServiceClient.openFile(StringRequest.create({ value: path }))
+	} catch (err) {
+		console.error("[LayerPanel] Failed to open provenance:", err)
+	}
 }
 
 const allMetadata = (layer: MapLayer): Array<[string, string]> =>
 	Object.entries(layer.metadata ?? {}).filter(([k]) => !HIDDEN_KEYS.has(k) && !k.startsWith("__"))
 
 const colorSwatch = (layer: MapLayer): string => {
+	if (layer.layerType === "gee_tile") {
+		return "linear-gradient(to right, #081d58, #225ea8, #41b6c4, #a1dab4, #ffffcc)"
+	}
 	if (layer.layerType === "raster") {
 		const cmap = layer.metadata?.raster_colormap ?? "viridis"
 		const gradients: Record<string, string> = {
@@ -113,14 +156,18 @@ const colorSwatch = (layer: MapLayer): string => {
 	return layer.style?.fillColor || layer.style?.color || "#0066CC"
 }
 
-const buildDisplayNames = (layers: MapLayer[]): Map<string, string> => {
+const buildDisplayNames = (layers: MapLayer[], aliases: Record<string, string>): Map<string, string> => {
 	const counts = new Map<string, number>()
 	for (const l of layers) {
-		const n = l.name || l.id
+		const n = aliases[l.id] ?? l.metadata?.display_name ?? (l.name || l.id)
 		counts.set(n, (counts.get(n) ?? 0) + 1)
 	}
 	const out = new Map<string, string>()
 	for (const l of layers) {
+		if (aliases[l.id]) {
+			out.set(l.id, aliases[l.id])
+			continue
+		}
 		const base = l.name || l.id
 		if ((counts.get(base) ?? 0) <= 1) {
 			out.set(l.id, base)
@@ -150,14 +197,23 @@ const exportLayer = (layer: MapLayer, displayName: string) => {
 export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 	onZoomToLayer,
 	onVisibilityChange,
+	onOpacityChange,
 	visibleLayerIds,
 	mapStyle = "dark",
 	layerOrder,
 	onReorder,
+	layerOpacities = {},
+	clusterLayerIds,
+	onClusterToggle,
+	onShowAllLayers,
+	onHideAllLayers,
 }) => {
 	const { layers } = useMapContext()
 	const persisted = useMemo(() => loadMapWorkspace(), [])
 	const [showDetails, setShowDetails] = useState<boolean>(persisted.layerPanel?.showDetails ?? false)
+	const [layerAliases, setLayerAliases] = useState<Record<string, string>>(persisted.layerAliases ?? {})
+	const [renamingId, setRenamingId] = useState<string | null>(null)
+	const [renameDraft, setRenameDraft] = useState("")
 	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 	const [attrTableFor, setAttrTableFor] = useState<string | null>(null)
 	const [symbologyFor, setSymbologyFor] = useState<string | null>(null)
@@ -173,13 +229,50 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 		saveMapWorkspace({ layerPanel: { showDetails } })
 	}, [showDetails])
 
+	useEffect(() => {
+		saveMapWorkspace({ layerAliases })
+	}, [layerAliases])
+
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
 	const border = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"
 	const subtle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"
 	const danger = "#dc3545"
 
-	const displayNames = useMemo(() => buildDisplayNames(layers), [layers])
+	const displayNames = useMemo(() => buildDisplayNames(layers, layerAliases), [layers, layerAliases])
+
+	const commitRename = async (layer: MapLayer) => {
+		const trimmed = renameDraft.trim()
+		const layerId = layer.id
+		setRenamingId(null)
+		setRenameDraft("")
+		const baseName = layer.name || layer.id
+		if (!trimmed || trimmed === baseName) {
+			setLayerAliases((prev) => {
+				const next = { ...prev }
+				delete next[layerId]
+				return next
+			})
+			return
+		}
+		try {
+			const metadata = { ...(layer.metadata ?? {}), display_name: trimmed }
+			await MapServiceClient.addMapLayer(
+				AddMapLayerRequest.create({
+					layer: { ...layer, name: trimmed, metadata },
+					replaceExisting: true,
+				}),
+			)
+			setLayerAliases((prev) => {
+				const next = { ...prev }
+				delete next[layerId]
+				return next
+			})
+		} catch (err) {
+			console.error("[LayerPanel] Failed to save layer name:", err)
+			setLayerAliases((prev) => ({ ...prev, [layerId]: trimmed }))
+		}
+	}
 
 	// Sorted layer list respects the custom order maintained in MapView
 	const orderedLayers = useMemo(() => {
@@ -299,6 +392,16 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 				<span style={{ fontSize: 11, opacity: 0.7, flex: 1 }}>
 					{layers.length === 0 ? "Empty" : `${layers.length} layer${layers.length === 1 ? "" : "s"}`}
 				</span>
+				{layers.length > 0 && (
+					<>
+						<IconBtn border={border} fg={fg} onClick={() => onShowAllLayers?.()} title="Show all layers">
+							👁
+						</IconBtn>
+						<IconBtn border={border} fg={fg} onClick={() => onHideAllLayers?.()} title="Hide all layers">
+							👁‍🗨
+						</IconBtn>
+					</>
+				)}
 				<IconBtn
 					active={showDetails}
 					border={border}
@@ -378,6 +481,8 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 						const attrOpen = attrTableFor === layer.id
 						const displayName = displayNames.get(layer.id) ?? layer.name ?? layer.id
 						const isRaster = layer.layerType === "raster"
+						const isGeeTile = layer.layerType === "gee_tile"
+						const provenancePath = layer.metadata?.provenance_path
 						const hasGeojson = !!layer.geojson && !isRaster
 
 						return (
@@ -444,21 +549,116 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 									<span style={{ fontSize: 11, flexShrink: 0 }} title={badge.title}>
 										{badge.icon}
 									</span>
+									{isGeeTile && layer.metadata?.gee_mock === "true" && (
+										<span
+											style={{
+												fontSize: 9,
+												padding: "1px 5px",
+												borderRadius: 3,
+												background: "rgba(220,160,0,0.15)",
+												color: "var(--vscode-editorWarning-foreground, #cca700)",
+												flexShrink: 0,
+											}}
+											title="Mock tile layer">
+											mock
+										</span>
+									)}
 
-									{/* Name */}
-									<span
-										style={{
-											fontSize: 12,
-											fontWeight: 500,
-											flex: 1,
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											whiteSpace: "nowrap",
-										}}
-										title={displayName}>
-										{displayName}
-									</span>
+									{/* Name (double-click to rename) */}
+									{renamingId === layer.id ? (
+										<input
+											autoFocus
+											onBlur={() => void commitRename(layer)}
+											onChange={(e) => setRenameDraft(e.target.value)}
+											onKeyDown={(e) => {
+												if (e.key === "Enter") {
+													void commitRename(layer)
+												}
+												if (e.key === "Escape") {
+													setRenamingId(null)
+													setRenameDraft("")
+												}
+											}}
+											style={{
+												flex: 1,
+												minWidth: 0,
+												fontSize: 12,
+												padding: "1px 4px",
+												border: `1px solid var(--vscode-focusBorder, #0e639c)`,
+												borderRadius: 2,
+												background: "var(--vscode-input-background, #3c3c3c)",
+												color: fg,
+											}}
+											title="Layer display name"
+											type="text"
+											value={renameDraft}
+										/>
+									) : (
+										<span
+											onDoubleClick={() => {
+												setRenamingId(layer.id)
+												setRenameDraft(displayName)
+											}}
+											style={{
+												fontSize: 12,
+												fontWeight: 500,
+												flex: 1,
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+												cursor: "text",
+											}}
+											title={`${displayName} — double-click to rename (saved in map session)`}>
+											{displayName}
+										</span>
+									)}
 								</div>
+
+								{/* Opacity slider */}
+								{isVisible && (
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: 6,
+											marginLeft: 50,
+											marginTop: 4,
+											marginBottom: 2,
+										}}>
+										<span style={{ fontSize: 10, opacity: 0.65, minWidth: 38 }}>Opacity</span>
+										<input
+											max={1}
+											min={0}
+											onChange={(e) => onOpacityChange?.(layer.id, parseFloat(e.target.value))}
+											step={0.05}
+											style={{
+												flex: 1,
+												accentColor: "var(--vscode-button-background)",
+												cursor: "pointer",
+											}}
+											title={`Opacity: ${Math.round((layerOpacities[layer.id] ?? 1) * 100)}%`}
+											type="range"
+											value={
+												layerOpacities[layer.id] ??
+												(isRaster ? parseFloat(layer.metadata?.raster_opacity ?? "0.75") : 1)
+											}
+										/>
+										<span
+											style={{
+												fontSize: 10,
+												opacity: 0.65,
+												minWidth: 28,
+												textAlign: "right",
+												fontVariantNumeric: "tabular-nums",
+											}}>
+											{Math.round(
+												(layerOpacities[layer.id] ??
+													(isRaster ? parseFloat(layer.metadata?.raster_opacity ?? "0.75") : 1)) * 100,
+											)}
+											%
+										</span>
+									</div>
+								)}
 
 								{/* ── Compact metadata line ── */}
 								{niceMeta.length > 0 && (
@@ -489,6 +689,15 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 										title="Zoom to extent">
 										🔍
 									</IconBtn>
+									{provenancePath && (
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => void openProvenance(provenancePath)}
+											title="Open provenance record">
+											📋
+										</IconBtn>
+									)}
 									<IconBtn
 										active={editing}
 										border={border}
@@ -497,6 +706,21 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 										title="Symbology">
 										🎨
 									</IconBtn>
+									{/* Cluster toggle — only for point layers */}
+									{!isRaster && hasGeojson && layer.layerType === "point" && (
+										<IconBtn
+											active={clusterLayerIds?.has(layer.id)}
+											border={border}
+											fg={fg}
+											onClick={() => onClusterToggle?.(layer.id, !clusterLayerIds?.has(layer.id))}
+											title={
+												clusterLayerIds?.has(layer.id)
+													? "Disable point clustering"
+													: "Cluster points at low zoom"
+											}>
+											{clusterLayerIds?.has(layer.id) ? "🧩" : "🔘"}
+										</IconBtn>
+									)}
 									{hasGeojson && (
 										<IconBtn
 											active={attrOpen}

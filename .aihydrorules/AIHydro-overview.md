@@ -198,6 +198,21 @@ When contributing to AI-Hydro:
 - Handle errors gracefully
 - Document data sources
 
+### HTML Preview — Python kernels
+
+See `docs/html-preview-cells.md` for the official `.aihydro-cell` contract (`data-aihydro-cell-id`, optional JSON metadata).
+
+When an artifact needs numpy/rasterio/matplotlib in the preview panel (not only MCP):
+
+1. Create a workspace venv with `execute_command` (extension does **not** auto-install):
+   ```bash
+   python3 -m venv .aihydro/venv && .aihydro/venv/bin/pip install numpy pandas rasterio matplotlib
+   ```
+2. Tell the user to click **↻ env** in the HTML Preview toolbar so `.aihydro/venv` appears in the kernel dropdown.
+3. Use `preview_html` with `.aihydro-cell` markup. Users run cells from the panel toolbar (**Run Cell**, **Run All**, **Restart & Run All**). Each artifact has its **own** kernel session (no variable leakage across open previews unless `aihydro.htmlPreview.shareKernelAcrossArtifacts` is enabled).
+
+Workspace Python execution for tools should use `executeWorkspacePython` in `src/services/artifact-preview/workspacePythonExecution.ts` (same path as HTML Preview; future MCP `run_python`).
+
 ---
 
 **AI-Hydro** | Intelligent Hydrological Analysis Platform | Fork of Cline (Apache 2.0)

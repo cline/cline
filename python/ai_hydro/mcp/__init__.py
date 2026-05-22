@@ -12,6 +12,8 @@ from ai_hydro.mcp import tools_analysis   # noqa: F401
 from ai_hydro.mcp import tools_session    # noqa: F401
 from ai_hydro.mcp import tools_modelling  # noqa: F401
 from ai_hydro.mcp import tools_project    # noqa: F401  — v1.2: project, literature, persona
+from ai_hydro.mcp import tools_gee        # noqa: F401  — GEE tools for chat/map integration
+from ai_hydro.mcp import tools_map        # noqa: F401  — map session orchestration tools
 
 # Discover and register community plugin tools via entry points.
 # Third-party packages register tools in their pyproject.toml:

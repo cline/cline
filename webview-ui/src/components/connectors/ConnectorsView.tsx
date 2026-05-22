@@ -1,10 +1,10 @@
 import { BUILTIN_CONNECTORS, type ConnectorDefinition, type ConnectorStatus } from "@shared/connectors"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import type { GeeStatusResponse } from "@shared/proto/cline/ui"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import styled from "styled-components"
-import { PLATFORM_CONFIG } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
@@ -20,11 +20,6 @@ type ConnectorsViewProps = {
 }
 
 const GEE_ID = "gee"
-const GEE_STATUS_CMD = "aihydro.gee.status"
-
-function postInvokeCommand(command: string) {
-	PLATFORM_CONFIG.postMessage({ type: "invokeCommand", command })
-}
 
 const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 	const { environment } = useExtensionState()
@@ -68,6 +63,25 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 		}
 	}, [])
 
+	// Apply a GeeStatusResponse to UI state
+	const applyGeeResponse = useCallback(
+		(resp: GeeStatusResponse) => {
+			setStatus(GEE_ID, resp.ok ? "connected" : "disconnected")
+			if (resp.ok) {
+				clearConnectorError(GEE_ID)
+				setConnectorDetails(GEE_ID, {
+					"Project ID": resp.projectId ?? "",
+					"EE version": resp.eeVersion ?? "",
+					Python: resp.pythonExecutable ?? "",
+				})
+			} else {
+				setConnectorError(GEE_ID, resp.message ?? "Connection failed")
+				setConnectorDetails(GEE_ID, {})
+			}
+		},
+		[setStatus, clearConnectorError, setConnectorDetails, setConnectorError],
+	)
+
 	// Fetch remote catalog and merge with BUILTIN_CONNECTORS on mount
 	useEffect(() => {
 		mountedRef.current = true
@@ -89,56 +103,51 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 		}
 	}, [])
 
-	// Listen for commandResult messages — used for Connect / Disconnect / Test / ChooseProject
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			const msg = event.data
-			if (msg?.type !== "commandResult" || !msg.commandResult) return
-			const cr = msg.commandResult as {
-				command: string
-				ok: boolean
-				project_id?: string
-				message?: string
-				runtime?: { ee_version?: string; python_executable?: string }
-			}
-
-			if ([GEE_STATUS_CMD, "aihydro.gee.connect", "aihydro.gee.test"].includes(cr.command)) {
-				setBusy(GEE_ID, false)
-				setStatus(GEE_ID, cr.ok ? "connected" : "disconnected")
-				if (cr.ok && cr.project_id) {
-					clearConnectorError(GEE_ID)
-					setConnectorDetails(GEE_ID, {
-						"Project ID": cr.project_id,
-						"EE version": cr.runtime?.ee_version ?? "",
-						Python: cr.runtime?.python_executable ?? "",
-					})
-				} else if (!cr.ok) {
-					setConnectorError(GEE_ID, cr.message ?? "Connection failed")
-					setConnectorDetails(GEE_ID, {})
-				}
-			} else if (cr.command === "aihydro.gee.disconnect") {
-				setBusy(GEE_ID, false)
-				setStatus(GEE_ID, "disconnected")
-				setConnectorDetails(GEE_ID, {})
-				clearConnectorError(GEE_ID)
-			} else if (cr.command === "aihydro.gee.chooseProject") {
-				// After project is chosen, trigger a status refresh
-				setBusy(GEE_ID, true)
-				postInvokeCommand(GEE_STATUS_CMD)
-			}
-		}
-		window.addEventListener("message", handler)
-		return () => window.removeEventListener("message", handler)
-	}, [setStatus, setBusy, setConnectorDetails, setConnectorError, clearConnectorError])
-
-	// Handle action button clicks — sets busy and fires the VS Code command
+	// Handle action button clicks — calls gRPC for GEE, generic commands for others
 	const handleAction = useCallback(
 		(connectorId: string, commandId: string) => {
-			setBusy(connectorId, true)
-			if (connectorId === GEE_ID) clearConnectorError(GEE_ID)
-			postInvokeCommand(commandId)
+			if (connectorId !== GEE_ID) return
+			setBusy(GEE_ID, true)
+			clearConnectorError(GEE_ID)
+
+			let rpcCall: Promise<import("@shared/proto/cline/ui").GeeStatusResponse>
+			if (commandId === "aihydro.gee.connect" || commandId === "aihydro.gee.test") {
+				rpcCall = UiServiceClient.geeConnect(EmptyRequest.create({}))
+			} else if (commandId === "aihydro.gee.disconnect") {
+				rpcCall = UiServiceClient.geeDisconnect(EmptyRequest.create({}))
+			} else if (commandId === "aihydro.gee.chooseProject") {
+				rpcCall = UiServiceClient.geeChooseProject(EmptyRequest.create({}))
+			} else {
+				setBusy(GEE_ID, false)
+				return
+			}
+			rpcCall
+				.then((resp) => {
+					if (!mountedRef.current) {
+						return
+					}
+					if (commandId === "aihydro.gee.disconnect") {
+						setStatus(GEE_ID, "disconnected")
+						setConnectorDetails(GEE_ID, {})
+						clearConnectorError(GEE_ID)
+					} else {
+						applyGeeResponse(resp)
+					}
+				})
+				.catch((err) => {
+					if (!mountedRef.current) {
+						return
+					}
+					setConnectorError(GEE_ID, String(err))
+					setStatus(GEE_ID, "disconnected")
+				})
+				.finally(() => {
+					if (mountedRef.current) {
+						setBusy(GEE_ID, false)
+					}
+				})
 		},
-		[setBusy, clearConnectorError],
+		[setBusy, clearConnectorError, applyGeeResponse, setStatus, setConnectorDetails, setConnectorError],
 	)
 
 	return (

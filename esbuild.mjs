@@ -85,6 +85,18 @@ const esbuildProblemMatcherPlugin = {
 	},
 }
 
+const copyArtifactKernelRunner = {
+	name: "copy-artifact-kernel-runner",
+	setup(build) {
+		build.onEnd(() => {
+			const source = path.join(__dirname, "src/services/artifact-preview/artifact_kernel_runner.py")
+			const targetDir = path.join(__dirname, destDir, "services", "artifact-preview")
+			fs.mkdirSync(targetDir, { recursive: true })
+			fs.copyFileSync(source, path.join(targetDir, "artifact_kernel_runner.py"))
+		})
+	},
+}
+
 const copyWasmFiles = {
 	name: "copy-wasm-files",
 	setup(build) {
@@ -177,6 +189,7 @@ const baseConfig = {
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,
+		copyArtifactKernelRunner,
 		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,

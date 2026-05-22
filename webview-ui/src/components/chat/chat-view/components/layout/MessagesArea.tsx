@@ -1,6 +1,7 @@
 import { AiHydroMessage } from "@shared/ExtensionMessage"
-import React, { useCallback } from "react"
+import React, { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
+import TypingIndicator from "@/components/chat/TypingIndicator"
 import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
@@ -60,6 +61,19 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		],
 	)
 
+	// Show typing indicator when the last message is from the user (no assistant response yet)
+	// Also show when an API request has started but the assistant hasn't started responding
+	const showTypingIndicator = useMemo(() => {
+		if (groupedMessages.length === 0) return false
+		const last = groupedMessages[groupedMessages.length - 1]
+		if (Array.isArray(last)) return false
+		// User messages are type "ask" with ask === "user_feedback"
+		if (last.type === "ask" && last.ask === "user_feedback") return true
+		// API request started but no text response yet
+		if (last.type === "say" && last.say === "api_req_started") return true
+		return false
+	}, [groupedMessages])
+
 	return (
 		<div className="overflow-hidden flex flex-col h-full">
 			<div className="flex-grow flex" ref={scrollContainerRef}>
@@ -74,7 +88,12 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable"
 					components={{
-						Footer: () => <div style={{ height: 5 }} />, // Add empty padding at the bottom
+						Footer: () => (
+							<div>
+								{showTypingIndicator && <TypingIndicator />}
+								<div style={{ height: 5 }} />
+							</div>
+						),
 					}}
 					data={groupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row

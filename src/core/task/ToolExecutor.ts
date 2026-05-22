@@ -13,6 +13,7 @@ import * as vscode from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
+import { Controller } from "../controller"
 import { HookFactory } from "../hooks/hook-factory"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
@@ -33,6 +34,7 @@ import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
 import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
 import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
+import { PreviewHtmlToolHandler } from "./tools/handlers/PreviewHtmlToolHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
@@ -77,6 +79,7 @@ export class ToolExecutor {
 		private aihydroIgnoreController: AiHydroIgnoreController,
 		private contextManager: ContextManager,
 		private stateManager: StateManager,
+		private controller: Controller,
 
 		// Configuration & Settings
 
@@ -157,6 +160,7 @@ export class ToolExecutor {
 				aihydroIgnoreController: this.aihydroIgnoreController,
 				contextManager: this.contextManager,
 				stateManager: this.stateManager,
+				controller: this.controller,
 			},
 			callbacks: {
 				say: this.say,
@@ -194,6 +198,7 @@ export class ToolExecutor {
 		this.coordinator.register(new ListFilesToolHandler(validator))
 		this.coordinator.register(new ReadFileToolHandler(validator))
 		this.coordinator.register(new BrowserToolHandler())
+		this.coordinator.register(new PreviewHtmlToolHandler())
 		this.coordinator.register(new AskFollowupQuestionToolHandler())
 		this.coordinator.register(new WebFetchToolHandler())
 

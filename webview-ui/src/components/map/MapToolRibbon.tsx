@@ -18,12 +18,16 @@
  * Tools today: Basemap, Layers. Future: Measure, Tools/Plugins, Settings.
  */
 
+import type { MapViewState } from "@deck.gl/core"
 import type { MapLayer } from "@shared/proto/cline/map"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { BasemapList } from "./BaseMapSelector"
+import HydrographyPanel from "./HydrographyPanel"
 import { LayerPanelContent } from "./LayerPanel"
+import MapExport from "./MapExport"
+import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
 
-export type RibbonTool = "basemap" | "layers" | null
+export type RibbonTool = "basemap" | "layers" | "hydrography" | "search" | "measure" | "draw" | "export" | null
 
 interface MapToolRibbonProps {
 	mapStyle: "dark" | "light"
@@ -36,6 +40,22 @@ interface MapToolRibbonProps {
 	layerOrder: string[]
 	onReorder: (newOrder: string[]) => void
 	layerCount: number
+	measureMode?: "distance" | "area" | null
+	onMeasureModeChange?: (mode: "distance" | "area" | null) => void
+	drawMode?: "polygon" | "line" | "point" | null
+	onDrawModeChange?: (mode: "polygon" | "line" | "point" | null) => void
+	onFitExtent?: () => void
+	searchOpen?: boolean
+	onSearchToggle?: () => void
+	exportOpen?: boolean
+	onExportToggle?: () => void
+	layerOpacities?: Record<string, number>
+	onOpacityChange?: (layerId: string, opacity: number) => void
+	clusterLayerIds?: Set<string>
+	onClusterToggle?: (layerId: string, enabled: boolean) => void
+	onShowAllLayers?: () => void
+	onHideAllLayers?: () => void
+	viewState?: MapViewState
 }
 
 export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
@@ -49,9 +69,31 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	layerOrder,
 	onReorder,
 	layerCount,
+	measureMode,
+	onMeasureModeChange,
+	drawMode,
+	onDrawModeChange,
+	onFitExtent,
+	searchOpen,
+	onSearchToggle,
+	exportOpen,
+	onExportToggle,
+	layerOpacities,
+	onOpacityChange,
+	clusterLayerIds,
+	onClusterToggle,
+	onShowAllLayers,
+	onHideAllLayers,
+	viewState,
 }) => {
+	const persisted = loadMapWorkspace()
 	const [active, setActive] = useState<RibbonTool>(null)
-	const [panelWidth, setPanelWidth] = useState<number>(active === "layers" ? 300 : 220)
+	const [panelWidth, setPanelWidth] = useState<number>(persisted.ribbonPanel?.width ?? 280)
+	const [panelHeight, setPanelHeight] = useState<number>(persisted.ribbonPanel?.height ?? 380)
+
+	useEffect(() => {
+		saveMapWorkspace({ ribbonPanel: { width: panelWidth, height: panelHeight } })
+	}, [panelWidth, panelHeight])
 
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
@@ -62,7 +104,7 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 
 	const toggle = (tool: RibbonTool) => setActive((cur) => (cur === tool ? null : tool))
 
-	const onResizeStart = (e: React.MouseEvent) => {
+	const onResizeWidthStart = (e: React.MouseEvent) => {
 		e.preventDefault()
 		const startX = e.clientX
 		const startW = panelWidth
@@ -78,46 +120,70 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 		window.addEventListener("mouseup", onUp)
 	}
 
-	const ribbonWidth = 40
-	const totalWidth = active ? panelWidth + ribbonWidth : ribbonWidth
+	const onResizeHeightStart = (e: React.MouseEvent) => {
+		e.preventDefault()
+		const startY = e.clientY
+		const startH = panelHeight
+		const onMove = (ev: MouseEvent) => {
+			const next = Math.max(200, Math.min(Math.round(window.innerHeight * 0.85), startH + (ev.clientY - startY)))
+			setPanelHeight(next)
+		}
+		const onUp = () => {
+			window.removeEventListener("mousemove", onMove)
+			window.removeEventListener("mouseup", onUp)
+		}
+		window.addEventListener("mousemove", onMove)
+		window.addEventListener("mouseup", onUp)
+	}
+
+	const ribbonWidth = 44
+
+	// Close panel handler — also clears measure mode / search / export when closing
+	const closePanel = () => {
+		if (active === "measure") {
+			onMeasureModeChange?.(null)
+		}
+		if (active === "draw") {
+			onDrawModeChange?.(null)
+		}
+		if (active === "search") {
+			onSearchToggle?.()
+		}
+		if (active === "export") {
+			onExportToggle?.()
+		}
+		setActive(null)
+	}
 
 	return (
-		<div
-			style={{
-				position: "absolute",
-				top: 10,
-				right: 10,
-				bottom: 36, // leave room for status bar
-				zIndex: 5,
-				width: totalWidth,
-				display: "flex",
-				flexDirection: "row",
-				gap: 0,
-				pointerEvents: "none",
-				fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
-			}}>
-			{/* Active panel — slides in to the LEFT of the icon strip */}
+		<>
+			{/* Tool panels — top-right, left of icon strip; kept narrow to avoid covering inspector */}
 			{active && (
 				<div
+					className="map-ribbon-panel"
 					style={{
+						position: "absolute",
+						top: 10,
+						right: 52,
+						zIndex: 4,
 						width: panelWidth,
+						height: panelHeight,
+						maxHeight: "min(85vh, 720px)",
 						background: bg,
 						color: fg,
 						border: `1px solid ${border}`,
-						borderRight: "none",
-						borderTopLeftRadius: 6,
-						borderBottomLeftRadius: 6,
-						boxShadow: "0 4px 16px rgba(0,0,0,0.30)",
+						borderRadius: 6,
+						boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
 						display: "flex",
 						flexDirection: "column",
 						overflow: "hidden",
 						pointerEvents: "auto",
-						position: "relative",
+						fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
 					}}>
 					{/* Resize gripper on the left edge */}
 					<div
 						aria-label="Resize panel"
-						onMouseDown={onResizeStart}
+						onMouseDown={onResizeWidthStart}
 						role="separator"
 						style={{
 							position: "absolute",
@@ -134,20 +200,51 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 					{/* Panel header */}
 					<div
 						style={{
-							padding: "8px 10px",
+							padding: "8px 10px 8px 12px",
 							borderBottom: `1px solid ${border}`,
 							display: "flex",
 							alignItems: "center",
 							gap: 8,
 							background: subtle,
+							flexShrink: 0,
 						}}>
-						<span style={{ fontSize: 14 }}>{active === "basemap" ? "🗺️" : "📑"}</span>
+						<span style={{ fontSize: 14 }}>
+							{active === "basemap"
+								? "🗺️"
+								: active === "layers"
+									? "📑"
+									: active === "search"
+										? "🔍"
+										: active === "measure"
+											? "📏"
+											: active === "draw"
+												? "✏️"
+												: active === "hydrography"
+													? "🌊"
+													: active === "export"
+														? "🖼️"
+														: ""}
+						</span>
 						<span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
-							{active === "basemap" ? "Basemap" : `Layers (${layerCount})`}
+							{active === "basemap"
+								? "Basemap"
+								: active === "layers"
+									? `Layers (${layerCount})`
+									: active === "search"
+										? "Search"
+										: active === "measure"
+											? "Measure"
+											: active === "draw"
+												? "Create vector"
+												: active === "hydrography"
+													? "Reference vectors"
+													: active === "export"
+														? "Export"
+														: ""}
 						</span>
 						<button
 							aria-label="Close panel"
-							onClick={() => setActive(null)}
+							onClick={closePanel}
 							style={{
 								background: "transparent",
 								color: fg,
@@ -164,8 +261,25 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 						</button>
 					</div>
 
+					{/* Bottom edge — vertical resize */}
+					<div
+						aria-label="Resize panel height"
+						onMouseDown={onResizeHeightStart}
+						role="separator"
+						style={{
+							position: "absolute",
+							left: 0,
+							right: 0,
+							bottom: 0,
+							height: 5,
+							cursor: "ns-resize",
+							zIndex: 1,
+						}}
+						title="Drag to resize height"
+					/>
+
 					{/* Panel content — scrollable */}
-					<div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+					<div className="map-ribbon-panel-content" style={{ overflowY: "auto", minHeight: 0, flex: 1 }}>
 						{active === "basemap" && (
 							<BasemapList
 								currentStyle={currentBasemap}
@@ -176,26 +290,162 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 						)}
 						{active === "layers" && (
 							<LayerPanelContent
+								clusterLayerIds={clusterLayerIds}
+								layerOpacities={layerOpacities}
 								layerOrder={layerOrder}
 								mapStyle={mapStyle}
+								onClusterToggle={onClusterToggle}
+								onHideAllLayers={onHideAllLayers}
+								onOpacityChange={onOpacityChange}
 								onReorder={onReorder}
+								onShowAllLayers={onShowAllLayers}
 								onVisibilityChange={onVisibilityChange}
 								onZoomToLayer={onZoomToLayer}
 								visibleLayerIds={visibleLayerIds}
 							/>
 						)}
+						{active === "search" && (
+							<div style={{ padding: 10 }}>
+								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
+									Use the search box that appears on the map canvas (top-left) when this tool is active. Type a
+									place name, USGS gauge ID, or coordinates (e.g. 40.45,-86.85).
+								</div>
+							</div>
+						)}
+						{active === "measure" && (
+							<div style={{ padding: 10 }}>
+								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
+									Temporary distance or area measurements — not saved to the workspace.
+								</div>
+								<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+									<button
+										onClick={() => onMeasureModeChange?.(measureMode === "distance" ? null : "distance")}
+										style={{
+											padding: "6px 10px",
+											fontSize: 12,
+											background:
+												measureMode === "distance"
+													? "var(--vscode-button-background, #0e639c)"
+													: "transparent",
+											color: fg,
+											border: `1px solid ${border}`,
+											borderRadius: 3,
+											cursor: "pointer",
+										}}>
+										📏 Distance
+									</button>
+									<button
+										onClick={() => onMeasureModeChange?.(measureMode === "area" ? null : "area")}
+										style={{
+											padding: "6px 10px",
+											fontSize: 12,
+											background:
+												measureMode === "area"
+													? "var(--vscode-button-background, #0e639c)"
+													: "transparent",
+											color: fg,
+											border: `1px solid ${border}`,
+											borderRadius: 3,
+											cursor: "pointer",
+										}}>
+										📐 Area
+									</button>
+									{measureMode && (
+										<div style={{ fontSize: 10, opacity: 0.7, marginTop: 4 }}>
+											Click points on map. Double-click or Enter to finish. ESC to cancel.
+										</div>
+									)}
+								</div>
+							</div>
+						)}
+						{active === "draw" && (
+							<div style={{ padding: 10 }}>
+								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
+									Create vectors saved to <code style={{ fontSize: 10 }}>vectors/</code> in your workspace.
+									After finishing, use Save or Export — geometry stays on screen until you choose.
+								</div>
+								<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+									<button
+										onClick={() => {
+											onMeasureModeChange?.(null)
+											onDrawModeChange?.(drawMode === "polygon" ? null : "polygon")
+										}}
+										style={{
+											padding: "6px 10px",
+											fontSize: 12,
+											background:
+												drawMode === "polygon"
+													? "var(--vscode-button-background, #2d9f6f)"
+													: "transparent",
+											color: fg,
+											border: `1px solid ${border}`,
+											borderRadius: 3,
+											cursor: "pointer",
+										}}
+										type="button">
+										⬡ Polygon
+									</button>
+									<button
+										onClick={() => {
+											onMeasureModeChange?.(null)
+											onDrawModeChange?.(drawMode === "line" ? null : "line")
+										}}
+										style={{
+											padding: "6px 10px",
+											fontSize: 12,
+											background:
+												drawMode === "line" ? "var(--vscode-button-background, #2d9f6f)" : "transparent",
+											color: fg,
+											border: `1px solid ${border}`,
+											borderRadius: 3,
+											cursor: "pointer",
+										}}
+										type="button">
+										〰 Line
+									</button>
+									<button
+										onClick={() => {
+											onMeasureModeChange?.(null)
+											onDrawModeChange?.(drawMode === "point" ? null : "point")
+										}}
+										style={{
+											padding: "6px 10px",
+											fontSize: 12,
+											background:
+												drawMode === "point" ? "var(--vscode-button-background, #2d9f6f)" : "transparent",
+											color: fg,
+											border: `1px solid ${border}`,
+											borderRadius: 3,
+											cursor: "pointer",
+										}}
+										type="button">
+										● Point
+									</button>
+								</div>
+							</div>
+						)}
+						{active === "hydrography" && viewState && <HydrographyPanel mapStyle={mapStyle} viewState={viewState} />}
+						{active === "export" && (
+							<div style={{ padding: 10 }}>
+								<MapExport mapStyle={mapStyle} onClose={() => toggle("export")} />
+							</div>
+						)}
 					</div>
 				</div>
 			)}
 
-			{/* Icon ribbon — always visible */}
+			{/* Icon ribbon — compact strip at top-right */}
 			<div
 				style={{
+					position: "absolute",
+					top: 10,
+					right: 10,
+					zIndex: 5,
 					width: ribbonWidth,
 					background: bg,
 					color: fg,
 					border: `1px solid ${border}`,
-					borderRadius: active ? "0 6px 6px 0" : 6,
+					borderRadius: 6,
 					boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
 					display: "flex",
 					flexDirection: "column",
@@ -203,7 +453,6 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 					padding: "6px 0",
 					gap: 4,
 					pointerEvents: "auto",
-					alignSelf: "flex-start",
 				}}>
 				<RibbonButton
 					accent={accent}
@@ -219,11 +468,69 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 					badge={layerCount > 0 ? layerCount : undefined}
 					fg={fg}
 					icon="📑"
-					label={layerCount > 0 ? `Layers (${layerCount})` : "Layers"}
+					label={layerCount > 0 ? `Layer manager (${layerCount})` : "Layer manager"}
 					onClick={() => toggle("layers")}
 				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "hydrography"}
+					fg={fg}
+					icon="🌊"
+					label="Reference vectors (MERIT hydrography, more coming)"
+					onClick={() => toggle("hydrography")}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={false}
+					disabled={layerCount === 0}
+					fg={fg}
+					icon="⛶"
+					label="Fit to layers"
+					onClick={() => onFitExtent?.()}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "search" || !!searchOpen}
+					fg={fg}
+					icon="🔍"
+					label="Search"
+					onClick={() => {
+						toggle("search")
+						onSearchToggle?.()
+					}}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "draw" || !!drawMode}
+					fg={fg}
+					icon="✏️"
+					label="Create vector"
+					onClick={() => {
+						onMeasureModeChange?.(null)
+						toggle("draw")
+					}}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "measure" || !!measureMode}
+					fg={fg}
+					icon="📏"
+					label="Measure"
+					onClick={() => {
+						onDrawModeChange?.(null)
+						toggle("measure")
+					}}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "export" || !!exportOpen}
+					fg={fg}
+					icon="🖼️"
+					label="Export snapshot"
+					onClick={() => toggle("export")}
+				/>
 			</div>
-		</div>
+		</>
 	)
 }
 
@@ -235,11 +542,13 @@ interface RibbonButtonProps {
 	fg: string
 	onClick: () => void
 	badge?: number
+	disabled?: boolean
 }
 
-const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, accent, fg, onClick, badge }) => (
+const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, accent, fg, onClick, badge, disabled }) => (
 	<button
 		aria-label={label}
+		disabled={disabled}
 		onClick={onClick}
 		style={{
 			width: 32,
@@ -249,7 +558,8 @@ const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, accent
 			borderRadius: 4,
 			background: active ? "rgba(14,99,156,0.18)" : "transparent",
 			color: fg,
-			cursor: "pointer",
+			cursor: disabled ? "not-allowed" : "pointer",
+			opacity: disabled ? 0.45 : 1,
 			fontSize: 18,
 			display: "flex",
 			alignItems: "center",

@@ -1,20 +1,28 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { HistoryIcon, MapIcon, PlusIcon, SettingsIcon } from "lucide-react"
+import { HistoryIcon, MapIcon, PlusIcon, ServerIcon, SettingsIcon } from "lucide-react"
 import { useMemo } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import HeroTooltip from "../common/HeroTooltip"
 
-// Custom MCP Server Icon component using VSCode codicon
-const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
-	<span
-		className={`codicon codicon-server flex items-center ${className || ""}`}
-		style={{ fontSize: size ? `${size}px` : "12.5px", marginBottom: "1px" }}
-	/>
+const ConnectorsIcon = ({ size, strokeWidth }: { size?: number; strokeWidth?: number }) => (
+	<span className="codicon codicon-plug flex items-center justify-center" style={{ fontSize: size ? `${size}px` : "16px" }} />
 )
 
 export const Navbar = () => {
-	const { navigateToHistory, navigateToSettings, navigateToMcp, navigateToMap, navigateToChat } = useExtensionState()
+	const {
+		navigateToHistory,
+		navigateToSettings,
+		navigateToMcp,
+		navigateToMap,
+		navigateToConnectors,
+		navigateToChat,
+		showMcp,
+		showMap,
+		showConnectors,
+		showHistory,
+		showSettings,
+	} = useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
 		() => [
@@ -23,6 +31,7 @@ export const Navbar = () => {
 				name: "Chat",
 				tooltip: "New Task",
 				icon: PlusIcon,
+				isActive: !showMcp && !showMap && !showConnectors && !showHistory && !showSettings,
 				navigate: () => {
 					// Close the current task, then navigate to the chat view
 					TaskServiceClient.clearTask({})
@@ -36,14 +45,24 @@ export const Navbar = () => {
 				id: "mcp",
 				name: "MCP",
 				tooltip: "MCP Servers",
-				icon: McpServerIcon,
+				icon: ServerIcon,
+				isActive: showMcp,
 				navigate: navigateToMcp,
+			},
+			{
+				id: "connectors",
+				name: "Connectors",
+				tooltip: "External Connectors",
+				icon: ConnectorsIcon,
+				isActive: showConnectors,
+				navigate: navigateToConnectors,
 			},
 			{
 				id: "map",
 				name: "Map",
 				tooltip: "Map View",
 				icon: MapIcon,
+				isActive: showMap,
 				navigate: navigateToMap,
 			},
 			{
@@ -51,6 +70,7 @@ export const Navbar = () => {
 				name: "History",
 				tooltip: "History",
 				icon: HistoryIcon,
+				isActive: showHistory,
 				navigate: navigateToHistory,
 			},
 			{
@@ -58,17 +78,30 @@ export const Navbar = () => {
 				name: "Settings",
 				tooltip: "Settings",
 				icon: SettingsIcon,
+				isActive: showSettings,
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToChat, navigateToHistory, navigateToMap, navigateToMcp, navigateToSettings],
+		[
+			navigateToChat,
+			navigateToHistory,
+			navigateToMap,
+			navigateToMcp,
+			navigateToConnectors,
+			navigateToSettings,
+			showMcp,
+			showMap,
+			showConnectors,
+			showHistory,
+			showSettings,
+		],
 	)
 
 	return (
 		<nav
-			className="flex-none inline-flex justify-end bg-transparent gap-2 mb-1 z-10 border-none items-center mr-4!"
+			className="flex-none inline-flex justify-end bg-transparent gap-1 mb-1 z-10 border-none items-center mr-3"
 			id="aihydro-navbar-container"
-			style={{ gap: "4px" }}>
+			style={{ gap: "2px" }}>
 			{SETTINGS_TABS.map((tab) => (
 				<HeroTooltip content={tab.tooltip} key={`navbar-tooltip-${tab.id}`} placement="bottom">
 					<VSCodeButton
@@ -77,9 +110,14 @@ export const Navbar = () => {
 						data-testid={`tab-${tab.id}`}
 						key={`navbar-button-${tab.id}`}
 						onClick={() => tab.navigate()}
-						style={{ padding: "0px", height: "20px" }}>
-						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-							<tab.icon className="text-[var(--vscode-foreground)]" size={18} strokeWidth={1} />
+						style={{ padding: "4px", height: "28px", width: "28px" }}>
+						<div
+							className={`flex items-center justify-center rounded-md transition-all duration-200 ${
+								tab.isActive
+									? "bg-aihydro-ocean-blue/15 text-aihydro-ocean-light"
+									: "text-[var(--vscode-foreground)]/70 hover:text-[var(--vscode-foreground)] hover:bg-[var(--vscode-toolbar-hoverBackground)]"
+							}`}>
+							<tab.icon size={16} strokeWidth={tab.isActive ? 2 : 1.5} />
 						</div>
 					</VSCodeButton>
 				</HeroTooltip>

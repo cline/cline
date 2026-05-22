@@ -15,6 +15,7 @@ import type { AiHydroAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
+import type { Controller } from "../../../controller"
 import type { StateManager } from "../../../storage/StateManager"
 import type { MessageStateHandler } from "../../message-state"
 import type { TaskState } from "../../TaskState"
@@ -72,6 +73,7 @@ export interface TaskServices {
 	aihydroIgnoreController: AiHydroIgnoreController
 	contextManager: ContextManager
 	stateManager: StateManager
+	controller: Controller
 }
 
 /**

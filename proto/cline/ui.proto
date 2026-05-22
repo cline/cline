@@ -241,7 +241,22 @@ service UiService {
   
   // Subscribe to map button clicked events
   rpc subscribeToMapButtonClicked(EmptyRequest) returns (stream Empty);
-  
+
+  // Subscribe to HTML preview button clicked events
+  rpc subscribeToHtmlPreviewButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to connectors button clicked events
+  rpc subscribeToConnectorsButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Fetch the connectors catalog from GitHub Pages (merges remote + local fallback)
+  rpc refreshConnectorsCatalog(EmptyRequest) returns (ConnectorCatalogResponse);
+
+  // Get live GEE authentication status
+  rpc getGeeStatus(EmptyRequest) returns (GeeStatusResponse);
+
+  // Send text to the chat input and navigate to chat view
+  rpc sendToChat(StringRequest) returns (Empty);
+
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
   
@@ -262,7 +277,22 @@ service UiService {
   
   // Opens a URL in the default browser
   rpc openUrl(StringRequest) returns (Empty);
-  
+
   // Opens the Cline walkthrough
   rpc openWalkthrough(EmptyRequest) returns (Empty);
+}
+
+// Response for refreshConnectorsCatalog — raw JSON array of ConnectorDefinition objects
+message ConnectorCatalogResponse {
+  string catalog_json = 1;
+}
+
+// Response for getGeeStatus
+message GeeStatusResponse {
+  bool ok = 1;
+  bool authenticated = 2;
+  string project_id = 3;
+  string ee_version = 4;
+  string python_executable = 5;
+  string message = 6;
 }

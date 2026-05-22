@@ -1,7 +1,7 @@
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Check, ChevronRight, Copy, Droplets } from "lucide-react"
-import { type CSSProperties, memo, useCallback, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 
@@ -10,143 +10,15 @@ interface AnnouncementProps {
 	hideAnnouncement: () => void
 }
 
-// ── styles ────────────────────────────────────────────────────────────────────
-
-const cardStyle: CSSProperties = {
-	backgroundColor: "rgba(0, 163, 255, 0.05)",
-	border: "1px solid rgba(0, 163, 255, 0.18)",
-	borderRadius: "10px",
-	padding: "16px 18px",
-	margin: "8px 15px",
-	position: "relative",
-	flexShrink: 0,
-}
-
-const titleStyle: CSSProperties = {
-	margin: "0 0 14px",
-	fontWeight: 700,
-	fontSize: "13px",
-	display: "flex",
-	alignItems: "center",
-	gap: "7px",
-	paddingRight: "28px",
-}
-
-const stepRowStyle: CSSProperties = {
-	display: "flex",
-	alignItems: "flex-start",
-	gap: "10px",
-	padding: "8px 0",
-	borderBottom: "1px solid rgba(255,255,255,0.06)",
-}
-
-const stepRowLastStyle: CSSProperties = { ...stepRowStyle, borderBottom: "none" }
-
-const stepDotBase: CSSProperties = {
-	width: "20px",
-	height: "20px",
-	borderRadius: "50%",
-	display: "flex",
-	alignItems: "center",
-	justifyContent: "center",
-	flexShrink: 0,
-	marginTop: "1px",
-	fontSize: "11px",
-	fontWeight: 700,
-}
-
-const stepDotDone: CSSProperties = {
-	...stepDotBase,
-	backgroundColor: "rgba(0, 200, 120, 0.2)",
-	border: "1px solid rgba(0, 200, 120, 0.5)",
-	color: "#00c878",
-}
-
-const stepDotPending: CSSProperties = {
-	...stepDotBase,
-	backgroundColor: "rgba(0, 163, 255, 0.1)",
-	border: "1px solid rgba(0, 163, 255, 0.3)",
-	color: "rgba(0, 163, 255, 0.7)",
-}
-
-const stepBodyStyle: CSSProperties = { flex: 1, minWidth: 0 }
-
-const stepLabelStyle: CSSProperties = {
-	fontSize: "12px",
-	fontWeight: 600,
-	color: "var(--vscode-foreground)",
-	margin: "0 0 3px",
-	lineHeight: "1.4",
-}
-
-const stepDescStyle: CSSProperties = {
-	fontSize: "11.5px",
-	color: "rgba(255,255,255,0.5)",
-	margin: "0 0 6px",
-	lineHeight: "1.5",
-}
-
-const codeRowStyle: CSSProperties = {
-	display: "flex",
-	alignItems: "center",
-	gap: "6px",
-	backgroundColor: "var(--vscode-editor-background)",
-	borderRadius: "4px",
-	padding: "5px 8px",
-	fontFamily: "var(--vscode-editor-font-family)",
-	fontSize: "11.5px",
-	color: "var(--vscode-editor-foreground)",
-	marginBottom: "6px",
-}
-
-const inputStyle: CSSProperties = {
-	width: "100%",
-	background: "var(--vscode-input-background)",
-	color: "var(--vscode-input-foreground)",
-	border: "1px solid var(--vscode-input-border, rgba(255,255,255,0.15))",
-	borderRadius: "3px",
-	padding: "4px 7px",
-	fontSize: "11.5px",
-	outline: "none",
-	boxSizing: "border-box",
-}
-
-const selectStyle: CSSProperties = {
-	...inputStyle,
-	cursor: "pointer",
-	appearance: "none",
-	WebkitAppearance: "none",
-	backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.4)'/%3E%3C/svg%3E")`,
-	backgroundRepeat: "no-repeat",
-	backgroundPosition: "right 8px center",
-	paddingRight: "22px",
-}
-
-const footerStyle: CSSProperties = {
-	display: "flex",
-	justifyContent: "space-between",
-	alignItems: "center",
-	marginTop: "12px",
-	flexWrap: "wrap",
-	gap: "8px",
-}
-
-const linkRowStyle: CSSProperties = {
-	fontSize: "11px",
-	color: "rgba(255,255,255,0.35)",
-}
-
-const closeStyle: CSSProperties = { position: "absolute", top: "10px", right: "10px" }
-
 // ── step-dot component ────────────────────────────────────────────────────────
 
 const StepDot = ({ done, num }: { done: boolean; num: number }) =>
 	done ? (
-		<div style={stepDotDone}>
+		<div className="announcement-step-dot announcement-step-dot--done">
 			<Check size={11} strokeWidth={3} />
 		</div>
 	) : (
-		<div style={stepDotPending}>{num}</div>
+		<div className="announcement-step-dot announcement-step-dot--pending">{num}</div>
 	)
 
 // ── profile roles / domains ───────────────────────────────────────────────────
@@ -236,28 +108,28 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 	}, [allDone, hideAnnouncement])
 
 	return (
-		<div style={cardStyle}>
+		<div className="announcement-card">
 			{/* Close */}
-			<VSCodeButton appearance="icon" onClick={hideAnnouncement} style={closeStyle} title="Skip for now">
+			<VSCodeButton appearance="icon" className="announcement-close" onClick={hideAnnouncement} title="Skip for now">
 				<span className="codicon codicon-close" />
 			</VSCodeButton>
 
 			{/* Title */}
-			<h3 style={titleStyle}>
+			<h3 className="announcement-title">
 				<Droplets color="#00a3ff" size={15} />
 				<span>Get started with AI-Hydro</span>
 			</h3>
 
 			{/* ── Step 1: Language model ─────────────────────────────────────── */}
-			<div style={stepRowStyle}>
+			<div className="announcement-step-row">
 				<StepDot done={step1Done} num={1} />
-				<div style={stepBodyStyle}>
-					<p style={stepLabelStyle}>Language model connected</p>
-					<p style={stepDescStyle}>
+				<div className="announcement-step-body">
+					<p className="announcement-step-label">Language model connected</p>
+					<p className="announcement-step-desc">
 						OpenRouter gives access to 100+ models (Claude, GPT, Gemini) with a single key — no subscriptions needed.
 					</p>
-					<VSCodeButton appearance="secondary" onClick={navigateToSettings} style={{ fontSize: "11px" }}>
-						<span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+					<VSCodeButton appearance="secondary" className="text-[11px]" onClick={navigateToSettings}>
+						<span className="flex items-center gap-1">
 							Provider settings <ChevronRight size={11} />
 						</span>
 					</VSCodeButton>
@@ -265,20 +137,24 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 			</div>
 
 			{/* ── Step 2: MCP tools ─────────────────────────────────────────── */}
-			<div style={stepRowStyle}>
+			<div className="announcement-step-row">
 				<StepDot done={isMcpReady} num={2} />
-				<div style={stepBodyStyle}>
-					<p style={stepLabelStyle}>{isMcpReady ? "Hydrological tools ready" : "Install hydrological tools"}</p>
+				<div className="announcement-step-body">
+					<p className="announcement-step-label">
+						{isMcpReady ? "Hydrological tools ready" : "Install hydrological tools"}
+					</p>
 					{isMcpReady ? (
-						<p style={stepDescStyle}>
+						<p className="announcement-step-desc">
 							AI-Hydro tools server is running — watershed delineation, streamflow, modelling, and more are
 							available.
 						</p>
 					) : (
 						<>
-							<p style={stepDescStyle}>Run the command below in your terminal, then restart AI-Hydro.</p>
-							<div style={codeRowStyle}>
-								<span style={{ flex: 1 }}>pip install aihydro-tools</span>
+							<p className="announcement-step-desc">
+								Run the command below in your terminal, then restart AI-Hydro.
+							</p>
+							<div className="announcement-code-row">
+								<span className="flex-1">pip install aihydro-tools</span>
 								<VSCodeButton appearance="icon" onClick={handleCopy} title={copied ? "Copied!" : "Copy"}>
 									{copied ? <Check size={13} /> : <Copy size={13} />}
 								</VSCodeButton>
@@ -289,42 +165,47 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 			</div>
 
 			{/* ── Step 3: Researcher profile ────────────────────────────────── */}
-			<div style={stepRowLastStyle}>
+			<div className="announcement-step-row">
 				<StepDot done={profileDone} num={3} />
-				<div style={stepBodyStyle}>
-					<p style={stepLabelStyle}>{profileDone ? "Profile saved" : "Introduce yourself"}</p>
+				<div className="announcement-step-body">
+					<p className="announcement-step-label">{profileDone ? "Profile saved" : "Introduce yourself"}</p>
 					{profileDone ? (
-						<p style={stepDescStyle}>AI-Hydro will tailor suggestions and remember your expertise across sessions.</p>
+						<p className="announcement-step-desc">
+							AI-Hydro will tailor suggestions and remember your expertise across sessions.
+						</p>
 					) : (
 						<>
-							<p style={stepDescStyle}>
+							<p className="announcement-step-desc">
 								Helps AI-Hydro tailor analyses and remember your expertise across sessions.
 							</p>
-							<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px", marginBottom: "5px" }}>
+							<div className="grid grid-cols-2 gap-[5px] mb-[5px]">
 								<input
+									className="announcement-input"
 									onChange={(e) => setName(e.target.value)}
 									placeholder="Name"
-									style={inputStyle}
 									type="text"
 									value={name}
 								/>
 								<input
+									className="announcement-input"
 									onChange={(e) => setInstitution(e.target.value)}
 									placeholder="Institution"
-									style={inputStyle}
 									type="text"
 									value={institution}
 								/>
 							</div>
-							<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px", marginBottom: "5px" }}>
-								<select onChange={(e) => setRole(e.target.value)} style={selectStyle} value={role}>
+							<div className="grid grid-cols-2 gap-[5px] mb-[5px]">
+								<select className="announcement-select" onChange={(e) => setRole(e.target.value)} value={role}>
 									{ROLES.map((r) => (
 										<option key={r} value={r}>
 											{r}
 										</option>
 									))}
 								</select>
-								<select onChange={(e) => setDomain(e.target.value)} style={selectStyle} value={domain}>
+								<select
+									className="announcement-select"
+									onChange={(e) => setDomain(e.target.value)}
+									value={domain}>
 									{DOMAINS.map((d) => (
 										<option key={d} value={d}>
 											{d}
@@ -333,17 +214,17 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 								</select>
 							</div>
 							<input
+								className="announcement-input mb-[7px]"
 								onChange={(e) => setInterests(e.target.value)}
 								placeholder="Research interests  (e.g. flood frequency, LSTM, large-sample)"
-								style={{ ...inputStyle, marginBottom: "7px" }}
 								type="text"
 								value={interests}
 							/>
 							<VSCodeButton
 								appearance="primary"
+								className="text-[11px]"
 								disabled={!name.trim() || profileSaving}
-								onClick={handleSaveProfile}
-								style={{ fontSize: "11px" }}>
+								onClick={handleSaveProfile}>
 								{profileSaving ? "Saving…" : "Save profile"}
 							</VSCodeButton>
 						</>
@@ -352,24 +233,20 @@ const Announcement = ({ hideAnnouncement }: AnnouncementProps) => {
 			</div>
 
 			{/* Footer */}
-			<div style={footerStyle}>
-				<VSCodeButton appearance="secondary" onClick={hideAnnouncement} style={{ fontSize: "11px" }}>
+			<div className="announcement-footer">
+				<VSCodeButton appearance="secondary" className="text-[11px]" onClick={hideAnnouncement}>
 					Skip for now
 				</VSCodeButton>
-				<p style={linkRowStyle}>
-					<VSCodeLink href="https://ai-hydro.github.io/AI-Hydro/" style={{ display: "inline", fontSize: "11px" }}>
+				<p className="announcement-link-row">
+					<VSCodeLink className="inline text-[11px]" href="https://ai-hydro.github.io/AI-Hydro/">
 						Docs
 					</VSCodeLink>
 					{" · "}
-					<VSCodeLink
-						href="https://github.com/AI-Hydro/AI-Hydro/discussions"
-						style={{ display: "inline", fontSize: "11px" }}>
+					<VSCodeLink className="inline text-[11px]" href="https://github.com/AI-Hydro/AI-Hydro/discussions">
 						Community
 					</VSCodeLink>
 					{" · "}
-					<VSCodeLink
-						href="https://github.com/AI-Hydro/AI-Hydro/issues"
-						style={{ display: "inline", fontSize: "11px" }}>
+					<VSCodeLink className="inline text-[11px]" href="https://github.com/AI-Hydro/AI-Hydro/issues">
 						Issues
 					</VSCodeLink>
 				</p>

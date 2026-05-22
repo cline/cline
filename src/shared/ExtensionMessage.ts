@@ -17,8 +17,16 @@ import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
 // webview will hold state
 export interface ExtensionMessage {
-	type: "grpc_response" // New type for gRPC responses
+	type: "grpc_response" | "commandResult"
 	grpc_response?: GrpcResponse
+	commandResult?: CommandResult
+}
+
+export type CommandResult = {
+	command: string
+	ok: boolean
+	message?: string
+	[key: string]: unknown
 }
 
 export type GrpcResponse = {
@@ -97,6 +105,12 @@ export interface ExtensionState {
 	hooksEnabled?: AiHydroFeatureSetting
 	remoteConfigSettings?: Partial<GlobalStateAndSettings>
 	subagentsEnabled?: boolean
+	/** Discovered workspace HTML files (path + name) for the HTML Preview file browser */
+	workspaceHtmlFiles: Array<{ path: string; name: string }>
+	/** Incremented whenever HTML preview items change — used as a reliable signal for the webview to refresh */
+	htmlPreviewVersion: number
+	/** Currently active HTML preview item ID, or null */
+	htmlPreviewActiveId: string | null
 }
 
 export interface AiHydroMessage {
@@ -167,6 +181,7 @@ export type AiHydroSay =
 	| "aihydroignore_error"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
+	| "html_preview"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
 

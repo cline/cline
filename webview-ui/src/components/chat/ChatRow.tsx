@@ -25,10 +25,12 @@ import CodeBlock, {
 import { WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import SuccessButton from "@/components/common/SuccessButton"
+import HtmlPreviewView from "@/components/html_preview/HtmlPreviewView"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useHtmlPreviewContext } from "@/context/HtmlPreviewContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { CheckpointControls } from "../common/CheckpointControls"
@@ -47,11 +49,26 @@ const successColor = "var(--vscode-charts-green)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
 const ChatRowContainer = styled.div`
-	padding: 10px 6px 10px 15px;
+	padding: 10px 6px 6px 15px;
 	position: relative;
 
 	&:hover ${CheckpointControls} {
 		opacity: 1;
+	}
+`
+
+const TimestampLabel = styled.div`
+	font-size: 10px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+	transition: opacity 0.2s ease-out;
+	margin-top: 4px;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+
+	${ChatRowContainer}:hover & {
+		opacity: 0.65;
 	}
 `
 
@@ -91,6 +108,45 @@ export const ProgressIndicator = () => (
 		</div>
 	</div>
 )
+
+// ─── Tool message card wrapper ──────────────────────────────────────────────
+
+const getToolAccentClass = (toolName: string): string => {
+	switch (toolName) {
+		case "editedExistingFile":
+			return "tool-accent-file"
+		case "newFileCreated":
+			return "tool-accent-file"
+		case "readFile":
+			return "tool-accent-file"
+		case "listFilesTopLevel":
+			return "tool-accent-list"
+		case "listFilesRecursive":
+			return "tool-accent-list"
+		case "listCodeDefinitionNames":
+			return "tool-accent-list"
+		case "searchFiles":
+			return "tool-accent-search"
+		case "webFetch":
+			return "tool-accent-web"
+		case "summarizeTask":
+			return "tool-accent-process"
+		default:
+			return ""
+	}
+}
+
+interface ToolMessageCardProps {
+	toolName: string
+	children: React.ReactNode
+}
+
+const ToolMessageCard: React.FC<ToolMessageCardProps> = ({ toolName, children }) => {
+	const accentClass = getToolAccentClass(toolName)
+	return <div className={`tool-message-card${accentClass ? ` ${accentClass}` : ""}`}>{children}</div>
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	return (
@@ -215,9 +271,26 @@ const ChatRow = memo(
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
 
+		const formatMessageTime = (ts: number) => {
+			const date = new Date(ts)
+			const now = new Date()
+			const isToday = date.toDateString() === now.toDateString()
+			if (isToday) {
+				return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+			}
+			return date.toLocaleString("en-US", {
+				month: "short",
+				day: "numeric",
+				hour: "numeric",
+				minute: "2-digit",
+				hour12: true,
+			})
+		}
+
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer>
 				<ChatRowContent {...props} />
+				<TimestampLabel>{formatMessageTime(message.ts)}</TimestampLabel>
 			</ChatRowContainer>,
 		)
 
@@ -256,6 +329,7 @@ export const ChatRowContent = memo(
 		onCancelCommand,
 	}: ChatRowContentProps) => {
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
+		const { items: htmlPreviewItems } = useHtmlPreviewContext()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -436,7 +510,7 @@ export const ChatRowContent = memo(
 							className="ph-no-capture"
 							style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
 							AI Hydro wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code style={{ wordBreak: "break-all" }}>
+							<code className="break-all">
 								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
 							</code>{" "}
 							MCP server:
@@ -483,13 +557,6 @@ export const ChatRowContent = memo(
 			message.text,
 		])
 
-		const headerStyle: React.CSSProperties = {
-			display: "flex",
-			alignItems: "center",
-			gap: "10px",
-			marginBottom: "12px",
-		}
-
 		const _pStyle: React.CSSProperties = {
 			margin: 0,
 			whiteSpace: "pre-wrap",
@@ -531,12 +598,12 @@ export const ChatRowContent = memo(
 			switch (tool.tool) {
 				case "editedExistingFile":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="editedExistingFile">
+							<div className="chat-row-header">
 								{toolIcon("edit")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>AI Hydro wants to edit this file:</span>
+								<span className="font-bold">AI Hydro wants to edit this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -545,16 +612,16 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</ToolMessageCard>
 					)
 				case "newFileCreated":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="newFileCreated">
+							<div className="chat-row-header">
 								{toolIcon("new-file")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>AI Hydro wants to create a new file:</span>
+								<span className="font-bold">AI Hydro wants to create a new file:</span>
 							</div>
 							<CodeAccordian
 								code={tool.content!}
@@ -563,26 +630,25 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</ToolMessageCard>
 					)
 				case "readFile":
 					const isImage = isImageFile(tool.path || "")
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="readFile">
+							<div className="chat-row-header">
 								{toolIcon(isImage ? "file-media" : "file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{/* {message.type === "ask" ? "" : "AI Hydro read this file:"} */}
 									AI Hydro wants to read this file:
 								</span>
 							</div>
 							<div
+								className="modern-card overflow-hidden"
 								style={{
-									borderRadius: 3,
 									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
 									border: "1px solid var(--ai-hydro-border, var(--vscode-editorGroup-border))",
 								}}>
 								<div
@@ -631,16 +697,16 @@ export const ChatRowContent = memo(
 									)}
 								</div>
 							</div>
-						</>
+						</ToolMessageCard>
 					)
 				case "listFilesTopLevel":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="listFilesTopLevel">
+							<div className="chat-row-header">
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "AI Hydro wants to view the top level files in this directory:"
 										: "AI Hydro viewed the top level files in this directory:"}
@@ -653,16 +719,16 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</ToolMessageCard>
 					)
 				case "listFilesRecursive":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="listFilesRecursive">
+							<div className="chat-row-header">
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "AI Hydro wants to recursively view all files in this directory:"
 										: "AI Hydro recursively viewed all files in this directory:"}
@@ -675,16 +741,16 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</ToolMessageCard>
 					)
 				case "listCodeDefinitionNames":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="listCodeDefinitionNames">
+							<div className="chat-row-header">
 								{toolIcon("file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "AI Hydro wants to view source code definition names used in this directory:"
 										: "AI Hydro viewed source code definition names used in this directory:"}
@@ -696,16 +762,16 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</ToolMessageCard>
 					)
 				case "searchFiles":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="searchFiles">
+							<div className="chat-row-header">
 								{toolIcon("search")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									AI Hydro wants to search this directory for{" "}
 									<code style={{ wordBreak: "break-all" }}>{tool.regex}</code>:
 								</span>
@@ -717,20 +783,19 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
-						</>
+						</ToolMessageCard>
 					)
 				case "summarizeTask":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="summarizeTask">
+							<div className="chat-row-header">
 								{toolIcon("book")}
-								<span style={{ fontWeight: "bold" }}>AI Hydro is condensing the conversation:</span>
+								<span className="font-bold">AI Hydro is condensing the conversation:</span>
 							</div>
 							<div
+								className="modern-card overflow-hidden"
 								style={{
-									borderRadius: 3,
 									backgroundColor: CODE_BLOCK_BG_COLOR,
-									overflow: "hidden",
 									border: "1px solid var(--vscode-editorGroup-border)",
 								}}>
 								<div
@@ -792,18 +857,18 @@ export const ChatRowContent = memo(
 									)}
 								</div>
 							</div>
-						</>
+						</ToolMessageCard>
 					)
 				case "webFetch":
 					return (
-						<>
-							<div style={headerStyle}>
+						<ToolMessageCard toolName="webFetch">
+							<div className="chat-row-header">
 								<span
 									className="codicon codicon-link"
 									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className="font-bold">
 									{message.type === "ask"
 										? "AI Hydro wants to fetch content from this URL:"
 										: "AI Hydro fetched content from this URL:"}
@@ -847,7 +912,7 @@ export const ChatRowContent = memo(
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 							{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
-						</>
+						</ToolMessageCard>
 					)
 				default:
 					return null
@@ -960,7 +1025,7 @@ export const ChatRowContent = memo(
 			)
 
 			const commandHeader = (
-				<div style={headerStyle}>
+				<div className="chat-row-header">
 					{displayIcon}
 					{displayTitle}
 				</div>
@@ -1138,7 +1203,7 @@ export const ChatRowContent = memo(
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 			return (
 				<>
-					<div style={headerStyle}>
+					<div className="chat-row-header">
 						{icon}
 						{title}
 					</div>
@@ -1218,7 +1283,6 @@ export const ChatRowContent = memo(
 								<div
 									onClick={handleToggle}
 									style={{
-										...headerStyle,
 										marginBottom:
 											(cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage ? 10 : 0,
 										justifyContent: "space-between",
@@ -1273,29 +1337,9 @@ export const ChatRowContent = memo(
 						return <McpResponseDisplay responseText={message.text || ""} />
 					case "mcp_notification":
 						return (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "flex-start",
-									gap: "8px",
-									padding: "8px 12px",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									borderRadius: "4px",
-									fontSize: "13px",
-									color: "var(--vscode-foreground)",
-									opacity: 0.9,
-									marginBottom: "8px",
-								}}>
-								<i
-									className="codicon codicon-bell"
-									style={{
-										marginTop: "2px",
-										fontSize: "14px",
-										color: "var(--vscode-notificationsInfoIcon-foreground)",
-										flexShrink: 0,
-									}}
-								/>
-								<div style={{ flex: 1, wordBreak: "break-word" }}>
+							<div className="chat-row-mcp-notification">
+								<i className="codicon codicon-bell chat-row-mcp-notification-icon" />
+								<div className="flex-1 break-words">
 									<span style={{ fontWeight: 500 }}>MCP Notification: </span>
 									<span className="ph-no-capture">{message.text}</span>
 								</div>
@@ -1325,33 +1369,61 @@ export const ChatRowContent = memo(
 							<>
 								{message.text && (
 									<div
+										className={`reasoning-card${message.partial === true ? " animate-thinking-shimmer" : ""}`}
 										onClick={handleToggle}
 										style={{
-											// marginBottom: 15,
 											cursor: "pointer",
 											color: "var(--vscode-descriptionForeground)",
-
-											fontStyle: "italic",
 											overflow: "hidden",
 										}}>
 										{isExpanded ? (
 											<div style={{ marginTop: -3 }}>
-												<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
-													Thinking
+												<div
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: "6px",
+														marginBottom: "6px",
+													}}>
 													<span
-														className="codicon codicon-chevron-down"
+														className="codicon codicon-lightbulb"
 														style={{
-															display: "inline-block",
-															transform: "translateY(3px)",
-															marginLeft: "1.5px",
+															color: "var(--ai-hydro-teal)",
+															fontSize: "14px",
+															marginBottom: "-1.5px",
 														}}
 													/>
+													<span style={{ fontWeight: "bold", display: "block" }}>
+														Thinking
+														<span
+															className="codicon codicon-chevron-down"
+															style={{
+																display: "inline-block",
+																transform: "translateY(3px)",
+																marginLeft: "1.5px",
+															}}
+														/>
+													</span>
+												</div>
+												<span className="ph-no-capture" style={{ fontStyle: "italic" }}>
+													{message.text}
 												</span>
-												<span className="ph-no-capture">{message.text}</span>
 											</div>
 										) : (
 											<div style={{ display: "flex", alignItems: "center" }}>
-												<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
+												<span
+													className="codicon codicon-lightbulb"
+													style={{
+														color: "var(--ai-hydro-teal)",
+														fontSize: "14px",
+														marginRight: "6px",
+														marginBottom: "-1.5px",
+														flexShrink: 0,
+													}}
+												/>
+												<span style={{ fontWeight: "bold", marginRight: "4px", flexShrink: 0 }}>
+													Thinking:
+												</span>
 												<span
 													className="ph-no-capture"
 													style={{
@@ -1431,32 +1503,17 @@ export const ChatRowContent = memo(
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
 							<>
-								<div
-									style={{
-										...headerStyle,
-										marginBottom: "10px",
-									}}>
+								<div className="mb-2.5">
 									{icon}
 									{title}
-									{/* <TaskFeedbackButtons
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-										messageTs={message.ts}
-										style={{
-											marginLeft: "auto",
-										}}
-									/> */}
 								</div>
 								<WithCopyButton
+									className="pt-2.5"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
 									ref={contentRef}
 									style={{
 										color: "var(--vscode-charts-green)",
-										paddingTop: 10,
 									}}
 									textToCopy={text}>
 									<Markdown markdown={text} />
@@ -1469,8 +1526,9 @@ export const ChatRowContent = memo(
 									)}
 								</WithCopyButton>
 								{message.partial !== true && hasChanges && (
-									<div style={{ paddingTop: 17 }}>
+									<div className="pt-4">
 										<SuccessButton
+											className="w-full"
 											disabled={seeNewChangesDisabled}
 											onClick={() => {
 												setSeeNewChangesDisabled(true)
@@ -1484,9 +1542,8 @@ export const ChatRowContent = memo(
 											}}
 											style={{
 												cursor: seeNewChangesDisabled ? "wait" : "pointer",
-												width: "100%",
 											}}>
-											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
+											<i className="codicon codicon-new-file mr-1.5" />
 											See new changes
 										</SuccessButton>
 									</div>
@@ -1495,37 +1552,12 @@ export const ChatRowContent = memo(
 						)
 					case "shell_integration_warning":
 						return (
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									backgroundColor: "var(--vscode-textBlockQuote-background)",
-									padding: 8,
-									borderRadius: 3,
-									fontSize: 12,
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										marginBottom: 4,
-									}}>
-									<i
-										className="codicon codicon-warning"
-										style={{
-											marginRight: 8,
-											fontSize: 14,
-											color: "var(--vscode-descriptionForeground)",
-										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "var(--vscode-foreground)",
-										}}>
-										Shell Integration Unavailable
-									</span>
+							<div className="chat-row-shell-warning">
+								<div className="chat-row-shell-warning-header">
+									<i className="codicon codicon-warning chat-row-shell-warning-icon"></i>
+									<span className="chat-row-shell-warning-title">Shell Integration Unavailable</span>
 								</div>
-								<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+								<div className="chat-row-retry-body">
 									AI Hydro may have trouble viewing the command's output. Please update VSCode (
 									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
 									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
@@ -1548,37 +1580,19 @@ export const ChatRowContent = memo(
 							const isFailed = failed === true
 
 							return (
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										backgroundColor: "var(--vscode-textBlockQuote-background)",
-										padding: 8,
-										borderRadius: 3,
-										fontSize: 12,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											marginBottom: 4,
-										}}>
+								<div className="chat-row-retry-box">
+									<div className="chat-row-retry-header">
 										<i
-											className={isFailed ? "codicon codicon-warning" : "codicon codicon-sync"}
-											style={{
-												marginRight: 8,
-												fontSize: 14,
-												color: "var(--vscode-descriptionForeground)",
-											}}></i>
-										<span
-											style={{
-												fontWeight: 500,
-												color: "var(--vscode-foreground)",
-											}}>
+											className={
+												isFailed
+													? "codicon codicon-warning chat-row-retry-icon"
+													: "codicon codicon-sync chat-row-retry-icon"
+											}></i>
+										<span className="chat-row-retry-title">
 											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
 										</span>
 									</div>
-									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+									<div className="chat-row-retry-body">
 										{isFailed ? (
 											<>
 												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
@@ -1604,39 +1618,17 @@ export const ChatRowContent = memo(
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
-							<div
-								style={{
-									padding: 8,
-									backgroundColor: "rgba(0, 122, 204, 0.1)",
-									borderRadius: 3,
-									border: "1px solid rgba(0, 122, 204, 0.3)",
-								}}>
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										marginBottom: 4,
-									}}>
-									<i
-										className="codicon codicon-lightbulb"
-										style={{
-											marginRight: 6,
-											fontSize: 14,
-											color: "var(--vscode-textLink-foreground)",
-										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "var(--vscode-foreground)",
-										}}>
-										Shell integration issues
-									</span>
+							<div className="chat-row-shell-suggestion">
+								<div className="chat-row-shell-suggestion-header">
+									<i className="codicon codicon-lightbulb chat-row-shell-suggestion-icon"></i>
+									<span className="chat-row-shell-suggestion-title">Shell integration issues</span>
 								</div>
-								<div style={{ color: "var(--vscode-foreground)", opacity: 0.9, marginBottom: 8 }}>
+								<div style={{ opacity: 0.9, marginBottom: 8 }}>
 									Since you're experiencing repeated shell integration issues, we recommend switching to
 									Background Terminal mode for better reliability.
 								</div>
 								<button
+									className="chat-row-shell-suggestion-btn"
 									disabled={isBackgroundModeEnabled}
 									onClick={async () => {
 										try {
@@ -1645,34 +1637,6 @@ export const ChatRowContent = memo(
 										} catch (error) {
 											console.error("Failed to enable background terminal:", error)
 										}
-									}}
-									onMouseEnter={(e) => {
-										if (!isBackgroundModeEnabled) {
-											e.currentTarget.style.background = "var(--vscode-button-hoverBackground)"
-										}
-									}}
-									onMouseLeave={(e) => {
-										if (!isBackgroundModeEnabled) {
-											e.currentTarget.style.background = isBackgroundModeEnabled
-												? "var(--vscode-charts-green)"
-												: "var(--vscode-button-background)"
-										}
-									}}
-									style={{
-										background: isBackgroundModeEnabled
-											? "var(--vscode-charts-green)"
-											: "var(--vscode-button-background)",
-										color: "var(--vscode-button-foreground)",
-										border: "none",
-										borderRadius: 2,
-										padding: "6px 12px",
-										fontSize: 12,
-										cursor: isBackgroundModeEnabled ? "default" : "pointer",
-										fontFamily: "inherit",
-										display: "flex",
-										alignItems: "center",
-										gap: 6,
-										opacity: isBackgroundModeEnabled ? 0.8 : 1,
 									}}>
 									<i className="codicon codicon-settings-gear"></i>
 									{isBackgroundModeEnabled
@@ -1683,11 +1647,88 @@ export const ChatRowContent = memo(
 						)
 					case "task_progress":
 						return null // task_progress messages should be displayed in TaskHeader only, not in chat
+					case "html_preview":
+						// Parse metadata from message text: { title, filePath, mode, size }
+						const previewMeta = (() => {
+							try {
+								return JSON.parse(message.text || "{}")
+							} catch {
+								return {}
+							}
+						})()
+
+						// external_browser mode: show informational message
+						if (previewMeta.mode === "external_browser") {
+							return (
+								<>
+									<div className="chat-row-header">
+										<span
+											className="codicon codicon-link-external"
+											style={{ color: normalColor, marginBottom: "-1.5px" }}
+										/>
+										<span className="font-bold">HTML opened in browser</span>
+									</div>
+									<div style={{ paddingTop: 8 }}>
+										<p className="text-sm text-[var(--vscode-descriptionForeground)]">
+											{previewMeta.title || "HTML preview"} opened in external browser
+										</p>
+									</div>
+								</>
+							)
+						}
+
+						// Find matching item from HtmlPreviewContext (items are streamed via gRPC)
+						const previewItem = previewMeta.title
+							? htmlPreviewItems.find(
+									(item) =>
+										item.title === previewMeta.title &&
+										item.htmlContent?.length &&
+										(!previewMeta.filePath || item.filePath === previewMeta.filePath),
+								)
+							: undefined
+
+						// Item exists in context — render the full interactive preview inline
+						if (previewItem) {
+							return (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										height: 420,
+										border: "1px solid var(--vscode-panel-border)",
+										borderRadius: 4,
+										overflow: "hidden",
+										marginTop: 4,
+									}}>
+									<HtmlPreviewView item={previewItem} />
+								</div>
+							)
+						}
+
+						// Fallback: item not yet available in context — show metadata with info
+						return (
+							<>
+								<div className="chat-row-header">
+									<span
+										className="codicon codicon-browser"
+										style={{ color: normalColor, marginBottom: "-1.5px" }}
+									/>
+									<span className="font-bold">HTML Preview created</span>
+								</div>
+								<div style={{ paddingTop: 8 }}>
+									<Markdown
+										markdown={`Opened in standalone panel: **${previewMeta.title || "HTML Preview"}**${
+											previewMeta.filePath ? `\n\nFile: \`${previewMeta.filePath}\`` : ""
+										}`}
+									/>
+								</div>
+							</>
+						)
 					default:
 						return (
 							<>
 								{title && (
-									<div style={headerStyle}>
+									<div className="chat-row-header">
 										{icon}
 										{title}
 									</div>
@@ -1710,11 +1751,8 @@ export const ChatRowContent = memo(
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
 								<div>
-									<div
-										style={{
-											...headerStyle,
-											marginBottom: "10px",
-										}}>
+									{" "}
+									<div className="mb-2.5">
 										{icon}
 										{title}
 										<TaskFeedbackButtons
@@ -1730,12 +1768,12 @@ export const ChatRowContent = memo(
 										/>
 									</div>
 									<WithCopyButton
+										className="pt-2.5"
 										onMouseUp={handleMouseUp}
 										position="bottom-right"
 										ref={contentRef}
 										style={{
 											color: "var(--vscode-charts-green)",
-											paddingTop: 10,
 										}}
 										textToCopy={text}>
 										<Markdown markdown={text} />
@@ -1748,7 +1786,7 @@ export const ChatRowContent = memo(
 										)}
 									</WithCopyButton>
 									{message.partial !== true && hasChanges && (
-										<div style={{ marginTop: 15 }}>
+										<div className="mt-4">
 											<SuccessButton
 												appearance="secondary"
 												disabled={seeNewChangesDisabled}
@@ -1765,7 +1803,6 @@ export const ChatRowContent = memo(
 												<i
 													className="codicon codicon-new-file"
 													style={{
-														marginRight: 6,
 														cursor: seeNewChangesDisabled ? "wait" : "pointer",
 													}}
 												/>
@@ -1795,16 +1832,16 @@ export const ChatRowContent = memo(
 						return (
 							<>
 								{title && (
-									<div style={headerStyle}>
+									<div className="chat-row-header">
 										{icon}
 										{title}
 									</div>
 								)}
 								<WithCopyButton
+									className="pt-2.5"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
 									ref={contentRef}
-									style={{ paddingTop: 10 }}
 									textToCopy={question}>
 									<Markdown markdown={question} />
 									<OptionsButtons
@@ -1831,15 +1868,17 @@ export const ChatRowContent = memo(
 					case "install_dependencies":
 						return (
 							<>
-								<div style={headerStyle}>
-									<span style={{ marginRight: "8px", fontSize: "16px" }}>📦</span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>AI-Hydro RAG Brain Setup:</span>
+								<div className="chat-row-header">
+									<span className="mr-2 text-base">📦</span>
+									<span className="font-bold" style={{ color: normalColor }}>
+										AI-Hydro RAG Brain Setup:
+									</span>
 								</div>
 								<WithCopyButton
+									className="pt-2.5"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
 									ref={contentRef}
-									style={{ paddingTop: 10 }}
 									textToCopy={message.text}>
 									<Markdown markdown={message.text} />
 									{quoteButtonState.visible && (
@@ -1859,13 +1898,13 @@ export const ChatRowContent = memo(
 							const workspaceInfo = JSON.parse(message.text || "{}")
 							return (
 								<>
-									<div style={headerStyle}>
-										<span style={{ marginRight: "8px", fontSize: "16px" }}>🐍</span>
-										<span style={{ color: normalColor, fontWeight: "bold" }}>
+									<div className="chat-row-header">
+										<span className="mr-2 text-base">🐍</span>
+										<span className="font-bold" style={{ color: normalColor }}>
 											AI-Hydro Workspace Environment Setup:
 										</span>
 									</div>
-									<div style={{ paddingTop: 10, paddingBottom: 10 }}>
+									<div className="pt-2.5 pb-2.5">
 										<div
 											style={{
 												backgroundColor: "var(--vscode-textBlockQuote-background)",
@@ -1937,9 +1976,9 @@ export const ChatRowContent = memo(
 							// Fallback if JSON parsing fails
 							return (
 								<>
-									<div style={headerStyle}>
-										<span style={{ marginRight: "8px", fontSize: "16px" }}>🐍</span>
-										<span style={{ color: normalColor, fontWeight: "bold" }}>
+									<div className="chat-row-header">
+										<span className="mr-2 text-base">🐍</span>
+										<span className="font-bold" style={{ color: normalColor }}>
 											AI-Hydro Workspace Environment Setup:
 										</span>
 									</div>
@@ -1966,14 +2005,14 @@ export const ChatRowContent = memo(
 					case "new_task":
 						return (
 							<>
-								<div style={headerStyle}>
+								<div className="chat-row-header">
 									<span
 										className="codicon codicon-new-file"
 										style={{
 											color: normalColor,
 											marginBottom: "-1.5px",
 										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
+									<span className="font-bold" style={{ color: normalColor }}>
 										AI Hydro wants to start a new task:
 									</span>
 								</div>
@@ -1983,14 +2022,14 @@ export const ChatRowContent = memo(
 					case "condense":
 						return (
 							<>
-								<div style={headerStyle}>
+								<div className="chat-row-header">
 									<span
 										className="codicon codicon-new-file"
 										style={{
 											color: normalColor,
 											marginBottom: "-1.5px",
 										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
+									<span className="font-bold" style={{ color: normalColor }}>
 										AI Hydro wants to condense your conversation:
 									</span>
 								</div>
@@ -2000,14 +2039,14 @@ export const ChatRowContent = memo(
 					case "report_bug":
 						return (
 							<>
-								<div style={headerStyle}>
+								<div className="chat-row-header">
 									<span
 										className="codicon codicon-new-file"
 										style={{
 											color: normalColor,
 											marginBottom: "-1.5px",
 										}}></span>
-									<span style={{ color: normalColor, fontWeight: "bold" }}>
+									<span className="font-bold" style={{ color: normalColor }}>
 										AI Hydro wants to create a Github issue:
 									</span>
 								</div>

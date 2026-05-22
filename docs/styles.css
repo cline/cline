@@ -42,7 +42,8 @@ h5,
 h6,
 img {
 	opacity: 1 !important;
-	font-family: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+	font-family:
+		"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
 }
 
 /* Also apply to any h1 elements within content areas */
