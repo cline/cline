@@ -205,8 +205,8 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: |
-                      coverage-unit/lcov.info
-                      webview-ui/coverage/lcov.info
+                      apps/vscode/coverage-unit/lcov.info
+                      apps/vscode/webview-ui/coverage/lcov.info
 
     test-platform-integration:
         needs: [detect-changes, quality-checks]
@@ -254,7 +254,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                 name: test-platform-integration-core-coverage
-                path: coverage/**/lcov.info
+                path: apps/vscode/coverage/**/lcov.info
 
     # Keep the required "test" check as a tiny aggregate gate instead of the conditional
     # VS Code matrix. GitHub treats conditionally skipped jobs as successful required
@@ -316,7 +316,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
-                  path: .
+                  path: apps/vscode
 
             - name: Upload core unit tests coverage to Qlty
               if: needs.detect-changes.outputs.vscode == 'true'
@@ -346,7 +346,7 @@ jobs:
               id: download-integration-coverage
               with:
                 name: test-platform-integration-core-coverage
-                path: integration-core-coverage-reports
+                path: apps/vscode/integration-core-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
               if: needs.detect-changes.outputs.testing_platform == 'true' && steps.download-integration-coverage.outcome == 'success'
