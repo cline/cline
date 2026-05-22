@@ -55,6 +55,10 @@ interface VcrConfig {
 	filter: string;
 }
 
+interface InternalVcrRecording extends VcrRecording {
+	requestContentType?: string;
+}
+
 // ── Sensitive data sanitization ─────────────────────────────────────────
 
 /**
@@ -170,9 +174,19 @@ function sortJsonValue(value: unknown): unknown {
 	}
 	return Object.fromEntries(
 		Object.entries(value as Record<string, unknown>)
-			.sort(([a], [b]) => a.localeCompare(b))
+			.sort(([a], [b]) => compareCodeUnits(a, b))
 			.map(([key, nestedValue]) => [key, sortJsonValue(nestedValue)]),
 	);
+}
+
+function compareCodeUnits(a: string, b: string): number {
+	if (a < b) {
+		return -1;
+	}
+	if (a > b) {
+		return 1;
+	}
+	return 0;
 }
 
 function canonicalStringify(value: unknown): string {
@@ -256,10 +270,9 @@ function sanitizeValue(obj: unknown): unknown {
 	return obj;
 }
 
-function parseUrlEncodedBody(input: string): Record<string, unknown> | undefined {
-	if (!input.includes("=") || input.includes("\n")) {
-		return undefined;
-	}
+function parseUrlEncodedBody(
+	input: string,
+): Record<string, unknown> | undefined {
 	const params = new URLSearchParams(input);
 	const entries = Array.from(params.entries());
 	if (entries.length === 0 || entries.some(([key]) => key.length === 0)) {
@@ -279,13 +292,25 @@ function parseUrlEncodedBody(input: string): Record<string, unknown> | undefined
 	return output;
 }
 
-function sanitizeSerializedRequestBody(input: string): string {
+function isUrlEncodedContentType(contentType: string | undefined): boolean {
+	return (
+		contentType?.toLowerCase().split(";")[0]?.trim() ===
+		"application/x-www-form-urlencoded"
+	);
+}
+
+function sanitizeSerializedRequestBody(
+	input: string,
+	contentType?: string,
+): string {
 	try {
 		return canonicalStringify(sanitizeValue(JSON.parse(input)));
 	} catch {
-		const formBody = parseUrlEncodedBody(input);
-		if (formBody) {
-			return canonicalStringify(sanitizeValue(formBody));
+		if (isUrlEncodedContentType(contentType)) {
+			const formBody = parseUrlEncodedBody(input);
+			if (formBody) {
+				return canonicalStringify(sanitizeValue(formBody));
+			}
 		}
 		return sanitizeStringValue(input);
 	}
@@ -293,17 +318,18 @@ function sanitizeSerializedRequestBody(input: string): string {
 
 /** Sanitize a single recorded interaction, stripping sensitive data. */
 function sanitizeRecording(
-	rec: VcrRecording,
+	rec: InternalVcrRecording,
 	includeRequestBody: boolean,
 ): VcrRecording {
 	const cleaned = { ...rec };
 	const requestBody =
 		includeRequestBody && rec.body !== undefined
-			? sanitizeSerializedRequestBody(rec.body)
+			? sanitizeSerializedRequestBody(rec.body, rec.requestContentType)
 			: undefined;
 
 	// Remove request body (may contain prompts, API keys, etc.)
 	delete cleaned.body;
+	delete cleaned.requestContentType;
 	if (requestBody !== undefined) {
 		cleaned.requestBody = requestBody;
 	}
@@ -358,6 +384,32 @@ function resolveRequestMethod(
 		return (input as Request).method.toUpperCase();
 	}
 	return "GET";
+}
+
+function readHeadersContentType(
+	headers: RequestInit["headers"] | undefined,
+): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	return new Headers(headers).get("content-type") ?? undefined;
+}
+
+function readRequestContentType(
+	input: string | URL | Request,
+	init?: RequestInit,
+): string | undefined {
+	const initContentType = readHeadersContentType(init?.headers);
+	if (initContentType) {
+		return initContentType;
+	}
+	if (init?.body instanceof URLSearchParams) {
+		return "application/x-www-form-urlencoded;charset=UTF-8";
+	}
+	if (input instanceof Request) {
+		return input.headers.get("content-type") ?? undefined;
+	}
+	return undefined;
 }
 
 async function readRequestBody(
@@ -433,6 +485,7 @@ interface InFlightCapture {
 	method: string;
 	path: string;
 	body: string;
+	requestContentType?: string;
 	status: number;
 	contentType: string | undefined;
 	chunks: Uint8Array[];
@@ -444,7 +497,7 @@ function startRecordingRequests(
 	filter: string,
 	includeRequestBody: boolean,
 ): void {
-	const recordings: VcrRecording[] = [];
+	const recordings: InternalVcrRecording[] = [];
 	/** Streams still being consumed, finalized on flush or on process exit. */
 	const inFlight: InFlightCapture[] = [];
 	const originalFetch = globalThis.fetch;
@@ -473,6 +526,7 @@ function startRecordingRequests(
 			method: capture.method,
 			path: capture.path,
 			body: capture.body,
+			requestContentType: capture.requestContentType,
 			status: capture.status,
 			response: responseBody,
 			responseIsBinary: false,
@@ -490,6 +544,7 @@ function startRecordingRequests(
 			const { scope, path } = parseScope(url);
 
 			const requestBody = await readRequestBody(input, init);
+			const requestContentType = readRequestContentType(input, init);
 
 			// Call real fetch
 			const response = await originalFetch(input, init);
@@ -509,6 +564,7 @@ function startRecordingRequests(
 					method,
 					path,
 					body: requestBody ?? "",
+					requestContentType,
 					status: response.status,
 					response: "",
 					responseIsBinary: false,
@@ -526,6 +582,7 @@ function startRecordingRequests(
 				method,
 				path,
 				body: requestBody ?? "",
+				requestContentType,
 				status: response.status,
 				contentType,
 				chunks: [],
@@ -659,11 +716,23 @@ async function assertRequestBodyMatches(input: {
 	if (input.recording.requestBody === undefined) {
 		return;
 	}
-	const requestBody = await readRequestBody(input.requestInput, input.requestInit);
-	const actualBody = sanitizeSerializedRequestBody(requestBody ?? "");
+	const requestBody = await readRequestBody(
+		input.requestInput,
+		input.requestInit,
+	);
+	const requestContentType = readRequestContentType(
+		input.requestInput,
+		input.requestInit,
+	);
+	const actualBody = sanitizeSerializedRequestBody(
+		requestBody ?? "",
+		requestContentType,
+	);
 	if (actualBody !== input.recording.requestBody) {
 		throw new Error(
-			`[VCR] Request body mismatch for ${input.method} ${input.path}. ` +
+			`[VCR] Request body mismatch for ${input.method} ${input.path}.\n` +
+				`  expected: ${input.recording.requestBody}\n` +
+				`  actual:   ${actualBody}\n` +
 				"Re-record the cassette if the request change is intentional.",
 		);
 	}
@@ -718,7 +787,6 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 			});
 
 			if (matchIndex >= 0) {
-				consumed[matchIndex] = true;
 				const rec = recordings[matchIndex];
 				if (!rec) {
 					return originalFetch(input, init);
@@ -730,6 +798,7 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 					method,
 					path: normalizedPath,
 				});
+				consumed[matchIndex] = true;
 
 				// Build response body
 				const body =
