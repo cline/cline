@@ -27,7 +27,7 @@
 		},
 		"openai-reasoning": {
 			"settings": {
-				"provider": "openai",
+				"provider": "openai-native",
 				"model": "gpt-5.4",
 				"reasoning": {
 					"effort": "high"
@@ -39,7 +39,7 @@
 		},
 		"openai-gpt-5.3-codex-reasoning": {
 			"settings": {
-				"provider": "openai",
+				"provider": "openai-native",
 				"model": "gpt-5.3-codex",
 				"reasoning": {
 					"effort": "high"
