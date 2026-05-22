@@ -82,6 +82,27 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	/**
+	 * Generate a fallback task description when the user sends only attachments
+	 * without any text content, ensuring the history entry has a meaningful display text
+	 * so it won't be filtered out by the falsy `task` check in getTaskHistory.
+	 */
+	private generateFallbackTaskDescription(taskMessage: ClineMessage): string {
+		const imageCount = taskMessage.images?.length ?? 0
+		const fileCount = taskMessage.files?.length ?? 0
+
+		if (imageCount > 0 && fileCount > 0) {
+			return `[${imageCount} image(s), ${fileCount} file(s)]`
+		}
+		if (imageCount > 0) {
+			return `[${imageCount} image(s)]`
+		}
+		if (fileCount > 0) {
+			return `[${fileCount} file(s)]`
+		}
+		return "New Task"
+	}
+
+	/**
 	 * Execute function with exclusive lock on message state
 	 * Use this for ANY state modification to prevent race conditions
 	 * This follows the same pattern as Task.withStateLock for consistency
@@ -146,7 +167,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				id: this.taskId,
 				ulid: this.ulid,
 				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
+				task: taskMessage.text || this.generateFallbackTaskDescription(taskMessage),
 				tokensIn: apiMetrics.totalTokensIn,
 				tokensOut: apiMetrics.totalTokensOut,
 				cacheWrites: apiMetrics.totalCacheWrites,

@@ -19,8 +19,11 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
-			// Basic filter: must have timestamp and task content
-			const hasRequiredFields = item.ts && item.task
+			// Basic filter: must have timestamp. We use a truthy check on task
+			// to filter out corrupted entries, but allow empty-string task values
+			// since they represent valid tasks (e.g. attachments-only messages)
+			// that may exist from older versions before the fallback description fix.
+			const hasRequiredFields = !!item.ts
 			if (!hasRequiredFields) {
 				return false
 			}
