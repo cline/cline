@@ -244,7 +244,7 @@ function App(props: TuiProps) {
 			return;
 		}
 		try {
-			await props.onSessionRestart();
+			await props.onNewSession();
 			setAppView("home");
 		} catch (error) {
 			setAppView("chat");

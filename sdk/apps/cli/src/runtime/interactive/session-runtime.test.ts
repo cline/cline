@@ -1,0 +1,189 @@
+import type {
+	AgentEvent,
+	ProviderSettingsManager,
+	TeamEvent,
+	ToolApprovalRequest,
+	ToolApprovalResult,
+} from "@cline/core";
+import type { AgentTool } from "@cline/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatCommandState } from "../../utils/chat-commands";
+import type { Config } from "../../utils/types";
+
+const {
+	mockCreateCliCore,
+	mockCreateRuntimeHooks,
+	mockLoadInteractiveResumeMessages,
+	mockSetActiveCliSession,
+} = vi.hoisted(() => ({
+	mockCreateCliCore: vi.fn(),
+	mockCreateRuntimeHooks: vi.fn(),
+	mockLoadInteractiveResumeMessages: vi.fn(),
+	mockSetActiveCliSession: vi.fn(),
+}));
+
+vi.mock("../../session/session", () => ({
+	createCliCore: mockCreateCliCore,
+}));
+
+vi.mock("../../utils/hooks", () => ({
+	createRuntimeHooks: mockCreateRuntimeHooks,
+}));
+
+vi.mock("../../utils/output", () => ({
+	setActiveCliSession: mockSetActiveCliSession,
+}));
+
+vi.mock("../../utils/resume", () => ({
+	loadInteractiveResumeMessages: mockLoadInteractiveResumeMessages,
+}));
+
+vi.mock("../../utils/approval", () => ({
+	submitAndExitInTerminal: vi.fn(),
+}));
+
+vi.mock("../active-runtime", () => ({
+	markAbortInProgress: vi.fn(),
+}));
+
+vi.mock("../session-events", () => ({
+	subscribeToAgentEvents: vi.fn(() => vi.fn()),
+	subscribeToPendingPromptEvents: vi.fn(() => vi.fn()),
+}));
+
+import { createInteractiveSessionRuntime } from "./session-runtime";
+
+function makeConfig(): Config {
+	return {
+		apiKey: "",
+		providerId: "cline",
+		modelId: "openai/gpt-5.3-codex",
+		verbose: false,
+		sandbox: false,
+		thinking: false,
+		outputMode: "text",
+		mode: "act",
+		systemPrompt: "",
+		enableTools: true,
+		enableSpawnAgent: true,
+		enableAgentTeams: false,
+		defaultToolAutoApprove: false,
+		toolPolicies: {},
+		cwd: "/tmp/work",
+		workspaceRoot: "/tmp/work",
+	};
+}
+
+function makeChatCommandState(config: Config): ChatCommandState {
+	return {
+		enableTools: config.enableTools,
+		autoApproveTools: config.defaultToolAutoApprove,
+		cwd: config.cwd,
+		workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
+	};
+}
+
+function makeSwitchToActModeTool(): AgentTool {
+	return {
+		name: "switch_to_act_mode",
+		description: "Switch to act mode",
+		inputSchema: { type: "object", properties: {} },
+		execute: () => ({ ok: true }),
+	};
+}
+
+function makeManager() {
+	let startCount = 0;
+	const start = vi.fn(async () => {
+		startCount += 1;
+		const sessionId = `session-${startCount}`;
+		return {
+			sessionId,
+			manifest: {
+				session_id: sessionId,
+			},
+		};
+	});
+	return {
+		start,
+		stop: vi.fn(async () => {}),
+		send: vi.fn(),
+		getAccumulatedUsage: vi.fn(),
+		abort: vi.fn(),
+		dispose: vi.fn(),
+		get: vi.fn(),
+		readMessages: vi.fn(async () => []),
+		readTranscript: vi.fn(),
+		ingestHookEvent: vi.fn(),
+		subscribe: vi.fn(),
+		updateSessionModel: vi.fn(),
+		pendingPrompts: {
+			update: vi.fn(),
+		},
+		restore: vi.fn(),
+	};
+}
+
+function makeRuntime(manager: ReturnType<typeof makeManager>) {
+	mockCreateCliCore.mockResolvedValue(manager);
+	const config = makeConfig();
+	return createInteractiveSessionRuntime({
+		config,
+		providerSettingsManager: {} as ProviderSettingsManager,
+		chatCommandState: makeChatCommandState(config),
+		requestToolApproval: async (
+			_request: ToolApprovalRequest,
+		): Promise<ToolApprovalResult> => ({ approved: true }),
+		askQuestionRef: { current: null },
+		resolveMistakeLimitDecision: undefined,
+		switchToActModeTool: makeSwitchToActModeTool(),
+		onAgentEvent: (_event: AgentEvent) => {},
+		onTeamEvent: (_event: TeamEvent) => {},
+		onPendingPrompts: () => {},
+		onPendingPromptSubmitted: () => {},
+	});
+}
+
+describe("createInteractiveSessionRuntime", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockCreateRuntimeHooks.mockReturnValue({
+			hooks: undefined,
+			shutdown: vi.fn(async () => {}),
+		});
+		mockLoadInteractiveResumeMessages.mockResolvedValue([]);
+	});
+
+	it("defers creating the replacement session after a new-session reset", async () => {
+		const manager = makeManager();
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		expect(manager.start).toHaveBeenCalledOnce();
+		expect(runtime.getActiveSessionId()).toBe("session-1");
+
+		await runtime.resetForNewSession();
+
+		expect(manager.stop).toHaveBeenCalledWith("session-1");
+		expect(manager.start).toHaveBeenCalledOnce();
+		expect(runtime.getActiveSessionId()).toBe("");
+		expect(mockSetActiveCliSession).toHaveBeenLastCalledWith(undefined);
+
+		await runtime.ensureReady();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("keeps explicit empty restarts eager for config-driven restarts", async () => {
+		const manager = makeManager();
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.restartEmpty();
+
+		expect(manager.stop).toHaveBeenCalledWith("session-1");
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+});
