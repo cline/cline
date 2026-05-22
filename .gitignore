@@ -53,3 +53,10 @@ python/cache/
 **/__pycache__/
 **/*.pyc
 docs/TEST_PROMPTS.md
+
+# Local-only / working notes — keep on disk, never commit
+output/
+progress.md
+.aihydrorules/research.md
+FEATURE_DELIVERY_SUMMARY.md
+.claude/worktrees/
