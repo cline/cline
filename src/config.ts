@@ -11,6 +11,7 @@ export interface EnvironmentConfig {
 	mcpBaseUrl: string
 	modulesBaseUrl: string
 	connectorsBaseUrl: string
+	skillsBaseUrl: string
 	firebase: {
 		apiKey: string
 		authDomain: string
@@ -81,6 +82,7 @@ class AiHydroEndpoint {
 						"AI_HYDRO_CONNECTORS_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Connectors/api",
 					),
+					skillsBaseUrl: getEnvOrDefault("AI_HYDRO_SKILLS_BASE_URL_STAGING", "https://ai-hydro.github.io/Skills/api"),
 					firebase: {
 						apiKey: getEnvOrDefault("AI_HYDRO_FIREBASE_API_KEY_STAGING", ""),
 						authDomain: getEnvOrDefault("AI_HYDRO_FIREBASE_AUTH_DOMAIN_STAGING", ""),
@@ -101,6 +103,7 @@ class AiHydroEndpoint {
 						"AI_HYDRO_CONNECTORS_BASE_URL_LOCAL",
 						"https://ai-hydro.github.io/Connectors/api",
 					),
+					skillsBaseUrl: getEnvOrDefault("AI_HYDRO_SKILLS_BASE_URL_LOCAL", "https://ai-hydro.github.io/Skills/api"),
 					firebase: {
 						apiKey: getEnvOrDefault("AI_HYDRO_FIREBASE_API_KEY_LOCAL", ""),
 						authDomain: getEnvOrDefault("AI_HYDRO_FIREBASE_AUTH_DOMAIN_LOCAL", ""),
@@ -118,6 +121,7 @@ class AiHydroEndpoint {
 						"AI_HYDRO_CONNECTORS_BASE_URL",
 						"https://ai-hydro.github.io/Connectors/api",
 					),
+					skillsBaseUrl: getEnvOrDefault("AI_HYDRO_SKILLS_BASE_URL", "https://ai-hydro.github.io/Skills/api"),
 					firebase: {
 						apiKey: getEnvOrDefault("AI_HYDRO_FIREBASE_API_KEY", ""),
 						authDomain: getEnvOrDefault("AI_HYDRO_FIREBASE_AUTH_DOMAIN", ""),

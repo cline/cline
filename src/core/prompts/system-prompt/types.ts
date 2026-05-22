@@ -102,6 +102,7 @@ export interface SystemPromptContext {
 	readonly localWindsurfRulesFileInstructions?: string
 	readonly aihydroIgnoreInstructions?: string
 	readonly preferredLanguageInstructions?: string
+	readonly installedSkillsInstructions?: string
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>

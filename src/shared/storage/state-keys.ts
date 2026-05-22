@@ -194,6 +194,9 @@ export interface Settings {
 	openTelemetryLogBatchSize: number
 	openTelemetryLogBatchTimeout: number
 	openTelemetryLogMaxQueueSize: number
+
+	// Skills
+	skillToggles: Record<string, boolean>
 }
 
 export interface Secrets {

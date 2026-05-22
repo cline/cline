@@ -1,67 +1,21 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import { Component, type ReactNode, useEffect } from "react"
+import { useEffect } from "react"
 import ChatView from "./components/chat/ChatView"
 import ConnectorsView from "./components/connectors/ConnectorsView"
 import HistoryView from "./components/history/HistoryView"
-import HtmlPreviewPanel from "./components/html_preview/HtmlPreviewPanel"
 import MapPanel from "./components/map/MapPanel"
 import MapView from "./components/map/MapView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import SettingsView from "./components/settings/SettingsView"
+import SkillsView from "./components/skills/SkillsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
 
-// ─── ErrorBoundary for standalone HTML preview panel ─────────────────────
-
-class HtmlPreviewErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
-	constructor(props: { children: ReactNode }) {
-		super(props)
-		this.state = { hasError: false, error: null }
-	}
-
-	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error }
-	}
-
-	componentDidCatch(error: Error, info: React.ErrorInfo) {
-		console.error("[HtmlPreviewErrorBoundary] React crash:", error, info)
-	}
-
-	render() {
-		if (this.state.hasError) {
-			return (
-				<div
-					style={{
-						padding: 24,
-						color: "var(--vscode-editor-foreground, #fff)",
-						background: "var(--vscode-editor-background, #1e1e1e)",
-						height: "100%",
-						fontFamily: "monospace",
-					}}>
-					<h2 style={{ color: "#dc3545", marginBottom: 12 }}>❌ React ErrorBoundary caught a crash</h2>
-					<pre style={{ fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-						{this.state.error?.message ?? "Unknown error"}
-					</pre>
-					<pre style={{ fontSize: 11, opacity: 0.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-						{this.state.error?.stack ?? "No stack trace"}
-					</pre>
-				</div>
-			)
-		}
-		return this.props.children
-	}
-}
-
 // Check if running in standalone map mode (separate panel)
 const isStandaloneMapMode = () => {
 	return typeof window !== "undefined" && (window as any).AIHYDRO_MAP_STANDALONE === true
-}
-
-// Check if running in standalone HTML preview mode (separate panel)
-const isStandaloneHtmlPreviewMode = () => {
-	return typeof window !== "undefined" && (window as any).AIHYDRO_HTML_PREVIEW_STANDALONE === true
 }
 
 const AppContent = () => {
@@ -76,6 +30,7 @@ const AppContent = () => {
 		showHistory,
 		showMap,
 		showConnectors,
+		showSkills,
 		showAnnouncement,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
@@ -85,6 +40,7 @@ const AppContent = () => {
 		hideHistory,
 		hideMap,
 		hideConnectors,
+		hideSkills,
 		hideAnnouncement,
 	} = useExtensionState()
 
@@ -103,38 +59,13 @@ const AppContent = () => {
 		}
 	}, [shouldShowAnnouncement, setShouldShowAnnouncement, setShowAnnouncement])
 
-	// Show loading screen with wave animation
+	// Show loading screen with spinner
 	if (!didHydrateState) {
 		return (
 			<div className="flex h-screen w-full items-center justify-center bg-[var(--vscode-editor-background)]">
-				<div className="flex flex-col items-center space-y-5">
-					{/* Wave loading animation */}
-					<div className="flex items-end justify-center gap-1.5 h-10">
-						{[0, 1, 2, 3, 4].map((i) => (
-							<div
-								className="w-2 rounded-full bg-gradient-to-t from-aihydro-ocean-blue to-aihydro-teal animate-wave-dots"
-								key={i}
-								style={{
-									height: "24px",
-									animationDelay: `${i * 0.12}s`,
-								}}
-							/>
-						))}
-					</div>
-					<div className="text-sm text-[var(--vscode-descriptionForeground)] font-medium tracking-wide">
-						Loading AI-Hydro
-						<span className="inline-flex ml-0.5">
-							<span className="animate-wave-dots" style={{ animationDelay: "0s" }}>
-								.
-							</span>
-							<span className="animate-wave-dots" style={{ animationDelay: "0.2s" }}>
-								.
-							</span>
-							<span className="animate-wave-dots" style={{ animationDelay: "0.4s" }}>
-								.
-							</span>
-						</span>
-					</div>
+				<div className="flex flex-col items-center space-y-4">
+					<div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--vscode-progressBar-background)] border-t-transparent"></div>
+					<div className="text-sm text-[var(--vscode-descriptionForeground)]">Loading AI-Hydro...</div>
 				</div>
 			</div>
 		)
@@ -150,11 +81,12 @@ const AppContent = () => {
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showConnectors && <ConnectorsView onDone={hideConnectors} />}
+			{showSkills && <SkillsView onDone={hideSkills} />}
 			{showMap && <MapPanel />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMcp || showConnectors || showMap}
+				isHidden={showSettings || showHistory || showMcp || showConnectors || showSkills || showMap}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>
@@ -170,28 +102,6 @@ const App = () => {
 				<div className="flex h-screen w-full">
 					<MapView height={window.innerHeight} width={window.innerWidth} />
 				</div>
-			</Providers>
-		)
-	}
-
-	// Check if in standalone HTML preview mode and render directly with Providers
-	if (isStandaloneHtmlPreviewMode()) {
-		return (
-			<Providers>
-				<HtmlPreviewErrorBoundary>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "row",
-							width: "100vw",
-							height: "100vh",
-							minWidth: 0,
-							minHeight: 0,
-							overflow: "hidden",
-						}}>
-						<HtmlPreviewPanel />
-					</div>
-				</HtmlPreviewErrorBoundary>
 			</Providers>
 		)
 	}

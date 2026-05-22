@@ -17,6 +17,7 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 		context.localWindsurfRulesFileInstructions,
 		context.aihydroIgnoreInstructions,
 		context.preferredLanguageInstructions,
+		context.installedSkillsInstructions,
 	)
 
 	if (!customInstructions) {
@@ -39,6 +40,7 @@ function buildUserInstructions(
 	localWindsurfRulesFileInstructions?: string,
 	aihydroIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
+	installedSkillsInstructions?: string,
 ): string | undefined {
 	const customInstructions = []
 	if (preferredLanguageInstructions) {
@@ -61,6 +63,9 @@ function buildUserInstructions(
 	}
 	if (aihydroIgnoreInstructions) {
 		customInstructions.push(aihydroIgnoreInstructions)
+	}
+	if (installedSkillsInstructions) {
+		customInstructions.push(installedSkillsInstructions)
 	}
 	if (customInstructions.length === 0) {
 		return undefined

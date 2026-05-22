@@ -108,6 +108,7 @@ webview-ui/index.html
 webview-ui/README.md
 webview-ui/package.json
 webview-ui/package-lock.json
+webview-ui/node_modules
 webview-ui/node_modules/**
 webview-ui/.env
 webview-ui/.env.*

@@ -59,11 +59,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showAccount: boolean
 	showMap: boolean
 	showConnectors: boolean
+	showSkills: boolean
 	showAnnouncement: boolean
 	showChatModelSelector: boolean
 	expandTaskHeader: boolean
-	htmlPreviewVersion: number
-	htmlPreviewActiveId: string | null
 
 	// Setters
 	setDictationSettings: (value: DictationSettings) => void
@@ -101,6 +100,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToAccount: () => void
 	navigateToMap: () => void
 	navigateToConnectors: () => void
+	navigateToSkills: () => void
 	navigateToChat: () => void
 
 	// Hide functions
@@ -109,6 +109,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideAccount: () => void
 	hideMap: () => void
 	hideConnectors: () => void
+	hideSkills: () => void
 	hideAnnouncement: () => void
 	hideChatModelSelector: () => void
 	closeMcpView: () => void
@@ -130,6 +131,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showAccount, setShowAccount] = useState(false)
 	const [showMap, setShowMap] = useState(false)
 	const [showConnectors, setShowConnectors] = useState(false)
+	const [showSkills, setShowSkills] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
 
@@ -145,6 +147,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideMap = useCallback(() => setShowMap(false), [setShowMap])
 	const hideConnectors = useCallback(() => setShowConnectors(false), [setShowConnectors])
+	const hideSkills = useCallback(() => setShowSkills(false), [setShowSkills])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
 	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
 
@@ -190,8 +193,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowConnectors(false)
+		setShowSkills(false)
 		setShowMap(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowConnectors, setShowMap])
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowConnectors, setShowSkills, setShowMap])
 
 	const navigateToConnectors = useCallback(() => {
 		setShowSettings(false)
@@ -199,8 +203,19 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowMap(false)
+		setShowSkills(false)
 		setShowConnectors(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowMap, setShowConnectors])
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowMap, setShowSkills, setShowConnectors])
+
+	const navigateToSkills = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowMap(false)
+		setShowConnectors(false)
+		setShowSkills(true)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowMap, setShowConnectors, setShowSkills])
 
 	const navigateToChat = useCallback(() => {
 		setShowSettings(false)
@@ -208,7 +223,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowMap(false)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowMap])
+		setShowConnectors(false)
+	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowMap, setShowConnectors])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -258,7 +274,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
-		workspaceHtmlFiles: [],
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -275,7 +290,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	useEffect(() => {
 		console.log("[DEBUG] ExtensionStateContext: Initializing with timeout fallback")
 
-		const _didHydrateRef = { current: didHydrateState }
+		const didHydrateRef = { current: didHydrateState }
 
 		// Set a timeout to force didHydrateState to true after 2 seconds
 		const timeout = setTimeout(() => {
@@ -320,7 +335,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const mapButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
-
+	const connectorsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
+	const skillsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -583,16 +599,32 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Set up connectors button clicked subscription
-		UiServiceClient.subscribeToConnectorsButtonClicked(EmptyRequest.create(), {
+		connectorsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToConnectorsButtonClicked(
+			EmptyRequest.create(),
+			{
+				onResponse: () => {
+					console.log("[DEBUG] Received connectors button clicked event from gRPC stream")
+					navigateToConnectors()
+				},
+				onError: (error) => {
+					console.error("Error in connectors button clicked subscription:", error)
+				},
+				onComplete: () => {
+					console.log("Connectors button clicked subscription completed")
+				},
+			},
+		)
+
+		// Set up skills button clicked subscription
+		skillsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSkillsButtonClicked(EmptyRequest.create(), {
 			onResponse: () => {
-				console.log("[DEBUG] Received connectors button clicked event from gRPC stream")
-				navigateToConnectors()
+				navigateToSkills()
 			},
 			onError: (error) => {
-				console.error("Error in connectors button clicked subscription:", error)
+				console.error("Error in skills button clicked subscription:", error)
 			},
 			onComplete: () => {
-				console.log("Connectors button clicked subscription completed")
+				console.log("Skills button clicked subscription completed")
 			},
 		})
 
@@ -660,7 +692,14 @@ export const ExtensionStateContextProvider: React.FC<{
 				mapButtonClickedSubscriptionRef.current()
 				mapButtonClickedSubscriptionRef.current = null
 			}
-
+			if (connectorsButtonClickedSubscriptionRef.current) {
+				connectorsButtonClickedSubscriptionRef.current()
+				connectorsButtonClickedSubscriptionRef.current = null
+			}
+			if (skillsButtonClickedSubscriptionRef.current) {
+				skillsButtonClickedSubscriptionRef.current()
+				skillsButtonClickedSubscriptionRef.current = null
+			}
 			if (partialMessageUnsubscribeRef.current) {
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
@@ -731,6 +770,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showAccount,
 		showMap,
 		showConnectors,
+		showSkills,
 		showAnnouncement,
 		showChatModelSelector,
 		globalAiHydroRulesToggles: state.globalAiHydroRulesToggles || {},
@@ -749,6 +789,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToAccount,
 		navigateToMap,
 		navigateToConnectors,
+		navigateToSkills,
 		navigateToChat,
 
 		// Hide functions
@@ -757,6 +798,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideAccount,
 		hideMap,
 		hideConnectors,
+		hideSkills,
 		hideAnnouncement,
 		setShowAnnouncement,
 		hideChatModelSelector,

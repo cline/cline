@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package cline;
+import "cline/common.proto";
+option go_package = "github.com/cline/grpc-go/cline";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+// How a skill was installed
+enum SkillSource {
+  MARKETPLACE = 0;
+  AGENT_CREATED = 1;
+  MANUAL = 2;
+}
+
+// A single skill in the catalog or installed set
+message SkillItem {
+  string skill_id = 1;
+  string name = 2;
+  string description = 3;
+  string version = 4;
+  string author = 5;
+  string domain = 6;
+  string category = 7;
+  string codicon_icon = 8;
+  repeated string tags = 9;
+  repeated string tools_used = 10;
+  string when_to_use = 11;
+  string github_url = 12;
+  string skill_url = 13;
+  bool is_recommended = 14;
+  int32 github_stars = 15;
+  int32 download_count = 16;
+  bool is_installed = 17;
+  string created_at = 18;
+  string updated_at = 19;
+  optional string content = 20;
+  SkillSource source = 21;
+}
+
+message SkillCatalog {
+  repeated SkillItem items = 1;
+}
+
+message InstallSkillRequest {
+  string skill_id = 1;
+  string skill_url = 2;
+  string name = 3;
+}
+
+message InstallSkillResponse {
+  string skill_id = 1;
+  string local_path = 2;
+  bool success = 3;
+  optional string error = 4;
+}
+
+// Used by both manual (UI form) and agent self-authoring (save_skill MCP tool via RPC)
+message SaveSkillRequest {
+  string skill_id = 1;
+  string name = 2;
+  string description = 3;
+  string content = 4;
+  string domain = 5;
+  repeated string tags = 6;
+  repeated string tools_used = 7;
+  string when_to_use = 8;
+  SkillSource source = 9;
+}
+
+message SaveSkillResponse {
+  string skill_id = 1;
+  string local_path = 2;
+  bool success = 3;
+  optional string error = 4;
+}
+
+message DeleteSkillRequest {
+  string skill_id = 1;
+  SkillSource source = 2;
+}
+
+// SkillsService — marketplace fetch, install, manual/agent save, delete, list installed
+service SkillsService {
+  rpc refreshSkillsMarketplace(EmptyRequest) returns (SkillCatalog);
+  rpc installSkill(InstallSkillRequest) returns (InstallSkillResponse);
+  rpc saveSkill(SaveSkillRequest) returns (SaveSkillResponse);
+  rpc deleteSkill(DeleteSkillRequest) returns (Empty);
+  rpc listInstalledSkills(EmptyRequest) returns (SkillCatalog);
+}

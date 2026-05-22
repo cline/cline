@@ -300,6 +300,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+		const skillToggles = context.globalState.get<GlobalStateAndSettings["skillToggles"]>("skillToggles")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -650,6 +651,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
 			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
+			skillToggles: skillToggles ?? {},
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

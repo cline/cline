@@ -2,6 +2,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
 import { MapCommandWatcher } from "@core/map/MapCommandWatcher"
 import { MapEventWatcher } from "@core/map/MapEventWatcher"
+import { buildMapLayerCatalogAsync, persistMapLayerCatalog } from "@core/map/mapLayerCatalog"
+import { type MapLayerPatch, mergeMapLayerPatch } from "@core/map/mergeMapLayerPatch"
 import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { FileScanner, WorkspaceGeoJsonFile } from "@core/workspace/FileScanner"
@@ -99,6 +101,7 @@ export class Controller {
 
 	// Map layer storage, streaming, and Python event bridge
 	private mapLayers: Map<string, MapLayer> = new Map()
+	private mapLayerOrder: string[] = []
 	private mapLayerSubscribers: Set<(layer: MapLayer) => void> = new Set()
 	private mapEventWatcher: MapEventWatcher
 	private mapCommandWatcher: MapCommandWatcher
@@ -776,6 +779,45 @@ export class Controller {
 		}
 	}
 
+	async silentlyRefreshSkillsMarketplaceRPC(): Promise<import("@shared/proto/cline/skills").SkillCatalog | undefined> {
+		try {
+			const response = await axios.get(`${AiHydroEnv.config().skillsBaseUrl}/skills.json`, {
+				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+				timeout: 10000,
+			})
+			if (!response.data) throw new Error("Invalid response from Skills marketplace API")
+			const { SkillCatalog, SkillItem, SkillSource } = await import("@shared/proto/cline/skills")
+			const items = (Array.isArray(response.data) ? response.data : []).map((item: any) =>
+				SkillItem.create({
+					skillId: item.skillId || item.id || "",
+					name: item.name || "",
+					description: item.description || "",
+					version: item.version || "0.1.0",
+					author: item.author || "",
+					domain: item.domain || "general",
+					category: item.category || "",
+					codiconIcon: item.codiconIcon || item.codicon_icon || "book",
+					tags: item.tags || [],
+					toolsUsed: item.toolsUsed || item.tools_used || [],
+					whenToUse: item.whenToUse || item.when_to_use || "",
+					githubUrl: item.githubUrl || item.github_url || "",
+					skillUrl: item.skillUrl || item.skill_url || "",
+					isRecommended: item.isRecommended || item.is_recommended || false,
+					githubStars: item.githubStars || item.github_stars || 0,
+					downloadCount: item.downloadCount || item.download_count || 0,
+					isInstalled: false,
+					createdAt: item.createdAt || item.created_at || "",
+					updatedAt: item.updatedAt || item.updated_at || "",
+					source: SkillSource.MARKETPLACE,
+				}),
+			)
+			return SkillCatalog.create({ items })
+		} catch (error) {
+			console.error("Failed to fetch Skills marketplace:", error)
+			return undefined
+		}
+	}
+
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
@@ -1092,8 +1134,41 @@ export class Controller {
 	 */
 	addMapLayer(layer: MapLayer): void {
 		console.log(`[Controller] Adding map layer: ${layer.id}`)
+		const op = layer.metadata?.__operation
+		if (op === "remove") {
+			this.removeMapLayer(layer.id)
+			return
+		}
+		if (op === "clear") {
+			this.clearMapLayers()
+			return
+		}
 		this.mapLayers.set(layer.id, layer)
+		if (!this.mapLayerOrder.includes(layer.id)) {
+			this.mapLayerOrder.push(layer.id)
+		}
 		this.notifyMapLayerSubscribers(layer)
+		void this.syncMapLayerCatalog()
+	}
+
+	/**
+	 * Update an existing layer's style/metadata without replacing geojson.
+	 */
+	updateMapLayer(layerId: string, patch: MapLayerPatch): MapLayer | undefined {
+		const existing = this.mapLayers.get(layerId)
+		if (!existing) {
+			return undefined
+		}
+		const merged = mergeMapLayerPatch(existing, patch)
+		this.mapLayers.set(layerId, merged)
+		this.notifyMapLayerSubscribers(merged)
+		void this.syncMapLayerCatalog()
+		return merged
+	}
+
+	private async syncMapLayerCatalog(): Promise<void> {
+		const catalog = await buildMapLayerCatalogAsync(this.getMapLayers(), this.mapLayerOrder)
+		await persistMapLayerCatalog(catalog)
 	}
 
 	private notifyMapLayerSubscribers(layer: MapLayer): void {
@@ -1117,6 +1192,7 @@ export class Controller {
 		if (!wasRemoved) {
 			return
 		}
+		this.mapLayerOrder = this.mapLayerOrder.filter((id) => id !== layerId)
 
 		this.notifyMapLayerSubscribers(
 			MapLayer.create({
@@ -1125,6 +1201,7 @@ export class Controller {
 				visible: false,
 			}),
 		)
+		void this.syncMapLayerCatalog()
 	}
 
 	/**
@@ -1138,6 +1215,8 @@ export class Controller {
 		}
 
 		this.mapLayers.clear()
+		this.mapLayerOrder = []
+		void this.syncMapLayerCatalog()
 		this.notifyMapLayerSubscribers(
 			MapLayer.create({
 				id: `__map_event_clear_${Date.now()}`,
@@ -1145,6 +1224,10 @@ export class Controller {
 				visible: false,
 			}),
 		)
+	}
+
+	getMapLayerOrder(): string[] {
+		return [...this.mapLayerOrder]
 	}
 
 	/**

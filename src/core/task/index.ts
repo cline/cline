@@ -18,6 +18,7 @@ import {
 	getLocalWindsurfRules,
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
+import { getInstalledSkillsInstructions } from "@core/context/instructions/user-instructions/skills"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { AiHydroIgnoreController } from "@core/ignore/AiHydroIgnoreController"
 import { buildMapContextForTask } from "@core/map/MapContextForTask"
@@ -1678,6 +1679,9 @@ export class Task {
 			aihydroIgnoreInstructions = formatResponse.aihydroIgnoreInstructions(aihydroIgnoreContent)
 		}
 
+		const skillToggles = this.stateManager.getGlobalSettingsKey("skillToggles") ?? {}
+		const installedSkillsInstructions = await getInstalledSkillsInstructions(skillToggles)
+
 		// Prepare multi-root workspace information if enabled
 		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
 		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
@@ -1708,6 +1712,7 @@ export class Task {
 			localCursorRulesDirInstructions,
 			localWindsurfRulesFileInstructions,
 			aihydroIgnoreInstructions,
+			installedSkillsInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),

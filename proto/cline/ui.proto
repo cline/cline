@@ -248,6 +248,9 @@ service UiService {
   // Subscribe to connectors button clicked events
   rpc subscribeToConnectorsButtonClicked(EmptyRequest) returns (stream Empty);
 
+  // Subscribe to skills button clicked events
+  rpc subscribeToSkillsButtonClicked(EmptyRequest) returns (stream Empty);
+
   // Fetch the connectors catalog from GitHub Pages (merges remote + local fallback)
   rpc refreshConnectorsCatalog(EmptyRequest) returns (ConnectorCatalogResponse);
 
