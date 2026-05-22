@@ -10,6 +10,7 @@ import {
 	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	type HookEventPayload,
+	type ITelemetryService,
 	type PendingPromptMutationResult,
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
@@ -47,6 +48,8 @@ export interface VscodeSessionHostOptions {
 	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
+	/** Shared SDK telemetry service owned by SdkController. */
+	telemetry?: ITelemetryService
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/**
@@ -95,6 +98,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 				toolExecutors: Object.keys(toolExecutors).length > 0 ? toolExecutors : undefined,
 			},
 			toolPolicies: options.toolPolicies,
+			telemetry: options.telemetry,
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
@@ -111,6 +115,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 						source: inputWithRemoteConfig.source ?? "vscode",
 						config: {
 							...inputWithRemoteConfig.config,
+							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
 							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
 						},
 					}

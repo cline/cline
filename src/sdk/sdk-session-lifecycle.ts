@@ -1,4 +1,4 @@
-import type { CoreSessionEvent, PreparedRemoteConfigCoreIntegration, StartSessionResult } from "@cline/core"
+import type { CoreSessionEvent, ITelemetryService, PreparedRemoteConfigCoreIntegration, StartSessionResult } from "@cline/core"
 import { StateManager } from "@/core/storage/StateManager"
 import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -20,6 +20,8 @@ export interface SdkSessionLifecycleOptions {
 	getTerminalManager?: () => ITerminalManager
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
+	/** Shared SDK telemetry service owned by SdkController. */
+	telemetry?: ITelemetryService
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 }
@@ -68,6 +70,7 @@ export class SdkSessionLifecycle {
 			toolPolicies,
 			getTerminalManager: this.options.getTerminalManager,
 			getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
+			telemetry: this.options.telemetry,
 		})
 		const unsubscribe = sdkHost.subscribe(this.options.onSessionEvent)
 		const startResult = await sdkHost.start(startInput)
