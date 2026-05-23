@@ -956,10 +956,29 @@ async function handleRoutineScheduleCommand(
 			clientCommand("schedule.active"),
 			clientCommand("schedule.upcoming", { limit: 30 }),
 		]);
+		const scheduleRows = Array.isArray(schedules.schedules)
+			? schedules.schedules
+			: [];
+		const lastExecutions = await Promise.all(
+			scheduleRows.map(async (schedule) => {
+				const scheduleId = asTrimmedString(
+					(schedule as Record<string, unknown>).scheduleId,
+				);
+				if (!scheduleId) return undefined;
+				const reply = await clientCommand("schedule.list_executions", {
+					scheduleId,
+					limit: 1,
+				});
+				return Array.isArray(reply.executions)
+					? reply.executions[0]
+					: undefined;
+			}),
+		);
 		return {
-			schedules: schedules.schedules ?? [],
+			schedules: scheduleRows,
 			activeExecutions: activeExecutions.executions ?? [],
 			upcomingRuns: upcomingRuns.runs ?? [],
+			lastExecutions: lastExecutions.filter(Boolean),
 		};
 	}
 
@@ -1001,6 +1020,50 @@ async function handleRoutineScheduleCommand(
 
 	const scheduleId = asTrimmedString(args?.schedule_id);
 	if (!scheduleId) throw new Error(`${command} requires schedule_id`);
+	if (command === "update_routine_schedule") {
+		const name = asTrimmedString(args?.name);
+		const cronPattern = asTrimmedString(args?.cron_pattern);
+		const prompt = asTrimmedString(args?.prompt);
+		const routineWorkspaceRoot = asTrimmedString(args?.workspace_root);
+		if (!name || !cronPattern || !prompt || !routineWorkspaceRoot) {
+			throw new Error(
+				"updateSchedule requires schedule_id, name, cron_pattern, prompt, and workspace_root",
+			);
+		}
+		const reply = await clientCommand("schedule.update", {
+			scheduleId,
+			name,
+			cronPattern,
+			prompt,
+			modelSelection: {
+				providerId: asTrimmedString(args?.provider) ?? "cline",
+				modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+			},
+			mode: args?.mode === "plan" ? "plan" : "act",
+			workspaceRoot: routineWorkspaceRoot,
+			cwd: asTrimmedString(args?.cwd) ?? null,
+			systemPrompt:
+				args?.system_prompt === null
+					? null
+					: asTrimmedString(args?.system_prompt),
+			maxIterations:
+				args?.max_iterations === null
+					? null
+					: toPositiveInt(args?.max_iterations),
+			timeoutSeconds:
+				args?.timeout_seconds === null
+					? null
+					: toPositiveInt(args?.timeout_seconds),
+			maxParallel: toPositiveInt(args?.max_parallel) ?? 1,
+			enabled: args?.enabled !== false,
+			tags: Array.isArray(args?.tags)
+				? (args.tags as string[])
+						.map((v) => v.trim())
+						.filter((v) => v.length > 0)
+				: [],
+		});
+		return { schedule: reply.schedule ?? null };
+	}
 	if (command === "pause_routine_schedule") {
 		const reply = await clientCommand("schedule.disable", { scheduleId });
 		return { schedule: reply.schedule ?? null };
@@ -1010,7 +1073,13 @@ async function handleRoutineScheduleCommand(
 		return { schedule: reply.schedule ?? null };
 	}
 	if (command === "trigger_routine_schedule") {
-		const reply = await clientCommand("schedule.trigger", { scheduleId });
+		const existing = await clientCommand("schedule.get", { scheduleId });
+		if (!existing.schedule)
+			throw new Error(`schedule not found: ${scheduleId}`);
+		const reply = await clientCommand("schedule.trigger", {
+			scheduleId,
+			wait: false,
+		});
 		return { execution: reply.execution ?? null };
 	}
 	if (command === "delete_routine_schedule") {
@@ -1369,6 +1438,7 @@ async function handleDesktopCommand(
 	if (
 		command === "list_routine_schedules" ||
 		command === "create_routine_schedule" ||
+		command === "update_routine_schedule" ||
 		command === "pause_routine_schedule" ||
 		command === "resume_routine_schedule" ||
 		command === "trigger_routine_schedule" ||

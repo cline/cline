@@ -4,6 +4,7 @@ import {
 	Circle,
 	Eye,
 	Pause,
+	Pencil,
 	Play,
 	Plus,
 	RefreshCw,
@@ -11,6 +12,16 @@ import {
 	Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -82,8 +93,12 @@ interface RoutineExecution {
 	executionId: string;
 	scheduleId: string;
 	sessionId?: string;
+	triggeredAt?: DateTimeValue;
 	startedAt?: DateTimeValue;
+	endedAt?: DateTimeValue;
 	timeoutAt?: DateTimeValue;
+	status?: string;
+	errorMessage?: string;
 }
 
 interface RoutineUpcomingRun {
@@ -96,6 +111,7 @@ interface RoutineOverviewResponse {
 	schedules: RoutineSchedule[];
 	activeExecutions: RoutineExecution[];
 	upcomingRuns: RoutineUpcomingRun[];
+	lastExecutions: RoutineExecution[];
 }
 
 const ROUTINE_OVERVIEW_CACHE_TTL_MS = 30_000;
@@ -114,6 +130,7 @@ async function fetchRoutineOverview(): Promise<RoutineOverviewResponse> {
 		schedules: response.schedules ?? [],
 		activeExecutions: response.activeExecutions ?? [],
 		upcomingRuns: response.upcomingRuns ?? [],
+		lastExecutions: response.lastExecutions ?? [],
 	};
 }
 
@@ -192,6 +209,33 @@ function formatScheduleModel(schedule: RoutineSchedule): string {
 	return model || provider || "-";
 }
 
+function getScheduleProviderModel(schedule: RoutineSchedule): {
+	provider: string;
+	model: string;
+} {
+	return {
+		provider:
+			schedule.modelSelection?.providerId?.trim() ||
+			schedule.provider?.trim() ||
+			"cline",
+		model:
+			schedule.modelSelection?.modelId?.trim() ||
+			schedule.model?.trim() ||
+			"openai/gpt-5.3-codex",
+	};
+}
+
+function formatExecutionResult(execution?: RoutineExecution): string {
+	if (!execution) {
+		return "-";
+	}
+	const status = execution.status?.trim() || "unknown";
+	const timestamp =
+		execution.endedAt ?? execution.startedAt ?? execution.triggeredAt;
+	const when = formatDateTime(timestamp);
+	return when === "-" ? status : `${status} at ${when}`;
+}
+
 function parseOptionalPositiveInt(text: string): number | undefined {
 	const trimmed = text.trim();
 	if (!trimmed) {
@@ -242,6 +286,55 @@ function buildCronPattern(
 	return `${cronMinute} ${cronHour} * * ${normalizedDays.join(",")}`;
 }
 
+function expandCronDays(dayExpression: string | undefined): string[] {
+	const raw = dayExpression?.trim().toUpperCase();
+	if (!raw || raw === "*") {
+		return WEEKDAY_OPTIONS.map((option) => option.value);
+	}
+	const values = new Set<string>();
+	for (const part of raw.split(",")) {
+		const trimmed = part.trim();
+		if (!trimmed) continue;
+		const rangeMatch = /^([A-Z]{3})-([A-Z]{3})$/.exec(trimmed);
+		if (rangeMatch) {
+			const start = WEEKDAY_OPTIONS.findIndex(
+				(option) => option.value === rangeMatch[1],
+			);
+			const end = WEEKDAY_OPTIONS.findIndex(
+				(option) => option.value === rangeMatch[2],
+			);
+			if (start >= 0 && end >= start) {
+				for (let index = start; index <= end; index += 1) {
+					values.add(WEEKDAY_OPTIONS[index].value);
+				}
+			}
+			continue;
+		}
+		if (WEEKDAY_OPTIONS.some((option) => option.value === trimmed)) {
+			values.add(trimmed);
+		}
+	}
+	return normalizeScheduleDays([...values]);
+}
+
+function parseCronPattern(
+	cronPattern: string,
+): Pick<RoutineFormState, "scheduleHour" | "scheduleMinute" | "scheduleDays"> {
+	const parts = cronPattern.trim().split(/\s+/);
+	const minute = Number.parseInt(parts[0] ?? "", 10);
+	const hour = Number.parseInt(parts[1] ?? "", 10);
+	const days = expandCronDays(parts[4]);
+	return {
+		scheduleHour:
+			Number.isInteger(hour) && hour >= 0 && hour <= 23 ? String(hour) : "9",
+		scheduleMinute:
+			Number.isInteger(minute) && minute >= 0 && minute <= 59
+				? String(minute)
+				: "0",
+		scheduleDays: days.length > 0 ? days : ["MON", "TUE", "WED", "THU", "FRI"],
+	};
+}
+
 export function RoutineSchedulesContent() {
 	const [schedules, setSchedules] = useState<RoutineSchedule[]>(
 		() => routineOverviewCache?.schedules ?? [],
@@ -252,10 +345,17 @@ export function RoutineSchedulesContent() {
 	const [upcomingRuns, setUpcomingRuns] = useState<RoutineUpcomingRun[]>(
 		() => routineOverviewCache?.upcomingRuns ?? [],
 	);
+	const [lastExecutions, setLastExecutions] = useState<RoutineExecution[]>(
+		() => routineOverviewCache?.lastExecutions ?? [],
+	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [busyScheduleId, setBusyScheduleId] = useState<string | null>(null);
+	const [schedulePendingDelete, setSchedulePendingDelete] =
+		useState<RoutineSchedule | null>(null);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [editingSchedule, setEditingSchedule] =
+		useState<RoutineSchedule | null>(null);
 	const [isCreating, setIsCreating] = useState(false);
 	const [createFormError, setCreateFormError] = useState<string | null>(null);
 	const [providerModels, setProviderModels] = useState<
@@ -449,43 +549,53 @@ export function RoutineSchedulesContent() {
 		visibleProviderModels,
 	]);
 
-	const refreshSchedules = useCallback(async () => {
-		const now = Date.now();
-		if (
-			routineOverviewCache &&
-			now - routineOverviewCache.fetchedAt < ROUTINE_OVERVIEW_CACHE_TTL_MS
-		) {
-			setSchedules(routineOverviewCache.schedules);
-			setActiveExecutions(routineOverviewCache.activeExecutions);
-			setUpcomingRuns(routineOverviewCache.upcomingRuns);
-			setErrorMessage(null);
-			setIsLoading(false);
-			return;
-		}
+	const refreshSchedules = useCallback(
+		async (options?: { force?: boolean; showLoading?: boolean }) => {
+			const now = Date.now();
+			if (
+				!options?.force &&
+				routineOverviewCache &&
+				now - routineOverviewCache.fetchedAt < ROUTINE_OVERVIEW_CACHE_TTL_MS
+			) {
+				setSchedules(routineOverviewCache.schedules);
+				setActiveExecutions(routineOverviewCache.activeExecutions);
+				setUpcomingRuns(routineOverviewCache.upcomingRuns);
+				setLastExecutions(routineOverviewCache.lastExecutions);
+				setErrorMessage(null);
+				setIsLoading(false);
+				return;
+			}
 
-		setIsLoading(true);
-		setErrorMessage(null);
-		try {
-			const response = await fetchRoutineOverview();
-			const schedules = response.schedules;
-			const activeExecutions = response.activeExecutions;
-			const upcomingRuns = response.upcomingRuns;
-			setSchedules(schedules);
-			setActiveExecutions(activeExecutions);
-			setUpcomingRuns(upcomingRuns);
-			routineOverviewCache = {
-				schedules,
-				activeExecutions,
-				upcomingRuns,
-				fetchedAt: now,
-			};
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
+			if (options?.showLoading !== false) {
+				setIsLoading(true);
+			}
+			setErrorMessage(null);
+			try {
+				const response = await fetchRoutineOverview();
+				const schedules = response.schedules;
+				const activeExecutions = response.activeExecutions;
+				const upcomingRuns = response.upcomingRuns;
+				const lastExecutions = response.lastExecutions;
+				setSchedules(schedules);
+				setActiveExecutions(activeExecutions);
+				setUpcomingRuns(upcomingRuns);
+				setLastExecutions(lastExecutions);
+				routineOverviewCache = {
+					schedules,
+					activeExecutions,
+					upcomingRuns,
+					lastExecutions,
+					fetchedAt: now,
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[],
+	);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -510,7 +620,7 @@ export function RoutineSchedulesContent() {
 					schedule_id: schedule.scheduleId,
 				});
 			}
-			await refreshSchedules();
+			await refreshSchedules({ force: true, showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -526,7 +636,10 @@ export function RoutineSchedulesContent() {
 			await desktopClient.invoke("trigger_routine_schedule", {
 				schedule_id: scheduleId,
 			});
-			await refreshSchedules();
+			await refreshSchedules({ force: true, showLoading: false });
+			window.setTimeout(() => {
+				void refreshSchedules({ force: true, showLoading: false });
+			}, 1_000);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -542,7 +655,8 @@ export function RoutineSchedulesContent() {
 			await desktopClient.invoke("delete_routine_schedule", {
 				schedule_id: scheduleId,
 			});
-			await refreshSchedules();
+			setSchedulePendingDelete(null);
+			await refreshSchedules({ force: true, showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -552,6 +666,7 @@ export function RoutineSchedulesContent() {
 	};
 
 	const openCreateDialog = async () => {
+		setEditingSchedule(null);
 		setErrorMessage(null);
 		setCreateFormError(null);
 		let context: ProcessContext = { workspaceRoot: "", cwd: "" };
@@ -595,6 +710,51 @@ export function RoutineSchedulesContent() {
 		setIsCreateOpen(true);
 	};
 
+	const openEditDialog = (schedule: RoutineSchedule) => {
+		const { provider, model } = getScheduleProviderModel(schedule);
+		const parsedCron = parseCronPattern(schedule.cronPattern);
+		setEditingSchedule(schedule);
+		setErrorMessage(null);
+		setCreateFormError(null);
+		setEnabledProviderIds((current) =>
+			current.includes(provider) ? current : [...current, provider],
+		);
+		setProviderModels((current) =>
+			current[provider]?.includes(model)
+				? current
+				: {
+						...current,
+						[provider]: [...(current[provider] ?? []), model],
+					},
+		);
+		setCreateForm({
+			name: schedule.name,
+			...parsedCron,
+			prompt: schedule.prompt,
+			provider,
+			model,
+			mode: schedule.mode === "plan" ? "plan" : "act",
+			workspaceRoot: schedule.workspaceRoot ?? "",
+			cwd: schedule.cwd ?? "",
+			systemPrompt: schedule.systemPrompt ?? "",
+			maxIterations:
+				typeof schedule.maxIterations === "number"
+					? String(schedule.maxIterations)
+					: "",
+			timeoutSeconds:
+				typeof schedule.timeoutSeconds === "number"
+					? String(schedule.timeoutSeconds)
+					: "",
+			maxParallel:
+				typeof schedule.maxParallel === "number"
+					? String(schedule.maxParallel)
+					: "1",
+			tags: schedule.tags?.join(",") ?? "",
+			enabled: schedule.enabled,
+		});
+		setIsCreateOpen(true);
+	};
+
 	const submitCreateForm = async () => {
 		const name = createForm.name.trim();
 		if (!name) {
@@ -631,7 +791,19 @@ export function RoutineSchedulesContent() {
 				createForm.model.trim() ||
 				(visibleProviderModels[provider] ?? [])[0] ||
 				"openai/gpt-5.3-codex";
-			await desktopClient.invoke("create_routine_schedule", {
+			const maxIterations = parseOptionalPositiveInt(createForm.maxIterations);
+			const timeoutSeconds = parseOptionalPositiveInt(
+				createForm.timeoutSeconds,
+			);
+			const maxParallel = parseOptionalPositiveInt(createForm.maxParallel) ?? 1;
+			const tags = parseTags(createForm.tags);
+			const command = editingSchedule
+				? "update_routine_schedule"
+				: "create_routine_schedule";
+			await desktopClient.invoke(command, {
+				...(editingSchedule
+					? { schedule_id: editingSchedule.scheduleId }
+					: undefined),
 				name,
 				cron_pattern: cronPattern,
 				prompt,
@@ -640,15 +812,22 @@ export function RoutineSchedulesContent() {
 				mode: createForm.mode,
 				workspace_root: workspaceRoot,
 				cwd: createForm.cwd.trim() || undefined,
-				system_prompt: createForm.systemPrompt.trim() || undefined,
-				max_iterations: parseOptionalPositiveInt(createForm.maxIterations),
-				timeout_seconds: parseOptionalPositiveInt(createForm.timeoutSeconds),
-				max_parallel: parseOptionalPositiveInt(createForm.maxParallel) ?? 1,
+				system_prompt: editingSchedule
+					? createForm.systemPrompt.trim() || null
+					: createForm.systemPrompt.trim() || undefined,
+				max_iterations: editingSchedule
+					? (maxIterations ?? null)
+					: maxIterations,
+				timeout_seconds: editingSchedule
+					? (timeoutSeconds ?? null)
+					: timeoutSeconds,
+				max_parallel: maxParallel,
 				enabled: createForm.enabled,
-				tags: parseTags(createForm.tags),
+				tags: tags ?? [],
 			});
-			await refreshSchedules();
+			await refreshSchedules({ force: true, showLoading: false });
 			setIsCreateOpen(false);
+			setEditingSchedule(null);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setCreateFormError(message);
@@ -669,6 +848,19 @@ export function RoutineSchedulesContent() {
 		}
 		return map;
 	}, [activeExecutions]);
+
+	const lastExecutionBySchedule = useMemo(() => {
+		const map = new Map<string, RoutineExecution>();
+		for (const execution of lastExecutions) {
+			if (!execution.scheduleId) {
+				continue;
+			}
+			if (!map.has(execution.scheduleId)) {
+				map.set(execution.scheduleId, execution);
+			}
+		}
+		return map;
+	}, [lastExecutions]);
 
 	const sortedSchedules = useMemo(
 		() =>
@@ -734,6 +926,9 @@ export function RoutineSchedulesContent() {
 							const activeExecution = executionBySchedule.get(
 								schedule.scheduleId,
 							);
+							const lastExecution = lastExecutionBySchedule.get(
+								schedule.scheduleId,
+							);
 							const upcoming = upcomingRuns.find(
 								(item) => item.scheduleId === schedule.scheduleId,
 							);
@@ -775,6 +970,15 @@ export function RoutineSchedulesContent() {
 											<Button
 												variant="ghost"
 												size="icon-sm"
+												aria-label={`Edit ${schedule.name}`}
+												onClick={() => openEditDialog(schedule)}
+												disabled={isBusy}
+											>
+												<Pencil className="h-3.5 w-3.5" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="icon-sm"
 												aria-label={`Run ${schedule.name} now`}
 												onClick={() =>
 													void triggerSchedule(schedule.scheduleId)
@@ -809,13 +1013,7 @@ export function RoutineSchedulesContent() {
 												variant="ghost"
 												size="icon-sm"
 												aria-label={`Delete ${schedule.name}`}
-												onClick={() => {
-													if (
-														window.confirm(`Delete routine "${schedule.name}"?`)
-													) {
-														void deleteSchedule(schedule.scheduleId);
-													}
-												}}
+												onClick={() => setSchedulePendingDelete(schedule)}
 												disabled={isBusy}
 											>
 												<Trash2 className="h-3.5 w-3.5" />
@@ -866,6 +1064,28 @@ export function RoutineSchedulesContent() {
 										</p>
 										<p>
 											<span className="text-muted-foreground/70">
+												Last result:
+											</span>{" "}
+											{formatExecutionResult(lastExecution)}
+										</p>
+										{lastExecution?.sessionId && (
+											<p>
+												<span className="text-muted-foreground/70">
+													Last session:
+												</span>{" "}
+												{lastExecution.sessionId}
+											</p>
+										)}
+										{lastExecution?.errorMessage && (
+											<p className="text-destructive">
+												<span className="text-muted-foreground/70">
+													Last error:
+												</span>{" "}
+												{lastExecution.errorMessage}
+											</p>
+										)}
+										<p>
+											<span className="text-muted-foreground/70">
 												Next run:
 											</span>{" "}
 											{formatDateTime(
@@ -894,19 +1114,69 @@ export function RoutineSchedulesContent() {
 					</div>
 				)}
 			</div>
+			<AlertDialog
+				open={Boolean(schedulePendingDelete)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setSchedulePendingDelete(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Routine</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will delete "{schedulePendingDelete?.name ?? "this routine"}"
+							and remove future scheduled runs.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel
+							disabled={
+								schedulePendingDelete
+									? busyScheduleId === schedulePendingDelete.scheduleId
+									: false
+							}
+						>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={
+								!schedulePendingDelete ||
+								busyScheduleId === schedulePendingDelete.scheduleId
+							}
+							onClick={() => {
+								if (schedulePendingDelete) {
+									void deleteSchedule(schedulePendingDelete.scheduleId);
+								}
+							}}
+							variant="destructive"
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 			<Dialog
 				open={isCreateOpen}
 				onOpenChange={(open) => {
 					setIsCreateOpen(open);
 					if (!open) {
 						setCreateFormError(null);
+						setEditingSchedule(null);
 					}
 				}}
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>Create Routine</DialogTitle>
-						<DialogDescription>Create a scheduler routine.</DialogDescription>
+						<DialogTitle>
+							{editingSchedule ? "Edit Routine" : "Create Routine"}
+						</DialogTitle>
+						<DialogDescription>
+							{editingSchedule
+								? "Update this scheduler routine."
+								: "Create a scheduler routine."}
+						</DialogDescription>
 					</DialogHeader>
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1273,7 +1543,13 @@ export function RoutineSchedulesContent() {
 							onClick={() => void submitCreateForm()}
 							disabled={isCreating}
 						>
-							{isCreating ? "Creating..." : "Create Schedule"}
+							{isCreating
+								? editingSchedule
+									? "Saving..."
+									: "Creating..."
+								: editingSchedule
+									? "Save Changes"
+									: "Create Schedule"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
