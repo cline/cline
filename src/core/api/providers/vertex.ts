@@ -57,11 +57,17 @@ export class VertexHandler implements ApiHandler {
 			}
 			try {
 				const externalHeaders = buildExternalBasicHeaders()
-				// Initialize Anthropic client for Claude models
+				// Initialize Anthropic client for Claude models.
+				// The AnthropicVertex SDK constructs the base URL as `${region}-aiplatform.googleapis.com`,
+				// but the global endpoint uses `aiplatform.googleapis.com` (no region prefix).
+				// See: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models#global
 				this.clientAnthropic = new AnthropicVertex({
 					projectId: this.options.vertexProjectId,
 					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 					region: this.options.vertexRegion,
+					...(this.options.vertexRegion === "global"
+						? { baseURL: "https://aiplatform.googleapis.com/v1" }
+						: {}),
 					defaultHeaders: externalHeaders,
 				})
 			} catch (error: any) {
