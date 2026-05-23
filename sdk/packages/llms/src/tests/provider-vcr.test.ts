@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { disposeAll, initVcr } from "@cline/shared";
@@ -360,53 +360,24 @@ function sanitizeProviderResponseEventLine(input: string): string {
 	}
 }
 
+function sanitizeProviderResponseJsonText(input: string): string | undefined {
+	try {
+		const parsed: unknown = JSON.parse(input);
+		return JSON.stringify(sanitizeProviderResponseValue(parsed));
+	} catch {
+		return undefined;
+	}
+}
+
 function sanitizeProviderResponseEvents(input: string): string {
 	return input.split("\n").map(sanitizeProviderResponseEventLine).join("\n");
 }
 
 function sanitizeProviderResponseText(input: string): string {
-	const normalizedText = input
-		.replaceAll(
-			/"encrypted_content":"[^"]*"/g,
-			'"encrypted_content":"REDACTED"',
-		)
-		.replaceAll(
-			/"safety_identifier":"[^"]*"/g,
-			'"safety_identifier":"REDACTED"',
-		)
-		.replaceAll(/"prompt_cache_key":"[^"]*"/g, '"prompt_cache_key":"REDACTED"')
-		.replaceAll(/"obfuscation":"[^"]*"/g, '"obfuscation":"REDACTED"')
-		.replaceAll(/"id":"[^"]*"/g, '"id":"ID_REDACTED"')
-		.replaceAll(/"item_id":"[^"]*"/g, '"item_id":"ID_REDACTED"')
-		.replaceAll(/"response_id":"[^"]*"/g, '"response_id":"ID_REDACTED"')
-		.replaceAll(/"call_id":"[^"]*"/g, '"call_id":"ID_REDACTED"')
-		.replaceAll(
-			/"system_fingerprint":"[^"]*"/g,
-			'"system_fingerprint":"REDACTED"',
-		)
-		.replaceAll(/"generationId":"[^"]*"/g, '"generationId":"ID_REDACTED"')
-		.replaceAll(
-			/"providerRequestId":"[^"]*"/g,
-			'"providerRequestId":"ID_REDACTED"',
-		)
-		.replaceAll(
-			/"providerResponseId":"[^"]*"/g,
-			'"providerResponseId":"ID_REDACTED"',
-		)
-		.replaceAll(
-			/"planningReasoning":"[^"]*"/g,
-			'"planningReasoning":"REDACTED"',
-		)
-		.replaceAll(
-			/"previous_response_id":"[^"]*"/g,
-			'"previous_response_id":"ID_REDACTED"',
-		)
-		.replaceAll(/"created":\d+/g, '"created":0')
-		.replaceAll(/"created_at":\d+/g, '"created_at":0')
-		.replaceAll(/"completed_at":\d+/g, '"completed_at":0')
-		.replaceAll(/"startTime":\d+/g, '"startTime":0')
-		.replaceAll(/"endTime":\d+/g, '"endTime":0');
-	return sanitizeProviderResponseEvents(normalizedText);
+	return (
+		sanitizeProviderResponseJsonText(input) ??
+		sanitizeProviderResponseEvents(input)
+	);
 }
 
 function scrubRecordedCassette(cassettePath: string): void {
@@ -438,6 +409,8 @@ afterEach(async () => {
 				scrubRecordedCassette(cassettePath);
 			} else if (originalContents !== undefined) {
 				writeFileSync(cassettePath, originalContents);
+			} else if (existsSync(cassettePath)) {
+				unlinkSync(cassettePath);
 			}
 		}
 		activeCassettePath = undefined;
