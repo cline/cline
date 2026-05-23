@@ -33,7 +33,7 @@ const navCategories = [
 	"Providers",
 	"Extensions",
 	"MCP",
-	"Routine",
+	"Schedules",
 	"Account",
 ] as const;
 
@@ -476,7 +476,7 @@ export function SettingsView({
 						)
 					) : activeNav === "MCP" ? (
 						<McpServersContent />
-					) : activeNav === "Routine" ? (
+					) : activeNav === "Schedules" ? (
 						<RoutineSchedulesContent />
 					) : activeNav === "Extensions" ? (
 						<RulesView />

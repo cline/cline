@@ -50,14 +50,20 @@ import {
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 
+type DateTimeValue = number | string;
+
 interface RoutineSchedule {
 	scheduleId: string;
 	name: string;
 	cronPattern: string;
 	prompt: string;
-	provider: string;
-	model: string;
-	mode: "act" | "plan";
+	provider?: string;
+	model?: string;
+	modelSelection?: {
+		providerId?: string;
+		modelId?: string;
+	};
+	mode: "act" | "plan" | "yolo";
 	workspaceRoot?: string;
 	cwd?: string;
 	systemPrompt?: string;
@@ -65,10 +71,10 @@ interface RoutineSchedule {
 	timeoutSeconds?: number;
 	maxParallel: number;
 	enabled: boolean;
-	createdAt: string;
-	updatedAt: string;
-	lastRunAt?: string;
-	nextRunAt?: string;
+	createdAt: DateTimeValue;
+	updatedAt: DateTimeValue;
+	lastRunAt?: DateTimeValue;
+	nextRunAt?: DateTimeValue;
 	tags?: string[];
 }
 
@@ -76,14 +82,14 @@ interface RoutineExecution {
 	executionId: string;
 	scheduleId: string;
 	sessionId?: string;
-	startedAt: string;
-	timeoutAt?: string;
+	startedAt?: DateTimeValue;
+	timeoutAt?: DateTimeValue;
 }
 
 interface RoutineUpcomingRun {
 	scheduleId: string;
 	name: string;
-	nextRunAt: string;
+	nextRunAt: DateTimeValue;
 }
 
 interface RoutineOverviewResponse {
@@ -153,15 +159,37 @@ interface RoutineFormState {
 	enabled: boolean;
 }
 
-function formatDateTime(value?: string): string {
-	if (!value || value.trim().length === 0) {
+function formatDateTime(value?: DateTimeValue | null): string {
+	if (value === undefined || value === null) {
 		return "-";
 	}
-	const parsed = new Date(value);
+	if (typeof value === "number") {
+		if (!Number.isFinite(value)) {
+			return "-";
+		}
+		const parsed = new Date(value);
+		return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleString();
+	}
+	const trimmed = value.trim();
+	if (trimmed.length === 0) {
+		return "-";
+	}
+	const parsed = new Date(trimmed);
 	if (Number.isNaN(parsed.getTime())) {
-		return value;
+		return trimmed;
 	}
 	return parsed.toLocaleString();
+}
+
+function formatScheduleModel(schedule: RoutineSchedule): string {
+	const provider =
+		schedule.modelSelection?.providerId?.trim() || schedule.provider?.trim();
+	const model =
+		schedule.modelSelection?.modelId?.trim() || schedule.model?.trim();
+	if (provider && model) {
+		return `${provider}/${model}`;
+	}
+	return model || provider || "-";
 }
 
 function parseOptionalPositiveInt(text: string): number | undefined {
@@ -814,7 +842,7 @@ export function RoutineSchedulesContent() {
 										</p>
 										<p>
 											<span className="text-muted-foreground/70">Model:</span>{" "}
-											{schedule.provider}/{schedule.model}
+											{formatScheduleModel(schedule)}
 										</p>
 										{schedule.workspaceRoot && (
 											<p>
@@ -1115,17 +1143,6 @@ export function RoutineSchedulesContent() {
 							</Select>
 						</div>
 
-						<div className="flex items-end gap-3 pb-1">
-							<Switch
-								checked={createForm.enabled}
-								onCheckedChange={(checked) =>
-									setCreateForm((prev) => ({ ...prev, enabled: checked }))
-								}
-								aria-label="Enable routine"
-							/>
-							<span className="text-sm text-foreground">Enabled</span>
-						</div>
-
 						<div className="sm:col-span-2">
 							<Label htmlFor="routine-workspace">Workspace root</Label>
 							<Input
@@ -1256,7 +1273,7 @@ export function RoutineSchedulesContent() {
 							onClick={() => void submitCreateForm()}
 							disabled={isCreating}
 						>
-							{isCreating ? "Creating..." : "Create Routine"}
+							{isCreating ? "Creating..." : "Create Schedule"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
