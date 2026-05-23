@@ -281,6 +281,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
 		hooksEnabled: { user: false, featureFlag: false },
+
+		// HTML Preview state — must be initialized so HtmlPreviewPanel never
+		// reads .length on undefined during the pre-hydration render.
+		workspaceHtmlFiles: [],
+		htmlPreviewVersion: 0,
+		htmlPreviewActiveId: null,
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
