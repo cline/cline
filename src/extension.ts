@@ -2,6 +2,8 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import assert from "node:assert"
+import * as fs from "node:fs"
+import os from "node:os"
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
 import * as vscode from "vscode"
 import { previewHtml } from "./core/controller/htmlPreview/previewHtml"
@@ -468,6 +470,63 @@ export async function activate(context: vscode.ExtensionContext) {
 	const HTML_EXTS = new Set([".html", ".htm"])
 	const promptedHtmlUris = new Set<string>()
 
+	// ── AI-Hydro module auto-open (no prompt) ──────────────────────────────
+	// If an HTML file contains the AI-Hydro module manifest block, open it
+	// directly in the HTML Preview panel — no "Add to preview?" prompt.
+	const AIHYDRO_MANIFEST_MARKER = "application/vnd.aihydro.module+json"
+	const autoOpenedUris = new Set<string>()
+
+	const autoOpenIfAiHydroModule = async (uri: vscode.Uri): Promise<boolean> => {
+		if (uri.scheme !== "file") {
+			return false
+		}
+		const ext = path.extname(uri.fsPath).toLowerCase()
+		if (!HTML_EXTS.has(ext)) {
+			return false
+		}
+		try {
+			// Read first 16 KB — manifest lives in <head>, so this is plenty.
+			const fd = await fs.promises.open(uri.fsPath, "r")
+			let head: string
+			try {
+				const buf = Buffer.alloc(16 * 1024)
+				const { bytesRead } = await fd.read(buf, 0, buf.length, 0)
+				head = buf.slice(0, bytesRead).toString("utf-8")
+			} finally {
+				await fd.close()
+			}
+			if (!head.includes(AIHYDRO_MANIFEST_MARKER)) {
+				return false
+			}
+
+			const stat = await fs.promises.stat(uri.fsPath)
+			const key = `${uri.toString()}@${stat.mtimeMs}`
+			if (autoOpenedUris.has(key)) {
+				return true
+			}
+			autoOpenedUris.add(key)
+			if (autoOpenedUris.size > 200) {
+				autoOpenedUris.clear()
+			}
+
+			await VscodeHtmlPreviewProvider.createOrShow()
+			await previewHtml(
+				webview.controller,
+				PreviewHtmlRequest.create({
+					htmlContent: "",
+					title: path.basename(uri.fsPath),
+					filePath: uri.fsPath,
+				}),
+			)
+			promptedHtmlUris.add(uri.toString())
+			console.log("[AI-Hydro] Auto-opened AI-Hydro module in HTML Preview:", uri.fsPath)
+			return true
+		} catch (err) {
+			console.warn("[AI-Hydro] autoOpenIfAiHydroModule failed:", err)
+			return false
+		}
+	}
+
 	const promptAddToHtmlPreview = async (uri: vscode.Uri) => {
 		const key = uri.toString()
 		if (promptedHtmlUris.has(key)) {
@@ -518,7 +577,12 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!HTML_EXTS.has(ext)) {
 				return
 			}
-			void promptAddToHtmlPreview(doc.uri)
+			// Auto-open AI-Hydro modules silently; fall back to prompt for plain HTML
+			void autoOpenIfAiHydroModule(doc.uri).then((handled) => {
+				if (!handled) {
+					void promptAddToHtmlPreview(doc.uri)
+				}
+			})
 		}),
 	)
 
@@ -539,6 +603,77 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}),
 	)
+
+	// Trigger auto-open on file creation (e.g. agent's write_to_file)
+	context.subscriptions.push(
+		vscode.workspace.onDidCreateFiles((event) => {
+			for (const uri of event.files) {
+				void autoOpenIfAiHydroModule(uri)
+			}
+		}),
+	)
+
+	// Trigger auto-open on save (e.g. agent edits an existing module)
+	context.subscriptions.push(
+		vscode.workspace.onDidSaveTextDocument((doc) => {
+			void autoOpenIfAiHydroModule(doc.uri)
+		}),
+	)
+
+	// ── MCP-driven preview requests ────────────────────────────────────────
+	// The aihydro-tools `show_html_preview(file_path)` MCP tool drops a JSON
+	// marker file into ~/.aihydro/preview-requests/. We watch that directory
+	// and open any file referenced there in the HTML Preview panel.
+	const PREVIEW_REQUESTS_DIR = path.join(os.homedir(), ".aihydro", "preview-requests")
+	void fs.promises.mkdir(PREVIEW_REQUESTS_DIR, { recursive: true }).catch(() => {})
+
+	const handlePreviewRequest = async (requestPath: string) => {
+		try {
+			const raw = await fs.promises.readFile(requestPath, "utf-8")
+			const req = JSON.parse(raw) as { file_path?: string; title?: string }
+			if (!req.file_path) {
+				return
+			}
+			await VscodeHtmlPreviewProvider.createOrShow()
+			await previewHtml(
+				webview.controller,
+				PreviewHtmlRequest.create({
+					htmlContent: "",
+					title: req.title || path.basename(req.file_path),
+					filePath: req.file_path,
+				}),
+			)
+			promptedHtmlUris.add(vscode.Uri.file(req.file_path).toString())
+			console.log("[AI-Hydro] MCP preview-request opened:", req.file_path)
+		} catch (err) {
+			console.warn("[AI-Hydro] handlePreviewRequest failed:", err)
+		} finally {
+			await fs.promises.unlink(requestPath).catch(() => {})
+		}
+	}
+
+	const previewRequestWatcher = vscode.workspace.createFileSystemWatcher(
+		new vscode.RelativePattern(vscode.Uri.file(PREVIEW_REQUESTS_DIR), "*.json"),
+		false /* ignoreCreateEvents */,
+		true /* ignoreChangeEvents */,
+		true /* ignoreDeleteEvents */,
+	)
+	previewRequestWatcher.onDidCreate((uri) => void handlePreviewRequest(uri.fsPath))
+	context.subscriptions.push(previewRequestWatcher)
+
+	// Process any markers that already exist at startup
+	void (async () => {
+		try {
+			const entries = await fs.promises.readdir(PREVIEW_REQUESTS_DIR)
+			for (const entry of entries) {
+				if (entry.endsWith(".json")) {
+					await handlePreviewRequest(path.join(PREVIEW_REQUESTS_DIR, entry))
+				}
+			}
+		} catch {
+			/* ignore */
+		}
+	})()
 
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a
