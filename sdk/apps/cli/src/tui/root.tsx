@@ -235,10 +235,16 @@ function App(props: TuiProps) {
 	});
 
 	const clearConversation = useCallback(async () => {
+		const shouldRestartSession = session.hasSubmitted;
 		session.clearEntries();
 		session.setHasSubmitted(false);
+		if (!shouldRestartSession) {
+			setAppView("home");
+			refocusTextareaRef.current();
+			return;
+		}
 		try {
-			await props.onSessionRestart();
+			await props.onNewSession();
 			setAppView("home");
 		} catch (error) {
 			setAppView("chat");

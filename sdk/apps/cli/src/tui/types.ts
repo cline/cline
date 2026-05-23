@@ -162,6 +162,7 @@ export interface TuiProps {
 	onCompactionModeChange: (mode: CliCompactionMode) => Promise<void>;
 	onModelChange: () => Promise<void>;
 	onModeChange: (mode: AgentMode) => Promise<void>;
+	onNewSession: () => Promise<void>;
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
 	onResumeSession: (sessionId: string) => Promise<ResumedSessionResult>;

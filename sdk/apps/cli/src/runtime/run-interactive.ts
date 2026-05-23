@@ -585,6 +585,9 @@ export async function runInteractive(
 			}
 			await applyModeChange(mode);
 		},
+		onNewSession: async () => {
+			await sessionRuntime.resetForNewSession();
+		},
 		onModelChange: async () => {
 			await sessionRuntime.ensureReady();
 			const existing = providerSettingsManager.getProviderSettings(
