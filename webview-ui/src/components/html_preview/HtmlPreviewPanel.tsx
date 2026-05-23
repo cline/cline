@@ -385,65 +385,17 @@ export const HtmlPreviewPanel: React.FC = () => {
 									if (manifest?.license) subParts.push(String(manifest.license))
 									const subline = subParts.join(" · ")
 									return (
-										<div
+										<SidebarItemCard
+											authorLine={authorLine}
+											displayTitle={displayTitle}
+											fg={fg}
+											isActive={isActive}
+											isModule={Boolean(manifest)}
 											key={item.id}
-											onClick={() => setActiveItemId(item.id)}
-											style={{
-												display: "flex",
-												alignItems: "flex-start",
-												gap: 6,
-												padding: "5px 10px",
-												fontSize: 11,
-												color: isActive ? "var(--vscode-list-activeSelectionForeground, #fff)" : fg,
-												cursor: "pointer",
-												background: isActive
-													? "var(--vscode-list-activeSelectionBackground, #0e639c)"
-													: "transparent",
-												borderRadius: 3,
-												margin: "0 4px 2px",
-											}}>
-											<span style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>
-												{manifest ? "🎓" : "📄"}
-											</span>
-											<span
-												className="truncate"
-												style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-												<span className="truncate">{displayTitle}</span>
-												{authorLine && (
-													<span
-														className="truncate"
-														style={{ fontSize: 10, opacity: 0.65, marginTop: 1 }}
-														title={authorLine}>
-														{authorLine}
-													</span>
-												)}
-												{subline && (
-													<span
-														className="truncate"
-														style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
-														{subline}
-													</span>
-												)}
-											</span>
-											<button
-												onClick={(e) => {
-													e.stopPropagation()
-													removeItem(item.id)
-												}}
-												style={{
-													padding: "1px 4px",
-													background: "transparent",
-													border: "none",
-													color: fg,
-													opacity: 0.4,
-													cursor: "pointer",
-													fontSize: 10,
-												}}
-												title="Remove preview"
-												type="button">
-												×
-											</button>
-										</div>
+											onRemove={() => removeItem(item.id)}
+											onSelect={() => setActiveItemId(item.id)}
+											subline={subline}
+										/>
 									)
 								})}
 							</div>
@@ -451,9 +403,16 @@ export const HtmlPreviewPanel: React.FC = () => {
 					</div>
 				)}
 
-				{/* Sidebar footer — Add File button */}
+				{/* Sidebar footer — Add File + Clear All */}
 				{!sidebarCollapsed && (
-					<div style={{ padding: "6px 8px", borderTop: `1px solid ${border}` }}>
+					<div
+						style={{
+							padding: "6px 8px",
+							borderTop: `1px solid ${border}`,
+							display: "flex",
+							flexDirection: "column",
+							gap: 4,
+						}}>
 						<button
 							onClick={onPickFiles}
 							style={{
@@ -466,10 +425,66 @@ export const HtmlPreviewPanel: React.FC = () => {
 								border: "none",
 								borderRadius: 3,
 								cursor: "pointer",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								gap: 4,
 							}}
 							type="button">
-							＋ Add File
+							<span className="codicon codicon-add" style={{ fontSize: 11 }} />
+							Add File
 						</button>
+						{items.length > 0 &&
+							(confirmingClear ? (
+								<div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "center" }}>
+									<span style={{ fontSize: 10, color: danger }}>Remove all {items.length}?</span>
+									<button
+										onClick={handleClearAll}
+										style={{
+											padding: "2px 7px",
+											fontSize: 10,
+											background: danger,
+											color: "#fff",
+											border: "none",
+											borderRadius: 3,
+											cursor: "pointer",
+										}}
+										type="button">
+										Yes
+									</button>
+									<button
+										onClick={() => setConfirmingClear(false)}
+										style={{
+											padding: "2px 7px",
+											fontSize: 10,
+											background: "transparent",
+											color: fg,
+											border: `1px solid ${border}`,
+											borderRadius: 3,
+											cursor: "pointer",
+										}}
+										type="button">
+										No
+									</button>
+								</div>
+							) : (
+								<button
+									onClick={() => setConfirmingClear(true)}
+									style={{
+										width: "100%",
+										padding: "3px 0",
+										fontSize: 10,
+										background: "transparent",
+										color: danger,
+										border: "none",
+										cursor: "pointer",
+										opacity: 0.7,
+									}}
+									title="Remove all loaded previews"
+									type="button">
+									Clear all previews
+								</button>
+							))}
 					</div>
 				)}
 			</div>
@@ -496,122 +511,52 @@ export const HtmlPreviewPanel: React.FC = () => {
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "space-between",
-							padding: panelChromeExpanded ? "6px 10px" : "4px 10px",
-							gap: 8,
-							minHeight: panelChromeExpanded ? 36 : 28,
+							padding: "0 8px 0 4px",
+							gap: 6,
+							height: 28,
 						}}>
-						<div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+						{/* Left: collapse toggle + title + load status */}
+						<div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
 							<CollapseToggleButton
 								expanded={panelChromeExpanded}
 								onToggle={togglePanelChrome}
 								title={panelChromeExpanded ? "Collapse panel header" : "Expand panel header"}
 							/>
 							<span style={{ fontSize: 12, fontWeight: 600, color: fg, whiteSpace: "nowrap" }}>HTML Preview</span>
-							<span style={{ fontSize: 10, opacity: 0.6, color: fg }}>
-								{items.length === 0 ? "Empty" : `${items.length} item${items.length === 1 ? "" : "s"}`}
-							</span>
-							{!panelChromeExpanded && activeItem && items.length > 0 && (
+							{loadStatus.msg && (
 								<span
 									style={{
 										fontSize: 10,
-										color: "var(--vscode-descriptionForeground, #999)",
+										color: loadStatus.kind === "err" ? danger : "var(--vscode-descriptionForeground, #888)",
 										overflow: "hidden",
 										textOverflow: "ellipsis",
 										whiteSpace: "nowrap",
-										maxWidth: 140,
-									}}
-									title={activeItem.title || "Preview"}>
-									· {activeItem.title || "Preview"}
-								</span>
-							)}
-							{panelChromeExpanded && loadStatus.msg && (
-								<span
-									style={{
-										fontSize: 10,
-										color: loadStatus.kind === "err" ? danger : "var(--vscode-descriptionForeground, #999)",
-										marginLeft: 4,
 									}}>
-									{loadStatus.msg}
+									· {loadStatus.msg}
 								</span>
 							)}
 						</div>
-						<div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-							{/* Modules marketplace toggle */}
-							<button
-								onClick={() => setActiveSection((s) => (s === "modules" ? "preview" : "modules"))}
-								style={{
-									padding: panelChromeExpanded ? "4px 10px" : "3px 8px",
-									fontSize: 11,
-									background: activeSection === "modules" ? "rgba(0,184,212,0.16)" : "transparent",
-									border:
-										activeSection === "modules"
-											? "1px solid rgba(0,184,212,0.4)"
-											: "1px solid var(--vscode-panel-border, rgba(255,255,255,0.12))",
-									borderRadius: 3,
-									color:
-										activeSection === "modules"
-											? "var(--vscode-textLink-foreground, #06b6d4)"
-											: "var(--vscode-foreground, #ddd)",
-									cursor: "pointer",
-									fontWeight: 500,
-								}}
-								title="Browse learning modules marketplace"
-								type="button">
-								Modules
-							</button>
-							{items.length > 0 &&
-								activeSection === "preview" &&
-								(confirmingClear ? (
-									<div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-										<span style={{ fontSize: 10, color: danger }}>Remove all {items.length}?</span>
-										<button
-											onClick={handleClearAll}
-											style={{
-												padding: "3px 8px",
-												fontSize: 10,
-												background: danger,
-												color: "#fff",
-												border: "none",
-												borderRadius: 3,
-												cursor: "pointer",
-											}}
-											type="button">
-											Yes
-										</button>
-										<button
-											onClick={() => setConfirmingClear(false)}
-											style={{
-												padding: "3px 8px",
-												fontSize: 10,
-												background: "transparent",
-												color: fg,
-												border: `1px solid ${border}`,
-												borderRadius: 3,
-												cursor: "pointer",
-											}}
-											type="button">
-											No
-										</button>
-									</div>
-								) : (
-									<button
-										onClick={() => setConfirmingClear(true)}
-										style={{
-											padding: panelChromeExpanded ? "4px 10px" : "3px 8px",
-											fontSize: 11,
-											background: "rgba(220,53,69,0.08)",
-											border: "1px solid rgba(220,53,69,0.28)",
-											borderRadius: 3,
-											color: danger,
-											cursor: "pointer",
-											fontWeight: 500,
-										}}
-										title="Clear all previews"
-										type="button">
-										{panelChromeExpanded ? "Clear All" : "Clear"}
-									</button>
-								))}
-						</div>
+						{/* Right: icon-only Modules toggle */}
+						<button
+							onClick={() => setActiveSection((s) => (s === "modules" ? "preview" : "modules"))}
+							style={{
+								width: 26,
+								height: 26,
+								display: "inline-flex",
+								alignItems: "center",
+								justifyContent: "center",
+								padding: 0,
+								background: activeSection === "modules" ? "rgba(0,163,255,0.12)" : "transparent",
+								border: activeSection === "modules" ? "1px solid rgba(0,163,255,0.35)" : "1px solid transparent",
+								borderRadius: 4,
+								color: activeSection === "modules" ? "var(--vscode-textLink-foreground, #00A3FF)" : fg,
+								cursor: "pointer",
+								flexShrink: 0,
+							}}
+							title={activeSection === "modules" ? "Back to preview" : "Learning Modules Marketplace"}
+							type="button">
+							<span className="codicon codicon-extensions" style={{ fontSize: 14 }} />
+						</button>
 					</div>
 
 					{/* Tab bar for multiple previews */}
@@ -812,6 +757,132 @@ const EmptyState: React.FC<{ onAddFile: () => void; isDragOver: boolean; workspa
 					</ul>
 				</div>
 			</div>
+		</div>
+	)
+}
+
+// ─── SidebarItemCard ────────────────────────────────────────────────────────
+// Rich 3-line card for loaded items: icon + title + author + metadata pill.
+// Uses onMouseEnter/Leave for hover-fade close button (no CSS modules needed).
+
+const SidebarItemCard: React.FC<{
+	isActive: boolean
+	isModule: boolean
+	displayTitle: string
+	authorLine: string | undefined
+	subline: string
+	fg: string
+	onSelect: () => void
+	onRemove: () => void
+}> = ({ isActive, isModule, displayTitle, authorLine, subline, fg, onSelect, onRemove }) => {
+	const [hovered, setHovered] = useState(false)
+
+	const bg = isActive
+		? "var(--vscode-list-activeSelectionBackground, #0e639c)"
+		: hovered
+			? "rgba(255,255,255,0.05)"
+			: "transparent"
+
+	const textColor = isActive ? "var(--vscode-list-activeSelectionForeground, #fff)" : fg
+	const metaColor = isActive ? "rgba(255,255,255,0.7)" : "var(--vscode-descriptionForeground, #888)"
+
+	return (
+		<div
+			onClick={onSelect}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			style={{
+				display: "flex",
+				alignItems: "flex-start",
+				gap: 6,
+				padding: "6px 10px",
+				cursor: "pointer",
+				background: bg,
+				borderLeft: isActive ? "2px solid var(--vscode-textLink-foreground, #00A3FF)" : "2px solid transparent",
+				borderRadius: "0 3px 3px 0",
+				margin: "0 4px 2px 2px",
+				transition: "background 0.12s",
+			}}>
+			{/* Icon */}
+			<span
+				style={{
+					fontSize: 14,
+					flexShrink: 0,
+					marginTop: 1,
+					lineHeight: 1,
+				}}>
+				{isModule ? "🎓" : "📄"}
+			</span>
+
+			{/* Text column */}
+			<span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+				<span
+					style={{
+						fontSize: 11,
+						fontWeight: 600,
+						color: textColor,
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
+					}}
+					title={displayTitle}>
+					{displayTitle}
+				</span>
+				{authorLine && (
+					<span
+						style={{
+							fontSize: 10,
+							color: metaColor,
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+						}}
+						title={authorLine}>
+						{authorLine}
+					</span>
+				)}
+				{subline && (
+					<span
+						style={{
+							fontSize: 10,
+							color: metaColor,
+							opacity: 0.8,
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+						}}>
+						{subline}
+					</span>
+				)}
+			</span>
+
+			{/* Close button — fades in on hover */}
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					onRemove()
+				}}
+				style={{
+					width: 18,
+					height: 18,
+					display: "inline-flex",
+					alignItems: "center",
+					justifyContent: "center",
+					padding: 0,
+					background: "transparent",
+					border: "none",
+					color: textColor,
+					cursor: "pointer",
+					opacity: hovered || isActive ? 0.6 : 0,
+					transition: "opacity 0.15s",
+					flexShrink: 0,
+					fontSize: 13,
+					borderRadius: 3,
+				}}
+				title="Remove preview"
+				type="button">
+				×
+			</button>
 		</div>
 	)
 }

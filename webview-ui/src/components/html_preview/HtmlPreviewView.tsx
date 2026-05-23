@@ -1001,23 +1001,54 @@ const Sep = () => <span style={{ color: "var(--vscode-descriptionForeground, #99
 
 // ─── Overlays / fallbacks ──────────────────────────────────────────────
 
-const LoadingOverlay: React.FC = () => (
-	<div
-		style={{
-			position: "absolute",
-			inset: 0,
-			zIndex: 10,
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-			background: "rgba(30,30,30,0.65)",
-			color: "var(--vscode-foreground, #ddd)",
-			fontSize: 12,
-			pointerEvents: "none",
-		}}>
-		Loading preview…
-	</div>
-)
+/** Inject the spin keyframe once (idempotent). */
+function ensureSpinStyle() {
+	if (typeof document === "undefined") return
+	if (document.getElementById("aihydro-spin-style")) return
+	const el = document.createElement("style")
+	el.id = "aihydro-spin-style"
+	el.textContent = `@keyframes aihydro-spin { to { transform: rotate(360deg); } }`
+	document.head.appendChild(el)
+}
+
+const LoadingOverlay: React.FC = () => {
+	ensureSpinStyle()
+	return (
+		<div
+			style={{
+				position: "absolute",
+				inset: 0,
+				zIndex: 10,
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "center",
+				justifyContent: "center",
+				gap: 12,
+				background: "rgba(20,20,28,0.72)",
+				pointerEvents: "none",
+			}}>
+			{/* Spinning ring */}
+			<div
+				style={{
+					width: 28,
+					height: 28,
+					borderRadius: "50%",
+					border: "2.5px solid rgba(255,255,255,0.12)",
+					borderTopColor: "#00A3FF",
+					animation: "aihydro-spin 0.75s linear infinite",
+				}}
+			/>
+			<span
+				style={{
+					fontSize: 12,
+					color: "var(--vscode-descriptionForeground, #999)",
+					letterSpacing: "0.3px",
+				}}>
+				Loading preview…
+			</span>
+		</div>
+	)
+}
 
 const ErrorOverlay: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
 	<div
@@ -1029,23 +1060,46 @@ const ErrorOverlay: React.FC<{ message: string; onRetry: () => void }> = ({ mess
 			flexDirection: "column",
 			alignItems: "center",
 			justifyContent: "center",
-			gap: 12,
-			padding: 24,
+			gap: 14,
+			padding: 32,
 			background: "var(--vscode-editor-background, #1e1e1e)",
-			color: "var(--vscode-errorForeground, #f48771)",
 			textAlign: "center",
 		}}>
-		<div style={{ fontSize: 13 }}>{message}</div>
+		{/* Warning icon */}
+		<svg
+			fill="none"
+			height="36"
+			stroke="var(--vscode-errorForeground, #f48771)"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="1.5"
+			viewBox="0 0 24 24"
+			width="36">
+			<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+			<line x1="12" x2="12" y1="9" y2="13" />
+			<line x1="12" x2="12.01" y1="17" y2="17" />
+		</svg>
+		<div
+			style={{
+				fontSize: 13,
+				color: "var(--vscode-errorForeground, #f48771)",
+				maxWidth: 360,
+				lineHeight: 1.5,
+			}}>
+			{message}
+		</div>
 		<button
 			onClick={onRetry}
 			style={{
-				padding: "6px 12px",
+				padding: "6px 16px",
 				fontSize: 12,
-				background: "var(--vscode-button-secondaryBackground, #3a3d41)",
-				color: "var(--vscode-button-secondaryForeground, #fff)",
-				border: "none",
-				borderRadius: 3,
+				fontWeight: 500,
+				background: "transparent",
+				color: "var(--vscode-foreground, #ddd)",
+				border: "1px solid rgba(255,255,255,0.2)",
+				borderRadius: 4,
 				cursor: "pointer",
+				transition: "background 0.12s",
 			}}
 			type="button">
 			Retry
