@@ -4,6 +4,19 @@ import { __test__ } from "./slack";
 describe("slack binding lookup", () => {
 	const participantKey = __test__.buildSlackParticipantKey("T123", "U123");
 
+	it("accepts the documented --token alias for the bot token", () => {
+		expect(
+			__test__.parseSlackOptionsForTest([
+				"--token",
+				"xoxb-documented-token",
+				"--signing-secret",
+				"secret",
+				"--base-url",
+				"http://127.0.0.1:8787",
+			]).botToken,
+		).toBe("xoxb-documented-token");
+	});
+
 	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
 		const result = __test__.findBindingForThread(
 			{
@@ -155,6 +168,39 @@ describe("slack binding lookup", () => {
 		expect(__test__.normalizeSlackMessageEventChannelType(channelEvent)).toBe(
 			channelEvent,
 		);
+	});
+
+	it("strips a leading Slack mention before command handling", () => {
+		expect(__test__.stripLeadingSlackMention("<@U123> /help")).toBe("/help");
+		expect(__test__.stripLeadingSlackMention("<@U123> /help", "U999")).toBe(
+			"<@U123> /help",
+		);
+		expect(__test__.stripLeadingSlackMention("<@U123> /help", "U123")).toBe(
+			"/help",
+		);
+		expect(__test__.stripLeadingSlackMention(" <@U123|Cline> /whereami")).toBe(
+			"/whereami",
+		);
+		expect(__test__.stripLeadingSlackMention("hello <@U123> /help")).toBe(
+			"hello <@U123> /help",
+		);
+	});
+
+	it("uses raw Slack mention markup for command handling when display text is normalized", () => {
+		expect(
+			__test__.resolveSlackTurnText({
+				text: "@Cline CLI Test /help",
+				raw: { text: "<@U123> /help" },
+				botUserId: "U123",
+			}),
+		).toBe("/help");
+		expect(
+			__test__.resolveSlackTurnText({
+				text: "@Other User /help",
+				raw: { text: "<@U999> /help" },
+				botUserId: "U123",
+			}),
+		).toBe("@Other User /help");
 	});
 
 	it("routes Slack posts through the installation bot token for a team", async () => {

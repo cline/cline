@@ -135,6 +135,23 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	await postConnectorText(thread, transport, text);
 }
 
+function isRuntimeSessionMissingError(
+	error: unknown,
+	sessionId: string,
+): boolean {
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "";
+	const escapedSessionId = sessionId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(
+		`\\b(?:session not found|Unknown session):\\s*${escapedSessionId}\\b`,
+		"i",
+	).test(message);
+}
+
 function applyForcedToolDisable<TState extends ConnectorThreadState>(
 	state: TState,
 	forceDisableTools: boolean | undefined,
@@ -971,8 +988,9 @@ export async function handleConnectorUserTurn<
 		sessionId,
 	});
 
+	let activeSessionId = sessionId;
 	input.activeTurns?.set(turnKey, {
-		sessionId,
+		sessionId: activeSessionId,
 		threadId: input.thread.id,
 		participantKey: currentState.participantKey,
 	});
@@ -983,14 +1001,17 @@ export async function handleConnectorUserTurn<
 				await input.postFinalReply?.({ thread: input.thread, text });
 			}
 		: undefined;
-	try {
+	const postRuntimeReply = async (
+		targetSessionId: string,
+		targetRequest: ChatRunTurnRequest,
+	) => {
 		await postConnectorRuntimeReply(
 			input.thread,
 			input.transport,
 			createConnectorRuntimeTurnStream({
 				client: input.client,
-				sessionId,
-				request,
+				sessionId: targetSessionId,
+				request: targetRequest,
 				clientId: input.clientId,
 				logger: input.logger,
 				transport: input.transport,
@@ -1020,7 +1041,7 @@ export async function handleConnectorUserTurn<
 				},
 				onCompleted: async (result) => {
 					await input.onReplyCompleted?.({
-						sessionId,
+						sessionId: targetSessionId,
 						threadId: input.thread.id,
 						text: result.text,
 						finishReason: result.finishReason,
@@ -1029,7 +1050,7 @@ export async function handleConnectorUserTurn<
 				},
 				onFailed: async (error) => {
 					await input.onReplyFailed?.({
-						sessionId,
+						sessionId: targetSessionId,
 						threadId: input.thread.id,
 						error,
 					});
@@ -1038,6 +1059,68 @@ export async function handleConnectorUserTurn<
 			postFinalReply,
 			resolveFallbackText,
 		);
+	};
+	try {
+		try {
+			await postRuntimeReply(activeSessionId, request);
+		} catch (error) {
+			const staleSessionId = currentState.sessionId?.trim();
+			if (
+				activeSessionId !== staleSessionId ||
+				!isRuntimeSessionMissingError(error, activeSessionId)
+			) {
+				throw error;
+			}
+			input.logger.core.log(
+				"Connector runtime session missing; starting replacement session",
+				{
+					severity: "warn",
+					transport: input.transport,
+					threadId: input.thread.id,
+					sessionId: activeSessionId,
+				},
+			);
+			await clearSession({
+				thread: input.thread,
+				client: input.client,
+				bindingsPath: input.bindingsPath,
+				baseStartRequest: input.baseStartRequest,
+				errorLabel: input.errorLabel,
+			});
+			const retryState = await loadThreadState(
+				input.thread,
+				input.bindingsPath,
+				input.baseStartRequest,
+			);
+			const retryStartRequest = buildThreadStartRequest(
+				input.baseStartRequest,
+				applyForcedToolDisable(retryState, input.forceDisableTools),
+			);
+			activeSessionId = await getOrCreateSessionId({
+				thread: input.thread,
+				client: input.client,
+				startRequest: retryStartRequest,
+				logger: input.logger,
+				clientId: input.clientId,
+				transport: input.transport,
+				bindingsPath: input.bindingsPath,
+				errorLabel: input.errorLabel,
+				hookCommand: input.hookCommand,
+				hookBotUserName: input.botUserName,
+				sessionMetadata: input.getSessionMetadata(
+					input.thread,
+					input.clientId,
+					retryState,
+				),
+				reusedLogMessage: input.reusedLogMessage,
+				startedLogMessage: input.startedLogMessage,
+			});
+			input.activeTurns?.set(turnKey, { sessionId: activeSessionId });
+			await postRuntimeReply(activeSessionId, {
+				...request,
+				config: retryStartRequest,
+			});
+		}
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
 		input.activeTurns?.delete(turnKey);
@@ -1051,7 +1134,7 @@ export async function handleConnectorUserTurn<
 		input.bindingsPath,
 		{
 			...currentState,
-			sessionId,
+			sessionId: activeSessionId,
 		},
 		input.errorLabel,
 	);
