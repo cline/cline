@@ -2,13 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { AccordionSection } from "@/components/common/AccordionSection"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { useHtmlPreviewContext } from "../../context/HtmlPreviewContext"
-import { CollapseToggleButton } from "./CollapseToggleButton"
 import { CommentSidebar } from "./CommentSidebar"
 import HtmlPreviewView from "./HtmlPreviewView"
 import ModulesMarketplaceView from "./marketplace/ModulesMarketplaceView"
-import { usePersistedExpanded } from "./usePersistedExpanded"
-
-export const PANEL_CHROME_EXPANDED_KEY = "aihydro.htmlPreview.panelChromeExpanded"
 
 /**
  * HtmlPreviewPanel — container for the HTML Preview tab.
@@ -47,7 +43,6 @@ export const HtmlPreviewPanel: React.FC = () => {
 	const [loadStatus, setLoadStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
 	const [confirmingClear, setConfirmingClear] = useState(false)
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-	const [panelChromeExpanded, togglePanelChrome] = usePersistedExpanded(PANEL_CHROME_EXPANDED_KEY, true)
 	const [activeSection, setActiveSection] = useState<"preview" | "modules">("preview")
 
 	// ── File picker ─────────────────────────────────────────────────────────
@@ -174,7 +169,9 @@ export const HtmlPreviewPanel: React.FC = () => {
 	const border = "var(--vscode-panel-border, rgba(255,255,255,0.12))"
 	const _subtle = "var(--vscode-panel-background, rgba(255,255,255,0.06))"
 	const danger = "var(--vscode-errorForeground, #dc3545)"
-	const sidebarWidth = sidebarCollapsed ? 36 : 220
+	// UI refinement: when collapsed, the sidebar disappears entirely (width 0).
+	// The hamburger ≡ button in the main HtmlPreviewToolbar re-opens it.
+	const sidebarWidth = sidebarCollapsed ? 0 : 240
 
 	// (No debug-banner hiding needed — the new VscodeHtmlPreviewProvider does
 	// not inject a pre-React banner.)
@@ -239,77 +236,16 @@ export const HtmlPreviewPanel: React.FC = () => {
 					width: sidebarWidth,
 					minWidth: sidebarWidth,
 					height: "100%",
-					borderRight: `1px solid ${border}`,
+					// No border when fully collapsed (sidebarWidth === 0)
+					borderRight: sidebarCollapsed ? "none" : `1px solid ${border}`,
 					background: "var(--vscode-sideBar-background, var(--vscode-editor-background))",
 					display: "flex",
 					flexDirection: "column",
 					overflow: "hidden",
 					transition: "width 0.2s ease",
 				}}>
-				{/* Sidebar header */}
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "space-between",
-						padding: "6px 8px",
-						borderBottom: `1px solid ${border}`,
-						minHeight: 32,
-					}}>
-					{!sidebarCollapsed && (
-						<span
-							style={{
-								fontSize: 11,
-								fontWeight: 700,
-								color: fg,
-								textTransform: "uppercase",
-								letterSpacing: "0.4px",
-							}}>
-							Files
-						</span>
-					)}
-					<button
-						onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-						style={{
-							padding: 2,
-							background: "transparent",
-							border: "none",
-							color: fg,
-							cursor: "pointer",
-							opacity: 0.7,
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-						}}
-						title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-						type="button">
-						{sidebarCollapsed ? (
-							<svg
-								fill="none"
-								height="14"
-								stroke="currentColor"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth="2"
-								viewBox="0 0 24 24"
-								width="14">
-								<path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
-							</svg>
-						) : (
-							<svg
-								fill="none"
-								height="14"
-								stroke="currentColor"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth="2"
-								viewBox="0 0 24 24"
-								width="14">
-								<path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
-							</svg>
-						)}
-					</button>
-				</div>
+				{/* Sidebar header removed — toolbar hamburger ≡ controls open/close,
+				    and the accordion sections (Files/Modules/Skills/Comments) need no title. */}
 
 				{!sidebarCollapsed && (
 					<div style={{ flex: 1, overflow: "auto" }}>
@@ -590,68 +526,34 @@ export const HtmlPreviewPanel: React.FC = () => {
 					minHeight: 0,
 					overflow: "hidden",
 				}}>
-				{/* Panel chrome: header + tabs (collapsible) */}
+				{/* Panel chrome: tab bar only (header removed — its info is in the main toolbar).
+				    The "HTML Preview" title, side-panel toggle, and Modules link all live in
+				    HtmlPreviewToolbar or the side-panel accordion now. Load status surfaces
+				    via the inline toast at the bottom (kept for error cases). */}
 				<div
 					style={{
-						borderBottom: `1px solid ${border}`,
 						background: "var(--vscode-editor-background)",
 						flex: "0 0 auto",
 					}}>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-between",
-							padding: "0 8px 0 4px",
-							gap: 6,
-							height: 28,
-						}}>
-						{/* Left: collapse toggle + title + load status */}
-						<div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
-							<CollapseToggleButton
-								expanded={panelChromeExpanded}
-								onToggle={togglePanelChrome}
-								title={panelChromeExpanded ? "Collapse panel header" : "Expand panel header"}
-							/>
-							<span style={{ fontSize: 12, fontWeight: 600, color: fg, whiteSpace: "nowrap" }}>HTML Preview</span>
-							{loadStatus.msg && (
-								<span
-									style={{
-										fontSize: 10,
-										color: loadStatus.kind === "err" ? danger : "var(--vscode-descriptionForeground, #888)",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										whiteSpace: "nowrap",
-									}}>
-									· {loadStatus.msg}
-								</span>
-							)}
-						</div>
-						{/* Right: icon-only Modules toggle */}
-						<button
-							onClick={() => setActiveSection((s) => (s === "modules" ? "preview" : "modules"))}
+					{/* Inline load status toast — only when there's something to show */}
+					{loadStatus.msg && (
+						<div
 							style={{
-								width: 26,
-								height: 26,
-								display: "inline-flex",
-								alignItems: "center",
-								justifyContent: "center",
-								padding: 0,
-								background: activeSection === "modules" ? "rgba(0,163,255,0.12)" : "transparent",
-								border: activeSection === "modules" ? "1px solid rgba(0,163,255,0.35)" : "1px solid transparent",
-								borderRadius: 4,
-								color: activeSection === "modules" ? "var(--vscode-textLink-foreground, #00A3FF)" : fg,
-								cursor: "pointer",
-								flexShrink: 0,
-							}}
-							title={activeSection === "modules" ? "Back to preview" : "Learning Modules Marketplace"}
-							type="button">
-							<span className="codicon codicon-extensions" style={{ fontSize: 14 }} />
-						</button>
-					</div>
+								padding: "3px 12px",
+								fontSize: 11,
+								color: loadStatus.kind === "err" ? danger : "var(--vscode-descriptionForeground, #888)",
+								background: loadStatus.kind === "err" ? "rgba(220,53,69,0.08)" : "rgba(125,211,252,0.04)",
+								borderBottom: `1px solid ${border}`,
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								whiteSpace: "nowrap",
+							}}>
+							{loadStatus.msg}
+						</div>
+					)}
 
 					{/* Tab bar for multiple previews */}
-					{panelChromeExpanded && items.length > 1 && (
+					{items.length > 1 && (
 						<div
 							className="flex items-center border-b border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)] overflow-x-auto"
 							style={{ minHeight: 32 }}>

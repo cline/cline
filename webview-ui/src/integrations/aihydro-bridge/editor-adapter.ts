@@ -496,42 +496,101 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       hideBubble();
       return;
     }
-    // Only show bubble if selection is inside an editable prose region
+    // Show bubble if selection is inside ANY contenteditable region
+    // (this covers both data-aihydro-editable="prose" markers AND the
+    // smart-auto-detected prose-auto elements we made editable on activation).
     var node = sel.anchorNode;
     var el = node && (node.nodeType === 3 ? node.parentElement : node);
-    var editable = el && el.closest('[data-aihydro-editable="prose"]');
+    if (!el) { hideBubble(); return; }
+    var editable = el.closest('[contenteditable="true"], [data-aihydro-editable="prose"], [data-aihydro-editable="prose-auto"]');
     if (!editable) { hideBubble(); return; }
     var range = sel.getRangeAt(0);
     var rect = range.getBoundingClientRect();
     positionBubble(rect);
   }
 
+  // ── Smart prose detection ───────────────────────────────────────────────
+  // The agent CAN mark sections as data-aihydro-editable="prose" for explicit
+  // scoping, but most existing modules don't. We auto-detect prose-like
+  // elements as editable by default, with components excluded.
+  //
+  // Editable: any visible <p>, <h1>-<h6>, <li>, <blockquote> that is NOT
+  //   inside a component (cell/map/figure) and NOT marked editable="false".
+  // Components stay non-editable but become click-to-comment targets.
+  var EDITABLE_TAGS = ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE'];
+
+  function isInsideComponent(el) {
+    var c = el.closest && el.closest(COMPONENT_SELECTOR);
+    return !!c;
+  }
+
+  function isExplicitlyNonEditable(el) {
+    var cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.getAttribute && cur.getAttribute('data-aihydro-editable') === 'false') return true;
+      cur = cur.parentElement;
+    }
+    return false;
+  }
+
+  function collectEditableElements() {
+    var result = [];
+    // 1. Explicit opt-in containers (the formal contract): treat as roots
+    var explicit = document.querySelectorAll('[data-aihydro-editable="prose"]');
+    explicit.forEach(function(el) { result.push(el); });
+
+    if (explicit.length > 0) return result;
+
+    // 2. Auto-detect: every prose-tag in <body> not inside a component
+    var allTags = EDITABLE_TAGS.join(',').toLowerCase();
+    document.body.querySelectorAll(allTags).forEach(function(el) {
+      if (isInsideComponent(el)) return;
+      if (isExplicitlyNonEditable(el)) return;
+      // Skip empty / hidden / tiny technical bits (script tags' parents etc)
+      var style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return;
+      result.push(el);
+    });
+    return result;
+  }
+
+  // Track which elements we made editable, so we can cleanly undo on exit
+  var _editableElements = [];
+
   // ── Activation / deactivation ───────────────────────────────────────────
   function setEditMode(enabled) {
     _editMode = enabled;
     ensureStyles();
 
-    var proseEls = document.querySelectorAll('[data-aihydro-editable="prose"]');
     if (enabled) {
-      proseEls.forEach(function(el) {
+      _editableElements = collectEditableElements();
+      _editableElements.forEach(function(el) {
         el.classList.add('aihydro-edit-active');
         el.setAttribute('contenteditable', 'true');
         el.setAttribute('spellcheck', 'true');
+        // Tag for selector consistency (the bubble menu checks for prose target)
+        if (!el.hasAttribute('data-aihydro-editable')) {
+          el.setAttribute('data-aihydro-editable', 'prose-auto');
+        }
       });
-      // Mark non-prose components as comment-only
+      // Mark non-prose components as comment-only (visual cue + cursor change)
       document.querySelectorAll(COMPONENT_SELECTOR).forEach(function(el) {
         el.setAttribute('data-aihydro-editable', 'comment-only');
       });
       document.addEventListener('selectionchange', onSelectionChange);
       document.addEventListener('mouseover', onComponentMouseOver);
       document.addEventListener('mouseout', onComponentMouseOut);
-      notifyParent('edit.toggled', { enabled: true });
+      notifyParent('edit.toggled', { enabled: true, editableCount: _editableElements.length });
     } else {
-      proseEls.forEach(function(el) {
+      _editableElements.forEach(function(el) {
         el.classList.remove('aihydro-edit-active');
         el.removeAttribute('contenteditable');
         el.removeAttribute('spellcheck');
+        if (el.getAttribute('data-aihydro-editable') === 'prose-auto') {
+          el.removeAttribute('data-aihydro-editable');
+        }
       });
+      _editableElements = [];
       document.removeEventListener('selectionchange', onSelectionChange);
       document.removeEventListener('mouseover', onComponentMouseOver);
       document.removeEventListener('mouseout', onComponentMouseOut);
