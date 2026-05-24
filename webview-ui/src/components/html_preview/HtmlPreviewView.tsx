@@ -19,7 +19,7 @@ import { AIHYDRO_BRIDGE_EDITOR_SCRIPT } from "@/integrations/aihydro-bridge/edit
 import { AIHYDRO_BRIDGE_LEAFLET_SCRIPT } from "@/integrations/aihydro-bridge/leaflet-adapter"
 import { FileServiceClient, HtmlPreviewServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { AIHYDRO_PREVIEW_STYLE, CELL_BRIDGE_SCRIPT } from "./aihydroCellBridge"
-import { EditModeToolbar } from "./EditModeToolbar"
+import { EditContextRibbon } from "./EditContextRibbon"
 import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
 import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
 import { reportPreviewEvent } from "./previewBridge"
@@ -57,6 +57,9 @@ import { reportPreviewEvent } from "./previewBridge"
  */
 interface HtmlPreviewViewProps {
 	item?: HtmlPreviewItem
+	/** Whether the parent side panel (Files/Modules/Skills/Comments) is open. Optional — defaults to true with a no-op toggle. */
+	sidePanelOpen?: boolean
+	onToggleSidePanel?: () => void
 }
 
 interface FetchInfo {
@@ -167,7 +170,7 @@ function pickRenderPath(item?: HtmlPreviewItem): RenderPath {
 
 const SANDBOX_ATTR = "allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
 
-const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
+const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel }) => {
 	const { setManifest } = useHtmlPreviewContext()
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
 	const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
@@ -190,6 +193,8 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 	const isRunningRef = useRef(false)
 	// Phase 4: Edit Mode state
 	const [editModeActive, setEditModeActive] = useState(false)
+	// UI Refinement: batch state from the iframe editor adapter
+	const [pendingChangeCount, setPendingChangeCount] = useState(0)
 
 	const renderPath = useMemo<RenderPath>(
 		() => pickRenderPath(item),
@@ -602,6 +607,63 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 		return () => window.removeEventListener("message", onMessage)
 	}, [handleArtifactRunCode, item?.id, refreshKernelInfo, setManifest])
 
+	// ── Bridge event relay (iframe → webview → host) ────────────────────────
+	// The aihydro-bridge core posts `aihydro-preview-event` messages from inside
+	// the iframe. We track local UI state (batch count for the EditContextRibbon)
+	// and forward every event to the extension host so PreviewSessionService
+	// receives it (and the agent can observe via preview_recent_events).
+	useEffect(() => {
+		const onBridgeMessage = (event: MessageEvent) => {
+			if (event.source !== iframeRef.current?.contentWindow) return
+			const data = event.data as { type?: string; kind?: string; payloadJson?: string; source?: string }
+			if (!data || data.type !== "aihydro-preview-event") return
+
+			let payload: Record<string, unknown> = {}
+			try {
+				payload = data.payloadJson ? JSON.parse(data.payloadJson) : {}
+			} catch {
+				/* ignore */
+			}
+
+			// Local UI updates: track batch count for the EditContextRibbon
+			if (data.kind === "user.comment.draft") {
+				setPendingChangeCount((n) => n + 1)
+			} else if (data.kind === "user.batch_changes" || data.kind === "user.batch.cleared") {
+				setPendingChangeCount(0)
+			} else if (data.kind === "edit.toggled") {
+				if (typeof payload?.enabled === "boolean") setEditModeActive(payload.enabled)
+			}
+
+			// Relay to the host PreviewSessionService (it dedupes by source).
+			// Phase 1's previewBridge already does this for events the webview
+			// generates itself; we mirror the same path for bridge events.
+			reportPreviewEvent(
+				(data.kind ?? "unknown") as Parameters<typeof reportPreviewEvent>[0],
+				payload as Record<string, unknown>,
+				data.source || "bridge",
+			)
+		}
+		window.addEventListener("message", onBridgeMessage)
+		return () => window.removeEventListener("message", onBridgeMessage)
+	}, [])
+
+	// Reset batch count whenever Edit Mode turns off externally
+	useEffect(() => {
+		if (!editModeActive) setPendingChangeCount(0)
+	}, [editModeActive])
+
+	// Tell the iframe whenever Edit Mode state changes (canonical sync)
+	useEffect(() => {
+		const win = iframeRef.current?.contentWindow
+		if (win) win.postMessage({ type: "aihydro-edit-mode", enabled: editModeActive }, "*")
+	}, [editModeActive])
+
+	const handleSendBatch = useCallback(() => {
+		const win = iframeRef.current?.contentWindow
+		if (!win) return
+		win.postMessage({ type: "aihydro-send-batch" }, "*")
+	}, [])
+
 	const handleRestartKernel = useCallback(async () => {
 		if (!item?.id) {
 			return
@@ -771,6 +833,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 			<HtmlPreviewToolbar
 				activeProfileId={activeProfileId}
 				diagnosticsOpen={diagnosticsOpen}
+				editModeActive={editModeActive}
 				isRunning={isRunning}
 				item={item}
 				kernelInfo={kernelInfo}
@@ -789,11 +852,15 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 				onRunCell={() => postCommandToIframe("runCell")}
 				onStop={handleStop}
 				onToggleDiagnostics={() => setDiagnosticsOpen((v) => !v)}
+				onToggleEditMode={() => setEditModeActive((v) => !v)}
+				onToggleSidePanel={onToggleSidePanel ?? (() => {})}
 				pathCopied={pathCopied}
+				pendingChangeCount={pendingChangeCount}
 				pythonCellCount={pythonCellCount}
 				pythonEnvironments={pythonEnvironments}
 				runAllCurrent={runAllCurrent}
 				runAllTotal={runAllTotal}
+				sidePanelOpen={sidePanelOpen}
 				workspaceTrusted={kernelInfo?.workspaceTrusted ?? true}
 			/>
 			{diagnosticsOpen && item ? (
@@ -808,8 +875,15 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 					renderPath={renderPath}
 				/>
 			) : null}
-			{/* Phase 4: Edit Mode toolbar — shown below the main toolbar */}
-			<EditModeToolbar editModeActive={editModeActive} iframeRef={iframeRef} onToggle={setEditModeActive} />
+			{/* UI Refinement: Edit context ribbon — appears ONLY when Edit Mode is active */}
+			{editModeActive && (
+				<EditContextRibbon
+					iframeRef={iframeRef}
+					onExit={() => setEditModeActive(false)}
+					onSendBatch={handleSendBatch}
+					pendingCount={pendingChangeCount}
+				/>
+			)}
 			<div style={iframeWrapperStyle}>
 				{renderPath === "none" ? (
 					<NoUriMessage item={item} />

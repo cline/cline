@@ -1,111 +1,187 @@
 /**
- * AI-Hydro Bridge — Editor Adapter (Phase 4)
+ * AI-Hydro Bridge — Editor Adapter v2 (UI Refinement Phase)
  *
- * Exports `AIHYDRO_BRIDGE_EDITOR_SCRIPT`: injected into every module iframe.
- * Activates only when the user explicitly toggles Edit Mode (via the toolbar
- * in the VS Code panel) — there is zero overhead at normal viewing time.
+ * Rewrite of the original adapter. Old version had three structural problems:
+ *   1. Per-comment modal dialog interrupted user every time
+ *   2. Each comment fired immediately to the agent — chatty, no batching
+ *   3. No formatting toolbar (naked contenteditable)
+ *   4. No way to comment on non-text components (cells, maps, figures)
  *
- * Edit scope (enforced by contract):
- *   • `data-aihydro-editable="prose"` regions → TipTap rich-text editor (lazy-loaded)
- *   • Python cells, maps, figures → comment-pin only (not editable)
- *   • Agent NEVER auto-applies; all changes go through diff-proposal flow
+ * New behavior:
+ *   - Floating bubble menu on text selection (B/I/U + 💬 Comment) — no modal
+ *   - Click any .aihydro-cell / .aihydro-map / figure → cyan outline + 💬 pin
+ *   - All comments accumulate in iframe batch state AND post incrementally
+ *     to parent as `user.comment.draft` (NOT user.comment yet — drafts only)
+ *   - Parent's EditContextRibbon shows the running count
+ *   - User clicks "Send N changes" in the parent ribbon → parent posts back
+ *     `aihydro-send-batch` → adapter emits ONE `user.batch_changes` event
+ *     with the full payload (comments[] + text diffs[])
+ *   - Formatting commands flow from parent ribbon via `aihydro-editor-command`
  *
- * Comment flow (in-iframe side):
- *   1. User selects text → "💬" bubble appears
- *   2. User types comment → bridge emits `user.comment` PreviewEvent
- *   3. Comment includes TextAnchor (quote + context + offset + parentSelector)
- *   4. Agent receives via preview_recent_events → calls preview_address_comment
- *   5. Host receives address_comment command → writes diff → user reviews in VS Code
- *   6. On accept: host emits `command.revise_section` → iframe swaps section HTML
- *   7. Comment status set to "addressed"
- *
- * TipTap is loaded from CDN on first Edit Mode activation.
- * (Vendored distribution is planned for a follow-up release.)
+ * Message protocol (parent ↔ iframe):
+ *   parent → iframe:
+ *     { type: "aihydro-edit-mode",       enabled: boolean }
+ *     { type: "aihydro-editor-command",  command: string, value?: string }
+ *     { type: "aihydro-send-batch" }
+ *   iframe → parent (via reportPreviewEvent):
+ *     kind="user.comment.draft"    — single comment added to batch
+ *     kind="user.comment.removed"  — single comment removed from batch
+ *     kind="user.batch_changes"    — full batch sent to agent
+ *     kind="edit.toggled"          — mode on/off
+ *     kind="text.changed"          — debounced prose edit (for diff tracking)
  */
-
-const TIPTAP_CDN_JS = "https://cdn.jsdelivr.net/npm/@tiptap/core@2.4.0/dist/index.umd.min.js"
-const TIPTAP_STARTER_KIT = "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.4.0/dist/index.umd.min.js"
 
 export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
 <script id="aihydro-bridge-editor">
 (function () {
   'use strict';
 
+  // ── State ───────────────────────────────────────────────────────────────
   var _editMode = false;
-  var _editors = new Map();  // element → TipTap editor instance
-  var _commentBubble = null;
-  var _selection = null;     // { quote, context, startOffset, endOffset, parentSelector }
+  var _batch = [];                  // [{ id, type: 'comment'|'text', ... }]
+  var _bubble = null;               // floating selection bubble
+  var _composer = null;             // inline comment composer
+  var _currentSelection = null;     // captured TextAnchor for active composer
+  var _selectedComponent = null;    // currently highlighted component element
 
-  // ── Edit Mode CSS ────────────────────────────────────────────────────────
+  // ── CSS injection (idempotent) ──────────────────────────────────────────
   var _stylesInjected = false;
   function ensureStyles() {
     if (_stylesInjected) return;
     _stylesInjected = true;
     var s = document.createElement('style');
-    s.id = 'aihydro-editor-style';
+    s.id = 'aihydro-editor-style-v2';
     s.textContent = [
       /* Editable prose regions */
       '[data-aihydro-editable="prose"].aihydro-edit-active {',
-      '  outline: 2px solid rgba(0,221,255,0.4);',
+      '  outline: 1px dashed rgba(0,221,255,0.35);',
       '  outline-offset: 4px;',
-      '  border-radius: 6px;',
+      '  border-radius: 4px;',
       '  min-height: 1em;',
+      '  transition: outline-color 0.15s;',
       '}',
-      '[data-aihydro-editable="prose"].aihydro-edit-active:focus-within {',
-      '  outline-color: rgba(0,221,255,0.8);',
+      '[data-aihydro-editable="prose"].aihydro-edit-active:hover {',
+      '  outline-color: rgba(0,221,255,0.55);',
       '}',
-      /* Comment-only regions (cells, maps, figures) */
-      '[data-aihydro-editable="comment-only"] {',
-      '  position: relative;',
+      '[data-aihydro-editable="prose"].aihydro-edit-active:focus {',
+      '  outline: 2px solid rgba(0,221,255,0.8);',
+      '  outline-offset: 4px;',
       '}',
-      /* Comment bubble */
-      '.aihydro-comment-bubble {',
+
+      /* Component selection highlight (cells, maps, figures) */
+      '.aihydro-component-hover {',
+      '  outline: 2px solid rgba(0,221,255,0.35) !important;',
+      '  outline-offset: 4px !important;',
+      '  cursor: pointer !important;',
+      '  transition: outline-color 0.15s;',
+      '}',
+      '.aihydro-component-selected {',
+      '  outline: 2px solid rgba(0,221,255,0.9) !important;',
+      '  outline-offset: 4px !important;',
+      '  box-shadow: 0 0 24px rgba(0,221,255,0.35) !important;',
+      '}',
+
+      /* 💬 Pin on selected component */
+      '.aihydro-component-pin {',
+      '  position: absolute;',
+      '  top: -10px;',
+      '  right: -10px;',
+      '  z-index: 1000;',
+      '  display: inline-flex;',
+      '  align-items: center;',
+      '  gap: 4px;',
+      '  padding: 4px 10px;',
+      '  background: linear-gradient(135deg, #00A3FF, #00DDFF);',
+      '  border: none;',
+      '  border-radius: 16px;',
+      '  color: #0a0a15;',
+      '  font-family: Poppins, system-ui, sans-serif;',
+      '  font-size: 11px;',
+      '  font-weight: 700;',
+      '  cursor: pointer;',
+      '  box-shadow: 0 4px 12px rgba(0,221,255,0.4);',
+      '}',
+      '.aihydro-component-pin.has-comment {',
+      '  background: rgba(0,221,255,0.85);',
+      '}',
+
+      /* Floating selection bubble */
+      '.aihydro-selection-bubble {',
       '  position: fixed;',
       '  z-index: 99998;',
-      '  background: rgba(0,221,255,0.15);',
+      '  display: none;',
+      '  align-items: center;',
+      '  gap: 2px;',
+      '  padding: 3px 5px;',
+      '  background: rgba(15,15,30,0.97);',
       '  border: 1px solid rgba(0,221,255,0.6);',
       '  border-radius: 8px;',
-      '  padding: 4px 10px;',
-      '  font-size: 13px;',
-      '  color: #00DDFF;',
-      '  cursor: pointer;',
-      '  display: none;',
+      '  box-shadow: 0 6px 20px rgba(0,0,0,0.6);',
+      '  font-family: Poppins, system-ui, sans-serif;',
+      '  font-size: 12px;',
       '  user-select: none;',
+      '  white-space: nowrap;',
       '}',
-      '.aihydro-comment-bubble:hover {',
-      '  background: rgba(0,221,255,0.25);',
+      '.aihydro-selection-bubble.visible { display: inline-flex; }',
+      '.aihydro-selection-bubble button {',
+      '  display: inline-flex;',
+      '  align-items: center;',
+      '  justify-content: center;',
+      '  width: 26px;',
+      '  height: 22px;',
+      '  border: none;',
+      '  background: transparent;',
+      '  color: #cbd5e1;',
+      '  border-radius: 4px;',
+      '  cursor: pointer;',
+      '  font-family: inherit;',
+      '  font-size: inherit;',
+      '  font-weight: 700;',
       '}',
-      /* Comment dialog */
-      '.aihydro-comment-dialog {',
+      '.aihydro-selection-bubble button:hover { background: rgba(0,221,255,0.18); color: #00DDFF; }',
+      '.aihydro-selection-bubble .bb-comment {',
+      '  width: auto;',
+      '  padding: 0 10px 0 8px;',
+      '  background: rgba(0,221,255,0.15);',
+      '  color: #00DDFF;',
+      '  font-weight: 700;',
+      '  gap: 4px;',
+      '}',
+      '.aihydro-selection-bubble .bb-comment:hover { background: rgba(0,221,255,0.3); }',
+      '.aihydro-selection-bubble .bb-divider {',
+      '  width: 1px;',
+      '  height: 14px;',
+      '  background: rgba(125,211,252,0.2);',
+      '  margin: 0 2px;',
+      '}',
+
+      /* Inline composer (drops below the selection or component) */
+      '.aihydro-composer {',
       '  position: fixed;',
       '  z-index: 99999;',
       '  width: 320px;',
-      '  background: rgba(15,15,30,0.97);',
-      '  border: 1px solid rgba(0,221,255,0.45);',
-      '  border-radius: 14px;',
-      '  padding: 16px;',
-      '  box-shadow: 0 8px 32px rgba(0,0,0,0.6);',
+      '  background: rgba(15,15,30,0.98);',
+      '  border: 1px solid rgba(0,221,255,0.5);',
+      '  border-radius: 12px;',
+      '  padding: 12px;',
+      '  box-shadow: 0 12px 36px rgba(0,0,0,0.65);',
       '  font-family: Nunito, system-ui, sans-serif;',
       '}',
-      '.aihydro-comment-dialog h4 {',
-      '  margin: 0 0 10px;',
-      '  font-size: 14px;',
-      '  color: #7dd3fc;',
-      '  font-family: Poppins, system-ui, sans-serif;',
-      '}',
-      '.aihydro-comment-dialog blockquote {',
-      '  margin: 0 0 10px;',
-      '  padding: 6px 10px;',
-      '  border-left: 3px solid rgba(0,221,255,0.4);',
+      '.aihydro-composer .cmp-target {',
+      '  margin: 0 0 8px;',
+      '  padding: 5px 9px;',
+      '  border-left: 3px solid rgba(0,221,255,0.5);',
       '  font-size: 12px;',
       '  color: #94a3b8;',
       '  font-style: italic;',
-      '  white-space: nowrap;',
+      '  background: rgba(0,221,255,0.05);',
+      '  border-radius: 4px;',
       '  overflow: hidden;',
       '  text-overflow: ellipsis;',
-      '  max-width: 280px;',
+      '  white-space: nowrap;',
+      '  max-width: 100%;',
       '}',
-      '.aihydro-comment-dialog textarea {',
+      '.aihydro-composer textarea {',
       '  width: 100%;',
       '  box-sizing: border-box;',
       '  background: rgba(10,10,21,0.8);',
@@ -113,79 +189,69 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       '  border-radius: 8px;',
       '  color: #e2e8f0;',
       '  font-size: 13px;',
-      '  font-family: Nunito, system-ui, sans-serif;',
+      '  font-family: inherit;',
       '  padding: 8px 10px;',
       '  resize: vertical;',
-      '  min-height: 80px;',
+      '  min-height: 64px;',
       '  outline: none;',
       '}',
-      '.aihydro-comment-dialog textarea:focus {',
-      '  border-color: rgba(0,221,255,0.6);',
+      '.aihydro-composer textarea:focus { border-color: rgba(0,221,255,0.7); }',
+      '.aihydro-composer .cmp-actions {',
+      '  display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end;',
       '}',
-      '.aihydro-comment-dialog-actions {',
-      '  display: flex;',
-      '  gap: 8px;',
-      '  margin-top: 10px;',
-      '  justify-content: flex-end;',
-      '}',
-      '.aihydro-comment-btn {',
+      '.aihydro-composer button {',
       '  font-family: Poppins, system-ui, sans-serif;',
       '  font-size: 12px;',
       '  font-weight: 600;',
-      '  padding: 6px 14px;',
-      '  border-radius: 8px;',
+      '  padding: 5px 12px;',
+      '  border-radius: 7px;',
       '  border: none;',
       '  cursor: pointer;',
-      '  transition: opacity 0.15s;',
       '}',
-      '.aihydro-comment-btn:hover { opacity: 0.85; }',
-      '.aihydro-comment-btn.primary {',
+      '.aihydro-composer .cmp-cancel {',
+      '  background: rgba(125,211,252,0.1);',
+      '  color: #7dd3fc;',
+      '}',
+      '.aihydro-composer .cmp-add {',
       '  background: linear-gradient(135deg, #00A3FF, #00DDFF);',
       '  color: #0a0a15;',
       '}',
-      '.aihydro-comment-btn.cancel {',
-      '  background: rgba(125,211,252,0.1);',
-      '  color: #7dd3fc;',
+      '.aihydro-composer .cmp-hint {',
+      '  margin-top: 6px;',
+      '  font-size: 10px;',
+      '  color: #64748b;',
+      '  text-align: right;',
       '}',
     ].join('\\n');
     document.head.appendChild(s);
   }
 
-  // ── Compute text anchor for current selection ───────────────────────────
-  function computeAnchor(sel) {
+  // ── TextAnchor (Hypothesis-style) ───────────────────────────────────────
+  function computeTextAnchor(sel) {
     if (!sel || sel.isCollapsed) return null;
     var range = sel.getRangeAt(0);
     var quote = sel.toString();
     if (!quote.trim()) return null;
-
-    // Context: ~200 chars around the selection in the container's text
     var container = range.commonAncestorContainer;
     var contextEl = container.nodeType === 3 ? container.parentElement : container;
     var contextText = (contextEl && contextEl.textContent) || '';
-    var startInContext = contextText.indexOf(quote.trim());
+    var startInCtx = contextText.indexOf(quote.trim());
     var context = contextText.slice(
-      Math.max(0, startInContext - 100),
-      Math.min(contextText.length, startInContext + quote.length + 100)
+      Math.max(0, startInCtx - 100),
+      Math.min(contextText.length, startInCtx + quote.length + 100)
     );
-
-    // Parent selector
-    var parentEl = range.startContainer.nodeType === 3
-      ? range.startContainer.parentElement
-      : range.startContainer;
+    var parentEl = range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
     var parentSelector = '';
     while (parentEl && parentEl !== document.body) {
       if (parentEl.id) { parentSelector = '#' + parentEl.id; break; }
-      if (parentEl.className) {
-        parentSelector = '.' + String(parentEl.className).trim().split(/\\s+/)[0];
-        break;
+      if (parentEl.className && typeof parentEl.className === 'string') {
+        var cls = parentEl.className.trim().split(/\\s+/)[0];
+        if (cls) { parentSelector = '.' + cls; break; }
       }
       parentEl = parentEl.parentElement;
     }
-
-    // Character offsets relative to document body text
     var bodyText = document.body ? document.body.innerText : '';
     var startOffset = bodyText.indexOf(quote.trim());
-
     return {
       quote: quote,
       context: context,
@@ -195,138 +261,234 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     };
   }
 
-  // ── Comment bubble ─────────────────────────────────────────────────────
-  function getCommentBubble() {
-    if (!_commentBubble) {
-      _commentBubble = document.createElement('div');
-      _commentBubble.className = 'aihydro-comment-bubble';
-      _commentBubble.textContent = '💬 Comment';
-      _commentBubble.addEventListener('click', openCommentDialog);
-      document.body.appendChild(_commentBubble);
-    }
-    return _commentBubble;
+  // ── Floating selection bubble ───────────────────────────────────────────
+  function getBubble() {
+    if (_bubble) return _bubble;
+    _bubble = document.createElement('div');
+    _bubble.className = 'aihydro-selection-bubble';
+    _bubble.innerHTML = [
+      '<button data-cmd="bold" title="Bold"><b>B</b></button>',
+      '<button data-cmd="italic" title="Italic"><i>I</i></button>',
+      '<button data-cmd="underline" title="Underline"><u>U</u></button>',
+      '<span class="bb-divider"></span>',
+      '<button data-cmd="formatBlock" data-value="h2" title="Heading 2">H2</button>',
+      '<button data-cmd="formatBlock" data-value="h3" title="Heading 3">H3</button>',
+      '<span class="bb-divider"></span>',
+      '<button class="bb-comment" data-cmd="comment" title="Add comment">💬 Comment</button>',
+    ].join('');
+    _bubble.addEventListener('mousedown', function(e) {
+      e.preventDefault();   // keep selection alive
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var cmd = btn.getAttribute('data-cmd');
+      if (cmd === 'comment') {
+        openComposerForSelection();
+      } else if (cmd === 'formatBlock') {
+        document.execCommand('formatBlock', false, btn.getAttribute('data-value') || 'p');
+        emitTextChanged();
+      } else {
+        document.execCommand(cmd, false);
+        emitTextChanged();
+      }
+    });
+    document.body.appendChild(_bubble);
+    return _bubble;
   }
 
   function positionBubble(rect) {
-    var bubble = getCommentBubble();
-    bubble.style.top = (rect.top - 36) + 'px';
-    bubble.style.left = rect.left + 'px';
-    bubble.style.display = 'block';
+    var b = getBubble();
+    b.classList.add('visible');
+    var top = rect.top - 38;
+    if (top < 4) top = rect.bottom + 6;
+    var left = rect.left + (rect.width / 2) - 100;
+    if (left < 8) left = 8;
+    if (left + 220 > window.innerWidth) left = window.innerWidth - 228;
+    b.style.top = top + 'px';
+    b.style.left = left + 'px';
   }
 
   function hideBubble() {
-    if (_commentBubble) _commentBubble.style.display = 'none';
+    if (_bubble) _bubble.classList.remove('visible');
   }
 
-  // ── Comment dialog ─────────────────────────────────────────────────────
-  var _dialog = null;
-  function openCommentDialog() {
-    if (!_selection) return;
-    hideBubble();
+  // ── Inline composer (drop-in panel, not a modal) ────────────────────────
+  function openComposer(anchor, targetDescription, anchorRect, onSave) {
+    closeComposer();
+    var c = document.createElement('div');
+    c.className = 'aihydro-composer';
+    c.innerHTML = [
+      '<div class="cmp-target"></div>',
+      '<textarea placeholder="Describe what should change…"></textarea>',
+      '<div class="cmp-hint">⌘/Ctrl+Enter to add</div>',
+      '<div class="cmp-actions">',
+      '  <button class="cmp-cancel" type="button">Cancel</button>',
+      '  <button class="cmp-add" type="button">Add to batch</button>',
+      '</div>',
+    ].join('');
+    c.querySelector('.cmp-target').textContent = targetDescription;
+    var ta = c.querySelector('textarea');
+    var addBtn = c.querySelector('.cmp-add');
+    var cancelBtn = c.querySelector('.cmp-cancel');
 
-    if (_dialog) _dialog.remove();
-    _dialog = document.createElement('div');
-    _dialog.className = 'aihydro-comment-dialog';
-
-    var h4 = document.createElement('h4');
-    h4.textContent = 'Add comment';
-    _dialog.appendChild(h4);
-
-    if (_selection.quote) {
-      var bq = document.createElement('blockquote');
-      bq.textContent = '"' + _selection.quote.slice(0, 100) + (
-        _selection.quote.length > 100 ? '…' : ''
-      ) + '"';
-      _dialog.appendChild(bq);
-    }
-
-    var ta = document.createElement('textarea');
-    ta.placeholder = 'Describe the issue or suggestion…';
-    _dialog.appendChild(ta);
-
-    var actions = document.createElement('div');
-    actions.className = 'aihydro-comment-dialog-actions';
-
-    var cancelBtn = document.createElement('button');
-    cancelBtn.className = 'aihydro-comment-btn cancel';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', function () { _dialog.remove(); _dialog = null; });
-    actions.appendChild(cancelBtn);
-
-    var submitBtn = document.createElement('button');
-    submitBtn.className = 'aihydro-comment-btn primary';
-    submitBtn.textContent = 'Send to agent';
-    submitBtn.addEventListener('click', function () {
+    cancelBtn.addEventListener('click', closeComposer);
+    addBtn.addEventListener('click', function() {
       var body = ta.value.trim();
       if (!body) { ta.focus(); return; }
-      submitComment(body, _selection);
-      _dialog.remove();
-      _dialog = null;
-      _selection = null;
+      onSave(body);
+      closeComposer();
     });
-    actions.appendChild(submitBtn);
-    _dialog.appendChild(actions);
+    ta.addEventListener('keydown', function(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        addBtn.click();
+      } else if (e.key === 'Escape') {
+        closeComposer();
+      }
+    });
 
-    // Position below the bubble's former position
-    _dialog.style.top = '50%';
-    _dialog.style.left = '50%';
-    _dialog.style.transform = 'translate(-50%, -50%)';
-    document.body.appendChild(_dialog);
-    ta.focus();
+    document.body.appendChild(c);
+    _composer = c;
+
+    // Position below the anchor rect, clamp to viewport
+    var top = anchorRect.bottom + 8;
+    var left = anchorRect.left;
+    var W = 320;
+    if (left + W > window.innerWidth - 8) left = window.innerWidth - W - 8;
+    if (top + 200 > window.innerHeight - 8) top = Math.max(8, anchorRect.top - 200);
+    c.style.top = top + 'px';
+    c.style.left = left + 'px';
+    setTimeout(function() { ta.focus(); }, 0);
   }
 
-  // ── Submit comment to agent ─────────────────────────────────────────────
-  function submitComment(body, anchor) {
+  function closeComposer() {
+    if (_composer) { _composer.remove(); _composer = null; }
+  }
+
+  function openComposerForSelection() {
+    var sel = window.getSelection();
+    var anchor = computeTextAnchor(sel);
+    if (!anchor) return;
+    var rect = sel.getRangeAt(0).getBoundingClientRect();
+    hideBubble();
+    var truncated = anchor.quote.length > 80 ? anchor.quote.slice(0, 80) + '…' : anchor.quote;
+    openComposer(anchor, '“' + truncated + '”', rect, function(body) {
+      addToBatch({
+        type: 'comment',
+        target: 'text',
+        body: body,
+        anchor: anchor,
+      });
+    });
+  }
+
+  function openComposerForComponent(el) {
+    var rect = el.getBoundingClientRect();
+    var kind = el.classList.contains('aihydro-cell')
+      ? 'Python cell'
+      : el.classList.contains('aihydro-map')
+        ? 'Map'
+        : (el.tagName === 'FIGURE' || el.classList.contains('aihydro-figure'))
+          ? 'Figure'
+          : 'Component';
+    var ident = el.getAttribute('data-aihydro-cell-id')
+              || el.getAttribute('data-aihydro-map-id')
+              || el.id
+              || el.tagName.toLowerCase();
+    var desc = kind + ': ' + ident;
+    openComposer(null, desc, rect, function(body) {
+      addToBatch({
+        type: 'comment',
+        target: 'component',
+        body: body,
+        component: { kind: kind, id: ident, selector: kind === 'Python cell'
+          ? '[data-aihydro-cell-id="' + ident + '"]'
+          : kind === 'Map'
+            ? '[data-aihydro-map-id="' + ident + '"]'
+            : '#' + ident },
+      });
+      el.classList.add('aihydro-component-has-comment');
+      ensurePin(el, true);
+    });
+  }
+
+  // ── Batch state ─────────────────────────────────────────────────────────
+  function addToBatch(entry) {
+    entry.id = 'b-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+    entry.createdAt = Date.now();
+    _batch.push(entry);
+    notifyParent('user.comment.draft', entry);
+  }
+
+  function notifyParent(kind, payload) {
     if (!window.__aihydroBridge) return;
-    var commentId = 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
-    window.__aihydroBridge.reportEvent('user.comment', {
-      commentId: commentId,
-      body: body,
-      anchor: anchor,
-      moduleId: window.__aihydroBridge.getArtifactId(),
+    window.__aihydroBridge.reportEvent(kind, payload);
+  }
+
+  function emitTextChanged() {
+    // Debounce-track: this is best-effort; v1 just records that prose changed
+    notifyParent('text.changed', { timestampMs: Date.now() });
+  }
+
+  function sendBatch() {
+    if (_batch.length === 0) return;
+    var payload = { changes: _batch.slice(), moduleId: window.__aihydroBridge && window.__aihydroBridge.getArtifactId() };
+    notifyParent('user.batch_changes', payload);
+    _batch = [];
+    // Clear visual highlights
+    document.querySelectorAll('.aihydro-component-pin').forEach(function(p) { p.remove(); });
+    document.querySelectorAll('.aihydro-component-selected').forEach(function(e) { e.classList.remove('aihydro-component-selected'); });
+    document.querySelectorAll('.aihydro-component-has-comment').forEach(function(e) { e.classList.remove('aihydro-component-has-comment'); });
+  }
+
+  // ── Component selection ─────────────────────────────────────────────────
+  function ensurePin(el, hasComment) {
+    if (getComputedStyle(el).position === 'static') {
+      el.style.position = 'relative';
+    }
+    var pin = el.querySelector(':scope > .aihydro-component-pin');
+    if (!pin) {
+      pin = document.createElement('button');
+      pin.className = 'aihydro-component-pin';
+      pin.type = 'button';
+      pin.innerHTML = '💬 Comment';
+      pin.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openComposerForComponent(el);
+      });
+      el.appendChild(pin);
+    }
+    if (hasComment) pin.classList.add('has-comment');
+  }
+
+  function clearPins() {
+    document.querySelectorAll('.aihydro-component-pin').forEach(function(p) { p.remove(); });
+    document.querySelectorAll('.aihydro-component-hover, .aihydro-component-selected').forEach(function(e) {
+      e.classList.remove('aihydro-component-hover');
+      e.classList.remove('aihydro-component-selected');
     });
-    showCommentPin(anchor, commentId, body);
   }
 
-  // ── Comment pin in margin ──────────────────────────────────────────────
-  function showCommentPin(anchor, commentId, body) {
-    // Find the element that contains the quoted text
-    var targetEl = null;
-    if (anchor.parentSelector) {
-      try { targetEl = document.querySelector(anchor.parentSelector); } catch (e) {}
-    }
-    if (!targetEl) return;
+  var COMPONENT_SELECTOR = '.aihydro-cell, .aihydro-map, figure, .aihydro-figure';
 
-    var pin = document.createElement('div');
-    pin.style.cssText = [
-      'position:absolute',
-      'right:-28px',
-      'top:0',
-      'width:22px',
-      'height:22px',
-      'border-radius:50%',
-      'background:rgba(0,221,255,0.2)',
-      'border:2px solid rgba(0,221,255,0.6)',
-      'cursor:pointer',
-      'font-size:11px',
-      'display:flex',
-      'align-items:center',
-      'justify-content:center',
-      'color:#00DDFF',
-      'z-index:100',
-      'title:' + body.slice(0, 40),
-    ].join(';');
-    pin.textContent = '💬';
-    pin.setAttribute('data-comment-id', commentId);
-    pin.title = body.slice(0, 80);
-
-    if (getComputedStyle(targetEl).position === 'static') {
-      targetEl.style.position = 'relative';
+  function onComponentMouseOver(e) {
+    if (!_editMode) return;
+    var el = e.target.closest(COMPONENT_SELECTOR);
+    if (!el) return;
+    el.classList.add('aihydro-component-hover');
+    ensurePin(el, el.classList.contains('aihydro-component-has-comment'));
+  }
+  function onComponentMouseOut(e) {
+    if (!_editMode) return;
+    var el = e.target.closest(COMPONENT_SELECTOR);
+    if (!el) return;
+    // Only remove highlight if not actively selected with a pending comment
+    if (!el.classList.contains('aihydro-component-has-comment')) {
+      el.classList.remove('aihydro-component-hover');
+      var pin = el.querySelector(':scope > .aihydro-component-pin');
+      if (pin && !pin.classList.contains('has-comment')) pin.remove();
     }
-    targetEl.appendChild(pin);
   }
 
-  // ── Selection listener ─────────────────────────────────────────────────
+  // ── Selection listener ──────────────────────────────────────────────────
   function onSelectionChange() {
     if (!_editMode) return;
     var sel = window.getSelection();
@@ -334,98 +496,119 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       hideBubble();
       return;
     }
-    var anchor = computeAnchor(sel);
-    if (!anchor) { hideBubble(); return; }
-    _selection = anchor;
+    // Only show bubble if selection is inside an editable prose region
+    var node = sel.anchorNode;
+    var el = node && (node.nodeType === 3 ? node.parentElement : node);
+    var editable = el && el.closest('[data-aihydro-editable="prose"]');
+    if (!editable) { hideBubble(); return; }
     var range = sel.getRangeAt(0);
     var rect = range.getBoundingClientRect();
     positionBubble(rect);
   }
 
-  // ── Listen for edit-mode toggle from host ──────────────────────────────
-  window.addEventListener('message', function (e) {
-    var data = e.data;
-    if (!data || data.type !== 'aihydro-edit-mode') return;
-    setEditMode(data.enabled === true);
-  });
-
+  // ── Activation / deactivation ───────────────────────────────────────────
   function setEditMode(enabled) {
     _editMode = enabled;
     ensureStyles();
 
+    var proseEls = document.querySelectorAll('[data-aihydro-editable="prose"]');
     if (enabled) {
-      document.addEventListener('selectionchange', onSelectionChange);
-      // Mark editable regions visually
-      document.querySelectorAll('[data-aihydro-editable="prose"]').forEach(function (el) {
+      proseEls.forEach(function(el) {
         el.classList.add('aihydro-edit-active');
         el.setAttribute('contenteditable', 'true');
+        el.setAttribute('spellcheck', 'true');
       });
-      // Cells/maps/figures get comment-pin mode
-      var commentOnly = document.querySelectorAll(
-        '.aihydro-cell, .aihydro-map, figure, .aihydro-figure'
-      );
-      commentOnly.forEach(function (el) {
+      // Mark non-prose components as comment-only
+      document.querySelectorAll(COMPONENT_SELECTOR).forEach(function(el) {
         el.setAttribute('data-aihydro-editable', 'comment-only');
       });
-
-      if (window.__aihydroBridge) {
-        window.__aihydroBridge.reportEvent('edit.toggled', { enabled: true });
-      }
+      document.addEventListener('selectionchange', onSelectionChange);
+      document.addEventListener('mouseover', onComponentMouseOver);
+      document.addEventListener('mouseout', onComponentMouseOut);
+      notifyParent('edit.toggled', { enabled: true });
     } else {
-      document.removeEventListener('selectionchange', onSelectionChange);
-      hideBubble();
-      if (_dialog) { _dialog.remove(); _dialog = null; }
-      document.querySelectorAll('[data-aihydro-editable="prose"].aihydro-edit-active').forEach(function (el) {
+      proseEls.forEach(function(el) {
         el.classList.remove('aihydro-edit-active');
         el.removeAttribute('contenteditable');
+        el.removeAttribute('spellcheck');
       });
-      if (window.__aihydroBridge) {
-        window.__aihydroBridge.reportEvent('edit.toggled', { enabled: false });
-      }
+      document.removeEventListener('selectionchange', onSelectionChange);
+      document.removeEventListener('mouseover', onComponentMouseOver);
+      document.removeEventListener('mouseout', onComponentMouseOut);
+      hideBubble();
+      closeComposer();
+      clearPins();
+      notifyParent('edit.toggled', { enabled: false });
     }
   }
 
-  // ── Handle revise_section command from host ───────────────────────────
-  // (sent via PreviewCommandWatcher → appendEvent → webview postMessage → iframe postMessage)
-  window.addEventListener('message', function (e) {
+  // ── Parent → iframe message router ──────────────────────────────────────
+  window.addEventListener('message', function(e) {
     var data = e.data;
-    if (!data || data.type !== 'artifact/command') return;
-    if (data.command === 'revise_section') {
-      applyRevision(data.sectionId, data.newHtml);
-    }
-    if (data.command === 'focus_cell') {
-      focusCell(data.cellId);
+    if (!data || typeof data !== 'object') return;
+
+    switch (data.type) {
+      case 'aihydro-edit-mode':
+        setEditMode(data.enabled === true);
+        break;
+
+      case 'aihydro-editor-command':
+        // Format command from EditContextRibbon (B/I/U/H1-3/list/link)
+        if (!_editMode) return;
+        if (data.command === 'aihydro-link') {
+          var url = prompt('Enter URL:');
+          if (url) document.execCommand('createLink', false, url);
+        } else {
+          document.execCommand(data.command, false, data.value || null);
+        }
+        emitTextChanged();
+        break;
+
+      case 'aihydro-send-batch':
+        sendBatch();
+        break;
+
+      case 'aihydro-clear-batch':
+        _batch = [];
+        clearPins();
+        notifyParent('user.batch.cleared', {});
+        break;
+
+      // Legacy: revise_section / focus_cell from PreviewCommandWatcher
+      case 'artifact/command':
+        if (data.command === 'revise_section') {
+          var el = document.getElementById(data.sectionId)
+                || document.querySelector('[data-aihydro-section-id="' + data.sectionId + '"]');
+          if (el && typeof data.newHtml === 'string') {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = data.newHtml;
+            el.innerHTML = tmp.innerHTML;
+            notifyParent('edit.section_revised', { sectionId: data.sectionId });
+          }
+        } else if (data.command === 'focus_cell') {
+          var fc = document.querySelector('[data-aihydro-cell-id="' + data.cellId + '"]');
+          if (fc) {
+            fc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            var orig = fc.style.outline;
+            fc.style.outline = '2px solid #00DDFF';
+            fc.style.transition = 'outline 0.3s';
+            setTimeout(function() { fc.style.outline = orig; }, 2500);
+          }
+        }
+        break;
     }
   });
 
-  function applyRevision(sectionId, newHtml) {
-    var el = document.getElementById(sectionId) ||
-              document.querySelector('[data-aihydro-section-id="' + sectionId + '"]');
-    if (!el || !newHtml) return;
-    // Create a temporary container to parse the HTML safely
-    var tmp = document.createElement('div');
-    tmp.innerHTML = newHtml;
-    el.innerHTML = tmp.innerHTML;
-    // Report success
-    if (window.__aihydroBridge) {
-      window.__aihydroBridge.reportEvent('edit.section_revised', { sectionId: sectionId });
+  // Hide bubble on scroll / outside click
+  document.addEventListener('scroll', hideBubble, true);
+  document.addEventListener('mousedown', function(e) {
+    if (_bubble && !_bubble.contains(e.target)) {
+      // Don't hide if mousedown is inside an editable region (selection in progress)
+      var inEditable = e.target.closest && e.target.closest('[data-aihydro-editable="prose"]');
+      if (!inEditable) hideBubble();
     }
-  }
+  });
 
-  function focusCell(cellId) {
-    var el = document.querySelector('[data-aihydro-cell-id="' + cellId + '"]');
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    var origOutline = el.style.outline;
-    el.style.outline = '2px solid #00DDFF';
-    el.style.transition = 'outline 0.3s';
-    setTimeout(function () { el.style.outline = origOutline; }, 2500);
-  }
-
-  // Register with the bridge (no-op — editor is event-driven, not DOM-scan-driven)
-  if (window.__aihydroBridge) {
-    // Nothing to register on load — editor activates on message event
-  }
 })();
 </script>
 `

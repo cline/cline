@@ -22,6 +22,11 @@
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import {
+	addComment as commentStoreAdd,
+	updateComment as commentStoreUpdate,
+	type TextAnchor,
+} from "@/services/comments/commentStore"
 
 const MAX_EVENTS = 500
 const MAX_DISK_EVENTS_PER_MODULE = 200
@@ -241,6 +246,55 @@ export class PreviewSessionService {
 						lastStatus: "error",
 						lastError: typeof payload.message === "string" ? payload.message : undefined,
 					})
+				}
+				break
+			}
+			// ── UI Refinement: persist comment events into the commentStore ─────
+			case "user.comment.draft":
+			case "user.comment": {
+				const body = typeof payload.body === "string" ? payload.body : ""
+				const anchor = (payload.anchor as TextAnchor | undefined) ?? {
+					quote: "",
+					context: "",
+					startOffset: 0,
+					endOffset: 0,
+				}
+				if (body) {
+					void commentStoreAdd(session.moduleId, body, anchor).catch((err) =>
+						console.warn("[PreviewSessionService] commentStore.addComment failed:", err),
+					)
+				}
+				break
+			}
+			case "user.batch_changes": {
+				const changes = Array.isArray(payload.changes) ? (payload.changes as Array<Record<string, unknown>>) : []
+				for (const c of changes) {
+					if (typeof c.body !== "string") continue
+					const anchor =
+						(c.anchor as TextAnchor | undefined) ??
+						(c.component
+							? {
+									quote: `[${(c.component as { kind?: string }).kind ?? "Component"}: ${(c.component as { id?: string }).id ?? ""}]`,
+									context: "",
+									startOffset: 0,
+									endOffset: 0,
+									parentSelector: (c.component as { selector?: string }).selector,
+								}
+							: { quote: "", context: "", startOffset: 0, endOffset: 0 })
+					void commentStoreAdd(session.moduleId, c.body, anchor).catch((err) =>
+						console.warn("[PreviewSessionService] commentStore.addComment failed:", err),
+					)
+				}
+				break
+			}
+			case "command.address_comment": {
+				const commentId = typeof payload.commentId === "string" ? payload.commentId : null
+				const proposed = typeof payload.newText === "string" ? payload.newText : undefined
+				if (commentId) {
+					void commentStoreUpdate(session.moduleId, commentId, {
+						status: "awaiting_review",
+						proposedReplacement: proposed,
+					}).catch((err) => console.warn("[PreviewSessionService] commentStore.updateComment failed:", err))
 				}
 				break
 			}

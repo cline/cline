@@ -1,5 +1,6 @@
 import type { ArtifactKernelInfoResponse, HtmlPreviewItem, PythonEnvironment } from "@shared/proto/cline/html_preview"
 import React, { useState } from "react"
+import { KebabMenu, type KebabMenuItem } from "@/components/common/KebabMenu"
 import { CollapseToggleButton } from "./CollapseToggleButton"
 import { KernelStatusChip } from "./KernelStatusChip"
 import { usePersistedExpanded } from "./usePersistedExpanded"
@@ -18,6 +19,13 @@ export interface HtmlPreviewToolbarProps {
 	isRunning: boolean
 	runAllCurrent: number
 	runAllTotal: number
+	// — Side panel & edit mode (Phase: UI refinement) —
+	sidePanelOpen: boolean
+	onToggleSidePanel: () => void
+	editModeActive: boolean
+	onToggleEditMode: () => void
+	pendingChangeCount?: number
+	// — Existing handlers —
 	onRunCell: () => void
 	onRunAll: () => void
 	onRestartAndRunAll: () => void
@@ -41,6 +49,7 @@ const BORDER = "var(--vscode-panel-border, rgba(255,255,255,0.12))"
 const HOVER_BG = "rgba(255,255,255,0.06)"
 const ACTIVE_BG = "rgba(0,163,255,0.10)"
 const ACTIVE_BORDER = "rgba(0,163,255,0.35)"
+const EDIT_ACTIVE_BG = "linear-gradient(135deg, rgba(0,163,255,0.22), rgba(0,221,255,0.18))"
 const DISABLED_FG = "var(--vscode-disabledForeground, #555)"
 
 // ─── IconBtn primitive ───────────────────────────────────────────────────────
@@ -55,7 +64,6 @@ interface IconBtnProps {
 
 const IconBtn: React.FC<IconBtnProps> = ({ onClick, title, disabled, danger, active, children }) => {
 	const [hovered, setHovered] = useState(false)
-
 	const fg = disabled ? DISABLED_FG : danger ? "var(--vscode-errorForeground, #f14c4c)" : FG
 	const bg = active ? ACTIVE_BG : hovered && !disabled ? HOVER_BG : "transparent"
 	const border = active
@@ -92,17 +100,7 @@ const IconBtn: React.FC<IconBtnProps> = ({ onClick, title, disabled, danger, act
 }
 
 // ─── Vertical divider between groups ────────────────────────────────────────
-const GroupDivider = () => (
-	<span
-		style={{
-			width: 1,
-			height: 16,
-			background: BORDER,
-			flexShrink: 0,
-			margin: "0 3px",
-		}}
-	/>
-)
+const GroupDivider = () => <span style={{ width: 1, height: 16, background: BORDER, flexShrink: 0, margin: "0 3px" }} />
 
 // ─── Run controls pill wrapper ───────────────────────────────────────────────
 const RunGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -120,6 +118,89 @@ const RunGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 	</div>
 )
 
+// ─── Edit Mode pill button ───────────────────────────────────────────────────
+const EditModeButton: React.FC<{
+	active: boolean
+	onClick: () => void
+	pendingCount?: number
+}> = ({ active, onClick, pendingCount = 0 }) => {
+	const [hovered, setHovered] = useState(false)
+	return (
+		<button
+			onClick={onClick}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			style={{
+				display: "inline-flex",
+				alignItems: "center",
+				gap: 5,
+				height: 24,
+				padding: "0 10px",
+				background: active ? EDIT_ACTIVE_BG : hovered ? HOVER_BG : "transparent",
+				border: `1px solid ${active ? "rgba(0,221,255,0.55)" : BORDER}`,
+				borderRadius: 12,
+				color: active ? "#00DDFF" : FG,
+				fontFamily: "var(--vscode-font-family, system-ui)",
+				fontSize: 11,
+				fontWeight: active ? 600 : 500,
+				cursor: "pointer",
+				transition: "all 0.15s",
+				flexShrink: 0,
+			}}
+			title={active ? "Exit Edit Mode" : "Enter Edit Mode — edit prose, comment on any component"}
+			type="button">
+			<span className="codicon codicon-edit" style={{ fontSize: 12 }} />
+			{active ? "Editing" : "Edit"}
+			{active && pendingCount > 0 && (
+				<span
+					style={{
+						background: "rgba(0,221,255,0.25)",
+						color: "#00DDFF",
+						borderRadius: 8,
+						padding: "0 5px",
+						fontSize: 10,
+						fontWeight: 700,
+					}}>
+					{pendingCount}
+				</span>
+			)}
+		</button>
+	)
+}
+
+// ─── Side panel toggle (hamburger) ───────────────────────────────────────────
+const SidePanelToggle: React.FC<{ open: boolean; onClick: () => void }> = ({ open, onClick }) => {
+	const [hovered, setHovered] = useState(false)
+	return (
+		<button
+			aria-label={open ? "Close side panel" : "Open side panel (Files, Modules, Skills, Comments)"}
+			onClick={onClick}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			style={{
+				width: 26,
+				height: 26,
+				display: "inline-flex",
+				alignItems: "center",
+				justifyContent: "center",
+				padding: 0,
+				background: open ? ACTIVE_BG : hovered ? HOVER_BG : "transparent",
+				border: `1px solid ${open ? ACTIVE_BORDER : hovered ? "rgba(255,255,255,0.22)" : "transparent"}`,
+				borderRadius: 4,
+				color: FG,
+				cursor: "pointer",
+				flexShrink: 0,
+			}}
+			title={open ? "Close side panel" : "Open side panel"}
+			type="button">
+			<span
+				className={`codicon codicon-${open ? "layout-sidebar-left" : "layout-sidebar-left-off"}`}
+				style={{ fontSize: 14 }}
+			/>
+		</button>
+	)
+}
+
 // ─── Main toolbar ────────────────────────────────────────────────────────────
 export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => {
 	const {
@@ -134,6 +215,11 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 		isRunning,
 		runAllCurrent,
 		runAllTotal,
+		sidePanelOpen,
+		onToggleSidePanel,
+		editModeActive,
+		onToggleEditMode,
+		pendingChangeCount,
 		onRunCell,
 		onRunAll,
 		onRestartAndRunAll,
@@ -184,6 +270,30 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 
 	const stopTitle = isRunning ? "Interrupt execution" : "Nothing running"
 
+	// ── Build kebab menu items (low-frequency utilities) ─────────────────────
+	const kebabItems: KebabMenuItem[] = [
+		{
+			label: diagnosticsOpen ? "Hide diagnostics" : "Show diagnostics",
+			icon: "info",
+			onClick: onToggleDiagnostics,
+			active: diagnosticsOpen,
+		},
+		{ label: "Probe Python environment", icon: "beaker", onClick: onProbeEnvironment, divider: true },
+		{ label: "Refresh Python environments", icon: "refresh", onClick: onRefreshEnvironments },
+		{ label: "Restart kernel", icon: "debug-restart", onClick: onRestartKernel },
+		{
+			label: pathCopied ? "Path copied!" : "Copy file path",
+			icon: pathCopied ? "check" : "copy",
+			onClick: onCopyPath,
+			disabled: !hasFilePath,
+			divider: true,
+		},
+		{ label: "Open source in editor", icon: "file-code", onClick: onOpenInEditor, disabled: !hasFilePath },
+		{ label: "Reload preview iframe", icon: "refresh", onClick: onRefresh },
+		{ label: "Open in external browser", icon: "link-external", onClick: onOpenInBrowser, disabled: !hasFilePath },
+		{ label: "Remove this preview", icon: "close", onClick: onClear, danger: true, divider: true },
+	]
+
 	// ── Workspace-not-trusted banner ─────────────────────────────────────────
 	const trustBanner = !workspaceTrusted ? (
 		<div
@@ -219,7 +329,6 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 						height: 28,
 						gap: 6,
 					}}>
-					{/* Left: toggle + title */}
 					<div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, flex: 1 }}>
 						<CollapseToggleButton expanded={false} onToggle={toggleToolbar} title="Expand artifact toolbar" />
 						<span
@@ -234,7 +343,6 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 							{item.title || "HTML Preview"}
 						</span>
 					</div>
-					{/* Right: status chip + stop if running */}
 					<div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
 						<KernelStatusChip
 							isRunning={isRunning}
@@ -253,7 +361,7 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 		)
 	}
 
-	// ── Expanded state: single-row, 4 groups ─────────────────────────────────
+	// ── Expanded state: single row, three groups + kebab ─────────────────────
 	return (
 		<div
 			style={{
@@ -275,6 +383,7 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 				}}>
 				{/* ── Group 1: Identity ───────────────────────────── */}
 				<div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
+					<SidePanelToggle onClick={onToggleSidePanel} open={sidePanelOpen} />
 					<CollapseToggleButton expanded={true} onToggle={toggleToolbar} title="Collapse artifact toolbar" />
 					<span
 						style={{
@@ -326,7 +435,7 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 					</IconBtn>
 				</RunGroup>
 
-				{/* ── Group 3: Kernel ─────────────────────────────── */}
+				{/* ── Group 3: Kernel status + env + Edit Mode ─────── */}
 				<GroupDivider />
 				<KernelStatusChip
 					isRunning={isRunning}
@@ -359,45 +468,10 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 						))
 					)}
 				</select>
-				<IconBtn onClick={onRefreshEnvironments} title="Refresh Python environments">
-					<span className="codicon codicon-refresh" style={{ fontSize: 13 }} />
-				</IconBtn>
-				<IconBtn onClick={onRestartKernel} title="Restart kernel (clears variables)">
-					<span className="codicon codicon-debug-restart" style={{ fontSize: 13 }} />
-				</IconBtn>
-				<IconBtn onClick={onProbeEnvironment} title="Probe environment (numpy, pandas, rasterio, matplotlib)">
-					<span className="codicon codicon-beaker" style={{ fontSize: 13 }} />
-				</IconBtn>
-				<IconBtn
-					active={diagnosticsOpen}
-					onClick={onToggleDiagnostics}
-					title={diagnosticsOpen ? "Hide diagnostics" : "Show technical diagnostics"}>
-					<span className="codicon codicon-settings-gear" style={{ fontSize: 13 }} />
-				</IconBtn>
+				<EditModeButton active={editModeActive} onClick={onToggleEditMode} pendingCount={pendingChangeCount} />
 
-				{/* ── Group 4: File ops ───────────────────────────── */}
-				<GroupDivider />
-				<IconBtn
-					disabled={!hasFilePath}
-					onClick={onCopyPath}
-					title={hasFilePath ? (pathCopied ? "Copied!" : "Copy file path") : "No file path"}>
-					<span
-						className={`codicon ${pathCopied ? "codicon-check" : "codicon-copy"}`}
-						style={{ fontSize: 13, color: pathCopied ? "#89d185" : undefined }}
-					/>
-				</IconBtn>
-				<IconBtn disabled={!hasFilePath} onClick={onOpenInEditor} title="Open source file in editor">
-					<span className="codicon codicon-file-code" style={{ fontSize: 13 }} />
-				</IconBtn>
-				<IconBtn onClick={onRefresh} title="Reload preview iframe">
-					<span className="codicon codicon-refresh" style={{ fontSize: 13 }} />
-				</IconBtn>
-				<IconBtn disabled={!hasFilePath} onClick={onOpenInBrowser} title="Open in external browser">
-					<span className="codicon codicon-link-external" style={{ fontSize: 13 }} />
-				</IconBtn>
-				<IconBtn onClick={onClear} title="Remove this preview">
-					<span className="codicon codicon-close" style={{ fontSize: 13 }} />
-				</IconBtn>
+				{/* ── Group 4: Kebab overflow ─────────────────────── */}
+				<KebabMenu items={kebabItems} title="More actions" />
 			</div>
 		</div>
 	)

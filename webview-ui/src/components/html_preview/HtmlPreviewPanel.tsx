@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { AccordionSection } from "@/components/common/AccordionSection"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { useHtmlPreviewContext } from "../../context/HtmlPreviewContext"
 import { CollapseToggleButton } from "./CollapseToggleButton"
+import { CommentSidebar } from "./CommentSidebar"
 import HtmlPreviewView from "./HtmlPreviewView"
 import ModulesMarketplaceView from "./marketplace/ModulesMarketplaceView"
 import { usePersistedExpanded } from "./usePersistedExpanded"
@@ -310,96 +312,185 @@ export const HtmlPreviewPanel: React.FC = () => {
 				</div>
 
 				{!sidebarCollapsed && (
-					<div style={{ flex: 1, overflow: "auto", padding: "6px 0" }}>
-						{/* Workspace Files section */}
-						{workspaceHtmlFiles.length > 0 && (
-							<div style={{ marginBottom: 12 }}>
+					<div style={{ flex: 1, overflow: "auto" }}>
+						{/* ─── Files accordion ──────────────────────────────────── */}
+						<AccordionSection
+							badge={workspaceHtmlFiles.length + items.length || undefined}
+							defaultOpen={true}
+							icon="files"
+							persistKey="files"
+							title="Files">
+							{workspaceHtmlFiles.length > 0 && (
+								<div style={{ marginBottom: 10 }}>
+									<div
+										style={{
+											fontSize: 10,
+											color: "var(--vscode-descriptionForeground, #999)",
+											padding: "2px 12px 4px",
+											fontWeight: 600,
+										}}>
+										Workspace ({workspaceHtmlFiles.length})
+									</div>
+									{workspaceHtmlFiles.map((file) => {
+										const isLoaded = items.some((i) => i.filePath === file.path)
+										return (
+											<div
+												key={file.path}
+												onClick={() => activateWorkspaceFile(file.path, file.name)}
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: 6,
+													padding: "4px 12px",
+													fontSize: 11,
+													color: isLoaded ? "var(--vscode-list-activeSelectionForeground, #fff)" : fg,
+													cursor: "pointer",
+													background: isLoaded
+														? "var(--vscode-list-activeSelectionBackground, #0e639c)"
+														: "transparent",
+													borderRadius: 3,
+													margin: "0 4px 2px",
+												}}
+												title={file.path}>
+												<span className="codicon codicon-globe" style={{ fontSize: 11, opacity: 0.7 }} />
+												<span className="truncate" style={{ flex: 1, minWidth: 0 }}>
+													{file.name}
+												</span>
+												{isLoaded && <span style={{ fontSize: 9, opacity: 0.5 }}>✓</span>}
+											</div>
+										)
+									})}
+								</div>
+							)}
+							{items.length > 0 && (
+								<div>
+									<div
+										style={{
+											fontSize: 10,
+											color: "var(--vscode-descriptionForeground, #999)",
+											padding: "2px 12px 4px",
+											fontWeight: 600,
+										}}>
+										Loaded ({items.length})
+									</div>
+									{items.map((item) => {
+										const isActive = item.id === activeItemId
+										const manifest = manifestsById[item.id]
+										const displayTitle = manifest?.title || item.title || "Preview"
+										const authorLine = manifest?.authors
+											?.map((a) => a?.name)
+											.filter(Boolean)
+											.join(", ")
+										const subParts: string[] = []
+										if (manifest?.level) subParts.push(String(manifest.level))
+										if (manifest?.estimated_minutes) subParts.push(`${manifest.estimated_minutes} min`)
+										if (manifest?.license) subParts.push(String(manifest.license))
+										const subline = subParts.join(" · ")
+										return (
+											<SidebarItemCard
+												authorLine={authorLine}
+												displayTitle={displayTitle}
+												fg={fg}
+												isActive={isActive}
+												isModule={Boolean(manifest)}
+												key={item.id}
+												onRemove={() => removeItem(item.id)}
+												onSelect={() => setActiveItemId(item.id)}
+												subline={subline}
+											/>
+										)
+									})}
+								</div>
+							)}
+							{workspaceHtmlFiles.length === 0 && items.length === 0 && (
 								<div
 									style={{
-										fontSize: 10,
-										fontWeight: 700,
-										color: "var(--vscode-descriptionForeground, #999)",
-										textTransform: "uppercase",
-										letterSpacing: "0.5px",
-										padding: "4px 10px",
+										padding: "12px 12px 8px",
+										fontSize: 11,
+										color: "var(--vscode-descriptionForeground, #888)",
 									}}>
-									Workspace ({workspaceHtmlFiles.length})
+									No HTML files in this workspace.
 								</div>
-								{workspaceHtmlFiles.map((file) => {
-									const isLoaded = items.some((i) => i.filePath === file.path)
-									return (
-										<div
-											key={file.path}
-											onClick={() => activateWorkspaceFile(file.path, file.name)}
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: 6,
-												padding: "4px 10px",
-												fontSize: 11,
-												color: isLoaded ? "var(--vscode-list-activeSelectionForeground, #fff)" : fg,
-												cursor: "pointer",
-												background: isLoaded
-													? "var(--vscode-list-activeSelectionBackground, #0e639c)"
-													: "transparent",
-												borderRadius: 3,
-												margin: "0 4px 2px",
-											}}
-											title={file.path}>
-											<span style={{ fontSize: 10, opacity: 0.6 }}>🌐</span>
-											<span className="truncate" style={{ flex: 1, minWidth: 0 }}>
-												{file.name}
-											</span>
-											{isLoaded && <span style={{ fontSize: 9, opacity: 0.5 }}>✓</span>}
-										</div>
-									)
-								})}
-							</div>
-						)}
+							)}
+						</AccordionSection>
 
-						{/* Loaded Previews section */}
-						{items.length > 0 && (
-							<div>
+						{/* ─── Modules accordion ────────────────────────────────── */}
+						<AccordionSection icon="library" persistKey="modules" title="Modules">
+							<div style={{ padding: "6px 8px" }}>
+								<button
+									onClick={() => setActiveSection(activeSection === "modules" ? "preview" : "modules")}
+									style={{
+										width: "100%",
+										padding: "6px 10px",
+										borderRadius: 6,
+										border: "1px solid var(--vscode-button-border, transparent)",
+										background:
+											activeSection === "modules"
+												? "var(--vscode-button-background, #0e639c)"
+												: "var(--vscode-button-secondaryBackground, rgba(125,211,252,0.1))",
+										color:
+											activeSection === "modules"
+												? "var(--vscode-button-foreground, #fff)"
+												: "var(--vscode-foreground, #cccccc)",
+										fontFamily: "Poppins, system-ui, sans-serif",
+										fontSize: 11,
+										fontWeight: 600,
+										cursor: "pointer",
+									}}
+									type="button">
+									{activeSection === "modules" ? "Close Marketplace" : "Open Module Marketplace"}
+								</button>
 								<div
 									style={{
+										marginTop: 8,
 										fontSize: 10,
-										fontWeight: 700,
-										color: "var(--vscode-descriptionForeground, #999)",
-										textTransform: "uppercase",
-										letterSpacing: "0.5px",
-										padding: "4px 10px",
+										color: "var(--vscode-descriptionForeground, #888)",
+										lineHeight: 1.4,
 									}}>
-									Loaded ({items.length})
+									Browse and install community modules from the AI-Hydro marketplace.
 								</div>
-								{items.map((item) => {
-									const isActive = item.id === activeItemId
-									const manifest = manifestsById[item.id]
-									const displayTitle = manifest?.title || item.title || "Preview"
-									const authorLine = manifest?.authors
-										?.map((a) => a?.name)
-										.filter(Boolean)
-										.join(", ")
-									const subParts: string[] = []
-									if (manifest?.level) subParts.push(String(manifest.level))
-									if (manifest?.estimated_minutes) subParts.push(`${manifest.estimated_minutes} min`)
-									if (manifest?.license) subParts.push(String(manifest.license))
-									const subline = subParts.join(" · ")
-									return (
-										<SidebarItemCard
-											authorLine={authorLine}
-											displayTitle={displayTitle}
-											fg={fg}
-											isActive={isActive}
-											isModule={Boolean(manifest)}
-											key={item.id}
-											onRemove={() => removeItem(item.id)}
-											onSelect={() => setActiveItemId(item.id)}
-											subline={subline}
-										/>
-									)
-								})}
 							</div>
-						)}
+						</AccordionSection>
+
+						{/* ─── Skills accordion ─────────────────────────────────── */}
+						<AccordionSection icon="symbol-class" persistKey="skills" title="Skills">
+							<div
+								style={{
+									padding: "8px 10px",
+									fontSize: 11,
+									color: "var(--vscode-descriptionForeground, #888)",
+									lineHeight: 1.5,
+								}}>
+								Skill management is in the main AI-Hydro chat panel sidebar. Use{" "}
+								<code style={{ background: "rgba(0,221,255,0.1)", padding: "1px 4px", borderRadius: 3 }}>
+									list_skills
+								</code>{" "}
+								and{" "}
+								<code style={{ background: "rgba(0,221,255,0.1)", padding: "1px 4px", borderRadius: 3 }}>
+									load_skill
+								</code>{" "}
+								MCP tools from the agent.
+							</div>
+						</AccordionSection>
+
+						{/* ─── Comments accordion ───────────────────────────────── */}
+						<AccordionSection icon="comment-discussion" persistKey="comments" title="Comments">
+							{activeItem ? (
+								<CommentSidebar
+									iframeWindow={null /* future: pass actual iframe contentWindow */}
+									moduleId={activeItem.id}
+								/>
+							) : (
+								<div
+									style={{
+										padding: "12px",
+										fontSize: 11,
+										color: "var(--vscode-descriptionForeground, #888)",
+									}}>
+									Open a module to see and manage comments.
+								</div>
+							)}
+						</AccordionSection>
 					</div>
 				)}
 
@@ -638,7 +729,11 @@ export const HtmlPreviewPanel: React.FC = () => {
 					) : items.length === 0 ? (
 						<EmptyState isDragOver={isDragOver} onAddFile={onPickFiles} workspaceCount={workspaceHtmlFiles.length} />
 					) : (
-						<HtmlPreviewView item={activeItem} />
+						<HtmlPreviewView
+							item={activeItem}
+							onToggleSidePanel={() => setSidebarCollapsed((v) => !v)}
+							sidePanelOpen={!sidebarCollapsed}
+						/>
 					)}
 				</div>
 			</div>
