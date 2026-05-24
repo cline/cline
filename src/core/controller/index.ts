@@ -43,6 +43,8 @@ import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
+import { PreviewCommandWatcher } from "@/services/htmlPreview/PreviewCommandWatcher"
+import { PreviewSessionService } from "@/services/htmlPreview/PreviewSessionService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { MapSessionService } from "@/services/map/MapSessionService"
 import { telemetryService } from "@/services/telemetry"
@@ -106,6 +108,8 @@ export class Controller {
 	private mapEventWatcher: MapEventWatcher
 	private mapCommandWatcher: MapCommandWatcher
 	readonly mapSessionService: MapSessionService
+	readonly previewSessionService: PreviewSessionService
+	private previewCommandWatcher?: PreviewCommandWatcher
 
 	// HTML preview storage and streaming.
 	//
@@ -191,6 +195,13 @@ export class Controller {
 		this.mapEventWatcher.start()
 		this.mapSessionService = new MapSessionService()
 		void this.mapSessionService.initialize()
+		// Phase 1: PreviewSessionService mirrors events to ~/.aihydro/preview_session/
+		// and ~/.aihydro/preview_events/ for MCP-tool consumption.
+		// PreviewCommandWatcher polls ~/.aihydro/preview_commands/ for agent commands
+		// (focus_cell, revise_section, address_comment) written by tools_preview.py.
+		this.previewSessionService = new PreviewSessionService()
+		this.previewCommandWatcher = new PreviewCommandWatcher(this)
+		this.previewCommandWatcher.start()
 		this.mapCommandWatcher = new MapCommandWatcher(this)
 		this.mapCommandWatcher.start()
 		StateManager.get().registerCallbacks({

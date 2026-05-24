@@ -162,6 +162,50 @@ export class VscodeHtmlPreviewProvider {
 							await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
 						}
 						break
+					case "aihydro-preview-event":
+						// Phase 0: relay webview-side preview events into the
+						// host's PreviewSessionService ring buffer. Phase 1 will
+						// replace this postMessage path with a gRPC unary call
+						// (PreviewServiceClient.reportPreviewEvent) and expose
+						// MCP tools (preview_get_state, preview_recent_events).
+						try {
+							const svc = mainWebview.controller.previewSessionService
+							const payload = (message.payloadJson ?? "{}") as string
+							const parsed = (() => {
+								try {
+									return JSON.parse(payload) as Record<string, unknown>
+								} catch {
+									return {}
+								}
+							})()
+							svc.appendEvent({
+								moduleId: String(parsed.moduleId ?? parsed.module_id ?? "unknown"),
+								cellId: typeof parsed.cellId === "string" ? parsed.cellId : undefined,
+								kind: String(message.kind ?? "user.interaction"),
+								payloadJson: payload,
+								timestampMs: Number(message.timestampMs) || Date.now(),
+								source: String(message.source ?? "user"),
+							})
+						} catch (err) {
+							console.warn("[VscodeHtmlPreviewProvider] preview-event relay failed:", err)
+						}
+						break
+					case "aihydro-preview-agent-task":
+						// Phase 1 will start an agent chat task here using the
+						// `prompt` field, mirroring the map agent-task path.
+						// Phase 0 acknowledges receipt so the bridge promise
+						// resolves cleanly instead of timing out.
+						try {
+							panel.webview.postMessage({
+								type: "aihydro-preview-agent-result",
+								requestId: message.requestId,
+								ok: false,
+								error: "agent task path lands in Phase 1",
+							})
+						} catch (err) {
+							console.warn("[VscodeHtmlPreviewProvider] preview-agent-task ack failed:", err)
+						}
+						break
 					default:
 						console.warn("[VscodeHtmlPreviewProvider] Unhandled message:", JSON.stringify(message))
 				}

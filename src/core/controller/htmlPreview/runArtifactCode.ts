@@ -5,6 +5,29 @@ import type { Controller } from ".."
 import { ensurePythonExecutionAllowed } from "./ensurePythonExecutionAllowed"
 
 /**
+ * Emit a PreviewEvent into the session service.  Non-fatal — never throws.
+ */
+function emitPreviewEvent(
+	controller: Controller,
+	kind: string,
+	moduleId: string,
+	cellId: string | undefined,
+	payload: Record<string, unknown>,
+): void {
+	try {
+		controller.previewSessionService.appendEvent({
+			moduleId,
+			cellId: cellId || undefined,
+			kind,
+			payloadJson: JSON.stringify(payload),
+			source: "kernel",
+		})
+	} catch {
+		/* non-fatal */
+	}
+}
+
+/**
  * Execute Python code in a persistent kernel for an HTML artifact preview.
  */
 export async function runArtifactCode(controller: Controller, request: RunArtifactCodeRequest): Promise<RunArtifactCodeResponse> {
@@ -50,6 +73,12 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 		})
 	}
 
+	// ── Phase 1: tell the agent a cell run is starting ───────────────────
+	emitPreviewEvent(controller, "cell.run.started", artifactId, cellId || undefined, {
+		cellId: cellId || undefined,
+		moduleId: artifactId,
+	})
+
 	try {
 		const svc = controller.getArtifactKernelService()
 		const result = await executeWorkspacePython(svc, code, {
@@ -59,6 +88,30 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 		})
 		const info = await svc.getInfoOrDefault(artifactId, profileId || undefined)
 		const protoStatus = result.status === "ok" ? "success" : result.status === "interrupted" ? "interrupted" : result.status
+
+		// ── Phase 1: emit outcome event ───────────────────────────────────
+		if (result.status === "ok") {
+			emitPreviewEvent(controller, "cell.run.completed", artifactId, cellId || undefined, {
+				cellId: cellId || undefined,
+				moduleId: artifactId,
+				stdout: result.stdout,
+				stderr: result.stderr,
+				resultRepr: result.resultRepr,
+				truncated: result.truncated ?? false,
+				executionCount: info.executionCount,
+			})
+		} else {
+			// "error" or "interrupted" status reported by the kernel
+			emitPreviewEvent(controller, "cell.error", artifactId, cellId || undefined, {
+				cellId: cellId || undefined,
+				moduleId: artifactId,
+				status: result.status,
+				message: result.error ?? result.stderr ?? "Unknown kernel error",
+				stdout: result.stdout,
+				stderr: result.stderr,
+			})
+		}
+
 		return RunArtifactCodeResponse.create({
 			stdout: result.stdout,
 			stderr: result.stderr,
@@ -74,6 +127,13 @@ export async function runArtifactCode(controller: Controller, request: RunArtifa
 		})
 	} catch (error) {
 		const msg = error instanceof Error ? error.message : String(error)
+		// ── Phase 1: emit caught exceptions as cell.error ─────────────────
+		emitPreviewEvent(controller, "cell.error", artifactId, cellId || undefined, {
+			cellId: cellId || undefined,
+			moduleId: artifactId,
+			status: "error",
+			message: msg,
+		})
 		return RunArtifactCodeResponse.create({
 			status: "error",
 			error: msg,

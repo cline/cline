@@ -8,8 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Poppins:wght@400;500;600;700&family=Nunito:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet loaded by AI-Hydro Bridge (data-aihydro-map adapter) — no CDN tag needed -->
 
 <script type="application/vnd.aihydro.module+json">
 {
@@ -220,13 +219,10 @@ input[type=range] { width:100%; accent-color:var(--cyan); height:4px; border-rad
 .deep-dive .reveal-body p:last-child { margin-bottom:0; }
 
 /* ── Map ─────────────────────────────────────────────── */
+/* Dark Leaflet palette is injected by the AI-Hydro Bridge; only module-specific
+   overrides (gauge popup table) live here. */
 .map-shell { border:1px solid var(--border); border-radius:18px; overflow:hidden; margin:16px 0; box-shadow:0 12px 32px rgba(0,0,0,0.4); }
-#leafletMap { width:100%; height:420px; background:var(--mid); }
-.leaflet-container { background:#1a1a2e !important; font-family:'Nunito',sans-serif; }
-.leaflet-control-attribution { background:rgba(10,10,21,0.85) !important; color:var(--muted) !important; font-size:10px !important; }
-.leaflet-control-attribution a { color:var(--cyan) !important; }
-.leaflet-control-layers { background:rgba(26,26,46,0.92) !important; color:var(--sub) !important; border:1px solid var(--border) !important; border-radius:10px !important; }
-.leaflet-control-zoom a { background:rgba(26,26,46,0.92) !important; color:var(--cyan) !important; border-color:var(--border) !important; }
+.aihydro-map { width:100%; height:420px; background:var(--mid); border-radius:18px; }
 .gauge-popup .leaflet-popup-content-wrapper { background:rgba(15,15,30,0.95); color:var(--sub); border:1px solid var(--border); border-radius:14px; }
 .gauge-popup .leaflet-popup-tip { background:rgba(15,15,30,0.95); }
 .gauge-popup h4 { font-family:'Poppins',sans-serif; color:var(--text); margin-bottom:8px; font-size:14px; }
@@ -407,8 +403,25 @@ input[type=range] { width:100%; accent-color:var(--cyan); height:4px; border-rad
     Toggle <strong>TWI (qualitative)</strong> in the layers control to see a simulated wetness pattern
     overlaid on the watershed. Click the gauge marker for metadata.
   </p>
+  <!-- AI-Hydro standardised map contract (Phase 2).
+       The bridge adapter auto-initialises Leaflet, styles, and controls.
+       Custom overlays (TWI canvas) are added via _aihydroMap after ready. -->
   <div class="map-shell">
-    <div id="leafletMap"></div>
+    <div class="aihydro-map"
+         data-aihydro-map-id="watershed-01031500"
+         data-basemap="carto-dark"
+         data-marker-lat="45.265"
+         data-marker-lng="-69.55"
+         data-gauge-id="01031500"
+         data-marker-label="USGS 01031500 — Piscataquis River at Medford, ME"
+         data-style-color="#00DDFF"
+         data-style-fill="#00A3FF"
+         data-style-fill-opacity="0.08"
+         style="width:100%; height:420px;">
+      <script type="application/geo+json">
+{"type":"Feature","properties":{"name":"USGS 01031500","gauge_id":"01031500"},"geometry":{"type":"Polygon","coordinates":[[[-69.397946258,45.106972356],[-69.419563965,45.116669284],[-69.433170808,45.114987067],[-69.434583954,45.108209926],[-69.430751934,45.096708481],[-69.443365357,45.088036416],[-69.458671277,45.093381948],[-69.471145311,45.089000994],[-69.484731475,45.07923952],[-69.494661788,45.087598976],[-69.507071161,45.104863132],[-69.520118288,45.102490704],[-69.556675056,45.084444328],[-69.563278032,45.086880581],[-69.582747996,45.09199403],[-69.591296871,45.087154687],[-69.606525796,45.088031189],[-69.6125038,45.097845801],[-69.607625713,45.108294984],[-69.623461217,45.113613404],[-69.640244455,45.105905455],[-69.673759323,45.087579173],[-69.68186537,45.079256338],[-69.710078104,45.085664819],[-69.721730769,45.097182743],[-69.734368214,45.111799787],[-69.724198379,45.118989462],[-69.709312055,45.125984105],[-69.709217614,45.134210484],[-69.699107129,45.141158798],[-69.693297712,45.144192951],[-69.679886566,45.145802219],[-69.674001804,45.151145888],[-69.679474249,45.183475705],[-69.67321319,45.19162574],[-69.671741261,45.2011968],[-69.671198905,45.21181899],[-69.679670938,45.214630203],[-69.692096382,45.218556639],[-69.701706917,45.222984954],[-69.738927396,45.220822023],[-69.744933907,45.224120124],[-69.764701198,45.232436883],[-69.765891077,45.242710309],[-69.769546984,45.255906898],[-69.769794949,45.265543988],[-69.761978097,45.282435996],[-69.758607709,45.296435666],[-69.740647818,45.319147755],[-69.742438297,45.329285502],[-69.743034921,45.339115285],[-69.750711347,45.36062895],[-69.754024748,45.369741642],[-69.764566047,45.381507767],[-69.76155574,45.387010603],[-69.765114426,45.398599323],[-69.747159244,45.415492614],[-69.713871201,45.433812139],[-69.700306034,45.440201128],[-69.677047061,45.447815749],[-69.64549076,45.427449815],[-69.639960794,45.41729847],[-69.618157678,45.419354831],[-69.592413166,45.422337682],[-69.573903162,45.409576837],[-69.596905505,45.389558308],[-69.595995469,45.378554043],[-69.583928328,45.3668052],[-69.568501809,45.361573596],[-69.554693503,45.352509342],[-69.563690187,45.341001237],[-69.569756744,45.32999179],[-69.547435576,45.325231573],[-69.540349957,45.314784816],[-69.548136305,45.30449377],[-69.55821846,45.299273567],[-69.563223898,45.292628121],[-69.549907667,45.281743021],[-69.534711548,45.264679098],[-69.522797143,45.269196339],[-69.519105615,45.271262426],[-69.49620332,45.277859021],[-69.478675119,45.266917256],[-69.468674502,45.255728702],[-69.438173164,45.229747361],[-69.397479688,45.223764248],[-69.381889762,45.223695781],[-69.364343225,45.226456601],[-69.362604708,45.210348634],[-69.36529405,45.205598246],[-69.354466025,45.196256335],[-69.343303801,45.187374756],[-69.314638475,45.175240629],[-69.318152514,45.169709048],[-69.323145907,45.1596249],[-69.338594276,45.145278211],[-69.338594418,45.133650709],[-69.340320311,45.119252714],[-69.351456705,45.110597805],[-69.370588955,45.104223036],[-69.383801348,45.102978318],[-69.390318032,45.091643602],[-69.397946258,45.106972356]]]}}
+      </script>
+    </div>
   </div>
   <div class="callout agent">
     <span class="callout-label">AI-Hydro agent action</span>
@@ -798,11 +811,6 @@ print(f"Dry (<5): {(twi_grid<5).sum()}  |  Wet (>8): {(twi_grid>8).sum()}")</pre
 
 </main>
 
-<!-- Inline watershed polygon -->
-<script id="watershedGeo" type="application/geo+json">
-{"type":"Feature","properties":{"name":"USGS 01031500","gauge_id":"01031500"},
- "geometry":{"type":"Polygon","coordinates":[[[-69.397946258,45.106972356],[-69.419563965,45.116669284],[-69.433170808,45.114987067],[-69.434583954,45.108209926],[-69.430751934,45.096708481],[-69.443365357,45.088036416],[-69.458671277,45.093381948],[-69.471145311,45.089000994],[-69.484731475,45.07923952],[-69.494661788,45.087598976],[-69.507071161,45.104863132],[-69.520118288,45.102490704],[-69.556675056,45.084444328],[-69.563278032,45.086880581],[-69.582747996,45.09199403],[-69.591296871,45.087154687],[-69.606525796,45.088031189],[-69.6125038,45.097845801],[-69.607625713,45.108294984],[-69.623461217,45.113613404],[-69.640244455,45.105905455],[-69.673759323,45.087579173],[-69.68186537,45.079256338],[-69.710078104,45.085664819],[-69.721730769,45.097182743],[-69.734368214,45.111799787],[-69.724198379,45.118989462],[-69.709312055,45.125984105],[-69.709217614,45.134210484],[-69.699107129,45.141158798],[-69.693297712,45.144192951],[-69.679886566,45.145802219],[-69.674001804,45.151145888],[-69.679474249,45.183475705],[-69.67321319,45.19162574],[-69.671741261,45.2011968],[-69.671198905,45.21181899],[-69.679670938,45.214630203],[-69.692096382,45.218556639],[-69.701706917,45.222984954],[-69.738927396,45.220822023],[-69.744933907,45.224120124],[-69.764701198,45.232436883],[-69.765891077,45.242710309],[-69.769546984,45.255906898],[-69.769794949,45.265543988],[-69.761978097,45.282435996],[-69.758607709,45.296435666],[-69.740647818,45.319147755],[-69.742438297,45.329285502],[-69.743034921,45.339115285],[-69.750711347,45.36062895],[-69.754024748,45.369741642],[-69.764566047,45.381507767],[-69.76155574,45.387010603],[-69.765114426,45.398599323],[-69.747159244,45.415492614],[-69.713871201,45.433812139],[-69.700306034,45.440201128],[-69.677047061,45.447815749],[-69.64549076,45.427449815],[-69.639960794,45.41729847],[-69.618157678,45.419354831],[-69.592413166,45.422337682],[-69.573903162,45.409576837],[-69.596905505,45.389558308],[-69.595995469,45.378554043],[-69.583928328,45.3668052],[-69.568501809,45.361573596],[-69.554693503,45.352509342],[-69.563690187,45.341001237],[-69.569756744,45.32999179],[-69.547435576,45.325231573],[-69.540349957,45.314784816],[-69.548136305,45.30449377],[-69.55821846,45.299273567],[-69.563223898,45.292628121],[-69.549907667,45.281743021],[-69.534711548,45.264679098],[-69.522797143,45.269196339],[-69.519105615,45.271262426],[-69.49620332,45.277859021],[-69.478675119,45.266917256],[-69.468674502,45.255728702],[-69.438173164,45.229747361],[-69.397479688,45.223764248],[-69.381889762,45.223695781],[-69.364343225,45.226456601],[-69.362604708,45.210348634],[-69.36529405,45.205598246],[-69.354466025,45.196256335],[-69.343303801,45.187374756],[-69.314638475,45.175240629],[-69.318152514,45.169709048],[-69.323145907,45.1596249],[-69.338594276,45.145278211],[-69.338594418,45.133650709],[-69.340320311,45.119252714],[-69.351456705,45.110597805],[-69.370588955,45.104223036],[-69.383801348,45.102978318],[-69.390318032,45.091643602],[-69.397946258,45.106972356]]]}}
-</script>
 
 <script>
 (function () {
@@ -1116,60 +1124,21 @@ print(f"Dry (<5): {(twi_grid<5).sum()}  |  Wet (>8): {(twi_grid>8).sum()}")</pre
     return canvas.toDataURL('image/png');
   }
 
-  /* ── LEAFLET MAP ─────────────────────────────────────────────────── */
-  function initMap() {
-    if (typeof L === 'undefined') { return setTimeout(initMap, 80); }
+  /* ── LEAFLET MAP — TWI overlay (post-init hook) ──────────────────── */
+  /* The AI-Hydro Bridge adapter initialises the basemap, GeoJSON boundary,
+     and gauge marker automatically from data-aihydro-map attributes.
+     This post-init hook adds the qualitative TWI image overlay + legend,
+     which are specific to this module and not part of the standard contract. */
+  function addTwiOverlayWhenReady() {
+    var mapEl = document.querySelector('.aihydro-map[data-aihydro-map-id="watershed-01031500"]');
+    if (!mapEl) return;
+    var map = mapEl._aihydroMap;
+    var L = window.L;
+    if (!map || !L) { setTimeout(addTwiOverlayWhenReady, 150); return; }
 
-    var carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap, © CARTO'
-    });
-    var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18, attribution: '© OpenStreetMap'
-    });
-    var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 18, attribution: 'Tiles © Esri'
-    });
-
-    var map = L.map('leafletMap', { center: [45.27, -69.55], zoom: 9, layers: [carto] });
-
-    var watershed = JSON.parse(document.getElementById('watershedGeo').textContent);
-    var boundary = L.geoJSON(watershed, {
-      style: { color: '#00DDFF', weight: 2.5, fillColor: '#00A3FF', fillOpacity: 0.08 }
-    }).addTo(map);
-    map.fitBounds(boundary.getBounds(), { padding: [20, 20] });
-
-    var gaugeIcon = L.divIcon({
-      className: '',
-      iconSize: [22, 22],
-      html: '<div style="width:22px;height:22px;border-radius:50%;border:3px solid #00FFFF;background:rgba(0,221,255,0.35);box-shadow:0 0 16px rgba(0,221,255,0.65);"></div>'
-    });
-    var gauge = L.marker([45.265, -69.55], { icon: gaugeIcon }).addTo(map);
-    gauge.bindPopup(
-      '<div class="gauge-popup"><h4>USGS 01031500</h4><table>' +
-      '<tr><td>Catchment</td><td>Piscataquis basin, ME</td></tr>' +
-      '<tr><td>Climate</td><td>Humid, forested</td></tr>' +
-      '<tr><td>Area</td><td>~ 770 km²</td></tr>' +
-      '<tr><td>CAMELS BFI</td><td>~ 0.55</td></tr>' +
-      '<tr><td>Mean TWI</td><td>≈ 8.0</td></tr>' +
-      '</table></div>',
-      { className: 'gauge-popup' }
-    );
-    boundary.bindTooltip('Watershed boundary — gauge 01031500', { sticky: true });
-
-    /* Simulated qualitative TWI canvas overlay */
     var twiOverlay = L.imageOverlay(makeTwiCanvas(), [[45.07, -69.77], [45.45, -69.31]], {
       opacity: 0.70, interactive: false
     });
-
-    var gaugeGroup = L.layerGroup([gauge]).addTo(map);
-
-    L.control.layers(
-      { 'Dark (CARTO)': carto, 'OpenStreetMap': osm, 'Satellite': sat },
-      { 'Watershed boundary': boundary, 'Gauge': gaugeGroup, 'TWI (qualitative)': twiOverlay },
-      { position: 'topright', collapsed: true }
-    ).addTo(map);
-
-    L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
 
     /* TWI legend */
     var legend = L.control({ position: 'bottomright' });
@@ -1185,6 +1154,10 @@ print(f"Dry (<5): {(twi_grid<5).sum()}  |  Wet (>8): {(twi_grid>8).sum()}")</pre
       return div;
     };
     legend.addTo(map);
+
+    /* Attach to layer control if it exists, otherwise just add it */
+    /* For simplicity: just add the overlay directly */
+    twiOverlay.addTo(map);
   }
 
   /* ── INIT ────────────────────────────────────────────────────────── */
@@ -1196,11 +1169,11 @@ print(f"Dry (<5): {(twi_grid<5).sum()}  |  Wet (>8): {(twi_grid>8).sum()}")</pre
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
       window.clickDemCell(0, 0);
-      initMap();
+      setTimeout(addTwiOverlayWhenReady, 500);
     });
   } else {
     window.clickDemCell(0, 0);
-    initMap();
+    setTimeout(addTwiOverlayWhenReady, 500);
   }
 
 })();

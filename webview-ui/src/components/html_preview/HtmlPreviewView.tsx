@@ -13,9 +13,16 @@ import {
 } from "@shared/proto/cline/html_preview"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { type AiHydroModuleManifest, useHtmlPreviewContext } from "@/context/HtmlPreviewContext"
+import { AIHYDRO_BRIDGE_CITATION_SCRIPT } from "@/integrations/aihydro-bridge/citation-adapter"
+import { AIHYDRO_BRIDGE_CORE_SCRIPT } from "@/integrations/aihydro-bridge/core"
+import { AIHYDRO_BRIDGE_EDITOR_SCRIPT } from "@/integrations/aihydro-bridge/editor-adapter"
+import { AIHYDRO_BRIDGE_LEAFLET_SCRIPT } from "@/integrations/aihydro-bridge/leaflet-adapter"
 import { FileServiceClient, HtmlPreviewServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { AIHYDRO_PREVIEW_STYLE, CELL_BRIDGE_SCRIPT } from "./aihydroCellBridge"
+import { EditModeToolbar } from "./EditModeToolbar"
 import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
+import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
+import { reportPreviewEvent } from "./previewBridge"
 
 /**
  * HtmlPreviewView — single-iframe renderer for one HTML artifact.
@@ -138,85 +145,10 @@ function buildArtifactContextScript(item?: HtmlPreviewItem): string {
 	return `<script>window.__aihydroArtifact=${payload};</script>`
 }
 
-/**
- * Folium exports are often generated for a top-level browser document. Inside
- * an iframe in VS Code the document can load while its map container is still
- * measuring as 0px or before the iframe has finished settling in the panel.
- * Leaflet then creates the map, but it never lays out tiles until
- * `invalidateSize()` runs. This shim is intentionally narrow: it only touches
- * pages with Folium/Leaflet containers and leaves ordinary HTML pages alone.
- */
-const LEAFLET_NORMALIZER_STYLE = `<style id="aihydro-leaflet-normalizer">
-html:has(.folium-map),
-body:has(.folium-map) {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-body:has(.folium-map) > .folium-map,
-.folium-map {
-  width: 100vw !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
-}
-.folium-map.leaflet-container,
-.leaflet-container {
-  background: #e5e3df !important;
-}
-</style>`
-
-const LEAFLET_NORMALIZER_SCRIPT = `<script>(function(){
-  function invalidateLeafletMaps() {
-    // NEVER do bare Object.keys(window) + window[k]: VS Code webviews expose
-    // cross-origin nested Window proxies on window; reading properties throws
-    // SecurityError before we can typeof-check them.
-    Object.keys(window).forEach(function(k) {
-      var v;
-      try {
-        v = window[k];
-      } catch (_) {
-        return;
-      }
-      if (!v || typeof v !== 'object') return;
-      try {
-        if (typeof v.invalidateSize === 'function') {
-          v.invalidateSize(true);
-        }
-      } catch (_) {}
-    });
-  }
-  function normalizeLeaflet() {
-    try {
-      var maps = Array.prototype.slice.call(document.querySelectorAll('.folium-map'));
-      if (!maps.length) return;
-      document.documentElement.style.width = '100%';
-      document.documentElement.style.height = '100%';
-      document.body.style.width = '100%';
-      document.body.style.height = '100%';
-      maps.forEach(function(el) {
-        el.style.width = '100vw';
-        el.style.height = '100vh';
-        el.style.minHeight = '100vh';
-      });
-      invalidateLeafletMaps();
-    } catch (e) {
-      try { console.error('AI-Hydro Leaflet normalizer failed', e); } catch (_) {}
-    }
-  }
-  window.__aihydroNormalizeLeaflet = normalizeLeaflet;
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', normalizeLeaflet);
-  } else {
-    normalizeLeaflet();
-  }
-  window.addEventListener('load', normalizeLeaflet);
-  setTimeout(normalizeLeaflet, 50);
-  setTimeout(normalizeLeaflet, 250);
-  setTimeout(normalizeLeaflet, 1000);
-  setTimeout(normalizeLeaflet, 2500);
-})();</script>`
+// Leaflet/Folium sizing normalizer extracted to ./leafletNormalizer.ts in
+// Phase 0 of the preview architecture refactor. In Phase 2 the normalizer
+// becomes a plugin on the AI-Hydro Bridge core (loaded only when a Leaflet
+// map is present).
 
 type RenderPath = "srcdoc" | "src" | "none"
 
@@ -256,6 +188,8 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 	const [runAllTotal, setRunAllTotal] = useState(0)
 	const registeredCellIdsRef = useRef<Set<string>>(new Set())
 	const isRunningRef = useRef(false)
+	// Phase 4: Edit Mode state
+	const [editModeActive, setEditModeActive] = useState(false)
 
 	const renderPath = useMemo<RenderPath>(
 		() => pickRenderPath(item),
@@ -282,6 +216,16 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 		// errors from external scripts. Insert the Leaflet normalizer near the
 		// end of <body> so Folium's own map variables already exist before we
 		// call invalidateSize().
+		// Injection order in <head> open tag:
+		//   artifactContext (sets window.__aihydroArtifact)
+		//   DIAG_SCRIPT (global error hook)
+		//   AIHYDRO_BRIDGE_CORE_SCRIPT (sets window.__aihydroBridge, adapter registry)
+		//   AIHYDRO_BRIDGE_LEAFLET_SCRIPT (registers data-aihydro-map adapter)
+		//   AIHYDRO_BRIDGE_CITATION_SCRIPT (registers cite[data-aihydro-cite-key] adapter)
+		//   AIHYDRO_BRIDGE_EDITOR_SCRIPT (edit mode + comment-pin, activated by postMessage)
+		//   CELL_BRIDGE_SCRIPT (Run button wiring, Python kernel bridge)
+		// Injection before </body>:
+		//   LEAFLET_NORMALIZER_SCRIPT (backward-compat sizing fix for Folium/ad-hoc Leaflet)
 		const headIdx = html.search(/<head[^>]*>/i)
 		if (headIdx >= 0) {
 			const closeIdx = html.indexOf(">", headIdx)
@@ -289,6 +233,10 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 				withHeadAssets.slice(0, closeIdx + 1) +
 				artifactContext +
 				DIAG_SCRIPT +
+				AIHYDRO_BRIDGE_CORE_SCRIPT +
+				AIHYDRO_BRIDGE_LEAFLET_SCRIPT +
+				AIHYDRO_BRIDGE_CITATION_SCRIPT +
+				AIHYDRO_BRIDGE_EDITOR_SCRIPT +
 				CELL_BRIDGE_SCRIPT +
 				withHeadAssets.slice(closeIdx + 1)
 			const bodyCloseAfterDiag = withDiag.search(/<\/body\s*>/i)
@@ -300,7 +248,17 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 			}
 			return withDiag + LEAFLET_NORMALIZER_SCRIPT
 		}
-		return artifactContext + DIAG_SCRIPT + CELL_BRIDGE_SCRIPT + withHeadAssets + LEAFLET_NORMALIZER_SCRIPT
+		return (
+			artifactContext +
+			DIAG_SCRIPT +
+			AIHYDRO_BRIDGE_CORE_SCRIPT +
+			AIHYDRO_BRIDGE_LEAFLET_SCRIPT +
+			AIHYDRO_BRIDGE_CITATION_SCRIPT +
+			AIHYDRO_BRIDGE_EDITOR_SCRIPT +
+			CELL_BRIDGE_SCRIPT +
+			withHeadAssets +
+			LEAFLET_NORMALIZER_SCRIPT
+		)
 	}, [renderPath, item?.htmlContent, item?.id, item?.filePath])
 
 	useEffect(() => {
@@ -585,6 +543,33 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 			if (data.artifactId && item?.id && data.artifactId !== item.id) {
 				return
 			}
+
+			// Phase 1: relay every artifact event to the host's PreviewSessionService
+			// so MCP tools (preview_get_state, preview_recent_events) and the agent
+			// can observe what's happening inside the iframe. This is purely additive
+			// — existing handlers below continue to do their UI work.
+			const moduleId = item?.id ?? "unknown"
+			const eventBase = { moduleId, cellId: data.cellId }
+			if (data.type === "artifact/cellRegistry") {
+				reportPreviewEvent(
+					"cell.registry",
+					{
+						...eventBase,
+						cells: (data.cellIds ?? []).map((id) => ({ cellId: id, language: "python" })),
+						pythonCount: data.pythonCount,
+					},
+					"system",
+				)
+			} else if (data.type === "artifact/manifest" && data.manifest) {
+				reportPreviewEvent("manifest.loaded", { ...data.manifest, moduleId }, "system")
+			} else if (data.type === "artifact/runAllProgress") {
+				reportPreviewEvent("cell.run.started", { ...eventBase, current: data.current, total: data.total }, "user")
+			} else if (data.type === "artifact/runAllComplete") {
+				reportPreviewEvent("cell.run.completed", eventBase, "user")
+			} else if (data.type === "artifact/runCode") {
+				reportPreviewEvent("cell.run.started", { ...eventBase, code: data.code, language: data.language }, "user")
+			}
+
 			if (data.type === "artifact/cellRegistry") {
 				registeredCellIdsRef.current = new Set(data.cellIds ?? [])
 				setPythonCellCount(data.pythonCount ?? 0)
@@ -823,6 +808,8 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item }) => {
 					renderPath={renderPath}
 				/>
 			) : null}
+			{/* Phase 4: Edit Mode toolbar — shown below the main toolbar */}
+			<EditModeToolbar editModeActive={editModeActive} iframeRef={iframeRef} onToggle={setEditModeActive} />
 			<div style={iframeWrapperStyle}>
 				{renderPath === "none" ? (
 					<NoUriMessage item={item} />

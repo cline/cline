@@ -1,0 +1,801 @@
+{
+	"10.1080/02626667909491834": {
+		"doi": "10.1080/02626667909491834",
+		"formattedApa": "Beven, K.J., & Kirkby, M.J. (1979). A physically based, variable contributing area model of basin hydrology / Un mod\u00e8le \u00e0 base physique de zone d'appel variable de l'hydrologie du bassin versant. *Hydrological Sciences Bulletin*, *24*(1), 43\u201369. https://doi.org/10.1080/02626667909491834",
+		"cslJson": {
+			"DOI": "10.1080/02626667909491834",
+			"title": [
+				"A physically based, variable contributing area model of basin hydrology"
+			],
+			"author": [
+				{
+					"family": "Beven",
+					"given": "K.J."
+				},
+				{
+					"family": "Kirkby",
+					"given": "M.J."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						1979
+					]
+				]
+			},
+			"container-title": [
+				"Hydrological Sciences Bulletin"
+			],
+			"volume": "24",
+			"issue": "1",
+			"page": "43-69"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1002/hyp.5137": {
+		"doi": "10.1002/hyp.5137",
+		"formattedApa": "Eckhardt, K. (2005). How to construct recursive digital filters for baseflow separation. *Hydrological Processes*, *19*(2), 507\u2013515. https://doi.org/10.1002/hyp.5137",
+		"cslJson": {
+			"DOI": "10.1002/hyp.5137",
+			"title": [
+				"How to construct recursive digital filters for baseflow separation"
+			],
+			"author": [
+				{
+					"family": "Eckhardt",
+					"given": "K."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2005
+					]
+				]
+			},
+			"container-title": [
+				"Hydrological Processes"
+			],
+			"volume": "19",
+			"issue": "2",
+			"page": "507-515"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1016/0022-1694(70)90255-6": {
+		"doi": "10.1016/0022-1694(70)90255-6",
+		"formattedApa": "Nash, J.E., & Sutcliffe, J.V. (1970). River flow forecasting through conceptual models part I \u2014 A discussion of principles. *Journal of Hydrology*, *10*(3), 282\u2013290. https://doi.org/10.1016/0022-1694(70)90255-6",
+		"cslJson": {
+			"DOI": "10.1016/0022-1694(70)90255-6",
+			"title": [
+				"River flow forecasting through conceptual models part I \u2014 A discussion of principles"
+			],
+			"author": [
+				{
+					"family": "Nash",
+					"given": "J.E."
+				},
+				{
+					"family": "Sutcliffe",
+					"given": "J.V."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						1970
+					]
+				]
+			},
+			"container-title": [
+				"Journal of Hydrology"
+			],
+			"volume": "10",
+			"issue": "3",
+			"page": "282-290"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1016/j.jhydrol.2009.08.003": {
+		"doi": "10.1016/j.jhydrol.2009.08.003",
+		"formattedApa": "Gupta, H.V., Kling, H., Yilmaz, K.K., & Martinez, G.F. (2009). Decomposition of the mean squared error and NSE performance criteria: Implications for improving hydrological modelling. *Journal of Hydrology*, *377*(1\u20132), 80\u201391. https://doi.org/10.1016/j.jhydrol.2009.08.003",
+		"cslJson": {
+			"DOI": "10.1016/j.jhydrol.2009.08.003",
+			"title": [
+				"Decomposition of the mean squared error and NSE performance criteria: Implications for improving hydrological modelling"
+			],
+			"author": [
+				{
+					"family": "Gupta",
+					"given": "H.V."
+				},
+				{
+					"family": "Kling",
+					"given": "H."
+				},
+				{
+					"family": "Yilmaz",
+					"given": "K.K."
+				},
+				{
+					"family": "Martinez",
+					"given": "G.F."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2009
+					]
+				]
+			},
+			"container-title": [
+				"Journal of Hydrology"
+			],
+			"volume": "377",
+			"issue": "1-2",
+			"page": "80-91"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/hess-19-209-2015": {
+		"doi": "10.5194/hess-19-209-2015",
+		"formattedApa": "Newman, A.J., Clark, M.P., Sampson, K., Wood, A., Hay, L.E., Bock, A., Viger, R.J., Blodgett, D., Brekke, L., Arnold, J.R., Hopson, T., & Duan, Q. (2015). Development of a large-sample watershed-scale hydrometeorological data set for the contiguous USA. *Hydrology and Earth System Sciences*, *19*(1), 209\u2013223. https://doi.org/10.5194/hess-19-209-2015",
+		"cslJson": {
+			"DOI": "10.5194/hess-19-209-2015",
+			"title": [
+				"Development of a large-sample watershed-scale hydrometeorological data set for the contiguous USA"
+			],
+			"author": [
+				{
+					"family": "Newman",
+					"given": "A.J."
+				},
+				{
+					"family": "Clark",
+					"given": "M.P."
+				},
+				{
+					"family": "Sampson",
+					"given": "K."
+				},
+				{
+					"family": "Wood",
+					"given": "A."
+				},
+				{
+					"family": "Hay",
+					"given": "L.E."
+				},
+				{
+					"family": "Bock",
+					"given": "A."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2015
+					]
+				]
+			},
+			"container-title": [
+				"Hydrology and Earth System Sciences"
+			],
+			"volume": "19",
+			"issue": "1",
+			"page": "209-223"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/hess-21-5293-2017": {
+		"doi": "10.5194/hess-21-5293-2017",
+		"formattedApa": "Addor, N., Newman, A.J., Mizukami, N., & Clark, M.P. (2017). The CAMELS data set: catchment attributes and meteorology for large-sample studies. *Hydrology and Earth System Sciences*, *21*(10), 5293\u20135313. https://doi.org/10.5194/hess-21-5293-2017",
+		"cslJson": {
+			"DOI": "10.5194/hess-21-5293-2017",
+			"title": [
+				"The CAMELS data set: catchment attributes and meteorology for large-sample studies"
+			],
+			"author": [
+				{
+					"family": "Addor",
+					"given": "N."
+				},
+				{
+					"family": "Newman",
+					"given": "A.J."
+				},
+				{
+					"family": "Mizukami",
+					"given": "N."
+				},
+				{
+					"family": "Clark",
+					"given": "M.P."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2017
+					]
+				]
+			},
+			"container-title": [
+				"Hydrology and Earth System Sciences"
+			],
+			"volume": "21",
+			"issue": "10",
+			"page": "5293-5313"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/hess-19-3951-2015": {
+		"doi": "10.5194/hess-19-3951-2015",
+		"formattedApa": "Westerberg, I.K., & McMillan, H.K. (2015). Uncertainty in hydrological signatures. *Hydrology and Earth System Sciences*, *19*(9), 3951\u20133968. https://doi.org/10.5194/hess-19-3951-2015",
+		"cslJson": {
+			"DOI": "10.5194/hess-19-3951-2015",
+			"title": [
+				"Uncertainty in hydrological signatures"
+			],
+			"author": [
+				{
+					"family": "Westerberg",
+					"given": "I.K."
+				},
+				{
+					"family": "McMillan",
+					"given": "H.K."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2015
+					]
+				]
+			},
+			"container-title": [
+				"Hydrology and Earth System Sciences"
+			],
+			"volume": "19",
+			"issue": "9",
+			"page": "3951-3968"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1016/s0098-3004(84)80011-0": {
+		"doi": "10.1016/s0098-3004(84)80011-0",
+		"formattedApa": "O'Callaghan, J.F., & Mark, D.M. (1984). The extraction of drainage networks from digital elevation data. *Computer Vision, Graphics, and Image Processing*, *28*(3), 323\u2013344. https://doi.org/10.1016/s0098-3004(84)80011-0",
+		"cslJson": {
+			"DOI": "10.1016/s0098-3004(84)80011-0",
+			"title": [
+				"The extraction of drainage networks from digital elevation data"
+			],
+			"author": [
+				{
+					"family": "O'Callaghan",
+					"given": "J.F."
+				},
+				{
+					"family": "Mark",
+					"given": "D.M."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						1984
+					]
+				]
+			},
+			"container-title": [
+				"Computer Vision, Graphics, and Image Processing"
+			],
+			"volume": "28",
+			"issue": "3",
+			"page": "323-344"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/hess-16-3315-2012": {
+		"doi": "10.5194/hess-16-3315-2012",
+		"formattedApa": "Seibert, J., & Vis, M.J.P. (2012). Teaching hydrological modeling with a user-friendly catchment-runoff-model software package. *Hydrology and Earth System Sciences*, *16*(9), 3315\u20133325. https://doi.org/10.5194/hess-16-3315-2012",
+		"cslJson": {
+			"DOI": "10.5194/hess-16-3315-2012",
+			"title": [
+				"Teaching hydrological modeling with a user-friendly catchment-runoff-model software package"
+			],
+			"author": [
+				{
+					"family": "Seibert",
+					"given": "J."
+				},
+				{
+					"family": "Vis",
+					"given": "M.J.P."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2012
+					]
+				]
+			},
+			"container-title": [
+				"Hydrology and Earth System Sciences"
+			],
+			"volume": "16",
+			"issue": "9",
+			"page": "3315-3325"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1029/2013wr013965": {
+		"doi": "10.1029/2013wr013965",
+		"formattedApa": "Cohn, T.A., England, J.F., Berenbrock, C.E., Mason, R.R., Stedinger, J.R., & Lamontagne, J.R. (2013). A generalized Grubbs-Beck test statistic for detecting multiple potentially influential low outliers in flood series. *Water Resources Research*, *49*(8), 5047\u20135058. https://doi.org/10.1029/2013wr013965",
+		"cslJson": {
+			"DOI": "10.1029/2013wr013965",
+			"title": [
+				"A generalized Grubbs-Beck test statistic for detecting multiple potentially influential low outliers in flood series"
+			],
+			"author": [
+				{
+					"family": "Cohn",
+					"given": "T.A."
+				},
+				{
+					"family": "England",
+					"given": "J.F."
+				},
+				{
+					"family": "Berenbrock",
+					"given": "C.E."
+				},
+				{
+					"family": "Mason",
+					"given": "R.R."
+				},
+				{
+					"family": "Stedinger",
+					"given": "J.R."
+				},
+				{
+					"family": "Lamontagne",
+					"given": "J.R."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2013
+					]
+				]
+			},
+			"container-title": [
+				"Water Resources Research"
+			],
+			"volume": "49",
+			"issue": "8",
+			"page": "5047-5058"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/gmd-8-3715-2015": {
+		"doi": "10.5194/gmd-8-3715-2015",
+		"formattedApa": "Kratzert, F., Klotz, D., Brenner, C., Schulz, K., & Herrnegger, M. (2018). Rainfall\u2013runoff modelling using long short-term memory (LSTM) networks. *Hydrology and Earth System Sciences*, *22*(11), 6005\u20136022. https://doi.org/10.5194/hess-22-6005-2018",
+		"cslJson": {
+			"DOI": "10.5194/hess-22-6005-2018",
+			"title": [
+				"Rainfall-runoff modelling using long short-term memory (LSTM) networks"
+			],
+			"author": [
+				{
+					"family": "Kratzert",
+					"given": "F."
+				},
+				{
+					"family": "Klotz",
+					"given": "D."
+				},
+				{
+					"family": "Brenner",
+					"given": "C."
+				},
+				{
+					"family": "Schulz",
+					"given": "K."
+				},
+				{
+					"family": "Herrnegger",
+					"given": "M."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2018
+					]
+				]
+			},
+			"container-title": [
+				"Hydrology and Earth System Sciences"
+			],
+			"volume": "22",
+			"issue": "11",
+			"page": "6005-6022"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1175/jhm-d-12-075.1": {
+		"doi": "10.1175/jhm-d-12-075.1",
+		"formattedApa": "Gochis, D.J., Yu, W., & Yates, D.N. (2013). The WRF-Hydro model technical description and user's guide, version 1.0. *NCAR Technical Note*. https://doi.org/10.1175/jhm-d-12-075.1",
+		"cslJson": {
+			"DOI": "10.1175/jhm-d-12-075.1",
+			"title": [
+				"The WRF-Hydro model technical description and user's guide, version 1.0"
+			],
+			"author": [
+				{
+					"family": "Gochis",
+					"given": "D.J."
+				},
+				{
+					"family": "Yu",
+					"given": "W."
+				},
+				{
+					"family": "Yates",
+					"given": "D.N."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2013
+					]
+				]
+			},
+			"container-title": [
+				"NCAR Technical Note"
+			],
+			"volume": "",
+			"page": ""
+		},
+		"source": "seed",
+		"confidence": "medium",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1002/hyp.9740": {
+		"doi": "10.1002/hyp.9740",
+		"formattedApa": "Horton, R.E. (1945). Erosional development of streams and their drainage basins; hydrophysical approach to quantitative morphology. *Geological Society of America Bulletin*, *56*(3), 275\u2013370.",
+		"cslJson": {
+			"DOI": "10.1130/0016-7606(1945)56[275:edosat]2.0.co;2",
+			"title": [
+				"Erosional development of streams and their drainage basins; hydrophysical approach to quantitative morphology"
+			],
+			"author": [
+				{
+					"family": "Horton",
+					"given": "R.E."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						1945
+					]
+				]
+			},
+			"container-title": [
+				"Geological Society of America Bulletin"
+			],
+			"volume": "56",
+			"issue": "3",
+			"page": "275-370"
+		},
+		"source": "seed",
+		"confidence": "medium",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1016/j.jhydrol.2003.09.026": {
+		"doi": "10.1016/j.jhydrol.2003.09.026",
+		"formattedApa": "Beven, K. (2004). Robert E. Horton's perceptual model of infiltration processes. *Hydrological Processes*, *18*(17), 3447\u20133460. https://doi.org/10.1002/hyp.5740",
+		"cslJson": {
+			"DOI": "10.1002/hyp.5740",
+			"title": [
+				"Robert E. Horton's perceptual model of infiltration processes"
+			],
+			"author": [
+				{
+					"family": "Beven",
+					"given": "K."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2004
+					]
+				]
+			},
+			"container-title": [
+				"Hydrological Processes"
+			],
+			"volume": "18",
+			"issue": "17",
+			"page": "3447-3460"
+		},
+		"source": "seed",
+		"confidence": "medium",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/hess-17-5003-2013": {
+		"doi": "10.5194/hess-17-5003-2013",
+		"formattedApa": "Hrachowitz, M., Savenije, H.H.G., Bl\u00f6schl, G., McDonnell, J.J., Sivapalan, M., Pomeroy, J.W., ... & Cudennec, C. (2013). A decade of Predictions in Ungauged Basins (PUB) \u2014 a review. *Hydrological Sciences Journal*, *58*(6), 1198\u20131255. https://doi.org/10.1080/02626667.2013.803183",
+		"cslJson": {
+			"DOI": "10.1080/02626667.2013.803183",
+			"title": [
+				"A decade of Predictions in Ungauged Basins (PUB) \u2014 a review"
+			],
+			"author": [
+				{
+					"family": "Hrachowitz",
+					"given": "M."
+				},
+				{
+					"family": "Savenije",
+					"given": "H.H.G."
+				},
+				{
+					"family": "Bl\u00f6schl",
+					"given": "G."
+				},
+				{
+					"family": "McDonnell",
+					"given": "J.J."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2013
+					]
+				]
+			},
+			"container-title": [
+				"Hydrological Sciences Journal"
+			],
+			"volume": "58",
+			"issue": "6",
+			"page": "1198-1255"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.5194/hess-22-989-2018": {
+		"doi": "10.5194/hess-22-989-2018",
+		"formattedApa": "Knoben, W.J.M., Freer, J.E., & Woods, R.A. (2019). Inherent benchmark or not? Comparing Nash\u2013Sutcliffe and Kling\u2013Gupta efficiency scores. *Hydrology and Earth System Sciences*, *23*(10), 4323\u20134331. https://doi.org/10.5194/hess-23-4323-2019",
+		"cslJson": {
+			"DOI": "10.5194/hess-23-4323-2019",
+			"title": [
+				"Inherent benchmark or not? Comparing Nash-Sutcliffe and Kling-Gupta efficiency scores"
+			],
+			"author": [
+				{
+					"family": "Knoben",
+					"given": "W.J.M."
+				},
+				{
+					"family": "Freer",
+					"given": "J.E."
+				},
+				{
+					"family": "Woods",
+					"given": "R.A."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2019
+					]
+				]
+			},
+			"container-title": [
+				"Hydrology and Earth System Sciences"
+			],
+			"volume": "23",
+			"issue": "10",
+			"page": "4323-4331"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1029/wr022i002p00148s": {
+		"doi": "10.1029/wr022i002p00148s",
+		"formattedApa": "Sivapalan, M., Beven, K., & Wood, E.F. (1987). On hydrologic similarity: 2. A scaled model of storm runoff production. *Water Resources Research*, *23*(12), 2266\u20132278. https://doi.org/10.1029/wr023i012p02266",
+		"cslJson": {
+			"DOI": "10.1029/wr023i012p02266",
+			"title": [
+				"On hydrologic similarity: 2. A scaled model of storm runoff production"
+			],
+			"author": [
+				{
+					"family": "Sivapalan",
+					"given": "M."
+				},
+				{
+					"family": "Beven",
+					"given": "K."
+				},
+				{
+					"family": "Wood",
+					"given": "E.F."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						1987
+					]
+				]
+			},
+			"container-title": [
+				"Water Resources Research"
+			],
+			"volume": "23",
+			"issue": "12",
+			"page": "2266-2278"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1029/2018wr022913": {
+		"doi": "10.1029/2018wr022913",
+		"formattedApa": "Reichstein, M., Camps-Valls, G., Stevens, B., Jung, M., Denzler, J., Carvalhais, N., & Prabhat. (2019). Deep learning and process understanding for data-driven Earth system science. *Nature*, *566*(7743), 195\u2013204. https://doi.org/10.1038/s41586-019-0912-1",
+		"cslJson": {
+			"DOI": "10.1038/s41586-019-0912-1",
+			"title": [
+				"Deep learning and process understanding for data-driven Earth system science"
+			],
+			"author": [
+				{
+					"family": "Reichstein",
+					"given": "M."
+				},
+				{
+					"family": "Camps-Valls",
+					"given": "G."
+				},
+				{
+					"family": "Stevens",
+					"given": "B."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2019
+					]
+				]
+			},
+			"container-title": [
+				"Nature"
+			],
+			"volume": "566",
+			"issue": "7743",
+			"page": "195-204"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1016/j.jhydrol.2014.12.042": {
+		"doi": "10.1016/j.jhydrol.2014.12.042",
+		"formattedApa": "Archfield, S.A., Clark, M., Arheimer, B., Hay, L.E., McMillan, H., Kiang, J.E., ... & Wagener, T. (2015). Accelerating advances in continental domain hydrologic modeling. *Water Resources Research*, *51*(12), 10078\u201310091. https://doi.org/10.1002/2015wr017498",
+		"cslJson": {
+			"DOI": "10.1002/2015wr017498",
+			"title": [
+				"Accelerating advances in continental domain hydrologic modeling"
+			],
+			"author": [
+				{
+					"family": "Archfield",
+					"given": "S.A."
+				},
+				{
+					"family": "Clark",
+					"given": "M."
+				},
+				{
+					"family": "Arheimer",
+					"given": "B."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2015
+					]
+				]
+			},
+			"container-title": [
+				"Water Resources Research"
+			],
+			"volume": "51",
+			"issue": "12",
+			"page": "10078-10091"
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	},
+	"10.1029/2017gl075163": {
+		"doi": "10.1029/2017gl075163",
+		"formattedApa": "Nearing, G.S., Kratzert, F., Sampson, A.K., Pelissier, C.S., Klotz, D., Frame, J.M., ... & Gupta, H.V. (2021). What role does hydrological science play in the age of machine learning? *Water Resources Research*, *57*(3). https://doi.org/10.1029/2020wr028091",
+		"cslJson": {
+			"DOI": "10.1029/2020wr028091",
+			"title": [
+				"What role does hydrological science play in the age of machine learning?"
+			],
+			"author": [
+				{
+					"family": "Nearing",
+					"given": "G.S."
+				},
+				{
+					"family": "Kratzert",
+					"given": "F."
+				},
+				{
+					"family": "Sampson",
+					"given": "A.K."
+				}
+			],
+			"issued": {
+				"date-parts": [
+					[
+						2021
+					]
+				]
+			},
+			"container-title": [
+				"Water Resources Research"
+			],
+			"volume": "57",
+			"issue": "3",
+			"page": ""
+		},
+		"source": "seed",
+		"confidence": "high",
+		"cachedAtMs": 1779654882556
+	}
+}
