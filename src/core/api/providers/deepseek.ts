@@ -81,7 +81,8 @@ export class DeepSeekHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		const isDeepSeekThinkingModel = model.id.includes("deepseek-reasoner") || model.id.startsWith("deepseek-v4-")
+		const isDeepSeekThinkingModel =
+			model.id.includes("deepseek-reasoner") || model.id === "deepseek-v4-flash" || model.id === "deepseek-v4-pro"
 
 		const convertedMessages = convertToOpenAiMessages(messages)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepSeekThinkingModel

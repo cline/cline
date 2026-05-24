@@ -2229,7 +2229,7 @@ export const deepSeekModels = {
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
-		inputPrice: 0.14,
+		inputPrice: 0, // all input is either a cache hit or miss
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.14,
 		cacheReadsPrice: 0.0028,
@@ -2240,7 +2240,7 @@ export const deepSeekModels = {
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
-		inputPrice: 0.435,
+		inputPrice: 0, // all input is either a cache hit or miss
 		outputPrice: 0.87,
 		cacheWritesPrice: 0.435,
 		cacheReadsPrice: 0.003625,
