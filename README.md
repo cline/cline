@@ -114,21 +114,30 @@ See the [Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/) to
 
 ## Built-in Tools
 
-| Category               | Tools                                                                                                                      |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Watershed**    | `delineate_watershed` — NHDPlus delineation from USGS NLDI                                                              |
-| **Streamflow**   | `fetch_streamflow_data` — USGS NWIS daily discharge                                                                     |
-| **Signatures**   | `extract_hydrological_signatures` — 15+ flow stats (BFI, runoff ratio, FDC)                                             |
-| **Geomorphic**   | `extract_geomorphic_parameters` — 28 basin morphometry metrics                                                          |
-| **Terrain**      | `compute_twi` — Topographic Wetness Index from 3DEP DEM                                                                 |
-| **Curve Number** | `create_cn_grid` — NRCS CN grid from NLCD land cover + Polaris soils                                                    |
-| **Forcing**      | `fetch_forcing_data` — GridMET basin-averaged climate (prcp, tmax, tmin, PET, srad, wind)                               |
-| **CAMELS**       | `fetch_camels_us` — Full CAMELS-US attribute set (671 CONUS gauges) via pygeohydro                                      |
-| **Modelling**    | `train_hydro_model` — Differentiable HBV-light or NeuralHydrology LSTM                                                  |
-| **Modelling**    | `get_model_results` — Retrieve cached NSE / KGE / RMSE                                                                  |
-| **Session**      | `start_session`, `get_session_summary`, `clear_session`, `add_note`, `export_session`, `sync_research_context` |
+| Category | Tools |
+|---|---|
+| **Watershed** | `delineate_watershed`, `delineate_watershed_from_point` — NHDPlus delineation from USGS NLDI |
+| **Streamflow** | `fetch_streamflow_data` — USGS NWIS daily discharge |
+| **Baseflow** | `separate_baseflow` — Lyne-Hollick + Eckhardt recursive filters with BFI interpretation |
+| **Signatures** | `extract_hydrological_signatures` — 15+ flow statistics (BFI, runoff ratio, FDC slopes, flashiness) |
+| **Geomorphic** | `extract_geomorphic_parameters` — 28 basin morphometry metrics |
+| **Terrain** | `compute_twi` — Topographic Wetness Index from 3DEP DEM |
+| **Curve Number** | `create_cn_grid` — NRCS CN grid from NLCD land cover + Polaris soils |
+| **Forcing** | `fetch_forcing_data` — GridMET basin-averaged climate (prcp, tmax, tmin, PET, srad, wind) |
+| **CAMELS** | `fetch_camels_us` — Full CAMELS-US attribute set (671 CONUS gauges) via pygeohydro |
+| **Modelling** | `train_hydro_model` — Differentiable HBV-light or NeuralHydrology LSTM |
+| **Modelling** | `get_model_results`, `get_training_status` — Results and training progress |
+| **Map** | `show_on_map`, `map_update_layer`, `map_apply_symbology`, `map_get_state`, `map_set_basemap` |
+| **HTML Preview** | `show_html_preview` — Open HTML artifacts in the built-in kernel panel |
+| **GEE** | `gee.status`, `gee.preview_layer`, `gee.extract_timeseries` — Google Earth Engine integration |
+| **Skills** | `list_skills`, `load_skill`, `save_skill` — Workflow playbook discovery and management |
+| **Provenance** | `add_claim`, `add_assumption`, `check_water_balance_consistency`, `check_temporal_alignment` |
+| **Session** | `start_session`, `get_session_summary`, `export_session`, `merge_session_shards`, `sync_research_context` |
+| **Project** | `start_project`, `get_project_summary`, `add_session_to_project` |
+| **Literature** | `index_literature`, `search_literature`, `add_journal_entry`, `log_researcher_observation` |
+| **Discovery** | `list_available_tools`, `get_variable_definition`, `get_metric_definition`, `get_library_reference` |
 
-See the [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools/) for full parameters, examples, and return schemas.
+**50+ built-in tools.** Call `list_available_tools()` for the live count on your installation. See the [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools/) for full parameters, examples, and return schemas.
 
 ---
 
@@ -164,10 +173,39 @@ Every analysis result appears on a live map inside VS Code — no external GIS t
 
 - **Auto-push from tools** — `delineate_watershed` pushes the catchment polygon and gauge point automatically; `compute_twi` and `create_cn_grid` push colour-mapped raster tiles
 - **8 file formats** — drag any GeoJSON, KML, KMZ, GPX, Shapefile (.zip), GeoTIFF, TopoJSON, or CSV onto the map to load it instantly
-- **Drag-and-drop** — drop files directly on the map; a drop zone appears with result toast
+- **Agent layer control** — the agent can update colours, opacity, class breaks, and choropleth symbology on existing layers via `map_update_layer` and `map_apply_symbology`, without duplicating files
 - **Symbology editor** — per-layer fill/stroke/opacity and colormap controls inline in the layer panel
 - **13 free basemaps** — USGS Imagery, USGS Topo, Esri Hillshade, Esri Ocean, Carto, Stadia, and more; no API token required
 - **Persistent workspace** — basemap, view state, and layer visibility are saved across VS Code sessions
+
+### HTML Preview — Built-in Python Kernel
+
+A Jupyter-like execution environment embedded directly in VS Code, purpose-built for AI-generated interactive artifacts.
+
+- **Executable Python cells** — click Run ▶ to execute cells; kernel state persists across runs
+- **Auto-open** — any HTML file containing the AI-Hydro module manifest opens automatically when the agent writes it
+- **Interactive learning modules** — the `interactive-module-builder` skill produces fully-branded modules with prose, Python cells, JS visualisations, quizzes, peer-reviewed citations, and provenance footers
+- **Animated kernel status chip** — colour-coded pill shows Ready (green) / Busy (pulsing blue) / Dirty (amber + ✎) / Error (red) at a glance
+- **Per-artifact kernel isolation** — each module gets its own kernel session; variables do not leak between artifacts
+
+### Skills — Workflow Playbooks
+
+The agent discovers and follows domain-specific workflow playbooks before planning any multi-step task.
+
+- **Mandatory pre-flight** — before creating any artifact or running a multi-step analysis, the agent calls `list_skills()` and loads the matching skill
+- **Marketplace** — browse and install community-contributed skills from `github.com/AI-Hydro/Skills` in the VS Code Skills panel
+- **Agent-created** — after novel workflows, the agent saves new skills automatically via `save_skill()`
+- **Governing contracts** — skills encode exact format requirements, checklist gates, and quality standards the agent must follow
+
+Built-in marketplace skills: `interactive-module-builder`, `baseflow-separation`, `flood-frequency-analysis`, `watershed-characterisation`, `hydro-visualization`.
+
+### Connectors — External Data Sources
+
+Authenticated links to external data services, managed through the VS Code Connectors panel.
+
+- **Google Earth Engine (live)** — OAuth-authenticated access to the GEE public catalog; extract NDVI, ET, precipitation, and any other band over your study area; render layers on the Map panel via `gee.preview_layer`
+- **Coming soon** — HAWQS (SWAT simulations), HydroShare (community datasets + publishing), Planetary Computer (Landsat/Sentinel archive), OpenTopography (lidar DEMs), NASA Earthdata (MODIS, GPM, SMAP)
+- **Secure credential storage** — credentials encrypted in VS Code secret storage; never written to plain-text config files
 
 ### Model Context Protocol (MCP)
 

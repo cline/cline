@@ -152,6 +152,10 @@ nav:
 
   - User Guide:
     - VS Code Extension: guide/vscode-extension.md
+    - Map Panel: guide/map.md
+    - HTML Preview: guide/html-preview.md
+    - Skills: guide/skills.md
+    - Connectors: guide/connectors.md
     - Models & Providers: guide/providers.md
     - Sessions & Provenance: guide/sessions.md
     - Project Workspace: guide/project-session.md
@@ -164,6 +168,7 @@ nav:
     - Modelling Tools: tools/modelling.md
     - Project & Literature: tools/project.md
     - Session Tools: tools/session.md
+    - Cell Format Reference: html-preview-cells.md
 
   - Plugins:
     - Overview: plugins/overview.md

@@ -1,23 +1,89 @@
 ---
-description: The AI-Hydro VS Code extension — chat interface, MCP auto-registration, supported AI providers, keyboard shortcuts, and .aihydroignore configuration.
+description: The AI-Hydro VS Code extension — chat, Map, HTML Preview, Skills, Connectors panels; MCP auto-registration; keyboard shortcuts; and .aihydroignore configuration.
 ---
 
 # VS Code Extension
 
-The AI-Hydro VS Code extension is the primary interface for interacting with the platform. It embeds a full AI agent with direct access to the MCP tool server.
+The AI-Hydro VS Code extension is the primary interface for interacting with the platform. It embeds a full AI agent with direct access to the MCP tool server, and adds five specialised panels to VS Code's editor area.
 
 ---
 
-## Interface Overview
+## Sidebar Panels
 
-The extension adds a sidebar panel to VS Code with:
+The AI-Hydro icon in the VS Code activity bar opens the primary sidebar, where the main **Chat** panel lives. Additional panels open in the editor area:
 
-- **Chat interface** — where you talk to the agent
-- **Tool call log** — shows each MCP tool call as it happens, with parameters and results
-- **File diff viewer** — when the agent writes or modifies files
-- **Terminal integration** — for standalone Python scripts the agent writes and executes
+| Panel | How to open | What it does |
+|---|---|---|
+| **Chat** | AI-Hydro icon in activity bar | Main conversation interface; tool call log; file diff viewer |
+| **Map** | Map button in sidebar toolbar | Interactive geospatial layer viewer — auto-receives analysis outputs |
+| **HTML Preview** | HTML Preview button in sidebar toolbar | Built-in Python kernel for interactive HTML artifacts and learning modules |
+| **Skills** | Skills icon in sidebar toolbar | Browse installed skills and the marketplace; install workflow playbooks |
+| **Connectors** | Connectors icon in sidebar toolbar | Authenticate external data sources (Google Earth Engine, and more) |
 
 ---
+
+## Chat Panel
+
+The chat panel is where you interact with the agent:
+
+- **Message input** — describe your research task in plain language
+- **Tool call log** — each MCP tool call appears inline as a collapsible card showing parameters, status, and results
+- **File diff viewer** — when the agent writes or modifies files, a diff appears for review
+- **Terminal integration** — standalone Python scripts the agent writes appear in an integrated terminal
+- **Plan mode** — the agent proposes a plan before executing when the task involves multiple steps
+
+---
+
+## Map Panel
+
+The Map panel renders geospatial analysis outputs as interactive layers inside VS Code. See the [Map Panel guide](map.md) for the full reference.
+
+**Key capabilities:**
+- Auto-receives layers from analysis tools (`delineate_watershed`, `compute_twi`, `create_cn_grid`)
+- Drag-and-drop file loading — GeoJSON, KML, KMZ, GPX, Shapefile, GeoTIFF, CSV
+- Per-layer symbology editor with colour picker, opacity, and colormap selection
+- 13 free basemaps including USGS Topo, USGS Imagery, Esri Hillshade, and Carto variants
+- Agent can style and update layers via `map_update_layer` and `map_apply_symbology` MCP tools
+
+---
+
+## HTML Preview Panel
+
+The HTML Preview panel is a built-in execution environment for interactive HTML artifacts. See the [HTML Preview guide](html-preview.md) for the full reference.
+
+**Key capabilities:**
+- Runs Python cells inside HTML files via a built-in kernel — no Jupyter server needed
+- Auto-opens AI-Hydro learning modules when the agent writes them
+- Single-row toolbar: run cell, run all, restart & run all, stop, clear; animated kernel status chip
+- Python environment selector with per-artifact kernel isolation
+- Supports the `show_html_preview` MCP tool for agent-initiated opens
+
+---
+
+## Skills Panel
+
+The Skills panel manages workflow playbooks for the agent. See the [Skills guide](skills.md) for the full reference.
+
+**Key capabilities:**
+- **Configured tab** — all installed skills (marketplace, agent-created, manual, workspace-local)
+- **Marketplace tab** — browse and install skills from `github.com/AI-Hydro/Skills`
+- Skills are loaded automatically by the agent before planning any covered task
+- Agent-created skills (from `save_skill()`) appear here immediately
+
+---
+
+## Connectors Panel
+
+The Connectors panel manages authenticated links to external data sources. See the [Connectors guide](connectors.md) for the full reference.
+
+**Live connectors:**
+- **Google Earth Engine** — OAuth-authenticated access to the GEE public catalog; three MCP tools (`gee.status`, `gee.preview_layer`, `gee.extract_timeseries`)
+
+**Coming soon:** HAWQS, USGS NWIS, HydroShare, Planetary Computer, OpenTopography, NASA Earthdata
+
+---
+
+## Interface Overview (continued)
 
 ## Auto-Registration
 

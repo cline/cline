@@ -11,10 +11,56 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import signal
 import sys
 import traceback
+import warnings
 from typing import Any
+
+# ── Matplotlib Agg bootstrap ─────────────────────────────────────────────────
+# Must happen before any user code imports pyplot so the backend is fixed once.
+# Suppressing warnings here because matplotlib sometimes warns on the first
+# use() call before pyplot is imported.
+try:
+    import matplotlib
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        matplotlib.use("Agg")
+except Exception:
+    pass  # matplotlib not installed — handled gracefully in _collect_matplotlib_images
+
+# ── Benign warnings that should not surface as errors in cell output ──────────
+# Pattern is matched against each stderr line; matching lines are silently dropped.
+_BENIGN_STDERR_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"FigureCanvasAgg is non-interactive"),
+    re.compile(r"matplotlib\.pyplot as plt.*non-interactive"),
+    re.compile(r"switching to.*Agg"),
+    re.compile(r"Cannot load backend.*Agg.*already loaded"),
+    re.compile(r"UserWarning:.*Agg"),
+]
+
+
+def _filter_stderr(raw: str) -> str:
+    """Remove known benign matplotlib/rendering warnings from stderr."""
+    if not raw:
+        return raw
+    lines = raw.splitlines(keepends=True)
+    filtered: list[str] = []
+    skip_next = 0
+    for line in lines:
+        if skip_next > 0:
+            skip_next -= 1
+            continue
+        if any(p.search(line) for p in _BENIGN_STDERR_PATTERNS):
+            # Also skip the preceding context line (UserWarning: header line)
+            if filtered and filtered[-1].strip().startswith("UserWarning:") or \
+               filtered and filtered[-1].strip().startswith("/"):
+                filtered.pop()
+            skip_next = 1  # skip one following context line
+            continue
+        filtered.append(line)
+    return "".join(filtered)
 
 
 def _write_response(obj: dict[str, Any]) -> None:
@@ -24,9 +70,6 @@ def _write_response(obj: dict[str, Any]) -> None:
 
 def _collect_matplotlib_images() -> list[str]:
     try:
-        import matplotlib
-
-        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
         return []
@@ -35,7 +78,7 @@ def _collect_matplotlib_images() -> list[str]:
     for num in plt.get_fignums():
         fig = plt.figure(num)
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
+        fig.savefig(buf, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
         images.append(base64.b64encode(buf.getvalue()).decode("ascii"))
     if images:
         plt.close("all")
@@ -49,24 +92,22 @@ def _exec_code(namespace: dict[str, Any], code: str) -> dict[str, Any]:
     sys.stdout, sys.stderr = stdout_buf, stderr_buf
     error: str | None = None
     result_repr = ""
-    try:
-        compiled = compile(code, "<aihydro-cell>", "exec")
-        exec(compiled, namespace, namespace)  # noqa: S102
-        if "__builtins__" in namespace:
-            # Last expression value is not available from exec; use a sentinel if set.
-            pass
-        # If the cell ends with an expression on its own line, users often assign to a var.
-        # Optional: detect trailing expression — skipped in v1.
-    except Exception:
-        error = traceback.format_exc()
-    finally:
-        sys.stdout, sys.stderr = old_stdout, old_stderr
+    # Suppress the FigureCanvasAgg warning during execution
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="FigureCanvasAgg is non-interactive")
+        warnings.filterwarnings("ignore", message=".*non-interactive.*")
+        try:
+            compiled = compile(code, "<aihydro-cell>", "exec")
+            exec(compiled, namespace, namespace)  # noqa: S102
+        except Exception:
+            error = traceback.format_exc()
+        finally:
+            sys.stdout, sys.stderr = old_stdout, old_stderr
 
     stdout = stdout_buf.getvalue()
-    stderr = stderr_buf.getvalue()
+    stderr = _filter_stderr(stderr_buf.getvalue())
 
     if error is None and not stdout and not stderr:
-        # Show repr of last assigned name heuristic: none in v1
         result_repr = ""
 
     images = [] if error else _collect_matplotlib_images()

@@ -293,7 +293,44 @@ body.aihydro-module, .aihydro-module {
   background: var(--aihydro-bg-mid);
   border-radius: 6px;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 280px;
+  resize: vertical;
   color: var(--aihydro-text);
+  transition: max-height 0.2s ease, opacity 0.15s ease;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125,211,252,0.25) transparent;
+}
+.aihydro-source::-webkit-scrollbar { width: 6px; height: 6px; }
+.aihydro-source::-webkit-scrollbar-track { background: transparent; }
+.aihydro-source::-webkit-scrollbar-thumb { background: rgba(125,211,252,0.25); border-radius: 3px; }
+.aihydro-source.is-collapsed {
+  max-height: 3.2em;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.65;
+  -webkit-mask-image: linear-gradient(to bottom, black 20%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 20%, transparent 100%);
+  margin-bottom: 4px;
+  user-select: none;
+}
+.aihydro-toggle-source {
+  font-family: var(--aihydro-font-ui);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--aihydro-border);
+  background: transparent;
+  color: var(--aihydro-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.aihydro-toggle-source:hover {
+  color: var(--aihydro-cyan);
+  border-color: var(--aihydro-border-strong);
+  background: rgba(0,221,255,0.06);
 }
 .aihydro-copy {
   font-family: var(--aihydro-font-ui);
@@ -311,6 +348,28 @@ body.aihydro-module, .aihydro-module {
 }
 .aihydro-copy:hover { color: var(--aihydro-cyan); border-color: var(--aihydro-border-strong); background: rgba(0,221,255,0.06); }
 .aihydro-copy.copied { color: #34d399; border-color: #34d399; }
+.aihydro-output-wrap {
+  position: relative;
+}
+.aihydro-copy-output {
+  position: absolute;
+  top: 6px; right: 8px;
+  font-family: var(--aihydro-font-ui);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--aihydro-border);
+  background: rgba(10,10,21,0.75);
+  color: var(--aihydro-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  z-index: 2;
+  white-space: nowrap;
+}
+.aihydro-output-wrap:hover .aihydro-copy-output { opacity: 1; }
+.aihydro-copy-output:hover { color: var(--aihydro-cyan); border-color: var(--aihydro-border-strong); }
+.aihydro-copy-output.copied { color: #34d399; border-color: #34d399; }
 .aihydro-output {
   font-family: var(--aihydro-font-mono);
   font-size: 13px;
@@ -320,10 +379,15 @@ body.aihydro-module, .aihydro-module {
   padding: 10px;
   background: rgba(0,0,0,0.30);
   border-radius: 6px;
-  max-height: 360px;
+  max-height: 320px;
   overflow: auto;
   color: var(--aihydro-text-accent);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125,211,252,0.20) transparent;
 }
+.aihydro-output::-webkit-scrollbar { width: 6px; height: 6px; }
+.aihydro-output::-webkit-scrollbar-track { background: transparent; }
+.aihydro-output::-webkit-scrollbar-thumb { background: rgba(125,211,252,0.20); border-radius: 3px; }
 .aihydro-output:empty::before {
   content: "(no output yet)";
   color: var(--aihydro-text-muted); font-style: italic;
@@ -436,6 +500,61 @@ body.aihydro-module, .aihydro-module {
   display: block; margin-top: 10px; font-style: italic;
   color: var(--aihydro-text-accent);
 }
+
+/* ---- Radio-input quiz (SKILL.md standard format) ------------------- */
+.aihydro-quiz { margin: 18px 0; }
+.aihydro-quiz-question {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--aihydro-border);
+  border-radius: 8px;
+  background: rgba(0,163,255,0.04);
+  transition: border-color 0.2s, background 0.2s;
+}
+.aihydro-quiz-question.aq-correct {
+  border-color: rgba(52,211,153,0.40);
+  background: rgba(52,211,153,0.06);
+}
+.aihydro-quiz-question.aq-incorrect {
+  border-color: rgba(248,113,113,0.35);
+  background: rgba(248,113,113,0.05);
+}
+.aihydro-quiz-question .q-text {
+  font-family: var(--aihydro-font-heading);
+  font-weight: 500;
+  color: var(--aihydro-text);
+  margin: 0 0 10px;
+}
+.aihydro-quiz-option {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 6px 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--aihydro-text-accent);
+}
+.aihydro-quiz-option input[type="radio"] { cursor: pointer; accent-color: var(--aihydro-cyan); }
+.aihydro-quiz-feedback {
+  margin-top: 10px; padding: 8px 12px;
+  border-left: 2px solid var(--aihydro-border);
+  background: rgba(148,163,184,0.07);
+  font-size: 13px; color: var(--aihydro-text-accent);
+  border-radius: 0 4px 4px 0;
+  display: none;
+}
+.aihydro-quiz-question.aq-incorrect .aihydro-quiz-feedback[data-show="true"] { display: block; }
+.aihydro-quiz-submit {
+  padding: 7px 18px;
+  border: 1px solid var(--aihydro-cyan);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--aihydro-cyan);
+  font-family: var(--aihydro-font-ui);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.aihydro-quiz-submit:hover { background: rgba(0,221,255,0.10); }
+#quizScore { font-size: 14px; color: var(--aihydro-text-accent); margin-left: 14px; }
 </style>`
 
 export const CELL_BRIDGE_SCRIPT = `<script>(function(){
@@ -688,6 +807,39 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
           });
         }
       }
+      // ── Toggle source (auto-collapse if > 20 lines) ─────────────────
+      if (!cell.querySelector(".aihydro-toggle-source")) {
+        var srcPreEl = cell.querySelector(".aihydro-source");
+        if (srcPreEl) {
+          var lineCount = (srcPreEl.textContent || "").split("\\n").length;
+          var startCollapsed = lineCount > 20;
+          if (startCollapsed) srcPreEl.classList.add("is-collapsed");
+          var toggleBtn = document.createElement("button");
+          toggleBtn.type = "button";
+          toggleBtn.className = "aihydro-toggle-source";
+          toggleBtn.textContent = startCollapsed ? "Show code \\u25be" : "Hide code \\u25b4";
+          toggleBtn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            var collapsed = srcPreEl.classList.toggle("is-collapsed");
+            toggleBtn.textContent = collapsed ? "Show code \\u25be" : "Hide code \\u25b4";
+          });
+          // Clicking the collapsed pre also expands it
+          srcPreEl.addEventListener("click", function() {
+            if (srcPreEl.classList.contains("is-collapsed")) {
+              srcPreEl.classList.remove("is-collapsed");
+              toggleBtn.textContent = "Hide code \\u25b4";
+            }
+          });
+          var hdr2 = cell.querySelector(".aihydro-cell-header, .cell-header");
+          var rnEl = cell.querySelector(".aihydro-run, .aihydro-standalone-pill");
+          if (hdr2 && rnEl) {
+            hdr2.insertBefore(toggleBtn, rnEl);
+          } else if (hdr2) {
+            hdr2.appendChild(toggleBtn);
+          }
+        }
+      }
+
       if (!cell.querySelector(".aihydro-copy")) {
         var copyBtn = document.createElement("button");
         copyBtn.type = "button";
@@ -716,6 +868,33 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
           var src = cell.querySelector(".aihydro-source");
           if (src) src.parentNode.insertBefore(copyBtn, src);
         }
+      }
+
+      // ── Output copy button ──────────────────────────────────────────
+      var outputEl = cell.querySelector(".aihydro-output");
+      if (outputEl && !outputEl.parentElement.classList.contains("aihydro-output-wrap")) {
+        var wrap = document.createElement("div");
+        wrap.className = "aihydro-output-wrap";
+        outputEl.parentNode.insertBefore(wrap, outputEl);
+        wrap.appendChild(outputEl);
+        var copyOutBtn = document.createElement("button");
+        copyOutBtn.type = "button";
+        copyOutBtn.className = "aihydro-copy-output";
+        copyOutBtn.textContent = "Copy output";
+        copyOutBtn.addEventListener("click", function(e) {
+          e.stopPropagation();
+          var text = (outputEl.textContent || "").trim();
+          if (!text || text === "(no output yet)") return;
+          navigator.clipboard.writeText(text).then(function() {
+            copyOutBtn.textContent = "Copied!";
+            copyOutBtn.classList.add("copied");
+            setTimeout(function() {
+              copyOutBtn.textContent = "Copy output";
+              copyOutBtn.classList.remove("copied");
+            }, 1500);
+          });
+        });
+        wrap.appendChild(copyOutBtn);
       }
     });
     scanCells();
@@ -908,12 +1087,44 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
   };
   window.aihydro = api;
 
+  function wireRadioQuiz() {
+    document.querySelectorAll('[id$="SubmitBtn"], .aihydro-quiz-submit').forEach(function(btn) {
+      if (btn.dataset.aqWired === "1") return;
+      btn.dataset.aqWired = "1";
+      btn.addEventListener("click", function() {
+        var quizRoot = btn.closest(".aihydro-quiz") || btn.parentElement;
+        if (!quizRoot) return;
+        var questions = quizRoot.querySelectorAll(".aihydro-quiz-question[data-answer]");
+        var correct = 0;
+        questions.forEach(function(q) {
+          q.classList.remove("aq-correct", "aq-incorrect");
+          q.querySelectorAll(".aihydro-quiz-feedback").forEach(function(f) { f.setAttribute("data-show", "false"); });
+          var correctIdx = parseInt(q.getAttribute("data-answer") || "-1", 10);
+          var checked = q.querySelector("input[type='radio']:checked");
+          if (!checked) return;
+          var selectedIdx = parseInt(checked.value, 10);
+          if (selectedIdx === correctIdx) {
+            q.classList.add("aq-correct"); correct++;
+          } else {
+            q.classList.add("aq-incorrect");
+            var fb = q.querySelector(".aihydro-quiz-feedback[data-fb='" + selectedIdx + "']");
+            if (fb) fb.setAttribute("data-show", "true");
+          }
+        });
+        var scoreEl = btn.parentElement && btn.parentElement.querySelector("#quizScore, [id$='Score']");
+        if (!scoreEl) scoreEl = document.getElementById("quizScore");
+        if (scoreEl) scoreEl.textContent = correct + " / " + questions.length + " correct";
+      });
+    });
+  }
+
   function init() {
     if (isStandalone) document.documentElement.setAttribute("data-aihydro-standalone", "1");
     broadcastManifest();
     wireCells();
     api.quiz();
     api.reveal();
+    wireRadioQuiz();
   }
 
   if (document.readyState === "loading") {
