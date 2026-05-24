@@ -81,10 +81,10 @@ export class DeepSeekHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
+		const isDeepSeekThinkingModel = model.id.includes("deepseek-reasoner") || model.id.startsWith("deepseek-v4-")
 
 		const convertedMessages = convertToOpenAiMessages(messages)
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepSeekThinkingModel
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
@@ -94,8 +94,8 @@ export class DeepSeekHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			// Only set temperature for non-reasoner models
-			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
+			// Only set temperature for non-thinking models
+			...(isDeepSeekThinkingModel ? {} : { temperature: 0 }),
 			...getOpenAIToolParams(tools),
 		})
 
