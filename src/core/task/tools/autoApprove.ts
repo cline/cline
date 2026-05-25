@@ -28,7 +28,7 @@ export class AutoApprove {
 		if (this.workspacePathsCache === null || this.isMultiRootScenarioCache === null) {
 			// First time - fetch and cache for the lifetime of this task
 			this.workspacePathsCache = await HostProvider.workspace.getWorkspacePaths({})
-			this.isMultiRootScenarioCache = isMultiRootEnabled(this.stateManager) && this.workspacePathsCache.paths.length > 1
+			this.isMultiRootScenarioCache = isMultiRootEnabled() && this.workspacePathsCache.paths.length > 1
 		}
 
 		return {

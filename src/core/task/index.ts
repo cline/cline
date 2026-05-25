@@ -432,7 +432,6 @@ export class Task {
 					shouldUseMultiRoot({
 						workspaceManager: this.workspaceManager,
 						enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
-						stateManager: this.stateManager,
 					})
 				) {
 					this.checkpointManager.initialize?.().catch((error: Error) => {
@@ -597,7 +596,7 @@ export class Task {
 			this.ulid,
 			this.terminalExecutionMode,
 			this.workspaceManager,
-			isMultiRootEnabled(this.stateManager),
+			isMultiRootEnabled(),
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpointCallback.bind(this),
@@ -1930,7 +1929,7 @@ export class Task {
 
 		// Prepare multi-root workspace information if enabled
 		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
-		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
+		const multiRootEnabled = isMultiRootEnabled()
 		if (multiRootEnabled && this.workspaceManager) {
 			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
 				path: root.path,
@@ -2606,11 +2605,7 @@ export class Task {
 		if (shouldCompact) {
 			userContent.push({
 				type: "text",
-				text: summarizeTask(
-					this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-					this.cwd,
-					isMultiRootEnabled(this.stateManager),
-				),
+				text: summarizeTask(this.stateManager.getGlobalSettingsKey("focusChainSettings"), this.cwd, isMultiRootEnabled()),
 			})
 		}
 
@@ -3496,7 +3491,7 @@ export class Task {
 	 * Format workspace roots section for multi-root workspaces
 	 */
 	private formatWorkspaceRootsSection(): string {
-		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
+		const multiRootEnabled = isMultiRootEnabled()
 		const hasWorkspaceManager = !!this.workspaceManager
 		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
 
@@ -3539,7 +3534,7 @@ export class Task {
 	 * Format the file details header based on workspace configuration
 	 */
 	private formatFileDetailsHeader(): string {
-		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
+		const multiRootEnabled = isMultiRootEnabled()
 		const roots = this.workspaceManager?.getRoots() || []
 
 		if (multiRootEnabled && roots.length > 1) {
