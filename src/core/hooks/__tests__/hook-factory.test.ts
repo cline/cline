@@ -146,7 +146,10 @@ console.log(JSON.stringify({
 			result.errorMessage?.should.equal("Hook blocked execution")
 		})
 
-		it("should truncate large context modifications", async () => {
+		it("should truncate large context modifications", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			// Create context larger than 50KB
 			const largeContext = "x".repeat(60000)

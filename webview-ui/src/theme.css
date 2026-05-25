@@ -151,6 +151,7 @@
 	}
 }
 
+/* stylelint-disable-next-line at-rule-no-unknown */
 @theme inline {
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
@@ -320,7 +321,7 @@
 		li,
 		ol,
 		ul {
-			@apply leading-tight;
+			line-height: 1.25;
 		}
 		hr,
 		ul,
