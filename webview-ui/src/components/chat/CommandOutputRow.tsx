@@ -221,7 +221,7 @@ export const CommandOutputRow = memo(
 						</div>
 					)}
 
-					<div className="bg-code opacity-60 text-sm">
+					<div className="bg-code text-sm">
 						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
 					</div>
 
