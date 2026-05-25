@@ -11,6 +11,8 @@ interface ClaudeCodeHandlerOptions extends CommonApiHandlerOptions {
 	claudeCodePath?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
+	/** For testing only: inject a custom runClaudeCode implementation */
+	_runClaudeCode?: (...args: Parameters<typeof runClaudeCode>) => ReturnType<typeof runClaudeCode>
 }
 
 export class ClaudeCodeHandler implements ApiHandler {
@@ -29,7 +31,8 @@ export class ClaudeCodeHandler implements ApiHandler {
 		// Filter out image blocks since Claude Code doesn't support them
 		const filteredMessages = filterMessagesForClaudeCode(messages)
 
-		const claudeProcess = runClaudeCode({
+		const runFn = this.options._runClaudeCode ?? runClaudeCode
+		const claudeProcess = runFn({
 			systemPrompt,
 			messages: filteredMessages,
 			path: this.options.claudeCodePath,
@@ -184,9 +187,9 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
-			if (chunk.type === "result" && "result" in chunk) {
-				if (chunk.is_error) {
-					throw new Error(`Claude Code returned an error: ${chunk.result}`)
+			if (chunk.type === "result") {
+				if (chunk.is_error && chunk.subtype !== "error_max_turns") {
+					throw new Error(`Claude Code returned an error: ${chunk.result ?? JSON.stringify(chunk)}`)
 				}
 
 				usage.totalCost = isPaidUsage ? chunk.total_cost_usd : 0

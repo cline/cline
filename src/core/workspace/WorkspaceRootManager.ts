@@ -4,7 +4,6 @@
  */
 
 import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
-import { execa } from "execa"
 import * as path from "path"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "../../utils/git"
 
@@ -16,9 +15,9 @@ export interface WorkspaceContext {
 
 export class WorkspaceRootManager {
 	private roots: WorkspaceRoot[] = []
-	private primaryIndex: number = 0
+	private primaryIndex = 0
 
-	constructor(roots: WorkspaceRoot[] = [], primaryIndex: number = 0) {
+	constructor(roots: WorkspaceRoot[] = [], primaryIndex = 0) {
 		this.roots = roots
 		this.primaryIndex = Math.min(primaryIndex, Math.max(0, roots.length - 1))
 	}
@@ -45,6 +44,7 @@ export class WorkspaceRootManager {
 	 * Detect version control system for a directory
 	 */
 	private static async detectVcs(dirPath: string): Promise<VcsType> {
+		const { execa } = await import("execa")
 		try {
 			// Check for Git
 			await execa("git", ["rev-parse", "--git-dir"], { cwd: dirPath })

@@ -57,7 +57,7 @@ type ResultMessage = {
 	duration_ms: number
 	duration_api_ms: number
 	num_turns: number
-	result: string
+	result?: string
 	session_id: string
 }
 
