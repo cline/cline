@@ -4,6 +4,8 @@ import * as fs from "fs/promises"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 
+const REMOTE_CONFIG_WATCHER_GRACE_MS = 300
+
 /**
  * Synchronizes remote MCP servers from remote config to the local MCP settings file
  * This allows admins to centrally configure MCP servers that are automatically deployed to users
@@ -33,6 +35,7 @@ export async function syncRemoteMcpServersToSettings(
 		// Read current settings
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
+		const initialSerializedConfig = JSON.stringify(config)
 
 		// Ensure mcpServers object exists
 		if (!config.mcpServers || typeof config.mcpServers !== "object") {
@@ -81,9 +84,18 @@ export async function syncRemoteMcpServersToSettings(
 		}
 
 		try {
+			const nextSerializedConfig = JSON.stringify(config)
+			if (initialSerializedConfig === nextSerializedConfig) {
+				return
+			}
+
 			// Write back to file
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 		} finally {
+			// Keep the flag set briefly to outlive chokidar's awaitWriteFinish delay.
+			// Otherwise the watcher may process our own remote-config write and reconnect servers.
+			await new Promise((resolve) => setTimeout(resolve, REMOTE_CONFIG_WATCHER_GRACE_MS))
+
 			// Always clear flag, even if write fails
 			if (mcpHub) {
 				mcpHub.setIsUpdatingFromRemoteConfig(false)
