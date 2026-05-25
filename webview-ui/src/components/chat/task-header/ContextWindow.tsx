@@ -92,7 +92,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	}, [])
 
 	const tokenData = useMemo(() => {
-		if (!contextWindow) {
+		if (!contextWindow || lastApiReqTotalTokens == null) {
 			return null
 		}
 		return {
