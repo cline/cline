@@ -1057,6 +1057,54 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)
+					case "shell_integration_warning_wsl": {
+						const isBackgroundModeEnabledWsl = vscodeTerminalExecutionMode === "backgroundExec"
+						return (
+							<div className="p-2 bg-warning/20 border border-warning rounded-xs">
+								<div className="flex items-center mb-1">
+									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-warning" />
+									<span className="font-medium text-foreground">WSL Configuration Issue</span>
+								</div>
+								<div className="text-foreground opacity-90 mb-2">
+									You're using a WSL terminal profile from Windows without the VS Code WSL extension. This
+									causes shell integration failures. To fix:
+								</div>
+								<ol className="text-foreground opacity-80 m-0 pl-5 mb-2 list-decimal text-[12px] leading-relaxed">
+									<li>
+										Install the{" "}
+										<a href="https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl">
+											WSL extension
+										</a>{" "}
+										from Microsoft
+									</li>
+									<li>
+										Open your project from inside WSL by running <code>code .</code> in your WSL terminal
+									</li>
+								</ol>
+								<div className="text-foreground opacity-70 text-[11px] mb-2">
+									Or use Background Terminal mode as a quick workaround:
+								</div>
+								<button
+									className={cn(
+										"bg-button-background text-button-foreground border-0 rounded-xs py-1.5 px-3 text-[12px] flex items-center gap-1.5 cursor-pointer hover:bg-button-hover",
+										{
+											"cursor-default opacity-80 bg-success": isBackgroundModeEnabledWsl,
+										},
+									)}
+									disabled={isBackgroundModeEnabledWsl}
+									onClick={async () => {
+										try {
+											await UiServiceClient.setTerminalExecutionMode(BooleanRequest.create({ value: true }))
+										} catch (error) {
+											console.error("Failed to enable background terminal:", error)
+										}
+									}}>
+									<SettingsIcon className="size-2" />
+									{isBackgroundModeEnabledWsl ? "Background Terminal Enabled" : "Enable Background Terminal"}
+								</button>
+							</div>
+						)
+					}
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")

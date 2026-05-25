@@ -4,6 +4,33 @@ import * as vscode from "vscode"
 export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
 export const WINDOWS_POWERSHELL_LEGACY_PATH = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
 
+/**
+ * Detects when a Windows user has selected a WSL terminal profile but is NOT
+ * connected via the VS Code WSL extension (ms-vscode-remote.remote-wsl).
+ *
+ * This configuration causes shell integration failures because VS Code runs
+ * on Windows and bridges into WSL for terminal commands, rather than running
+ * natively inside WSL via the extension's remote server.
+ */
+export function isWslWithoutRemoteExtension(): boolean {
+	if (process.platform !== "win32") {
+		return false
+	}
+
+	// If remoteName is "wsl", the user is connected via the WSL extension — no problem
+	if (vscode.env.remoteName === "wsl") {
+		return false
+	}
+
+	const { defaultProfileName, profiles } = getWindowsTerminalConfig()
+	if (!defaultProfileName) {
+		return false
+	}
+
+	const profile = profiles[defaultProfileName]
+	return profile?.source === "WSL" || /\bwsl\b/i.test(defaultProfileName)
+}
+
 const SHELL_PATHS = {
 	// Windows paths
 	POWERSHELL_7: WINDOWS_POWERSHELL_7_PATH,
@@ -100,7 +127,8 @@ function getWindowsShellFromVSCode(): string | null {
 		if (profile?.path) {
 			// If there's an explicit PowerShell path, return that
 			return profile.path
-		} else if (profile?.source === "PowerShell") {
+		}
+		if (profile?.source === "PowerShell") {
 			// If the profile is sourced from PowerShell, assume the newest
 			return SHELL_PATHS.POWERSHELL_7
 		}
