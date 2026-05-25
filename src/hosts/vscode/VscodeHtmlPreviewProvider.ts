@@ -74,6 +74,7 @@ export class VscodeHtmlPreviewProvider {
 		VscodeHtmlPreviewProvider.currentPanel = panel
 		VscodeHtmlPreviewProvider.refreshPanel()
 		VscodeHtmlPreviewProvider.setupMessageHandler(panel)
+		VscodeHtmlPreviewProvider.setupNavIntentWatcher(panel)
 
 		// Re-render the panel HTML when the artifact set changes so that
 		// `localResourceRoots` and CSP `frame-src` always cover whatever the
@@ -370,6 +371,87 @@ export class VscodeHtmlPreviewProvider {
 			null,
 			VscodeHtmlPreviewProvider.disposables,
 		)
+	}
+
+	/**
+	 * Phase D — watch ~/.aihydro/course_nav_intent.json for navigation
+	 * requests written by the agent's `course_navigate` MCP tool. When a
+	 * fresh intent appears (timestamp within 10s), we forward it to the
+	 * webview as `aihydro-agent-navigate`. The webview then routes through
+	 * the same handleCourseNavigate path the user's Next button uses, so
+	 * prerequisite gating and tab activation are applied uniformly.
+	 *
+	 * We watch the parent directory rather than the file itself because
+	 * fs.watch on a file path silently dies if the file is recreated via
+	 * atomic-rename (which is exactly how the Python side writes it).
+	 */
+	private static setupNavIntentWatcher(panel: vscode.WebviewPanel): void {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const fs = require("fs") as typeof import("fs")
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const os = require("os") as typeof import("os")
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const pathMod = require("path") as typeof import("path")
+
+		const dir = pathMod.join(os.homedir(), ".aihydro")
+		const intentFile = pathMod.join(dir, "course_nav_intent.json")
+		let lastTimestamp = 0
+		// Seed lastTimestamp from any existing file so stale intents from
+		// previous sessions don't replay when this panel opens.
+		try {
+			const existing = JSON.parse(fs.readFileSync(intentFile, "utf8"))
+			if (typeof existing.timestamp === "number") lastTimestamp = existing.timestamp
+		} catch {
+			/* file may not exist yet */
+		}
+
+		try {
+			fs.mkdirSync(dir, { recursive: true })
+		} catch {
+			/* ignore */
+		}
+
+		let watcher: import("fs").FSWatcher | null = null
+		try {
+			watcher = fs.watch(dir, { persistent: false }, (_event, filename) => {
+				if (filename !== "course_nav_intent.json") return
+				// Tiny debounce: fs.watch can fire twice per atomic-rename
+				setTimeout(() => {
+					try {
+						const raw = fs.readFileSync(intentFile, "utf8")
+						const intent = JSON.parse(raw)
+						const ts = typeof intent.timestamp === "number" ? intent.timestamp : 0
+						// Ignore replays of already-handled intents and stale ones
+						if (ts <= lastTimestamp) return
+						if (Date.now() - ts > 10_000) {
+							lastTimestamp = ts
+							return
+						}
+						lastTimestamp = ts
+						panel.webview.postMessage({
+							type: "aihydro-agent-navigate",
+							courseId: String(intent.courseId ?? ""),
+							moduleId: String(intent.moduleId ?? ""),
+							reason: String(intent.reason ?? ""),
+							timestamp: ts,
+						})
+					} catch (err) {
+						console.warn("[VscodeHtmlPreviewProvider] nav-intent read failed:", err)
+					}
+				}, 40)
+			})
+		} catch (err) {
+			console.warn("[VscodeHtmlPreviewProvider] nav-intent watcher init failed:", err)
+		}
+
+		const dispose = new vscode.Disposable(() => {
+			try {
+				watcher?.close()
+			} catch {
+				/* ignore */
+			}
+		})
+		VscodeHtmlPreviewProvider.disposables.push(dispose)
 	}
 
 	private static buildShellHtml(webview: vscode.Webview, nonce: string): string {

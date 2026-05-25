@@ -206,6 +206,35 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			console.warn("[HtmlPreviewView] active-course post failed:", err)
 		}
 	}, [course?.courseId, courseRoot, currentModuleId])
+	// Phase D — accept navigation pushes from the agent's course_navigate
+	// MCP tool. The extension host watches ~/.aihydro/course_nav_intent.json
+	// and forwards intent messages here. We route through the same code
+	// path the Next button uses, so prerequisite gating and tab-activation
+	// behave identically whether a user or agent triggered the navigation.
+	useEffect(() => {
+		if (!course) return
+		const onMessage = (e: MessageEvent) => {
+			const d = e.data
+			if (!d || d.type !== "aihydro-agent-navigate") return
+			if (d.courseId && d.courseId !== course.courseId) return
+			const moduleId = String(d.moduleId ?? "")
+			if (!moduleId) return
+			// We don't call handleCourseNavigate by reference (it would
+			// require listing it in the dep array which churns the listener).
+			// Inline the logic that needs the latest course/progress state.
+			const target = course.modules.find((m) => m.id === moduleId)
+			if (!target || !courseRoot) return
+			if (!courseProgress.canAccess(target)) {
+				console.info("[HtmlPreviewView] agent navigate refused: locked", moduleId)
+				return
+			}
+			const fullPath = resolveModuleFilePath(courseRoot, target.path)
+			void loadWorkspaceFile(fullPath, target.title)
+		}
+		window.addEventListener("message", onMessage)
+		return () => window.removeEventListener("message", onMessage)
+	}, [course, courseRoot, courseProgress, loadWorkspaceFile])
+
 	const handleCourseNavigate = useCallback(
 		(moduleId: string) => {
 			if (!course || !courseRoot) return
