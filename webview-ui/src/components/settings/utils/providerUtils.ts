@@ -55,6 +55,8 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	perplexityDefaultModelId,
+	perplexityModels,
 	qwenCodeDefaultModelId,
 	qwenCodeModels,
 	requestyDefaultModelId,
@@ -138,6 +140,8 @@ export function getModelsForProvider(
 			return apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
 		case "fireworks":
 			return fireworksModels
+		case "perplexity":
+			return perplexityModels
 		case "minimax":
 			return minimaxModels
 		case "huggingface":
@@ -470,6 +474,17 @@ export function normalizeApiConfiguration(
 						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
 						: fireworksModels[fireworksDefaultModelId],
 			}
+		case "perplexity":
+			const perplexityModelId =
+				currentMode === "plan" ? apiConfiguration?.planModePerplexityModelId : apiConfiguration?.actModePerplexityModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: perplexityModelId || perplexityDefaultModelId,
+				selectedModelInfo:
+					perplexityModelId && perplexityModelId in perplexityModels
+						? perplexityModels[perplexityModelId as keyof typeof perplexityModels]
+						: perplexityModels[perplexityDefaultModelId],
+			}
 		case "oca":
 			const ocaModelId = currentMode === "plan" ? apiConfiguration?.planModeOcaModelId : apiConfiguration?.actModeOcaModelId
 			const ocaModelInfo =
@@ -525,6 +540,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			// Provider-specific model IDs
 			togetherModelId: undefined,
 			fireworksModelId: undefined,
+			perplexityModelId: undefined,
 			lmStudioModelId: undefined,
 			ollamaModelId: undefined,
 			liteLlmModelId: undefined,
@@ -586,6 +602,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		// Provider-specific model IDs
 		togetherModelId: mode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
 		fireworksModelId: mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
+		perplexityModelId:
+			mode === "plan" ? apiConfiguration.planModePerplexityModelId : apiConfiguration.actModePerplexityModelId,
 		lmStudioModelId: mode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
 		ollamaModelId: mode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
 		liteLlmModelId: mode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
@@ -765,6 +783,11 @@ export async function syncModeConfigurations(
 		case "fireworks":
 			updates.planModeFireworksModelId = sourceFields.fireworksModelId
 			updates.actModeFireworksModelId = sourceFields.fireworksModelId
+			break
+
+		case "perplexity":
+			updates.planModePerplexityModelId = sourceFields.perplexityModelId
+			updates.actModePerplexityModelId = sourceFields.perplexityModelId
 			break
 
 		case "bedrock":
