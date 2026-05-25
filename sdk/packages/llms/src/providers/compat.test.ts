@@ -356,7 +356,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
-	it("caps catalog maxTokens before passing maxOutputTokens to AI SDK", async () => {
+	it("does not convert catalog maxTokens into request maxOutputTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -387,14 +387,13 @@ describe("createGatewayApiHandler.createMessage", () => {
 			// Drain the stream so the provider request is executed.
 		}
 
-		expect(streamTextSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				maxOutputTokens: 32_000,
-			}),
-		);
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { maxOutputTokens?: unknown }
+			| undefined;
+		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
-	it("uses catalog maxTokens as the model output cap when below the default cap", async () => {
+	it("caps configured maxOutputTokens with the catalog model output limit", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -407,6 +406,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 			clientType: "openai-compatible",
 			modelId: "small-output",
 			apiKey: "test-key",
+			maxOutputTokens: 16_000,
 			knownModels: {
 				"small-output": {
 					id: "small-output",

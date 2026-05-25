@@ -5,7 +5,7 @@
  * enabling deterministic testing without making real API calls.
  *
  * Unlike nock (which patches Node's `http` module), this works by wrapping
- * `globalThis.fetch` directly — catching all HTTP traffic in this codebase
+ * `globalThis.fetch` directly, catching all HTTP traffic in this codebase
  * including calls made through the OpenAI, Anthropic, Gemini, and Vercel AI
  * SDKs (all of which delegate to the global fetch).
  *
@@ -17,6 +17,8 @@
  *                         contains this substring are recorded/replayed; all other
  *                         requests pass through to the real network.
  *                         When empty or unset, ALL requests are intercepted (no filter).
+ *   CLINE_VCR_INCLUDE_REQUEST_BODY - "1" to save sanitized request bodies and
+ *                         assert them during playback.
  *   CLINE_VCR_SSE_DELAY - Milliseconds between SSE chunks during playback (default: 100).
  *                         Set to 0 for instant delivery.
  *
@@ -24,7 +26,7 @@
  *   # Record only inference requests
  *   CLINE_VCR=record CLINE_VCR_CASSETTE=./fixtures/my-test.json cline task "hello"
  *
- *   # Replay — auth/S3/etc. requests go through normally, only inference is mocked
+ *   # Replay: auth/S3/etc. requests go through normally, only inference is mocked
  *   CLINE_VCR=playback CLINE_VCR_CASSETTE=./fixtures/my-test.json cline task "hello"
  *
  *   # Record everything (no filter)
@@ -43,13 +45,18 @@ type VcrMode = "record" | "playback";
 interface VcrConfig {
 	mode: VcrMode;
 	cassettePath: string;
+	includeRequestBody: boolean;
 	/**
 	 * Only record/replay requests whose path includes this substring.
-	 * Empty string ("") means no filtering — ALL requests are intercepted.
+	 * Empty string ("") means no filtering, so ALL requests are intercepted.
 	 * A non-empty string enables selective mode where only matching requests
 	 * are intercepted and non-matching requests pass through to the real network.
 	 */
 	filter: string;
+}
+
+interface InternalVcrRecording extends VcrRecording {
+	requestContentType?: string;
 }
 
 // ── Sensitive data sanitization ─────────────────────────────────────────
@@ -61,9 +68,9 @@ interface VcrConfig {
  *
  * Three categories of keys are redacted:
  *
- * 1. **Exact key names** (case-insensitive) — secrets, tokens, credentials.
- * 2. **Key name patterns** (substring/suffix) — catches ID fields, PII, etc.
- * 3. **Value-level regex patterns** — for values embedded in plain strings
+ * 1. Exact key names (case-insensitive): secrets, tokens, credentials.
+ * 2. Key name patterns (substring/suffix): catches ID fields, PII, etc.
+ * 3. Value-level regex patterns: for values embedded in plain strings
  *    (e.g. filesystem paths, AWS key IDs in URLs).
  *
  * To add new sanitization rules, just add entries to the sets/arrays below.
@@ -72,11 +79,12 @@ interface VcrConfig {
 /** Keys whose values are always fully redacted (case-insensitive exact match). */
 const REDACT_KEYS_EXACT = new Set([
 	// Secrets & tokens
+	// Exact keys are compared after lowercasing, so accessToken matches accesstoken.
 	"accesskeyid",
 	"secretaccesskey",
 	"idtoken",
 	"refreshtoken",
-	"accessToken",
+	"accesstoken",
 	"access_token",
 	"refresh_token",
 	"apikey",
@@ -89,7 +97,7 @@ const REDACT_KEYS_EXACT = new Set([
 	"email",
 	"displayname",
 	"display_name",
-	"userInfo",
+	"userinfo",
 ]);
 
 /**
@@ -98,7 +106,7 @@ const REDACT_KEYS_EXACT = new Set([
  * "userId", "organizationId", "memberId", "sessionId", etc.
  */
 const REDACT_KEY_SUFFIXES = [
-	"id", // matches *Id, *_id — covers most entity identifiers
+	"id", // matches *Id and *_id, covering most entity identifiers
 	"balance",
 	"cost",
 	"secret",
@@ -158,12 +166,40 @@ function sanitizeStringValue(input: string): string {
 	return result;
 }
 
+function sortJsonValue(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(sortJsonValue);
+	}
+	if (!value || typeof value !== "object") {
+		return value;
+	}
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>)
+			.sort(([a], [b]) => compareCodeUnits(a, b))
+			.map(([key, nestedValue]) => [key, sortJsonValue(nestedValue)]),
+	);
+}
+
+function compareCodeUnits(a: string, b: string): number {
+	if (a < b) {
+		return -1;
+	}
+	if (a > b) {
+		return 1;
+	}
+	return 0;
+}
+
+function canonicalStringify(value: unknown): string {
+	return JSON.stringify(sortJsonValue(value));
+}
+
 /**
  * Path-level patterns for normalizing request paths in recordings.
  * These replace dynamic path segments with stable test values so that
  * playback matching works across different environments/users.
  *
- * Patterns are applied in order — more specific patterns should come first.
+ * Patterns are applied in order. More specific patterns should come first.
  */
 const PATH_NORMALIZATION_PATTERNS: { pattern: RegExp; replacement: string }[] =
 	[
@@ -208,7 +244,7 @@ function sanitizeValue(obj: unknown): unknown {
 				return JSON.stringify(sanitizeValue(parsed));
 			}
 		} catch {
-			// Not JSON — apply string-level patterns
+			// Not JSON, so apply string-level patterns
 		}
 		return sanitizeStringValue(obj);
 	}
@@ -235,13 +271,68 @@ function sanitizeValue(obj: unknown): unknown {
 	return obj;
 }
 
+function parseUrlEncodedBody(
+	input: string,
+): Record<string, unknown> | undefined {
+	const params = new URLSearchParams(input);
+	const entries = Array.from(params.entries());
+	if (entries.length === 0 || entries.some(([key]) => key.length === 0)) {
+		return undefined;
+	}
+	const output: Record<string, unknown> = {};
+	for (const [key, value] of entries) {
+		const existing = output[key];
+		if (existing === undefined) {
+			output[key] = value;
+		} else if (Array.isArray(existing)) {
+			existing.push(value);
+		} else {
+			output[key] = [existing, value];
+		}
+	}
+	return output;
+}
+
+function isUrlEncodedContentType(contentType: string | undefined): boolean {
+	return (
+		contentType?.toLowerCase().split(";")[0]?.trim() ===
+		"application/x-www-form-urlencoded"
+	);
+}
+
+function sanitizeSerializedRequestBody(
+	input: string,
+	contentType?: string,
+): string {
+	try {
+		return canonicalStringify(sanitizeValue(JSON.parse(input)));
+	} catch {
+		if (isUrlEncodedContentType(contentType)) {
+			const formBody = parseUrlEncodedBody(input);
+			if (formBody) {
+				return canonicalStringify(sanitizeValue(formBody));
+			}
+		}
+		return sanitizeStringValue(input);
+	}
+}
+
 /** Sanitize a single recorded interaction, stripping sensitive data. */
-function sanitizeRecording(rec: VcrRecording): VcrRecording {
+function sanitizeRecording(
+	rec: InternalVcrRecording,
+	includeRequestBody: boolean,
+): VcrRecording {
 	const cleaned = { ...rec };
+	const requestBody =
+		includeRequestBody && rec.body !== undefined
+			? sanitizeSerializedRequestBody(rec.body, rec.requestContentType)
+			: undefined;
 
 	// Remove request body (may contain prompts, API keys, etc.)
-	if (cleaned.body) {
-		delete cleaned.body;
+	delete cleaned.body;
+	delete cleaned.requestContentType;
+	if (requestBody !== undefined) {
+		cleaned.requestBody = requestBody;
 	}
 
 	// Normalize the request path for stable matching
@@ -296,6 +387,67 @@ function resolveRequestMethod(
 	return "GET";
 }
 
+function readHeadersContentType(
+	headers: RequestInit["headers"] | undefined,
+): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	return new Headers(headers).get("content-type") ?? undefined;
+}
+
+function readRequestContentType(
+	input: string | URL | Request,
+	init?: RequestInit,
+): string | undefined {
+	const initContentType = readHeadersContentType(init?.headers);
+	if (initContentType) {
+		return initContentType;
+	}
+	if (init?.body instanceof URLSearchParams) {
+		return "application/x-www-form-urlencoded;charset=UTF-8";
+	}
+	if (input instanceof Request) {
+		return input.headers.get("content-type") ?? undefined;
+	}
+	return undefined;
+}
+
+async function readRequestBody(
+	input: string | URL | Request,
+	init?: RequestInit,
+): Promise<string | undefined> {
+	if (init?.body) {
+		if (typeof init.body === "string") {
+			return init.body;
+		}
+		if (init.body instanceof URLSearchParams) {
+			return init.body.toString();
+		}
+		if (init.body instanceof ArrayBuffer) {
+			return new TextDecoder().decode(init.body);
+		}
+		if (ArrayBuffer.isView(init.body)) {
+			return new TextDecoder().decode(
+				new Uint8Array(
+					init.body.buffer,
+					init.body.byteOffset,
+					init.body.byteLength,
+				),
+			);
+		}
+		return undefined;
+	}
+	if (input instanceof Request) {
+		try {
+			return await input.clone().text();
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
+}
+
 // ── Config resolution ───────────────────────────────────────────────────
 
 function getVcrConfig(vcrMode: string | undefined): VcrConfig | null {
@@ -319,8 +471,11 @@ function getVcrConfig(vcrMode: string | undefined): VcrConfig | null {
 
 	const cassettePath = resolve(process.env.CLINE_VCR_CASSETTE);
 	const filter = process.env.CLINE_VCR_FILTER ?? "";
+	const includeRequestBody =
+		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY === "1" ||
+		process.env.CLINE_VCR_INCLUDE_REQUEST_BODY === "true";
 
-	return { mode: vcrMode, cassettePath, filter };
+	return { mode: vcrMode, cassettePath, filter, includeRequestBody };
 }
 
 // ── Record mode ─────────────────────────────────────────────────────────
@@ -331,15 +486,20 @@ interface InFlightCapture {
 	method: string;
 	path: string;
 	body: string;
+	requestContentType?: string;
 	status: number;
 	contentType: string | undefined;
 	chunks: Uint8Array[];
 	finalized: boolean;
 }
 
-function startRecordingRequests(cassettePath: string, filter: string): void {
-	const recordings: VcrRecording[] = [];
-	/** Streams still being consumed — finalized on flush or on process exit. */
+function startRecordingRequests(
+	cassettePath: string,
+	filter: string,
+	includeRequestBody: boolean,
+): void {
+	const recordings: InternalVcrRecording[] = [];
+	/** Streams still being consumed, finalized on flush or on process exit. */
 	const inFlight: InFlightCapture[] = [];
 	const originalFetch = globalThis.fetch;
 
@@ -367,6 +527,7 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 			method: capture.method,
 			path: capture.path,
 			body: capture.body,
+			requestContentType: capture.requestContentType,
 			status: capture.status,
 			response: responseBody,
 			responseIsBinary: false,
@@ -383,22 +544,8 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 			const method = resolveRequestMethod(input, init);
 			const { scope, path } = parseScope(url);
 
-			// Capture request body
-			let requestBody: string | undefined;
-			if (init?.body) {
-				requestBody =
-					typeof init.body === "string"
-						? init.body
-						: init.body instanceof ArrayBuffer
-							? new TextDecoder().decode(init.body)
-							: undefined;
-			} else if (input instanceof Request) {
-				try {
-					requestBody = await input.clone().text();
-				} catch {
-					// Ignore if body can't be read
-				}
-			}
+			const requestBody = await readRequestBody(input, init);
+			const requestContentType = readRequestContentType(input, init);
 
 			// Call real fetch
 			const response = await originalFetch(input, init);
@@ -411,13 +558,14 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 			// Capture content-type from the real response
 			const contentType = response.headers.get("content-type") ?? undefined;
 
-			// No body — record immediately
+			// No body, so record immediately
 			if (!response.body) {
 				recordings.push({
 					scope,
 					method,
 					path,
 					body: requestBody ?? "",
+					requestContentType,
 					status: response.status,
 					response: "",
 					responseIsBinary: false,
@@ -435,6 +583,7 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 				method,
 				path,
 				body: requestBody ?? "",
+				requestContentType,
 				status: response.status,
 				contentType,
 				chunks: [],
@@ -469,7 +618,7 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 		`[VCR] Recording HTTP requests (${filterDesc}). Cassette will be saved to: ${cassettePath}\n`,
 	);
 
-	// Save recordings — finalizes any in-flight stream captures first
+	// Save recordings, finalizing any in-flight stream captures first
 	let saved = false;
 	const saveRecordings = () => {
 		if (saved) {
@@ -497,7 +646,9 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 		const dir = dirname(cassettePath);
 		mkdirSync(dir, { recursive: true });
 
-		const sanitized = recordings.map(sanitizeRecording);
+		const sanitized = recordings.map((recording) =>
+			sanitizeRecording(recording, includeRequestBody),
+		);
 		writeFileSync(cassettePath, JSON.stringify(sanitized, null, 2));
 		process.stderr.write(
 			`[VCR] Saved ${sanitized.length} recorded HTTP interaction(s) to ${cassettePath}\n`,
@@ -556,6 +707,38 @@ function createDelayedSseStream(
 	});
 }
 
+async function assertRequestBodyMatches(input: {
+	recording: VcrRecording;
+	requestInput: string | URL | Request;
+	requestInit?: RequestInit;
+	method: string;
+	path: string;
+}): Promise<void> {
+	if (input.recording.requestBody === undefined) {
+		return;
+	}
+	const requestBody = await readRequestBody(
+		input.requestInput,
+		input.requestInit,
+	);
+	const requestContentType = readRequestContentType(
+		input.requestInput,
+		input.requestInit,
+	);
+	const actualBody = sanitizeSerializedRequestBody(
+		requestBody ?? "",
+		requestContentType,
+	);
+	if (actualBody !== input.recording.requestBody) {
+		throw new Error(
+			`[VCR] Request body mismatch for ${input.method} ${input.path}.\n` +
+				`  expected: ${input.recording.requestBody}\n` +
+				`  actual:   ${actualBody}\n` +
+				"Re-record the cassette if the request change is intentional.",
+		);
+	}
+}
+
 function startPlayingBackRequests(cassettePath: string, filter: string): void {
 	if (!existsSync(cassettePath)) {
 		process.stderr.write(`[VCR] Cassette file not found: ${cassettePath}\n`);
@@ -605,11 +788,18 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 			});
 
 			if (matchIndex >= 0) {
-				consumed[matchIndex] = true;
 				const rec = recordings[matchIndex];
 				if (!rec) {
 					return originalFetch(input, init);
 				}
+				await assertRequestBodyMatches({
+					recording: rec,
+					requestInput: input,
+					requestInit: init,
+					method,
+					path: normalizedPath,
+				});
+				consumed[matchIndex] = true;
 
 				// Build response body
 				const body =
@@ -663,14 +853,14 @@ function startPlayingBackRequests(cassettePath: string, filter: string): void {
 
 			// No match found
 			if (!filter) {
-				// Full isolation mode — no filter means nothing should leak
+				// Full isolation mode, so no filter means nothing should leak
 				throw new Error(
 					`[VCR] No matching recording for ${method} ${url} (path: ${normalizedPath}). ` +
 						`${recordings.length} recording(s) loaded from ${cassettePath}.`,
 				);
 			}
 
-			// Filtered mode — passthrough non-matching requests
+			// Filtered mode, passthrough non-matching requests
 			return originalFetch(input, init);
 		},
 		{ preconnect: (_url: string | URL) => {} },
@@ -699,7 +889,11 @@ export function initVcr(vcrMode: string | undefined): void {
 	}
 
 	if (config.mode === "record") {
-		startRecordingRequests(config.cassettePath, config.filter);
+		startRecordingRequests(
+			config.cassettePath,
+			config.filter,
+			config.includeRequestBody,
+		);
 	} else {
 		startPlayingBackRequests(config.cassettePath, config.filter);
 	}

@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.41",
+	"version": "0.0.42",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -34,6 +34,7 @@
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "vitest run",
 		"test:live": "vitest run src/tests/provider-live*.test.ts",
+		"test:vcr": "vitest run src/tests/provider-vcr.test.ts",
 		"test:watch": "vitest",
 		"generate:models": "bun run scripts/generate-models.ts"
 	},

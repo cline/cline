@@ -18,7 +18,10 @@ type AutoApproveRef = {
 
 export type InteractiveChatCommandRuntime = Pick<
 	ReturnType<typeof createInteractiveSessionRuntime>,
-	"forkCurrentSession" | "getActiveSessionId" | "restartEmpty"
+	| "forkCurrentSession"
+	| "getActiveSessionId"
+	| "resetForNewSession"
+	| "restartEmpty"
 >;
 
 export type InteractiveChatCommandResult =
@@ -79,7 +82,7 @@ export async function runInteractiveChatCommand(input: {
 			commandOutput = text;
 		},
 		reset: async () => {
-			await input.sessionRuntime.restartEmpty();
+			await input.sessionRuntime.resetForNewSession();
 		},
 		stop: async () => {
 			input.stop();
