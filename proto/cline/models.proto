@@ -489,6 +489,8 @@ message OpenAiCompatibleModelInfo {
   optional double temperature = 13;
   optional bool is_r1_format_required = 14;
   optional ApiFormat api_format = 15;
+  // Whether the server supports WebP image format; false for llama.cpp-based servers
+  optional bool supports_webp = 16;
 }
 
 // Model info for LiteLLM models
@@ -508,6 +510,8 @@ message LiteLLMModelInfo {
   optional double temperature = 13;
   optional ApiFormat api_format = 14;
   optional bool supports_reasoning = 15;
+  // Whether the server supports WebP image format; false for llama.cpp-based servers
+  optional bool supports_webp = 16;
 }
 
 // Main ApiConfiguration message

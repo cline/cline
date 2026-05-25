@@ -162,6 +162,7 @@ function convertLiteLLMModelInfoToProto(info: AppLiteLLMModelInfo | undefined): 
 		tiers: info.tiers || [],
 		temperature: info.temperature,
 		supportsReasoning: info.supportsReasoning,
+		supportsWebp: info.supportsWebP,
 	}
 }
 
@@ -186,6 +187,7 @@ function convertProtoToLiteLLMModelInfo(info: LiteLLMModelInfo | undefined): App
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
 		supportsReasoning: info.supportsReasoning,
+		supportsWebP: info.supportsWebp,
 	}
 }
 
@@ -212,6 +214,7 @@ function convertOpenAiCompatibleModelInfoToProto(
 		tiers: info.tiers || [],
 		temperature: info.temperature,
 		isR1FormatRequired: info.isR1FormatRequired,
+		supportsWebp: info.supportsWebP,
 	}
 }
 
@@ -238,6 +241,7 @@ function convertProtoToOpenAiCompatibleModelInfo(
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
 		isR1FormatRequired: info.isR1FormatRequired,
+		supportsWebP: info.supportsWebp,
 	}
 }
 
