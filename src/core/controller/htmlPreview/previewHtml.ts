@@ -60,6 +60,20 @@ export async function previewHtml(controller: Controller, request: PreviewHtmlRe
 		// relative to the original directory rather than to globalStorageUri.
 		if (filePath) {
 			const fsPath = await resolveFsPath(controller, filePath)
+			// Early existence check — surface a friendlier toast than the
+			// raw ENOENT path. Common cause: a stale entry in the preview
+			// pile pointing at a file the agent listed but never actually
+			// wrote (or that was moved/deleted after registration).
+			try {
+				const fsMod = await import("fs/promises")
+				await fsMod.access(fsPath)
+			} catch {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: `AI-Hydro HTML Preview: file not found at "${fsPath}". It may have been moved or deleted; remove it from the preview list if it's no longer needed.`,
+				})
+				return Empty.create()
+			}
 			ref = await svc.registerFile({ fsPath, title: title || path.basename(fsPath), preferredMode })
 		} else if (html) {
 			ref = await svc.registerInline({ html, title, preferredMode })
