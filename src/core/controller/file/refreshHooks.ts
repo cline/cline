@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getDocumentsPath } from "@/core/storage/disk"
 import { resolveExistingHookPath, VALID_HOOK_TYPES } from "../../hooks/utils"
 import { Controller } from ".."
 
@@ -11,7 +12,8 @@ export async function refreshHooks(
 	_request?: any,
 	globalHooksDirOverride?: string,
 ): Promise<HooksToggles> {
-	const globalHooksDir = globalHooksDirOverride || path.join(os.homedir(), "Documents", "Cline", "Hooks")
+	const documentsPath = await getDocumentsPath()
+	const globalHooksDir = globalHooksDirOverride || path.join(documentsPath, "Cline", "Hooks")
 	const isWindows = process.platform === "win32"
 
 	// Collect global hooks
