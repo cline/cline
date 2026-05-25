@@ -172,6 +172,52 @@ export class McpHub {
 		return this.connections.find((conn) => conn.server.name === name)
 	}
 
+	// AI-Hydro Wave-2 resilience: per-server reconnect bookkeeping for stdio.
+	// Keyed by `${name}:${source}` so RPC and internal connections back off
+	// independently. Cleared when a reconnect attempt succeeds.
+	private stdioReconnectState: Map<string, { attempts: number; timer?: NodeJS.Timeout }> = new Map()
+
+	private scheduleStdioReconnect(name: string, config: z.infer<typeof ServerConfigSchema>, source: "rpc" | "internal"): void {
+		const key = `${name}:${source}`
+		const state = this.stdioReconnectState.get(key) ?? { attempts: 0 }
+		if (state.timer) {
+			clearTimeout(state.timer)
+		}
+		// Cap at 3 attempts with exponential backoff (1s, 2s, 4s). After 3
+		// failures we leave the server marked disconnected — at that point
+		// it's almost certainly a config/install problem the user needs to
+		// fix manually rather than something a 4th retry would heal.
+		const MAX_ATTEMPTS = 3
+		if (state.attempts >= MAX_ATTEMPTS) {
+			console.warn(`[McpHub] stdio reconnect exhausted (${MAX_ATTEMPTS} attempts) for ${name}`)
+			this.stdioReconnectState.delete(key)
+			return
+		}
+		const delay = 1000 * 2 ** state.attempts
+		state.attempts += 1
+		state.timer = setTimeout(async () => {
+			console.log(`[McpHub] stdio reconnect attempt ${state.attempts}/${MAX_ATTEMPTS} for ${name}`)
+			try {
+				// Use deleteConnection then re-establish to flush any stale
+				// client state held by the prior transport.
+				await this.deleteConnection(name)
+				await this.connectToServer(name, config, source)
+				// Success — reset bookkeeping
+				this.stdioReconnectState.delete(key)
+				const conn = this.findConnection(name, source)
+				if (conn?.server.status === "connected") {
+					console.log(`[McpHub] stdio reconnect succeeded for ${name}`)
+				}
+			} catch (err) {
+				console.error(`[McpHub] stdio reconnect attempt ${state.attempts} failed for ${name}:`, err)
+				this.stdioReconnectState.set(key, state)
+				// Recursive retry — scheduleStdioReconnect will re-check the cap.
+				this.scheduleStdioReconnect(name, config, source)
+			}
+		}, delay)
+		this.stdioReconnectState.set(key, state)
+	}
+
 	private async connectToServer(
 		name: string,
 		config: z.infer<typeof ServerConfigSchema>,
@@ -241,6 +287,18 @@ export class McpHub {
 							connection.server.status = "disconnected"
 						}
 						await this.notifyWebviewOfServerChanges()
+						// AI-Hydro: auto-reconnect for stdio servers. Vanilla Cline
+						// only does this for SSE/HTTP via ReconnectingEventSource —
+						// stdio servers (the dominant case for local Python tools
+						// like aihydro-tools) would stay disconnected after any
+						// process crash or unexpected pipe close, requiring a
+						// manual restart from the Cline MCP tab. We retry with
+						// exponential backoff up to 3 times so transient crashes
+						// (OOM during a heavy tool, FastMCP validation panic,
+						// stdio buffer hiccup) self-heal without user intervention.
+						if (!config.disabled && config.type === "stdio") {
+							void this.scheduleStdioReconnect(name, config, source)
+						}
 					}
 
 					await transport.start()
