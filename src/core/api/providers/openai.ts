@@ -137,7 +137,8 @@ export class OpenAiHandler implements ApiHandler {
 			model: modelId,
 			messages: openAiMessages,
 			temperature,
-			max_tokens: maxTokens,
+			// GPT-5 and other reasoning models require max_completion_tokens instead of max_tokens
+			...(isReasoningModelFamily ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
