@@ -131,7 +131,11 @@ function truncateOutput(output: string, maxOutputBytes: number): string {
 		return output;
 	}
 
-	return `${output.slice(0, maxOutputBytes)}\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
+	const truncated = Buffer.from(output, "utf8")
+		.subarray(0, maxOutputBytes)
+		.toString("utf8")
+		.replace(/\uFFFD$/u, "");
+	return `${truncated}\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
 }
 
 let rgAvailable: boolean | null = null;
