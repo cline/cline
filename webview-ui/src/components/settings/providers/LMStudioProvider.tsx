@@ -6,6 +6,7 @@ import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckb
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { BaseUrlField } from "../common/BaseUrlField"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { getModeSpecificFields } from "../utils/providerUtils"
@@ -99,6 +100,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				label="Use custom base URL"
 				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
+			/>
+
+			<ApiKeyField
+				helpText="Optional API key for authenticated LM Studio servers. Leave empty if authentication is disabled."
+				initialValue={apiConfiguration?.lmStudioApiKey || ""}
+				onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
+				placeholder="Enter API Key (optional)..."
+				providerName="LM Studio"
 			/>
 
 			<div className="font-semibold">Model</div>
