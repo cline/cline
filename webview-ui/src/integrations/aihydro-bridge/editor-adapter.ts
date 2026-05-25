@@ -1,34 +1,33 @@
 /**
- * AI-Hydro Bridge — Editor Adapter v2 (UI Refinement Phase)
+ * AI-Hydro Bridge — Editor Adapter v3 (Production Pass)
  *
- * Rewrite of the original adapter. Old version had three structural problems:
- *   1. Per-comment modal dialog interrupted user every time
- *   2. Each comment fired immediately to the agent — chatty, no batching
- *   3. No formatting toolbar (naked contenteditable)
- *   4. No way to comment on non-text components (cells, maps, figures)
- *
- * New behavior:
- *   - Floating bubble menu on text selection (B/I/U + 💬 Comment) — no modal
- *   - Click any .aihydro-cell / .aihydro-map / figure → cyan outline + 💬 pin
- *   - All comments accumulate in iframe batch state AND post incrementally
- *     to parent as `user.comment.draft` (NOT user.comment yet — drafts only)
- *   - Parent's EditContextRibbon shows the running count
- *   - User clicks "Send N changes" in the parent ribbon → parent posts back
- *     `aihydro-send-batch` → adapter emits ONE `user.batch_changes` event
- *     with the full payload (comments[] + text diffs[])
- *   - Formatting commands flow from parent ribbon via `aihydro-editor-command`
+ * Key improvements over v2:
+ *   1. REAL change detection — uses `input` event on contenteditable regions
+ *      + MutationObserver safety net. Format toolbar buttons (B/I/U etc.) no
+ *      longer trigger false "unsaved changes" when they produce no content delta.
+ *   2. Undo/redo — keyboard shortcuts (⌘Z / ⌘⇧Z / Ctrl+Y) wired to the browser's
+ *      native execCommand undo stack. `edit.state` events push undo/redo
+ *      availability upstream so the toolbar buttons stay in sync.
+ *   3. Debounced change notification — 120 ms debounce collapses burst typing
+ *      into a single `text.changed` event so the parent doesn't flicker.
  *
  * Message protocol (parent ↔ iframe):
  *   parent → iframe:
  *     { type: "aihydro-edit-mode",       enabled: boolean }
  *     { type: "aihydro-editor-command",  command: string, value?: string }
+ *         ↳ command may be "undo" | "redo" | "bold" | "italic" | … | "aihydro-link"
  *     { type: "aihydro-send-batch" }
- *   iframe → parent (via reportPreviewEvent):
+ *     { type: "aihydro-clear-batch" }
+ *     { type: "aihydro-request-save" }      ← capture + return current HTML
+ *   iframe → parent (via window.__aihydroBridge.reportEvent):
  *     kind="user.comment.draft"    — single comment added to batch
- *     kind="user.comment.removed"  — single comment removed from batch
- *     kind="user.batch_changes"    — full batch sent to agent
- *     kind="edit.toggled"          — mode on/off
- *     kind="text.changed"          — debounced prose edit (for diff tracking)
+ *     kind="user.batch_changes"    — full batch sent; parent opens agent chat
+ *     kind="user.batch.cleared"    — batch cleared
+ *     kind="edit.toggled"          — mode on / off
+ *     kind="text.changed"          — debounced: actual prose DOM mutation
+ *     kind="edit.state"            — undo/redo availability update
+ *   iframe → parent (plain postMessage, NOT via bridge):
+ *     { type: "aihydro-save-document", html: string }  ← response to request-save
  */
 
 export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
@@ -41,8 +40,10 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
   var _batch = [];                  // [{ id, type: 'comment'|'text', ... }]
   var _bubble = null;               // floating selection bubble
   var _composer = null;             // inline comment composer
-  var _currentSelection = null;     // captured TextAnchor for active composer
-  var _selectedComponent = null;    // currently highlighted component element
+  var _editableElements = [];       // elements we activated contenteditable on
+  var _mutationObserver = null;     // watches editable regions for DOM changes
+  var _changeDebounceTimer = null;  // 120ms debounce for text.changed events
+  var _stateDebounceTimer = null;   // 50ms debounce for edit.state (undo/redo)
 
   // ── CSS injection (idempotent) ──────────────────────────────────────────
   var _stylesInjected = false;
@@ -50,25 +51,25 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     if (_stylesInjected) return;
     _stylesInjected = true;
     var s = document.createElement('style');
-    s.id = 'aihydro-editor-style-v2';
+    s.id = 'aihydro-editor-style-v3';
     s.textContent = [
       /* Editable prose regions */
-      '[data-aihydro-editable="prose"].aihydro-edit-active {',
+      '[data-aihydro-editable].aihydro-edit-active {',
       '  outline: 1px dashed rgba(0,221,255,0.35);',
       '  outline-offset: 4px;',
       '  border-radius: 4px;',
       '  min-height: 1em;',
       '  transition: outline-color 0.15s;',
       '}',
-      '[data-aihydro-editable="prose"].aihydro-edit-active:hover {',
+      '[data-aihydro-editable].aihydro-edit-active:hover {',
       '  outline-color: rgba(0,221,255,0.55);',
       '}',
-      '[data-aihydro-editable="prose"].aihydro-edit-active:focus {',
+      '[data-aihydro-editable].aihydro-edit-active:focus {',
       '  outline: 2px solid rgba(0,221,255,0.8);',
       '  outline-offset: 4px;',
       '}',
 
-      /* Component selection highlight (cells, maps, figures) */
+      /* Component selection highlight */
       '.aihydro-component-hover {',
       '  outline: 2px solid rgba(0,221,255,0.35) !important;',
       '  outline-offset: 4px !important;',
@@ -84,149 +85,93 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       /* 💬 Pin on selected component */
       '.aihydro-component-pin {',
       '  position: absolute;',
-      '  top: -10px;',
-      '  right: -10px;',
+      '  top: -10px; right: -10px;',
       '  z-index: 1000;',
       '  display: inline-flex;',
       '  align-items: center;',
       '  gap: 4px;',
       '  padding: 4px 10px;',
       '  background: linear-gradient(135deg, #00A3FF, #00DDFF);',
-      '  border: none;',
-      '  border-radius: 16px;',
+      '  border: none; border-radius: 16px;',
       '  color: #0a0a15;',
       '  font-family: Poppins, system-ui, sans-serif;',
-      '  font-size: 11px;',
-      '  font-weight: 700;',
+      '  font-size: 11px; font-weight: 700;',
       '  cursor: pointer;',
       '  box-shadow: 0 4px 12px rgba(0,221,255,0.4);',
       '}',
-      '.aihydro-component-pin.has-comment {',
-      '  background: rgba(0,221,255,0.85);',
-      '}',
+      '.aihydro-component-pin.has-comment { background: rgba(0,221,255,0.85); }',
 
       /* Floating selection bubble */
       '.aihydro-selection-bubble {',
-      '  position: fixed;',
-      '  z-index: 99998;',
+      '  position: fixed; z-index: 99998;',
       '  display: none;',
-      '  align-items: center;',
-      '  gap: 2px;',
+      '  align-items: center; gap: 2px;',
       '  padding: 3px 5px;',
       '  background: rgba(15,15,30,0.97);',
       '  border: 1px solid rgba(0,221,255,0.6);',
       '  border-radius: 8px;',
       '  box-shadow: 0 6px 20px rgba(0,0,0,0.6);',
       '  font-family: Poppins, system-ui, sans-serif;',
-      '  font-size: 12px;',
-      '  user-select: none;',
-      '  white-space: nowrap;',
+      '  font-size: 12px; user-select: none; white-space: nowrap;',
       '}',
       '.aihydro-selection-bubble.visible { display: inline-flex; }',
       '.aihydro-selection-bubble button {',
-      '  display: inline-flex;',
-      '  align-items: center;',
-      '  justify-content: center;',
-      '  width: 26px;',
-      '  height: 22px;',
-      '  border: none;',
-      '  background: transparent;',
-      '  color: #cbd5e1;',
-      '  border-radius: 4px;',
-      '  cursor: pointer;',
-      '  font-family: inherit;',
-      '  font-size: inherit;',
-      '  font-weight: 700;',
+      '  display: inline-flex; align-items: center; justify-content: center;',
+      '  width: 26px; height: 22px;',
+      '  border: none; background: transparent;',
+      '  color: #cbd5e1; border-radius: 4px; cursor: pointer;',
+      '  font-family: inherit; font-size: inherit; font-weight: 700;',
       '}',
       '.aihydro-selection-bubble button:hover { background: rgba(0,221,255,0.18); color: #00DDFF; }',
       '.aihydro-selection-bubble .bb-comment {',
-      '  width: auto;',
-      '  padding: 0 10px 0 8px;',
-      '  background: rgba(0,221,255,0.15);',
-      '  color: #00DDFF;',
-      '  font-weight: 700;',
-      '  gap: 4px;',
+      '  width: auto; padding: 0 10px 0 8px;',
+      '  background: rgba(0,221,255,0.15); color: #00DDFF;',
+      '  font-weight: 700; gap: 4px;',
       '}',
       '.aihydro-selection-bubble .bb-comment:hover { background: rgba(0,221,255,0.3); }',
       '.aihydro-selection-bubble .bb-divider {',
-      '  width: 1px;',
-      '  height: 14px;',
-      '  background: rgba(125,211,252,0.2);',
-      '  margin: 0 2px;',
+      '  width: 1px; height: 14px;',
+      '  background: rgba(125,211,252,0.2); margin: 0 2px;',
       '}',
 
-      /* Inline composer (drops below the selection or component) */
+      /* Inline composer */
       '.aihydro-composer {',
-      '  position: fixed;',
-      '  z-index: 99999;',
+      '  position: fixed; z-index: 99999;',
       '  width: 320px;',
       '  background: rgba(15,15,30,0.98);',
       '  border: 1px solid rgba(0,221,255,0.5);',
-      '  border-radius: 12px;',
-      '  padding: 12px;',
+      '  border-radius: 12px; padding: 12px;',
       '  box-shadow: 0 12px 36px rgba(0,0,0,0.65);',
       '  font-family: Nunito, system-ui, sans-serif;',
       '}',
       '.aihydro-composer .cmp-target {',
-      '  margin: 0 0 8px;',
-      '  padding: 5px 9px;',
+      '  margin: 0 0 8px; padding: 5px 9px;',
       '  border-left: 3px solid rgba(0,221,255,0.5);',
-      '  font-size: 12px;',
-      '  color: #94a3b8;',
-      '  font-style: italic;',
-      '  background: rgba(0,221,255,0.05);',
-      '  border-radius: 4px;',
-      '  overflow: hidden;',
-      '  text-overflow: ellipsis;',
-      '  white-space: nowrap;',
-      '  max-width: 100%;',
+      '  font-size: 12px; color: #94a3b8; font-style: italic;',
+      '  background: rgba(0,221,255,0.05); border-radius: 4px;',
+      '  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;',
       '}',
       '.aihydro-composer textarea {',
-      '  width: 100%;',
-      '  box-sizing: border-box;',
+      '  width: 100%; box-sizing: border-box;',
       '  background: rgba(10,10,21,0.8);',
-      '  border: 1px solid rgba(125,211,252,0.3);',
-      '  border-radius: 8px;',
-      '  color: #e2e8f0;',
-      '  font-size: 13px;',
-      '  font-family: inherit;',
-      '  padding: 8px 10px;',
-      '  resize: vertical;',
-      '  min-height: 64px;',
-      '  outline: none;',
+      '  border: 1px solid rgba(125,211,252,0.3); border-radius: 8px;',
+      '  color: #e2e8f0; font-size: 13px; font-family: inherit;',
+      '  padding: 8px 10px; resize: vertical; min-height: 64px; outline: none;',
       '}',
       '.aihydro-composer textarea:focus { border-color: rgba(0,221,255,0.7); }',
-      '.aihydro-composer .cmp-actions {',
-      '  display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end;',
-      '}',
+      '.aihydro-composer .cmp-actions { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }',
       '.aihydro-composer button {',
-      '  font-family: Poppins, system-ui, sans-serif;',
-      '  font-size: 12px;',
-      '  font-weight: 600;',
-      '  padding: 5px 12px;',
-      '  border-radius: 7px;',
-      '  border: none;',
-      '  cursor: pointer;',
+      '  font-family: Poppins, system-ui, sans-serif; font-size: 12px; font-weight: 600;',
+      '  padding: 5px 12px; border-radius: 7px; border: none; cursor: pointer;',
       '}',
-      '.aihydro-composer .cmp-cancel {',
-      '  background: rgba(125,211,252,0.1);',
-      '  color: #7dd3fc;',
-      '}',
-      '.aihydro-composer .cmp-add {',
-      '  background: linear-gradient(135deg, #00A3FF, #00DDFF);',
-      '  color: #0a0a15;',
-      '}',
-      '.aihydro-composer .cmp-hint {',
-      '  margin-top: 6px;',
-      '  font-size: 10px;',
-      '  color: #64748b;',
-      '  text-align: right;',
-      '}',
+      '.aihydro-composer .cmp-cancel { background: rgba(125,211,252,0.1); color: #7dd3fc; }',
+      '.aihydro-composer .cmp-add { background: linear-gradient(135deg, #00A3FF, #00DDFF); color: #0a0a15; }',
+      '.aihydro-composer .cmp-hint { margin-top: 6px; font-size: 10px; color: #64748b; text-align: right; }',
     ].join('\\n');
     document.head.appendChild(s);
   }
 
-  // ── TextAnchor (Hypothesis-style) ───────────────────────────────────────
+  // ── TextAnchor ──────────────────────────────────────────────────────────
   function computeTextAnchor(sel) {
     if (!sel || sel.isCollapsed) return null;
     var range = sel.getRangeAt(0);
@@ -277,7 +222,7 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       '<button class="bb-comment" data-cmd="comment" title="Add comment">💬 Comment</button>',
     ].join('');
     _bubble.addEventListener('mousedown', function(e) {
-      e.preventDefault();   // keep selection alive
+      e.preventDefault(); // keep selection alive
       var btn = e.target.closest('button');
       if (!btn) return;
       var cmd = btn.getAttribute('data-cmd');
@@ -285,10 +230,12 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
         openComposerForSelection();
       } else if (cmd === 'formatBlock') {
         document.execCommand('formatBlock', false, btn.getAttribute('data-value') || 'p');
-        emitTextChanged();
+        // NOTE: do NOT manually emit text.changed here.
+        // The execCommand triggers a DOM mutation which fires the MutationObserver
+        // and/or 'input' event — those are the single source of truth for changes.
       } else {
         document.execCommand(cmd, false);
-        emitTextChanged();
+        // Same — let MutationObserver/input detect the actual content delta.
       }
     });
     document.body.appendChild(_bubble);
@@ -311,7 +258,7 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     if (_bubble) _bubble.classList.remove('visible');
   }
 
-  // ── Inline composer (drop-in panel, not a modal) ────────────────────────
+  // ── Inline composer ─────────────────────────────────────────────────────
   function openComposer(anchor, targetDescription, anchorRect, onSave) {
     closeComposer();
     var c = document.createElement('div');
@@ -329,7 +276,6 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     var ta = c.querySelector('textarea');
     var addBtn = c.querySelector('.cmp-add');
     var cancelBtn = c.querySelector('.cmp-cancel');
-
     cancelBtn.addEventListener('click', closeComposer);
     addBtn.addEventListener('click', function() {
       var body = ta.value.trim();
@@ -338,17 +284,11 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       closeComposer();
     });
     ta.addEventListener('keydown', function(e) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        addBtn.click();
-      } else if (e.key === 'Escape') {
-        closeComposer();
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { addBtn.click(); }
+      else if (e.key === 'Escape') { closeComposer(); }
     });
-
     document.body.appendChild(c);
     _composer = c;
-
-    // Position below the anchor rect, clamp to viewport
     var top = anchorRect.bottom + 8;
     var left = anchorRect.left;
     var W = 320;
@@ -370,40 +310,30 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     var rect = sel.getRangeAt(0).getBoundingClientRect();
     hideBubble();
     var truncated = anchor.quote.length > 80 ? anchor.quote.slice(0, 80) + '…' : anchor.quote;
-    openComposer(anchor, '“' + truncated + '”', rect, function(body) {
-      addToBatch({
-        type: 'comment',
-        target: 'text',
-        body: body,
-        anchor: anchor,
-      });
+    openComposer(anchor, '"' + truncated + '"', rect, function(body) {
+      addToBatch({ type: 'comment', target: 'text', body: body, anchor: anchor });
     });
   }
 
   function openComposerForComponent(el) {
     var rect = el.getBoundingClientRect();
-    var kind = el.classList.contains('aihydro-cell')
-      ? 'Python cell'
-      : el.classList.contains('aihydro-map')
-        ? 'Map'
-        : (el.tagName === 'FIGURE' || el.classList.contains('aihydro-figure'))
-          ? 'Figure'
-          : 'Component';
+    var kind = el.classList.contains('aihydro-cell') ? 'Python cell'
+      : el.classList.contains('aihydro-map') ? 'Map'
+      : (el.tagName === 'FIGURE' || el.classList.contains('aihydro-figure')) ? 'Figure'
+      : 'Component';
     var ident = el.getAttribute('data-aihydro-cell-id')
-              || el.getAttribute('data-aihydro-map-id')
-              || el.id
-              || el.tagName.toLowerCase();
+      || el.getAttribute('data-aihydro-map-id')
+      || el.id || el.tagName.toLowerCase();
     var desc = kind + ': ' + ident;
     openComposer(null, desc, rect, function(body) {
       addToBatch({
-        type: 'comment',
-        target: 'component',
-        body: body,
-        component: { kind: kind, id: ident, selector: kind === 'Python cell'
-          ? '[data-aihydro-cell-id="' + ident + '"]'
-          : kind === 'Map'
-            ? '[data-aihydro-map-id="' + ident + '"]'
-            : '#' + ident },
+        type: 'comment', target: 'component', body: body,
+        component: {
+          kind: kind, id: ident,
+          selector: kind === 'Python cell' ? '[data-aihydro-cell-id="' + ident + '"]'
+            : kind === 'Map' ? '[data-aihydro-map-id="' + ident + '"]'
+            : '#' + ident,
+        },
       });
       el.classList.add('aihydro-component-has-comment');
       ensurePin(el, true);
@@ -423,17 +353,14 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     window.__aihydroBridge.reportEvent(kind, payload);
   }
 
-  function emitTextChanged() {
-    // Debounce-track: this is best-effort; v1 just records that prose changed
-    notifyParent('text.changed', { timestampMs: Date.now() });
-  }
-
   function sendBatch() {
     if (_batch.length === 0) return;
-    var payload = { changes: _batch.slice(), moduleId: window.__aihydroBridge && window.__aihydroBridge.getArtifactId() };
+    var payload = {
+      changes: _batch.slice(),
+      moduleId: window.__aihydroBridge && window.__aihydroBridge.getArtifactId(),
+    };
     notifyParent('user.batch_changes', payload);
     _batch = [];
-    // Clear visual highlights
     document.querySelectorAll('.aihydro-component-pin').forEach(function(p) { p.remove(); });
     document.querySelectorAll('.aihydro-component-selected').forEach(function(e) { e.classList.remove('aihydro-component-selected'); });
     document.querySelectorAll('.aihydro-component-has-comment').forEach(function(e) { e.classList.remove('aihydro-component-has-comment'); });
@@ -441,19 +368,14 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
 
   // ── Component selection ─────────────────────────────────────────────────
   function ensurePin(el, hasComment) {
-    if (getComputedStyle(el).position === 'static') {
-      el.style.position = 'relative';
-    }
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
     var pin = el.querySelector(':scope > .aihydro-component-pin');
     if (!pin) {
       pin = document.createElement('button');
       pin.className = 'aihydro-component-pin';
       pin.type = 'button';
       pin.innerHTML = '💬 Comment';
-      pin.addEventListener('click', function(e) {
-        e.stopPropagation();
-        openComposerForComponent(el);
-      });
+      pin.addEventListener('click', function(e) { e.stopPropagation(); openComposerForComponent(el); });
       el.appendChild(pin);
     }
     if (hasComment) pin.classList.add('has-comment');
@@ -462,8 +384,7 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
   function clearPins() {
     document.querySelectorAll('.aihydro-component-pin').forEach(function(p) { p.remove(); });
     document.querySelectorAll('.aihydro-component-hover, .aihydro-component-selected').forEach(function(e) {
-      e.classList.remove('aihydro-component-hover');
-      e.classList.remove('aihydro-component-selected');
+      e.classList.remove('aihydro-component-hover', 'aihydro-component-selected');
     });
   }
 
@@ -480,7 +401,6 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     if (!_editMode) return;
     var el = e.target.closest(COMPONENT_SELECTOR);
     if (!el) return;
-    // Only remove highlight if not actively selected with a pending comment
     if (!el.classList.contains('aihydro-component-has-comment')) {
       el.classList.remove('aihydro-component-hover');
       var pin = el.querySelector(':scope > .aihydro-component-pin');
@@ -492,38 +412,22 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
   function onSelectionChange() {
     if (!_editMode) return;
     var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      hideBubble();
-      return;
-    }
-    // Show bubble if selection is inside ANY contenteditable region
-    // (this covers both data-aihydro-editable="prose" markers AND the
-    // smart-auto-detected prose-auto elements we made editable on activation).
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) { hideBubble(); return; }
     var node = sel.anchorNode;
     var el = node && (node.nodeType === 3 ? node.parentElement : node);
     if (!el) { hideBubble(); return; }
-    var editable = el.closest('[contenteditable="true"], [data-aihydro-editable="prose"], [data-aihydro-editable="prose-auto"]');
+    var editable = el.closest('[contenteditable="true"]');
     if (!editable) { hideBubble(); return; }
     var range = sel.getRangeAt(0);
-    var rect = range.getBoundingClientRect();
-    positionBubble(rect);
+    positionBubble(range.getBoundingClientRect());
   }
 
   // ── Smart prose detection ───────────────────────────────────────────────
-  // The agent CAN mark sections as data-aihydro-editable="prose" for explicit
-  // scoping, but most existing modules don't. We auto-detect prose-like
-  // elements as editable by default, with components excluded.
-  //
-  // Editable: any visible <p>, <h1>-<h6>, <li>, <blockquote> that is NOT
-  //   inside a component (cell/map/figure) and NOT marked editable="false".
-  // Components stay non-editable but become click-to-comment targets.
   var EDITABLE_TAGS = ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE'];
 
   function isInsideComponent(el) {
-    var c = el.closest && el.closest(COMPONENT_SELECTOR);
-    return !!c;
+    return !!(el.closest && el.closest(COMPONENT_SELECTOR));
   }
-
   function isExplicitlyNonEditable(el) {
     var cur = el;
     while (cur && cur !== document.body) {
@@ -534,19 +438,12 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
   }
 
   function collectEditableElements() {
-    var result = [];
-    // 1. Explicit opt-in containers (the formal contract): treat as roots
     var explicit = document.querySelectorAll('[data-aihydro-editable="prose"]');
-    explicit.forEach(function(el) { result.push(el); });
-
-    if (explicit.length > 0) return result;
-
-    // 2. Auto-detect: every prose-tag in <body> not inside a component
-    var allTags = EDITABLE_TAGS.join(',').toLowerCase();
-    document.body.querySelectorAll(allTags).forEach(function(el) {
+    if (explicit.length > 0) return Array.from(explicit);
+    var result = [];
+    document.body.querySelectorAll(EDITABLE_TAGS.join(',').toLowerCase()).forEach(function(el) {
       if (isInsideComponent(el)) return;
       if (isExplicitlyNonEditable(el)) return;
-      // Skip empty / hidden / tiny technical bits (script tags' parents etc)
       var style = getComputedStyle(el);
       if (style.display === 'none' || style.visibility === 'hidden') return;
       result.push(el);
@@ -554,8 +451,99 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
     return result;
   }
 
-  // Track which elements we made editable, so we can cleanly undo on exit
-  var _editableElements = [];
+  // ── Real change detection ───────────────────────────────────────────────
+  // Production requirement: only fire text.changed when the DOM actually mutates
+  // (character data changes, node insertions/deletions). Format-only commands
+  // that produce no content delta (e.g. clicking Bold on unselected text) MUST
+  // NOT trigger text.changed, and therefore MUST NOT activate the Save button.
+  //
+  // Strategy:
+  //   1. 'input' event on each contenteditable element — fires on typing, paste,
+  //      cut, delete, and any execCommand that changes content.
+  //   2. MutationObserver as a safety net for programmatic changes (e.g.
+  //      revise_section from the agent) that may not dispatch 'input'.
+  //
+  // Both are debounced at 120ms to collapse burst typing into one notification.
+
+  function scheduleChangeNotification() {
+    if (_changeDebounceTimer) clearTimeout(_changeDebounceTimer);
+    _changeDebounceTimer = setTimeout(function() {
+      _changeDebounceTimer = null;
+      notifyParent('text.changed', { timestampMs: Date.now() });
+      scheduleEditStateReport();
+    }, 120);
+  }
+
+  function onContentInput() {
+    // 'input' fires on actual content changes inside contenteditable.
+    // Format-only execCommands that don't change text do NOT fire 'input'.
+    scheduleChangeNotification();
+  }
+
+  function startMutationObserver() {
+    if (_mutationObserver) return; // already running
+    _mutationObserver = new MutationObserver(function(mutations) {
+      // Only care about characterData and childList changes inside editable areas.
+      // Attribute mutations (e.g. class/style) are filtered out here.
+      var relevant = mutations.some(function(m) {
+        return m.type === 'characterData' || m.type === 'childList';
+      });
+      if (relevant) scheduleChangeNotification();
+    });
+    _editableElements.forEach(function(el) {
+      _mutationObserver.observe(el, { characterData: true, childList: true, subtree: true });
+    });
+  }
+
+  function stopMutationObserver() {
+    if (_mutationObserver) { _mutationObserver.disconnect(); _mutationObserver = null; }
+    if (_changeDebounceTimer) { clearTimeout(_changeDebounceTimer); _changeDebounceTimer = null; }
+  }
+
+  // ── Undo/redo state ─────────────────────────────────────────────────────
+  // The browser tracks an undo stack per-document for contenteditable. We
+  // query its availability and push the result upstream so the ribbon buttons
+  // can show as enabled/disabled correctly.
+  function scheduleEditStateReport() {
+    if (_stateDebounceTimer) clearTimeout(_stateDebounceTimer);
+    _stateDebounceTimer = setTimeout(reportEditState, 50);
+  }
+
+  function reportEditState() {
+    _stateDebounceTimer = null;
+    var undoEnabled = false;
+    var redoEnabled = false;
+    try {
+      // queryCommandEnabled is deprecated but universally supported for undo/redo.
+      undoEnabled = !!document.queryCommandEnabled('undo');
+      redoEnabled = !!document.queryCommandEnabled('redo');
+    } catch (_) {}
+    notifyParent('edit.state', { undoEnabled: undoEnabled, redoEnabled: redoEnabled });
+  }
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+  function onKeyDown(e) {
+    if (!_editMode) return;
+    var mod = e.metaKey || e.ctrlKey;
+    if (!mod) return;
+
+    if (e.key === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        document.execCommand('redo', false);
+      } else {
+        document.execCommand('undo', false);
+      }
+      scheduleEditStateReport();
+      return;
+    }
+    // Ctrl+Y = redo (Windows/Linux convention)
+    if (e.key === 'y' && e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      document.execCommand('redo', false);
+      scheduleEditStateReport();
+    }
+  }
 
   // ── Activation / deactivation ───────────────────────────────────────────
   function setEditMode(enabled) {
@@ -568,12 +556,17 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
         el.classList.add('aihydro-edit-active');
         el.setAttribute('contenteditable', 'true');
         el.setAttribute('spellcheck', 'true');
-        // Tag for selector consistency (the bubble menu checks for prose target)
         if (!el.hasAttribute('data-aihydro-editable')) {
           el.setAttribute('data-aihydro-editable', 'prose-auto');
         }
+        // 'input' event — fires on real content changes, NOT on no-op format commands.
+        el.addEventListener('input', onContentInput);
       });
-      // Mark non-prose components as comment-only (visual cue + cursor change)
+      // MutationObserver catches programmatic changes (agent revise_section, etc.)
+      startMutationObserver();
+      // Keyboard shortcuts
+      document.addEventListener('keydown', onKeyDown);
+      // Component hover/click
       document.querySelectorAll(COMPONENT_SELECTOR).forEach(function(el) {
         el.setAttribute('data-aihydro-editable', 'comment-only');
       });
@@ -581,8 +574,12 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
       document.addEventListener('mouseover', onComponentMouseOver);
       document.addEventListener('mouseout', onComponentMouseOut);
       notifyParent('edit.toggled', { enabled: true, editableCount: _editableElements.length });
+      // Immediately report initial undo/redo state (typically both false)
+      reportEditState();
     } else {
+      stopMutationObserver();
       _editableElements.forEach(function(el) {
+        el.removeEventListener('input', onContentInput);
         el.classList.remove('aihydro-edit-active');
         el.removeAttribute('contenteditable');
         el.removeAttribute('spellcheck');
@@ -591,17 +588,19 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
         }
       });
       _editableElements = [];
+      document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('selectionchange', onSelectionChange);
       document.removeEventListener('mouseover', onComponentMouseOver);
       document.removeEventListener('mouseout', onComponentMouseOut);
       hideBubble();
       closeComposer();
       clearPins();
+      if (_stateDebounceTimer) { clearTimeout(_stateDebounceTimer); _stateDebounceTimer = null; }
       notifyParent('edit.toggled', { enabled: false });
     }
   }
 
-  // ── Parent → iframe message router ──────────────────────────────────────
+  // ── Parent → iframe message router ─────────────────────────────────────
   window.addEventListener('message', function(e) {
     var data = e.data;
     if (!data || typeof data !== 'object') return;
@@ -612,15 +611,23 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
         break;
 
       case 'aihydro-editor-command':
-        // Format command from EditContextRibbon (B/I/U/H1-3/list/link)
         if (!_editMode) return;
         if (data.command === 'aihydro-link') {
           var url = prompt('Enter URL:');
           if (url) document.execCommand('createLink', false, url);
+          // createLink changes DOM → 'input' event fires → real change detected
+        } else if (data.command === 'undo') {
+          document.execCommand('undo', false);
+          scheduleEditStateReport();
+        } else if (data.command === 'redo') {
+          document.execCommand('redo', false);
+          scheduleEditStateReport();
         } else {
           document.execCommand(data.command, false, data.value || null);
+          // If the command produces a content delta, MutationObserver/input fires.
+          // If it's a no-op (e.g. Bold with nothing selected), nothing fires.
+          // Either way, the Save button correctly reflects actual document state.
         }
-        emitTextChanged();
         break;
 
       case 'aihydro-send-batch':
@@ -634,38 +641,27 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
         break;
 
       case 'aihydro-request-save':
-        // Parent asks for the current document HTML so it can write to disk.
-        // We capture the entire <html> element (preserving all in-place edits)
-        // and post it back as a plain postMessage — NOT via the bridge event
-        // system — so the parent can handle it synchronously.
+        // Capture the live DOM and return it to the parent webview.
+        // This is a plain postMessage back (not via bridge event system)
+        // so the parent's promise resolver can receive it synchronously.
         try {
-          var savedHtml = document.documentElement.outerHTML;
-          window.parent.postMessage({ type: 'aihydro-save-document', html: savedHtml }, '*');
+          var html = document.documentElement.outerHTML;
+          window.parent.postMessage({ type: 'aihydro-save-document', html: html }, '*');
         } catch (saveErr) {
           window.parent.postMessage({ type: 'aihydro-save-document', html: '', error: String(saveErr) }, '*');
         }
         break;
 
-      case 'aihydro-discard-edits':
-        // Parent chose "Discard" in the unsaved-changes dialog.
-        // Deactivate edit mode without saving — the DOM reverts on reload.
-        setEditMode(false);
-        break;
-
-      case 'aihydro-confirm-exit':
-        // Parent completed a save; now deactivate edit mode cleanly.
-        setEditMode(false);
-        break;
-
       // Legacy: revise_section / focus_cell from PreviewCommandWatcher
       case 'artifact/command':
         if (data.command === 'revise_section') {
-          var el = document.getElementById(data.sectionId)
-                || document.querySelector('[data-aihydro-section-id="' + data.sectionId + '"]');
-          if (el && typeof data.newHtml === 'string') {
+          var secEl = document.getElementById(data.sectionId)
+            || document.querySelector('[data-aihydro-section-id="' + data.sectionId + '"]');
+          if (secEl && typeof data.newHtml === 'string') {
             var tmp = document.createElement('div');
             tmp.innerHTML = data.newHtml;
-            el.innerHTML = tmp.innerHTML;
+            secEl.innerHTML = tmp.innerHTML;
+            // MutationObserver will detect this programmatic change.
             notifyParent('edit.section_revised', { sectionId: data.sectionId });
           }
         } else if (data.command === 'focus_cell') {
@@ -686,8 +682,7 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
   document.addEventListener('scroll', hideBubble, true);
   document.addEventListener('mousedown', function(e) {
     if (_bubble && !_bubble.contains(e.target)) {
-      // Don't hide if mousedown is inside an editable region (selection in progress)
-      var inEditable = e.target.closest && e.target.closest('[data-aihydro-editable="prose"]');
+      var inEditable = e.target.closest && e.target.closest('[contenteditable="true"]');
       if (!inEditable) hideBubble();
     }
   });

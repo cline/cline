@@ -199,6 +199,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	const [hasPendingTextEdits, setHasPendingTextEdits] = useState(false)
 	const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
+	// Undo/redo availability — updated from iframe's edit.state events
+	const [canUndo, setCanUndo] = useState(false)
+	const [canRedo, setCanRedo] = useState(false)
 	// Resolver for the async save-document round-trip with the iframe
 	const pendingSaveResolverRef = useRef<((html: string) => void) | null>(null)
 
@@ -650,15 +653,22 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			} else if (data.kind === "user.batch.cleared") {
 				setPendingChangeCount(0)
 			} else if (data.kind === "text.changed") {
-				// Prose edits made in contenteditable regions — mark as unsaved
+				// Prose edits made in contenteditable — real DOM mutation confirmed
+				// (format-only commands that produce no content delta do NOT fire this)
 				setHasPendingTextEdits(true)
+			} else if (data.kind === "edit.state") {
+				// Undo/redo stack availability update from the iframe adapter
+				if (typeof payload.undoEnabled === "boolean") setCanUndo(payload.undoEnabled)
+				if (typeof payload.redoEnabled === "boolean") setCanRedo(payload.redoEnabled)
 			} else if (data.kind === "edit.toggled") {
 				if (typeof payload?.enabled === "boolean") {
 					setEditModeActive(payload.enabled)
 					if (!payload.enabled) {
-						// Edit mode turned off (e.g. after save/discard) — reset state
+						// Edit mode turned off — reset all derived state
 						setHasPendingTextEdits(false)
 						setShowUnsavedPrompt(false)
+						setCanUndo(false)
+						setCanRedo(false)
 					}
 				}
 			}
@@ -972,6 +982,8 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			{/* UI Refinement: Edit context ribbon — appears ONLY when Edit Mode is active */}
 			{editModeActive && (
 				<EditContextRibbon
+					canRedo={canRedo}
+					canUndo={canUndo}
 					hasPendingTextEdits={hasPendingTextEdits}
 					iframeRef={iframeRef}
 					isSaving={isSaving}
@@ -1038,17 +1050,13 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 					onDiscard={() => {
 						setShowUnsavedPrompt(false)
 						setHasPendingTextEdits(false)
-						setEditModeActive(false)
-						// Tell iframe to deactivate cleanly (no save needed)
-						iframeRef.current?.contentWindow?.postMessage({ type: "aihydro-discard-edits" }, "*")
+						setEditModeActive(false) // useEffect fires aihydro-edit-mode:false to iframe
 					}}
 					onSaveAndExit={async () => {
 						const saved = await handleSaveDocument()
 						if (saved) {
 							setShowUnsavedPrompt(false)
-							setEditModeActive(false)
-							// Tell iframe to exit edit mode (already saved)
-							iframeRef.current?.contentWindow?.postMessage({ type: "aihydro-confirm-exit" }, "*")
+							setEditModeActive(false) // useEffect fires aihydro-edit-mode:false to iframe
 						}
 					}}
 				/>
