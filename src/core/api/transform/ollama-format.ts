@@ -37,6 +37,7 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 				const toolResultImages: string[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the Ollama SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
+					// Note: Ollama SDK expects raw base64 data without data URI prefix for the `images` field
 					let content: string
 
 					if (typeof toolMessage.content === "string") {
@@ -46,7 +47,9 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 							toolMessage.content
 								?.map((part) => {
 									if (part.type === "image") {
-										toolResultImages.push(`data:${part.source.media_type};base64,${part.source.data}`)
+										// Strip data URI prefix if present (e.g., "data:image/png;base64,")
+										const base64Data = part.source.data.replace(/^data:[^;]+;base64,/, "")
+										toolResultImages.push(base64Data)
 										return "(see following user message for image)"
 									}
 									return part.text
@@ -61,17 +64,24 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 				})
 
 				// Process non-tool messages
+				const nonToolImages: string[] = []
 				if (nonToolMessages.length > 0) {
+					const nonToolContent: string = nonToolMessages
+						.map((part) => {
+							if (part.type === "image") {
+								// Strip data URI prefix if present (e.g., "data:image/png;base64,")
+								const base64Data = part.source.data.replace(/^data:[^;]+;base64,/, "")
+								nonToolImages.push(base64Data)
+								return "(see following user message for image)"
+							}
+							return part.text
+						})
+						.join("\n")
+
 					ollamaMessages.push({
 						role: "user",
-						content: nonToolMessages
-							.map((part) => {
-								if (part.type === "image") {
-									return `data:${part.source.media_type};base64,${part.source.data}`
-								}
-								return part.text
-							})
-							.join("\n"),
+						content: nonToolContent,
+						images: nonToolImages.length > 0 ? nonToolImages : undefined,
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
@@ -91,7 +101,7 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 				)
 
 				// Process non-tool messages
-				let content: string = ""
+				let content = ""
 				if (nonToolMessages.length > 0) {
 					content = nonToolMessages
 						.map((part) => {
