@@ -170,6 +170,8 @@ interface ModelInfoViewProps {
 	selectedModelId: string
 	modelInfo: ModelInfo
 	isPopup?: boolean
+	/** When true, pricing fields show "Loading..." instead of stale/incorrect values */
+	isLoading?: boolean
 	// Provider routing props (optional - only shown for Cline provider)
 	providerSorting?: string
 	onProviderSortingChange?: (value: string) => void
@@ -182,6 +184,7 @@ export const ModelInfoView = ({
 	selectedModelId,
 	modelInfo,
 	isPopup,
+	isLoading,
 	providerSorting,
 	onProviderSortingChange,
 	showProviderRouting,
@@ -215,19 +218,21 @@ export const ModelInfoView = ({
 						<InfoValue>{formatCompactContext(modelInfo.contextWindow)}</InfoValue>
 					</InfoItem>
 				)}
-				{modelInfo.inputPrice !== undefined && (
+				{(modelInfo.inputPrice !== undefined || isLoading) && (
 					<InfoItem>
 						<InfoLabel>Input: </InfoLabel>
-						<InfoValue>{formatCompactPrice(modelInfo.inputPrice)}</InfoValue>
+						<InfoValue>{isLoading ? "Loading..." : formatCompactPrice(modelInfo.inputPrice)}</InfoValue>
 					</InfoItem>
 				)}
-				{modelInfo.outputPrice !== undefined && (
+				{(modelInfo.outputPrice !== undefined || isLoading) && (
 					<InfoItem>
 						<InfoLabel>Output: </InfoLabel>
 						<InfoValue>
-							{hasThinkingConfig && modelInfo.thinkingConfig?.outputPrice !== undefined
-								? formatCompactPrice(modelInfo.thinkingConfig.outputPrice)
-								: formatCompactPrice(modelInfo.outputPrice)}
+							{isLoading
+								? "Loading..."
+								: hasThinkingConfig && modelInfo.thinkingConfig?.outputPrice !== undefined
+									? formatCompactPrice(modelInfo.thinkingConfig.outputPrice)
+									: formatCompactPrice(modelInfo.outputPrice)}
 						</InfoValue>
 					</InfoItem>
 				)}

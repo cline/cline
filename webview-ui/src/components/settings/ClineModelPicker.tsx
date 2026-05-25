@@ -198,6 +198,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const handleModelChange = (newModelId: string) => {
 		setSearchTerm(newModelId)
 
+		const modelInfo = clineModels?.[newModelId]
 		handleModeFieldsChange(
 			{
 				clineModelId: { plan: "planModeClineModelId", act: "actModeClineModelId" },
@@ -205,28 +206,62 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			},
 			{
 				clineModelId: newModelId,
-				clineModelInfo: clineModels?.[newModelId],
+				// Only write modelInfo when clineModels has data for this model.
+				// Writing undefined would overwrite any existing valid modelInfo
+				// in the persisted config, causing stale/incorrect prices until
+				// the next page reload.
+				...(modelInfo != null ? { clineModelInfo: modelInfo } : {}),
 			},
 			currentMode,
 		)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
+	const { selectedModelId, selectedModelInfo, isModelInfoLoading } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
+		const configModelId = selected.selectedModelId
+
+		// When a user clicks a model card/dropdown item, searchTerm updates immediately
+		// but apiConfiguration lags behind (waiting for gRPC round-trip). Use searchTerm
+		// as the effective model ID when it differs from the config value, so the price
+		// display updates instantly instead of showing stale data from the old model.
+		// Unlike checking clineModels for existence, this comparison covers the case where
+		// a model appears in the recommended list but not yet in clineModels (e.g. newly
+		// launched models).
+		const isPendingGrpcUpdate = !!searchTerm && searchTerm !== configModelId
+		const effectiveModelId = isPendingGrpcUpdate ? searchTerm : configModelId
+
+		// Prefer fresh model info from clineModels over the config-stored copy,
+		// which may be stale or undefined after a model switch.
+		const modelInfoFromClineModels = clineModels?.[effectiveModelId]
+		const effectiveModelInfo = modelInfoFromClineModels ?? selected.selectedModelInfo
+
+		// When the model is not in clineModels and gRPC hasn't confirmed the selection yet,
+		// we can't trust any price data. Signal the loading state so ModelInfoView can
+		// display "Loading..." instead of showing potentially incorrect prices (e.g. showing
+		// "Free" for a paid model based on stale data from a previously selected free model).
+		const isModelInfoLoading = isPendingGrpcUpdate && !modelInfoFromClineModels
+
+		if (freeClineModelIdSet.has(normalizeModelId(effectiveModelId))) {
 			return {
 				...selected,
+				selectedModelId: effectiveModelId,
 				selectedModelInfo: {
-					...selected.selectedModelInfo,
+					...effectiveModelInfo,
 					inputPrice: 0,
 					outputPrice: 0,
 					cacheReadsPrice: 0,
 					cacheWritesPrice: 0,
 				},
+				isModelInfoLoading: false,
 			}
 		}
-		return selected
-	}, [apiConfiguration, currentMode, freeClineModelIdSet])
+		return {
+			...selected,
+			selectedModelId: effectiveModelId,
+			selectedModelInfo: effectiveModelInfo,
+			isModelInfoLoading,
+		}
+	}, [apiConfiguration, currentMode, freeClineModelIdSet, clineModels, searchTerm])
 
 	useMount(() => {
 		refreshClineModels()
@@ -573,6 +608,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					)}
 
 					<ModelInfoView
+						isLoading={isModelInfoLoading}
 						isPopup={isPopup}
 						modelInfo={selectedModelInfo}
 						onProviderSortingChange={(value) => handleFieldChange("openRouterProviderSorting", value)}
