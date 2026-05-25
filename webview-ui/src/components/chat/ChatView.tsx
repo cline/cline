@@ -154,13 +154,37 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					}
 
 					if (textToCopy !== null) {
+						// Try the browser-native clipboard API first. The
+						// gRPC `copyToClipboard` round-trip can intermittently
+						// fail (host-bridge disconnects, transient errors)
+						// and previously the code called `e.preventDefault()`
+						// synchronously regardless — which suppressed the
+						// browser's default copy behavior, leaving the
+						// clipboard empty for the user.
+						let copySucceeded = false
 						try {
-							FileServiceClient.copyToClipboard(StringRequest.create({ value: textToCopy })).catch((err) => {
-								console.error("Error copying to clipboard:", err)
-							})
-							e.preventDefault()
+							if (navigator.clipboard?.writeText) {
+								await navigator.clipboard.writeText(textToCopy)
+								copySucceeded = true
+							}
 						} catch (error) {
-							console.error("Error copying to clipboard:", error)
+							console.error("navigator.clipboard.writeText failed:", error)
+						}
+
+						// Fire the gRPC mirror as best-effort (some hosts use
+						// it to keep the OS-side clipboard in sync), but do
+						// not block on it.
+						FileServiceClient.copyToClipboard(StringRequest.create({ value: textToCopy })).catch((err) => {
+							console.error("FileServiceClient.copyToClipboard failed:", err)
+						})
+
+						// Only suppress the browser default if navigator.clipboard
+						// actually wrote our formatted text. If that path failed or
+						// was unavailable, let the browser fall back to its own
+						// copy — the gRPC mirror is fire-and-forget, so we cannot
+						// know its outcome at this point in the handler.
+						if (copySucceeded) {
+							e.preventDefault()
 						}
 					}
 				}
