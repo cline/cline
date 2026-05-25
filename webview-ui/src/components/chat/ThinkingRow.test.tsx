@@ -21,6 +21,17 @@ describe("ThinkingRow", () => {
 		expect(screen.getByText("Inspecting files...")).toBeInTheDocument()
 	})
 
+	it("allows expanded thinking content to preserve multiline formatting", () => {
+		render(<ThinkingRow isExpanded={true} isVisible={true} reasoningContent={"Step 1\nStep 2"} showTitle={true} />)
+
+		const reasoningContent = screen.getByText(/Step 1/, { selector: "span" })
+		expect(reasoningContent).toBeInTheDocument()
+		expect(reasoningContent.textContent).toBe("Step 1\nStep 2")
+		expect(reasoningContent.closest("div")).toHaveClass("whitespace-pre-wrap")
+		expect(reasoningContent.closest("button")).toHaveClass("whitespace-normal")
+		expect(reasoningContent.closest("button")).not.toHaveClass("whitespace-nowrap")
+	})
+
 	it("calls onToggle when header is clicked", () => {
 		const onToggle = vi.fn()
 
