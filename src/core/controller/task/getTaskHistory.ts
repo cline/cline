@@ -19,8 +19,10 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
-			// Basic filter: must have timestamp and task content
-			const hasRequiredFields = item.ts && item.task
+			// Basic filter: must have timestamp. Legacy entries may have an empty
+			// or missing task field (e.g. from attachments-only messages before the
+			// fallback description fix), so we only guard on timestamp here.
+			const hasRequiredFields = !!item.ts
 			if (!hasRequiredFields) {
 				return false
 			}
@@ -60,7 +62,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 		if (searchQuery) {
 			// Simple search implementation
 			const query = searchQuery.toLowerCase()
-			filteredTasks = filteredTasks.filter((item) => item.task.toLowerCase().includes(query))
+			filteredTasks = filteredTasks.filter((item) => (item.task ?? "").toLowerCase().includes(query))
 		}
 
 		// Calculate total count before sorting
