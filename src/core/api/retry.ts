@@ -14,6 +14,8 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	retryAllErrors: false,
 }
 
+const STOP_THRESHOLD_MS = 5 * 60 * 1000
+
 export class RetriableError extends Error {
 	status: number = 429
 	retryAfter?: number
@@ -63,6 +65,10 @@ export function withRetry(options: RetryOptions = {}) {
 						} else {
 							// Delta seconds
 							delay = retryValue * 1000
+						}
+
+						if (delay > STOP_THRESHOLD_MS) {
+							throw error
 						}
 					} else {
 						// Use exponential backoff if no header
