@@ -336,6 +336,33 @@ export class VscodeHtmlPreviewProvider {
 						}
 						break
 					}
+					case "aihydro-active-course": {
+						// Phase C (agent course-awareness): write a tiny pointer file at
+						// ~/.aihydro/active_course.json so the MCP server's course tools
+						// know which course the user is currently viewing. The webview
+						// sends this whenever useCourse resolves a course.
+						try {
+							const fs = await import("fs/promises")
+							const os = await import("os")
+							const path = await import("path")
+							const dir = path.join(os.homedir(), ".aihydro")
+							await fs.mkdir(dir, { recursive: true })
+							const payload = {
+								courseId: String(message.courseId ?? ""),
+								coursePath: String(message.coursePath ?? ""),
+								courseRoot: String(message.courseRoot ?? ""),
+								currentModuleId: message.currentModuleId ?? null,
+								lastSeenAt: Date.now(),
+							}
+							const file = path.join(dir, "active_course.json")
+							const tmp = `${file}.tmp.${process.pid}.${Date.now()}`
+							await fs.writeFile(tmp, JSON.stringify(payload, null, 2), "utf8")
+							await fs.rename(tmp, file)
+						} catch (err) {
+							console.warn("[VscodeHtmlPreviewProvider] active-course write failed:", err)
+						}
+						break
+					}
 					default:
 						console.warn("[VscodeHtmlPreviewProvider] Unhandled message:", JSON.stringify(message))
 				}

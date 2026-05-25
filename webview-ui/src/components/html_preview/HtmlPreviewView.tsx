@@ -12,6 +12,7 @@ import {
 	SetArtifactKernelProfileRequest,
 } from "@shared/proto/cline/html_preview"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { PLATFORM_CONFIG } from "@/config/platform.config"
 import { type AiHydroModuleManifest, useHtmlPreviewContext } from "@/context/HtmlPreviewContext"
 import { AIHYDRO_BRIDGE_CITATION_SCRIPT } from "@/integrations/aihydro-bridge/citation-adapter"
 import { AIHYDRO_BRIDGE_CORE_SCRIPT } from "@/integrations/aihydro-bridge/core"
@@ -187,6 +188,24 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		// only the IDs matter for triggering a save.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [course?.courseId, currentModuleId])
+	// Phase C: write an active-course pointer (~/.aihydro/active_course.json)
+	// so the MCP course tools know which course the user is viewing.
+	useEffect(() => {
+		if (!course || !courseRoot) return
+		const sep = courseRoot.includes("\\") && !courseRoot.includes("/") ? "\\" : "/"
+		const coursePath = courseRoot.endsWith(sep) ? `${courseRoot}course.json` : `${courseRoot}${sep}course.json`
+		try {
+			PLATFORM_CONFIG.postMessage({
+				type: "aihydro-active-course",
+				courseId: course.courseId,
+				coursePath,
+				courseRoot,
+				currentModuleId: currentModuleId ?? null,
+			})
+		} catch (err) {
+			console.warn("[HtmlPreviewView] active-course post failed:", err)
+		}
+	}, [course?.courseId, courseRoot, currentModuleId])
 	const handleCourseNavigate = useCallback(
 		(moduleId: string) => {
 			if (!course || !courseRoot) return
