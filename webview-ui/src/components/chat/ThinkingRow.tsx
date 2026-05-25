@@ -107,7 +107,7 @@ export const ThinkingRow = memo(
 								)}
 								onScroll={checkScrollable}
 								ref={scrollRef}>
-								<span className="pb-2 block text-sm">{reasoningContent}</span>
+								<span className="pb-2 block text-sm whitespace-pre-wrap">{reasoningContent}</span>
 							</div>
 							{canScrollUp && (
 								<div className="absolute top-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-b from-background to-transparent" />
