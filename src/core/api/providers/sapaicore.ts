@@ -636,6 +636,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"gpt-5.2",
 			"gpt-5.4",
 			"gpt-5.4-nano",
+			"gpt-5.5",
 			"o3-mini",
 			"o3",
 			"o4-mini",
@@ -648,7 +649,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"mistralai--mistral-small-instruct",
 			"mistralai--mistral-small",
 			"cohere--command-a-reasoning",
-			]
+		]
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-image", "gemini-2.5-pro"]
 		const novaModels = ["amazon--nova-pro", "amazon--nova-lite", "amazon--nova-micro"]
 		const converseStreamModels = [
@@ -746,6 +747,7 @@ export class SapAiCoreHandler implements ApiHandler {
 					"gpt-5.2",
 					"gpt-5.4",
 					"gpt-5.4-nano",
+					"gpt-5.5",
 					"gpt-5-nano",
 					"gpt-5-mini",
 				].includes(model.id)
