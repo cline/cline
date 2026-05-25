@@ -7,6 +7,7 @@ import {
 	prepareRemoteConfigRuntime,
 	REMOTE_CONFIG_SESSION_BLOB_UPLOAD_METADATA_KEY,
 	readRemoteConfigSessionBlobUploadMetadata,
+	resolveRemoteConfigBundleCachePath,
 } from "./index";
 
 async function createTempWorkspace(): Promise<string> {
@@ -14,6 +15,117 @@ async function createTempWorkspace(): Promise<string> {
 }
 
 describe("remote-config runtime", () => {
+	it("caches remote-config bundles outside the workspace", async () => {
+		const workspacePath = await createTempWorkspace();
+		const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "sdk-home-"));
+		const previousClineDataDir = process.env.CLINE_DATA_DIR;
+		process.env.CLINE_DATA_DIR = path.join(homeDir, ".cline", "data");
+
+		try {
+			const cachePath = resolveRemoteConfigBundleCachePath({
+				workspacePath,
+				pluginName: "enterprise",
+			});
+
+			expect(cachePath).toContain(
+				path.join(homeDir, ".cline", "data", "remote-config"),
+			);
+			expect(cachePath.startsWith(workspacePath)).toBe(false);
+
+			const prepared = await prepareRemoteConfigRuntime({
+				workspacePath,
+				pluginName: "enterprise",
+				controlPlane: {
+					name: "test",
+					async fetchBundle() {
+						return {
+							source: "test",
+							version: "1",
+							remoteConfig: {
+								version: "v1",
+								enterpriseTelemetry: {
+									promptUploading: {
+										enabled: true,
+										type: "s3_access_keys",
+										s3AccessSettings: {
+											bucket: "cline-prompts",
+											accessKeyId: "key",
+											secretAccessKey: "secret",
+											region: "us-west-2",
+										},
+									},
+								},
+							},
+						};
+					},
+				},
+			});
+
+			expect(prepared.paths.bundleCachePath).toBe(cachePath);
+			await expect(fs.readFile(cachePath, "utf8")).resolves.toContain(
+				"secret",
+			);
+			await expect(
+				fs.stat(path.join(workspacePath, ".cline", "enterprise", "cache")),
+			).rejects.toMatchObject({ code: "ENOENT" });
+			await expect(
+				fs.readFile(path.join(workspacePath, ".cline", "enterprise", "managed.json"), "utf8"),
+			).resolves.toContain("test");
+		} finally {
+			if (previousClineDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR;
+			} else {
+				process.env.CLINE_DATA_DIR = previousClineDataDir;
+			}
+		}
+	});
+
+	it("migrates legacy workspace remote-config bundle caches", async () => {
+		const workspacePath = await createTempWorkspace();
+		const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), "sdk-home-"));
+		const previousClineDataDir = process.env.CLINE_DATA_DIR;
+		process.env.CLINE_DATA_DIR = path.join(homeDir, ".cline", "data");
+
+		try {
+			const legacyCachePath = path.join(
+				workspacePath,
+				".cline",
+				"enterprise",
+				"cache",
+				"bundle.json",
+			);
+			await fs.mkdir(path.dirname(legacyCachePath), { recursive: true });
+			await fs.writeFile(
+				legacyCachePath,
+				JSON.stringify({
+					source: "legacy",
+					version: "1",
+					remoteConfig: { version: "v1" },
+				}),
+				"utf8",
+			);
+
+			const prepared = await prepareRemoteConfigRuntime({
+				workspacePath,
+				pluginName: "enterprise",
+			});
+
+			expect(prepared.bundle?.source).toBe("legacy");
+			await expect(
+				fs.readFile(prepared.paths.bundleCachePath, "utf8"),
+			).resolves.toContain("legacy");
+			await expect(fs.stat(legacyCachePath)).rejects.toMatchObject({
+				code: "ENOENT",
+			});
+		} finally {
+			if (previousClineDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR;
+			} else {
+				process.env.CLINE_DATA_DIR = previousClineDataDir;
+			}
+		}
+	});
+
 	it("materializes remote-config rules and workflows", async () => {
 		const workspacePath = await createTempWorkspace();
 

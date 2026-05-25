@@ -34,6 +34,13 @@ coverage-unit
 
 .worktrees
 
+# Local Cline runtime/config artifacts. The SDK stores remote-config bundle
+# caches globally, but keep workspace materializations and legacy cache paths
+# out of source control because they can contain enterprise-managed config.
+**/.cline/enterprise/
+**/.cline/data/
+**/.cline/tmp/
+
 ## Generated files ##
 src/generated/
 src/shared/proto/

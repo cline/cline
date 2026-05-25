@@ -41,6 +41,35 @@ export class FileRemoteConfigBundleStore implements RemoteConfigBundleStore {
 	}
 }
 
+export class MigratingRemoteConfigBundleStore implements RemoteConfigBundleStore {
+	constructor(
+		private readonly primary: RemoteConfigBundleStore,
+		private readonly legacy: RemoteConfigBundleStore,
+	) {}
+
+	async read(): Promise<RemoteConfigBundle | undefined> {
+		const primaryBundle = await this.primary.read();
+		if (primaryBundle) {
+			return primaryBundle;
+		}
+		const legacyBundle = await this.legacy.read();
+		if (legacyBundle) {
+			await this.primary.write(legacyBundle);
+			await this.legacy.clear().catch(() => undefined);
+		}
+		return legacyBundle;
+	}
+
+	async write(bundle: RemoteConfigBundle): Promise<void> {
+		await this.primary.write(bundle);
+		await this.legacy.clear().catch(() => undefined);
+	}
+
+	async clear(): Promise<void> {
+		await Promise.all([this.primary.clear(), this.legacy.clear()]);
+	}
+}
+
 export class FileSystemRemoteConfigManagedArtifactStore
 	implements RemoteConfigManagedArtifactStore
 {

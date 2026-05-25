@@ -184,8 +184,8 @@ different process.
 ### Remote-Config Managed Runtime
 
 1. A host or core wrapper fetches a normalized `RemoteConfigBundle`.
-2. `@cline/shared/remote-config` caches the bundle when configured.
-3. Shared remote-config materializes managed rules/workflows/skills under workspace-local `.cline/<plugin>/`.
+2. `@cline/shared/remote-config` caches the bundle under global Cline data (`~/.cline/data/remote-config/...` by default) so sensitive remote-config values such as prompt-upload credentials do not land in the workspace.
+3. Shared remote-config materializes only discoverable managed rules/workflows/skills under workspace-local `.cline/<plugin>/`.
 4. Shared remote-config derives generic OpenTelemetry config and session blob upload metadata from the bundle.
 5. `@cline/core` exposes the app-facing integration wrapper that applies extensions, telemetry, and session metadata to `StartSessionInput`.
 6. `@cline/core` consumes the prepared local overrides during local bootstrap.
