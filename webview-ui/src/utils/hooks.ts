@@ -18,6 +18,7 @@ export const useMetaKeyDetection = (platform: string) => {
 export const useShortcut = (shortcut: string, callback: (...args: unknown[]) => void, options = { disableTextInputs: true }) => {
 	const callbackRef = useRef(callback)
 	const [keyCombo, setKeyCombo] = useState<string[]>([])
+	const isMac = /mac|darwin/i.test(navigator?.platform || "")
 
 	useLayoutEffect(() => {
 		callbackRef.current = callback
@@ -33,7 +34,7 @@ export const useShortcut = (shortcut: string, callback: (...args: unknown[]) => 
 			const modifierMap: { [key: string]: boolean } = {
 				Control: event.ctrlKey,
 				Alt: event.altKey,
-				Meta: event.metaKey, // alias for Command
+				Meta: isMac ? event.metaKey : event.ctrlKey,
 				Shift: event.shiftKey,
 			}
 
