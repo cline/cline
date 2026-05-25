@@ -26,8 +26,29 @@ describe("notifications", () => {
 
 		expect(script).to.contain("$message = '$(Start-Process calc)'")
 		expect(script).to.contain("$textNodes.Item(1).InnerText = $message")
+		expect(script).to.contain('template="ToastGeneric"')
 		expect(script).to.not.contain('<text id="2">$(Start-Process calc)</text>')
 		expect(script).to.not.contain('$template = @"')
+	})
+
+	it("includes AppLogoOverride image in Windows toast when iconPath is provided", () => {
+		const script = notificationsModule.buildWindowsToastNotificationScript({
+			subtitle: "Test",
+			message: "Hello",
+			iconPath: "C:\\extensions\\cline\\assets\\icons\\icon.png",
+		})
+
+		expect(script).to.contain('placement="appLogoOverride"')
+		expect(script).to.contain("C:\\extensions\\cline\\assets\\icons\\icon.png")
+	})
+
+	it("omits AppLogoOverride image in Windows toast when no iconPath", () => {
+		const script = notificationsModule.buildWindowsToastNotificationScript({
+			subtitle: "Test",
+			message: "Hello",
+		})
+
+		expect(script).to.not.contain("appLogoOverride")
 	})
 
 	it("escapes single quotes for PowerShell single-quoted strings", () => {
@@ -83,6 +104,28 @@ describe("notifications", () => {
 		sinon.assert.calledOnce(execaStub)
 		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
 		expect(execaStub.firstCall.args[1]).to.deep.equal(["Cline", "Approval Required\ntest"])
+	})
+
+	it("passes --icon flag to notify-send on Linux when iconPath is provided", async () => {
+		const execaStub = createResolvedExecaStub()
+		notificationsModule.setNotificationExecaForTesting(
+			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
+		)
+		const platformStub = sinon.stub().returns("linux")
+		notificationsModule.setNotificationPlatformForTesting(
+			platformStub as unknown as Parameters<typeof notificationsModule.setNotificationPlatformForTesting>[0],
+		)
+
+		await notificationsModule.showSystemNotification({
+			title: "Cline",
+			subtitle: "Test",
+			message: "hello",
+			iconPath: "/ext/assets/icons/icon.png",
+		})
+
+		sinon.assert.calledOnce(execaStub)
+		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
+		expect(execaStub.firstCall.args[1]).to.deep.equal(["--icon=/ext/assets/icons/icon.png", "Cline", "Test\nhello"])
 	})
 
 	it("creates explicit approval marker only when required", () => {
