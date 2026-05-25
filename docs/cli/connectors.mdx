@@ -75,13 +75,118 @@ The `--hook-command` receives each incoming message with sender info via stdin. 
 
 ## Slack
 
-Requires a bot token, signing secret, and public base URL.
+Slack runs in webhook mode. You need a Slack app, a bot token, a signing secret, and a public HTTPS URL that can forward requests to your local connector.
+
+<Steps>
+  <Step title="Create or configure a Slack app">
+    Go to [api.slack.com/apps](https://api.slack.com/apps), create a Slack app, then open **OAuth & Permissions** and add these bot token scopes:
+
+    - `chat:write`
+    - `app_mentions:read`
+    - `channels:history`
+    - `channels:read`
+    - `im:history`
+    - `im:read`
+    - `im:write`
+    - `users:read`
+
+    Install the app to your workspace and copy the **Bot User OAuth Token** (`xoxb-...`). Copy the **Signing Secret** from **Basic Information**.
+  </Step>
+
+  <Step title="Expose your local connector">
+    For local development, use a tunnel such as ngrok:
+
+    ```bash
+    ngrok http 8787
+    ```
+
+    Use the HTTPS forwarding URL as your public base URL. For example, if ngrok prints `https://abc123.ngrok-free.app`, your base URL is:
+
+    ```text
+    https://abc123.ngrok-free.app
+    ```
+  </Step>
+
+  <Step title="Start the Slack connector">
+    Pass the public base URL without the `/api/webhooks/slack` path:
+
+    ```bash
+    cline connect slack \
+      --token <BOT-TOKEN> \
+      --signing-secret <SECRET> \
+      --base-url https://abc123.ngrok-free.app \
+      --cwd /path/to/repo \
+      --enable-tools
+    ```
+
+    `--enable-tools` lets the Slack agent inspect files, edit code, and run commands. Omit it for a chat-only connector.
+  </Step>
+
+  <Step title="Configure Event Subscriptions">
+    In your Slack app, open **Event Subscriptions** and turn events on. Set **Request URL** to the connector webhook path:
+
+    ```text
+    https://abc123.ngrok-free.app/api/webhooks/slack
+    ```
+
+    Slack should show the request URL as verified. Under **Subscribe to bot events**, add:
+
+    | Event | Required scope |
+    | ----- | -------------- |
+    | `app_mention` | `app_mentions:read` |
+    | `message.im` | `im:history` |
+    | `message.channels` | `channels:history` |
+
+    Save changes. If Slack asks you to reinstall the app after changing scopes, reinstall it and copy the new bot token if it changes.
+  </Step>
+
+  <Step title="Invite and test the bot">
+    Invite the app to the Slack channel where you want to use it. Start a conversation by mentioning the bot:
+
+    ```text
+    @Cline /whereami
+    ```
+
+    The bot should reply in a thread with the Slack thread ID, working directory, and tool state. Continue replying in that same thread to keep the same agent session and conversation context.
+  </Step>
+</Steps>
+
+### Slack Usage
+
+Each Slack thread maps to an agent session. In channels, start with an app mention such as `@Cline run the tests`. After the bot replies in a thread, continue in that thread; you do not need to mention the bot on every reply. In DMs, send a normal message to the app.
+
+Connector commands are sent as chat messages, for example `@Cline /help` in a channel thread or `/help` in a DM. Common commands:
+
+- `/help` or `/start` - show connector help
+- `/new` or `/clear` - start a fresh session
+- `/whereami` - show thread, cwd, tools, and yolo state
+- `/tools on|off|toggle` - allow or block repo/file/shell tools
+- `/yolo on|off|toggle` - auto-approve tool use
+- `/cwd <path>` - change working directory
+- `/schedule create|list|trigger|delete` - manage scheduled workflows for this thread
+- `/abort` - stop the current task
+- `/exit` - stop the connector
+
+### Slack Troubleshooting
+
+- If Slack cannot verify the request URL, make sure the connector is running and the public URL is reachable. `curl https://abc123.ngrok-free.app/health` should return `ok`.
+- If the bot does not reply in a channel, make sure the app is invited to the channel and the `app_mention`, `message.channels`, and `message.im` bot events are saved.
+- If you use ngrok or another temporary tunnel, update Slack Event Subscriptions whenever the public URL changes.
+- `--base-url` is only the public origin, such as `https://abc123.ngrok-free.app`; the Slack app Request URL is that origin plus `/api/webhooks/slack`.
+
+### Slack Security
+
+By default, anyone who can message the app in Slack can ask it to run tasks on your machine. Use `--hook-command` to restrict access. This example allows only one Slack workspace/user pair:
 
 ```bash
-cline connect slack --token <BOT-TOKEN> --signing-secret <SECRET> --base-url <URL>
+cline connect slack \
+  --token <BOT-TOKEN> \
+  --signing-secret <SECRET> \
+  --base-url <URL> \
+  --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "slack:team:T01ABC123:user:U01ABC123" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
 ```
 
-Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+Send `/whereami` from Slack to see the `participantKey` for the current user.
 
 ## Discord
 
