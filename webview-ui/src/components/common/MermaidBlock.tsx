@@ -129,7 +129,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 		if (!containerRef.current) {
 			return
 		}
-		const svgEl = containerRef.current.querySelector("svg")
+		const svgEl = containerRef.current.querySelector<SVGSVGElement>("svg")
 		if (!svgEl) {
 			return
 		}
@@ -157,7 +157,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 			{isLoading && <LoadingMessage>Generating mermaid diagram...</LoadingMessage>}
 			<ButtonContainer>
 				<StyledVSCodeButton aria-label="Copy Code" onClick={handleCopyCode} title="Copy Code">
-					<span className="codicon codicon-copy"></span>
+					<span className="codicon codicon-copy" />
 				</StyledVSCodeButton>
 			</ButtonContainer>
 			<SvgContainer $isLoading={isLoading} onClick={handleClick} ref={containerRef} />
@@ -165,24 +165,38 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 	)
 }
 
-async function svgToPng(svgEl: SVGElement): Promise<string> {
+async function svgToPng(svgEl: SVGSVGElement): Promise<string> {
 	console.log("svgToPng function called")
 	// Clone the SVG to avoid modifying the original
 	const svgClone = svgEl.cloneNode(true) as SVGElement
 
-	// Get the original viewBox
+	// Use getBBox() to measure the actual rendered content bounds, which includes
+	// text labels that overflow beyond the viewBox. This fixes #7398 where node
+	// text labels are clipped in the PNG export.
+	const bbox = svgEl.getBBox()
 	const viewBox = svgClone.getAttribute("viewBox")?.split(" ").map(Number) || []
-	const originalWidth = viewBox[2] || svgClone.clientWidth
-	const originalHeight = viewBox[3] || svgClone.clientHeight
+
+	// Add padding to ensure nothing is clipped at edges
+	const padding = 20
+	const contentX = Math.min(bbox.x, viewBox[0] ?? bbox.x) - padding
+	const contentY = Math.min(bbox.y, viewBox[1] ?? bbox.y) - padding
+	const contentWidth = Math.max(bbox.width + bbox.x - contentX, (viewBox[2] ?? 0) + (viewBox[0] ?? 0) - contentX) + padding
+	const contentHeight = Math.max(bbox.height + bbox.y - contentY, (viewBox[3] ?? 0) + (viewBox[1] ?? 0) - contentY) + padding
+
+	// Update the viewBox to encompass all rendered content
+	svgClone.setAttribute("viewBox", `${contentX} ${contentY} ${contentWidth} ${contentHeight}`)
+
+	// Ensure SVG and text elements handle overflow correctly
+	svgClone.style.overflow = "visible"
+	svgClone.querySelectorAll("text").forEach((textEl) => {
+		textEl.style.overflow = "visible"
+	})
 
 	// Calculate the scale factor to fit editor width while maintaining aspect ratio
-
-	// Unless we can find a way to get the actual editor window dimensions through the VS Code API (which might be possible but would require changes to the extension side),
-	// the fixed width seems like a reliable approach.
 	const editorWidth = 3_600
 
-	const scale = editorWidth / originalWidth
-	const scaledHeight = originalHeight * scale
+	const scale = editorWidth / contentWidth
+	const scaledHeight = contentHeight * scale
 
 	// Update SVG dimensions
 	svgClone.setAttribute("width", `${editorWidth}`)
@@ -258,6 +272,12 @@ const SvgContainer = styled.div<SvgContainerProps>`
 	cursor: pointer;
 	display: flex;
 	justify-content: center;
+	overflow: visible;
+	padding: 20px;
+
+	svg {
+		overflow: visible !important;
+	}
 `
 
 const StyledVSCodeButton = styled(VSCodeButton)`
