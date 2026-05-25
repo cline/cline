@@ -15,6 +15,8 @@ interface CodeAccordianProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	isLoading?: boolean
+	variant?: "default" | "light" | "subtle"
+	noBorder?: boolean
 }
 
 /*
@@ -35,6 +37,8 @@ const CodeAccordian = ({
 	isExpanded,
 	onToggleExpand,
 	isLoading,
+	variant = "default",
+	noBorder = false,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -49,7 +53,13 @@ const CodeAccordian = ({
 	}, [code])
 
 	return (
-		<div className="bg-code overflow-hidden rounded-xs border border-editor-group-border">
+		<div
+			className={cn("overflow-hidden rounded-sm", {
+				"border border-editor-group-border": !noBorder,
+				"bg-code": variant === "default",
+				"bg-sidebar": variant === "light",
+				"bg-toolbar-hover/65": variant === "subtle",
+			})}>
 			{(path || isFeedback || isConsoleLogs) && (
 				<Button
 					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
@@ -93,7 +103,10 @@ const CodeAccordian = ({
 				</Button>
 			)}
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
-				<div className="overflow-x-auto overflow-y-hidden max-w-full">
+				<div
+					className={cn("overflow-x-auto overflow-y-hidden max-w-full", {
+						"[&_*]:!bg-transparent": variant === "subtle",
+					})}>
 					<CodeBlock
 						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
 							code ?? diff ?? ""
