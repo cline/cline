@@ -74,6 +74,13 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("error", `Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
 				return formatResponse.toolError(formatResponse.invalidMcpToolArgumentError(server_name, tool_name))
 			}
+
+			// Strip Cline-internal parameters that the LLM may have incorrectly
+			// placed inside the arguments JSON instead of as sibling XML tags.
+			// See: https://github.com/cline/cline/issues/8256
+			if (parsedArguments) {
+				delete parsedArguments.task_progress
+			}
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
