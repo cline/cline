@@ -162,7 +162,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners() // Triggers background fetch
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(mockFetch.calledOnce).to.be.true
 				const banners = bannerService.getActiveBanners() // Get banners after fetch completes
@@ -181,7 +181,7 @@ describe("BannerService", () => {
 				const banners = bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(banners).to.have.lengthOf(0)
 			})
@@ -318,7 +318,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -352,7 +352,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -386,7 +386,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
@@ -419,7 +419,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -453,7 +453,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
@@ -485,7 +485,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -515,7 +515,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -548,14 +548,14 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 				expect(mockFetch.calledOnce).to.be.true
 
 				bannerService.clearCache()
 
 				bannerService.getActiveBanners()
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 				expect(mockFetch.calledTwice).to.be.true
 			})
 		})
@@ -585,7 +585,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(mockFetch.calledOnce).to.be.true
 				const call = mockFetch.getCall(0)
@@ -624,7 +624,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -665,7 +665,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
@@ -713,7 +713,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(2)
@@ -745,7 +745,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -778,7 +778,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
@@ -811,7 +811,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
@@ -854,7 +854,7 @@ describe("BannerService", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				const banners = bannerService.getActiveBanners()
 				expect(mockedPostStateToWebview.called).to.be.true
@@ -892,7 +892,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("vscode")
 			})
@@ -905,7 +905,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("vscode")
 			})
@@ -918,7 +918,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("jetbrains")
 			})
@@ -931,7 +931,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("jetbrains")
 			})
@@ -944,7 +944,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("cli")
 			})
@@ -957,7 +957,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("vscode")
 			})
@@ -970,7 +970,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("vscode")
 			})
@@ -983,7 +983,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("unknown")
 			})
@@ -996,7 +996,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("unknown")
 			})
@@ -1009,7 +1009,7 @@ describe("BannerService", () => {
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await bannerService.drainForTesting()
 
 				expect(await getIdeParam(mockFetch)).to.equal("jetbrains")
 			})
