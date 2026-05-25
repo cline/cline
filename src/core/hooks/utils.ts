@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getDocumentsPath } from "@/core/storage/disk"
 import { getCwd, getDesktopDir } from "@/utils/path"
 
 /**
@@ -51,7 +52,8 @@ export async function resolveHooksDirectory(
 	globalHooksDirOverride?: string,
 ): Promise<string> {
 	if (isGlobal) {
-		return globalHooksDirOverride || path.join(os.homedir(), "Documents", "Cline", "Hooks")
+		const documentsPath = await getDocumentsPath()
+		return globalHooksDirOverride || path.join(documentsPath, "Cline", "Hooks")
 	}
 
 	// For workspace hooks, find the correct workspace
