@@ -185,13 +185,13 @@
 			},
 			{
 				"command": "cline.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
+				"title": "%cline.generateGitCommitMessage.title%",
 				"category": "Cline",
 				"icon": "$(cline-icon)"
 			},
 			{
 				"command": "cline.abortGitCommitMessage",
-				"title": "Generate Commit Message with Cline - Stop",
+				"title": "%cline.abortGitCommitMessage.title%",
 				"category": "Cline",
 				"icon": "$(debug-stop)"
 			},
