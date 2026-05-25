@@ -210,32 +210,53 @@ export const HtmlPreviewContextProvider: React.FC<{ children: React.ReactNode }>
 		}
 	}, [])
 
-	const loadWorkspaceFile = useCallback(async (filePath: string, title: string) => {
-		try {
-			const { PreviewHtmlRequest } = await import("@shared/proto/cline/html_preview")
-			await HtmlPreviewServiceClient.previewHtml(
-				PreviewHtmlRequest.create({
-					htmlContent: "",
-					title,
-					filePath,
-				}),
-			)
-			// Fetch the updated item list, then activate the newly loaded item by
-			// filePath so the view actually switches to the target module.
-			const response = await HtmlPreviewServiceClient.getHtmlPreviewState(EmptyRequest.create())
-			setItems(response.items)
-			const newItem = response.items.find((i) => i.filePath === filePath)
-			if (newItem) {
-				setActiveItemId(newItem.id)
-			} else if (response.items.length > 0) {
-				// Fallback: activate the last item (most recently added)
-				setActiveItemId(response.items[response.items.length - 1].id)
-			}
-		} catch (error) {
-			console.error("[HtmlPreviewContext] loadWorkspaceFile failed:", error)
-			throw error
-		}
+	// Tolerant path-equality: normalises slashes, trims trailing separators,
+	// case-insensitive on macOS/Windows. Used to decide whether a target file
+	// is already represented by an existing preview item.
+	const pathsEqual = useCallback((a?: string, b?: string) => {
+		if (!a || !b) return false
+		const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
+		return norm(a) === norm(b)
 	}, [])
+
+	const loadWorkspaceFile = useCallback(
+		async (filePath: string, title: string) => {
+			try {
+				// Fast path: if a tab for this file already exists, just activate it.
+				// This is what makes course Prev/Next reliable — we don't depend on
+				// the extension reusing items by filePath, and we don't pay the
+				// previewHtml round-trip when the artifact is already loaded.
+				const existing = items.find((i) => pathsEqual(i.filePath, filePath))
+				if (existing) {
+					setActiveItemId(existing.id)
+					return
+				}
+
+				const { PreviewHtmlRequest } = await import("@shared/proto/cline/html_preview")
+				await HtmlPreviewServiceClient.previewHtml(
+					PreviewHtmlRequest.create({
+						htmlContent: "",
+						title,
+						filePath,
+					}),
+				)
+				// Fetch the updated item list, then activate the newly loaded item
+				// using tolerant path comparison (the extension may normalise slashes).
+				const response = await HtmlPreviewServiceClient.getHtmlPreviewState(EmptyRequest.create())
+				setItems(response.items)
+				const newItem =
+					response.items.find((i) => pathsEqual(i.filePath, filePath)) ??
+					(response.items.length > 0 ? response.items[response.items.length - 1] : null)
+				if (newItem) {
+					setActiveItemId(newItem.id)
+				}
+			} catch (error) {
+				console.error("[HtmlPreviewContext] loadWorkspaceFile failed:", error)
+				throw error
+			}
+		},
+		[items, pathsEqual],
+	)
 
 	return (
 		<HtmlPreviewContext.Provider
