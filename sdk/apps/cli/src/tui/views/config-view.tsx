@@ -330,6 +330,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+	const { loadConfigData } = props;
 
 	useEffect(() => {
 		if (

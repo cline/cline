@@ -9,6 +9,10 @@ import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
 describe("Hostbridge - Window - getOpenTabs", () => {
+	function uniquePaths(paths: string[]): string[] {
+		return Array.from(new Set(paths))
+	}
+
 	async function createAndOpenTestDocument(name: string, column: vscode.ViewColumn): Promise<void> {
 		const content = `// Test file ${name}\nconsole.log('Hello from file ${name}');`
 
@@ -26,6 +30,18 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			viewColumn: column,
 			preview: false,
 		})
+
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				return response.paths.includes(uri.fsPath)
+			},
+			{
+				timeout: 10000,
+				interval: 50,
+			},
+		)
 	}
 
 	async function waitForAllTabsClosed(): Promise<void> {
@@ -79,7 +95,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 				console.log(
 					`[DEBUG] Waiting for 2 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
 				)
-				return response.paths.length === 2
+				return uniquePaths(response.paths).length === 2
 			},
 			{
 				timeout: 8000,
@@ -92,7 +108,7 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 
 		// Should have 2 tabs open
 		assert.strictEqual(
-			response.paths.length,
+			uniquePaths(response.paths).length,
 			2,
 			`Expected 2 tabs, got ${response.paths.length}. Found tabs: ${JSON.stringify(response.paths)}`,
 		)

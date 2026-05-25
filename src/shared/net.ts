@@ -99,6 +99,18 @@ import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 
 let mockFetch: typeof globalThis.fetch | undefined
 
+function getStandaloneFetchAgentOptions(): ConstructorParameters<typeof EnvHttpProxyAgent>[0] {
+	if (process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0") {
+		return {}
+	}
+
+	return {
+		connect: {
+			rejectUnauthorized: false,
+		},
+	}
+}
+
 /**
  * Platform-configured fetch that respects proxy settings.
  * Use this instead of global fetch to ensure proper proxy configuration.
@@ -118,7 +130,7 @@ export const fetch: typeof globalThis.fetch = (() => {
 	// We must use explicit string comparison because "false" is truthy in JS.
 	if (process.env.IS_STANDALONE === "true") {
 		// Configure undici with ProxyAgent
-		const agent = new EnvHttpProxyAgent({})
+		const agent = new EnvHttpProxyAgent(getStandaloneFetchAgentOptions())
 		setGlobalDispatcher(agent)
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
