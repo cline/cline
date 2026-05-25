@@ -518,7 +518,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
 									<VSCodeLink
 										className="text-xs inline"
-										href="https://docs.cline.bot/features/slash-commands/workflows">
+										href="https://docs.cline.bot/customization/cline-rules#workflows">
 										Docs
 									</VSCodeLink>
 								</p>

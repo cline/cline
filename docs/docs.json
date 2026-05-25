@@ -571,6 +571,10 @@
 			"destination": "/core-workflows/using-commands"
 		},
 		{
+			"source": "/features/slash-commands/workflows",
+			"destination": "/customization/cline-rules#workflows"
+		},
+		{
 			"source": "/exploring-clines-tools/cline-tools-guide",
 			"destination": "/tools-reference/all-cline-tools"
 		},
