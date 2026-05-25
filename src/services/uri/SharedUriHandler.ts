@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import { WebviewProvider } from "@/core/webview"
 import { writeLgWebhookConfig, writeLgWebhookHooks } from "@/services/lg-cns-integration/webhook-hooks"
 import { Logger } from "@/shared/services/Logger"
+import { migrateToCli } from "./migrateToCli"
 
 export const TASK_URI_PATH = "/task"
 export const LG_TASK_URI_PATH = "/lg-task"
@@ -32,6 +33,11 @@ export class SharedUriHandler {
 					scheme: parsedUrl.protocol,
 				}),
 		)
+
+		// Routes that don't require a visible webview
+		if (path === "/migrate-to-cli") {
+			return migrateToCli()
+		}
 
 		const visibleWebview = WebviewProvider.getVisibleInstance()
 
