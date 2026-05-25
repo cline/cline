@@ -25,6 +25,7 @@ import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
 import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
 import { reportPreviewEvent, requestSaveDocument, startPreviewAgentTask } from "./previewBridge"
 import { resolveModuleFilePath, useCourse } from "./useCourse"
+import { useCourseProgress } from "./useCourseProgress"
 
 /**
  * HtmlPreviewView — single-iframe renderer for one HTML artifact.
@@ -176,15 +177,28 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	const { setManifest, loadWorkspaceFile } = useHtmlPreviewContext()
 	// Phase A: detect a course.json in the active module's parent folder
 	const { course, courseRoot, currentModuleId } = useCourse(item?.filePath)
+	const courseProgress = useCourseProgress(course)
+	// Persist "currently visiting" module ID whenever it changes (Phase B)
+	useEffect(() => {
+		if (course && currentModuleId) {
+			void courseProgress.setCurrent(currentModuleId)
+		}
+		// We intentionally don't depend on courseProgress to avoid an infinite loop;
+		// only the IDs matter for triggering a save.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [course?.courseId, currentModuleId])
 	const handleCourseNavigate = useCallback(
 		(moduleId: string) => {
 			if (!course || !courseRoot) return
 			const target = course.modules.find((m) => m.id === moduleId)
 			if (!target) return
+			// Prerequisite gate — silently no-op if locked (the UI shouldn't have
+			// surfaced the click anyway, but this is defence-in-depth).
+			if (!courseProgress.canAccess(target)) return
 			const fullPath = resolveModuleFilePath(courseRoot, target.path)
 			void loadWorkspaceFile(fullPath, target.title)
 		},
-		[course, courseRoot, loadWorkspaceFile],
+		[course, courseRoot, loadWorkspaceFile, courseProgress],
 	)
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
 	const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
@@ -943,7 +957,14 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	return (
 		<div style={outerStyle}>
 			{/* Phase A: course header strip — only renders when course.json found */}
-			{course && <CourseHeader course={course} currentModuleId={currentModuleId} onNavigate={handleCourseNavigate} />}
+			{course && (
+				<CourseHeader
+					course={course}
+					currentModuleId={currentModuleId}
+					onNavigate={handleCourseNavigate}
+					progress={courseProgress}
+				/>
+			)}
 			<HtmlPreviewToolbar
 				activeProfileId={activeProfileId}
 				diagnosticsOpen={diagnosticsOpen}

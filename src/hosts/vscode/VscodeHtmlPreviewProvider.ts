@@ -4,6 +4,13 @@ import * as vscode from "vscode"
 import type { ArtifactRef } from "@/services/artifact-preview/ArtifactPreviewService"
 import { buildPreviewCsp } from "@/services/artifact-preview/buildPreviewCsp"
 import { loadCourseManifest } from "@/services/htmlPreview/courseLoader"
+import {
+	loadProgress as loadCourseProgress,
+	markComplete as markCourseComplete,
+	markUncomplete as markCourseUncomplete,
+	resetProgress as resetCourseProgress,
+	setCurrentModule as setCourseCurrentModule,
+} from "@/services/htmlPreview/courseProgressStore"
 
 /**
  * Owns the single AI-Hydro HTML Preview webview panel.
@@ -250,6 +257,57 @@ export class VscodeHtmlPreviewProvider {
 							})
 						}
 						break
+					case "aihydro-course-progress": {
+						// Phase B: persisted progress store for course modules.
+						// Action-dispatched on a single message family so the protocol
+						// stays compact. Always responds with the latest snapshot so
+						// the webview can update its UI from a single source of truth.
+						const requestId = String(message.requestId ?? "")
+						const courseId = String(message.courseId ?? "")
+						const moduleId = typeof message.moduleId === "string" ? message.moduleId : null
+						const action = String(message.action ?? "load")
+						try {
+							let progress
+							switch (action) {
+								case "complete":
+									if (!moduleId) throw new Error("complete requires moduleId")
+									progress = await markCourseComplete(
+										courseId,
+										moduleId,
+										typeof message.timeSpentMs === "number" ? message.timeSpentMs : undefined,
+									)
+									break
+								case "uncomplete":
+									if (!moduleId) throw new Error("uncomplete requires moduleId")
+									progress = await markCourseUncomplete(courseId, moduleId)
+									break
+								case "set-current":
+									progress = await setCourseCurrentModule(courseId, moduleId)
+									break
+								case "reset":
+									progress = await resetCourseProgress(courseId)
+									break
+								case "load":
+								default:
+									progress = await loadCourseProgress(courseId)
+							}
+							panel.webview.postMessage({
+								type: "aihydro-course-progress-result",
+								requestId,
+								courseId,
+								progress,
+							})
+						} catch (err) {
+							panel.webview.postMessage({
+								type: "aihydro-course-progress-result",
+								requestId,
+								courseId,
+								progress: null,
+								error: err instanceof Error ? err.message : String(err),
+							})
+						}
+						break
+					}
 					case "aihydro-load-course": {
 						// Phase A (course-as-viewer): walk up from a file path looking for
 						// course.json; return the parsed manifest + the folder it was

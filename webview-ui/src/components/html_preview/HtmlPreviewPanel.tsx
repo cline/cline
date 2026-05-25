@@ -7,6 +7,7 @@ import { CourseNavigator } from "./CourseNavigator"
 import HtmlPreviewView from "./HtmlPreviewView"
 import ModulesMarketplaceView from "./marketplace/ModulesMarketplaceView"
 import { resolveModuleFilePath, useCourse } from "./useCourse"
+import { useCourseProgress } from "./useCourseProgress"
 
 /**
  * HtmlPreviewPanel — container for the HTML Preview tab.
@@ -41,15 +42,19 @@ export const HtmlPreviewPanel: React.FC = () => {
 	const activeItem = items.find((i) => i.id === activeItemId) || items[items.length - 1]
 	// Phase A: load course manifest for the active item's file (if any)
 	const { course, courseRoot, currentModuleId } = useCourse(activeItem?.filePath)
+	const courseProgress = useCourseProgress(course)
 	const handleCourseNavigate = useCallback(
 		(moduleId: string) => {
 			if (!course || !courseRoot) return
 			const target = course.modules.find((m) => m.id === moduleId)
 			if (!target) return
+			// Phase B: prerequisite gate — silently no-op if locked. The UI should
+			// have prevented the click already (disabled button) but defence in depth.
+			if (!courseProgress.canAccess(target)) return
 			const fullPath = resolveModuleFilePath(courseRoot, target.path)
 			void loadWorkspaceFile(fullPath, target.title)
 		},
-		[course, courseRoot, loadWorkspaceFile],
+		[course, courseRoot, loadWorkspaceFile, courseProgress],
 	)
 
 	const fileInputRef = useRef<HTMLInputElement>(null)
@@ -275,6 +280,7 @@ export const HtmlPreviewPanel: React.FC = () => {
 									course={course}
 									currentModuleId={currentModuleId}
 									onNavigate={handleCourseNavigate}
+									progress={courseProgress}
 								/>
 							</AccordionSection>
 						)}
