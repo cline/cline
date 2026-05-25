@@ -290,4 +290,71 @@ describe("ClineIgnoreController", () => {
 			controller.validateAccess("file.log").should.be.true()
 		})
 	})
+
+	describe("Include Directive Path Traversal Protection", () => {
+		it("should block !include directives that escape workspace via ..", async () => {
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include ../../etc/passwd", "*.log"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			// Only *.log pattern should be active (traversal include blocked)
+			controller.validateAccess("server.log").should.be.false()
+			controller.validateAccess("regular-file.txt").should.be.true()
+		})
+
+		it("should block !include with absolute paths", async () => {
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include /etc/shadow", "*.tmp"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			controller.validateAccess("file.tmp").should.be.false()
+			controller.validateAccess("regular.txt").should.be.true()
+		})
+
+		it("should allow !include with paths within workspace", async () => {
+			await fs.writeFile(path.join(tempDir, "extra-ignore.txt"), ["*.log", "debug/"].join("\n"))
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include extra-ignore.txt", "secret.txt"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			controller.validateAccess("server.log").should.be.false()
+			controller.validateAccess("debug/app.js").should.be.false()
+			controller.validateAccess("secret.txt").should.be.false()
+			controller.validateAccess("app.js").should.be.true()
+		})
+	})
+
+	describe("Path Traversal Protection", () => {
+		it("should block paths that escape the workspace via ..", async () => {
+			controller.validateAccess("../../etc/passwd").should.be.false()
+			controller.validateAccess("../../../home/user/.bashrc").should.be.false()
+			controller.validateAccess("../outside-workspace/file.txt").should.be.false()
+		})
+
+		it("should block absolute paths outside workspace", async () => {
+			controller.validateAccess("/etc/passwd").should.be.false()
+			controller.validateAccess("/home/user/.ssh/id_rsa").should.be.false()
+		})
+
+		it("should still allow paths within workspace", async () => {
+			controller.validateAccess("src/index.ts").should.be.true()
+			controller.validateAccess("README.md").should.be.true()
+		})
+
+		it("should block traversal when .clineignore does not exist", async () => {
+			const emptyDir = path.join(os.tmpdir(), `llm-test-no-ignore-${Date.now()}`)
+			await fs.mkdir(emptyDir)
+			try {
+				const noIgnoreController = new ClineIgnoreController(emptyDir)
+				await noIgnoreController.initialize()
+				noIgnoreController.validateAccess("../../etc/passwd").should.be.false()
+				noIgnoreController.validateAccess("src/index.ts").should.be.true()
+			} finally {
+				await fs.rm(emptyDir, { recursive: true, force: true })
+			}
+		})
+	})
 })

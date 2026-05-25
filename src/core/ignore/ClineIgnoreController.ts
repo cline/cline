@@ -137,7 +137,14 @@ export class ClineIgnoreController {
 	 */
 	private async readIncludedFile(includeLine: string): Promise<string | null> {
 		const includePath = includeLine.substring("!include ".length).trim()
-		const resolvedIncludePath = path.join(this.cwd, includePath)
+		const resolvedIncludePath = path.resolve(this.cwd, includePath)
+
+		// Block paths that resolve outside the workspace (path traversal)
+		const relativePath = path.relative(this.cwd, resolvedIncludePath)
+		if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+			Logger.debug(`[ClineIgnore] Included file path escapes workspace: ${includePath}`)
+			return null
+		}
 
 		if (!(await fileExistsAtPath(resolvedIncludePath))) {
 			Logger.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
@@ -153,21 +160,26 @@ export class ClineIgnoreController {
 	 * @returns true if file is accessible, false if ignored
 	 */
 	validateAccess(filePath: string): boolean {
-		// Always allow access if .clineignore does not exist
-		if (!this.clineIgnoreContent) {
-			return true
-		}
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
-			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
+			const relativePath = path.relative(this.cwd, absolutePath)
+
+			// Block paths that resolve outside the workspace (path traversal)
+			if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+				return false
+			}
+
+			// Always allow access if .clineignore does not exist
+			if (!this.clineIgnoreContent) {
+				return true
+			}
 
 			// Ignore expects paths to be path.relative()'d
-			return !this.ignoreInstance.ignores(relativePath)
+			return !this.ignoreInstance.ignores(relativePath.toPosix())
 		} catch (_error) {
-			// Logger.error(`Error validating access for ${filePath}:`, error)
-			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
-			return true
+			// Deny by default on errors (e.g., invalid paths)
+			return false
 		}
 	}
 
