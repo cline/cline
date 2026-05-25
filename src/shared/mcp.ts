@@ -19,6 +19,12 @@ export type McpTool = {
 	description?: string
 	inputSchema?: object
 	autoApprove?: boolean
+	/**
+	 * MCP `_meta` field — arbitrary server-side metadata about the tool.
+	 * AI-Hydro uses `{ tier: 1|2|3, domain: string }` for tier-based
+	 * context filtering (Wave 1.5).
+	 */
+	_meta?: Record<string, any>
 }
 
 export type McpResource = {
