@@ -13,6 +13,91 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.2.0] — 2026-05-25
+
+A focused release on the HTML Preview panel: full course-mode (multi-module
+guided learning paths), production-grade visual edit mode, and the DeepSeek
+V4 model family in the API picker.
+
+### Added — Course mode (HTML Preview)
+
+End-to-end teaching-and-learning support for HTML modules grouped under a
+`course.json` manifest. The student sees a curriculum + progress bar; the
+agent (via `aihydro-tools` 1.7.0) sees the same state and can navigate,
+gate, or unlock modules on the student's behalf.
+
+- **`CourseHeader`** — strip above the toolbar showing course title, authors,
+  module-N-of-M, ✓ / 🔒 status, completion %, prev/next navigation, "Mark
+  complete & continue", and a kebab menu with two-step Reset Progress.
+- **`CourseNavigator`** — sidebar accordion replacing the Files panel when
+  a course is open. Numbered module list, cyan stripe on current, green ✓
+  on completed, locked rows greyed with prereq tooltip, mini progress bar.
+- **`useCourse` + `useCourseProgress`** — webview hooks fetching the
+  course manifest (via host walk-up from any module's path) and per-course
+  progress (round-tripped through the extension host, persisted to
+  `~/.aihydro/course_progress/<id>.json`).
+- **Agent ↔ Preview bridge:**
+  - Webview writes `~/.aihydro/active_course.json` whenever a course is
+    in view, so the agent's `course_get_state` MCP tool knows which course
+    without the user pasting paths.
+  - Extension host watches `~/.aihydro/course_nav_intent.json` (written by
+    the agent's `course_navigate` MCP tool); fresh intents trigger a tab
+    switch through the same prerequisite gate the Next button uses.
+- **`examples/courses/intro-to-hydrology/`** — three-module reference
+  course (Reading a hydrograph → Exploring CONUS streamflow → DEM to TWI)
+  demonstrating prerequisites, estimated minutes, and abstracts.
+
+### Added — Production-grade visual edit mode
+
+- **Real-change detection** — `input` event + `MutationObserver` on
+  `[data-aihydro-editable="prose"]` elements (replaces the false-positive
+  "Save activates on every toolbar click" behaviour of the prior build).
+- **Undo / redo** — keyboard (`⌘Z` / `⌘⇧Z` / `Ctrl+Y`) + toolbar buttons
+  tied to `document.queryCommandEnabled('undo'|'redo')` for accurate
+  enabled/disabled state.
+- **Save button** — only activates when there are pending text edits AND
+  no save is in flight; shows "Saving…" mid-flight.
+- **Edit-context ribbon** — replaces the per-comment modal dialog with a
+  persistent toolbar (B / I / U / H1-3 / list / link / Undo / Redo / Save).
+
+### Fixed — Prev / Next navigation
+
+- **`loadWorkspaceFile`** — previously created a new tab but never
+  activated it, so Next ▶ appeared to do nothing. Now fetches updated
+  items, finds the target by path, and explicitly activates it.
+- **Tolerant path matching** — `pathsEqual()` normalises slashes, trims
+  trailing separators, and is case-insensitive (macOS HFS+ / NTFS) so a
+  freshly-resolved navigation target matches its already-open tab even
+  when the path string isn't byte-identical. Fast path skips the
+  `previewHtml` round-trip entirely when the tab is already open.
+
+### Added — DeepSeek V4 model family
+
+- **`deepseek-v4-flash`** (new default) — 1M context, 384K max output,
+  $0.28/M output, $0.0028/M cache reads.
+- **`deepseek-v4-pro`** — premium V4 with thinking mode for complex
+  reasoning; same 1M context.
+- **`deepseek-chat` / `deepseek-reasoner`** retained as deprecated aliases
+  with accurate v4-flash pricing surfaced in the picker.
+- Provider code unchanged — the legacy R1-format conversion still
+  triggers for the `deepseek-reasoner` alias.
+
+### Companion releases
+
+- **`aihydro-tools` 1.7.0** on PyPI — five new `course_*` MCP tools
+  (`get_state`, `get_curriculum`, `set_progress`, `navigate`, `scaffold`).
+- **`AI-Hydro/Skills`** — new `course-authoring` skill broadcast via the
+  GitHub Pages marketplace; pairs with `course_scaffold` per the
+  established skill+tool pattern.
+
+### System prompt
+
+- `aihydro-tools` 1.7.0 ships a new COURSE MODE section directing the
+  agent to treat itself as a teaching assistant when a course is active
+  and require explicit user agreement before mutating progress.
+
+---
+
 ## [0.1.8] — 2026-05-09
 
 ### Map — Multi-format file loading, drag-and-drop, symbology editor
