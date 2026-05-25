@@ -22,7 +22,7 @@ import { AIHYDRO_PREVIEW_STYLE, CELL_BRIDGE_SCRIPT } from "./aihydroCellBridge"
 import { EditContextRibbon } from "./EditContextRibbon"
 import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
 import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
-import { reportPreviewEvent } from "./previewBridge"
+import { reportPreviewEvent, requestSaveDocument, startPreviewAgentTask } from "./previewBridge"
 
 /**
  * HtmlPreviewView — single-iframe renderer for one HTML artifact.
@@ -195,6 +195,12 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	const [editModeActive, setEditModeActive] = useState(false)
 	// UI Refinement: batch state from the iframe editor adapter
 	const [pendingChangeCount, setPendingChangeCount] = useState(0)
+	// Save / unsaved-changes tracking
+	const [hasPendingTextEdits, setHasPendingTextEdits] = useState(false)
+	const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false)
+	const [isSaving, setIsSaving] = useState(false)
+	// Resolver for the async save-document round-trip with the iframe
+	const pendingSaveResolverRef = useRef<((html: string) => void) | null>(null)
 
 	const renderPath = useMemo<RenderPath>(
 		() => pickRenderPath(item),
@@ -628,10 +634,33 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			// Local UI updates: track batch count for the EditContextRibbon
 			if (data.kind === "user.comment.draft") {
 				setPendingChangeCount((n) => n + 1)
-			} else if (data.kind === "user.batch_changes" || data.kind === "user.batch.cleared") {
+			} else if (data.kind === "user.batch_changes") {
 				setPendingChangeCount(0)
+				// Fire the agent task — opens chat sidebar pre-seeded with batch prompt
+				const moduleId = (payload.moduleId as string | undefined) ?? item?.id ?? "unknown"
+				const changeCount = Array.isArray(payload.changes) ? payload.changes.length : 1
+				const moduleTitle = item?.title || moduleId
+				const agentPrompt = [
+					`The user has submitted ${changeCount} change${changeCount === 1 ? "" : "s"} and comment${changeCount === 1 ? "" : "s"} for the HTML module "${moduleTitle}".`,
+					`Please call \`preview_get_pending_changes("${moduleId}")\` to read the full list,`,
+					`then address each one: apply prose edits to the document, implement cell/figure changes in code,`,
+					`and call \`preview_address_comment\` for each item once done.`,
+				].join(" ")
+				void startPreviewAgentTask(agentPrompt)
+			} else if (data.kind === "user.batch.cleared") {
+				setPendingChangeCount(0)
+			} else if (data.kind === "text.changed") {
+				// Prose edits made in contenteditable regions — mark as unsaved
+				setHasPendingTextEdits(true)
 			} else if (data.kind === "edit.toggled") {
-				if (typeof payload?.enabled === "boolean") setEditModeActive(payload.enabled)
+				if (typeof payload?.enabled === "boolean") {
+					setEditModeActive(payload.enabled)
+					if (!payload.enabled) {
+						// Edit mode turned off (e.g. after save/discard) — reset state
+						setHasPendingTextEdits(false)
+						setShowUnsavedPrompt(false)
+					}
+				}
 			}
 
 			// Relay to the host PreviewSessionService (it dedupes by source).
@@ -645,6 +674,24 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		}
 		window.addEventListener("message", onBridgeMessage)
 		return () => window.removeEventListener("message", onBridgeMessage)
+	}, [])
+
+	// ── Listen for the iframe's save-document response ──────────────────────
+	// When we post `aihydro-request-save` to the iframe the adapter posts back
+	// `aihydro-save-document { html }` as a plain postMessage (not an
+	// aihydro-preview-event). We resolve the in-flight save promise here.
+	useEffect(() => {
+		const onSaveResponse = (event: MessageEvent) => {
+			if (event.source !== iframeRef.current?.contentWindow) return
+			const data = event.data as { type?: string; html?: string }
+			if (data?.type !== "aihydro-save-document") return
+			if (pendingSaveResolverRef.current) {
+				pendingSaveResolverRef.current(data.html ?? "")
+				pendingSaveResolverRef.current = null
+			}
+		}
+		window.addEventListener("message", onSaveResponse)
+		return () => window.removeEventListener("message", onSaveResponse)
 	}, [])
 
 	// Reset batch count whenever Edit Mode turns off externally
@@ -663,6 +710,46 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		if (!win) return
 		win.postMessage({ type: "aihydro-send-batch" }, "*")
 	}, [])
+
+	/** Request the iframe's current HTML, write to disk, reset unsaved state. */
+	const handleSaveDocument = useCallback(async (): Promise<boolean> => {
+		const win = iframeRef.current?.contentWindow
+		if (!win || !item?.filePath) return false
+		setIsSaving(true)
+		try {
+			const html = await new Promise<string>((resolve) => {
+				// 5-second safety timeout
+				const tid = window.setTimeout(() => {
+					pendingSaveResolverRef.current = null
+					resolve("")
+				}, 5000)
+				pendingSaveResolverRef.current = (h) => {
+					window.clearTimeout(tid)
+					resolve(h)
+				}
+				win.postMessage({ type: "aihydro-request-save" }, "*")
+			})
+			if (html) {
+				requestSaveDocument(item.filePath, html)
+				setHasPendingTextEdits(false)
+				return true
+			}
+		} catch (err) {
+			console.error("[HtmlPreviewView] handleSaveDocument:", err)
+		} finally {
+			setIsSaving(false)
+		}
+		return false
+	}, [item?.filePath])
+
+	/** Exit edit mode — prompt if there are unsaved prose edits. */
+	const handleExitEditMode = useCallback(() => {
+		if (hasPendingTextEdits) {
+			setShowUnsavedPrompt(true)
+		} else {
+			setEditModeActive(false)
+		}
+	}, [hasPendingTextEdits])
 
 	const handleRestartKernel = useCallback(async () => {
 		if (!item?.id) {
@@ -816,6 +903,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		minHeight: 0,
 		minWidth: 0,
 		background: "var(--vscode-editor-background, #1e1e1e)",
+		position: "relative",
 	}
 
 	const iframeWrapperStyle: React.CSSProperties = {
@@ -852,7 +940,13 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				onRunCell={() => postCommandToIframe("runCell")}
 				onStop={handleStop}
 				onToggleDiagnostics={() => setDiagnosticsOpen((v) => !v)}
-				onToggleEditMode={() => setEditModeActive((v) => !v)}
+				onToggleEditMode={() => {
+					if (editModeActive) {
+						handleExitEditMode()
+					} else {
+						setEditModeActive(true)
+					}
+				}}
 				onToggleSidePanel={onToggleSidePanel ?? (() => {})}
 				pathCopied={pathCopied}
 				pendingChangeCount={pendingChangeCount}
@@ -878,8 +972,11 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			{/* UI Refinement: Edit context ribbon — appears ONLY when Edit Mode is active */}
 			{editModeActive && (
 				<EditContextRibbon
+					hasPendingTextEdits={hasPendingTextEdits}
 					iframeRef={iframeRef}
-					onExit={() => setEditModeActive(false)}
+					isSaving={isSaving}
+					onExit={handleExitEditMode}
+					onSave={handleSaveDocument}
 					onSendBatch={handleSendBatch}
 					pendingCount={pendingChangeCount}
 				/>
@@ -933,6 +1030,29 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 					</>
 				)}
 			</div>
+			{/* Unsaved-changes dialog — overlays entire panel when hasPendingTextEdits on exit */}
+			{showUnsavedPrompt && (
+				<UnsavedChangesDialog
+					isSaving={isSaving}
+					onCancel={() => setShowUnsavedPrompt(false)}
+					onDiscard={() => {
+						setShowUnsavedPrompt(false)
+						setHasPendingTextEdits(false)
+						setEditModeActive(false)
+						// Tell iframe to deactivate cleanly (no save needed)
+						iframeRef.current?.contentWindow?.postMessage({ type: "aihydro-discard-edits" }, "*")
+					}}
+					onSaveAndExit={async () => {
+						const saved = await handleSaveDocument()
+						if (saved) {
+							setShowUnsavedPrompt(false)
+							setEditModeActive(false)
+							// Tell iframe to exit edit mode (already saved)
+							iframeRef.current?.contentWindow?.postMessage({ type: "aihydro-confirm-exit" }, "*")
+						}
+					}}
+				/>
+			)}
 		</div>
 	)
 }
@@ -1232,5 +1352,111 @@ function shortenPath(p: string): string {
 	}
 	return `…${p.slice(-58)}`
 }
+
+// ─── Unsaved-changes dialog ────────────────────────────────────────────────
+
+const UnsavedChangesDialog: React.FC<{
+	onSaveAndExit: () => void
+	onDiscard: () => void
+	onCancel: () => void
+	isSaving: boolean
+}> = ({ onSaveAndExit, onDiscard, onCancel, isSaving }) => (
+	<div
+		style={{
+			position: "absolute",
+			inset: 0,
+			zIndex: 9999,
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+			background: "rgba(10,10,21,0.80)",
+			backdropFilter: "blur(4px)",
+		}}>
+		<div
+			style={{
+				background: "rgba(20,20,36,0.98)",
+				border: "1px solid rgba(0,221,255,0.35)",
+				borderRadius: 14,
+				padding: "26px 30px",
+				maxWidth: 400,
+				width: "90%",
+				boxShadow: "0 24px 72px rgba(0,0,0,0.75)",
+				fontFamily: "Poppins, system-ui, sans-serif",
+			}}>
+			{/* Icon + title */}
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: 10,
+					marginBottom: 12,
+				}}>
+				<span style={{ fontSize: 22 }}>💾</span>
+				<span style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0" }}>Unsaved prose edits</span>
+			</div>
+			{/* Body */}
+			<p
+				style={{
+					margin: "0 0 22px",
+					fontSize: 12,
+					color: "#94a3b8",
+					lineHeight: 1.65,
+				}}>
+				You have unsaved text edits in this document. Would you like to write them to disk before leaving Edit Mode?
+			</p>
+			{/* Actions */}
+			<div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+				<button
+					onClick={onCancel}
+					style={{
+						padding: "6px 14px",
+						fontSize: 12,
+						fontWeight: 600,
+						background: "transparent",
+						color: "var(--vscode-foreground, #ddd)",
+						border: "1px solid rgba(255,255,255,0.15)",
+						borderRadius: 7,
+						cursor: "pointer",
+					}}
+					type="button">
+					Cancel
+				</button>
+				<button
+					onClick={onDiscard}
+					style={{
+						padding: "6px 14px",
+						fontSize: 12,
+						fontWeight: 600,
+						background: "rgba(255,80,80,0.12)",
+						color: "#f87171",
+						border: "1px solid rgba(255,80,80,0.25)",
+						borderRadius: 7,
+						cursor: "pointer",
+					}}
+					type="button">
+					Discard
+				</button>
+				<button
+					disabled={isSaving}
+					onClick={onSaveAndExit}
+					style={{
+						padding: "6px 16px",
+						fontSize: 12,
+						fontWeight: 700,
+						background: isSaving ? "rgba(0,163,255,0.3)" : "linear-gradient(135deg, #00A3FF, #00DDFF)",
+						color: isSaving ? "#94a3b8" : "#0a0a15",
+						border: "none",
+						borderRadius: 7,
+						cursor: isSaving ? "not-allowed" : "pointer",
+						opacity: isSaving ? 0.7 : 1,
+						transition: "all 0.15s",
+					}}
+					type="button">
+					{isSaving ? "Saving…" : "Save & Exit"}
+				</button>
+			</div>
+		</div>
+	</div>
+)
 
 export default HtmlPreviewView

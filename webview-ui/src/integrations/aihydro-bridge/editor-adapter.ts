@@ -633,6 +633,30 @@ export const AIHYDRO_BRIDGE_EDITOR_SCRIPT = `
         notifyParent('user.batch.cleared', {});
         break;
 
+      case 'aihydro-request-save':
+        // Parent asks for the current document HTML so it can write to disk.
+        // We capture the entire <html> element (preserving all in-place edits)
+        // and post it back as a plain postMessage — NOT via the bridge event
+        // system — so the parent can handle it synchronously.
+        try {
+          var savedHtml = document.documentElement.outerHTML;
+          window.parent.postMessage({ type: 'aihydro-save-document', html: savedHtml }, '*');
+        } catch (saveErr) {
+          window.parent.postMessage({ type: 'aihydro-save-document', html: '', error: String(saveErr) }, '*');
+        }
+        break;
+
+      case 'aihydro-discard-edits':
+        // Parent chose "Discard" in the unsaved-changes dialog.
+        // Deactivate edit mode without saving — the DOM reverts on reload.
+        setEditMode(false);
+        break;
+
+      case 'aihydro-confirm-exit':
+        // Parent completed a save; now deactivate edit mode cleanly.
+        setEditMode(false);
+        break;
+
       // Legacy: revise_section / focus_cell from PreviewCommandWatcher
       case 'artifact/command':
         if (data.command === 'revise_section') {

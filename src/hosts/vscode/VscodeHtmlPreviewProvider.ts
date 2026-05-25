@@ -1,4 +1,5 @@
 import type { Controller } from "@core/controller"
+import { handlePreviewAgentTaskMessage } from "@core/htmlPreview/handlePreviewAgentTask"
 import * as vscode from "vscode"
 import type { ArtifactRef } from "@/services/artifact-preview/ArtifactPreviewService"
 import { buildPreviewCsp } from "@/services/artifact-preview/buildPreviewCsp"
@@ -191,19 +192,61 @@ export class VscodeHtmlPreviewProvider {
 						}
 						break
 					case "aihydro-preview-agent-task":
-						// Phase 1 will start an agent chat task here using the
-						// `prompt` field, mirroring the map agent-task path.
-						// Phase 0 acknowledges receipt so the bridge promise
-						// resolves cleanly instead of timing out.
-						try {
+						// Route to agent chat: focuses the sidebar and starts a new task
+						// seeded with the batch-changes prompt. Mirrors the map panel's
+						// `handleMapAgentTaskMessage` path.
+						if (mainWebview?.controller) {
+							try {
+								await handlePreviewAgentTaskMessage(
+									mainWebview.controller,
+									message as { requestId?: string; prompt?: string },
+									async (response) => {
+										await panel.webview.postMessage(response)
+									},
+								)
+							} catch (err) {
+								console.warn("[VscodeHtmlPreviewProvider] preview-agent-task failed:", err)
+								panel.webview.postMessage({
+									type: "aihydro-preview-agent-result",
+									requestId: message.requestId,
+									ok: false,
+									error: err instanceof Error ? err.message : String(err),
+								})
+							}
+						} else {
 							panel.webview.postMessage({
 								type: "aihydro-preview-agent-result",
 								requestId: message.requestId,
 								ok: false,
-								error: "agent task path lands in Phase 1",
+								error: "No main webview controller available",
 							})
+						}
+						break
+					case "aihydro-save-document":
+						// Persist edited HTML back to disk. The iframe adapter captures
+						// document.documentElement.outerHTML on `aihydro-request-save`
+						// and the webview relays it here with `filePath` + `html`.
+						try {
+							const filePath = typeof message.filePath === "string" ? message.filePath : ""
+							const html = typeof message.html === "string" ? message.html : ""
+							if (filePath && html) {
+								const uri = vscode.Uri.file(filePath)
+								await vscode.workspace.fs.writeFile(uri, Buffer.from(html, "utf8"))
+								panel.webview.postMessage({ type: "aihydro-save-complete", filePath, ok: true })
+							} else {
+								panel.webview.postMessage({
+									type: "aihydro-save-complete",
+									ok: false,
+									error: "Missing filePath or html",
+								})
+							}
 						} catch (err) {
-							console.warn("[VscodeHtmlPreviewProvider] preview-agent-task ack failed:", err)
+							console.warn("[VscodeHtmlPreviewProvider] save-document failed:", err)
+							panel.webview.postMessage({
+								type: "aihydro-save-complete",
+								ok: false,
+								error: err instanceof Error ? err.message : String(err),
+							})
 						}
 						break
 					default:

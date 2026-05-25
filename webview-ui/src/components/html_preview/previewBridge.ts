@@ -63,6 +63,23 @@ export function reportPreviewEvent(kind: PreviewEventKind, payload: PreviewEvent
 }
 
 /**
+ * Post the edited HTML to the extension host for disk persistence.
+ * The host's `VscodeHtmlPreviewProvider` handles `aihydro-save-document`
+ * by calling `vscode.workspace.fs.writeFile(filePath, html)`.
+ */
+export function requestSaveDocument(filePath: string, html: string): void {
+	try {
+		PLATFORM_CONFIG.postMessage({
+			type: "aihydro-save-document",
+			filePath,
+			html,
+		})
+	} catch (err) {
+		console.warn("[previewBridge] requestSaveDocument failed:", err)
+	}
+}
+
+/**
  * Start an agent task from the preview (e.g. "address this comment", "fix
  * the cell that failed"). Focuses the chat sidebar so the user sees the
  * agent take over.

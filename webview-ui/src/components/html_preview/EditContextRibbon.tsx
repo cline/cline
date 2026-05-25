@@ -3,12 +3,13 @@
  * ONLY when Edit Mode is active. Replaces the always-on EditModeToolbar.
  *
  * Layout (left → right):
- *   [B I U]  [H1 H2 H3]  [• ≡]  [🔗]   │   💬 N pending   │   ▶ Send N changes to agent
+ *   [B I U]  [H1 H2 H3]  [• ≡]  [🔗]   │   💬 N pending   │   💾 Save   ▶ Send N changes to agent   ✕
  *
  * Format buttons post `editor-command` messages into the iframe (handled by
  * editor-adapter.ts via document.execCommand for zero-dependency portability).
- * The send button is enabled only when at least one comment or text edit is
- * pending; clicking it emits a single `user.batch_changes` event.
+ * The save button persists prose edits to disk (enabled when hasPendingTextEdits).
+ * The send button fires when at least one comment/edit is pending; clicking it
+ * emits a single `user.batch_changes` event and opens the agent chat.
  */
 
 import React, { useState } from "react"
@@ -18,6 +19,12 @@ interface EditContextRibbonProps {
 	pendingCount: number
 	onSendBatch: () => void
 	onExit: () => void
+	/** Called when user clicks the Save button — persists prose edits to disk */
+	onSave: () => Promise<boolean>
+	/** True when contenteditable prose edits have been made but not yet saved */
+	hasPendingTextEdits: boolean
+	/** True while a save is in progress (disables the Save button) */
+	isSaving?: boolean
 }
 
 const BORDER = "var(--vscode-panel-border, rgba(125,211,252,0.18))"
@@ -82,8 +89,17 @@ const FormatGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const GroupDivider = () => <span style={{ width: 1, height: 16, background: BORDER, flexShrink: 0, margin: "0 4px" }} />
 
-export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({ iframeRef, pendingCount, onSendBatch, onExit }) => {
+export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({
+	iframeRef,
+	pendingCount,
+	onSendBatch,
+	onExit,
+	onSave,
+	hasPendingTextEdits,
+	isSaving = false,
+}) => {
 	const canSend = pendingCount > 0
+	const canSave = hasPendingTextEdits && !isSaving
 
 	return (
 		<div
@@ -139,7 +155,35 @@ export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({ iframeRef,
 			{/* Spacer */}
 			<div style={{ flex: 1 }} />
 
-			{/* Send batch button */}
+			{/* Save prose edits to disk */}
+			<button
+				disabled={!canSave}
+				onClick={() => void onSave()}
+				style={{
+					display: "inline-flex",
+					alignItems: "center",
+					gap: 5,
+					padding: "4px 11px",
+					height: 26,
+					borderRadius: 6,
+					border: `1px solid ${canSave ? "rgba(0,221,255,0.4)" : "rgba(125,211,252,0.12)"}`,
+					background: canSave ? "rgba(0,221,255,0.10)" : "transparent",
+					color: canSave ? "#00DDFF" : "var(--vscode-descriptionForeground, #666)",
+					fontFamily: "Poppins, system-ui, sans-serif",
+					fontSize: 11,
+					fontWeight: 600,
+					cursor: canSave ? "pointer" : "not-allowed",
+					opacity: canSave ? 1 : 0.5,
+					transition: "all 0.15s",
+					flexShrink: 0,
+				}}
+				title={isSaving ? "Saving…" : hasPendingTextEdits ? "Save prose edits to disk" : "No unsaved prose edits"}
+				type="button">
+				<span className="codicon codicon-save" style={{ fontSize: 12 }} />
+				{isSaving ? "Saving…" : "Save"}
+			</button>
+
+			{/* Send batch to agent */}
 			<button
 				disabled={!canSend}
 				onClick={onSendBatch}
