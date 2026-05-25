@@ -1033,7 +1033,8 @@ export const vertexModels = {
 		supportsGlobalEndpoint: true,
 		inputPrice: 0.5,
 		outputPrice: 3.0,
-		cacheWritesPrice: 0.05,
+		cacheReadsPrice: 0.05,
+		cacheWritesPrice: 0,
 		temperature: 1.0,
 		supportsReasoning: true,
 		thinkingConfig: {
@@ -1560,26 +1561,13 @@ export const geminiModels = {
 		supportsGlobalEndpoint: true,
 		inputPrice: 0.5,
 		outputPrice: 3.0,
-		cacheWritesPrice: 0.05,
+		cacheReadsPrice: 0.05,
+		cacheWritesPrice: 0,
 		supportsReasoning: true,
 		thinkingConfig: {
 			geminiThinkingLevel: "low",
 			supportsThinkingLevel: true,
 		},
-		tiers: [
-			{
-				contextWindow: 200000,
-				inputPrice: 0.3,
-				outputPrice: 2.5,
-				cacheReadsPrice: 0.03,
-			},
-			{
-				contextWindow: Number.POSITIVE_INFINITY,
-				inputPrice: 0.3,
-				outputPrice: 2.5,
-				cacheReadsPrice: 0.03,
-			},
-		],
 	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
