@@ -1,0 +1,44 @@
+{
+	"courseId": "intro-hydro-2026",
+	"title": "Introduction to Hydrology",
+	"authors": [
+		{
+			"name": "M. Galib",
+			"affiliation": "Aligarh Muslim University"
+		}
+	],
+	"version": "0.1.0",
+	"license": "CC-BY-4.0",
+	"abstract": "A short hands-on tour through reading a hydrograph, exploring CONUS streamflow, and computing TWI from a DEM. Built on the existing AI-Hydro example modules.",
+	"kernel": "isolated",
+	"estimatedHours": 2,
+	"modules": [
+		{
+			"id": "reading-hydrograph",
+			"path": "01-reading-a-hydrograph/module.html",
+			"title": "Reading a hydrograph",
+			"abstract": "Anatomy of a hydrograph: baseflow, peak, recession.",
+			"estimatedMinutes": 25
+		},
+		{
+			"id": "conus-streamflow",
+			"path": "02-exploring-conus-hydrology/module.html",
+			"title": "Exploring CONUS streamflow",
+			"abstract": "Pull USGS streamflow for a CONUS gauge, plot the regime, and spot a flood event.",
+			"estimatedMinutes": 35,
+			"prerequisites": [
+				"reading-hydrograph"
+			]
+		},
+		{
+			"id": "dem-to-twi",
+			"path": "03-dem-to-twi/module.html",
+			"title": "From DEM to TWI",
+			"abstract": "Compute the Topographic Wetness Index from a digital elevation model — your first piece of distributed hydrology.",
+			"estimatedMinutes": 60,
+			"prerequisites": [
+				"conus-streamflow"
+			]
+		}
+	]
+}

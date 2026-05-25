@@ -19,10 +19,12 @@ import { AIHYDRO_BRIDGE_EDITOR_SCRIPT } from "@/integrations/aihydro-bridge/edit
 import { AIHYDRO_BRIDGE_LEAFLET_SCRIPT } from "@/integrations/aihydro-bridge/leaflet-adapter"
 import { FileServiceClient, HtmlPreviewServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { AIHYDRO_PREVIEW_STYLE, CELL_BRIDGE_SCRIPT } from "./aihydroCellBridge"
+import { CourseHeader } from "./CourseHeader"
 import { EditContextRibbon } from "./EditContextRibbon"
 import { HtmlPreviewToolbar } from "./HtmlPreviewToolbar"
 import { LEAFLET_NORMALIZER_SCRIPT, LEAFLET_NORMALIZER_STYLE } from "./leafletNormalizer"
 import { reportPreviewEvent, requestSaveDocument, startPreviewAgentTask } from "./previewBridge"
+import { resolveModuleFilePath, useCourse } from "./useCourse"
 
 /**
  * HtmlPreviewView — single-iframe renderer for one HTML artifact.
@@ -171,7 +173,19 @@ function pickRenderPath(item?: HtmlPreviewItem): RenderPath {
 const SANDBOX_ATTR = "allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
 
 const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel }) => {
-	const { setManifest } = useHtmlPreviewContext()
+	const { setManifest, loadWorkspaceFile } = useHtmlPreviewContext()
+	// Phase A: detect a course.json in the active module's parent folder
+	const { course, courseRoot, currentModuleId } = useCourse(item?.filePath)
+	const handleCourseNavigate = useCallback(
+		(moduleId: string) => {
+			if (!course || !courseRoot) return
+			const target = course.modules.find((m) => m.id === moduleId)
+			if (!target) return
+			const fullPath = resolveModuleFilePath(courseRoot, target.path)
+			void loadWorkspaceFile(fullPath, target.title)
+		},
+		[course, courseRoot, loadWorkspaceFile],
+	)
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
 	const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
 	const [loading, setLoading] = useState(false)
@@ -928,6 +942,8 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 
 	return (
 		<div style={outerStyle}>
+			{/* Phase A: course header strip — only renders when course.json found */}
+			{course && <CourseHeader course={course} currentModuleId={currentModuleId} onNavigate={handleCourseNavigate} />}
 			<HtmlPreviewToolbar
 				activeProfileId={activeProfileId}
 				diagnosticsOpen={diagnosticsOpen}

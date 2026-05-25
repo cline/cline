@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>From DEM to TWI — AI-Hydro Interactive Module</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Poppins:wght@400;500;600;700&family=Nunito:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+
+<!-- Leaflet loaded by AI-Hydro Bridge (data-aihydro-map adapter) — no CDN tag needed -->
+
+<script type="application/vnd.aihydro.module+json">
+{
+  "id": "dem-to-twi",
+  "title": "From DEM to TWI",
+  "version": "0.4.0",
+  "authors": [{ "name": "Mohammad Galib", "affiliation": "Purdue University" }],
+  "license": "CC-BY-4.0",
+  "topic": "terrain-analysis",
+  "level": "intro",
+  "estimated_minutes": 20,
+  "requires": { "executable": true, "python": ["numpy", "matplotlib"] },
+  "citation": { "text": "Beven & Kirkby (1979). Hydrological Sciences Bulletin, 24(1), 43–69." },
+  "ai_hydro_preview_min_version": "0.1"
+}
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:#00A3FF;  --cyan:#00DDFF;  --bright:#00FFFF;
+  --bg:#0a0a15;    --navy:#1a1a2e;  --mid:#0f0f1e;
+  --text:#FFFFFF;  --sub:#7dd3fc;   --muted:#94a3b8;
+  --border:rgba(125,211,252,0.15);
+  --shadow:0 24px 64px rgba(0,0,0,0.55);
+}
+
+body {
+  font-family:'Nunito',system-ui,sans-serif; font-size:16px; line-height:1.65;
+  color:var(--sub);
+  background:
+    radial-gradient(ellipse at 10% 0%,   rgba(0,163,255,0.18) 0%, transparent 45%),
+    radial-gradient(ellipse at 90% 100%, rgba(0,221,255,0.10) 0%, transparent 40%),
+    var(--bg);
+  min-height:100vh;
+}
+main { max-width:1160px; margin:0 auto; padding:32px 24px 80px; }
+
+h1 { font-family:'Quicksand',sans-serif; font-weight:700; color:var(--text);
+     font-size:clamp(34px,5vw,56px); line-height:1.05; letter-spacing:-0.03em; }
+h2 { font-family:'Poppins',sans-serif; font-weight:600; color:var(--text);
+     font-size:22px; letter-spacing:-0.01em; margin-bottom:10px; }
+h3 { font-family:'Poppins',sans-serif; font-weight:500; color:var(--sub);
+     font-size:13px; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px; }
+p  { color:var(--sub); margin-bottom:12px; }
+strong { color:var(--text); }
+code { font-family:'JetBrains Mono',monospace; font-size:0.88em;
+       background:rgba(0,221,255,0.10); padding:2px 7px; border-radius:5px; color:var(--cyan); }
+a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,255,0.3); }
+a:hover { border-bottom-color:var(--cyan); }
+
+.card {
+  background:rgba(26,26,46,0.82);
+  border:1px solid var(--border); border-radius:24px;
+  padding:26px 28px; box-shadow:var(--shadow);
+  backdrop-filter:blur(4px);
+}
+.card.glow { box-shadow:var(--shadow),0 0 0 1px rgba(0,221,255,0.18),inset 0 0 40px rgba(0,163,255,0.04); }
+.wide  { margin:20px 0; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0; }
+@media(max-width:860px){ .grid2{ grid-template-columns:1fr; } }
+
+/* ── Hero ────────────────────────────────────────────── */
+.hero {
+  border:1px solid rgba(0,221,255,0.25);
+  border-radius:28px; padding:36px 38px; margin-bottom:22px;
+  background:linear-gradient(135deg,rgba(0,163,255,0.09) 0%,rgba(0,221,255,0.04) 100%);
+  position:relative; overflow:hidden;
+}
+.hero::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at 0% 50%,rgba(0,221,255,0.09),transparent 60%);
+  pointer-events:none;
+}
+.brand-row { display:flex; align-items:center; gap:14px; margin-bottom:16px; position:relative; z-index:1; }
+.brand-logo { width:42px; height:42px; flex-shrink:0; }
+.brand-name {
+  font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; letter-spacing:0.02em;
+  background:linear-gradient(135deg,#00A3FF,#00FFFF);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.brand-tag {
+  font-family:'Poppins',sans-serif; font-size:11px; font-weight:600;
+  color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;
+  padding-left:14px; border-left:1px solid var(--border);
+}
+.gradient-text { background:linear-gradient(135deg,#00A3FF,#00FFFF); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero-sub { font-size:17px; color:var(--sub); max-width:640px; margin:12px 0 18px; position:relative; z-index:1; }
+.instruction {
+  display:inline-flex; gap:10px; align-items:flex-start;
+  background:rgba(0,221,255,0.07); border:1px solid rgba(0,221,255,0.20);
+  border-radius:14px; padding:12px 16px; color:var(--muted); font-size:14px; position:relative; z-index:1;
+}
+.instruction::before { content:'💡'; flex-shrink:0; }
+
+/* ── Workflow strip ──────────────────────────────────── */
+.workflow-strip {
+  display:grid; grid-template-columns:repeat(6,1fr); gap:0;
+  margin:20px 0; position:relative;
+}
+.workflow-strip::before {
+  content:''; position:absolute; top:28px;
+  left:calc(100%/12); right:calc(100%/12); height:2px;
+  background:linear-gradient(90deg,var(--blue),var(--cyan)); z-index:0;
+}
+.wf-node {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  position:relative; z-index:1; padding:0 4px;
+  cursor:pointer;
+}
+.wf-icon {
+  width:56px; height:56px; border-radius:50%;
+  border:2px solid var(--border); background:var(--navy);
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+  box-shadow:0 0 0 4px rgba(0,163,255,0.08);
+  transition:transform 0.2s,box-shadow 0.2s;
+}
+.wf-node:hover .wf-icon { transform:scale(1.12); box-shadow:0 0 20px rgba(0,221,255,0.35); }
+.wf-label { font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--sub); text-align:center; letter-spacing:0.03em; }
+@media(max-width:700px){ .workflow-strip{ grid-template-columns:repeat(3,1fr); gap:16px; }
+  .workflow-strip::before{ display:none; } }
+
+/* ── Concept ─────────────────────────────────────────── */
+.concept-grid { display:grid; grid-template-columns:1fr 1.3fr; gap:24px; align-items:center; }
+@media(max-width:760px){ .concept-grid{ grid-template-columns:1fr; } }
+
+/* ── Callouts ────────────────────────────────────────── */
+.callout {
+  border-left:3px solid var(--cyan); background:rgba(0,221,255,0.06);
+  padding:13px 16px; border-radius:0 12px 12px 0; margin:14px 0; font-size:15px;
+}
+.callout.agent { border-color:var(--blue); background:rgba(0,163,255,0.07); }
+.callout.tip   { border-color:#34d399;     background:rgba(52,211,153,0.07); }
+.callout-label { font-family:'Poppins',sans-serif; font-size:11px; font-weight:700;
+                 text-transform:uppercase; letter-spacing:0.07em; display:block; margin-bottom:5px; color:var(--cyan); }
+.callout.agent .callout-label { color:var(--blue); }
+.callout.tip   .callout-label { color:#34d399; }
+
+/* ── Metric cards ────────────────────────────────────── */
+.metric-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0; }
+.metric { background:var(--mid); border:1px solid var(--border); border-radius:18px; padding:16px; }
+.metric-label { font-family:'Poppins',sans-serif; font-size:10px; font-weight:700;
+                text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); }
+.metric-val   { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;
+                color:var(--text); margin:6px 0 2px; line-height:1;
+                transition:color 0.25s; }
+.metric-unit  { font-size:12px; color:var(--muted); }
+#twiCls { font-size:13px; margin-top:6px; font-family:'Poppins',sans-serif; font-weight:600; transition:color 0.25s; }
+
+/* ── Parameter panel ─────────────────────────────────── */
+.param-block { margin:14px 0; }
+.param-block label {
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-family:'Poppins',sans-serif; font-size:12px; font-weight:600;
+  color:var(--sub); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;
+}
+.param-block label span { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--cyan); font-weight:700; text-transform:none; }
+input[type=range] { width:100%; accent-color:var(--cyan); height:4px; border-radius:4px; cursor:pointer; }
+
+/* ── Formula ─────────────────────────────────────────── */
+.formula-block {
+  background:var(--mid); border:1px solid var(--border);
+  border-radius:16px; padding:18px 20px; margin:14px 0;
+  font-family:'JetBrains Mono',monospace; font-size:15px; line-height:2.1;
+}
+.var-a  { color:#60a5fa; }
+.var-b  { color:#f59e0b; }
+.var-ln { color:var(--cyan); font-size:18px; font-weight:700; }
+
+/* ── Classification table ────────────────────────────── */
+.cls-table { width:100%; border-collapse:collapse; margin:14px 0; }
+.cls-table td, .cls-table th { padding:9px 12px; text-align:left; border-bottom:1px solid var(--border); font-size:13px; }
+.cls-table th { font-family:'Poppins',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
+.cls-table td:first-child { font-family:'JetBrains Mono',monospace; color:var(--cyan); }
+
+/* ── DEM viz ─────────────────────────────────────────── */
+.viz-wrap { background:var(--mid); border:1px solid var(--border); border-radius:18px; padding:16px; overflow-x:auto; }
+#demInfo {
+  margin-top:10px; padding:11px 15px; border-radius:12px; min-height:2.8em;
+  background:rgba(0,221,255,0.06); border:1px solid rgba(0,221,255,0.14);
+  font-size:13px; color:var(--sub); line-height:1.5;
+  transition:background 0.2s;
+}
+
+/* ── Deep-dive reveals ───────────────────────────────── */
+.deep-dive details {
+  border:1px solid var(--border); border-radius:14px; margin-bottom:10px;
+  overflow:hidden; background:rgba(15,15,30,0.55);
+  transition:box-shadow 0.2s;
+}
+.deep-dive details[open] { box-shadow:0 0 0 1px rgba(0,221,255,0.22); }
+.deep-dive summary {
+  padding:13px 18px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:600;
+  color:var(--sub); cursor:pointer; list-style:none;
+  display:flex; align-items:center; gap:10px; user-select:none;
+}
+.deep-dive summary::before {
+  content:'▶'; font-size:10px; color:var(--cyan); transition:transform 0.2s; flex-shrink:0;
+}
+.deep-dive details[open] summary::before { transform:rotate(90deg); }
+.deep-dive summary::-webkit-details-marker { display:none; }
+.deep-dive .reveal-body {
+  padding:4px 18px 16px; border-top:1px solid var(--border);
+  font-size:14px; line-height:1.75; color:var(--sub);
+}
+.deep-dive .reveal-body p { margin-bottom:10px; }
+.deep-dive .reveal-body p:last-child { margin-bottom:0; }
+
+/* ── Map ─────────────────────────────────────────────── */
+/* Dark Leaflet palette is injected by the AI-Hydro Bridge; only module-specific
+   overrides (gauge popup table) live here. */
+.map-shell { border:1px solid var(--border); border-radius:18px; overflow:hidden; margin:16px 0; box-shadow:0 12px 32px rgba(0,0,0,0.4); }
+.aihydro-map { width:100%; height:420px; background:var(--mid); border-radius:18px; }
+.gauge-popup .leaflet-popup-content-wrapper { background:rgba(15,15,30,0.95); color:var(--sub); border:1px solid var(--border); border-radius:14px; }
+.gauge-popup .leaflet-popup-tip { background:rgba(15,15,30,0.95); }
+.gauge-popup h4 { font-family:'Poppins',sans-serif; color:var(--text); margin-bottom:8px; font-size:14px; }
+.gauge-popup table { font-size:12px; border-collapse:collapse; }
+.gauge-popup td { padding:3px 8px 3px 0; }
+.gauge-popup td:first-child { color:var(--muted); }
+.gauge-popup td:last-child { color:var(--cyan); font-family:'JetBrains Mono',monospace; }
+
+/* ── Code cells ──────────────────────────────────────── */
+.aihydro-cell { border:1px solid rgba(0,221,255,0.22); border-radius:18px; background:rgba(2,6,23,0.55); padding:18px 20px; margin:16px 0; }
+.cell-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.cell-lang { font-family:'Poppins',sans-serif; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; background:rgba(0,221,255,0.12); color:var(--cyan); padding:3px 10px; border-radius:6px; }
+.cell-desc { font-size:13px; color:var(--muted); flex:1; }
+.run-btn { font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; letter-spacing:0.04em; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); border:none; border-radius:999px; padding:6px 16px; cursor:pointer; transition:transform 0.1s,box-shadow 0.2s; }
+.run-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(0,221,255,0.35); }
+.aihydro-source { font-family:'JetBrains Mono',monospace; font-size:13px; white-space:pre-wrap; overflow-x:auto; background:rgba(0,0,0,0.45); border-radius:10px; padding:14px; margin-bottom:12px; color:var(--text); border:1px solid rgba(125,211,252,0.08); }
+.aihydro-output { font-family:'JetBrains Mono',monospace; font-size:13px; white-space:pre-wrap; min-height:2em; background:rgba(0,0,0,0.30); border-radius:10px; padding:12px; color:var(--sub); overflow:auto; max-height:360px; }
+.aihydro-output:empty::before { content:'(no output yet)'; color:var(--muted); font-style:italic; }
+.aihydro-output-images { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.aihydro-output-images img { max-width:100%; border-radius:8px; }
+
+/* ── Quiz ────────────────────────────────────────────── */
+.quiz-q { font-family:'Poppins',sans-serif; font-weight:500; color:var(--text); font-size:16px; margin-bottom:14px; }
+.quiz-choices { display:flex; flex-direction:column; gap:10px; }
+.quiz-btn { text-align:left; font-family:'Nunito',sans-serif; font-size:14px; padding:12px 16px; border-radius:12px; border:1px solid var(--border); background:rgba(15,15,30,0.7); color:var(--sub); cursor:pointer; transition:border-color 0.15s,background 0.15s; }
+.quiz-btn:hover { border-color:var(--cyan); color:var(--text); }
+.quiz-btn.correct   { border-color:#34d399; background:rgba(52,211,153,0.12); color:#d1fae5; }
+.quiz-btn.incorrect { border-color:#f87171; background:rgba(248,113,113,0.10); color:#fee2e2; }
+.quiz-feedback { margin-top:12px; padding:0; min-height:1.2em; }
+
+/* ── References ──────────────────────────────────────── */
+.refs ol { counter-reset:r; padding:0; list-style:none; }
+.refs li { counter-increment:r; padding-left:36px; position:relative; margin-bottom:12px; font-size:14px; color:var(--sub); line-height:1.55; }
+.refs li::before { content:counter(r); position:absolute; left:0; top:0; width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; }
+.refs em { color:var(--text); font-style:italic; }
+
+/* ── Provenance ──────────────────────────────────────── */
+.provenance { border-top:1px solid var(--border); margin-top:32px; padding:22px 0 0; display:grid; grid-template-columns:1fr 1fr; gap:16px 32px; }
+.prov-item dt { font-family:'Poppins',sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); margin-bottom:3px; }
+.prov-item dd { font-size:13px; color:var(--sub); }
+@media(max-width:600px){ .provenance{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  HERO                                                       -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="brand-row">
+    <svg class="brand-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-label="AI-Hydro logo">
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"  stop-color="#00A3FF"/>
+          <stop offset="100%" stop-color="#00FFFF"/>
+        </linearGradient>
+      </defs>
+      <path d="M20 4 C20 4, 8 18, 8 26 a12 12 0 0 0 24 0 C 32 18, 20 4, 20 4 Z" fill="url(#lg)" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"/>
+      <path d="M13 24 Q 20 30, 27 24" fill="none" stroke="rgba(10,10,21,0.55)" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M14 28 Q 20 33, 26 28" fill="none" stroke="rgba(10,10,21,0.35)" stroke-width="1.1" stroke-linecap="round"/>
+      <circle cx="20" cy="14" r="1.7" fill="#FFFFFF"/>
+    </svg>
+    <span class="brand-name">AI-Hydro</span>
+    <span class="brand-tag">Interactive Module · Terrain Analysis</span>
+  </div>
+
+  <h1>From <span class="gradient-text">DEM</span> to <span class="gradient-text">TWI</span></h1>
+  <p class="hero-sub">
+    Why are some hillslope cells wetter than others? Walk through every step —
+    from raw elevation data to a wetness map you can interact with on a real catchment.
+  </p>
+  <div class="instruction">
+    Click DEM cells to trace flow paths · Move sliders for live TWI · Click workflow nodes to jump to sections
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  WORKFLOW STRIP                                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="wide card" style="padding:22px 24px;">
+  <h3 style="margin-bottom:16px;">The six-step pipeline — click to jump</h3>
+  <div class="workflow-strip">
+    <div class="wf-node" onclick="window.scrollToSection('sec-concept')" title="Jump to: What makes a cell wet?">
+      <div class="wf-icon">🏔️</div><span class="wf-label">Raw DEM</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-map')" title="Jump to: Real catchment map">
+      <div class="wf-icon">🗺️</div><span class="wf-label">Watershed</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-dem')" title="Jump to: Clickable DEM">
+      <div class="wf-icon">➡️</div><span class="wf-label">Flow Direction</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-dem')" title="Jump to: Flow accumulation">
+      <div class="wf-icon">💧</div><span class="wf-label">Accumulation</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-calc')" title="Jump to: Live calculator">
+      <div class="wf-icon">📐</div><span class="wf-label">Local Slope</span>
+    </div>
+    <div class="wf-node" onclick="window.scrollToSection('sec-calc')" title="Jump to: TWI output">
+      <div class="wf-icon" style="border-color:rgba(0,221,255,0.6);box-shadow:0 0 20px rgba(0,221,255,0.25);">🌊</div>
+      <span class="wf-label" style="color:var(--cyan);">TWI</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  1 · CONCEPT                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-concept" class="wide card glow">
+  <h2>1 · What makes a hillslope cell wet?</h2>
+  <div class="concept-grid">
+    <div>
+      <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:340px;" aria-label="Water pooling on a hillslope">
+        <defs>
+          <radialGradient id="glowpool" cx="50%" cy="60%" r="50%">
+            <stop offset="0%"   stop-color="#00A3FF" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#00A3FF" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="hillgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1a1a2e"/>
+            <stop offset="100%" stop-color="#0f0f1e"/>
+          </linearGradient>
+          <marker id="arr2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#00DDFF"/>
+          </marker>
+        </defs>
+        <path d="M0,160 Q50,60 150,120 Q220,160 300,100 L300,200 L0,200 Z" fill="url(#hillgrad)" stroke="rgba(125,211,252,0.3)" stroke-width="1"/>
+        <ellipse cx="150" cy="152" rx="52" ry="18" fill="url(#glowpool)">
+          <animate attributeName="ry" values="12;22;12" dur="4s" repeatCount="indefinite"/>
+        </ellipse>
+        <path d="M104,148 Q150,158 196,148 L196,160 Q150,170 104,160 Z" fill="#00A3FF" opacity="0.55">
+          <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3.5s" repeatCount="indefinite"/>
+        </path>
+        <g fill="#00DDFF">
+          <circle cx="38"  r="3"><animate attributeName="cy" values="-10;155" dur="2.8s" repeatCount="indefinite"/></circle>
+          <circle cx="90"  r="3"><animate attributeName="cy" values="-10;118" dur="2.5s" repeatCount="indefinite" begin="0.6s"/></circle>
+          <circle cx="150" r="3"><animate attributeName="cy" values="-10;122" dur="2.3s" repeatCount="indefinite" begin="0.2s"/></circle>
+          <circle cx="210" r="3"><animate attributeName="cy" values="-10;142" dur="2.7s" repeatCount="indefinite" begin="1.1s"/></circle>
+          <circle cx="268" r="3"><animate attributeName="cy" values="-10;104" dur="2.4s" repeatCount="indefinite" begin="0.5s"/></circle>
+        </g>
+        <g stroke="#00DDFF" stroke-width="1.5" fill="none" opacity="0.6" marker-end="url(#arr2)">
+          <path d="M38,158 Q80,158 104,152"/>
+          <path d="M90,122 Q120,138 104,152"/>
+          <path d="M210,145 Q180,150 196,152"/>
+          <path d="M268,107 Q240,130 196,148"/>
+        </g>
+        <text x="150" y="192" fill="#94a3b8" font-family="Poppins,sans-serif" font-size="10" text-anchor="middle">water converges into low-slope concavities</text>
+      </svg>
+    </div>
+    <div>
+      <p>Water flows from high cells to low cells under gravity. A cell tends to stay wet when:</p>
+      <ul style="margin:10px 0 14px 20px;color:var(--sub);">
+        <li style="margin-bottom:8px;"><strong>Many upslope cells</strong> drain into it — the contributing area <code>a</code> is large.</li>
+        <li style="margin-bottom:8px;"><strong>The local slope is gentle</strong> — water lingers rather than rushing away, so <code>tan(β)</code> is small.</li>
+      </ul>
+      <div class="callout">
+        <span class="callout-label">Intuition</span>
+        Big drainage area + gentle slope = wet.<br>
+        Tiny drainage area + steep slope = dry.<br>
+        TWI turns that sentence into a number <span style="color:var(--muted);">[1]</span>.
+      </div>
+      <div class="callout tip">
+        <span class="callout-label">Real-world implication</span>
+        High-TWI zones correspond to saturated-excess runoff areas, riparian wetlands,
+        and ephemeral stream initiation points <span style="color:var(--muted);">[3]</span>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  2 · INTERACTIVE WATERSHED MAP                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-map" class="wide card">
+  <h2>2 · A real catchment: USGS gauge 01031500</h2>
+  <p>
+    The Piscataquis River drainage in central Maine — a CAMELS benchmark catchment.
+    Toggle <strong>TWI (qualitative)</strong> in the layers control to see a simulated wetness pattern
+    overlaid on the watershed. Click the gauge marker for metadata.
+  </p>
+  <!-- AI-Hydro standardised map contract (Phase 2).
+       The bridge adapter auto-initialises Leaflet, styles, and controls.
+       Custom overlays (TWI canvas) are added via _aihydroMap after ready. -->
+  <div class="map-shell">
+    <div class="aihydro-map"
+         data-aihydro-map-id="watershed-01031500"
+         data-basemap="carto-dark"
+         data-marker-lat="45.265"
+         data-marker-lng="-69.55"
+         data-gauge-id="01031500"
+         data-marker-label="USGS 01031500 — Piscataquis River at Medford, ME"
+         data-style-color="#00DDFF"
+         data-style-fill="#00A3FF"
+         data-style-fill-opacity="0.08"
+         style="width:100%; height:420px;">
+      <script type="application/geo+json">
+{"type":"Feature","properties":{"name":"USGS 01031500","gauge_id":"01031500"},"geometry":{"type":"Polygon","coordinates":[[[-69.397946258,45.106972356],[-69.419563965,45.116669284],[-69.433170808,45.114987067],[-69.434583954,45.108209926],[-69.430751934,45.096708481],[-69.443365357,45.088036416],[-69.458671277,45.093381948],[-69.471145311,45.089000994],[-69.484731475,45.07923952],[-69.494661788,45.087598976],[-69.507071161,45.104863132],[-69.520118288,45.102490704],[-69.556675056,45.084444328],[-69.563278032,45.086880581],[-69.582747996,45.09199403],[-69.591296871,45.087154687],[-69.606525796,45.088031189],[-69.6125038,45.097845801],[-69.607625713,45.108294984],[-69.623461217,45.113613404],[-69.640244455,45.105905455],[-69.673759323,45.087579173],[-69.68186537,45.079256338],[-69.710078104,45.085664819],[-69.721730769,45.097182743],[-69.734368214,45.111799787],[-69.724198379,45.118989462],[-69.709312055,45.125984105],[-69.709217614,45.134210484],[-69.699107129,45.141158798],[-69.693297712,45.144192951],[-69.679886566,45.145802219],[-69.674001804,45.151145888],[-69.679474249,45.183475705],[-69.67321319,45.19162574],[-69.671741261,45.2011968],[-69.671198905,45.21181899],[-69.679670938,45.214630203],[-69.692096382,45.218556639],[-69.701706917,45.222984954],[-69.738927396,45.220822023],[-69.744933907,45.224120124],[-69.764701198,45.232436883],[-69.765891077,45.242710309],[-69.769546984,45.255906898],[-69.769794949,45.265543988],[-69.761978097,45.282435996],[-69.758607709,45.296435666],[-69.740647818,45.319147755],[-69.742438297,45.329285502],[-69.743034921,45.339115285],[-69.750711347,45.36062895],[-69.754024748,45.369741642],[-69.764566047,45.381507767],[-69.76155574,45.387010603],[-69.765114426,45.398599323],[-69.747159244,45.415492614],[-69.713871201,45.433812139],[-69.700306034,45.440201128],[-69.677047061,45.447815749],[-69.64549076,45.427449815],[-69.639960794,45.41729847],[-69.618157678,45.419354831],[-69.592413166,45.422337682],[-69.573903162,45.409576837],[-69.596905505,45.389558308],[-69.595995469,45.378554043],[-69.583928328,45.3668052],[-69.568501809,45.361573596],[-69.554693503,45.352509342],[-69.563690187,45.341001237],[-69.569756744,45.32999179],[-69.547435576,45.325231573],[-69.540349957,45.314784816],[-69.548136305,45.30449377],[-69.55821846,45.299273567],[-69.563223898,45.292628121],[-69.549907667,45.281743021],[-69.534711548,45.264679098],[-69.522797143,45.269196339],[-69.519105615,45.271262426],[-69.49620332,45.277859021],[-69.478675119,45.266917256],[-69.468674502,45.255728702],[-69.438173164,45.229747361],[-69.397479688,45.223764248],[-69.381889762,45.223695781],[-69.364343225,45.226456601],[-69.362604708,45.210348634],[-69.36529405,45.205598246],[-69.354466025,45.196256335],[-69.343303801,45.187374756],[-69.314638475,45.175240629],[-69.318152514,45.169709048],[-69.323145907,45.1596249],[-69.338594276,45.145278211],[-69.338594418,45.133650709],[-69.340320311,45.119252714],[-69.351456705,45.110597805],[-69.370588955,45.104223036],[-69.383801348,45.102978318],[-69.390318032,45.091643602],[-69.397946258,45.106972356]]]}}
+      </script>
+    </div>
+  </div>
+  <div class="callout agent">
+    <span class="callout-label">AI-Hydro agent action</span>
+    To produce a real TWI raster: <code>delineate_watershed("01031500")</code> →
+    <code>fetch_dem(3DEP, 30m)</code> → <code>compute_twi(method="d8")</code> →
+    returns a georeferenced raster. The boundary polygon is from that same pipeline.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  3 · INTERACTIVE FLOW-DIRECTION DEM                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-dem" class="wide card">
+  <h2>3 · Flow direction — click any cell</h2>
+  <p>
+    A 5×5 synthetic DEM. Each cell routes water to its lowest 8-neighbour (D8 algorithm).
+    <strong>Click any cell</strong> to trace its flow path to the outlet, highlight its upstream
+    contributing cells, and compute an approximate TWI.
+  </p>
+  <div class="viz-wrap">
+    <svg id="demSvg" viewBox="0 0 260 268" width="100%" style="max-width:360px;display:block;margin:0 auto;" role="img" aria-label="Interactive 5×5 DEM — click any cell to trace flow path">
+      <defs>
+        <marker id="demArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M0,1 L9,5 L0,9 Z" fill="#00FFFF"/>
+        </marker>
+        <marker id="demArrowUp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M0,1 L9,5 L0,9 Z" fill="#60a5fa"/>
+        </marker>
+      </defs>
+
+      <!-- Static cell backgrounds -->
+      <g id="demCells">
+        <!-- Row 0 -->
+        <g style="cursor:pointer" onclick="window.clickDemCell(0,0)"><rect x="5"   y="5"   width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="30"  y="33"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">92</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(0,1)"><rect x="55"  y="5"   width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="80"  y="33"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">90</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(0,2)"><rect x="105" y="5"   width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="130" y="33"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">88</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(0,3)"><rect x="155" y="5"   width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="180" y="33"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">86</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(0,4)"><rect x="205" y="5"   width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="230" y="33"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">85</text></g>
+        <!-- Row 1 -->
+        <g style="cursor:pointer" onclick="window.clickDemCell(1,0)"><rect x="5"   y="55"  width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="30"  y="83"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">85</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(1,1)"><rect x="55"  y="55"  width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="80"  y="83"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">82</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(1,2)"><rect x="105" y="55"  width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="130" y="83"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">79</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(1,3)"><rect x="155" y="55"  width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="180" y="83"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">78</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(1,4)"><rect x="205" y="55"  width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="230" y="83"  text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">79</text></g>
+        <!-- Row 2 -->
+        <g style="cursor:pointer" onclick="window.clickDemCell(2,0)"><rect x="5"   y="105" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="30"  y="133" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">78</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(2,1)"><rect x="55"  y="105" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="80"  y="133" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">75</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(2,2)"><rect x="105" y="105" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="130" y="133" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">72</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(2,3)"><rect x="155" y="105" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="180" y="133" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">73</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(2,4)"><rect x="205" y="105" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="230" y="133" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">76</text></g>
+        <!-- Row 3 -->
+        <g style="cursor:pointer" onclick="window.clickDemCell(3,0)"><rect x="5"   y="155" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="30"  y="183" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">74</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(3,1)"><rect x="55"  y="155" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="80"  y="183" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">71</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(3,2)"><rect x="105" y="155" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="130" y="183" text-anchor="middle" fill="#00FFFF" font-size="11" font-family="JetBrains Mono,monospace" font-weight="700">68</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(3,3)"><rect x="155" y="155" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="180" y="183" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">70</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(3,4)"><rect x="205" y="155" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="230" y="183" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">72</text></g>
+        <!-- Row 4 -->
+        <g style="cursor:pointer" onclick="window.clickDemCell(4,0)"><rect x="5"   y="205" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="30"  y="233" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">72</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(4,1)"><rect x="55"  y="205" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="80"  y="233" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">69</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(4,2)"><rect x="105" y="205" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="130" y="233" text-anchor="middle" fill="#00FFFF" font-size="11" font-family="JetBrains Mono,monospace" font-weight="700">66</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(4,3)"><rect x="155" y="205" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="180" y="233" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">68</text></g>
+        <g style="cursor:pointer" onclick="window.clickDemCell(4,4)"><rect x="205" y="205" width="50" height="50" fill="#0f0f1e" stroke="rgba(125,211,252,0.3)" stroke-width=".7" rx="2"/><text x="230" y="233" text-anchor="middle" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" font-weight="600">71</text></g>
+      </g>
+
+      <!-- Dynamic highlight overlay (populated by JS) -->
+      <g id="demHighlight" pointer-events="none"></g>
+
+      <!-- Column/row labels -->
+      <text x="30"  y="261" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Poppins,sans-serif">col 0</text>
+      <text x="80"  y="261" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Poppins,sans-serif">col 1</text>
+      <text x="130" y="261" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Poppins,sans-serif">col 2</text>
+      <text x="180" y="261" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Poppins,sans-serif">col 3</text>
+      <text x="230" y="261" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Poppins,sans-serif">col 4</text>
+    </svg>
+    <div id="demInfo">Click any cell to trace its flow path and see contributing area + TWI estimate.</div>
+  </div>
+  <p style="font-size:13px;color:var(--muted);margin-top:10px;">
+    <span style="color:#60a5fa;">■</span> upstream contributors &nbsp;
+    <span style="color:rgba(0,221,255,0.9);">■</span> flow path to outlet &nbsp;
+    <span style="color:#00FFFF;">■</span> outlet cell (66 m, row 4 col 2)
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  3.5 · DEEP DIVE                                           -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="wide card deep-dive">
+  <h2 style="margin-bottom:16px;">Under the hood: three things worth understanding</h2>
+
+  <details>
+    <summary>Why <em>ln()</em> — not just <em>a</em> / tan(β)?</summary>
+    <div class="reveal-body">
+      <p>
+        The raw ratio <code>a / tan(β)</code> spans roughly 4 orders of magnitude across a real catchment —
+        a valley floor might have <code>a/tan(β) ≈ 40,000</code> while a steep ridge has <code>≈ 5</code>.
+        Plotting those values linearly produces a map where virtually every cell looks the same shade and only
+        the valley floor is visible.
+      </p>
+      <p>
+        Taking the natural log compresses the range to roughly 2–14 (a 12-unit spread), where gradients are
+        perceptible everywhere on the hillslope. It also has a physical basis: Beven &amp; Kirkby (1979)
+        derived TWI directly from the steady-state soil-moisture deficit equation — the <em>ln</em> falls
+        out of the algebra, it is not a cosmetic choice.
+      </p>
+      <p>
+        A practical bonus: at very low slopes (<code>tan(β) → 0</code>, common in flat valley floors),
+        <code>a / tan(β)</code> diverges to infinity; <code>ln</code> keeps the index finite and
+        interpretable with a small epsilon floor.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>D8 vs D∞ routing algorithms</summary>
+    <div class="reveal-body">
+      <p>
+        <strong>D8</strong> (O'Callaghan &amp; Mark, 1984) routes 100% of each cell's flow to the single
+        steepest of its 8 cardinal/diagonal neighbours. It is fast and deterministic, but forces flow into
+        only 8 discrete directions — producing "stair-step" channel artefacts and overestimating
+        channelisation on smooth hillslopes.
+      </p>
+      <p>
+        <strong>D∞</strong> (Tarboton, 1997) computes the steepest downslope direction as a continuous
+        angle, then splits flow proportionally between the two neighbours bounding that angle.
+        This allows any of 2π possible directions, producing smoother contributing-area fields and
+        more realistic distributed wetness patterns — but at higher computational cost.
+      </p>
+      <p>
+        For channel network extraction D8 is usually preferred (discrete routing matches the physics);
+        for spatially continuous TWI fields, D∞ reduces artefacts. The AI-Hydro
+        <code>compute_twi</code> tool defaults to <code>method="d8"</code> but accepts
+        <code>method="dinf"</code>.
+      </p>
+    </div>
+  </details>
+
+  <details>
+    <summary>Resolution dependence — why you must report DEM resolution</summary>
+    <div class="reveal-body">
+      <p>
+        Specific contributing area is <code>a = A_upslope / w</code> where <code>w</code> is the contour
+        width (≈ cell size in raster DEMs). At coarser resolution each cell accumulates the same physical
+        drainage area but <code>w</code> is larger — so <code>a</code> is proportionally larger, and
+        TWI inflates.
+      </p>
+      <p>
+        Sørensen et al. (2006) [3] quantified this: mean TWI varied by 1–2 units between 25 m and 200 m
+        grids of the same catchments — a shift large enough to change wetness-class assignments. This
+        means TWI values from different studies are not directly comparable unless computed at the same resolution.
+      </p>
+      <p>
+        Practical guidance: 30 m (SRTM, 3DEP-30) is the standard for continental-scale CAMELS comparisons;
+        10 m (3DEP-10) for sub-catchment studies. Always cite the source DEM and its resolution when
+        reporting TWI statistics.
+      </p>
+    </div>
+  </details>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  4 · LIVE CALCULATOR + HISTOGRAM                           -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-calc" class="grid2">
+  <div class="card">
+    <h2>4 · Live TWI calculator</h2>
+    <p>Adjust the inputs — TWI and the distribution histogram update instantly <span style="color:var(--muted);">[1,2]</span>.</p>
+
+    <div class="param-block">
+      <label for="p-area">Contributing area, <em>a</em> <span id="m-area">120</span> m²/m</label>
+      <input id="p-area" type="range" min="10" max="1000" step="10" value="120">
+    </div>
+    <div class="param-block">
+      <label for="p-slope">Local slope, <em>β</em> <span id="m-slope">8</span>°</label>
+      <input id="p-slope" type="range" min="1" max="45" step="1" value="8">
+    </div>
+
+    <div class="metric-row">
+      <div class="metric">
+        <div class="metric-label">TWI</div>
+        <div class="metric-val" id="liveTWI">—</div>
+        <div id="twiCls"></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">tan(β)</div>
+        <div class="metric-val" id="liveTan">—</div>
+        <div class="metric-unit">dimensionless</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">a / tan(β)</div>
+        <div class="metric-val" id="liveRatio">—</div>
+        <div class="metric-unit">m</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The equation</h2>
+    <div class="formula-block">
+      <span class="var-ln">TWI</span> = ln(<span class="var-a">a</span> / tan(<span class="var-b">β</span>))
+    </div>
+    <p style="font-size:14px;margin:0 0 10px;">
+      <code style="color:#60a5fa;">a</code> = specific contributing area (m²/m) ·
+      <code style="color:#f59e0b;">β</code> = local slope (radians)
+    </p>
+
+    <h3 style="margin-top:14px;">Synthetic catchment distribution</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+      16×16 synthetic hillslope (same as the Python heatmap below). Marker shows your current value.
+    </p>
+    <svg id="histSvg" viewBox="0 0 360 120" style="width:100%;height:auto;"></svg>
+
+    <table class="cls-table" style="margin-top:10px;">
+      <thead><tr><th>TWI</th><th>Class</th></tr></thead>
+      <tbody>
+        <tr><td>&lt; 5</td>   <td>Dry — ridge / steep hillslope</td></tr>
+        <tr><td>5 – 8</td>    <td>Moderate — mid-slope</td></tr>
+        <tr><td>8 – 11</td>   <td>Wet — lower hillslope / hollow</td></tr>
+        <tr><td>&gt; 11</td>  <td>Very wet — riparian / saturated</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  5 · PYTHON POINT CALC                                     -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-python" class="wide card">
+  <h2>5 · Python cell — point TWI calculation</h2>
+  <p>Source is regenerated from JavaScript each time you move a slider. Click <strong>Run</strong> to execute in the AI-Hydro kernel.</p>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="twi-point" data-language="python">
+    <div class="cell-header">
+      <span class="cell-lang">python</span>
+      <span class="cell-desc">Point TWI — slider values injected via source rewriting</span>
+      <button class="run-btn aihydro-run" type="button">Run ▶</button>
+    </div>
+    <pre class="aihydro-source" id="pyPointSource"></pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  6 · MATPLOTLIB HEATMAP                                    -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="sec-heatmap" class="wide card">
+  <h2>6 · Synthetic catchment TWI heatmap</h2>
+  <p>A 16×16 synthetic hillslope — contributing area peaks in the central valley, slope tapers downhill. Run to see where wetness concentrates.</p>
+
+  <div class="aihydro-cell" data-aihydro-cell-id="twi-grid" data-language="python">
+    <div class="cell-header">
+      <span class="cell-lang">python</span>
+      <span class="cell-desc">matplotlib TWI heatmap + distribution</span>
+      <button class="run-btn aihydro-run" type="button">Run ▶</button>
+    </div>
+    <pre class="aihydro-source">import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams.update({
+    'figure.facecolor':'#0a0a15', 'axes.facecolor':'#0f0f1e',
+    'text.color':'#7dd3fc',       'axes.labelcolor':'#7dd3fc',
+    'xtick.color':'#94a3b8',      'ytick.color':'#94a3b8',
+    'axes.edgecolor':'#334155',
+})
+
+n = 16
+y_idx, x_idx = np.mgrid[0:n, 0:n]
+area_grid  = 50 + 200 * np.exp(-((x_idx - n/2)**2) / 18) * (1 + y_idx / n)
+slope_grid = 18 - 12 * (y_idx / n) + 4 * np.abs(x_idx - n/2) / n
+twi_grid   = np.log(area_grid / np.maximum(np.tan(np.deg2rad(slope_grid)), 1e-6))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3.6))
+im = ax1.imshow(twi_grid, cmap='GnBu', origin='lower')
+ax1.set_title('TWI grid', fontsize=11)
+ax1.set_xlabel('x'); ax1.set_ylabel('y (↑ downslope)')
+cb = fig.colorbar(im, ax=ax1, fraction=0.046); cb.set_label('TWI')
+
+ax2.hist(twi_grid.ravel(), bins=20, color='#00A3FF', edgecolor='#0a0a15', alpha=0.85)
+ax2.axvline(twi_grid.mean(), color='#00FFFF', linewidth=1.5, linestyle='--')
+ax2.text(twi_grid.mean()+0.1, ax2.get_ylim()[1]*0.9,
+         f'mean={twi_grid.mean():.1f}', color='#00FFFF', fontsize=9)
+ax2.set_title('TWI distribution', fontsize=11)
+ax2.set_xlabel('TWI'); ax2.set_ylabel('count')
+
+plt.tight_layout()
+plt.show()
+print(f"Grid mean TWI = {twi_grid.mean():.2f},  std = {twi_grid.std():.2f}")
+print(f"Dry (<5): {(twi_grid<5).sum()}  |  Wet (>8): {(twi_grid>8).sum()}")</pre>
+    <div class="aihydro-output" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  7 · QUIZ                                                  -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="grid2">
+  <div class="card">
+    <h2>7 · Checkpoint</h2>
+    <div class="quiz-q">
+      Two cells share the same contributing area (<em>a</em> = 150 m²/m).
+      Cell A has a 4° slope, cell B has a 22° slope.
+      Which has the <strong>larger TWI</strong>?
+    </div>
+    <div class="quiz-choices">
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'Steeper slope → larger tan(β) → smaller a/tan(β) → smaller TWI. Try again.')">
+        Cell B — it's steeper so more energetic
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'Gentler slope → smaller tan(β) → larger a/tan(β) → larger ln(a/tan(β)) = TWI.')">
+        Cell A — it's gentler so water lingers
+      </button>
+      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'Equal area is not enough — slope still drives TWI through tan(β).')">
+        Same TWI — contributing area is equal
+      </button>
+    </div>
+    <div id="quizFeedback" class="quiz-feedback"></div>
+  </div>
+
+  <div class="card">
+    <h2>8 · What the agent would do</h2>
+    <div class="callout agent">
+      <span class="callout-label">In the AI-Hydro chat</span>
+      Ask: <em>"Compute TWI for USGS gauge 01031500 and overlay it on the map."</em><br><br>
+      The agent runs the full pipeline — DEM fetch, fill-sinks, D8 routing, accumulation, slope, TWI —
+      and returns a georeferenced raster. The simulated overlay you saw above is a qualitative preview;
+      the agent produces the real thing.
+    </div>
+    <div class="callout tip" style="margin-top:12px;">
+      <span class="callout-label">Try it yourself</span>
+      The previous TWI map of this catchment showed mean TWI ≈ 8.00 — a humid, forested basin
+      where saturated-excess runoff is common <span style="color:var(--muted);">[4]</span>.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  REFERENCES                                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="wide card refs">
+  <h2>References</h2>
+  <ol>
+    <li>
+      Beven, K.J. &amp; Kirkby, M.J. (1979).
+      A physically based, variable contributing area model of basin hydrology.
+      <em>Hydrological Sciences Bulletin</em>, 24(1), 43–69.
+      <a href="https://doi.org/10.1080/02626667909491834" target="_blank" rel="noreferrer">DOI: 10.1080/02626667909491834</a>
+    </li>
+    <li>
+      Quinn, P.F., Beven, K., Chevallier, P. &amp; Planchon, O. (1991).
+      The prediction of hillslope flow paths for distributed hydrological modelling using digital terrain models.
+      <em>Hydrological Processes</em>, 5(1), 59–79.
+      <a href="https://doi.org/10.1002/hyp.3360050106" target="_blank" rel="noreferrer">DOI: 10.1002/hyp.3360050106</a>
+    </li>
+    <li>
+      Sørensen, R., Zinko, U. &amp; Seibert, J. (2006).
+      On the calculation of the topographic wetness index: evaluation of different methods based on field observations.
+      <em>Hydrology and Earth System Sciences</em>, 10, 101–112.
+      <a href="https://doi.org/10.5194/hess-10-101-2006" target="_blank" rel="noreferrer">DOI: 10.5194/hess-10-101-2006</a>
+    </li>
+    <li>
+      Addor, N., Newman, A.J., Mizukami, N. &amp; Clark, M.P. (2017).
+      The CAMELS data set: catchment attributes and meteorology for large-sample studies.
+      <em>Hydrology and Earth System Sciences</em>, 21, 5293–5313.
+      <a href="https://doi.org/10.5194/hess-21-5293-2017" target="_blank" rel="noreferrer">DOI: 10.5194/hess-21-5293-2017</a>
+    </li>
+    <li>
+      Bartos, M. (2020). <em>pysheds</em>: simple and fast watershed delineation in Python.
+      <a href="https://github.com/mdbartos/pysheds" target="_blank" rel="noreferrer">github.com/mdbartos/pysheds</a>
+    </li>
+    <li>
+      Tarboton, D.G. (1997). A new method for the determination of flow directions and upslope areas in grid digital elevation models.
+      <em>Water Resources Research</em>, 33(2), 309–319.
+      <a href="https://doi.org/10.1029/96WR03137" target="_blank" rel="noreferrer">DOI: 10.1029/96WR03137</a>
+    </li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  PROVENANCE                                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="provenance">
+  <div class="prov-item"><dt>Module</dt><dd>dem-to-twi · v0.4.0 · CC-BY-4.0</dd></div>
+  <div class="prov-item"><dt>Authors</dt><dd>Mohammad Galib, Purdue University</dd></div>
+  <div class="prov-item"><dt>Synthetic data</dt><dd>5×5 DEM and 16×16 hillslope grid, hand-crafted for instruction.</dd></div>
+  <div class="prov-item"><dt>Real watershed</dt><dd>USGS 01031500 — boundary from the AI-Hydro delineation pipeline.</dd></div>
+  <div class="prov-item"><dt>TWI overlay</dt><dd>Qualitative simulation; run <code>compute_twi</code> in the agent for the real raster.</dd></div>
+  <div class="prov-item"><dt>Environment</dt><dd>Python (numpy, matplotlib) via AI-Hydro preview kernel; Leaflet 1.9.4.</dd></div>
+</div>
+
+</main>
+
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Pre-compute the synthetic 16×16 TWI grid (matches the Python heatmap cell).
+        Used for the live histogram so it shows real grid data, not a fixed Gaussian. */
+  var SYNTH_TWI = (function () {
+    var n = 16, vals = [];
+    for (var yi = 0; yi < n; yi++) {
+      for (var xi = 0; xi < n; xi++) {
+        var a = 50 + 200 * Math.exp(-(Math.pow(xi - n / 2, 2)) / 18) * (1 + yi / n);
+        var s = 18 - 12 * (yi / n) + 4 * Math.abs(xi - n / 2) / n;
+        var tanB = Math.max(Math.tan(s * Math.PI / 180), 1e-6);
+        vals.push(Math.log(a / tanB));
+      }
+    }
+    return vals;
+  })();
+
+  /* ── D8 flow routing tables for the 5×5 synthetic DEM ───────────── */
+  var DEM_EL = [
+    [92, 90, 88, 86, 85],
+    [85, 82, 79, 78, 79],
+    [78, 75, 72, 73, 76],
+    [74, 71, 68, 70, 72],
+    [72, 69, 66, 68, 71]
+  ];
+  /* FLOW_TO[r][c] = [next_r, next_c] or null (outlet at row 4, col 2) */
+  var FLOW_TO = [
+    [[1,1],[1,2],[1,3],[1,3],[1,3]],
+    [[2,1],[2,2],[2,2],[2,2],[2,3]],
+    [[3,1],[3,2],[3,2],[3,2],[3,3]],
+    [[4,1],[4,2],[4,2],[4,2],[4,3]],
+    [[4,1],[4,2],null,[4,2],[4,3]]
+  ];
+
+  function cellCtr(r, c) { return { x: 30 + c * 50, y: 30 + r * 50 }; }
+
+  function getFlowPath(r, c) {
+    var path = [[r, c]];
+    while (FLOW_TO[r][c] !== null) {
+      var nxt = FLOW_TO[r][c]; r = nxt[0]; c = nxt[1]; path.push([r, c]);
+    }
+    return path;
+  }
+
+  function findUpstream(tr, tc) {
+    var res = [];
+    for (var r = 0; r < 5; r++) {
+      for (var c = 0; c < 5; c++) {
+        if (r === tr && c === tc) continue;
+        var path = getFlowPath(r, c);
+        for (var i = 0; i < path.length; i++) {
+          if (path[i][0] === tr && path[i][1] === tc) { res.push([r, c]); break; }
+        }
+      }
+    }
+    return res;
+  }
+
+  function mkSvg(tag, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  /* Called by inline onclick on each SVG cell group */
+  window.clickDemCell = function (r, c) {
+    var overlay = document.getElementById('demHighlight');
+    overlay.innerHTML = '';
+
+    var downPath = getFlowPath(r, c);
+    var upstream = findUpstream(r, c);
+    var directUp = upstream.filter(function (cell) {
+      var ft = FLOW_TO[cell[0]][cell[1]];
+      return ft && ft[0] === r && ft[1] === c;
+    });
+
+    /* Upstream contributors — muted blue fill */
+    upstream.forEach(function (cell) {
+      overlay.appendChild(mkSvg('rect', {
+        x: 5 + cell[1] * 50, y: 5 + cell[0] * 50, width: 50, height: 50,
+        fill: 'rgba(96,165,250,0.22)', rx: 3
+      }));
+    });
+
+    /* Downstream path — cyan gradient */
+    downPath.forEach(function (cell, i) {
+      var isStart  = i === 0;
+      var isOutlet = cell[0] === 4 && cell[1] === 2;
+      var fill = isStart  ? 'rgba(0,221,255,0.42)' :
+                 isOutlet ? 'rgba(0,255,255,0.30)' : 'rgba(0,163,255,0.20)';
+      overlay.appendChild(mkSvg('rect', {
+        x: 5 + cell[1] * 50, y: 5 + cell[0] * 50, width: 50, height: 50,
+        fill: fill, rx: 3
+      }));
+    });
+
+    /* Arrows along the downstream path */
+    for (var i = 0; i < downPath.length - 1; i++) {
+      var fc = cellCtr(downPath[i][0], downPath[i][1]);
+      var tc2 = cellCtr(downPath[i + 1][0], downPath[i + 1][1]);
+      overlay.appendChild(mkSvg('line', {
+        x1: fc.x, y1: fc.y, x2: tc2.x, y2: tc2.y,
+        stroke: '#00FFFF', 'stroke-width': 2.5, 'stroke-linecap': 'round',
+        'marker-end': 'url(#demArrow)'
+      }));
+    }
+
+    /* Dashed arrows from direct upstream neighbours → clicked cell */
+    directUp.forEach(function (cell) {
+      var fc2 = cellCtr(cell[0], cell[1]);
+      var tc3 = cellCtr(r, c);
+      overlay.appendChild(mkSvg('line', {
+        x1: fc2.x, y1: fc2.y, x2: tc3.x, y2: tc3.y,
+        stroke: '#60a5fa', 'stroke-width': 1.5, 'stroke-linecap': 'round',
+        'stroke-dasharray': '4 3', 'marker-end': 'url(#demArrowUp)'
+      }));
+    });
+
+    /* Approximate TWI for this cell */
+    var isOutlet = (r === 4 && c === 2);
+    var infoEl = document.getElementById('demInfo');
+
+    if (isOutlet) {
+      infoEl.innerHTML = '<span style="color:#00FFFF"><strong>Outlet (pour point)</strong></span>' +
+        ' · elev ' + DEM_EL[r][c] + ' m · all 24 other cells drain here · TWI = ∞';
+      return;
+    }
+
+    var ups = upstream.length;
+    var CELL = 10; /* assumed 10 m cell size */
+    var nr = FLOW_TO[r][c][0], nc2 = FLOW_TO[r][c][1];
+    var elDiff = DEM_EL[r][c] - DEM_EL[nr][nc2];
+    var diag = (r !== nr && c !== nc2);
+    var dist = diag ? CELL * Math.SQRT2 : CELL;
+    var slopeRad = Math.max(Math.atan(elDiff / dist), 0.001);
+    var slopeDeg = slopeRad * 180 / Math.PI;
+    var area_sp = (ups + 1) * CELL;
+    var twiVal = Math.log(area_sp / Math.tan(slopeRad));
+
+    var cls = twiVal > 11 ? ['Very wet', '#00FFFF']
+            : twiVal > 8  ? ['Wet',      '#34d399']
+            : twiVal > 5  ? ['Moderate', '#f59e0b']
+            :                ['Dry',      '#f87171'];
+
+    var stepsToOutlet = downPath.length - 1;
+    infoEl.innerHTML =
+      'Cell (' + r + ',' + c + ') · elev ' + DEM_EL[r][c] + ' m · ' +
+      '<span style="color:#60a5fa">' + ups + ' upstream cell' + (ups !== 1 ? 's' : '') + '</span> · ' +
+      'slope ' + slopeDeg.toFixed(1) + '° · ' +
+      'TWI ≈ <strong style="color:' + cls[1] + '">' + twiVal.toFixed(2) + '</strong>' +
+      ' → <span style="color:' + cls[1] + '">' + cls[0] + '</span> · ' +
+      stepsToOutlet + ' step' + (stepsToOutlet > 1 ? 's' : '') + ' to outlet';
+  };
+
+  /* ── PYTHON SOURCE REWRITING (rainfall-runoff pattern) ──────────── */
+  function buildPointTwiSource(area, slope) {
+    return [
+      'import math',
+      '',
+      'area_in  = ' + area,
+      'slope_in = ' + slope,
+      'slope_rad = math.radians(slope_in)',
+      'tan_beta  = math.tan(slope_rad)',
+      'twi       = math.log(area_in / max(tan_beta, 1e-6))',
+      '',
+      'print(f"Inputs   →  area = {area_in} m²/m,  slope = {slope_in}°")',
+      'print(f"tan(β)   →  {tan_beta:.4f}")',
+      'print(f"a/tan(β) →  {area_in / tan_beta:.2f} m")',
+      'print(f"TWI      →  {twi:.3f}")',
+      '',
+      'if twi > 11:',
+      '    print("Class    →  Very wet  (riparian / saturated zone)")',
+      'elif twi > 8:',
+      '    print("Class    →  Wet       (lower hillslope / hollow)")',
+      'elif twi > 5:',
+      '    print("Class    →  Moderate  (mid-slope transitional)")',
+      'else:',
+      '    print("Class    →  Dry       (ridge / steep hillslope)")'
+    ].join('\n');
+  }
+
+  /* ── LIVE CALCULATOR ─────────────────────────────────────────────── */
+  function updateLive() {
+    var a = +document.getElementById('p-area').value;
+    var s = +document.getElementById('p-slope').value;
+    document.getElementById('m-area').textContent  = a;
+    document.getElementById('m-slope').textContent = s;
+
+    var tanB  = Math.tan(s * Math.PI / 180);
+    var ratio = a / tanB;
+    var twi   = Math.log(ratio);
+
+    document.getElementById('liveTWI').textContent   = twi.toFixed(3);
+    document.getElementById('liveTan').textContent   = tanB.toFixed(4);
+    document.getElementById('liveRatio').textContent = ratio.toFixed(1);
+
+    var cls = twi > 11 ? { t: 'Very wet', c: '#00FFFF' }
+            : twi > 8  ? { t: 'Wet',      c: '#34d399' }
+            : twi > 5  ? { t: 'Moderate', c: '#f59e0b' }
+            :             { t: 'Dry',      c: '#f87171' };
+    var el = document.getElementById('twiCls');
+    el.textContent = cls.t;
+    el.style.color = cls.c;
+
+    document.getElementById('pyPointSource').textContent = buildPointTwiSource(a, s);
+    drawHistogram(twi);
+  }
+
+  /* ── HISTOGRAM from actual synthetic grid values ─────────────────── */
+  function drawHistogram(currentTwi) {
+    var svg = document.getElementById('histSvg');
+    var W = 360, H = 120, padL = 28, padR = 8, padT = 14, padB = 22;
+    var xMin = 0, xMax = 18, bins = 22;
+    var binW = (xMax - xMin) / bins;
+
+    var counts = new Array(bins).fill(0);
+    SYNTH_TWI.forEach(function (v) {
+      var b = Math.floor((v - xMin) / binW);
+      if (b >= 0 && b < bins) counts[b]++;
+    });
+    var maxCount = Math.max.apply(null, counts);
+    var bw = (W - padL - padR) / bins - 1;
+
+    var parts = ['<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#0f0f1e" rx="10"/>'];
+
+    counts.forEach(function (cnt, i) {
+      if (cnt === 0) return;
+      var h = (cnt / maxCount) * (H - padT - padB);
+      var x = padL + i * ((W - padL - padR) / bins);
+      var y = H - padB - h;
+      var xMid = xMin + (i + 0.5) * binW;
+      var col = xMid > 8 ? '#00A3FF' : xMid > 5 ? '#60a5fa' : '#334155';
+      parts.push('<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="2" fill="' + col + '" opacity="0.85"/>');
+    });
+
+    parts.push('<line x1="' + padL + '" y1="' + (H - padB) + '" x2="' + (W - padR) + '" y2="' + (H - padB) + '" stroke="#334155" stroke-width="1"/>');
+    [0, 5, 8, 11, 15, 18].forEach(function (t) {
+      var x = padL + ((t - xMin) / (xMax - xMin)) * (W - padL - padR);
+      parts.push('<text x="' + x + '" y="' + (H - 6) + '" fill="#94a3b8" font-size="9" font-family="JetBrains Mono" text-anchor="middle">' + t + '</text>');
+    });
+
+    var cx = padL + ((Math.max(xMin, Math.min(xMax, currentTwi)) - xMin) / (xMax - xMin)) * (W - padL - padR);
+    parts.push('<line x1="' + cx + '" y1="' + padT + '" x2="' + cx + '" y2="' + (H - padB) + '" stroke="#00FFFF" stroke-width="2"/>');
+    parts.push('<circle cx="' + cx + '" cy="' + padT + '" r="4" fill="#00FFFF"/>');
+    parts.push('<text x="' + (cx + 6) + '" y="' + (padT + 4) + '" fill="#00FFFF" font-size="9" font-family="Poppins">' + currentTwi.toFixed(1) + '</text>');
+
+    svg.innerHTML = parts.join('');
+  }
+
+  /* ── QUIZ ────────────────────────────────────────────────────────── */
+  window.quizAnswer = function (btn, correct, message) {
+    document.querySelectorAll('.quiz-btn').forEach(function (b) { b.className = 'quiz-btn'; });
+    btn.className = 'quiz-btn ' + (correct ? 'correct' : 'incorrect');
+    var fb = document.getElementById('quizFeedback');
+    fb.style.cssText = 'margin-top:12px;padding:12px 15px;border-radius:12px;font-size:14px;' +
+      'background:' + (correct
+        ? 'rgba(52,211,153,0.12);border:1px solid #34d399;color:#d1fae5;'
+        : 'rgba(248,113,113,0.10);border:1px solid #f87171;color:#fee2e2;');
+    fb.textContent = (correct ? '✓ ' : '✗ ') + message;
+  };
+
+  /* ── WORKFLOW SCROLL ─────────────────────────────────────────────── */
+  window.scrollToSection = function (id) {
+    var el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  /* ── SYNTHETIC TWI CANVAS for Leaflet overlay ────────────────────── */
+  function makeTwiCanvas() {
+    var sz = 256;
+    var canvas = document.createElement('canvas');
+    canvas.width = sz; canvas.height = sz;
+    var ctx = canvas.getContext('2d');
+    var img = ctx.createImageData(sz, sz);
+    var d = img.data;
+
+    for (var py = 0; py < sz; py++) {
+      for (var px = 0; px < sz; px++) {
+        /* nx: W→E (0→1), ny: N→S (0→1). Top of canvas = north. */
+        var nx = px / (sz - 1), ny = py / (sz - 1);
+
+        /* Meandering central valley axis */
+        var ax = 0.48 + 0.10 * Math.sin(ny * Math.PI * 2);
+        var dAxis = Math.abs(nx - ax);
+
+        /* Wetness: peaks in valley (low dAxis), increases southward (high ny) */
+        var wet = Math.max(0, 1 - dAxis * 4.0) * (0.2 + 0.8 * ny);
+        /* Secondary west sub-tributary */
+        wet = Math.max(wet, Math.max(0, 1 - Math.abs(nx - 0.22) * 9) * (0.08 + 0.5 * ny));
+        wet = Math.min(1, wet);
+
+        var r, g, b, a;
+        if (wet < 0.35) {
+          var t = wet / 0.35;
+          r = Math.round(90 + 40 * t); g = Math.round(75 + 65 * t); b = Math.round(55 + 115 * t);
+          a = Math.round(50 + 70 * t);
+        } else {
+          var t2 = (wet - 0.35) / 0.65;
+          r = Math.round(130 - 130 * t2); g = Math.round(140 + 80 * t2); b = Math.round(170 + 85 * t2);
+          a = Math.round(120 + 100 * t2);
+        }
+
+        var idx = (py * sz + px) * 4;
+        d[idx] = r; d[idx + 1] = g; d[idx + 2] = b; d[idx + 3] = a;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  /* ── LEAFLET MAP — TWI overlay (post-init hook) ──────────────────── */
+  /* The AI-Hydro Bridge adapter initialises the basemap, GeoJSON boundary,
+     and gauge marker automatically from data-aihydro-map attributes.
+     This post-init hook adds the qualitative TWI image overlay + legend,
+     which are specific to this module and not part of the standard contract. */
+  function addTwiOverlayWhenReady() {
+    var mapEl = document.querySelector('.aihydro-map[data-aihydro-map-id="watershed-01031500"]');
+    if (!mapEl) return;
+    var map = mapEl._aihydroMap;
+    var L = window.L;
+    if (!map || !L) { setTimeout(addTwiOverlayWhenReady, 150); return; }
+
+    var twiOverlay = L.imageOverlay(makeTwiCanvas(), [[45.07, -69.77], [45.45, -69.31]], {
+      opacity: 0.70, interactive: false
+    });
+
+    /* TWI legend */
+    var legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function () {
+      var div = L.DomUtil.create('div');
+      div.innerHTML =
+        '<div style="background:rgba(10,10,21,0.88);border:1px solid rgba(125,211,252,0.2);border-radius:10px;padding:8px 12px;font-family:Poppins,sans-serif;font-size:11px;color:#94a3b8;">' +
+        '<div style="font-weight:700;color:#7dd3fc;margin-bottom:5px;">TWI overlay</div>' +
+        '<div><span style="display:inline-block;width:12px;height:10px;background:#00DDFF;border-radius:2px;margin-right:6px;"></span>Very wet (valley)</div>' +
+        '<div style="margin-top:3px;"><span style="display:inline-block;width:12px;height:10px;background:rgb(140,155,170);border-radius:2px;margin-right:6px;"></span>Dry (ridge)</div>' +
+        '<div style="margin-top:5px;font-size:9px;opacity:0.6;">qualitative · enable via ↗ layers</div>' +
+        '</div>';
+      return div;
+    };
+    legend.addTo(map);
+
+    /* Attach to layer control if it exists, otherwise just add it */
+    /* For simplicity: just add the overlay directly */
+    twiOverlay.addTo(map);
+  }
+
+  /* ── INIT ────────────────────────────────────────────────────────── */
+  ['p-area', 'p-slope'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', updateLive);
+  });
+  updateLive();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      window.clickDemCell(0, 0);
+      setTimeout(addTwiOverlayWhenReady, 500);
+    });
+  } else {
+    window.clickDemCell(0, 0);
+    setTimeout(addTwiOverlayWhenReady, 500);
+  }
+
+})();
+</script>
+</body>
+</html>

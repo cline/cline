@@ -3,6 +3,7 @@ import { handlePreviewAgentTaskMessage } from "@core/htmlPreview/handlePreviewAg
 import * as vscode from "vscode"
 import type { ArtifactRef } from "@/services/artifact-preview/ArtifactPreviewService"
 import { buildPreviewCsp } from "@/services/artifact-preview/buildPreviewCsp"
+import { loadCourseManifest } from "@/services/htmlPreview/courseLoader"
 
 /**
  * Owns the single AI-Hydro HTML Preview webview panel.
@@ -249,6 +250,34 @@ export class VscodeHtmlPreviewProvider {
 							})
 						}
 						break
+					case "aihydro-load-course": {
+						// Phase A (course-as-viewer): walk up from a file path looking for
+						// course.json; return the parsed manifest + the folder it was
+						// found in. The webview uses this to render the course header
+						// strip and sidebar navigator.
+						const requestId = String(message.requestId ?? "")
+						const filePath = String(message.filePath ?? message.folderPath ?? "")
+						try {
+							const result = await loadCourseManifest(filePath)
+							panel.webview.postMessage({
+								type: "aihydro-course-loaded",
+								requestId,
+								filePath,
+								course: result.course,
+								courseRoot: result.courseRoot,
+							})
+						} catch (err) {
+							panel.webview.postMessage({
+								type: "aihydro-course-loaded",
+								requestId,
+								filePath,
+								course: null,
+								courseRoot: null,
+								error: err instanceof Error ? err.message : String(err),
+							})
+						}
+						break
+					}
 					default:
 						console.warn("[VscodeHtmlPreviewProvider] Unhandled message:", JSON.stringify(message))
 				}

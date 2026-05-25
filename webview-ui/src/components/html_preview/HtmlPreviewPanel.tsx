@@ -3,8 +3,10 @@ import { AccordionSection } from "@/components/common/AccordionSection"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { useHtmlPreviewContext } from "../../context/HtmlPreviewContext"
 import { CommentSidebar } from "./CommentSidebar"
+import { CourseNavigator } from "./CourseNavigator"
 import HtmlPreviewView from "./HtmlPreviewView"
 import ModulesMarketplaceView from "./marketplace/ModulesMarketplaceView"
+import { resolveModuleFilePath, useCourse } from "./useCourse"
 
 /**
  * HtmlPreviewPanel — container for the HTML Preview tab.
@@ -37,6 +39,18 @@ export const HtmlPreviewPanel: React.FC = () => {
 	} = useHtmlPreviewContext()
 	const { workspaceHtmlFiles } = useExtensionState()
 	const activeItem = items.find((i) => i.id === activeItemId) || items[items.length - 1]
+	// Phase A: load course manifest for the active item's file (if any)
+	const { course, courseRoot, currentModuleId } = useCourse(activeItem?.filePath)
+	const handleCourseNavigate = useCallback(
+		(moduleId: string) => {
+			if (!course || !courseRoot) return
+			const target = course.modules.find((m) => m.id === moduleId)
+			if (!target) return
+			const fullPath = resolveModuleFilePath(courseRoot, target.path)
+			void loadWorkspaceFile(fullPath, target.title)
+		},
+		[course, courseRoot, loadWorkspaceFile],
+	)
 
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [isDragOver, setIsDragOver] = useState(false)
@@ -249,10 +263,25 @@ export const HtmlPreviewPanel: React.FC = () => {
 
 				{!sidebarCollapsed && (
 					<div style={{ flex: 1, overflow: "auto" }}>
+						{/* ─── Course accordion (Phase A) — only when course.json detected ── */}
+						{course && (
+							<AccordionSection
+								badge={course.modules.length}
+								defaultOpen={true}
+								icon="book"
+								persistKey="course"
+								title={course.title || "Course"}>
+								<CourseNavigator
+									course={course}
+									currentModuleId={currentModuleId}
+									onNavigate={handleCourseNavigate}
+								/>
+							</AccordionSection>
+						)}
 						{/* ─── Files accordion ──────────────────────────────────── */}
 						<AccordionSection
 							badge={workspaceHtmlFiles.length + items.length || undefined}
-							defaultOpen={true}
+							defaultOpen={!course}
 							icon="files"
 							persistKey="files"
 							title="Files">
