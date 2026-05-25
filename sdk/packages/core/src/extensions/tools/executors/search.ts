@@ -44,6 +44,12 @@ export interface SearchExecutorOptions {
 	 * @default 20
 	 */
 	maxDepth?: number;
+
+	/**
+	 * Maximum output size in bytes
+	 * @default 1_000_000 (1MB)
+	 */
+	maxOutputBytes?: number;
 }
 
 const DEFAULT_INCLUDE_EXTENSIONS = [
@@ -117,6 +123,15 @@ interface SearchMatch {
 	column: number;
 	match: string;
 	context: string[];
+}
+
+function truncateOutput(output: string, maxOutputBytes: number): string {
+	const outputSize = Buffer.byteLength(output);
+	if (outputSize <= maxOutputBytes) {
+		return output;
+	}
+
+	return `${output.slice(0, maxOutputBytes)}\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
 }
 
 let rgAvailable: boolean | null = null;
@@ -311,6 +326,7 @@ export function createSearchExecutor(
 		maxResults = 100,
 		contextLines = 2,
 		maxDepth = 20,
+		maxOutputBytes = 1_000_000,
 	} = options;
 	const excludeDirsSet = new Set(excludeDirs);
 	const includeExtensionsSet = new Set(
@@ -359,7 +375,7 @@ export function createSearchExecutor(
 				);
 			}
 
-			return resultLines.join("\n");
+			return truncateOutput(resultLines.join("\n"), maxOutputBytes);
 		}
 
 		// Fallback to manual regex search
@@ -445,7 +461,10 @@ export function createSearchExecutor(
 
 		// Format results
 		if (matches.length === 0) {
-			return `No results found for pattern: ${query}\nSearched ${totalFilesSearched} files.`;
+			return truncateOutput(
+				`No results found for pattern: ${query}\nSearched ${totalFilesSearched} files.`,
+				maxOutputBytes,
+			);
 		}
 
 		const resultLines: string[] = [
@@ -466,6 +485,6 @@ export function createSearchExecutor(
 			);
 		}
 
-		return resultLines.join("\n");
+		return truncateOutput(resultLines.join("\n"), maxOutputBytes);
 	};
 }
