@@ -210,25 +210,32 @@ export const HtmlPreviewContextProvider: React.FC<{ children: React.ReactNode }>
 		}
 	}, [])
 
-	const loadWorkspaceFile = useCallback(
-		async (filePath: string, title: string) => {
-			try {
-				const { PreviewHtmlRequest } = await import("@shared/proto/cline/html_preview")
-				await HtmlPreviewServiceClient.previewHtml(
-					PreviewHtmlRequest.create({
-						htmlContent: "",
-						title,
-						filePath,
-					}),
-				)
-				await refreshItems()
-			} catch (error) {
-				console.error("[HtmlPreviewContext] loadWorkspaceFile failed:", error)
-				throw error
+	const loadWorkspaceFile = useCallback(async (filePath: string, title: string) => {
+		try {
+			const { PreviewHtmlRequest } = await import("@shared/proto/cline/html_preview")
+			await HtmlPreviewServiceClient.previewHtml(
+				PreviewHtmlRequest.create({
+					htmlContent: "",
+					title,
+					filePath,
+				}),
+			)
+			// Fetch the updated item list, then activate the newly loaded item by
+			// filePath so the view actually switches to the target module.
+			const response = await HtmlPreviewServiceClient.getHtmlPreviewState(EmptyRequest.create())
+			setItems(response.items)
+			const newItem = response.items.find((i) => i.filePath === filePath)
+			if (newItem) {
+				setActiveItemId(newItem.id)
+			} else if (response.items.length > 0) {
+				// Fallback: activate the last item (most recently added)
+				setActiveItemId(response.items[response.items.length - 1].id)
 			}
-		},
-		[refreshItems],
-	)
+		} catch (error) {
+			console.error("[HtmlPreviewContext] loadWorkspaceFile failed:", error)
+			throw error
+		}
+	}, [])
 
 	return (
 		<HtmlPreviewContext.Provider
