@@ -37,6 +37,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
+import { getLastNonHookMessage, getLastTaskStateMessage, getResumeAskType } from "@core/task/resume-state"
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
@@ -1221,18 +1222,8 @@ export class Task {
 		await ensureTaskDirectoryExists(this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
 
-		const lastClineMessage = this.messageStateHandler
-			.getClineMessages()
-			.slice()
-			.reverse()
-			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
-
-		let askType: ClineAsk
-		if (lastClineMessage?.ask === "completion_result") {
-			askType = "resume_completed_task"
-		} else {
-			askType = "resume_task"
-		}
+		const lastClineMessage = getLastTaskStateMessage(this.messageStateHandler.getClineMessages())
+		const askType: ClineAsk = lastClineMessage?.ask === "completion_result" ? "resume_completed_task" : "resume_task"
 
 		this.taskState.isInitialized = true
 		this.taskState.abort = false // Reset abort flag when resuming task
@@ -1509,7 +1500,7 @@ export class Task {
 
 		// Check if we're at a button-only state (no active work, just waiting for user action)
 		const clineMessages = this.messageStateHandler.getClineMessages()
-		const lastMessage = clineMessages.at(-1)
+		const lastMessage = getLastNonHookMessage(clineMessages)
 		const isAtButtonOnlyState =
 			lastMessage?.type === "ask" &&
 			(lastMessage.ask === "resume_task" ||
@@ -1593,18 +1584,7 @@ export class Task {
 
 					// TaskCancel completed successfully
 					// Present resume button after successful TaskCancel hook
-					const lastClineMessage = this.messageStateHandler
-						.getClineMessages()
-						.slice()
-						.reverse()
-						.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
-
-					let askType: ClineAsk
-					if (lastClineMessage?.ask === "completion_result") {
-						askType = "resume_completed_task"
-					} else {
-						askType = "resume_task"
-					}
+					const askType = getResumeAskType(this.messageStateHandler.getClineMessages())
 
 					// Present the resume ask - this will show the resume button in the UI
 					// We don't await this because we want to set the abort flag immediately
