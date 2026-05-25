@@ -2223,6 +2223,28 @@ export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 export type DeepSeekModelId = keyof typeof deepSeekModels
 export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
 export const deepSeekModels = {
+	"deepseek-v4-flash": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0, // all input is either a cache hit or miss
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.14,
+		cacheReadsPrice: 0.0028,
+	},
+	"deepseek-v4-pro": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0, // all input is either a cache hit or miss
+		outputPrice: 0.87,
+		cacheWritesPrice: 0.435,
+		cacheReadsPrice: 0.003625,
+	},
 	"deepseek-chat": {
 		maxTokens: 8_000,
 		contextWindow: 128_000,
