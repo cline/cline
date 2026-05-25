@@ -83,7 +83,9 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 				}
 
 				// we dont need to process any text, options, files or other content here
-				return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
+				return formatResponse.toolResult(
+					`[The user has approved your plan and wants you to proceed with implementation. All tools are now available.]`,
+				)
 			}
 			Logger.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
 		}
@@ -137,9 +139,9 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 		// Handle mode switching response
 		if (config.taskState.didRespondToPlanAskBySwitchingMode) {
 			const result = formatResponse.toolResult(
-				`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
+				`[The user has approved your plan and wants you to proceed with implementation. All tools are now available.]` +
 					(text
-						? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+						? `\n\nThe user provided the following additional instructions:\n<user_message>\n${text}\n</user_message>`
 						: ""),
 				images,
 				fileContentString,
