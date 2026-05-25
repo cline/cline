@@ -1,5 +1,6 @@
+import { HistoryItem } from "@shared/HistoryItem"
 import { StringRequest } from "@shared/proto/cline/common"
-import { memo } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 
@@ -7,8 +8,76 @@ type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 
+type FilterMode = "all" | "workspace"
+
+const STORAGE_KEY = "historyPreviewFilter"
+
+function getSavedFilter(): FilterMode {
+	try {
+		const saved = localStorage.getItem(STORAGE_KEY)
+		if (saved === "workspace") return "workspace"
+	} catch {}
+	return "all"
+}
+
+/**
+ * Extract a display name for the workspace from a task's path fields.
+ */
+function getWorkspaceLabel(item: HistoryItem): string {
+	const p = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+	if (!p) return "Unknown Workspace"
+	const segments = p.replace(/\\/g, "/").split("/").filter(Boolean)
+	return segments[segments.length - 1] || "Unknown Workspace"
+}
+
+/**
+ * Group tasks by workspace label while preserving order.
+ */
+function groupByWorkspace(items: HistoryItem[]): { label: string; tasks: HistoryItem[] }[] {
+	const groups: { label: string; tasks: HistoryItem[] }[] = []
+	const seen = new Map<string, number>()
+
+	for (const item of items) {
+		const label = getWorkspaceLabel(item)
+		const idx = seen.get(label)
+		if (idx !== undefined) {
+			groups[idx].tasks.push(item)
+		} else {
+			seen.set(label, groups.length)
+			groups.push({ label, tasks: [item] })
+		}
+	}
+
+	return groups
+}
+
+/**
+ * Extract workspace folder name from workspaceRoots paths.
+ */
+function getWorkspaceFolderName(workspaceRoots: Array<{ path?: string; name?: string }>): string {
+	if (!workspaceRoots || workspaceRoots.length === 0) return ""
+	const root = workspaceRoots[0]
+	if (root.name) return root.name
+	const p = root.path
+	if (!p) return ""
+	const segments = p.replace(/\\/g, "/").split("/").filter(Boolean)
+	return segments[segments.length - 1] || ""
+}
+
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { taskHistory, workspaceRoots } = useExtensionState()
+	const [filter, setFilter] = useState<FilterMode>(getSavedFilter)
+
+	const workspaceName = useMemo(() => getWorkspaceFolderName(workspaceRoots || []), [workspaceRoots])
+
+	const handleFilterChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+		const newFilter = e.target.value as FilterMode
+		setFilter(newFilter)
+		try {
+			localStorage.setItem(STORAGE_KEY, newFilter)
+		} catch {}
+	}, [])
+
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
@@ -23,6 +92,36 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 		})
 	}
 
+	// Compute workspace path from workspaceRoots for local matching
+	const currentWorkspacePath = useMemo(() => {
+		if (!workspaceRoots || workspaceRoots.length === 0) return ""
+		return workspaceRoots[0]?.path || ""
+	}, [workspaceRoots])
+
+	const isInCurrentWorkspace = useCallback(
+		(item: HistoryItem) => {
+			if (!currentWorkspacePath) return false
+			const taskPath = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+			if (!taskPath) return false
+			// Normalize paths for comparison
+			const normalize = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "")
+			return normalize(taskPath) === normalize(currentWorkspacePath)
+		},
+		[currentWorkspacePath],
+	)
+
+	const allValidTasks = useMemo(() => taskHistory.filter((item) => item.ts && item.task), [taskHistory])
+
+	const displayTasks = useMemo(() => {
+		if (filter === "workspace") {
+			return allValidTasks.filter((item) => isInCurrentWorkspace(item)).slice(0, 5)
+		}
+		return [...allValidTasks].sort((a, b) => b.ts - a.ts).slice(0, 5)
+	}, [allValidTasks, filter, isInCurrentWorkspace])
+
+	const workspaceGroups = useMemo(() => groupByWorkspace(displayTasks), [displayTasks])
+	const hasMultipleWorkspaces = filter === "all" && workspaceGroups.length > 1
+
 	return (
 		<div style={{ flexShrink: 0 }}>
 			<style>
@@ -33,7 +132,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						position: relative;
 						overflow: hidden;
 						cursor: pointer;
-						margin-bottom: 8px;
+						margin-bottom: 6px;
 						padding: 10px 12px;
 						display: flex;
 						align-items: flex-start;
@@ -100,6 +199,41 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					.history-view-all-btn:hover {
 						color: var(--vscode-foreground);
 					}
+					.history-workspace-divider {
+						display: flex;
+						align-items: center;
+						gap: 6px;
+						padding: 6px 0 4px 0;
+						color: var(--vscode-descriptionForeground);
+						font-size: 0.75em;
+						font-weight: 600;
+						text-transform: uppercase;
+						letter-spacing: 0.04em;
+					}
+					.history-workspace-divider::after {
+						content: '';
+						flex: 1;
+						height: 1px;
+						background: color-mix(in srgb, var(--vscode-descriptionForeground) 25%, transparent);
+					}
+					.history-filter-select {
+						background: none;
+						border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 30%, transparent);
+						border-radius: 3px;
+						color: var(--vscode-descriptionForeground);
+						font-weight: 500;
+						font-size: 0.8em;
+						cursor: pointer;
+						padding: 1px 4px;
+						margin-left: 6px;
+						outline: none;
+						font-family: inherit;
+					}
+					.history-filter-select:hover,
+					.history-filter-select:focus {
+						color: var(--vscode-foreground);
+						border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 60%, transparent);
+					}
 				`}
 			</style>
 
@@ -118,17 +252,24 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						style={{
 							marginRight: "4px",
 							transform: "scale(0.9)",
-						}}></span>
+						}}
+					/>
 					<span
 						style={{
 							fontWeight: 500,
 							fontSize: "0.85em",
 							textTransform: "uppercase",
 						}}>
-						Recent
+						Recent Tasks
 					</span>
+					{workspaceName && (
+						<select className="history-filter-select" onChange={handleFilterChange} value={filter}>
+							<option value="all">All</option>
+							<option value="workspace">{workspaceName}</option>
+						</select>
+					)}
 				</div>
-				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
+				{displayTasks.length > 0 && (
 					<button
 						aria-label="View all history"
 						className="history-view-all-btn"
@@ -140,13 +281,17 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				)}
 			</div>
 
-			{
-				<div className="px-4">
-					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
-						taskHistory
-							.filter((item) => item.ts && item.task)
-							.slice(0, 3)
-							.map((item) => (
+			<div className="px-4">
+				{displayTasks.length > 0 ? (
+					workspaceGroups.map((group) => (
+						<div key={group.label}>
+							{hasMultipleWorkspaces && (
+								<div className="history-workspace-divider">
+									<span className="codicon codicon-folder" style={{ fontSize: "0.9em" }} />
+									{group.label}
+								</div>
+							)}
+							{group.tasks.map((item) => (
 								<div className="history-preview-item" key={item.id} onClick={() => handleHistorySelect(item.id)}>
 									<div className="history-task-content">
 										{item.isFavorited && (
@@ -168,20 +313,21 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										)}
 									</div>
 								</div>
-							))
-					) : (
-						<div
-							style={{
-								textAlign: "center",
-								color: "var(--vscode-descriptionForeground)",
-								fontSize: "var(--vscode-font-size)",
-								padding: "10px 0",
-							}}>
-							No recent tasks
+							))}
 						</div>
-					)}
-				</div>
-			}
+					))
+				) : (
+					<div
+						style={{
+							textAlign: "center",
+							color: "var(--vscode-descriptionForeground)",
+							fontSize: "var(--vscode-font-size)",
+							padding: "10px 0",
+						}}>
+						{filter === "workspace" ? "No tasks in this workspace" : "No recent tasks"}
+					</div>
+				)}
+			</div>
 		</div>
 	)
 }
