@@ -285,7 +285,10 @@ export class AIhubmixHandler implements ApiHandler {
 		const client = this.ensureGeminiClient()
 		const modelId = this.options.modelId || "gemini-2.0-flash-exp"
 
-		const contents = messages.map(convertAnthropicMessageToGemini)
+		const contents = messages.flatMap((m) => {
+			const result = convertAnthropicMessageToGemini(m)
+			return Array.isArray(result) ? result : [result]
+		})
 
 		const requestConfig: GenerateContentConfig = {
 			systemInstruction: systemPrompt,
