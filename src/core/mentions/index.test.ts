@@ -10,7 +10,7 @@ import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import * as terminalModule from "@/hosts/vscode/terminal/get-latest-output"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
-import { parseMentions } from "."
+import { getFileMentionFromPath, parseMentions } from "."
 
 describe("parseMentions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -59,6 +59,30 @@ describe("parseMentions", () => {
 	})
 
 	describe("File mentions", () => {
+		it("should format relative file mentions without spaces", async () => {
+			sandbox.stub(HostProvider.workspace, "getWorkspacePaths").resolves({ paths: [cwd] })
+
+			const result = await getFileMentionFromPath("/test/project/src/index.ts")
+
+			expect(result).to.equal("@/src/index.ts")
+		})
+
+		it("should format relative file mentions with spaces using quoted mention syntax", async () => {
+			sandbox.stub(HostProvider.workspace, "getWorkspacePaths").resolves({ paths: [cwd] })
+
+			const result = await getFileMentionFromPath("/test/project/path with spaces/file.txt")
+
+			expect(result).to.equal('@"/path with spaces/file.txt"')
+		})
+
+		it("should format absolute file mentions with spaces when no cwd is available", async () => {
+			sandbox.stub(HostProvider.workspace, "getWorkspacePaths").resolves({ paths: [] })
+
+			const result = await getFileMentionFromPath("/tmp/path with spaces/file.txt")
+
+			expect(result).to.equal('@"/tmp/path with spaces/file.txt"')
+		})
+
 		it("should handle simple file mention", async () => {
 			const text = "Check @/src/index.ts for details"
 
