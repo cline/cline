@@ -158,42 +158,48 @@ async function runProviderChange(
 		}
 		if (!saved) return false;
 	}
-	await withLoadingDialog(dialog, `Loading ${displayName} models...`, async () => {
-		await refreshProviderModelsFromSource(manager, newProviderId).catch(() => {});
-		const newSettings = manager.getProviderSettings(newProviderId);
-		const newApiKey =
-			getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
+	await withLoadingDialog(
+		dialog,
+		`Loading ${displayName} models...`,
+		async () => {
+			await refreshProviderModelsFromSource(manager, newProviderId).catch(
+				() => {},
+			);
+			const newSettings = manager.getProviderSettings(newProviderId);
+			const newApiKey =
+				getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
 
-		manager.saveProviderSettings(
-			{
-				...(newSettings ?? {}),
-				provider: newProviderId,
-			},
-			{ setLastUsed: true },
-		);
+			manager.saveProviderSettings(
+				{
+					...(newSettings ?? {}),
+					provider: newProviderId,
+				},
+				{ setLastUsed: true },
+			);
 
-		config.providerId = newProviderId;
-		config.apiKey = newApiKey;
+			config.providerId = newProviderId;
+			config.apiKey = newApiKey;
 
-		const resolved = await resolveProviderConfig(
-			newProviderId,
-			{
-				loadLatestOnInit: true,
-				loadPrivateOnAuth: true,
-				failOnError: false,
-			},
-			manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
-		);
-		config.knownModels = resolved?.knownModels;
-		const modelIds = Object.keys(resolved?.knownModels ?? {});
-		if (newSettings?.model) {
-			config.modelId = newSettings.model;
-		} else if (modelIds[0]) {
-			config.modelId = modelIds[0];
-		}
+			const resolved = await resolveProviderConfig(
+				newProviderId,
+				{
+					loadLatestOnInit: true,
+					loadPrivateOnAuth: true,
+					failOnError: false,
+				},
+				manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
+			);
+			config.knownModels = resolved?.knownModels;
+			const modelIds = Object.keys(resolved?.knownModels ?? {});
+			if (newSettings?.model) {
+				config.modelId = newSettings.model;
+			} else if (modelIds[0]) {
+				config.modelId = modelIds[0];
+			}
 
-		await onModelChange();
-	});
+			await onModelChange();
+		},
+	);
 	return true;
 }
 

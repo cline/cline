@@ -456,15 +456,15 @@ export class SessionRuntime {
 		if (overrides.providerId !== undefined)
 			next.providerId = overrides.providerId;
 		if (overrides.modelId !== undefined) next.modelId = overrides.modelId;
-		if (overrides.apiKey !== undefined) next.apiKey = overrides.apiKey;
-		if (overrides.baseUrl !== undefined) next.baseUrl = overrides.baseUrl;
-		if (overrides.headers !== undefined) next.headers = overrides.headers;
-		if (overrides.providerConfig !== undefined)
+		if ("apiKey" in overrides) next.apiKey = overrides.apiKey;
+		if ("baseUrl" in overrides) next.baseUrl = overrides.baseUrl;
+		if ("headers" in overrides) next.headers = overrides.headers;
+		if ("providerConfig" in overrides)
 			next.providerConfig = overrides.providerConfig;
-		if (overrides.reasoningEffort !== undefined)
+		if ("reasoningEffort" in overrides)
 			next.reasoningEffort = overrides.reasoningEffort;
-		if (overrides.thinking !== undefined) next.thinking = overrides.thinking;
-		if (overrides.thinkingBudgetTokens !== undefined)
+		if ("thinking" in overrides) next.thinking = overrides.thinking;
+		if ("thinkingBudgetTokens" in overrides)
 			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens;
 		this.config = next;
 	}

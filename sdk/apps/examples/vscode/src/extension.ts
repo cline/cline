@@ -18,6 +18,7 @@ import {
 	readHubDiscovery,
 	rememberRecoverableLocalHubUrl,
 	resolveSharedHubOwnerContext,
+	type SendSessionConnectionUpdate,
 	type ToolPolicy,
 } from "@cline/core";
 import {
@@ -1022,13 +1023,14 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 		this.sending = true;
 		try {
-			await this.ensureSession(config);
+			const startConfig = await this.ensureSession(config);
 			const host = await this.getSessionHost();
 			const activeSessionId = this.sessionId as string;
 			await host.send({
 				sessionId: activeSessionId,
 				prompt: trimmedPrompt,
 				userImages: attachments?.userImages,
+				connection: buildConnectionUpdate(startConfig),
 			});
 			await this.refreshSessions();
 		} catch (error) {
@@ -1147,6 +1149,12 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 		if (this.sessionId && this.startConfig) {
 			if (areStartConfigsEqual(this.startConfig, startConfig)) {
+				this.startConfig = {
+					...this.startConfig,
+					providerId: startConfig.providerId,
+					modelId: startConfig.modelId,
+					thinking: startConfig.thinking,
+				};
 				return this.startConfig;
 			}
 			await this.stopExistingSession();
@@ -1537,13 +1545,10 @@ class CoreChatWebviewController implements vscode.Disposable {
  */
 function areStartConfigsEqual(a: StartConfig, b: StartConfig): boolean {
 	return (
-		a.providerId === b.providerId &&
-		a.modelId === b.modelId &&
 		a.cwd === b.cwd &&
 		a.workspaceRoot === b.workspaceRoot &&
 		a.systemPrompt === b.systemPrompt &&
 		a.maxIterations === b.maxIterations &&
-		a.thinking === b.thinking &&
 		a.enableTools === b.enableTools &&
 		a.enableSpawnAgent === b.enableSpawnAgent &&
 		a.enableAgentTeams === b.enableAgentTeams &&
@@ -1557,6 +1562,16 @@ function areStartConfigsEqual(a: StartConfig, b: StartConfig): boolean {
 		a.extensionContext?.user?.distinctId ===
 			b.extensionContext?.user?.distinctId
 	);
+}
+
+function buildConnectionUpdate(
+	config: StartConfig,
+): SendSessionConnectionUpdate {
+	return {
+		providerId: config.providerId,
+		modelId: config.modelId,
+		thinking: config.thinking === true,
+	};
 }
 
 function createToolPolicies(config: StartConfig): Record<string, ToolPolicy> {

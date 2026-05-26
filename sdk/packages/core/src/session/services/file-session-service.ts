@@ -169,6 +169,14 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				input.exitCode !== undefined
 					? input.exitCode
 					: (existing.exitCode ?? null),
+			provider:
+				input.provider !== undefined
+					? (input.provider ?? existing.provider)
+					: existing.provider,
+			model:
+				input.model !== undefined
+					? (input.model ?? existing.model)
+					: existing.model,
 			prompt:
 				input.prompt !== undefined ? input.prompt : (existing.prompt ?? null),
 			metadata:

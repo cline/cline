@@ -5,7 +5,10 @@ import type {
 	HubReplyEnvelope,
 } from "@cline/shared";
 import { parseHookEventPayload } from "../../../hooks";
-import type { SendSessionInput } from "../../../runtime/host/runtime-host";
+import type {
+	SendSessionConnectionUpdate,
+	SendSessionInput,
+} from "../../../runtime/host/runtime-host";
 import { logHubMessage } from "../hub-server-logging";
 import { cancelPendingApprovals } from "./approval-handlers";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
@@ -62,6 +65,57 @@ function parseRunTimeoutMs(
 		return Math.floor(timeoutSeconds * 1000);
 	}
 	return undefined;
+}
+
+function parseStringHeaders(
+	value: unknown,
+): Record<string, string> | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+	const entries = Object.entries(value as Record<string, unknown>).filter(
+		(entry): entry is [string, string] => typeof entry[1] === "string",
+	);
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function parseConnectionUpdate(
+	value: unknown,
+): SendSessionConnectionUpdate | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+	const input = value as Record<string, unknown>;
+	const connection: SendSessionConnectionUpdate = {};
+	if (typeof input.providerId === "string") {
+		connection.providerId = input.providerId;
+	}
+	if (typeof input.modelId === "string") {
+		connection.modelId = input.modelId;
+	}
+	if (typeof input.apiKey === "string") {
+		connection.apiKey = input.apiKey;
+	}
+	if (typeof input.baseUrl === "string") {
+		connection.baseUrl = input.baseUrl;
+	}
+	const headers = parseStringHeaders(input.headers);
+	if (headers) {
+		connection.headers = headers;
+	}
+	if ("providerConfig" in input) {
+		connection.providerConfig = input.providerConfig;
+	}
+	if (typeof input.reasoningEffort === "string") {
+		connection.reasoningEffort = input.reasoningEffort as never;
+	}
+	if (typeof input.thinking === "boolean") {
+		connection.thinking = input.thinking;
+	}
+	if (typeof input.thinkingBudgetTokens === "number") {
+		connection.thinkingBudgetTokens = input.thinkingBudgetTokens;
+	}
+	return Object.keys(connection).length > 0 ? connection : undefined;
 }
 
 async function runTurnWithRuntimeHealth(
@@ -212,6 +266,7 @@ export async function handleSessionInput(
 					: undefined,
 				userFiles,
 				timeoutMs,
+				connection: parseConnectionUpdate(payload.connection),
 			},
 			timeoutMs,
 		);

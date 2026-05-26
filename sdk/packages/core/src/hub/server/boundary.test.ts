@@ -908,6 +908,83 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
+	it("forwards per-turn connection updates to the session host", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn,
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn(),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+			} as never,
+		});
+
+		const reply = await (
+			transport as unknown as {
+				handleCommand: (envelope: {
+					version: "v1";
+					requestId: string;
+					command: "run.start";
+					sessionId: string;
+					payload: {
+						sessionId: string;
+						prompt: string;
+						connection: Record<string, unknown>;
+					};
+				}) => Promise<{ ok: boolean }>;
+			}
+		).handleCommand({
+			version: "v1",
+			requestId: "req-connection",
+			command: "run.start",
+			sessionId: "session-1",
+			payload: {
+				sessionId: "session-1",
+				prompt: "Use a different model",
+				connection: {
+					providerId: "openai-native",
+					modelId: "gpt-5.1",
+					apiKey: "turn-key",
+					baseUrl: "https://example.test/v1",
+					headers: { "x-turn": "true", ignored: 1 },
+					providerConfig: { providerId: "openai-native", modelId: "gpt-5.1" },
+					reasoningEffort: "high",
+					thinking: true,
+					thinkingBudgetTokens: 2048,
+				},
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "session-1",
+				prompt: "Use a different model",
+				connection: {
+					providerId: "openai-native",
+					modelId: "gpt-5.1",
+					apiKey: "turn-key",
+					baseUrl: "https://example.test/v1",
+					headers: { "x-turn": "true" },
+					providerConfig: {
+						providerId: "openai-native",
+						modelId: "gpt-5.1",
+					},
+					reasoningEffort: "high",
+					thinking: true,
+					thinkingBudgetTokens: 2048,
+				},
+			}),
+		);
+	});
+
 	it("publishes result error text on failed run events", async () => {
 		const runTurn = vi.fn().mockResolvedValue({
 			text: "Provider rejected the request",

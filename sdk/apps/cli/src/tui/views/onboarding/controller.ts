@@ -28,13 +28,13 @@ import {
 	useSearchableList,
 } from "../../components/searchable-list";
 import { palette } from "../../palette";
-import { getProviderSection } from "../../utils/provider-sections";
 import {
 	getDefaultAwsRegion,
+	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	updateProviderConfigValue,
-	type ProviderConfigValues,
 } from "../../utils/provider-config-values";
+import { getProviderSection } from "../../utils/provider-sections";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,

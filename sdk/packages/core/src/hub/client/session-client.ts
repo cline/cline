@@ -375,6 +375,7 @@ export class HubSessionClient {
 				attachments: request.attachments,
 				delivery: request.delivery,
 				timeoutSeconds: request.config.timeoutSeconds,
+				connection: request.connection,
 			},
 			sessionId,
 			options,

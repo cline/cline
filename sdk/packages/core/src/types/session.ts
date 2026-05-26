@@ -1,6 +1,9 @@
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentFinishReason } from "@cline/shared";
-import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
+import type {
+	SendSessionConnectionUpdate,
+	SessionAccumulatedUsage,
+} from "../runtime/host/runtime-host";
 import type { BuiltRuntime } from "../runtime/orchestration/session-runtime";
 import type { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
 import type { SessionRow } from "../session/models/session-row";
@@ -62,6 +65,7 @@ export type PendingPrompt = {
 	delivery: "queue" | "steer";
 	userImages?: string[];
 	userFiles?: string[];
+	connection?: SendSessionConnectionUpdate;
 };
 
 export type TeamRunUpdate = {
@@ -89,6 +93,8 @@ export interface PersistedSessionUpdateInput {
 	status?: SessionStatus;
 	endedAt?: string | null;
 	exitCode?: number | null;
+	provider?: string | null;
+	model?: string | null;
 	prompt?: string | null;
 	metadata?: Record<string, unknown> | null;
 	title?: string | null;

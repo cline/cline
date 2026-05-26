@@ -146,6 +146,7 @@ export function createClineCoreAutomationRuntimeHandlers(
 				userImages: request.attachments?.userImages,
 				userFiles: request.attachments?.userFiles?.map((file) => file.content),
 				delivery: request.delivery,
+				connection: request.connection,
 			});
 			if (!result) {
 				throw new Error("ClineCore automation runtime returned no result");

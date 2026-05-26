@@ -4055,6 +4055,117 @@ describe("LocalRuntimeHost", () => {
 		expect(run).toHaveBeenCalledTimes(1);
 	});
 
+	it("applies per-turn connection updates before executing and persists provider/model", async () => {
+		const sessionId = "sess-turn-connection";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-turn-connection.json",
+				messagesPath: "/tmp/messages-turn-connection.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession: vi.fn().mockResolvedValue({ updated: true }),
+			readSessionManifest: vi.fn().mockReturnValue(manifest),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const updateConnectionDefaults = vi.fn();
+		const updateConnection = vi.fn();
+		const run = vi.fn().mockResolvedValue(createResult({ text: "first" }));
+		const continueRun = vi
+			.fn()
+			.mockResolvedValue(createResult({ text: "second" }));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					delegatedAgentConfigProvider: {
+						getRuntimeConfig: vi.fn(),
+						getConnectionConfig: vi.fn(),
+						updateConnectionDefaults,
+					},
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: () =>
+				({
+					run,
+					continue: continueRun,
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore: vi.fn(),
+					updateConnection,
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		await manager.runTurn({ sessionId, prompt: "first" });
+		await manager.runTurn({
+			sessionId,
+			prompt: "second",
+			connection: {
+				providerId: "openai-native",
+				modelId: "gpt-5.1",
+				reasoningEffort: "high",
+				thinking: true,
+				thinkingBudgetTokens: 2048,
+			},
+		});
+
+		expect(continueRun).toHaveBeenCalledWith(
+			'<user_input mode="act">second</user_input>',
+			undefined,
+			undefined,
+		);
+		expect(updateConnection).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "openai-native",
+				modelId: "gpt-5.1",
+				reasoningEffort: "high",
+				thinking: true,
+				thinkingBudgetTokens: 2048,
+			}),
+		);
+		expect(updateConnectionDefaults).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "openai-native",
+				modelId: "gpt-5.1",
+				reasoningEffort: "high",
+				thinking: true,
+				thinkingBudgetTokens: 2048,
+			}),
+		);
+		expect(sessionService.updateSession).toHaveBeenCalledWith({
+			sessionId,
+			provider: "openai-native",
+			model: "gpt-5.1",
+		});
+		expect(sessionService.writeSessionManifest).toHaveBeenCalledWith(
+			"/tmp/manifest-turn-connection.json",
+			expect.objectContaining({
+				provider: "openai-native",
+				model: "gpt-5.1",
+			}),
+		);
+	});
+
 	it("hydrates provider-specific config from provider settings", async () => {
 		const sessionId = "sess-provider-config";
 		const manifest = createManifest(sessionId);

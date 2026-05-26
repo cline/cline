@@ -20,7 +20,10 @@ import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
-import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import {
+	buildProviderConfig,
+	prepareLocalRuntimeBootstrap,
+} from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -104,6 +107,7 @@ import type {
 	RestoreSessionResult,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
+	SendSessionConnectionUpdate,
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	SessionUsageSummary,
@@ -153,6 +157,13 @@ function parseAccumulatedUsage(
 		cacheWriteTokens,
 		totalCost,
 	};
+}
+
+function hasConnectionUpdate(
+	connection: SendSessionConnectionUpdate | undefined,
+): connection is SendSessionConnectionUpdate {
+	if (!connection) return false;
+	return Object.values(connection).some((value) => value !== undefined);
 }
 
 function maxAccumulatedUsage(
@@ -695,10 +706,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 				delivery,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
+				connection: input.connection,
 			});
 			return undefined;
 		}
 		try {
+			await this.applySessionConnectionUpdate(session, input.connection);
 			const result = await this.executeTurn(session, {
 				prompt: input.prompt,
 				mode: input.mode,
@@ -919,11 +932,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
 		const session = this.getSessionOrThrow(sessionId);
-		session.config.modelId = modelId;
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			modelId,
-		});
-		session.agent.updateConnection({ modelId });
+		await this.applySessionConnectionUpdate(session, { modelId });
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -942,6 +951,112 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Turn execution ──────────────────────────────────────────────────
+
+	private async applySessionConnectionUpdate(
+		session: ActiveSession,
+		connection: SendSessionConnectionUpdate | undefined,
+	): Promise<void> {
+		if (!hasConnectionUpdate(connection)) return;
+
+		const previousProviderId = session.config.providerId;
+		const previousModelId = session.config.modelId;
+
+		if (connection.providerId !== undefined) {
+			session.config.providerId = connection.providerId;
+		}
+		if (connection.modelId !== undefined) {
+			session.config.modelId = connection.modelId;
+		}
+		if (connection.apiKey !== undefined) {
+			session.config.apiKey = connection.apiKey;
+		}
+		if (connection.baseUrl !== undefined) {
+			session.config.baseUrl = connection.baseUrl;
+		}
+		if (connection.headers !== undefined) {
+			session.config.headers = connection.headers;
+		}
+		if (connection.providerConfig !== undefined) {
+			session.config.providerConfig =
+				connection.providerConfig as CoreSessionConfig["providerConfig"];
+		}
+		if (connection.reasoningEffort !== undefined) {
+			session.config.reasoningEffort = connection.reasoningEffort;
+		}
+		if (connection.thinking !== undefined) {
+			session.config.thinking = connection.thinking;
+		}
+		if (connection.thinkingBudgetTokens !== undefined) {
+			session.config.thinkingBudgetTokens = connection.thinkingBudgetTokens;
+		}
+
+		const providerConfig =
+			(connection.providerConfig as CoreSessionConfig["providerConfig"]) ??
+			buildProviderConfig(
+				session.config,
+				session.sessionId,
+				this.providerSettingsManager,
+				undefined,
+				this.defaultFetch,
+			);
+		session.config.providerConfig = providerConfig;
+		session.config.apiKey = connection.apiKey ?? providerConfig.apiKey;
+		session.config.baseUrl = connection.baseUrl ?? providerConfig.baseUrl;
+		session.config.headers = connection.headers ?? providerConfig.headers;
+
+		const agentConnection: SendSessionConnectionUpdate = {
+			providerId: session.config.providerId,
+			modelId: session.config.modelId,
+			apiKey: session.config.apiKey,
+			baseUrl: session.config.baseUrl,
+			headers: session.config.headers,
+			providerConfig,
+			reasoningEffort:
+				session.config.reasoningEffort ?? providerConfig.reasoningEffort,
+			thinking: session.config.thinking ?? providerConfig.thinking,
+			thinkingBudgetTokens:
+				session.config.thinkingBudgetTokens ??
+				providerConfig.thinkingBudgetTokens,
+		};
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			agentConnection,
+		);
+		session.agent.updateConnection(agentConnection);
+		session.runtime.teamRuntime?.updateTeammateConnections(agentConnection);
+
+		const providerChanged = previousProviderId !== session.config.providerId;
+		const modelChanged = previousModelId !== session.config.modelId;
+		if (providerChanged || modelChanged) {
+			await this.persistSessionConnection(session);
+		}
+	}
+
+	private async persistSessionConnection(
+		session: ActiveSession,
+	): Promise<void> {
+		if (!session.artifacts) return;
+		const result = await this.invoke<{ updated: boolean }>("updateSession", {
+			sessionId: session.sessionId,
+			provider: session.config.providerId,
+			model: session.config.modelId,
+		});
+		if (!result.updated) return;
+		const latestManifest =
+			(await this.invokeOptionalValue<SessionManifest>(
+				"readSessionManifest",
+				session.sessionId,
+			)) ?? session.artifacts.manifest;
+		latestManifest.provider = session.config.providerId;
+		latestManifest.model = session.config.modelId;
+		session.artifacts.manifest = latestManifest;
+		session.updatedAt = nowIso();
+		await this.invoke<void>(
+			"writeSessionManifest",
+			session.artifacts.manifestPath,
+			latestManifest,
+		);
+		await this.emitSessionSnapshot(session.sessionId);
+	}
 
 	private async executeTurn(
 		session: ActiveSession,

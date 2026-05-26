@@ -244,6 +244,7 @@ Design implication:
 - transport-specific translation belongs inside concrete hosts, not in top-level orchestration
 - `RuntimeHost` inputs stay transport-safe, while `ClineCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
 - `RuntimeSessionConfig` is transport-neutral across local, shared hub, and remote hub modes; host-local bootstrap concerns stay under `localRuntime`
+- Per-turn connection updates are carried on `RuntimeHost.runTurn(...)` as transport-safe data. Local execution applies them before the turn starts, forwards the resolved connection defaults to delegated agents and teammates, and persists provider/model changes back to the session row and manifest so history reflects the latest active model.
 - client-local runtime behaviors that must survive hub mode, such as `defaultToolExecutors`, are attached at session start and proxied through hub capability requests instead of changing host selection
 - pending prompt list/update/delete are exposed through the grouped
   `ClineCore.pendingPrompts` service. Usage summary lookup and active-session

@@ -213,6 +213,8 @@ export class UnifiedSessionPersistenceService {
 
 	async updateSession(input: {
 		sessionId: string;
+		provider?: string | null;
+		model?: string | null;
 		prompt?: string | null;
 		metadata?: Record<string, unknown> | null;
 		title?: string | null;
@@ -250,6 +252,8 @@ export class UnifiedSessionPersistenceService {
 
 			const changed = await this.adapter.updateSession({
 				sessionId: input.sessionId,
+				provider: input.provider,
+				model: input.model,
 				prompt: input.prompt,
 				metadata: hasMetadataChange
 					? Object.keys(baseMeta).length > 0
@@ -264,6 +268,12 @@ export class UnifiedSessionPersistenceService {
 			const { path: manifestPath, manifest } =
 				this.manifestStore.readManifestFile(input.sessionId);
 			if (manifest) {
+				if (input.provider !== undefined && input.provider !== null) {
+					manifest.provider = input.provider;
+				}
+				if (input.model !== undefined && input.model !== null) {
+					manifest.model = input.model;
+				}
 				if (input.prompt !== undefined) {
 					manifest.prompt = input.prompt ?? undefined;
 				}

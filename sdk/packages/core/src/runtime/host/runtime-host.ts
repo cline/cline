@@ -1,5 +1,6 @@
 import type * as LlmsProviders from "@cline/llms";
 import type {
+	AgentConfig,
 	AgentMode,
 	AgentResult,
 	RuntimeConfigExtensionKind,
@@ -160,6 +161,18 @@ export interface StartSessionResult {
 	result?: AgentResult;
 }
 
+export interface SendSessionConnectionUpdate {
+	providerId?: string;
+	modelId?: string;
+	apiKey?: string;
+	baseUrl?: string;
+	headers?: Record<string, string>;
+	providerConfig?: unknown;
+	reasoningEffort?: AgentConfig["reasoningEffort"];
+	thinking?: boolean;
+	thinkingBudgetTokens?: number;
+}
+
 export interface SendSessionInput {
 	sessionId: string;
 	prompt: string;
@@ -168,6 +181,7 @@ export interface SendSessionInput {
 	userFiles?: string[];
 	delivery?: "queue" | "steer";
 	timeoutMs?: number;
+	connection?: SendSessionConnectionUpdate;
 }
 
 export interface SessionAccumulatedUsage {

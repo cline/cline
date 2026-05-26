@@ -124,6 +124,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 				prompt: request.prompt,
 				userImages: request.attachments?.userImages,
 				userFiles: request.attachments?.userFiles?.map((file) => file.content),
+				connection: request.connection,
 			});
 			if (!result) {
 				throw new Error("local hub schedule runtime returned no turn result");

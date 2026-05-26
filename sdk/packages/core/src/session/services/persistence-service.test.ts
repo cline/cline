@@ -347,6 +347,50 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(manifest.metadata).toMatchObject({ title: "first user message" });
 	});
 
+	it("updates provider and model in the session row and manifest", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "update-model-sessions-"));
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "model-update-session";
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			prompt: "first user message",
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		await expect(
+			service.updateSession({
+				sessionId,
+				provider: "openai-native",
+				model: "gpt-5.1",
+			}),
+		).resolves.toEqual({ updated: true });
+
+		const [row] = await service.listSessions(10);
+		expect(row).toMatchObject({
+			provider: "openai-native",
+			model: "gpt-5.1",
+		});
+		const manifest = JSON.parse(
+			readFileSync(artifacts.manifestPath, "utf8"),
+		) as Record<string, unknown>;
+		expect(manifest).toMatchObject({
+			provider: "openai-native",
+			model: "gpt-5.1",
+		});
+	});
+
 	it("derives a title from a prompt only when the session has no title yet", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "empty-title-sessions-"));
 		tempDirs.push(sessionsDir);

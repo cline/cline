@@ -37,6 +37,7 @@ export interface CoreModelConfig {
 	 * Explicit reasoning effort override for capable models.
 	 */
 	reasoningEffort?: ProviderConfig["reasoningEffort"];
+	thinkingBudgetTokens?: AgentConfig["thinkingBudgetTokens"];
 }
 
 export interface CoreRuntimeFeatures {

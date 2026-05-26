@@ -226,6 +226,8 @@ describe("HubRuntimeHost", () => {
 				mode: "plan",
 				attachments: undefined,
 				delivery: "queue",
+				timeoutMs: undefined,
+				connection: undefined,
 			},
 			"sess-1",
 			{ timeoutMs: null },
@@ -1294,6 +1296,8 @@ describe("HubRuntimeHost", () => {
 					userImages: ["data:image/png;base64,aGVsbG8="],
 				},
 				delivery: undefined,
+				timeoutMs: undefined,
+				connection: undefined,
 			},
 			"sess-1",
 			{ timeoutMs: null },
@@ -1323,6 +1327,43 @@ describe("HubRuntimeHost", () => {
 					userFiles: [filePath],
 				},
 				delivery: undefined,
+				timeoutMs: undefined,
+				connection: undefined,
+			},
+			"sess-1",
+			{ timeoutMs: null },
+		);
+	});
+
+	it("forwards per-turn connection updates when sending a run", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { result: undefined } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.runTurn({
+			sessionId: "sess-1",
+			prompt: "Use a different model",
+			connection: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				thinking: true,
+			},
+		});
+
+		expect(commandMock).toHaveBeenCalledWith(
+			"run.start",
+			{
+				sessionId: "sess-1",
+				input: "Use a different model",
+				attachments: undefined,
+				delivery: undefined,
+				timeoutMs: undefined,
+				connection: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-6",
+					thinking: true,
+				},
 			},
 			"sess-1",
 			{ timeoutMs: null },

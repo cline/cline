@@ -1,4 +1,5 @@
 import z from "zod";
+import type { AgentConfig } from "../agents/types";
 import type { HubToolExecutorName } from "../hub";
 import type {
 	RuntimeConfigExtensionKind,
@@ -61,11 +62,24 @@ export interface ChatAttachments {
 	userFiles?: ChatAttachmentFile[];
 }
 
+export interface ChatRunTurnConnectionUpdate {
+	providerId?: string;
+	modelId?: string;
+	apiKey?: string;
+	baseUrl?: string;
+	headers?: Record<string, string>;
+	providerConfig?: unknown;
+	reasoningEffort?: AgentConfig["reasoningEffort"];
+	thinking?: boolean;
+	thinkingBudgetTokens?: number;
+}
+
 export interface ChatRunTurnRequest {
 	config: ChatStartSessionRequest;
 	prompt: string;
 	attachments?: ChatAttachments;
 	delivery?: "queue" | "steer";
+	connection?: ChatRunTurnConnectionUpdate;
 }
 
 export interface ChatToolCallResult {
