@@ -1,6 +1,8 @@
 import "should"
 import { perplexityDefaultModelId, perplexityModels } from "@shared/api"
+import * as net from "@/shared/net"
 import sinon from "sinon"
+import { version as extensionVersion } from "../../../../../package.json"
 import { PerplexityHandler } from "../perplexity"
 
 describe("PerplexityHandler", () => {
@@ -50,6 +52,17 @@ describe("PerplexityHandler", () => {
 		const handler = new PerplexityHandler({})
 		const client = (handler as any).ensureClient()
 		client.should.not.be.undefined()
+	})
+
+	it("should add the Perplexity integration attribution header to outbound requests", () => {
+		const createOpenAIClientStub = sinon.stub(net, "createOpenAIClient").returns({} as any)
+		const handler = new PerplexityHandler({ perplexityApiKey: "test-key" })
+
+		;(handler as any).ensureClient()
+
+		const headers = createOpenAIClientStub.firstCall.args[0].defaultHeaders as Record<string, string>
+		headers["X-Pplx-Integration"].should.equal(`cline/${extensionVersion}`)
+		headers["X-Pplx-Integration"].should.match(/^cline\//)
 	})
 
 	it("should default to openai/gpt-5.5 when no model id is provided", () => {

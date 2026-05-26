@@ -2,6 +2,7 @@ import { ModelInfo, PerplexityModelId, perplexityDefaultModelId, perplexityModel
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
+import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -44,6 +45,9 @@ export class PerplexityHandler implements ApiHandler {
 				this.client = createOpenAIClient({
 					baseURL: PERPLEXITY_BASE_URL,
 					apiKey,
+					defaultHeaders: {
+						"X-Pplx-Integration": `cline/${extensionVersion}`,
+					},
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Perplexity client: ${error.message}`)
