@@ -812,6 +812,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
+							name: "execute_command",
 							content: "x".repeat(50_000),
 						},
 					],
