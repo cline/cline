@@ -4,13 +4,13 @@ import { type JwtPayload, jwtDecode } from "jwt-decode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import {
-    DEFAULT_EXTERNAL_IDCS_CLIENT_ID,
-    DEFAULT_EXTERNAL_IDCS_URL,
-    DEFAULT_EXTERNAL_IDSC_SCOPES,
-    DEFAULT_INTERNAL_IDCS_CLIENT_ID,
-    DEFAULT_INTERNAL_IDCS_URL,
-    DEFAULT_INTERNAL_IDSC_SCOPES,
-    OCA_CONFIG_PATH,
+	DEFAULT_EXTERNAL_IDCS_CLIENT_ID,
+	DEFAULT_EXTERNAL_IDCS_URL,
+	DEFAULT_EXTERNAL_IDSC_SCOPES,
+	DEFAULT_INTERNAL_IDCS_CLIENT_ID,
+	DEFAULT_INTERNAL_IDCS_URL,
+	DEFAULT_INTERNAL_IDSC_SCOPES,
+	OCA_CONFIG_PATH,
 } from "./constants"
 import type { OcaConfig } from "./types"
 
