@@ -3962,33 +3962,6 @@ export type SambanovaModelId = keyof typeof sambanovaModels;
 export const sambanovaDefaultModelId: SambanovaModelId =
   "Meta-Llama-3.3-70B-Instruct";
 export const sambanovaModels = {
-  "DeepSeek-R1-0528": {
-    maxTokens: 7168,
-    contextWindow: 131072,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 5.0,
-    outputPrice: 7.0,
-  },
-  "DeepSeek-R1-Distill-Llama-70B": {
-    maxTokens: 4096,
-    contextWindow: 131072,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 0.7,
-    outputPrice: 1.4,
-  },
-  "DeepSeek-V3-0324": {
-    maxTokens: 7168,
-    contextWindow: 131072,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.3,
-    inputPrice: 3.0,
-    outputPrice: 4.5,
-  },
   "DeepSeek-V3.1": {
     maxTokens: 7168,
     contextWindow: 131072,
@@ -3998,9 +3971,9 @@ export const sambanovaModels = {
     inputPrice: 3.0,
     outputPrice: 4.5,
   },
-  "DeepSeek-V3.1-Terminus": {
+  "DeepSeek-V3.2": {
     maxTokens: 7168,
-    contextWindow: 131072,
+    contextWindow: 32768,
     supportsImages: false,
     supportsPromptCache: false,
     temperature: 0.6,
@@ -4015,15 +3988,6 @@ export const sambanovaModels = {
     temperature: 0.6,
     inputPrice: 0.63,
     outputPrice: 1.8,
-  },
-  "Meta-Llama-3.1-8B-Instruct": {
-    maxTokens: 4096,
-    contextWindow: 16384,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 0.1,
-    outputPrice: 0.2,
   },
   "Meta-Llama-3.3-70B-Instruct": {
     maxTokens: 3072,
@@ -4040,26 +4004,8 @@ export const sambanovaModels = {
     supportsImages: false,
     supportsPromptCache: false,
     temperature: 1.0,
-    inputPrice: 0.3,
-    outputPrice: 1.2,
-  },
-  "Qwen3-235B": {
-    maxTokens: 4096,
-    contextWindow: 65536,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.7,
-    inputPrice: 0.4,
-    outputPrice: 0.8,
-  },
-  "Qwen3-32B": {
-    maxTokens: 4096,
-    contextWindow: 32768,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 0.4,
-    outputPrice: 0.8,
+    inputPrice: 0.6,
+    outputPrice: 2.4,
   },
 } as const satisfies Record<string, ModelInfo>;
 
