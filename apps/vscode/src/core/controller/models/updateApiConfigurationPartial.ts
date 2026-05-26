@@ -1,10 +1,10 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -42,11 +42,12 @@ export async function updateApiConfigurationPartial(
 		}
 		const normalizedConfig = normalizeProviderSwitchModel(controller.getProviderConfigStore(), currentConfig, updatedConfig)
 
-		// Update storage and task API handler
+		// Update storage and task API model shim
 		controller.stateManager.setApiConfiguration(normalizedConfig)
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler({ ...normalizedConfig, ulid: controller.task.ulid }, currentMode)
+			const modelId = resolveActiveModelIdFromApiConfiguration(normalizedConfig, currentMode)
+			controller.task.api = createTaskApiModelShim(modelId)
 		}
 
 		// Notify webview
