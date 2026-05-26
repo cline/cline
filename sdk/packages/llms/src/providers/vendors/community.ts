@@ -1,9 +1,14 @@
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type { SAPAIProviderSettings } from "@jerome-benoit/sap-ai-provider";
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import { createCodexExec } from "ai-sdk-provider-codex-cli";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
+
+type SapAiProviderModule = typeof import("@jerome-benoit/sap-ai-provider");
+type SapDestination = NonNullable<SAPAIProviderSettings["destination"]>;
+const SAP_AI_PROVIDER_PACKAGE = "@jerome-benoit/sap-ai-provider";
 
 function readOptions(
 	config: GatewayResolvedProviderConfig,
@@ -127,7 +132,7 @@ function hasExplicitSapConnectionConfig(
 function buildSapDestination(
 	config: GatewayResolvedProviderConfig,
 	options: Record<string, unknown>,
-) {
+): SapDestination | undefined {
 	const clientId = readStringOption(options, "clientId");
 	const clientSecret =
 		readStringOption(options, "clientSecret") ?? config.apiKey?.trim();
@@ -156,7 +161,7 @@ function buildSapDestination(
 		name: config.providerId,
 		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
 		url: baseUrl.replace(/\/+$/, ""),
-	};
+	} satisfies SapDestination;
 }
 
 function resolveSapApi(options: Record<string, unknown>) {
@@ -170,15 +175,18 @@ function resolveSapApi(options: Record<string, unknown>) {
 	return "orchestration";
 }
 
+async function importSapAiProvider(): Promise<SapAiProviderModule> {
+	const specifier: string = SAP_AI_PROVIDER_PACKAGE;
+	return import(specifier) as Promise<SapAiProviderModule>;
+}
+
 export async function createSapAiCoreProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
 	const options = readOptions(config);
 	const destination = buildSapDestination(config, options);
 
-	const { createSAPAIProvider } = await import(
-		"@jerome-benoit/sap-ai-provider"
-	);
+	const { createSAPAIProvider } = await importSapAiProvider();
 	const deploymentId = readStringOption(options, "deploymentId");
 	const provider = createSAPAIProvider({
 		name: config.providerId,
