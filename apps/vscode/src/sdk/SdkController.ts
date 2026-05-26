@@ -512,6 +512,7 @@ export class Controller {
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
 		await this.clearTask()
+		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()
 		this.mcpHub?.dispose?.()
 		this.messages.dispose()
