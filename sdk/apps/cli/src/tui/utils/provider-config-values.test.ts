@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "./provider-config-values";
 
@@ -63,5 +64,24 @@ describe("provider config values", () => {
 				awsRegion: "",
 			}),
 		).toBe("us-west-2");
+	});
+
+	it("resolves SAP AI Core field values into SAP settings", () => {
+		expect(
+			resolveProviderConfigSap({
+				sapClientId: " client ",
+				sapClientSecret: " secret ",
+				sapTokenUrl: " https://auth.example ",
+				sapResourceGroup: " default ",
+				sapDeploymentId: " deployment ",
+			}),
+		).toEqual({
+			clientId: "client",
+			clientSecret: "secret",
+			tokenUrl: "https://auth.example",
+			resourceGroup: "default",
+			deploymentId: "deployment",
+			useOrchestrationMode: true,
+		});
 	});
 });

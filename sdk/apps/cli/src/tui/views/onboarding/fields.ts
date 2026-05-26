@@ -6,4 +6,9 @@ export const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"baseUrl",
 	"apiKey",
 	"awsProfile",
+	"sapClientId",
+	"sapClientSecret",
+	"sapTokenUrl",
+	"sapResourceGroup",
+	"sapDeploymentId",
 ];
