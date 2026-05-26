@@ -266,7 +266,7 @@ describe("createInteractiveSessionRuntime", () => {
 		createCliCoreMock.mockResolvedValue(manager);
 		compactInteractiveMessagesMock.mockResolvedValue({
 			compacted: true,
-			messages,
+			canonicalMessages: messages,
 			compactionState,
 		});
 		const { createInteractiveSessionRuntime } = await importRuntime();
