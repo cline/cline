@@ -240,6 +240,50 @@ async function deliverScheduledResult(input: {
 	await thread.post(body);
 }
 
+function isRestorableThread(
+	value: unknown,
+): value is Thread<DiscordThreadState> & { subscribe(): Promise<void> } {
+	return (
+		Boolean(value) &&
+		typeof value === "object" &&
+		typeof (value as Thread<DiscordThreadState>).id === "string" &&
+		typeof (value as Thread<DiscordThreadState>).subscribe === "function"
+	);
+}
+
+async function restoreDiscordThreadSubscriptions(input: {
+	bot: Pick<Chat, "reviver">;
+	bindingsPath: string;
+	logger: ReturnType<typeof createCliLoggerAdapter>;
+}): Promise<number> {
+	const bindings = readBindings<DiscordThreadState>(input.bindingsPath);
+	const restoredThreadIds = new Set<string>();
+	for (const binding of Object.values(bindings)) {
+		if (!binding.serializedThread?.trim()) {
+			continue;
+		}
+		try {
+			const thread = JSON.parse(
+				binding.serializedThread,
+				input.bot.reviver(),
+			) as unknown;
+			if (!isRestorableThread(thread) || restoredThreadIds.has(thread.id)) {
+				continue;
+			}
+			await thread.subscribe();
+			restoredThreadIds.add(thread.id);
+		} catch (error) {
+			input.logger.core.log("Failed to restore Discord thread subscription", {
+				severity: "warn",
+				error: error instanceof Error ? error.message : String(error),
+				channelId: binding.channelId,
+				participantKey: binding.participantKey,
+			});
+		}
+	}
+	return restoredThreadIds.size;
+}
+
 class DiscordConnector extends ConnectorBase<
 	ConnectDiscordOptions,
 	DiscordConnectorState
@@ -257,7 +301,9 @@ class DiscordConnector extends ConnectorBase<
 			.usage("--base-url <PUBLIC_BASE_URL> [options]")
 			.option("--user-name <name>", "Discord bot username label")
 			.option("--application-id <id>", "Discord application id")
+			.option("--app-id <id>", "Alias for --application-id")
 			.option("--bot-token <token>", "Discord bot token")
+			.option("--token <token>", "Alias for --bot-token")
 			.option("--public-key <key>", "Discord application public key")
 			.option(
 				"--mention-role-ids <ids>",
@@ -303,7 +349,9 @@ class DiscordConnector extends ConnectorBase<
 		const opts = command.opts<{
 			userName?: string;
 			applicationId?: string;
+			appId?: string;
 			botToken?: string;
+			token?: string;
 			publicKey?: string;
 			mentionRoleIds?: string;
 			cwd?: string;
@@ -339,10 +387,14 @@ class DiscordConnector extends ConnectorBase<
 				"cline-discord",
 			applicationId:
 				opts.applicationId?.trim() ||
+				opts.appId?.trim() ||
 				process.env.DISCORD_APPLICATION_ID?.trim() ||
 				"",
 			botToken:
-				opts.botToken?.trim() || process.env.DISCORD_BOT_TOKEN?.trim() || "",
+				opts.botToken?.trim() ||
+				opts.token?.trim() ||
+				process.env.DISCORD_BOT_TOKEN?.trim() ||
+				"",
 			publicKey:
 				opts.publicKey?.trim() || process.env.DISCORD_PUBLIC_KEY?.trim() || "",
 			mentionRoleIds: mentionRoleIds.length > 0 ? mentionRoleIds : undefined,
@@ -766,6 +818,11 @@ class DiscordConnector extends ConnectorBase<
 		});
 
 		await bot.initialize();
+		const restoredSubscriptionCount = await restoreDiscordThreadSubscriptions({
+			bot,
+			bindingsPath,
+			logger: loggerAdapter,
+		});
 		const stopTaskUpdateStream =
 			startConnectorTaskUpdateRelay<DiscordThreadState>({
 				client,
@@ -883,6 +940,11 @@ class DiscordConnector extends ConnectorBase<
 		io.writeln(
 			"[discord] gateway listener started for mentions, replies, reactions, and DMs",
 		);
+		if (restoredSubscriptionCount > 0) {
+			io.writeln(
+				`[discord] restored ${restoredSubscriptionCount} thread subscription${restoredSubscriptionCount === 1 ? "" : "s"}`,
+			);
+		}
 
 		await stopPromise;
 		gatewayAbortController.abort();
@@ -907,4 +969,5 @@ export const __test__ = {
 			participantKey?: string;
 		},
 	) => findBindingForThread(bindings, thread),
+	restoreDiscordThreadSubscriptions,
 };

@@ -81,7 +81,15 @@ function baseStartRequest(overrides: Partial<TestState> = {}) {
 	};
 }
 
-function createRuntimeClient(responseText: string) {
+function createRuntimeClient(
+	responseText: string,
+	messages: unknown[] = [
+		{
+			role: "assistant",
+			content: [{ type: "text", text: responseText }],
+		},
+	],
+) {
 	const startRuntimeSession = vi.fn(async () => ({ sessionId: "session-1" }));
 	const updateSession = vi.fn(async () => undefined);
 	const sendRuntimeSession = vi.fn(async () => ({
@@ -91,16 +99,19 @@ function createRuntimeClient(responseText: string) {
 			iterations: 1,
 		},
 	}));
+	const readMessages = vi.fn(async () => messages);
 	return {
 		client: {
 			startRuntimeSession,
 			updateSession,
 			sendRuntimeSession,
+			readMessages,
 			streamEvents: vi.fn(() => () => undefined),
 		},
 		startRuntimeSession,
 		updateSession,
 		sendRuntimeSession,
+		readMessages,
 	};
 }
 
@@ -618,6 +629,52 @@ describe("handleConnectorUserTurn", () => {
 			text: "**Formatted** reply",
 		});
 		expect(posts).not.toContainEqual({ raw: "**Formatted** reply" });
+	});
+
+	it("posts Discord replies from session history when the runtime stream is empty", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const runtime = createRuntimeClient("", [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Summary from saved session." }],
+			},
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "read README.md",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: true,
+				autoApproveTools: true,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		expect(runtime.readMessages).toHaveBeenCalledWith("session-1");
+		expect(posts.at(-1)).toBe("Summary from saved session.");
 	});
 
 	it("steers active Telegram turns without the hub command timeout", async () => {

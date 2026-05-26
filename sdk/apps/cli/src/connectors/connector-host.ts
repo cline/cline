@@ -27,6 +27,7 @@ import {
 	buildThreadStartRequest,
 	clearSession,
 	getOrCreateSessionId,
+	readSessionReplyText,
 } from "./session-runtime";
 import {
 	type ConnectorThreadState,
@@ -87,8 +88,9 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	transport: string,
 	stream: AsyncIterable<string>,
 	postFinalReply?: (text: string) => Promise<void>,
+	resolveFallbackText?: () => Promise<string | undefined>,
 ): Promise<void> {
-	if (transport !== "telegram") {
+	if (transport !== "telegram" && transport !== "discord") {
 		await thread.post(stream);
 		return;
 	}
@@ -96,6 +98,12 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	let text = "";
 	for await (const chunk of stream) {
 		text += chunk;
+	}
+	if (!text.trim()) {
+		text = (await resolveFallbackText?.())?.trim() || "";
+	}
+	if (transport === "discord" && !text.trim()) {
+		throw new Error("Runtime completed without assistant reply text.");
 	}
 	if (postFinalReply) {
 		await postFinalReply(text);
@@ -781,6 +789,7 @@ export async function handleConnectorUserTurn<
 				},
 			}),
 			postFinalReply,
+			async () => readSessionReplyText(input.client, sessionId),
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
