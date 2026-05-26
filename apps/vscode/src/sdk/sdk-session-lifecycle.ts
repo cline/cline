@@ -44,9 +44,28 @@ export class SdkSessionLifecycle {
 		}
 	}
 
-	clearActiveSessionReference(): ActiveSession | undefined {
+	private clearActiveSessionReference(): ActiveSession | undefined {
 		const activeSession = this.activeSession
 		this.activeSession = undefined
+		return activeSession
+	}
+
+	async endActiveSession(
+		reason: string,
+		options: { awaitStop?: boolean; timeoutMs?: number } = {},
+	): Promise<ActiveSession | undefined> {
+		const activeSession = this.clearActiveSessionReference()
+		if (!activeSession) {
+			return undefined
+		}
+
+		this.safeUnsubscribe(activeSession, reason)
+		const stopPromise = this.stopSessionWithTimeout(activeSession.sdkHost, activeSession.sessionId, reason, options.timeoutMs)
+		if (options.awaitStop) {
+			await stopPromise
+		} else {
+			void stopPromise
+		}
 		return activeSession
 	}
 
@@ -80,14 +99,20 @@ export class SdkSessionLifecycle {
 		})
 
 		const subscribeStartedAt = nowMs()
-		const unsubscribe = sdkHost.subscribe(this.options.onSessionEvent)
+		const unsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "pending-start")
 		logSdkStartTiming("startNewSession.subscribe", { durationMs: nowMs() - subscribeStartedAt })
 
 		const hostStartStartedAt = nowMs()
-		const startResult = await sdkHost.start({
-			...startInput,
-			...(toolPolicies ? { toolPolicies } : {}),
-		})
+		let startResult: StartSessionResult
+		try {
+			startResult = await sdkHost.start({
+				...startInput,
+				...(toolPolicies ? { toolPolicies } : {}),
+			})
+		} catch (error) {
+			unsubscribe()
+			throw error
+		}
 		logSdkStartTiming("startNewSession.hostStart", {
 			durationMs: nowMs() - hostStartStartedAt,
 			sessionId: startResult.sessionId,
@@ -125,10 +150,9 @@ export class SdkSessionLifecycle {
 			return undefined
 		}
 
-		const { sdkHost: oldManager, unsubscribe, sessionId: oldSessionId } = oldSession
+		const { sessionId: oldSessionId } = oldSession
 
-		unsubscribe()
-		oldManager.stop(oldSessionId).catch(() => {})
+		await this.endActiveSession(options.disposeReason)
 
 		const { startResult, sdkHost } = await this.startNewSession({
 			...options.startInput,
@@ -140,11 +164,7 @@ export class SdkSessionLifecycle {
 	}
 
 	async dispose(reason = "SdkSessionLifecycle.dispose"): Promise<void> {
-		const activeSession = this.clearActiveSessionReference()
-		activeSession?.unsubscribe()
-		if (activeSession) {
-			await activeSession.sdkHost.stop(activeSession.sessionId).catch(() => {})
-		}
+		await this.endActiveSession(reason, { awaitStop: true })
 
 		const sharedHost = this.sharedHost ?? (await this.sharedHostPromise?.catch(() => undefined))
 		this.sharedHost = undefined
@@ -152,11 +172,75 @@ export class SdkSessionLifecycle {
 		await sharedHost?.dispose(reason)
 	}
 
+	private createSafeUnsubscribe(unsubscribe: () => void, label: string): () => void {
+		let unsubscribed = false
+		return () => {
+			if (unsubscribed) {
+				return
+			}
+			unsubscribed = true
+			try {
+				unsubscribe()
+			} catch (error) {
+				Logger.warn(`[SdkController] Failed to unsubscribe SDK session listener (${label}):`, error)
+			}
+		}
+	}
+
+	private safeUnsubscribe(activeSession: ActiveSession, reason: string): void {
+		activeSession.unsubscribe()
+		Logger.debug(`[SdkController] Unsubscribed SDK session listener: ${activeSession.sessionId} (${reason})`)
+	}
+
+	private async stopSessionWithTimeout(
+		sdkHost: SdkSessionHost,
+		sessionId: string,
+		reason: string,
+		timeoutMs = 3000,
+	): Promise<void> {
+		const startedAt = Date.now()
+		const stopResult = sdkHost.stop(sessionId).then(
+			() => ({ ok: true as const }),
+			(error) => ({ ok: false as const, error }),
+		)
+		const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs))
+		const result = await Promise.race([stopResult, timeout])
+
+		if (result === "timeout") {
+			Logger.warn(`[SdkController] Timed out stopping SDK session ${sessionId} after ${timeoutMs}ms (${reason})`)
+			stopResult.then((finalResult) => {
+				if (finalResult.ok) {
+					Logger.log(
+						`[SdkController] SDK session ${sessionId} eventually stopped after ${Date.now() - startedAt}ms (${reason})`,
+					)
+				} else {
+					Logger.warn(
+						`[SdkController] SDK session ${sessionId} stop failed after timeout (${reason}):`,
+						finalResult.error,
+					)
+				}
+			})
+			return
+		}
+
+		const elapsed = Date.now() - startedAt
+		if (result.ok) {
+			if (elapsed > 250) {
+				Logger.log(`[SdkController] SDK session ${sessionId} stopped in ${elapsed}ms (${reason})`)
+			}
+			return
+		}
+
+		Logger.warn(`[SdkController] Failed to stop SDK session ${sessionId} (${reason}):`, result.error)
+	}
+
 	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
 		if (this.sharedHost) {
 			return this.sharedHost
 		}
 		if (!this.sharedHostPromise) {
+			// Host-lifetime dependencies only. Anything task/session-specific must be
+			// supplied to sdkHost.start(...), otherwise it can leak across reused sessions.
 			this.sharedHostPromise = VscodeSessionHost.create({
 				mcpHub: this.options.mcpHub,
 				requestToolApproval: this.options.requestToolApproval,
