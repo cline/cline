@@ -41,6 +41,22 @@ Module.prototype.require = function (id) {
 	// extension host, so `require("@cline/core")` fails before tests start.
 	// Mock the small surface needed by legacy VS Code integration tests.
 	if (id === "@cline/core") {
+		const createNoopTelemetry = () => ({
+			setDistinctId() {},
+			setMetadata() {},
+			updateMetadata() {},
+			setCommonProperties() {},
+			updateCommonProperties() {},
+			isEnabled: () => false,
+			capture() {},
+			captureRequired() {},
+			recordCounter() {},
+			recordHistogram() {},
+			recordGauge() {},
+			flush: async () => {},
+			dispose: async () => {},
+		})
+
 		class ProviderSettingsManager {
 			constructor(_options) {
 				this.state = { providers: {}, lastUsedProvider: undefined }
@@ -62,6 +78,23 @@ Module.prototype.require = function (id) {
 		}
 
 		return {
+			createClineTelemetryServiceConfig: (config = {}) => ({
+				enabled: false,
+				metadata: {
+					extension_version: "test",
+					cline_type: "test",
+					platform: "test",
+					platform_version: "test",
+					os_type: "test",
+					os_version: "test",
+				},
+				...config,
+			}),
+			createConfiguredTelemetryHandle: () => ({
+				telemetry: createNoopTelemetry(),
+				flush: async () => {},
+				dispose: async () => {},
+			}),
 			ClineCore: class {
 				constructor() {
 					this.runtimeAddress = undefined
