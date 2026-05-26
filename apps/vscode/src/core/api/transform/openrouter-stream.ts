@@ -177,15 +177,18 @@ export async function createOpenRouterStream(
 
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
+	const reasoningDisabled = normalizedReasoningEffort === "none"
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = isAdaptiveThinkingModel
 		? !!adaptiveThinking?.enabled
-		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+		: !shouldSkipReasoningForModel(model.id) && !reasoningDisabled
 	const reasoningPayload = isAdaptiveThinkingModel
 		? adaptiveThinking?.enabled
 			? { enabled: true }
 			: undefined
-		: (reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined))
+		: reasoningDisabled
+			? undefined
+			: (reasoning ?? (reasoningEffortValue ? { effort: reasoningEffortValue } : undefined))
 	const maxTokens = isGeminiFlashModel(model.id)
 		? Math.min(model.info.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
 		: undefined
