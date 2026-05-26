@@ -3962,52 +3962,52 @@ export type SambanovaModelId = keyof typeof sambanovaModels;
 export const sambanovaDefaultModelId: SambanovaModelId =
   "Meta-Llama-3.3-70B-Instruct";
 export const sambanovaModels = {
-  "DeepSeek-V3.1": {
-    maxTokens: 7168,
-    contextWindow: 131072,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 3.0,
-    outputPrice: 4.5,
-  },
-  "DeepSeek-V3.2": {
-    maxTokens: 7168,
-    contextWindow: 32768,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 3.0,
-    outputPrice: 4.5,
-  },
-  "Llama-4-Maverick-17B-128E-Instruct": {
-    maxTokens: 4096,
-    contextWindow: 131072,
-    supportsImages: true,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 0.63,
-    outputPrice: 1.8,
-  },
-  "Meta-Llama-3.3-70B-Instruct": {
-    maxTokens: 3072,
-    contextWindow: 131072,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 0.6,
-    inputPrice: 0.6,
-    outputPrice: 1.2,
-  },
-  "MiniMax-M2.7": {
-    maxTokens: 196608,
-    contextWindow: 196608,
-    supportsImages: false,
-    supportsPromptCache: false,
-    temperature: 1.0,
-    inputPrice: 0.6,
-    outputPrice: 2.4,
-  },
-} as const satisfies Record<string, ModelInfo>;
+	"DeepSeek-V3.1": {
+		maxTokens: 7168,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		temperature: 0.6,
+		inputPrice: 3.0,
+		outputPrice: 4.5,
+	},
+	"DeepSeek-V3.2": {
+		maxTokens: 7168,
+		contextWindow: 32768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		temperature: 0.6,
+		inputPrice: 3.0,
+		outputPrice: 4.5,
+	},
+	"Llama-4-Maverick-17B-128E-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 131072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		temperature: 0.6,
+		inputPrice: 0.63,
+		outputPrice: 1.8,
+	},
+	"Meta-Llama-3.3-70B-Instruct": {
+		maxTokens: 3072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		temperature: 0.6,
+		inputPrice: 0.6,
+		outputPrice: 1.2,
+	},
+	"MiniMax-M2.7": {
+		maxTokens: 196608,
+		contextWindow: 196608,
+		supportsImages: false,
+		supportsPromptCache: false,
+		temperature: 1.0,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+	},
+} as const satisfies Record<string, ModelInfo>
 
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
