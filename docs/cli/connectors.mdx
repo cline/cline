@@ -3,6 +3,7 @@ title: "Connectors"
 sidebarTitle: "Connectors"
 description: "Connect the CLI to Telegram, Slack, Discord, Google Chat, WhatsApp, etc."
 ---
+
 <Warning>
   This feature currently only applies to Cline CLI.
 </Warning>
@@ -19,14 +20,14 @@ cline connect
 
 ## Supported Platforms
 
-| Platform | Direct Command | Required Credentials |
-|----------|---------------|---------------------|
-| Telegram | `cline connect telegram` | Bot token |
-| Slack | `cline connect slack` | Bot token, signing secret, base URL |
-| Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
-| Google Chat | `cline connect gchat` | Service account credentials JSON, base URL |
-| WhatsApp | `cline connect whatsapp` | Phone number ID, access token, app secret, verify token, base URL |
-| Linear | `cline connect linear` | API key, webhook signing secret, base URL |
+| Platform    | Direct Command            | Required Credentials                                                   |
+| ----------- | ------------------------- | ---------------------------------------------------------------------- |
+| Telegram    | `cline connect telegram`  | Bot token                                                              |
+| Slack       | `cline connect slack`     | Bot token, signing secret, base URL                                    |
+| Discord     | `cline connect discord`   | Application ID, bot token, public key, base URL                        |
+| Google Chat | `cline connect gchat`     | Service account credentials JSON, base URL                             |
+| WhatsApp    | `cline connect whatsapp`  | Phone number ID, access token, app secret, verify token, base URL      |
+| Linear      | `cline connect linear`    | API key, webhook signing secret, base URL                              |
 
 ## Telegram
 
@@ -131,11 +132,9 @@ Slack runs in webhook mode. You need a Slack app, a bot token, a signing secret,
 
     Slack should show the request URL as verified. Under **Subscribe to bot events**, add:
 
-    | Event | Required scope |
-    | ----- | -------------- |
-    | `app_mention` | `app_mentions:read` |
-    | `message.im` | `im:history` |
-    | `message.channels` | `channels:history` |
+    - `app_mention` with `app_mentions:read`
+    - `message.im` with `im:history`
+    - `message.channels` with `channels:history`
 
     Save changes. If Slack asks you to reinstall the app after changing scopes, reinstall it and copy the new bot token if it changes.
   </Step>
