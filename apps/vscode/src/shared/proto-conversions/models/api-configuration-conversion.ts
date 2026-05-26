@@ -328,6 +328,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "rodiumai":
+			return ProtoApiProvider.RODIUMAI
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -420,6 +422,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.RODIUMAI:
+			return "rodiumai"
 		default:
 			return "anthropic"
 	}
@@ -467,6 +471,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
 		requestyBaseUrl: config.requestyBaseUrl,
+		rodiumaiApiKey: config.rodiumaiApiKey,
+		rodiumaiBaseUrl: config.rodiumaiBaseUrl,
 		togetherApiKey: config.togetherApiKey,
 		fireworksApiKey: config.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens,
@@ -528,6 +534,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeOpenRouterModelInfo: convertModelInfoToProtoOpenRouter(config.planModeOpenRouterModelInfo),
 		planModeClineModelId: config.planModeClineModelId,
 		planModeClineModelInfo: convertModelInfoToProtoOpenRouter(config.planModeClineModelInfo),
+		planModeRodiumaiModelId: config.planModeRodiumaiModelId,
+		planModeRodiumaiModelInfo: convertModelInfoToProtoOpenRouter(config.planModeRodiumaiModelInfo),
 		planModeOpenAiModelId: config.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeOpenAiModelInfo),
 		planModeOllamaModelId: config.planModeOllamaModelId,
@@ -572,6 +580,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeOpenRouterModelInfo: convertModelInfoToProtoOpenRouter(config.actModeOpenRouterModelInfo),
 		actModeClineModelId: config.actModeClineModelId,
 		actModeClineModelInfo: convertModelInfoToProtoOpenRouter(config.actModeClineModelInfo),
+		actModeRodiumaiModelId: config.actModeRodiumaiModelId,
+		actModeRodiumaiModelInfo: convertModelInfoToProtoOpenRouter(config.actModeRodiumaiModelInfo),
 		actModeOpenAiModelId: config.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeOpenAiModelInfo),
 		actModeOllamaModelId: config.actModeOllamaModelId,
@@ -647,6 +657,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		deepSeekApiKey: protoConfig.deepSeekApiKey,
 		requestyApiKey: protoConfig.requestyApiKey,
 		requestyBaseUrl: protoConfig.requestyBaseUrl,
+		rodiumaiApiKey: protoConfig.rodiumaiApiKey,
+		rodiumaiBaseUrl: protoConfig.rodiumaiBaseUrl,
 		togetherApiKey: protoConfig.togetherApiKey,
 		fireworksApiKey: protoConfig.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: protoConfig.fireworksModelMaxCompletionTokens,
@@ -711,6 +723,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeOpenRouterModelInfo: convertProtoToModelInfo(protoConfig.planModeOpenRouterModelInfo),
 		planModeClineModelId: protoConfig.planModeClineModelId,
 		planModeClineModelInfo: convertProtoToModelInfo(protoConfig.planModeClineModelInfo),
+		planModeRodiumaiModelId: protoConfig.planModeRodiumaiModelId,
+		planModeRodiumaiModelInfo: convertProtoToModelInfo(protoConfig.planModeRodiumaiModelInfo),
 		planModeOpenAiModelId: protoConfig.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeOpenAiModelInfo),
 		planModeOllamaModelId: protoConfig.planModeOllamaModelId,
@@ -756,6 +770,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeOpenRouterModelInfo: convertProtoToModelInfo(protoConfig.actModeOpenRouterModelInfo),
 		actModeClineModelId: protoConfig.actModeClineModelId,
 		actModeClineModelInfo: convertProtoToModelInfo(protoConfig.actModeClineModelInfo),
+		actModeRodiumaiModelId: protoConfig.actModeRodiumaiModelId,
+		actModeRodiumaiModelInfo: convertProtoToModelInfo(protoConfig.actModeRodiumaiModelInfo),
 		actModeOpenAiModelId: protoConfig.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeOpenAiModelInfo),
 		actModeOllamaModelId: protoConfig.actModeOllamaModelId,

@@ -43,6 +43,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "rodiumai"
 	| "wandb"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
@@ -4188,6 +4189,169 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
+
+// RodiumAI
+// https://api.rodiumai.io/v1
+export const rodiumaiDefaultModelId = "pro"
+export const rodiumaiModels = {
+	auto: {
+		maxTokens: 32_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		description: "RodiumAI smart routing mode.",
+	},
+	basic: {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.08,
+		description: "RodiumAI low-cost smart routing mode.",
+	},
+	fast: {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.34,
+		description: "RodiumAI fast smart routing mode.",
+	},
+	pro: {
+		maxTokens: 32_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		description: "RodiumAI balanced smart routing mode.",
+	},
+	max: {
+		maxTokens: 16_384,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		description: "RodiumAI highest-capability smart routing mode.",
+	},
+	"anthropic/claude-opus-4-7": {
+		maxTokens: 32_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 15,
+		outputPrice: 75,
+	},
+	"anthropic/claude-sonnet-4-6": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 3,
+		outputPrice: 15,
+	},
+	"anthropic/claude-haiku-4-5-20251001": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 1,
+		outputPrice: 5,
+	},
+	"openai/gpt-5.5": {
+		maxTokens: 128_000,
+		contextWindow: 1_050_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 10,
+	},
+	"openai/gpt-5.4": {
+		maxTokens: 128_000,
+		contextWindow: 1_050_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 10,
+	},
+	"openai/gpt-5.4-mini": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"openai/o3": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 2,
+		outputPrice: 8,
+	},
+	"google/gemini-3.5-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"google/gemini-3.1-pro-preview": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.25,
+		outputPrice: 10,
+	},
+	"google/gemini-2.5-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+	},
+	"google/gemini-2.5-pro": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.25,
+		outputPrice: 10,
+	},
+	"deepseek/deepseek-v4-pro": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 0.56,
+		outputPrice: 1.68,
+	},
+	"deepseek/deepseek-v4-flash": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+	},
+} as const satisfies Record<string, ModelInfo>
+export const rodiumaiDefaultModelInfo: ModelInfo = rodiumaiModels[rodiumaiDefaultModelId]
 
 // SAP AI Core
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels

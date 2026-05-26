@@ -106,6 +106,7 @@ message Secrets {
   optional string cline_api_key = 44;
   optional string openai_codex_oauth_credentials = 48;
   optional string wandb_api_key = 50;
+  optional string rodiumai_api_key = 51;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -154,6 +155,7 @@ message Settings {
   optional string oca_mode = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
+  optional string rodiumai_base_url = 184;
   optional string plan_mode_api_model_id = 44;
   optional int64 plan_mode_thinking_budget_tokens = 45;
   optional string gemini_plan_mode_thinking_level = 46;
@@ -287,6 +289,10 @@ message Settings {
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
   optional bool lazy_teammate_mode_enabled = 183;
+  optional string plan_mode_rodiumai_model_id = 185;
+  optional OpenRouterModelInfo plan_mode_rodiumai_model_info = 186;
+  optional string act_mode_rodiumai_model_id = 187;
+  optional OpenRouterModelInfo act_mode_rodiumai_model_info = 188;
 }
 
 message State {
