@@ -216,8 +216,6 @@ cline connect telegram -k $BOT_TOKEN
 cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
 ```
 
-For Slack webhook mode, configure your Slack app's Event Subscriptions request URL to `$URL/api/webhooks/slack`, subscribe to `app_mention`, `message.im`, and `message.channels`, then mention the bot in a channel thread. See the [connector docs](docs/cli/connectors.mdx#slack) for the full Slack setup.
-
 ## Headless CLI for CI/CD
 
 Run Cline with zero interaction for scripting and automation. Pipe input, get JSON output, chain commands, integrate into CI/CD pipelines.

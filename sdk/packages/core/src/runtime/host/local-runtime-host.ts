@@ -81,6 +81,7 @@ import {
 } from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
+import { RuntimeSessionNotFoundError } from "../session-errors";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
@@ -1573,7 +1574,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			const error = new Error(`session not found: ${sessionId}`);
+			const error = new RuntimeSessionNotFoundError(sessionId);
 			captureSdkError(this.defaultTelemetry, {
 				component: "core",
 				operation: "session.active_lookup",

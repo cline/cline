@@ -402,6 +402,11 @@ export {
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
+	isRuntimeSessionNotFoundError,
+	RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+	RuntimeSessionNotFoundError,
+} from "./runtime/session-errors";
+export {
 	type SandboxCallOptions,
 	SubprocessSandbox,
 	type SubprocessSandboxOptions,

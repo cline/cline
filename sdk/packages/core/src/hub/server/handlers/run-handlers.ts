@@ -6,6 +6,10 @@ import type {
 } from "@cline/shared";
 import { parseHookEventPayload } from "../../../hooks";
 import type { SendSessionInput } from "../../../runtime/host/runtime-host";
+import {
+	isRuntimeSessionNotFoundError,
+	RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+} from "../../../runtime/session-errors";
 import { logHubMessage } from "../hub-server-logging";
 import { cancelPendingApprovals } from "./approval-handlers";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
@@ -232,6 +236,13 @@ export async function handleSessionInput(
 				sessionId,
 			),
 		);
+		if (isRuntimeSessionNotFoundError(error, sessionId)) {
+			return errorReply(
+				envelope,
+				RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+				error instanceof Error ? error.message : String(error),
+			);
+		}
 		throw error;
 	}
 	if (result) {

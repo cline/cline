@@ -188,8 +188,6 @@ cline connect --stop
 cline connect --stop telegram
 ```
 
-For Slack, set the Slack app Event Subscriptions request URL to `https://your-domain.com/api/webhooks/slack` and subscribe to `app_mention`, `message.im`, and `message.channels`. Invite the bot to a channel, then start with `@Cline /whereami`; replies in that Slack thread continue the same agent session.
-
 In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/schedule`, `/abort`, and `/exit`. Run `cline connect <adapter> --help` to see the full flag list for any adapter.
 
 ### Schedules

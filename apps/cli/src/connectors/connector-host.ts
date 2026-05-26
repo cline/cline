@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import type {
-	ChatRunTurnRequest,
-	ChatStartSessionRequest,
-	HubSessionClient,
-	UserInstructionConfigService,
+import {
+	type ChatRunTurnRequest,
+	type ChatStartSessionRequest,
+	type HubSessionClient,
+	isRuntimeSessionNotFoundError,
+	type UserInstructionConfigService,
 } from "@cline/core";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
@@ -133,23 +134,6 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 		return;
 	}
 	await postConnectorText(thread, transport, text);
-}
-
-function isRuntimeSessionMissingError(
-	error: unknown,
-	sessionId: string,
-): boolean {
-	const message =
-		error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: "";
-	const escapedSessionId = sessionId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return new RegExp(
-		`\\b(?:session not found|Unknown session):\\s*${escapedSessionId}\\b`,
-		"i",
-	).test(message);
 }
 
 function applyForcedToolDisable<TState extends ConnectorThreadState>(
@@ -1067,7 +1051,7 @@ export async function handleConnectorUserTurn<
 			const staleSessionId = currentState.sessionId?.trim();
 			if (
 				activeSessionId !== staleSessionId ||
-				!isRuntimeSessionMissingError(error, activeSessionId)
+				!isRuntimeSessionNotFoundError(error, activeSessionId)
 			) {
 				throw error;
 			}

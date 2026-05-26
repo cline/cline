@@ -62,6 +62,7 @@ import type {
 	ConnectIo,
 	ConnectStopResult,
 } from "../types";
+import { escapeRegExp } from "../utils/regex";
 import {
 	getConnectorFirstContactMessage,
 	getConnectorSystemPrompt,
@@ -128,10 +129,6 @@ function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function normalizeSlackMessageEventChannelType<T>(event: T): T {
 	const record = asRecord(event);
 	const channel = readString(record?.channel);
@@ -156,17 +153,11 @@ function readRawSlackMessageText(rawMessage: unknown): string | undefined {
 function stripLeadingSlackMention(text: string, botUserId?: string): string {
 	const trimmed = text.trim();
 	const botId = botUserId?.trim();
-	if (botId) {
-		return trimmed
-			.replace(
-				new RegExp(`^<@${escapeRegExp(botId)}(?:\\|[^>]+)?>\\s*`, "i"),
-				"",
-			)
-			.trim();
+	if (!botId) {
+		return trimmed;
 	}
-	return text
-		.trim()
-		.replace(/^<@[A-Z0-9]+(?:\|[^>]+)?>\s*/i, "")
+	return trimmed
+		.replace(new RegExp(`^<@${escapeRegExp(botId)}(?:\\|[^>]+)?>\\s*`, "i"), "")
 		.trim();
 }
 

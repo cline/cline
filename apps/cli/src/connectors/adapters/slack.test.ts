@@ -171,7 +171,9 @@ describe("slack binding lookup", () => {
 	});
 
 	it("strips a leading Slack mention before command handling", () => {
-		expect(__test__.stripLeadingSlackMention("<@U123> /help")).toBe("/help");
+		expect(__test__.stripLeadingSlackMention("<@U123> /help")).toBe(
+			"<@U123> /help",
+		);
 		expect(__test__.stripLeadingSlackMention("<@U123> /help", "U999")).toBe(
 			"<@U123> /help",
 		);
@@ -179,8 +181,11 @@ describe("slack binding lookup", () => {
 			"/help",
 		);
 		expect(__test__.stripLeadingSlackMention(" <@U123|Cline> /whereami")).toBe(
-			"/whereami",
+			"<@U123|Cline> /whereami",
 		);
+		expect(
+			__test__.stripLeadingSlackMention(" <@U123|Cline> /whereami", "U123"),
+		).toBe("/whereami");
 		expect(__test__.stripLeadingSlackMention("hello <@U123> /help")).toBe(
 			"hello <@U123> /help",
 		);
