@@ -4,6 +4,7 @@ import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
+import { logSdkStartTiming, nowMs, SDK_START_TIMING_LOG_PATH } from "./sdk-start-timing"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -28,6 +29,8 @@ export interface SdkSessionLifecycleOptions {
 
 export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
+	private sharedHost: SdkSessionHost | undefined
+	private sharedHostPromise: Promise<SdkSessionHost> | undefined
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -60,20 +63,35 @@ export class SdkSessionLifecycle {
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
+		const totalStartedAt = nowMs()
+		logSdkStartTiming("startNewSession.begin", { logPath: SDK_START_TIMING_LOG_PATH })
+
+		const policiesStartedAt = nowMs()
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
 		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+		logSdkStartTiming("startNewSession.toolPolicies", { durationMs: nowMs() - policiesStartedAt })
 
-		const sdkHost = await VscodeSessionHost.create({
-			mcpHub: this.options.mcpHub,
-			requestToolApproval: this.options.requestToolApproval,
-			askQuestion: this.options.askQuestion,
-			toolPolicies,
-			getTerminalManager: this.options.getTerminalManager,
-			getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
-			telemetry: this.options.telemetry,
+		const hostCreateStartedAt = nowMs()
+		const hadSharedHost = Boolean(this.sharedHost || this.sharedHostPromise)
+		const sdkHost = await this.getOrCreateSharedHost()
+		logSdkStartTiming("startNewSession.hostCreate", {
+			durationMs: nowMs() - hostCreateStartedAt,
+			reused: hadSharedHost,
 		})
+
+		const subscribeStartedAt = nowMs()
 		const unsubscribe = sdkHost.subscribe(this.options.onSessionEvent)
-		const startResult = await sdkHost.start(startInput)
+		logSdkStartTiming("startNewSession.subscribe", { durationMs: nowMs() - subscribeStartedAt })
+
+		const hostStartStartedAt = nowMs()
+		const startResult = await sdkHost.start({
+			...startInput,
+			...(toolPolicies ? { toolPolicies } : {}),
+		})
+		logSdkStartTiming("startNewSession.hostStart", {
+			durationMs: nowMs() - hostStartStartedAt,
+			sessionId: startResult.sessionId,
+		})
 
 		this.activeSession = {
 			sessionId: startResult.sessionId,
@@ -83,6 +101,10 @@ export class SdkSessionLifecycle {
 			isRunning: true,
 		}
 
+		logSdkStartTiming("startNewSession.end", {
+			durationMs: nowMs() - totalStartedAt,
+			sessionId: startResult.sessionId,
+		})
 		return { startResult, sdkHost }
 	}
 
@@ -107,7 +129,6 @@ export class SdkSessionLifecycle {
 
 		unsubscribe()
 		oldManager.stop(oldSessionId).catch(() => {})
-		oldManager.dispose(options.disposeReason).catch(() => {})
 
 		const { startResult, sdkHost } = await this.startNewSession({
 			...options.startInput,
@@ -116,6 +137,43 @@ export class SdkSessionLifecycle {
 		this.setRunning(false)
 
 		return { oldSessionId, startResult, sdkHost }
+	}
+
+	async dispose(reason = "SdkSessionLifecycle.dispose"): Promise<void> {
+		const activeSession = this.clearActiveSessionReference()
+		activeSession?.unsubscribe()
+		if (activeSession) {
+			await activeSession.sdkHost.stop(activeSession.sessionId).catch(() => {})
+		}
+
+		const sharedHost = this.sharedHost ?? (await this.sharedHostPromise?.catch(() => undefined))
+		this.sharedHost = undefined
+		this.sharedHostPromise = undefined
+		await sharedHost?.dispose(reason)
+	}
+
+	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
+		if (this.sharedHost) {
+			return this.sharedHost
+		}
+		if (!this.sharedHostPromise) {
+			this.sharedHostPromise = VscodeSessionHost.create({
+				mcpHub: this.options.mcpHub,
+				requestToolApproval: this.options.requestToolApproval,
+				askQuestion: this.options.askQuestion,
+				getTerminalManager: this.options.getTerminalManager,
+				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
+				telemetry: this.options.telemetry,
+			})
+				.then((sdkHost) => {
+					this.sharedHost = sdkHost
+					return sdkHost
+				})
+				.finally(() => {
+					this.sharedHostPromise = undefined
+				})
+		}
+		return this.sharedHostPromise
 	}
 
 	fireAndForgetSend(
