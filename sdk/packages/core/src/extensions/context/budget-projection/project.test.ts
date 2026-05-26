@@ -169,12 +169,12 @@ describe("buildBudgetProjection", () => {
 				{
 					role: "user",
 					content: [
-							{
-								type: "tool_result",
-								tool_use_id: "tool_1",
-								name: "read_files",
-								content: "x".repeat(1000),
-							},
+						{
+							type: "tool_result",
+							tool_use_id: "tool_1",
+							name: "read_files",
+							content: "x".repeat(1000),
+						},
 					],
 				},
 				{ role: "user", content: "latest task" },
@@ -237,12 +237,12 @@ describe("buildBudgetProjection", () => {
 			{
 				role: "user",
 				content: [
-						{
-							type: "tool_result",
-							tool_use_id: "tool_1",
-							name: "read",
-							content: "result",
-						},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "read",
+						content: "result",
+					},
 				],
 			},
 		];
