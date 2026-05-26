@@ -54,6 +54,26 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([{ ts: 2, type: "say", say: "text", text: "kept" }], event)
 	})
 
+	it("ignores stale events from inactive sessions", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [{ ts: 1, type: "say", say: "text", text: "stale" }],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const staleEvent = {
+			...event,
+			payload: { ...event.payload, sessionId: "old-session" },
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(staleEvent)
+
+		expect(options.translateSessionEvent).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.postStateToWebview).not.toHaveBeenCalled()
+	})
+
 	it("marks turns complete, checks deferred reloads, and applies pending mode changes", () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, event } = makeCoordinator({
@@ -73,7 +93,7 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.mode.applyPendingModeChange).toHaveBeenCalledOnce()
 	})
 
-	it("updates task usage when the active session has a start result", () => {
+	it("updates task usage when the active session has a start result", async () => {
 		const { coordinator, options, event } = makeCoordinator({
 			task: { taskId: "task-1" },
 			translation: {
@@ -84,7 +104,7 @@ describe("SdkSessionEventCoordinator", () => {
 			},
 		})
 
-		coordinator.handleSessionEvent(event)
+		await coordinator.handleSessionEvent(event)
 
 		expect(options.taskHistory.updateTaskUsage).toHaveBeenCalledWith("task-1", {
 			tokensIn: 3,
@@ -316,6 +336,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		}
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
+		translateSessionEvent: ReturnType<typeof vi.fn>
 	}
 
 	return {
