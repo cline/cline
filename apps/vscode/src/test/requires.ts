@@ -20,6 +20,22 @@ Module.prototype.require = function (path: string) {
 	// so requiring SDK adapter modules would otherwise make Mocha fall back to native
 	// ESM loading and bypass tsconfig-paths aliases such as @shared/*.
 	if (path === "@cline/core") {
+		const createNoopTelemetry = () => ({
+			setDistinctId() {},
+			setMetadata() {},
+			updateMetadata() {},
+			setCommonProperties() {},
+			updateCommonProperties() {},
+			isEnabled: () => false,
+			capture() {},
+			captureRequired() {},
+			recordCounter() {},
+			recordHistogram() {},
+			recordGauge() {},
+			flush: async () => {},
+			dispose: async () => {},
+		})
+
 		class ProviderSettingsManager {
 			private state = { providers: {}, lastUsedProvider: undefined }
 
@@ -41,6 +57,23 @@ Module.prototype.require = function (path: string) {
 		}
 
 		return {
+			createClineTelemetryServiceConfig: (config: Record<string, unknown> = {}) => ({
+				enabled: false,
+				metadata: {
+					extension_version: "test",
+					cline_type: "test",
+					platform: "test",
+					platform_version: "test",
+					os_type: "test",
+					os_version: "test",
+				},
+				...config,
+			}),
+			createConfiguredTelemetryHandle: () => ({
+				telemetry: createNoopTelemetry(),
+				flush: async () => {},
+				dispose: async () => {},
+			}),
 			ClineCore: class {
 				static async create() {
 					return new this()
