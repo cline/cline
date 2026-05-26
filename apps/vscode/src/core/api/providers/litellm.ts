@@ -360,10 +360,17 @@ export class LiteLlmHandler implements ApiHandler {
 					prompt_cache_miss_tokens?: number
 					cache_read_input_tokens?: number
 					prompt_cache_hit_tokens?: number
+					prompt_tokens_details?: {
+						cached_tokens?: number
+					}
 				}
 
 				const cacheWriteTokens = usage.cache_creation_input_tokens || usage.prompt_cache_miss_tokens || 0
-				const cacheReadTokens = usage.cache_read_input_tokens || usage.prompt_cache_hit_tokens || 0
+				const cacheReadTokens =
+					usage.cache_read_input_tokens ||
+					usage.prompt_cache_hit_tokens ||
+					usage.prompt_tokens_details?.cached_tokens ||
+					0
 
 				// Calculate cost using the actual token usage including cache tokens
 				const totalCost =
@@ -376,7 +383,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 				yield {
 					type: "usage",
-					inputTokens: usage.prompt_tokens || 0,
+					inputTokens: Math.max(0, (usage.prompt_tokens || 0) - cacheWriteTokens - cacheReadTokens),
 					outputTokens: usage.completion_tokens || 0,
 					cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : undefined,
 					cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,

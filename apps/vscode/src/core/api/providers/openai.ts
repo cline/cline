@@ -167,13 +167,15 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
+				const cacheReadTokens = chunk.usage.prompt_tokens_details?.cached_tokens || 0
+				// @ts-expect-error-next-line
+				const cacheWriteTokens = chunk.usage.prompt_cache_miss_tokens || 0
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
+					inputTokens: Math.max(0, (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens),
 					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-expect-error-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					cacheReadTokens,
+					cacheWriteTokens,
 				}
 			}
 		}

@@ -475,6 +475,39 @@ describe("ContextManager", () => {
 			expect(result).to.equal(true)
 		})
 
+		it("does not compact when OpenAI-style provider metrics report only non-cached input tokens", () => {
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [
+				createApiReqMessage({
+					tokensIn: 1_000,
+					tokensOut: 500,
+					cacheWrites: 0,
+					cacheReads: 148_000,
+				}),
+			]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			expect(result).to.equal(false)
+		})
+
+		it("reports telemetry from normalized non-cached input and cache reads", () => {
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [
+				createApiReqMessage({
+					tokensIn: 1_000,
+					tokensOut: 500,
+					cacheWrites: 0,
+					cacheReads: 148_000,
+				}),
+			]
+
+			const telemetry = contextManager.getContextTelemetryData(clineMessages, api, 0)
+			expect(telemetry).to.deep.equal({
+				tokensUsed: 149_500,
+				maxContextWindow: 200_000,
+			})
+		})
+
 		it("returns false when previousApiReqIndex is negative", () => {
 			const api = createMockApi(200_000)
 			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 200_000 })]
