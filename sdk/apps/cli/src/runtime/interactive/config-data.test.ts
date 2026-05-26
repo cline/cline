@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
 import { afterEach, describe, expect, it } from "vitest";
-import type { InteractiveConfigItem } from "../../tui/interactive-config";
+import {
+	buildSlashCommandRegistry,
+	expandUserCommandPrompt,
+} from "../../tui/commands/slash-command-registry";
+import {
+	applyPluginFailures,
+	type InteractiveConfigItem,
+} from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 import { createInteractiveConfigDataLoader } from "./config-data";
 
@@ -88,6 +95,19 @@ Use this skill.`,
 				calls.push(`refreshType:${type}`);
 				refreshed = true;
 			},
+			listRuntimeCommands() {
+				calls.push("listRuntimeCommands");
+				return refreshed
+					? []
+					: [
+							{
+								name: "skill-one",
+								instructions: "Use this skill.",
+								description: "Skill one",
+								kind: "skill",
+							},
+						];
+			},
 			listRecords(type: string) {
 				calls.push(`listRecords:${type}`);
 				if (type !== "skill") {
@@ -127,10 +147,95 @@ Use this skill.`,
 
 		expect(written).toContain("disabled: true");
 		expect(data?.skills[0]?.enabled).toBe(false);
+		expect(
+			data?.workflowSlashCommands.map((command) => command.name),
+		).not.toContain("skill-one");
 		expect(calls).toContain("refreshType:skill");
 		expect(calls.lastIndexOf("listRecords:skill")).toBeGreaterThan(
 			calls.indexOf("refreshType:skill"),
 		);
+	});
+
+	it("returns refreshed slash commands so disabled skills stop expanding before submit", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		const skillPath = join(tempRoot, "SKILL.md");
+		await writeFile(
+			skillPath,
+			`---
+name: find-skills
+---
+Find installable skills.`,
+		);
+
+		let refreshed = false;
+		const userInstructionService = {
+			async refreshType() {
+				refreshed = true;
+			},
+			listRuntimeCommands() {
+				return refreshed
+					? []
+					: [
+							{
+								name: "find-skills",
+								instructions: "Find installable skills.",
+								description: "Find skills",
+								kind: "skill",
+							},
+						];
+			},
+			listRecords(type: string) {
+				if (type !== "skill") {
+					return [];
+				}
+				return [
+					{
+						id: "find-skills",
+						type: "skill",
+						filePath: skillPath,
+						item: {
+							name: "find-skills",
+							disabled: refreshed,
+							description: "Find skills",
+							instructions: "Find installable skills.",
+							frontmatter: {},
+						},
+					},
+				];
+			},
+		} as unknown as UserInstructionConfigService;
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+			userInstructionService,
+		});
+		const initialData = await loader.loadConfigData();
+		const initialRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: initialData.workflowSlashCommands,
+		});
+
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", initialRegistry),
+		).toContain("<user_command");
+
+		const nextData = await loader.onToggleConfigItem({
+			id: "find-skills",
+			name: "find-skills",
+			path: skillPath,
+			enabled: true,
+			source: "workspace",
+			kind: "skill",
+		});
+		const refreshedRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: nextData?.workflowSlashCommands,
+		});
+
+		expect(
+			nextData?.workflowSlashCommands.map((command) => command.name),
+		).not.toContain("find-skills");
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", refreshedRegistry),
+		).toBe("/find-skills what can u do?");
 	});
 
 	it("keeps plugin tool toggle behavior", async () => {
@@ -160,7 +265,7 @@ Use this skill.`,
 		) as { disabledTools?: string[] };
 
 		expect(settings.disabledTools).toEqual(["plugin-tool"]);
-		expect(data).toBeDefined();
+		expect(data).toBeUndefined();
 	});
 
 	it("can skip plugin tool imports for fast settings open", async () => {
@@ -204,6 +309,82 @@ Use this skill.`,
 					item.name === "settings_plugin_tool",
 			),
 		).toBe(true);
+	});
+
+	it("keeps failed plugins visible with their load error", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "broken-plugin.js");
+		const invalidPluginPath = join(pluginsDir, "invalid-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'broken-plugin',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup() {",
+				"    throw new Error('setup exploded');",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		await writeFile(invalidPluginPath, "export default {};\n", "utf8");
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+		const plugin = data.plugins.find((item) => item.path === pluginPath);
+
+		expect(plugin?.name).toBe("broken-plugin");
+		expect(plugin?.loadErrorPhase).toBe("setup");
+		expect(plugin?.loadError).toContain("setup failed: setup exploded");
+
+		const invalidPlugin = data.plugins.find(
+			(item) => item.path === invalidPluginPath,
+		);
+		expect(invalidPlugin?.name).toBe("invalid-plugin");
+		expect(invalidPlugin?.loadErrorPhase).toBe("load");
+		expect(invalidPlugin?.loadError).toContain("load failed:");
+	});
+
+	it("preserves multiple load failures for the same plugin path", () => {
+		const plugin: InteractiveConfigItem = {
+			id: "/tmp/plugin.js",
+			name: "plugin",
+			path: "/tmp/plugin.js",
+			enabled: true,
+			kind: "plugin",
+			source: "workspace-plugin",
+		};
+
+		applyPluginFailures(
+			[plugin],
+			[
+				{
+					pluginPath: "/tmp/plugin.js",
+					pluginName: "plugin",
+					phase: "setup",
+					message: "first failure",
+				},
+				{
+					pluginPath: "/tmp/plugin.js",
+					phase: "setup",
+					message: "second failure",
+				},
+			],
+		);
+
+		expect(plugin.loadError).toBe(
+			"setup failed: first failure\nsetup failed: second failure",
+		);
+		expect(plugin.loadErrorPhase).toBeUndefined();
 	});
 
 	it("toggles every SDK tool name for a displayed built-in tool", async () => {
@@ -262,13 +443,15 @@ Use this skill.`,
 		}
 
 		const nextData = await loader.onToggleConfigItem(plugin);
+		const refreshedData = await loader.loadConfigData();
 		const settings = JSON.parse(
 			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 		) as { disabledPlugins?: string[] };
 
 		expect(settings.disabledPlugins).toBeUndefined();
+		expect(nextData).toBeUndefined();
 		expect(
-			nextData?.plugins.find((item) => item.path === pluginPath)?.enabled,
+			refreshedData.plugins.find((item) => item.path === pluginPath)?.enabled,
 		).toBe(true);
 	});
 

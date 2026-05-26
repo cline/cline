@@ -281,13 +281,23 @@ export async function handleRunAbort(
 		(approval) => approval.sessionId === sessionId,
 		reason,
 	);
-	await ctx.sessionHost.abort(sessionId, envelope.payload?.reason);
-	cancelPendingCapabilityRequests(
-		ctx,
-		(request) => request.sessionId === sessionId,
-		reason,
-	);
-	ctx.publish(ctx.buildEvent("run.aborted", { reason }, sessionId));
+	try {
+		await ctx.sessionHost.abort(sessionId, envelope.payload?.reason);
+	} catch (error) {
+		logHubMessage("warn", "run.abort_failed", {
+			command: envelope.command,
+			requestId: envelope.requestId,
+			clientId: envelope.clientId,
+			sessionId,
+			error,
+		});
+	} finally {
+		cancelPendingCapabilityRequests(
+			ctx,
+			(request) => request.sessionId === sessionId,
+			reason,
+		);
+	}
 	return okReply(envelope, { applied: true });
 }
 

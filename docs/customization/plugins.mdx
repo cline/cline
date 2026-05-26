@@ -11,9 +11,17 @@ Plugins extend Cline with custom tools, lifecycle hooks, slash commands, and mor
 
 ## Installing Plugins via CLI
 
-The `cline plugin install` command installs plugins from three source types:
+The `cline plugin install` command installs plugins from four source types:
 
 <Tabs>
+  <Tab title="File URL">
+    ```bash
+    cline plugin install https://github.com/owner/repo/blob/main/plugins/my-plugin.ts
+    cline plugin install https://raw.githubusercontent.com/owner/repo/main/plugins/my-plugin.ts
+    ```
+
+    File URLs install a single `.ts` or `.js` plugin file directly. GitHub `blob` and raw URLs are supported, and remote plugin file URLs must use `https://`.
+  </Tab>
   <Tab title="Git Repository">
     ```bash
     cline plugin install https://github.com/owner/repo.git
@@ -125,6 +133,7 @@ Plugins are stored in the `plugins` directory at two levels:
     _installed/                # Managed by `cline plugin install`
       npm/                     # npm-sourced plugins
       git/                     # git-sourced plugins
+      remote/                  # file URL-sourced plugins
       local/                   # local-sourced plugins
 
 .cline/                        # Project root

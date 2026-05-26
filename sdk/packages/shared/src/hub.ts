@@ -19,6 +19,7 @@ export type HubTransportKind =
 export type HubRuntimeStatus =
 	| "idle"
 	| "running"
+	| "pending"
 	| "completed"
 	| "aborted"
 	| "failed";

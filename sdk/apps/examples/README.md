@@ -33,6 +33,7 @@ Requires Node.js 22+.
 |---------|-------------|----------|
 | [quickstart](./quickstart) | Send one prompt, stream the response. ~15 lines of code. | `Agent`, `subscribe`, `run()` |
 | [cli-agent](./cli-agent) | Interactive terminal chat with a shell tool. | `createTool`, multi-turn `run()`/`continue()`, streaming |
+| [cline-core-cli-agent](./cline-core-cli-agent) | Interactive terminal chat powered by ClineCore. | `ClineCore.create()`, `cline.start()`, `cline.send()`, built-in tools, streaming |
 
 ### Intermediate
 

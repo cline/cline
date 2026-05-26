@@ -405,6 +405,7 @@ export class MessageBuilder {
 		return Array.from(toolCalls, ([toolUseId, toolName]) => ({
 			type: "tool_result",
 			tool_use_id: toolUseId,
+			name: toolName,
 			content: [
 				{
 					type: "text",

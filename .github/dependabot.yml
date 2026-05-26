@@ -2,7 +2,7 @@ version: 2
 updates:
     # Main extension dependencies
     - package-ecosystem: "npm"
-      directory: "/"
+      directory: "/apps/vscode"
       schedule:
           interval: "weekly"
       # Group all updates into a single PR
@@ -20,7 +20,7 @@ updates:
 
     # Webview UI dependencies
     - package-ecosystem: "npm"
-      directory: "/webview-ui"
+      directory: "/apps/vscode/webview-ui"
       schedule:
           interval: "weekly"
       groups:

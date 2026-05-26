@@ -251,7 +251,13 @@ await cline.start({
 
 ## Distributing via CLI Install
 
-To make your plugin installable with `cline plugin install`, add a `cline` field to your `package.json` that declares entry points. Dependencies under the `@cline/` scope are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so declare any `@cline/*` package your plugin imports as an optional peer dependency:
+Single-file plugins can be installed directly from a file URL:
+
+```bash
+cline plugin install https://github.com/your-org/your-repo/blob/main/plugins/github-plugin.ts
+```
+
+For package or repository distribution, add a `cline` field to your `package.json` that declares entry points. Dependencies under the `@cline/` scope are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so declare any `@cline/*` package your plugin imports as an optional peer dependency:
 
 ```json
 {
@@ -269,7 +275,7 @@ To make your plugin installable with `cline plugin install`, add a `cline` field
 }
 ```
 
-Users can then install from git, npm, or a local path:
+Users can also install package plugins from git, npm, or a local path:
 
 ```bash
 cline plugin install https://github.com/your-org/cline-github-plugin.git

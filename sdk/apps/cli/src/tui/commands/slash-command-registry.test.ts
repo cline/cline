@@ -166,6 +166,32 @@ describe("slash command registry", () => {
 		expect(expandUserCommandPrompt("/settings", registry)).toBe("/settings");
 	});
 
+	it("does not expand commands omitted from a refreshed user-command registry", () => {
+		const staleRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: [
+				{
+					name: "find-skills",
+					instructions: "Find installable skills.",
+					description: "Find skills",
+					kind: "skill",
+				},
+			],
+		});
+		const refreshedRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: [],
+		});
+
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", staleRegistry),
+		).toContain("<user_command");
+		expect(
+			resolveSlashCommand(refreshedRegistry, "find-skills"),
+		).toBeUndefined();
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", refreshedRegistry),
+		).toBe("/find-skills what can u do?");
+	});
+
 	it("hides fork from autocomplete until a session has messages", () => {
 		const emptySessionRegistry = buildSlashCommandRegistry({ canFork: false });
 		const activeSessionRegistry = buildSlashCommandRegistry({ canFork: true });

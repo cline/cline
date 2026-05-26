@@ -1,5 +1,67 @@
 # Cline CLI Changelog
 
+## 3.0.13
+
+- Show a loading dialog while resuming a session from history so the TUI no longer appears frozen during the load.
+- Speed up the `/clear` command by deferring new session creation until you send the next prompt, so clearing no longer blocks on spinning up an empty session.
+
+## 3.0.12
+
+- Show a loading dialog while the config screen switches provider or model so the transition no longer looks frozen.
+- Render the ask question tool prompt inline with the conversation so the question and suggested answers stay attached to the assistant turn that asked them, instead of appearing in a separate modal.
+- Allow manual `cline update` runs to install the latest published version immediately, bypassing the release age gate that delays automatic updates.
+- Refresh the bundled SDK to 0.0.42, updating the model catalog.
+
+## 3.0.11
+
+- Fix a regression in the ChatGPT OAuth provider where requests failed with `max_output_tokens not supported`, by restoring the full output token budget instead of applying an implicit cap.
+- Hide the `Space toggle` hint in the config footer when the highlighted row is not toggleable (rules, agents, hooks).
+- Authenticate Vertex Gemini through Google auth when `gcp.projectId` is configured, and surface the full Vertex model list instead of only Claude models.
+- Include tool names in tool result content blocks so message logs and session history consistently track which tool produced each result.
+
+## 3.0.10
+
+- Install plugins from `file://` URLs in addition to npm and git sources.
+- Show Ollama API key note in TUI settings so users know when to provide an API key.
+- Keep interactive sessions alive when idle or awaiting approval instead of treating them as ended, and stop reading message files for every session when `hydrate: false`.
+- Add Poolside as a provider.
+- Add Gemini 3.5 Flash to the Gemini provider model list.
+- Auto-detect Telegram bot username from the bot token so the Telegram connector no longer requires it to be configured separately.
+- Notify connectors when a scheduled execution fails, not just when it succeeds.
+- Bake OTEL telemetry variables into the CLI at build time so telemetry works in nightly and production builds.
+- Preserve model output token limits from the SDK model catalog so context window math matches the upstream provider.
+- Soften the visual treatment of rejected tool calls in the TUI.
+- Hide the skills tool from the system prompt when skills are disabled, and refresh slash commands after toggling a skill.
+- Restore AWS Bedrock profile-based auth during legacy config migration so profiles set via `awsAuthentication: "profile"` are preserved without `awsUseProfile`.
+- Cache global settings reads keyed by file mtime so repeated reads skip the JSON parse and zod validation on the hot path.
+
+## 3.0.9
+
+- Speed up CLI startup with plugins by loading sandboxed plugins concurrently and caching plugin tool descriptors per plugin, provider, and model.
+- Speed up plugin and tool config toggles by updating the TUI optimistically and persisting changes without reloading the full config or reimporting plugins.
+- Restore fuzzy ranking for the @-mention file picker so the most relevant files appear first.
+- Keep the interactive CLI session alive after cancelling a task instead of tearing the session down.
+- Accept dash-prefixed prompts when passed after `--`, so prompts starting with `-` are no longer parsed as flags.
+- Recover from hub abort cleanup failures so a cancel that hits an error no longer crashes the runtime host.
+- Route GLM thinking through provider metadata so thinking-enabled GLM models behave correctly through the gateway.
+
+## 3.0.8
+
+- Use Telegram numeric participant ids so renamed users stay linked to the same participant in the Telegram connector.
+- Keep failed plugins visible in the config UI with their load/setup phase and error details so broken plugin definitions are easier to diagnose.
+- Move the Create Session Fork shortcut from Opt+F to Opt+R so terminal word-right navigation works again.
+- Fix AWS Bedrock region and profile detection in the CLI onboarding, and surface bearer-token and additional Bedrock config fields in the provider config screens.
+- Fix inflated token usage counts caused by AgentRuntime.execute() not resetting usage between calls, which the local runtime host was then double-counting on top of the session baseline.
+
+## 3.0.7
+
+- Skip the ChatGPT OAuth model refresh on session startup so the CLI launches without the extra network round-trip.
+- Align the ChatGPT OAuth model catalog with the Codex provider list so the available models match the subscription tier.
+
+## 3.0.6
+
+- Fix ChatGPT provider model list to include the codex variants and the gpt-5.2, gpt-5.4, and gpt-5.4-mini subscription models.
+
 ## 3.0.5
 
 - Show plugin-provided tools and slash commands in the CLI settings dialog by hydrating them through the sandbox.

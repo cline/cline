@@ -427,21 +427,23 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { PluginToolSummary } from "./services/plugin-tools";
-export { listPluginTools } from "./services/plugin-tools";
+export type {
+	ListPluginToolsResult,
+	PluginToolSummary,
+} from "./services/plugin-tools";
+export {
+	listPluginTools,
+	listPluginToolsWithDiagnostics,
+} from "./services/plugin-tools";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
-	getProviderConfigFields,
 	listLocalProviders,
 	loginLocalProvider,
 	normalizeOAuthProvider,
-	type ProviderConfigFieldKey,
-	type ProviderConfigFieldRequirement,
-	type ProviderConfigFields,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
@@ -449,6 +451,12 @@ export {
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./services/providers/local-provider-service";
+export {
+	getProviderConfigFields,
+	type ProviderConfigFieldKey,
+	type ProviderConfigFieldRequirement,
+	type ProviderConfigFields,
+} from "./services/providers/provider-config-fields";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,

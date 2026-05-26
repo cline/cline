@@ -121,6 +121,74 @@ describe("runScheduleCommand list output", () => {
 	});
 });
 
+describe("runScheduleCommand create delivery metadata", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("maps --delivery-bot to delivery.userName", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_delivery" } },
+		});
+
+		const output: string[] = [];
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Daily summary",
+				"--cron",
+				"0 9 * * *",
+				"--prompt",
+				"Summarize yesterday",
+				"--workspace",
+				"/tmp/workspace",
+				"--delivery-adapter",
+				"telegram",
+				"--delivery-bot",
+				"my_bot",
+				"--delivery-thread",
+				"telegram:123456789",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(errors).toEqual([]);
+		expect(output).toEqual(['{\n  "scheduleId": "sched_delivery"\n}']);
+		expect(mockSendHubCommand).toHaveBeenCalledWith(
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
+			{
+				clientId: "cline-schedule",
+				command: "schedule.create",
+				payload: expect.objectContaining({
+					metadata: {
+						delivery: {
+							adapter: "telegram",
+							threadId: "telegram:123456789",
+							userName: "my_bot",
+						},
+					},
+				}),
+			},
+		);
+	});
+});
+
 describe("runScheduleCommand import", () => {
 	afterEach(() => {
 		vi.clearAllMocks();

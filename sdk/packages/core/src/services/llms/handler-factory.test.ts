@@ -156,4 +156,80 @@ describe("createAgentModelFromConfig", () => {
 			},
 		});
 	});
+
+	it("forwards Bedrock AWS settings as gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "bedrock",
+					modelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+					region: "us-west-2",
+					aws: {
+						authentication: "profile",
+						profile: "dev-profile",
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "bedrock",
+						options: expect.objectContaining({
+							region: "us-west-2",
+							authentication: "profile",
+							profile: "dev-profile",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("forwards Vertex GCP settings as gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "vertex",
+					modelId: "gemini-3-flash-preview",
+					gcp: {
+						projectId: "test-project",
+						region: "global",
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "vertex",
+						options: expect.objectContaining({
+							project: "test-project",
+							projectId: "test-project",
+							location: "global",
+							region: "global",
+						}),
+					}),
+				],
+			}),
+		);
+	});
 });

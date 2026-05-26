@@ -87,6 +87,9 @@ function App(props: TuiProps) {
 			: "home";
 	});
 	const [toast, setToast] = useState<ToastState | null>(null);
+	const [workflowSlashCommands, setWorkflowSlashCommands] = useState(
+		props.workflowSlashCommands,
+	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
 
@@ -102,13 +105,17 @@ function App(props: TuiProps) {
 		[appView, props.initialPrompt, session.entries],
 	);
 
+	useEffect(() => {
+		setWorkflowSlashCommands(props.workflowSlashCommands);
+	}, [props.workflowSlashCommands]);
+
 	const {
 		registry: slashCommandRegistry,
 		systemCommands,
 		skillCommands,
 		invokableSkillCommands,
 	} = useSlashCommands({
-		workflowSlashCommands: props.workflowSlashCommands,
+		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
 	});
@@ -187,6 +194,19 @@ function App(props: TuiProps) {
 		onSessionRestart: props.onSessionRestart,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
+	const propsOnToggleConfigItem = props.onToggleConfigItem;
+	const onToggleConfigItem = useMemo<TuiProps["onToggleConfigItem"]>(() => {
+		if (!propsOnToggleConfigItem) {
+			return undefined;
+		}
+		return async (item, options) => {
+			const data = await propsOnToggleConfigItem(item, options);
+			if (data) {
+				setWorkflowSlashCommands(data.workflowSlashCommands);
+			}
+			return data;
+		};
+	}, [propsOnToggleConfigItem]);
 
 	const openConfig = useConfigPanel({
 		dialog,
@@ -198,7 +218,7 @@ function App(props: TuiProps) {
 		setCompactionMode: session.setCompactionMode,
 		termHeight,
 		loadConfigData: props.loadConfigData,
-		onToggleConfigItem: props.onToggleConfigItem,
+		onToggleConfigItem,
 		openModelSelector,
 		openMcpManager,
 		refocusTextarea: () => refocusTextareaRef.current(),
@@ -215,10 +235,16 @@ function App(props: TuiProps) {
 	});
 
 	const clearConversation = useCallback(async () => {
+		const shouldRestartSession = session.hasSubmitted;
 		session.clearEntries();
 		session.setHasSubmitted(false);
+		if (!shouldRestartSession) {
+			setAppView("home");
+			refocusTextareaRef.current();
+			return;
+		}
 		try {
-			await props.onSessionRestart();
+			await props.onNewSession();
 			setAppView("home");
 		} catch (error) {
 			setAppView("chat");
@@ -708,6 +734,15 @@ function App(props: TuiProps) {
 	removeLocalCommandInvocationRef.current = (invocation) => {
 		promptInput.removeLocalCommandInvocation(invocation);
 	};
+	const runtimeBridge = useRuntimeDialogBridge({
+		setToolApprover: props.setToolApprover,
+		setAskQuestion: props.setAskQuestion,
+		setModeChangeNotifier: props.setModeChangeNotifier,
+		setUiMode: session.setUiMode,
+		refocusTextarea: promptInput.refocusTextarea,
+	});
+	const runtimeInteraction = runtimeBridge.interaction;
+	const isRuntimeInteractionOpen = runtimeInteraction !== null;
 	const saveQueuedPromptEdit = useCallback(
 		async (promptId: string, text: string) => {
 			if (!promptId) return;
@@ -757,9 +792,11 @@ function App(props: TuiProps) {
 	const initialPromptSubmittedRef = useRef(false);
 
 	useEffect(() => {
-		if (isDialogOpen || appView === "onboarding") return;
+		if (isDialogOpen || isRuntimeInteractionOpen || appView === "onboarding") {
+			return;
+		}
 		focusPromptTextarea();
-	}, [isDialogOpen, appView, focusPromptTextarea]);
+	}, [isDialogOpen, isRuntimeInteractionOpen, appView, focusPromptTextarea]);
 
 	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
@@ -774,7 +811,7 @@ function App(props: TuiProps) {
 	}, [appView, submitInitialPrompt, props.initialPrompt]);
 
 	useRootKeyboard({
-		isDialogOpen,
+		isDialogOpen: isDialogOpen || isRuntimeInteractionOpen,
 		appView,
 		autocomplete,
 		inputHistory: promptInput.inputHistory,
@@ -802,14 +839,6 @@ function App(props: TuiProps) {
 		onRestoreCheckpoint: openCheckpointRestore,
 		onOpenCommandPalette: openCommandPalette,
 		onCommandPaletteShortcut: runCommandPaletteShortcut,
-	});
-
-	useRuntimeDialogBridge({
-		setToolApprover: props.setToolApprover,
-		setAskQuestion: props.setAskQuestion,
-		setModeChangeNotifier: props.setModeChangeNotifier,
-		setUiMode: session.setUiMode,
-		refocusTextarea: promptInput.refocusTextarea,
 	});
 
 	const acOptions = autocomplete.getFilteredOptions();
@@ -843,6 +872,9 @@ function App(props: TuiProps) {
 			void saveQueuedPromptEdit(id, prompt);
 		},
 		onToggleMode: toggleMode,
+		runtimeInteraction,
+		onResolveToolApproval: runtimeBridge.resolveToolApproval,
+		onResolveAskQuestion: runtimeBridge.resolveAskQuestion,
 		autocomplete: {
 			mode: autocomplete.mode,
 			options: acOptions,

@@ -8,6 +8,7 @@ import {
 	type Message,
 } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import { createUserInstructionConfigService } from "../../extensions/config";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -690,6 +691,36 @@ Review skill.`,
 		);
 		expect(blocked).toContain('Skill "review" not found.');
 		expect(blocked).toContain("Available skills: commit");
+
+		await runtime.shutdown("test");
+	});
+
+	it("does not register the skills tool when all configured skills are disabled", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-disabled-skills-"));
+		const skillDir = join(cwd, ".cline", "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+disabled: true
+---
+Review skill.`,
+			"utf8",
+		);
+		const userInstructionService = createUserInstructionConfigService({
+			skills: { directories: [join(cwd, ".cline", "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			userInstructionService,
+		});
+
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
 
 		await runtime.shutdown("test");
 	});

@@ -17,8 +17,8 @@ pnpm-lock.yaml
 .actrc
 CLAUDE.local.md
 
-webview-ui/src/**/*.js
-webview-ui/src/**/*.js.map
+apps/vscode/webview-ui/src/**/*.js
+apps/vscode/webview-ui/src/**/*.js.map
 
 # Ignore coverage directories and files
 coverage
@@ -35,9 +35,9 @@ coverage-unit
 .worktrees
 
 ## Generated files ##
-src/generated/
-src/shared/proto/
-webview-ui/src/services/grpc-client.ts
+apps/vscode/src/generated/
+apps/vscode/src/shared/proto/
+apps/vscode/webview-ui/src/services/grpc-client.ts
 *.tsbuildinfo
 
 # E2E Tests
@@ -60,3 +60,13 @@ tests/**/cache
 # Backup created by scripts/marketplace-readme.mjs while publishing.
 # Should never be committed: only exists if a publish aborts mid-swap.
 .README.github.bak
+
+
+# SDK Session files / User data
+.cline/data
+.cline/tmp
+*.db
+*.db-shm
+*.db-wal
+.cline/**/managed.json
+.cline/**/bundle.json

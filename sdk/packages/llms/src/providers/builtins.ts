@@ -15,16 +15,19 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
+import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	ANTHROPIC_ROUTING_METADATA,
 	QWEN_CACHE_ROUTING_METADATA,
 } from "./routing/anthropic-compatible";
+import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
+const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
 
 export type ProviderFamily =
 	| "openai"
@@ -131,18 +134,7 @@ function buildClaudeCodeModels(): Record<string, ModelInfo> {
 }
 
 function buildOpenAICodexModels(): Record<string, ModelInfo> {
-	const openaiModels = generatedModels("openai-native");
-	const fallbackIds = ["gpt-5.4", "gpt-5.3-codex"];
-	return Object.fromEntries(
-		fallbackIds.map((id) => [
-			id,
-			openaiModels[id] ?? {
-				id,
-				name: id,
-				capabilities: ["tools", "reasoning", "streaming"],
-			},
-		]),
-	);
+	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
@@ -338,6 +330,16 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.groq.com/openai/v1" },
 	},
 	{
+		id: "poolside",
+		name: "Poolside",
+		description: "OpenAI-compatible code intelligence models",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "poolside/laguna-m.1",
+		apiKeyEnv: ["POOLSIDE_API_KEY"],
+		defaults: { baseUrl: "https://inference.poolside.ai/v1" },
+	},
+	{
 		id: "cerebras",
 		name: "Cerebras",
 		description: "Fast inference on Cerebras wafer-scale chips",
@@ -516,6 +518,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai",
 		defaults: { baseUrl: "https://api.z.ai/api/paas/v4" },
+		metadata: GLM_THINKING_ROUTING_METADATA,
 	},
 	{
 		id: "zai-coding-plan",
@@ -527,6 +530,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
+		metadata: GLM_THINKING_ROUTING_METADATA,
 	},
 	{
 		id: "moonshot",
@@ -668,7 +672,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		family: "openai",
 		popular: 2,
 		capabilities: ["reasoning", "oauth"],
-		defaultModelId: "gpt-5.4",
+		defaultModelId: OPENAI_CODEX_DEFAULT_MODEL_ID,
 		modelsFactory: buildOpenAICodexModels,
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 		metadata: { usageCostDisplay: "hide" },
@@ -725,13 +729,14 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "Google Cloud Vertex AI",
 		family: "vertex",
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "claude-sonnet-4-6@default",
 		apiKeyEnv: [
 			"GCP_PROJECT_ID",
 			"GOOGLE_CLOUD_PROJECT",
 			"GOOGLE_APPLICATION_CREDENTIALS",
 			"GEMINI_API_KEY",
 			"GOOGLE_API_KEY",
+			"GOOGLE_VERTEX_PROJECT",
+			"GOOGLE_VERTEX_LOCATION",
 		],
 		modelsProviderId: "vertex",
 		metadata: ANTHROPIC_ROUTING_METADATA,

@@ -1,20 +1,29 @@
 ---
 title: "Installing Plugins"
 sidebarTitle: "Installing Plugins"
-description: "Install plugins from npm, git, or local sources using the CLI or programmatically."
+description: "Install plugins from file URLs, npm, git, or local sources using the CLI or programmatically."
 ---
 
 The Cline CLI provides a `plugin install` command to install plugins from various sources. You can also load plugins programmatically via session config.
 
 ## CLI Installation
 
-Use the `cline plugin install` command to install plugins from npm, git repositories, or local paths.
+Use the `cline plugin install` command to install plugins from file URLs, npm, git repositories, or local paths.
 
 ```sh
 cline plugin install <source> [options]
 ```
 
 The shorthand `cline plugin i` works as well.
+
+### Install from a File URL
+
+```sh
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
+cline plugin install https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts
+```
+
+Installs a single `.ts` or `.js` plugin file from an HTTPS URL. GitHub `blob` URLs are normalized to raw file downloads automatically.
 
 ### Install from npm
 
@@ -50,13 +59,16 @@ Supports both files and directories. Local installs copy the source, filter out 
 | `--git` | Treat the source as a git repository URL |
 | `--force` | Overwrite an existing plugin at the same path |
 | `--json` | Output results as JSON (useful for scripting) |
-| `--cwd` | Working directory for relative paths |
+| `--cwd` | Install to `<path>/.cline/plugins` and resolve relative local paths from `<path>` |
 
 ### Examples
 
 ```sh
 # Install a local plugin directory
 cline plugin install ./my-custom-plugin
+
+# Install a single plugin file from GitHub
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
 
 # Install an npm package as a plugin
 cline plugin install --npm @cline/plugin-sql
@@ -78,6 +90,27 @@ Installed plugins appear in the `plugins` section of your CLI config:
 ```sh
 cline config
 ```
+
+### Find All Your Plugins from your file system
+
+Project-scoped plugins live in the `.cline/plugins/` folder at your workspace root. The CLI auto-discovers plugins from this folder when you run Cline in that project.
+
+```text
+your-project/
+├── .cline/
+│   └── plugins/
+│       ├── my-plugin.ts
+│       └── another-plugin/
+└── ...
+```
+
+To add a single-file plugin to a project, install it with `--cwd`:
+
+```sh
+cline plugin install https://github.com/owner/repo/blob/main/plugins/my-plugin.ts --cwd .
+```
+
+Global plugins are discovered from `~/.cline/plugins/`, and Cline may also discover plugins from the system Plugins folder. Use `--cwd .` when you want plugins to stay with a specific project.
 
 ## Programmatic Installation
 
@@ -137,4 +170,4 @@ await cline.start({
 
 - **Learn about [Plugins](/sdk/plugins)** — Understand what plugins are and their benefits.
 - **Follow the [Writing Plugins](/sdk/guides/writing-plugins) guide** — Build and distribute your own plugin.
-- **Explore [Plugin Examples](/sdk/plugin-examples)** — Copy ready-to-run plugin examples from the SDK repository.
+- Explore [Plugin Examples](/sdk/plugin-examples) to install ready-to-run plugin examples from the SDK repository.

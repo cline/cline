@@ -62,7 +62,11 @@ import {
 	shouldAutoContinueTeamRuns,
 	waitForTeamRunUpdates,
 } from "../../session/team";
-import { SessionSource, type SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	SessionSource,
+	type SessionStatus,
+} from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
@@ -438,7 +442,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			toolPolicies: bootstrap.toolPolicies,
-			requestToolApproval: bootstrap.requestToolApproval,
+			requestToolApproval: bootstrap.requestToolApproval
+				? async (request) => {
+						const requestToolApproval = bootstrap.requestToolApproval;
+						const liveSession = this.sessions.get(sessionId);
+						if (liveSession) {
+							await this.markTurnPending(liveSession);
+						}
+						try {
+							if (!requestToolApproval) {
+								return {
+									approved: false,
+									reason: "Tool approval callback is not configured.",
+								};
+							}
+							return await requestToolApproval(request);
+						} finally {
+							const currentSession = this.sessions.get(sessionId);
+							if (currentSession?.status === "pending") {
+								await this.markTurnRunning(currentSession);
+							}
+						}
+					}
+				: undefined,
 			telemetry: configWithProvider.telemetry,
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
@@ -559,6 +585,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
+			lastInteractiveTurnFinishReason: undefined,
 		};
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
@@ -743,8 +770,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.stopped",
 			properties: { sessionId },
 		});
-		if (session.interactive && session.status !== "running") {
+		if (session.interactive && !isNonTerminalSessionStatus(session.status)) {
 			await this.releaseSessionRuntime(session, "session_stop");
+			return;
+		}
+		if (session.interactive && session.agent.canStartRun()) {
+			await this.shutdownSession(session, {
+				status: this.resolveInteractiveStopStatus(session),
+				exitCode: this.resolveInteractiveStopExitCode(session),
+				shutdownReason: "session_stop",
+				endReason: "stopped",
+			});
 			return;
 		}
 		// Abort the agent first if it's running, so shutdown can proceed
@@ -763,14 +799,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
-				session.interactive && session.status !== "running"
+				session.interactive && !isNonTerminalSessionStatus(session.status)
 					? this.releaseSessionRuntime(session, reason)
-					: this.shutdownSession(session, {
-							status: "cancelled",
-							exitCode: 0,
-							shutdownReason: reason,
-							endReason: "disposed",
-						}),
+					: session.interactive && session.agent.canStartRun()
+						? this.shutdownSession(session, {
+								status: this.resolveInteractiveStopStatus(session),
+								exitCode: this.resolveInteractiveStopExitCode(session),
+								shutdownReason: reason,
+								endReason: "disposed",
+							})
+						: this.shutdownSession(session, {
+								status: "cancelled",
+								exitCode: 0,
+								shutdownReason: reason,
+								endReason: "disposed",
+							}),
 			),
 		);
 		this.usageBySession.clear();
@@ -945,22 +988,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
-		const isAborted = finishReason === "aborted" || session.aborting;
-		const isError = finishReason === "error";
-		await this.updateStatus(
-			session,
-			isAborted ? "cancelled" : isError ? "failed" : "completed",
-			isError ? 1 : 0,
-		);
-		this.emit({
-			type: "ended",
-			payload: {
-				sessionId: session.sessionId,
-				reason: finishReason,
-				ts: Date.now(),
-			},
-		});
+		session.lastInteractiveTurnFinishReason = finishReason;
+		await this.markTurnIdle(session);
 		session.aborting = false;
+	}
+
+	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
+		const finishReason = session.lastInteractiveTurnFinishReason;
+		if (!finishReason) return "cancelled";
+
+		switch (finishReason) {
+			case "completed":
+				return "completed";
+			case "error":
+				return "failed";
+			case "aborted":
+			case "max_iterations":
+			case "mistake_limit":
+				return "cancelled";
+		}
+
+		const _exhaustive: never = finishReason;
+		return _exhaustive;
+	}
+
+	private resolveInteractiveStopExitCode(session: ActiveSession): number {
+		return session.lastInteractiveTurnFinishReason === "error" ? 1 : 0;
 	}
 
 	private async completeAbortedInteractiveTurn(
@@ -1224,6 +1277,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.updateStatus(session, "running", null);
 	}
 
+	private async markTurnPending(session: ActiveSession): Promise<void> {
+		if (session.status === "pending") return;
+		await this.updateStatus(session, "pending", null);
+	}
+
+	private async markTurnIdle(session: ActiveSession): Promise<void> {
+		if (session.status === "idle") return;
+		await this.updateStatus(session, "idle", null);
+	}
+
 	private async persistSessionMetadata(
 		sessionId: string,
 		resolveMetadata: (
@@ -1437,7 +1500,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				session.sessionId,
 			)) ?? session.artifacts.manifest;
 		latestManifest.status = status;
-		if (status === "running") {
+		if (isNonTerminalSessionStatus(status)) {
 			delete latestManifest.ended_at;
 			latestManifest.exit_code = null;
 		} else {
@@ -1447,7 +1510,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.artifacts.manifest = latestManifest;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
-		session.endedAt = status === "running" ? null : latestManifest.ended_at;
+		session.endedAt = isNonTerminalSessionStatus(status)
+			? null
+			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
 		await this.invoke<void>(
 			"writeSessionManifest",

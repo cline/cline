@@ -152,4 +152,140 @@ describe("global-settings", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	describe("caching", () => {
+		it("invalidates the cache when writeGlobalSettings is called", async () => {
+			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const settingsPath = join(root, "global-settings.json");
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+				writeGlobalSettings({ disabledTools: ["editor"] });
+				readGlobalSettings();
+
+				writeGlobalSettings({ disabledTools: ["read_files"] });
+
+				expect(readGlobalSettings()).toEqual({
+					disabledTools: ["read_files"],
+					telemetryOptOut: false,
+				});
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+
+		it("picks up external writes via mtime change", async () => {
+			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const settingsPath = join(root, "global-settings.json");
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+				writeGlobalSettings({ disabledTools: ["editor"] });
+				readGlobalSettings();
+
+				await writeFile(
+					settingsPath,
+					JSON.stringify({ disabledTools: ["read_files"] }),
+				);
+
+				expect(readGlobalSettings()).toEqual({
+					disabledTools: ["read_files"],
+					telemetryOptOut: false,
+				});
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+
+		it("keys the cache by resolved path so switching files returns the right value", async () => {
+			const rootA = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			const rootB = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const pathA = join(rootA, "global-settings.json");
+				const pathB = join(rootB, "global-settings.json");
+
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = pathA;
+				writeGlobalSettings({ disabledTools: ["editor"] });
+				expect(readGlobalSettings()).toEqual({
+					disabledTools: ["editor"],
+					telemetryOptOut: false,
+				});
+
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = pathB;
+				writeGlobalSettings({ disabledTools: ["read_files"] });
+				expect(readGlobalSettings()).toEqual({
+					disabledTools: ["read_files"],
+					telemetryOptOut: false,
+				});
+
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = pathA;
+				expect(readGlobalSettings()).toEqual({
+					disabledTools: ["editor"],
+					telemetryOptOut: false,
+				});
+			} finally {
+				await rm(rootA, { recursive: true, force: true });
+				await rm(rootB, { recursive: true, force: true });
+			}
+		});
+
+		it("returns the default value when the settings file does not exist", async () => {
+			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const settingsPath = join(root, "missing-global-settings.json");
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+				expect(readGlobalSettings()).toEqual({ telemetryOptOut: false });
+				expect(readGlobalSettings()).toEqual({ telemetryOptOut: false });
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+
+		it("returns a frozen value so callers cannot mutate the cache", async () => {
+			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const settingsPath = join(root, "global-settings.json");
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+				writeGlobalSettings({
+					disabledTools: ["editor"],
+					disabledPlugins: ["/plugins/example.js"],
+				});
+
+				const settings = readGlobalSettings();
+
+				expect(Object.isFrozen(settings)).toBe(true);
+				expect(Object.isFrozen(settings.disabledTools)).toBe(true);
+				expect(Object.isFrozen(settings.disabledPlugins)).toBe(true);
+				expect(() => {
+					(settings as { telemetryOptOut: boolean }).telemetryOptOut = true;
+				}).toThrow();
+				expect(() => {
+					settings.disabledTools?.push("malicious");
+				}).toThrow();
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+
+		it("transitions from missing-file default to fresh value once the file is created", async () => {
+			const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+			try {
+				const settingsPath = join(root, "global-settings.json");
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+				expect(readGlobalSettings()).toEqual({ telemetryOptOut: false });
+
+				await writeFile(
+					settingsPath,
+					JSON.stringify({ disabledTools: ["editor"] }),
+				);
+
+				expect(readGlobalSettings()).toEqual({
+					disabledTools: ["editor"],
+					telemetryOptOut: false,
+				});
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+	});
 });

@@ -35,7 +35,7 @@ export type GatewayModelCapability =
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export type GatewayUsageCostDisplay = "show" | "hide";
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
-export type GatewayReasoningFormat = "anthropic-thinking";
+export type GatewayReasoningFormat = "anthropic-thinking" | "glm-thinking";
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {

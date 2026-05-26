@@ -914,7 +914,11 @@ function hasActiveHubSessions(payload: unknown): boolean {
 			status?: unknown;
 			participants?: unknown;
 		};
-		if (record.status === "running" || record.status === "idle") {
+		if (
+			record.status === "running" ||
+			record.status === "idle" ||
+			record.status === "pending"
+		) {
 			return true;
 		}
 		return Array.isArray(record.participants) && record.participants.length > 0;

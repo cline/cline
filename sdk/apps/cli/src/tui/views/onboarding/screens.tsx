@@ -19,6 +19,7 @@ import {
 } from "../../components/tracked-robot";
 import { useTerminalBackground } from "../../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../../palette";
+import { FIELD_ORDER } from "./fields";
 import { MAIN_MENU, THINKING_LEVELS } from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
@@ -213,37 +214,43 @@ export function OnboardingDeviceCodeScreen(props: {
 	);
 }
 
-type ByoFieldKey = "apiKey" | "baseUrl";
+import type {
+	ProviderConfigFieldKey,
+	ProviderConfigFieldRequirement,
+} from "@cline/core";
 
-const BYO_FIELD_LABELS: Record<ByoFieldKey, string> = {
+const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
+	awsRegion: "AWS Region",
+	awsProfile: "AWS Profile Name",
 };
 
-const BYO_FIELD_PLACEHOLDERS: Record<ByoFieldKey, string> = {
+const DEFAULT_FIELD_PLACEHOLDERS: Partial<
+	Record<ProviderConfigFieldKey, string>
+> = {
 	apiKey: "Paste your API key here...",
 	baseUrl: "",
+	awsRegion: "us-east-1",
+	awsProfile: "default",
 };
 
 export function OnboardingProviderConfigScreen(props: {
 	activeProviderName: string;
-	apiKeyValue: string;
-	baseUrlValue: string;
 	compact: boolean;
 	contentWidth: number;
-	fields: {
-		apiKey?: { defaultValue?: string };
-		baseUrl?: { defaultValue?: string };
-	};
-	focusedField: ByoFieldKey;
+	description?: string;
+	fields: Partial<
+		Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
+	>;
+	focusedField: ProviderConfigFieldKey;
 	mouse: MouseTrackerState;
-	onApiKeyInput: (value: string) => void;
-	onBaseUrlInput: (value: string) => void;
+	values: Partial<Record<ProviderConfigFieldKey, string>>;
+	onFieldInput: (field: ProviderConfigFieldKey, value: string) => void;
 	onSubmit: () => void;
 }) {
 	const defaultFg = useDefaultFg();
-	const fieldOrder: ByoFieldKey[] = ["baseUrl", "apiKey"];
-	const visibleFields = fieldOrder.filter(
+	const visibleFields = FIELD_ORDER.filter(
 		(key) => props.fields[key] !== undefined,
 	);
 
@@ -256,17 +263,18 @@ export function OnboardingProviderConfigScreen(props: {
 			<box flexDirection="column" gap={1} alignItems="center">
 				<text fg={defaultFg}>{props.activeProviderName}</text>
 
+				{props.description && <text fg="gray">{props.description}</text>}
+
 				{visibleFields.map((key) => {
 					const requirement = props.fields[key];
 					if (!requirement) return null;
+					const label = requirement.label ?? DEFAULT_FIELD_LABELS[key] ?? key;
 					const placeholder =
-						key === "baseUrl" && requirement.defaultValue
+						requirement.placeholder ??
+						(key === "baseUrl" && requirement.defaultValue
 							? requirement.defaultValue
-							: BYO_FIELD_PLACEHOLDERS[key];
-					const value =
-						key === "apiKey" ? props.apiKeyValue : props.baseUrlValue;
-					const onInput =
-						key === "apiKey" ? props.onApiKeyInput : props.onBaseUrlInput;
+							: (DEFAULT_FIELD_PLACEHOLDERS[key] ?? ""));
+					const value = props.values[key] ?? "";
 					const isFocused = props.focusedField === key;
 					return (
 						<box
@@ -275,7 +283,8 @@ export function OnboardingProviderConfigScreen(props: {
 							gap={0}
 							width={props.contentWidth}
 						>
-							<text fg="gray">{BYO_FIELD_LABELS[key]}</text>
+							<text fg="gray">{label}</text>
+							{requirement.note && <text fg="gray">{requirement.note}</text>}
 							<box
 								border
 								borderStyle="rounded"
@@ -284,7 +293,7 @@ export function OnboardingProviderConfigScreen(props: {
 							>
 								<input
 									value={value}
-									onInput={onInput}
+									onInput={(v: string) => props.onFieldInput(key, v)}
 									onSubmit={props.onSubmit}
 									placeholder={placeholder}
 									textColor={defaultFg}

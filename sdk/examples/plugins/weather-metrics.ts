@@ -9,15 +9,14 @@
  *   - hooks.beforeRun / beforeTool / afterTool / afterRun — lifecycle metrics
  *
  * CLI usage:
- *   mkdir -p .cline/plugins
- *   cp examples/plugins/weather-plugin.example.ts .cline/plugins/weather-metrics.ts
+ *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
  *   cline -i "What's the weather like in Tokyo and Paris?"
  *
  * Direct demo usage:
- *   ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-plugin.example.ts
+ *   ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-metrics.ts
  */
 
-import { type AgentPlugin, ClineCore, createTool } from "@cline/core";
+import { type AgentPlugin, createTool } from "@cline/core";
 
 // ---------------------------------------------------------------------------
 // Plugin-level state — populated from setup context and available to all hook
@@ -148,46 +147,5 @@ const plugin: AgentPlugin = {
 	},
 };
 
-async function runDemo(): Promise<void> {
-	const sessionManager = await ClineCore.create({ backendMode: "local" });
-
-	try {
-		const result = await sessionManager.start({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-				cwd: process.cwd(),
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-				systemPrompt: "You are a helpful assistant. Use tools when needed.",
-				extensions: [plugin],
-				// extensionContext.workspace is the authoritative source for
-				// workspaceInfo that flows into setup(api, ctx). The CLI
-				// and VS Code hosts populate this automatically from their runtime
-				// state. When using the SDK directly, set it explicitly so plugins
-				// always receive accurate workspace metadata.
-				extensionContext: {
-					workspace: {
-						rootPath: process.cwd(),
-						cwd: process.cwd(),
-					},
-				},
-			},
-			prompt: "What's the weather like in Tokyo and Paris?",
-			interactive: false,
-		});
-
-		console.log(`\n${result.result?.text ?? ""}`);
-	} finally {
-		await sessionManager.dispose();
-	}
-}
-
-if (import.meta.main) {
-	await runDemo();
-}
-
-export { plugin, runDemo };
+export { plugin };
 export default plugin;

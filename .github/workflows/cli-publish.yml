@@ -88,9 +88,9 @@ jobs:
 
       - name: Validate release tag
         id: version
+        env:
+          TAG: ${{ github.event.inputs.git_tag }}
         run: |
-          TAG="${{ github.event.inputs.git_tag }}"
-
           if [ -z "$TAG" ]; then
             echo "git_tag is required when publish_target=main"
             exit 1
@@ -132,6 +132,15 @@ jobs:
 
       - name: Build SDK packages
         run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
       - name: Run tests
         run: bun run test
@@ -139,10 +148,20 @@ jobs:
       - name: Build platform binaries
         run: bun script/build.ts --install-native-variants --skip-sdk-build
         working-directory: sdk/apps/cli
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
       - name: Verify build output
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           EXPECTED=(
             "@cline/cli-darwin-arm64"
             "@cline/cli-darwin-x64"
@@ -179,8 +198,9 @@ jobs:
 
       - name: Get Previous CLI Tag
         id: prev_tag
+        env:
+          CURRENT_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          CURRENT_TAG="${{ steps.version.outputs.tag }}"
           PREV_TAG=$(git describe --tags --abbrev=0 --match 'cli-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
@@ -200,13 +220,15 @@ jobs:
           name: "CLI v${{ steps.version.outputs.version }}"
           body: |
             ${{ steps.changelog.outputs.content }}
-            ${{ steps.prev_tag.outputs.prev_tag != '' && format('Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}
+
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "Published cline@${VERSION} to npm with dist-tag 'latest'"
           echo "Install with: npm install -g cline"
 
@@ -309,6 +331,15 @@ jobs:
       - name: Build SDK packages
         if: steps.check_commits.outputs.skip != 'true'
         run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
       - name: Run tests
         if: steps.check_commits.outputs.skip != 'true'
@@ -329,8 +360,9 @@ jobs:
 
       - name: Update nightly package version
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           node -e '
             const fs = require("node:fs");
             const path = "apps/cli/package.json";
@@ -339,18 +371,26 @@ jobs:
             fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
           '
           cat apps/cli/package.json | grep '"version"'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
         run: bun script/build.ts --install-native-variants --skip-sdk-build
         working-directory: sdk/apps/cli
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           EXPECTED=(
             "@cline/cli-darwin-arm64"
             "@cline/cli-darwin-x64"
@@ -388,7 +428,8 @@ jobs:
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "Published cline@${VERSION} to npm with dist-tag 'nightly'"
           echo "Install with: npm install -g cline@nightly"

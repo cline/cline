@@ -23,6 +23,8 @@ struct HubState {
     hub_uptime: Option<String>,
     last_error: Option<String>,
     client_summaries: Vec<ClientSummary>,
+    session_summaries: Vec<SessionSummary>,
+    events: Vec<HubEventRecord>,
     notifications: Vec<NotificationRecord>,
 }
 
@@ -32,6 +34,37 @@ struct ClientSummary {
     label: String,
     name: String,
     session_count: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionSummary {
+    session_id: String,
+    title: String,
+    status: String,
+    workspace_root: String,
+    workspace_name: String,
+    cwd: Option<String>,
+    model: Option<String>,
+    provider: Option<String>,
+    created_at: u64,
+    updated_at: u64,
+    created_by_client_id: Option<String>,
+    prompt: Option<String>,
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+    total_cost: Option<f64>,
+    agent_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HubEventRecord {
+    id: String,
+    title: String,
+    body: String,
+    severity: String,
+    timestamp: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -53,6 +86,8 @@ struct SidecarMessage {
     clients: Option<Vec<serde_json::Value>>,
     sessions: Option<Vec<serde_json::Value>>,
     client_summaries: Option<Vec<ClientSummary>>,
+    session_summaries: Option<Vec<SessionSummary>>,
+    events: Option<Vec<HubEventRecord>>,
     last_workspace_root: Option<String>,
     hub_uptime: Option<String>,
     title: Option<String>,
@@ -134,6 +169,13 @@ fn push_notification(
 fn resolve_sidecar_script(workspace_root: &str, launch_cwd: &str) -> Option<PathBuf> {
     let candidates = [
         PathBuf::from(workspace_root)
+            .join("sdk")
+            .join("apps")
+            .join("examples")
+            .join("menubar")
+            .join("sidecar")
+            .join("index.ts"),
+        PathBuf::from(workspace_root)
             .join("apps")
             .join("examples")
             .join("menubar")
@@ -161,6 +203,16 @@ fn resolve_sidecar_binary(workspace_root: &str) -> Option<PathBuf> {
     let binary_name = sidecar_binary_name();
     let current_exe = std::env::current_exe().ok();
     let candidates = [
+        Some(
+            PathBuf::from(workspace_root)
+                .join("sdk")
+                .join("apps")
+                .join("examples")
+                .join("menubar")
+                .join("src-tauri")
+                .join("bin")
+                .join(&binary_name),
+        ),
         Some(
             PathBuf::from(workspace_root)
                 .join("apps")
@@ -305,6 +357,8 @@ fn handle_sidecar_message(state: &Arc<AppState>, msg: SidecarMessage, raw: &str)
             if let Ok(mut hub) = state.hub_state.lock() {
                 hub.connected = connected;
                 hub.client_summaries = msg.client_summaries.unwrap_or_default();
+                hub.session_summaries = msg.session_summaries.unwrap_or_default();
+                hub.events = msg.events.unwrap_or_default();
                 hub.last_workspace_root = msg
                     .last_workspace_root
                     .and_then(|value| if value.trim().is_empty() { None } else { Some(value) });
@@ -517,6 +571,9 @@ fn build_tray_menu(
         hub_state.last_workspace_root.is_some(),
         None::<&str>,
     )?;
+    let open_dashboard_item =
+        MenuItem::with_id(app, "open_dashboard", "Open Dashboard", true, None::<&str>)?;
+    items.push(Box::new(open_dashboard_item));
     items.push(Box::new(new_chat_item));
     items.push(Box::new(PredefinedMenuItem::separator(app)?));
 
@@ -554,12 +611,47 @@ fn get_hub_state(state: tauri::State<'_, Arc<AppState>>) -> serde_json::Value {
     serde_json::json!({
         "connected": hub.connected,
         "clientSummaries": hub.client_summaries,
+        "sessionSummaries": hub.session_summaries,
+        "events": hub.events,
         "lastWorkspaceRoot": hub.last_workspace_root,
         "hubUptime": hub.hub_uptime,
         "lastError": hub.last_error,
         "notificationCount": hub.notifications.len(),
         "recentNotifications": &hub.notifications[hub.notifications.len().saturating_sub(10)..],
     })
+}
+
+#[tauri::command]
+fn start_new_session(prompt: String, state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    let prompt = prompt.trim().to_string();
+    if prompt.is_empty() {
+        return Err("Prompt cannot be empty".to_string());
+    }
+    send_sidecar_command(
+        state.inner(),
+        serde_json::json!({
+            "type": "new_chat",
+            "prompt": prompt,
+        }),
+    )
+}
+
+#[tauri::command]
+fn abort_session(
+    session_id: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    let session_id = session_id.trim().to_string();
+    if session_id.is_empty() {
+        return Err("Session id cannot be empty".to_string());
+    }
+    send_sidecar_command(
+        state.inner(),
+        serde_json::json!({
+            "type": "abort_session",
+            "sessionId": session_id,
+        }),
+    )
 }
 
 fn main() {
@@ -649,6 +741,12 @@ fn main() {
                             thread::sleep(Duration::from_millis(300));
                             app.exit(0);
                         }
+                        "open_dashboard" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
                         "latest_error" => {
                             let state = app.state::<Arc<AppState>>();
                             let error = {
@@ -709,7 +807,11 @@ fn main() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_hub_state])
+        .invoke_handler(tauri::generate_handler![
+            get_hub_state,
+            start_new_session,
+            abort_session
+        ])
         .run(tauri::generate_context!())
         .expect("error running menubar app");
 }
