@@ -27,7 +27,6 @@ export function resolveProviderConfigSap(values: ProviderConfigValues):
 			tokenUrl?: string;
 			resourceGroup?: string;
 			deploymentId?: string;
-			useOrchestrationMode?: boolean;
 	  }
 	| undefined {
 	const sap = {
@@ -36,7 +35,6 @@ export function resolveProviderConfigSap(values: ProviderConfigValues):
 		tokenUrl: values.sapTokenUrl?.trim() || undefined,
 		resourceGroup: values.sapResourceGroup?.trim() || undefined,
 		deploymentId: values.sapDeploymentId?.trim() || undefined,
-		useOrchestrationMode: true,
 	};
 	return Object.values(sap).some((value) => value !== undefined)
 		? sap

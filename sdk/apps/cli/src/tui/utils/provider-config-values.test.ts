@@ -81,7 +81,6 @@ describe("provider config values", () => {
 			tokenUrl: "https://auth.example",
 			resourceGroup: "default",
 			deploymentId: "deployment",
-			useOrchestrationMode: true,
 		});
 	});
 });
