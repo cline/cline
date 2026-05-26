@@ -1,3 +1,4 @@
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -56,10 +57,12 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	// Poll LM Studio models
 	const requestLmStudioModels = useCallback(async () => {
-		await ModelsServiceClient.getLmStudioModels({
-			baseUrl: endpoint,
-			apiKey: apiConfiguration?.lmStudioApiKey || "",
-		})
+		await ModelsServiceClient.getLmStudioModels(
+			OpenAiModelsRequest.create({
+				baseUrl: endpoint,
+				apiKey: apiConfiguration?.lmStudioApiKey || "",
+			}),
+		)
 			.then((response) => {
 				if (response?.values) {
 					const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
@@ -108,6 +111,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
 				placeholder="Enter API Key (optional)..."
 				providerName="LM Studio"
+				required={false}
 			/>
 
 			<div className="font-semibold">Model</div>

@@ -33,4 +33,31 @@ describe("getLmStudioModels", () => {
 			headers: { Authorization: "Bearer lmstudio-secret" },
 		})
 	})
+
+	it("omits the authorization header when no LM Studio API key is configured", async () => {
+		const fetchStub = sinon.stub().resolves({
+			json: async () => ({
+				data: [{ id: "local-model", max_context_length: 8192 }],
+			}),
+		})
+
+		const result = await mockFetchForTesting(fetchStub as any, () =>
+			getLmStudioModels(
+				{} as any,
+				{
+					baseUrl: "http://localhost:1234",
+					apiKey: "",
+				} as any,
+			),
+		)
+
+		expect(result).to.deep.equal(
+			StringArray.create({
+				values: [JSON.stringify({ id: "local-model", max_context_length: 8192 })],
+			}),
+		)
+		sinon.assert.calledOnce(fetchStub)
+		expect(fetchStub.firstCall.args[0]).to.equal("http://localhost:1234/api/v0/models")
+		expect(fetchStub.firstCall.args[1]).to.equal(undefined)
+	})
 })
