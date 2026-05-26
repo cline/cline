@@ -106,30 +106,57 @@ function readStringOption(
 		: undefined;
 }
 
-function normalizeSapTokenUrl(tokenUrl: string): string {
-	return tokenUrl.replace(/\/oauth\/token\/?$/i, "").replace(/\/+$/, "");
+function normalizeSapTokenServiceUrl(tokenUrl: string): string {
+	const trimmed = tokenUrl.replace(/\/+$/, "");
+	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
 }
 
-function buildSapServiceKey(
+function hasExplicitSapConnectionConfig(
 	config: GatewayResolvedProviderConfig,
 	options: Record<string, unknown>,
-): string | undefined {
+): boolean {
+	return Boolean(
+		config.apiKey?.trim() ||
+			config.baseUrl?.trim() ||
+			readStringOption(options, "clientId") ||
+			readStringOption(options, "clientSecret") ||
+			readStringOption(options, "tokenUrl"),
+	);
+}
+
+function buildSapDestination(
+	config: GatewayResolvedProviderConfig,
+	options: Record<string, unknown>,
+) {
 	const clientId = readStringOption(options, "clientId");
 	const clientSecret =
 		readStringOption(options, "clientSecret") ?? config.apiKey?.trim();
 	const tokenUrl = readStringOption(options, "tokenUrl");
 	const baseUrl = config.baseUrl?.trim();
 	if (!clientId || !clientSecret || !tokenUrl || !baseUrl) {
-		return undefined;
+		if (!hasExplicitSapConnectionConfig(config, options)) {
+			return undefined;
+		}
+		const missing = [
+			!clientId ? "sap.clientId" : undefined,
+			!clientSecret ? "sap.clientSecret" : undefined,
+			!tokenUrl ? "sap.tokenUrl" : undefined,
+			!baseUrl ? "baseUrl" : undefined,
+		].filter(Boolean);
+		throw new Error(
+			`SAP AI Core provider is missing required configuration: ${missing.join(
+				", ",
+			)}.`,
+		);
 	}
-	return JSON.stringify({
-		clientid: clientId,
-		clientsecret: clientSecret,
-		url: normalizeSapTokenUrl(tokenUrl),
-		serviceurls: {
-			AI_API_URL: baseUrl.replace(/\/+$/, ""),
-		},
-	});
+	return {
+		authentication: "OAuth2ClientCredentials" as const,
+		clientId,
+		clientSecret,
+		name: config.providerId,
+		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
+		url: baseUrl.replace(/\/+$/, ""),
+	};
 }
 
 function resolveSapApi(options: Record<string, unknown>) {
@@ -147,10 +174,7 @@ export async function createSapAiCoreProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
 	const options = readOptions(config);
-	const serviceKey = buildSapServiceKey(config, options);
-	if (serviceKey) {
-		process.env.AICORE_SERVICE_KEY = serviceKey;
-	}
+	const destination = buildSapDestination(config, options);
 
 	const { createSAPAIProvider } = await import(
 		"@jerome-benoit/sap-ai-provider"
@@ -162,6 +186,7 @@ export async function createSapAiCoreProviderModule(
 			? { deploymentId }
 			: { resourceGroup: readStringOption(options, "resourceGroup") }),
 		api: resolveSapApi(options),
+		...(destination ? { destination } : {}),
 		...(typeof options.defaultSettings === "object" &&
 		options.defaultSettings !== null &&
 		!Array.isArray(options.defaultSettings)
