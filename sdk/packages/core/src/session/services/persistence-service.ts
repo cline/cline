@@ -324,21 +324,21 @@ export class UnifiedSessionPersistenceService {
 		);
 	}
 
-	readSessionCompactionState(
+	async readSessionCompactionState(
 		sessionId: string,
-	): SessionCompactionState | undefined {
-		return this.manifestStore.readSessionCompactionState(sessionId);
+	): Promise<SessionCompactionState | undefined> {
+		return await this.manifestStore.readSessionCompactionState(sessionId);
 	}
 
 	async persistSessionCompactionState(
 		sessionId: string,
 		state: SessionCompactionState,
 	): Promise<void> {
-		this.manifestStore.persistSessionCompactionState(sessionId, state);
+		await this.manifestStore.persistSessionCompactionState(sessionId, state);
 	}
 
 	async deleteSessionCompactionState(sessionId: string): Promise<void> {
-		this.manifestStore.deleteSessionCompactionState(sessionId);
+		await this.manifestStore.deleteSessionCompactionState(sessionId);
 	}
 
 	applySubagentStatus(
@@ -568,7 +568,9 @@ export class UnifiedSessionPersistenceService {
 				children.map(async (child) => {
 					await deleteCheckpointRefs(child.cwd, child.sessionId);
 					unlinkIfExists(child.messagesPath);
-					this.manifestStore.deleteSessionCompactionState(child.sessionId);
+					await this.manifestStore.deleteSessionCompactionState(
+						child.sessionId,
+					);
 					unlinkIfExists(
 						this.manifestStore.artifacts.sessionManifestPath(
 							child.sessionId,
@@ -583,7 +585,7 @@ export class UnifiedSessionPersistenceService {
 		await deleteCheckpointRefs(row.cwd, id);
 
 		unlinkIfExists(row.messagesPath);
-		this.manifestStore.deleteSessionCompactionState(id);
+		await this.manifestStore.deleteSessionCompactionState(id);
 		unlinkIfExists(this.manifestStore.artifacts.sessionManifestPath(id, false));
 		if (row.isSubagent) {
 			this.manifestStore.artifacts.removeSessionDirIfEmpty(id);

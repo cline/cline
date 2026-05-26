@@ -465,8 +465,7 @@ export class ClineCore {
 	update: RuntimeHost["updateSession"] = (...args) =>
 		this.host.updateSession(...args);
 	/**
-	 * Updates the compacted working-context state for an existing session without
-	 * replacing the canonical transcript or changing the session id.
+	 * Stores the compacted working-context state for an existing session.
 	 */
 	updateSessionCompactionState: RuntimeHost["updateSessionCompactionState"] = (
 		...args

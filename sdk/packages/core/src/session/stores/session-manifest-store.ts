@@ -1,16 +1,12 @@
 import { randomUUID } from "node:crypto";
 import {
 	appendFileSync,
-	closeSync,
 	existsSync,
-	fsyncSync,
 	mkdirSync,
-	openSync,
 	readFileSync,
-	renameSync,
-	rmSync,
 	writeFileSync,
 } from "node:fs";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
@@ -36,17 +32,17 @@ import {
 	SessionManifestSchema,
 } from "../models/session-manifest";
 
-function fsyncBestEffort(path: string): void {
-	let fd: number | undefined;
+async function fsyncBestEffort(path: string): Promise<void> {
+	let handle: Awaited<ReturnType<typeof open>> | undefined;
 	try {
-		fd = openSync(path, "r");
-		fsyncSync(fd);
+		handle = await open(path, "r");
+		await handle.sync();
 	} catch {
 		// Directory fsync is not available on all platforms/filesystems.
 	} finally {
-		if (fd !== undefined) {
+		if (handle !== undefined) {
 			try {
-				closeSync(fd);
+				await handle.close();
 			} catch {
 				// Best-effort durability only.
 			}
@@ -54,29 +50,42 @@ function fsyncBestEffort(path: string): void {
 	}
 }
 
-function writeFileAtomicSync(path: string, contents: string): void {
-	mkdirSync(dirname(path), { recursive: true });
+async function writeFileAtomic(path: string, contents: string): Promise<void> {
+	await mkdir(dirname(path), { recursive: true });
 	const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-	let fd: number | undefined;
+	let handle: Awaited<ReturnType<typeof open>> | undefined;
 	try {
-		fd = openSync(tempPath, "w");
-		writeFileSync(fd, contents, "utf8");
-		fsyncSync(fd);
-		closeSync(fd);
-		fd = undefined;
-		renameSync(tempPath, path);
-		fsyncBestEffort(dirname(path));
+		handle = await open(tempPath, "w");
+		await handle.writeFile(contents, "utf8");
+		await handle.sync();
+		await handle.close();
+		handle = undefined;
+		await rename(tempPath, path);
+		await fsyncBestEffort(dirname(path));
 	} catch (error) {
-		if (fd !== undefined) {
+		if (handle !== undefined) {
 			try {
-				closeSync(fd);
+				await handle.close();
 			} catch {
 				// Preserve the original write error.
 			}
 		}
-		rmSync(tempPath, { force: true });
+		try {
+			await rm(tempPath, { force: true });
+		} catch {
+			// Preserve the original write error.
+		}
 		throw error;
 	}
+}
+
+function isNotFoundError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === "ENOENT"
+	);
 }
 
 export class SessionManifestStore {
@@ -197,18 +206,18 @@ export class SessionManifestStore {
 		);
 	}
 
-	readSessionCompactionState(
+	async readSessionCompactionState(
 		sessionId: string,
-	): SessionCompactionState | undefined {
+	): Promise<SessionCompactionState | undefined> {
 		const path = this.resolveCompactionPath(sessionId);
-		if (!existsSync(path)) {
-			return undefined;
-		}
 		try {
 			return parseSessionCompactionState(
-				JSON.parse(readFileSync(path, "utf8")) as unknown,
+				JSON.parse(await readFile(path, "utf8")) as unknown,
 			);
 		} catch (error) {
+			if (isNotFoundError(error)) {
+				return undefined;
+			}
 			this.logger?.debug("Ignoring invalid session compaction state", {
 				sessionId,
 				path,
@@ -219,17 +228,17 @@ export class SessionManifestStore {
 		}
 	}
 
-	persistSessionCompactionState(
+	async persistSessionCompactionState(
 		sessionId: string,
 		state: SessionCompactionState,
-	): void {
+	): Promise<void> {
 		const path = this.resolveCompactionPath(sessionId);
 		const payload = SessionCompactionStateSchema.parse(state);
-		writeFileAtomicSync(path, `${JSON.stringify(payload, null, 2)}\n`);
+		await writeFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
 	}
 
-	deleteSessionCompactionState(sessionId: string): void {
-		rmSync(this.resolveCompactionPath(sessionId), { force: true });
+	async deleteSessionCompactionState(sessionId: string): Promise<void> {
+		await rm(this.resolveCompactionPath(sessionId), { force: true });
 	}
 
 	appendStaleSessionHookLog(

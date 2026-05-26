@@ -85,7 +85,9 @@ describe("UnifiedSessionPersistenceService", () => {
 			source_message_count: 1,
 			messages: compactedMessages,
 		});
-		expect(service.readSessionCompactionState(sessionId)).toMatchObject({
+		await expect(
+			service.readSessionCompactionState(sessionId),
+		).resolves.toMatchObject({
 			source_message_count: 1,
 			messages: compactedMessages,
 		});
@@ -127,7 +129,9 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		expect(existsSync(artifacts.messagesPath)).toBe(true);
 		expect(existsSync(artifacts.compactionPath ?? "")).toBe(false);
-		expect(service.readSessionCompactionState(sessionId)).toBeUndefined();
+		await expect(
+			service.readSessionCompactionState(sessionId),
+		).resolves.toBeUndefined();
 	});
 
 	it("persists compaction state without backfilling old manifests during path resolution", async () => {
