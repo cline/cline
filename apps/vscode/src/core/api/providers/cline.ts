@@ -38,6 +38,7 @@ function normalizeModelId(modelId: string): string {
 }
 
 const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
+const CLINE_PROMPT_CACHE_MODEL_ID_OVERRIDES = new Map([["qwen/qwen3.6-plus", "alibaba/qwen3.6-plus"]])
 
 function getCacheReadTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
@@ -45,6 +46,10 @@ function getCacheReadTokens(usage: any): number {
 
 function getCacheWriteTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cache_write_tokens || usage?.cache_creation_input_tokens || 0
+}
+
+function getClineRequestModelId(modelId: string): string {
+	return CLINE_PROMPT_CACHE_MODEL_ID_OVERRIDES.get(normalizeModelId(modelId)) ?? modelId
 }
 
 export class ClineHandler implements ApiHandler {
@@ -331,12 +336,12 @@ export class ClineHandler implements ApiHandler {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
+			return { id: getClineRequestModelId(modelId), info: modelInfo }
 		}
 		// If we have a model ID but no model info (e.g., CLI featured models),
 		// use the ID with default model info rather than falling back to a different model
 		if (modelId) {
-			return { id: modelId, info: openRouterDefaultModelInfo }
+			return { id: getClineRequestModelId(modelId), info: openRouterDefaultModelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}

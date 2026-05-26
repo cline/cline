@@ -91,6 +91,39 @@ describe("createOpenRouterStream", () => {
 		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
 	})
 
+	it("adds cache_control blocks for the Cline Qwen cache route alias", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
+			id: "alibaba/qwen3.6-plus",
+			info: createModelInfo(65_536),
+		})
+
+		const payload = create.firstCall.args[0] as any
+		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+	})
+
+	it("disables include_reasoning for Qwen models when reasoning effort is none", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "qwen/qwen3.6-plus",
+				info: createModelInfo(65_536),
+			},
+			"none",
+			8192,
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", false)
+		payload.should.not.have.property("reasoning")
+	})
+
 	it("uses adaptive reasoning with verbosity for Claude Opus adaptive models", async () => {
 		const { client, create } = createClient()
 
