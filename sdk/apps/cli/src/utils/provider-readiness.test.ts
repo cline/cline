@@ -142,6 +142,7 @@ describe("provider readiness", () => {
 		expect(
 			isProviderSettingsUsable("sapaicore", {
 				provider: "sapaicore",
+				baseUrl: "https://api.ai.example.invalid",
 				sap: {
 					clientId: "client",
 					clientSecret: "secret",

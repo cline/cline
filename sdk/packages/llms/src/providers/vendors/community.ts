@@ -95,3 +95,80 @@ export async function createDifyProviderModule(
 			}),
 	};
 }
+
+function readStringOption(
+	options: Record<string, unknown>,
+	key: string,
+): string | undefined {
+	const value = options[key];
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: undefined;
+}
+
+function normalizeSapTokenUrl(tokenUrl: string): string {
+	return tokenUrl.replace(/\/oauth\/token\/?$/i, "").replace(/\/+$/, "");
+}
+
+function buildSapServiceKey(
+	config: GatewayResolvedProviderConfig,
+	options: Record<string, unknown>,
+): string | undefined {
+	const clientId = readStringOption(options, "clientId");
+	const clientSecret =
+		readStringOption(options, "clientSecret") ?? config.apiKey?.trim();
+	const tokenUrl = readStringOption(options, "tokenUrl");
+	const baseUrl = config.baseUrl?.trim();
+	if (!clientId || !clientSecret || !tokenUrl || !baseUrl) {
+		return undefined;
+	}
+	return JSON.stringify({
+		clientid: clientId,
+		clientsecret: clientSecret,
+		url: normalizeSapTokenUrl(tokenUrl),
+		serviceurls: {
+			AI_API_URL: baseUrl.replace(/\/+$/, ""),
+		},
+	});
+}
+
+function resolveSapApi(options: Record<string, unknown>) {
+	const api = options.api;
+	if (api === "orchestration" || api === "foundation-models") {
+		return api;
+	}
+	if (options.useOrchestrationMode === false) {
+		return "foundation-models";
+	}
+	return "orchestration";
+}
+
+export async function createSapAiCoreProviderModule(
+	config: GatewayResolvedProviderConfig,
+): Promise<ProviderFactoryResult> {
+	const options = readOptions(config);
+	const serviceKey = buildSapServiceKey(config, options);
+	if (serviceKey) {
+		process.env.AICORE_SERVICE_KEY = serviceKey;
+	}
+
+	const { createSAPAIProvider } = await import(
+		"@jerome-benoit/sap-ai-provider"
+	);
+	const deploymentId = readStringOption(options, "deploymentId");
+	const provider = createSAPAIProvider({
+		name: config.providerId,
+		...(deploymentId
+			? { deploymentId }
+			: { resourceGroup: readStringOption(options, "resourceGroup") }),
+		api: resolveSapApi(options),
+		...(typeof options.defaultSettings === "object" &&
+		options.defaultSettings !== null &&
+		!Array.isArray(options.defaultSettings)
+			? { defaultSettings: options.defaultSettings }
+			: {}),
+	});
+	return {
+		model: (modelId) => provider(modelId),
+	};
+}

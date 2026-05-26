@@ -40,7 +40,8 @@ export type ProviderFamily =
 	| "claude-code"
 	| "openai-codex"
 	| "opencode"
-	| "dify";
+	| "dify"
+	| "sap-ai-core";
 
 export interface BuiltinSpec {
 	id: string;
@@ -245,6 +246,7 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 		case "openai-codex":
 		case "opencode":
 		case "dify":
+		case "sap-ai-core":
 			return "ai-sdk-community";
 		default:
 			return "openai-compatible";
@@ -642,7 +644,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		id: "sapaicore",
 		name: "SAP AI Core",
 		description: "SAP AI Core inference and orchestration platform",
-		family: "openai-compatible",
+		family: "sap-ai-core",
 		client: "ai-sdk-community",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		defaultModelId: "anthropic--claude-3.5-sonnet",
