@@ -1261,9 +1261,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		connection: SessionConnectionUpdate,
 	): Promise<void> {
+		const previousProviderId = session.config.providerId;
+		const previousModelId = session.config.modelId;
 		const providerChanged =
 			connection.providerId !== undefined &&
-			connection.providerId !== session.config.providerId;
+			connection.providerId !== previousProviderId;
 		const nextConfig: CoreSessionConfig = { ...session.config };
 		if (connection.providerId !== undefined) {
 			nextConfig.providerId = connection.providerId;
@@ -1333,18 +1335,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			runtimeConnection,
 		);
 		session.runtime.teamRuntime?.updateTeammateConnections(runtimeConnection);
-		await this.persistSessionConnection(session, connection);
+		await this.persistSessionConnection(session, connection, {
+			providerId: previousProviderId,
+			modelId: previousModelId,
+		});
 	}
 
 	private async persistSessionConnection(
 		session: ActiveSession,
 		connection: SessionConnectionUpdate,
+		previous: { providerId: string; modelId: string },
 	): Promise<void> {
 		if (!session.artifacts) return;
-		if (
-			connection.providerId === undefined &&
-			connection.modelId === undefined
-		) {
+		const providerChanged =
+			connection.providerId !== undefined &&
+			connection.providerId !== previous.providerId;
+		const modelChanged =
+			connection.modelId !== undefined &&
+			connection.modelId !== previous.modelId;
+		if (!providerChanged && !modelChanged) {
 			return;
 		}
 		const result = await this.invokeOptionalValue<{ updated?: boolean }>(

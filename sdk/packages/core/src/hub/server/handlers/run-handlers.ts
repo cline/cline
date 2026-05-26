@@ -89,7 +89,14 @@ function parseConnectionUpdate(
 		typeof input.headers === "object" &&
 		!Array.isArray(input.headers)
 	) {
-		connection.headers = input.headers as Record<string, string>;
+		const headers = Object.fromEntries(
+			Object.entries(input.headers).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
+		);
+		if (Object.keys(headers).length > 0) {
+			connection.headers = headers;
+		}
 	}
 	if (input.providerConfig !== undefined) {
 		connection.providerConfig = input.providerConfig;

@@ -161,6 +161,43 @@ describe("run handlers", () => {
 		await expect(promise).resolves.toMatchObject({ ok: true });
 	});
 
+	it("passes through only string-valued connection headers", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ runTurn });
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "run.start",
+				requestId: "req-connection",
+				sessionId: "session-1",
+				payload: {
+					sessionId: "session-1",
+					prompt: "go",
+					connection: {
+						providerId: "anthropic",
+						modelId: "claude-opus-4-1",
+						headers: {
+							"x-valid": "yes",
+							"x-number": 1,
+							"x-object": { nested: true },
+						},
+					},
+				},
+			}),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				connection: expect.objectContaining({
+					providerId: "anthropic",
+					modelId: "claude-opus-4-1",
+					headers: { "x-valid": "yes" },
+				}),
+			}),
+		);
+	});
+
 	it("treats abort as applied when the runtime abort hook rejects", async () => {
 		const abort = vi.fn().mockRejectedValue(new Error("Run aborted"));
 		const ctx = createContext({ abort });

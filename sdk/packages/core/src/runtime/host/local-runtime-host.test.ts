@@ -4173,6 +4173,78 @@ describe("LocalRuntimeHost", () => {
 		expect(run).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not persist per-turn connection when provider and model are unchanged", async () => {
+		const sessionId = "sess-turn-connection-noop";
+		const manifest = createManifest(sessionId);
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const writeSessionManifest = vi.fn();
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-turn-connection-noop.json",
+				messagesPath: "/tmp/messages-turn-connection-noop.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSession,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest,
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const run = vi.fn().mockResolvedValue(createResult());
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore: vi.fn(),
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		await manager.runTurn({
+			sessionId,
+			prompt: "hello",
+			connection: {
+				providerId: "mock-provider",
+				modelId: "mock-model",
+				apiKey: "refreshed-key",
+			},
+		});
+
+		expect(updateSession).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: expect.any(String),
+				model: expect.any(String),
+			}),
+		);
+		expect(writeSessionManifest).toHaveBeenCalledTimes(1);
+		expect(run).toHaveBeenCalledTimes(1);
+	});
+
 	it("hydrates provider-specific config from provider settings", async () => {
 		const sessionId = "sess-provider-config";
 		const manifest = createManifest(sessionId);
