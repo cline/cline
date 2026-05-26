@@ -1320,14 +1320,34 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const runtimeConnection: SessionConnectionUpdate = {
 			providerId: nextConfig.providerId,
 			modelId: nextConfig.modelId,
-			apiKey: nextConfig.apiKey ?? "",
-			baseUrl: nextConfig.baseUrl ?? "",
-			headers: nextConfig.headers ?? {},
-			providerConfig: nextConfig.providerConfig,
-			reasoningEffort: nextConfig.reasoningEffort,
-			thinking: nextConfig.thinking,
-			thinkingBudgetTokens: nextConfig.thinkingBudgetTokens,
 		};
+		if (nextConfig.apiKey !== undefined) {
+			runtimeConnection.apiKey = nextConfig.apiKey;
+		} else if (providerChanged) {
+			runtimeConnection.apiKey = "";
+		}
+		if (nextConfig.baseUrl !== undefined) {
+			runtimeConnection.baseUrl = nextConfig.baseUrl;
+		} else if (providerChanged) {
+			runtimeConnection.baseUrl = "";
+		}
+		if (nextConfig.headers !== undefined) {
+			runtimeConnection.headers = nextConfig.headers;
+		} else if (providerChanged) {
+			runtimeConnection.headers = {};
+		}
+		if (nextConfig.providerConfig !== undefined) {
+			runtimeConnection.providerConfig = nextConfig.providerConfig;
+		}
+		if (nextConfig.reasoningEffort !== undefined) {
+			runtimeConnection.reasoningEffort = nextConfig.reasoningEffort;
+		}
+		if (nextConfig.thinking !== undefined) {
+			runtimeConnection.thinking = nextConfig.thinking;
+		}
+		if (nextConfig.thinkingBudgetTokens !== undefined) {
+			runtimeConnection.thinkingBudgetTokens = nextConfig.thinkingBudgetTokens;
+		}
 
 		session.config = nextConfig;
 		session.agent.updateConnection(runtimeConnection);

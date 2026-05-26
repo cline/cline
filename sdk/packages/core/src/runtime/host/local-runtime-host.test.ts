@@ -4193,12 +4193,19 @@ describe("LocalRuntimeHost", () => {
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
 		const run = vi.fn().mockResolvedValue(createResult());
+		const updateConnection = vi.fn();
+		const updateConnectionDefaults = vi.fn();
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
 			sessionService: sessionService as never,
 			runtimeBuilder: {
 				build: vi.fn().mockReturnValue({
 					tools: [],
+					delegatedAgentConfigProvider: {
+						getRuntimeConfig: vi.fn(),
+						getConnectionConfig: vi.fn(),
+						updateConnectionDefaults,
+					},
 					shutdown: vi.fn(),
 				}),
 			},
@@ -4212,7 +4219,7 @@ describe("LocalRuntimeHost", () => {
 					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
 					restore: vi.fn(),
-					updateConnection: vi.fn(),
+					updateConnection,
 					shutdown: vi.fn().mockResolvedValue(undefined),
 					getMessages: vi.fn().mockReturnValue([]),
 					messages: [],
@@ -4231,7 +4238,6 @@ describe("LocalRuntimeHost", () => {
 			connection: {
 				providerId: "mock-provider",
 				modelId: "mock-model",
-				apiKey: "refreshed-key",
 			},
 		});
 
@@ -4242,6 +4248,15 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 		expect(writeSessionManifest).toHaveBeenCalledTimes(1);
+		const update = updateConnection.mock.calls[0]?.[0];
+		expect(update).toMatchObject({
+			providerId: "mock-provider",
+			modelId: "mock-model",
+		});
+		expect(update).not.toHaveProperty("apiKey");
+		expect(update).not.toHaveProperty("baseUrl");
+		expect(update).not.toHaveProperty("headers");
+		expect(updateConnectionDefaults).toHaveBeenCalledWith(update);
 		expect(run).toHaveBeenCalledTimes(1);
 	});
 
