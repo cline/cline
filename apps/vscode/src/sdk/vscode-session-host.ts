@@ -30,7 +30,6 @@ import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
-import { logSdkStartTiming, nowMs } from "./sdk-start-timing"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 
@@ -75,13 +74,6 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
 		const startedAt = Date.now()
-		const timingStartedAt = nowMs()
-		logSdkStartTiming("VscodeSessionHost.create.begin", {
-			hasAskQuestion: Boolean(options.askQuestion),
-			hasTerminalManager: Boolean(options.getTerminalManager),
-			hasRemoteConfigIntegration: Boolean(options.getRemoteConfigIntegration),
-			hasTelemetry: Boolean(options.telemetry),
-		})
 		// Build tool executor capabilities from options — only include keys that are provided.
 		// When a terminal manager is available, suppress the SDK's built-in run_commands
 		// tool by setting bash to undefined. Our custom run_commands (provided via
@@ -97,7 +89,6 @@ export class VscodeSessionHost implements SdkSessionHost {
 			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
-		const coreCreateStartedAt = nowMs()
 		const inner = await ClineCore.create({
 			backendMode: "local",
 			capabilities: {
@@ -132,8 +123,6 @@ export class VscodeSessionHost implements SdkSessionHost {
 			}),
 		})
 
-		logSdkStartTiming("VscodeSessionHost.create.ClineCoreCreate", { durationMs: nowMs() - coreCreateStartedAt })
-		logSdkStartTiming("VscodeSessionHost.create.end", { durationMs: nowMs() - timingStartedAt })
 		Logger.log(`[HistoryPerf] VscodeSessionHost.create took ${Date.now() - startedAt}ms`)
 		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
 		if (options.getTerminalManager) {
@@ -145,18 +134,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 	async start(input: StartSessionInput): Promise<StartSessionResult>
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
-		const startedAt = nowMs()
-		try {
-			const result = await this.inner.start(input as ClineCoreStartInput)
-			logSdkStartTiming("VscodeSessionHost.start", { durationMs: nowMs() - startedAt, sessionId: result.sessionId })
-			return result
-		} catch (error) {
-			logSdkStartTiming("VscodeSessionHost.start.error", {
-				durationMs: nowMs() - startedAt,
-				error: error instanceof Error ? error.message : String(error),
-			})
-			throw error
-		}
+		return this.inner.start(input as ClineCoreStartInput)
 	}
 
 	async send(input: SendSessionInput) {

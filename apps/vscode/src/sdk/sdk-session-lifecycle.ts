@@ -4,7 +4,6 @@ import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
-import { logSdkStartTiming, nowMs, SDK_START_TIMING_LOG_PATH } from "./sdk-start-timing"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -82,27 +81,12 @@ export class SdkSessionLifecycle {
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
-		const totalStartedAt = nowMs()
-		logSdkStartTiming("startNewSession.begin", { logPath: SDK_START_TIMING_LOG_PATH })
-
-		const policiesStartedAt = nowMs()
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
 		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
-		logSdkStartTiming("startNewSession.toolPolicies", { durationMs: nowMs() - policiesStartedAt })
 
-		const hostCreateStartedAt = nowMs()
-		const hadSharedHost = Boolean(this.sharedHost || this.sharedHostPromise)
 		const sdkHost = await this.getOrCreateSharedHost()
-		logSdkStartTiming("startNewSession.hostCreate", {
-			durationMs: nowMs() - hostCreateStartedAt,
-			reused: hadSharedHost,
-		})
-
-		const subscribeStartedAt = nowMs()
 		const unsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "pending-start")
-		logSdkStartTiming("startNewSession.subscribe", { durationMs: nowMs() - subscribeStartedAt })
 
-		const hostStartStartedAt = nowMs()
 		let startResult: StartSessionResult
 		try {
 			startResult = await sdkHost.start({
@@ -113,11 +97,6 @@ export class SdkSessionLifecycle {
 			unsubscribe()
 			throw error
 		}
-		logSdkStartTiming("startNewSession.hostStart", {
-			durationMs: nowMs() - hostStartStartedAt,
-			sessionId: startResult.sessionId,
-		})
-
 		this.activeSession = {
 			sessionId: startResult.sessionId,
 			sdkHost,
@@ -126,10 +105,6 @@ export class SdkSessionLifecycle {
 			isRunning: true,
 		}
 
-		logSdkStartTiming("startNewSession.end", {
-			durationMs: nowMs() - totalStartedAt,
-			sessionId: startResult.sessionId,
-		})
 		return { startResult, sdkHost }
 	}
 
