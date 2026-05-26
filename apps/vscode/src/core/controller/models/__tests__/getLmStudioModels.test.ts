@@ -1,5 +1,6 @@
 import { StringArray } from "@shared/proto/cline/common"
 import { expect } from "chai"
+import { describe, it } from "mocha"
 import sinon from "sinon"
 import { mockFetchForTesting } from "@/shared/net"
 import { getLmStudioModels } from "../getLmStudioModels"
