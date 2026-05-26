@@ -1,5 +1,3 @@
-import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -11,6 +9,7 @@ import { Mode } from "@/shared/storage/types"
 import { telemetryService } from "../../../services/telemetry"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
 import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"
 
 /**
@@ -114,11 +113,8 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			const apiConfigForHandler = {
-				...controller.stateManager.getApiConfiguration(),
-				ulid: controller.task.ulid,
-			}
-			controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
+			const modelId = resolveActiveModelIdFromApiConfiguration(controller.stateManager.getApiConfiguration(), currentMode)
+			controller.task.api = createTaskApiModelShim(modelId)
 		}
 
 		// Update telemetry setting
