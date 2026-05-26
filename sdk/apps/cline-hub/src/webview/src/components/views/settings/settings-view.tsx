@@ -610,7 +610,7 @@ function GeneralSettingsContent({
 						</div>
 						<Switch
 							aria-label="Telemetry opt-out"
-							checked={telemetryOptOut}
+							checked={!telemetryOptOut} // If opt-out is true, the switch should be off (unchecked)
 							disabled={telemetryLoading || telemetrySaving}
 							onCheckedChange={(checked) => void updateTelemetryOptOut(checked)}
 						/>
