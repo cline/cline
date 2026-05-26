@@ -27,6 +27,7 @@ import {
 	buildThreadStartRequest,
 	clearSession,
 	getOrCreateSessionId,
+	readSessionMessageCount,
 	readSessionReplyText,
 } from "./session-runtime";
 import {
@@ -727,6 +728,10 @@ export async function handleConnectorUserTurn<
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
+	const fallbackMessageStartIndex =
+		input.transport === "discord"
+			? await readSessionMessageCount(input.client, sessionId)
+			: undefined;
 
 	input.activeTurns?.set(turnKey, { sessionId });
 	await input.thread.startTyping();
@@ -789,7 +794,12 @@ export async function handleConnectorUserTurn<
 				},
 			}),
 			postFinalReply,
-			async () => readSessionReplyText(input.client, sessionId),
+			input.transport === "discord" && fallbackMessageStartIndex !== undefined
+				? async () =>
+						readSessionReplyText(input.client, sessionId, {
+							minMessageIndex: fallbackMessageStartIndex,
+						})
+				: undefined,
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);

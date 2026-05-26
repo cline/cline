@@ -641,12 +641,31 @@ describe("handleConnectorUserTurn", () => {
 			cwd: "/tmp/work",
 			workspaceRoot: "/tmp/work",
 		});
-		const runtime = createRuntimeClient("", [
+		const priorMessages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "previous question" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Previous reply." }],
+			},
+		];
+		const currentMessages = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "read README.md" }],
+			},
 			{
 				role: "assistant",
 				content: [{ type: "text", text: "Summary from saved session." }],
 			},
-		]);
+		];
+		const runtime = createRuntimeClient("");
+		runtime.readMessages
+			.mockResolvedValueOnce(priorMessages)
+			.mockResolvedValueOnce(currentMessages);
 
 		await handleConnectorUserTurn({
 			thread: thread as never,
@@ -673,8 +692,121 @@ describe("handleConnectorUserTurn", () => {
 			startedLogMessage: "started",
 		});
 
-		expect(runtime.readMessages).toHaveBeenCalledWith("session-1");
+		expect(runtime.readMessages).toHaveBeenCalledTimes(2);
 		expect(posts.at(-1)).toBe("Summary from saved session.");
+	});
+
+	it("does not post stale Discord replies when no current-turn reply exists", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const priorMessages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "previous question" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Previous reply." }],
+			},
+		];
+		const currentMessages = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "run ls /tmp" }],
+			},
+			{
+				role: "tool",
+				content: [{ type: "text", text: "tool output" }],
+			},
+		];
+		const runtime = createRuntimeClient("");
+		runtime.readMessages
+			.mockResolvedValueOnce(priorMessages)
+			.mockResolvedValueOnce(currentMessages);
+
+		await expect(
+			handleConnectorUserTurn({
+				thread: thread as never,
+				text: "run ls /tmp",
+				client: runtime.client as never,
+				pendingApprovals: new Map(),
+				baseStartRequest: baseStartRequest({
+					enableTools: true,
+					autoApproveTools: true,
+				}) as never,
+				explicitSystemPrompt: undefined,
+				clientId: "client-1",
+				logger: {
+					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+				} as never,
+				transport: "discord",
+				botUserName: "ClineAdapterBot",
+				requestStop: vi.fn(),
+				bindingsPath,
+				systemRules: "rules",
+				errorLabel: "Discord",
+				getSessionMetadata: () => ({}),
+				reusedLogMessage: "reused",
+				startedLogMessage: "started",
+			}),
+		).rejects.toThrow("Runtime completed without assistant reply text.");
+
+		expect(runtime.readMessages).toHaveBeenCalledTimes(2);
+		expect(posts).not.toContain("Previous reply.");
+	});
+
+	it("keeps Telegram empty-stream behavior from reading session history", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const runtime = createRuntimeClient("", [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Previous reply." }],
+			},
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "run ls /tmp",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: true,
+				autoApproveTools: true,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		expect(runtime.readMessages).not.toHaveBeenCalled();
+		expect(posts.at(-1)).toEqual({ raw: " " });
 	});
 
 	it("steers active Telegram turns without the hub command timeout", async () => {

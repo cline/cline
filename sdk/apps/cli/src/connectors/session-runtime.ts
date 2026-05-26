@@ -20,6 +20,7 @@ import { resolveWorkspaceRoot } from "../utils/helpers";
 import {
 	parseLocalRowMetadata,
 	parseRowMetadata,
+	readSessionMessageCount,
 	readSessionReplyText,
 } from "./common";
 import { dispatchConnectorHook } from "./hooks";
@@ -336,4 +337,4 @@ export async function stopConnectorSessions(input: {
 	return filtered.length;
 }
 
-export { readSessionReplyText };
+export { readSessionMessageCount, readSessionReplyText };
