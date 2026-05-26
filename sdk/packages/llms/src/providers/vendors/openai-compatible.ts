@@ -6,6 +6,7 @@ import type {
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
 import { resolveApiKey } from "../http";
+import { composeMiddleware, createRetryMiddleware } from "../middleware/retry";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -26,6 +27,36 @@ export async function createOpenAICompatibleProviderModule(
 		...(config.fetch ? { fetch: config.fetch } : {}),
 		includeUsage: true,
 	} as never);
+
+	// Extract retry options from provider config
+	const retryOptions = config.options?.retry as
+		| {
+				maxRetries?: number;
+				baseDelayMs?: number;
+				maxDelayMs?: number;
+		  }
+		| undefined;
+
+	// Create retry middleware
+	const retryMiddleware = createRetryMiddleware({
+		maxRetries: retryOptions?.maxRetries ?? 3,
+		baseDelayMs: retryOptions?.baseDelayMs ?? 1000,
+		maxDelayMs: retryOptions?.maxDelayMs ?? 30000,
+		onRetryAttempt: (attempt, maxRetries, delayMs, error) => {
+			context.logger?.log(
+				`[${context.provider.id}] Retry attempt ${attempt}/${maxRetries} after ${delayMs}ms`,
+				{ error, modelId: context.model.id, severity: "warn" },
+			);
+		},
+		signal: context.signal,
+	});
+
+	// Compose retry with existing splitToolImagesMiddleware
+	const composedMiddleware = composeMiddleware(
+		retryMiddleware,
+		splitToolImagesMiddleware,
+	);
+
 	return {
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
 		// `role:"tool"` messages whose `output.type === 'content'` carries
@@ -43,7 +74,7 @@ export async function createOpenAICompatibleProviderModule(
 		model: (modelId) =>
 			wrapLanguageModel({
 				model: provider(modelId) as LanguageModelV3,
-				middleware: splitToolImagesMiddleware,
+				middleware: composedMiddleware,
 			}),
 	};
 }
