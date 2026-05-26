@@ -169,11 +169,12 @@ describe("buildBudgetProjection", () => {
 				{
 					role: "user",
 					content: [
-						{
-							type: "tool_result",
-							tool_use_id: "tool_1",
-							content: "x".repeat(1000),
-						},
+							{
+								type: "tool_result",
+								tool_use_id: "tool_1",
+								name: "read_files",
+								content: "x".repeat(1000),
+							},
 					],
 				},
 				{ role: "user", content: "latest task" },
@@ -236,11 +237,12 @@ describe("buildBudgetProjection", () => {
 			{
 				role: "user",
 				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "tool_1",
-						content: "result",
-					},
+						{
+							type: "tool_result",
+							tool_use_id: "tool_1",
+							name: "read",
+							content: "result",
+						},
 				],
 			},
 		];
@@ -259,6 +261,7 @@ describe("buildBudgetProjection", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool_1",
+							name: "read",
 							content: "result " + "y".repeat(500),
 						},
 					],
@@ -293,6 +296,7 @@ describe("buildBudgetProjection", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool_live",
+							name: "read",
 							content: [
 								{ type: "text", text: "a".repeat(200) },
 								{ type: "file", path: "/tmp/huge.txt", content: "b".repeat(1_000) },
@@ -360,6 +364,7 @@ describe("buildBudgetProjection", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool_old",
+							name: "read",
 							content: [
 								{ type: "text", text: "old output" },
 								{
