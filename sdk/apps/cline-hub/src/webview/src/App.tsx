@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type {
+	WebviewActiveConnector,
 	WebviewConnectedClient,
 	WebviewHubEvent,
 	WebviewHubState,
@@ -40,6 +41,7 @@ const EMPTY_HUB_STATE: WebviewHubState = {
 	type: "hub_state",
 	connected: false,
 	clients: [],
+	connectors: [],
 	sessions: [],
 	clientSummaries: [],
 	sessionSummaries: [],
@@ -123,6 +125,19 @@ function clientLabel(client: WebviewConnectedClient): string {
 	);
 }
 
+function connectorLabel(connector: WebviewActiveConnector): string {
+	if (connector.botUsername) {
+		return `@${connector.botUsername}`;
+	}
+	if (connector.userName) {
+		return connector.userName;
+	}
+	if (connector.applicationId) {
+		return connector.applicationId;
+	}
+	return shortId(connector.id);
+}
+
 function Shell({
 	children,
 	onNavigate,
@@ -193,6 +208,7 @@ function HomeView({
 }) {
 	const activeSessions = hubState.sessionSummaries ?? [];
 	const connectedClients = hubState.clients ?? [];
+	const connectedConnectors = hubState.connectors ?? [];
 	const latestEvents = hubState.events.slice(0, 6);
 	const [restartDialogOpen, setRestartDialogOpen] = useState(false);
 
@@ -226,8 +242,8 @@ function HomeView({
 						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground"
 						title="ClineCore package version"
 					>
-						<span className="font-medium text-foreground">ClineCore</span>
-						{hubState.coreVersion ?? "unknown"}
+						<span className="font-medium text-foreground">ClineCore</span>v
+						{hubState.coreVersion ?? "Unknown"}
 					</div>
 					<div
 						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground"
@@ -290,7 +306,7 @@ function HomeView({
 				<div className="grid grid-cols-[auto_1fr] grid-rows-[auto_auto] items-center gap-x-2.5 gap-y-0.5 rounded-lg border bg-[color-mix(in_oklch,var(--card)_88%,transparent)] p-3.5">
 					<BotIcon className="size-4 text-muted-foreground" />
 					<span className="text-[26px] font-bold leading-none">
-						{hubState.clientSummaries.length}
+						{connectedClients.length + connectedConnectors.length}
 					</span>
 					<span className="col-start-2 text-xs text-muted-foreground">
 						Connected Clients
@@ -307,41 +323,79 @@ function HomeView({
 				</div>
 			</section>
 
-			<section className="min-h-60 overflow-hidden rounded-lg border bg-card">
+			<section
+				id="connected-clients-section"
+				className="min-h-60 overflow-hidden rounded-lg border bg-card"
+			>
 				<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
 					<h3 className="text-[13px] font-[650]">Connected Clients</h3>
+					<span className="text-xs text-muted-foreground">
+						{connectedClients.length + connectedConnectors.length}
+					</span>
 				</div>
-				<div className="grid gap-2 p-2.5">
-					{hubState.clientSummaries.length === 0 ? (
+				<div className="grid max-h-[174px] gap-2 overflow-y-auto p-2.5">
+					{connectedClients.length === 0 && connectedConnectors.length === 0 ? (
 						<p className="px-1 py-4 text-[13px] text-muted-foreground">
-							No connected clients found.
+							No connected clients or channels found.
 						</p>
 					) : (
-						hubState.clientSummaries.map((client) => (
+						connectedClients.map((client) => (
 							<div
 								className="flex items-center justify-between gap-3 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5"
-								key={`${client.label}-${client.name}`}
+								key={client.clientId}
 							>
-								<div>
-									<p className="text-[13px] font-semibold leading-tight">
-										{client.name}
+								<div className="min-w-0">
+									<p className="truncate text-[13px] font-semibold leading-tight">
+										{clientLabel(client)}
 									</p>
+									<span className="block truncate text-[11px] text-muted-foreground">
+										{client.clientType}
+									</span>
 								</div>
-								<strong className="text-xl leading-none">
-									{client.sessionCount ? client.sessionCount : null}
-								</strong>
+								<span className="whitespace-nowrap text-[11px] text-muted-foreground">
+									{formatRelativeTime(client.connectedAt)}
+								</span>
 							</div>
 						))
 					)}
+					{connectedConnectors.map((connector) => (
+						<div
+							className="flex items-center justify-between gap-3 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5"
+							key={connector.id}
+						>
+							<div className="min-w-0">
+								<p className="truncate text-[13px] font-semibold leading-tight">
+									{connector.type.toUpperCase()}
+								</p>
+								<span
+									className="block truncate text-[11px] text-muted-foreground"
+									title={connector.hubUrl}
+								>
+									{connectorLabel(connector)} | pid={connector.pid}
+								</span>
+							</div>
+							<span
+								className="block truncate text-[11px] text-muted-foreground"
+								title={connector.hubUrl}
+							>
+								Channel
+							</span>
+						</div>
+					))}
 				</div>
 			</section>
 
 			<div className="mt-4 grid grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] gap-3.5 max-[980px]:grid-cols-1">
-				<section className="min-h-60 overflow-hidden rounded-lg border bg-card">
+				<section
+					id="recent-sessions-section"
+					className="min-h-60 overflow-hidden rounded-lg border bg-card"
+				>
 					<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
-						<h3 className="text-[13px] font-[650]">Recent Sessions</h3>
+						<h3 className="text-[13px] font-[650]">
+							Last {recentSessions.length} Sessions
+						</h3>
 						<span className="text-xs text-muted-foreground">
-							{recentSessions.length}
+							<ClockIcon className="size-4" />
 						</span>
 					</div>
 					<div className="grid gap-2 p-2.5">
@@ -356,43 +410,6 @@ function HomeView({
 									onOpen={() => onOpenSession(session.sessionId)}
 									session={session}
 								/>
-							))
-						)}
-					</div>
-				</section>
-
-				<section className="min-h-60 overflow-hidden rounded-lg border bg-card hidden">
-					<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
-						<h3 className="text-[13px] font-[650]">
-							Connected Client{connectedClients.length === 1 ? "" : "s"}
-						</h3>
-						<span className="text-xs text-muted-foreground">
-							{connectedClients.length}
-						</span>
-					</div>
-					<div className="grid gap-2 p-2.5">
-						{connectedClients.length === 0 ? (
-							<p className="px-1 py-4 text-[13px] text-muted-foreground">
-								No clients connected.
-							</p>
-						) : (
-							connectedClients.map((client) => (
-								<div
-									className="flex items-center justify-between gap-3 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5"
-									key={client.clientId}
-								>
-									<div>
-										<p className="text-[13px] font-semibold leading-tight">
-											{clientLabel(client)}
-										</p>
-										<span className="text-[11px] text-muted-foreground">
-											{client.clientType}
-										</span>
-									</div>
-									<span className="text-[11px] text-muted-foreground">
-										{formatRelativeTime(client.connectedAt)}
-									</span>
-								</div>
 							))
 						)}
 					</div>

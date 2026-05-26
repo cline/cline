@@ -128,6 +128,53 @@ export type WebviewClientSummary = {
 	sessionCount: number;
 };
 
+export type WebviewConnectorField = {
+	flag: string;
+	label: string;
+	placeholder?: string;
+	required?: boolean;
+	help?: string[];
+};
+
+export type WebviewConnectorSecurityField = {
+	key: string;
+	label: string;
+	placeholder?: string;
+	help?: string[];
+	requiredMessage: string;
+};
+
+export type WebviewConnectorChannel = {
+	id: string;
+	name: string;
+	type: "polling" | "webhook";
+	hint: string;
+	fields: WebviewConnectorField[];
+	security?: {
+		prompt: string;
+		fields: WebviewConnectorSecurityField[];
+	};
+};
+
+export type WebviewActiveConnector = {
+	id: string;
+	type: string;
+	pid: number;
+	hubUrl: string;
+	startedAt?: string;
+	applicationId?: string;
+	botUsername?: string;
+	userName?: string;
+	phoneNumberId?: string;
+	port?: number;
+	baseUrl?: string;
+};
+
+export type WebviewConnectorChannelsResponse = {
+	available: WebviewConnectorChannel[];
+	active: WebviewActiveConnector[];
+};
+
 export type WebviewActionSessionSummary = {
 	sessionId: string;
 	title: string;
@@ -163,6 +210,7 @@ export type WebviewHubState = {
 	coreVersion?: string;
 	hubUptime?: string;
 	clients: WebviewConnectedClient[];
+	connectors: WebviewActiveConnector[];
 	sessions: WebviewActionSessionSummary[];
 	clientSummaries: WebviewClientSummary[];
 	sessionSummaries: WebviewActionSessionSummary[];

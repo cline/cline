@@ -15,6 +15,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
+import { ChannelsContent } from "./channels-view";
 import { RulesView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
@@ -33,6 +34,7 @@ const navCategories = [
 	"Providers",
 	"Extensions",
 	"MCP",
+	"Channels",
 	"Schedules",
 	"Account",
 ] as const;
@@ -476,6 +478,8 @@ export function SettingsView({
 						)
 					) : activeNav === "MCP" ? (
 						<McpServersContent />
+					) : activeNav === "Channels" ? (
+						<ChannelsContent />
 					) : activeNav === "Schedules" ? (
 						<RoutineSchedulesContent />
 					) : activeNav === "Extensions" ? (
