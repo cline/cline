@@ -19,17 +19,14 @@ describe("Hook System", () => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
-	beforeEach(async () => {
+	beforeEach(async function () {
+		if (process.platform === "win32") {
+			this.timeout(WINDOWS_TEST_TIMEOUT_MS)
+		}
 		setDistinctId("test-id")
 		hookTestEnv = await createHookTestEnv()
 		tempDir = hookTestEnv.tempDir
 		sandbox = hookTestEnv.sandbox
-	})
-
-	beforeEach(function () {
-		if (process.platform === "win32") {
-			this.timeout(WINDOWS_TEST_TIMEOUT_MS)
-		}
 	})
 
 	afterEach(async () => {
