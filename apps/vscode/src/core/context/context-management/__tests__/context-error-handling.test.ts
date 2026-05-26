@@ -4,9 +4,7 @@ import { checkContextWindowExceededError } from "../context-error-handling"
 describe("checkContextWindowExceededError", () => {
 	it("detects OpenRouter context errors using structured status", () => {
 		const error = Object.assign(
-			new Error(
-				"This endpoint's maximum context length is 204800 tokens. However, you requested about 244027 tokens.",
-			),
+			new Error("This endpoint's maximum context length is 204800 tokens. However, you requested about 244027 tokens."),
 			{
 				status: 400,
 			},
