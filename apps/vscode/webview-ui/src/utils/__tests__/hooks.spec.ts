@@ -59,6 +59,6 @@ describe("useMetaKeyDetection", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("linux"))
 		expect(result.current[0]).toBe("linux")
-		expect(result.current[1]).toBe("Alt")
+		expect(result.current[1]).toBe("Super")
 	})
 })
