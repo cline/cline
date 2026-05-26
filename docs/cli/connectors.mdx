@@ -85,10 +85,115 @@ Each Slack thread maps to an agent session, so the agent maintains conversation 
 
 ## Discord
 
-Requires an application ID, bot token, public key, and public base URL.
+Requires a Discord application ID, bot token, public key, and public base URL.
+The connector listens for Discord interactions at `/api/webhooks/discord` and
+also starts a Discord gateway listener for mentions, replies, reactions, and DMs.
+
+<Steps>
+  <Step title="Create a Discord application and bot">
+    Open [Discord Developer Portal](https://discord.com/developers/applications)
+    and create an application.
+
+    1. In **General Information**, copy the **Application ID** and **Public Key**.
+    2. In **Bot**, create a bot if one does not exist, then reset and copy the bot token.
+    3. Enable **Message Content Intent** if you want normal messages, replies, and DMs to include text content.
+  </Step>
+
+  <Step title="Expose a public base URL">
+    For local development, use a tunnel such as ngrok:
+
+    ```bash
+    ngrok http 8788
+    ```
+
+    Copy the HTTPS forwarding URL. This is your connector base URL, for example
+    `https://1234-5678.ngrok-free.app`.
+  </Step>
+
+  <Step title="Start the connector">
+    ```bash
+    cline connect discord \
+      --application-id <ID> \
+      --bot-token <TOKEN> \
+      --public-key <KEY> \
+      --base-url <URL> \
+      --port 8788 \
+      --cwd /path/to/repo \
+      --enable-tools
+    ```
+
+    `--app-id` is an alias for `--application-id`, and `--token` is an alias for
+    `--bot-token`.
+
+    `--enable-tools` allows the agent to inspect files, run commands, edit code,
+    and prepare PRs from Discord. Omit it if the bot should only chat.
+  </Step>
+
+  <Step title="Configure the Discord interactions endpoint">
+    In the Discord Developer Portal, set **Interactions Endpoint URL** to:
+
+    ```text
+    <base-url>/api/webhooks/discord
+    ```
+
+    For example:
+
+    ```text
+    https://1234-5678.ngrok-free.app/api/webhooks/discord
+    ```
+
+    You can verify the connector is reachable with:
+
+    ```bash
+    curl <base-url>/health
+    ```
+  </Step>
+
+  <Step title="Invite the bot to a test server">
+    In **OAuth2 > URL Generator**, select the `bot` and
+    `applications.commands` scopes, then give the bot permission to send
+    messages and read message history. Open the generated URL and install the bot
+    into your test server.
+  </Step>
+
+  <Step title="Chat with the bot">
+    Mention the bot in a server channel, reply in a bot-created thread, or DM the
+    bot. Each Discord conversation keeps its own agent session and context.
+  </Step>
+</Steps>
+
+### Discord Command Reference
+
+Send these commands in Discord:
+
+| Command | Description |
+|---------|-------------|
+| `/help` or `/start` | Show connector help |
+| `/new` or `/clear` | Start a fresh session for this Discord conversation |
+| `/whereami` | Show thread, channel, DM state, `cwd`, `workspaceRoot`, tools, and yolo state |
+| `/tools [on\|off\|toggle]` | View or change whether repo/file/shell tools are allowed |
+| `/yolo [on\|off\|toggle]` | View or change automatic tool approval |
+| `/cwd [path]` | View or change the working directory for this conversation |
+| `/schedule create/list/trigger/delete` | Manage scheduled workflows targeting this conversation |
+| `/abort` | Stop the current task |
+| `/exit` | Stop the connector |
+
+Normal messages are treated as agent tasks. If a task is already running, normal
+messages steer the active task.
+
+### Discord Security
+
+By default, anyone who can reach the bot can ask it to run tasks. Restrict access
+with `--hook-command`. The hook receives the Discord user as a participant key
+such as `discord:user:123456789`.
 
 ```bash
-cline connect discord --app-id <ID> --token <TOKEN> --public-key <KEY> --base-url <URL>
+cline connect discord \
+  --application-id <ID> \
+  --bot-token <TOKEN> \
+  --public-key <KEY> \
+  --base-url <URL> \
+  --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "discord:user:123456789" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
 ```
 
 ## Google Chat
