@@ -1,11 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
-import { pushMessageToWebview } from "./webview-grpc-bridge"
-
-vi.mock("./webview-grpc-bridge", () => ({
-	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
-}))
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -47,7 +42,7 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
 		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("clearTask")
+		expect(activeSession.sdkHost.dispose).not.toHaveBeenCalled()
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
@@ -74,20 +69,16 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
 		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
 		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sdkHost.dispose).toHaveBeenCalledWith("showTaskWithId")
+		expect(activeSession.sdkHost.dispose).not.toHaveBeenCalled()
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
 		expect(options.taskHistory.getClineMessages).toHaveBeenCalledWith("task-1")
-		expect(options.messages.appendMessages).toHaveBeenCalledWith(
-			[
-				{ ts: 1, type: "say", say: "task", text: "hello" },
-				{ ts: 2, type: "ask", ask: "completion_result", text: "" },
-				expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
-			],
-			{ save: false },
-		)
-		expect(pushMessageToWebview).toHaveBeenCalledTimes(3)
+		expect(state.task?.messageStateHandler.getClineMessages()).toEqual([
+			{ ts: 1, type: "say", say: "task", text: "hello" },
+			{ ts: 2, type: "ask", ask: "completion_result", text: "" },
+			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
+		])
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 

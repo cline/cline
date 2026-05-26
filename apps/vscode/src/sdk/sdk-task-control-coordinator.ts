@@ -65,10 +65,9 @@ export class SdkTaskControlCoordinator {
 			const { sdkHost, unsubscribe, sessionId } = activeSession
 			unsubscribe()
 
-			// Do not block the webview on SDK shutdown. `stop()`/`dispose()` can take
-			// seconds (or hit their timeouts) while the UI only needs the active
-			// session reference and task proxy cleared synchronously.
-			this.stopAndDisposeSessionInBackground(sdkHost, sessionId)
+			// Do not block the webview on SDK session shutdown. The shared SDK host is
+			// intentionally kept alive for future tasks and disposed by SdkController.
+			this.stopSessionInBackground(sdkHost, sessionId)
 		}
 
 		const task = this.options.getTask()
@@ -83,10 +82,7 @@ export class SdkTaskControlCoordinator {
 		this.options.resetMessageTranslator()
 	}
 
-	private stopAndDisposeSessionInBackground(
-		sdkHost: { stop(sessionId: string): Promise<unknown>; dispose(reason: string): Promise<unknown> },
-		sessionId: string,
-	): void {
+	private stopSessionInBackground(sdkHost: { stop(sessionId: string): Promise<unknown> }, sessionId: string): void {
 		const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
 			Promise.race([promise, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))])
 
@@ -96,12 +92,6 @@ export class SdkTaskControlCoordinator {
 				await withTimeout(sdkHost.stop(sessionId), 3000)
 			} catch (error) {
 				Logger.warn("[SdkController] Error stopping session during clear:", error)
-			}
-
-			try {
-				await withTimeout(sdkHost.dispose("clearTask"), 3000)
-			} catch (error) {
-				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
 			}
 
 			const elapsed = Date.now() - startedAt
@@ -187,7 +177,6 @@ export class SdkTaskControlCoordinator {
 		const { sdkHost, unsubscribe, sessionId } = activeSession
 		unsubscribe()
 		sdkHost.stop(sessionId).catch(() => {})
-		sdkHost.dispose("showTaskWithId").catch(() => {})
 	}
 
 	private appendFreshResumeMessage(messages: ClineMessage[]): ClineMessage[] {
