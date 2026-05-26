@@ -883,14 +883,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
 
 			// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
-			// When using application inference profiles, the modelId is an opaque ARN that
-			// doesn't contain model name patterns. Fall back to awsBedrockCustomModelBaseId
-			// for detection in that case.
-			const detectionModelId =
-				modelId?.includes("application-inference-profile") && this.options.awsBedrockCustomModelBaseId
-					? this.options.awsBedrockCustomModelBaseId
-					: modelId
-			const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(detectionModelId)
+			const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(this.resolveDetectionModelId(modelId))
 
 			return {
 				maxTokens: modelInfo.maxTokens || 8192,
@@ -902,6 +895,23 @@ export class AwsBedrockHandler implements ApiHandler {
 			maxTokens: modelInfo.maxTokens || (modelType === "nova" ? 5000 : 8192),
 			temperature: 0,
 		}
+	}
+
+	/**
+	 * Resolves the model ID to use for adaptive thinking model detection.
+	 * When using application inference profiles, the modelId is an opaque ARN that
+	 * doesn't contain model name patterns. Falls back to awsBedrockCustomModelBaseId
+	 * for detection in that case, but only when custom model selection is active.
+	 */
+	private resolveDetectionModelId(modelId?: string): string | undefined {
+		if (
+			this.options.awsBedrockCustomSelected &&
+			modelId?.includes("application-inference-profile") &&
+			this.options.awsBedrockCustomModelBaseId
+		) {
+			return this.options.awsBedrockCustomModelBaseId
+		}
+		return modelId
 	}
 
 	/**
@@ -935,13 +945,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
-		// When using application inference profiles, the modelId is an opaque ARN.
-		// Fall back to awsBedrockCustomModelBaseId for model detection.
-		const detectionModelId =
-			modelId?.includes("application-inference-profile") && this.options.awsBedrockCustomModelBaseId
-				? this.options.awsBedrockCustomModelBaseId
-				: modelId
-		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(detectionModelId)
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(this.resolveDetectionModelId(modelId))
 		const adaptiveThinking = isAdaptiveThinkingModel
 			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
 			: undefined
