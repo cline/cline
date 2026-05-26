@@ -307,7 +307,6 @@ function getPluginLoadErrorLabel(
 export function ConfigPanelContent(props: ConfigPanelProps) {
 	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
 	const { height } = useTerminalDimensions();
-	const { loadConfigData } = props;
 
 	const [mode, setMode] = useState(props.currentMode);
 	const [autoApprove, setAutoApprove] = useState(
