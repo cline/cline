@@ -49,14 +49,21 @@ export class SdkSessionEventCoordinator {
 	async handleSessionEvent(event: CoreSessionEvent): Promise<void> {
 		this.logQueueEvents(event)
 
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession || event.payload.sessionId !== activeSession.sessionId) {
+			Logger.debug(
+				`[SdkController] Ignoring stale SDK event for session ${event.payload.sessionId}; active=${activeSession?.sessionId ?? "none"}`,
+			)
+			return
+		}
+
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {
 			await zeroCostPromise
 		}
-		const activeSession = this.options.sessions.getActiveSession()
 
-		if (activeSession && !activeSession.isRunning && result.messages.length > 0) {
+		if (!activeSession.isRunning && result.messages.length > 0) {
 			result.messages = result.messages.filter(
 				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
 			)
@@ -84,14 +91,14 @@ export class SdkSessionEventCoordinator {
 			}
 
 			if (result.usage && activeSession.startResult) {
-				this.options.taskHistory
-					.updateTaskUsage(
+				Promise.resolve(
+					this.options.taskHistory.updateTaskUsage(
 						this.options.getTask()?.taskId ?? this.options.sessions.getActiveSession()?.sessionId,
 						result.usage,
-					)
-					.catch((error) => {
-						Logger.error("[SdkController] Failed to persist task usage:", error)
-					})
+					),
+				).catch((error) => {
+					Logger.error("[SdkController] Failed to persist task usage:", error)
+				})
 			}
 		}
 

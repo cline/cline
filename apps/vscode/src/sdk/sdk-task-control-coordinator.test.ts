@@ -40,9 +40,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.clearTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
-		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
-		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sdkHost.dispose).not.toHaveBeenCalled()
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
@@ -67,9 +65,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.showTaskWithId("task-1")
 
 		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("task-1")
-		expect(activeSession.unsubscribe).toHaveBeenCalledOnce()
-		expect(activeSession.sdkHost.stop).toHaveBeenCalledWith("session-123")
-		expect(activeSession.sdkHost.dispose).not.toHaveBeenCalled()
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("showTaskWithId")
 		expect(existingTask.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(state.task?.taskId).toBe("task-1")
@@ -141,7 +137,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const options = {
 		sessions: {
 			getActiveSession: vi.fn(() => input.activeSession),
-			clearActiveSessionReference: vi.fn(() => input.activeSession),
+			endActiveSession: vi.fn().mockResolvedValue(input.activeSession),
 			setRunning: vi.fn(),
 		},
 		interactions: {
@@ -186,7 +182,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
-			clearActiveSessionReference: ReturnType<typeof vi.fn>
+			endActiveSession: ReturnType<typeof vi.fn>
 			setRunning: ReturnType<typeof vi.fn>
 		}
 		interactions: SdkTaskControlCoordinatorOptions["interactions"] & { clearPending: ReturnType<typeof vi.fn> }
