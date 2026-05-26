@@ -77,7 +77,10 @@ function formatMcpServersList(servers: McpServer[]): string {
 				?.map((prompt) => {
 					const argsStr = prompt.arguments?.length
 						? `\n    Arguments: ${prompt.arguments
-								.map((arg) => `${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`)
+								.map(
+									(arg) =>
+										`${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`,
+								)
 								.join(", ")}`
 						: ""
 					const title = prompt.title ? ` (${prompt.title})` : ""
