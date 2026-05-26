@@ -1,4 +1,4 @@
-import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -11,6 +11,7 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
@@ -94,9 +95,13 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, clineModels: legacyClineModels, refreshClineModels } = useExtensionState()
+	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.clineModelId || openRouterDefaultModelId)
+	const effectiveClineModels = Object.keys(catalogClineModels).length > 0 ? catalogClineModels : legacyClineModels
+	const currentClineModelId = modeFields.clineModelId || clineDefaultModelId || Object.keys(effectiveClineModels ?? {})[0] || ""
+	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
+	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
@@ -188,14 +193,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		if (initialTab) {
 			return
 		}
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
-		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
-	}, [modeFields.clineModelId, freeClineModelIdSet, initialTab])
+		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentClineModelId)) ? "free" : "recommended")
+	}, [currentClineModelId, freeClineModelIdSet, initialTab])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
+		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
 
 		handleModeFieldsChange(
@@ -205,7 +210,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			},
 			{
 				clineModelId: newModelId,
-				clineModelInfo: clineModels?.[newModelId],
+				clineModelInfo: effectiveClineModels?.[newModelId],
 			},
 			currentMode,
 		)
@@ -213,11 +218,19 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
+		const selectedWithCatalogDefault = currentClineModelId
+			? {
+					...selected,
+					selectedModelId: currentClineModelId,
+					selectedModelInfo:
+						modeFields.clineModelInfo || effectiveClineModels?.[currentClineModelId] || selected.selectedModelInfo,
+				}
+			: selected
+		if (freeClineModelIdSet.has(normalizeModelId(selectedWithCatalogDefault.selectedModelId))) {
 			return {
-				...selected,
+				...selectedWithCatalogDefault,
 				selectedModelInfo: {
-					...selected.selectedModelInfo,
+					...selectedWithCatalogDefault.selectedModelInfo,
 					inputPrice: 0,
 					outputPrice: 0,
 					cacheReadsPrice: 0,
@@ -225,8 +238,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				},
 			}
 		}
-		return selected
-	}, [apiConfiguration, currentMode, freeClineModelIdSet])
+		return selectedWithCatalogDefault
+	}, [apiConfiguration, currentMode, currentClineModelId, effectiveClineModels, freeClineModelIdSet, modeFields.clineModelInfo])
 
 	useMount(() => {
 		refreshClineModels()
@@ -238,9 +251,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
-		setSearchTerm(currentModelId)
-	}, [modeFields.clineModelId])
+		searchTermEditedByUserRef.current = false
+		setSearchTerm(currentClineModelId)
+	}, [currentClineModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -256,9 +269,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	}, [])
 
 	const modelIds = useMemo(() => {
-		const unfilteredModelIds = Object.keys(clineModels ?? {}).sort((a, b) => a.localeCompare(b))
+		const unfilteredModelIds = Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
 		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
-	}, [clineModels, freeClineModelIds])
+	}, [effectiveClineModels, freeClineModelIds])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -363,7 +376,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			return false
 		}
 		return (
-			Object.entries(clineModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			Object.entries(effectiveClineModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
 			selectedModelIdLower.includes("claude-sonnet-4.6") ||
@@ -377,7 +390,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			selectedModelIdLower.includes("claude-3.7-sonnet") ||
 			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
 		)
-	}, [clineModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
+	}, [effectiveClineModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -442,12 +455,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					<VSCodeTextField
 						id="model-search"
 						onBlur={() => {
-							if (searchTerm !== selectedModelId) {
+							if (searchTermEditedByUserRef.current && searchTerm !== selectedModelId) {
 								handleModelChange(searchTerm)
 							}
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
+							searchTermEditedByUserRef.current = true
 							setSearchTerm((e.target as HTMLInputElement)?.value.toLowerCase() || "")
 							setIsDropdownVisible(true)
 						}}
@@ -588,8 +602,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose, Cline
-					works best with <strong>anthropic/claude-sonnet-4.5</strong>.
+					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose,
+					compare available models by context window, pricing, and capabilities.
 				</p>
 			)}
 		</div>

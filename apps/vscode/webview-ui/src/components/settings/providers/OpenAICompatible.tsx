@@ -1,5 +1,5 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
-import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
+import { azureOpenAiDefaultApiVersion, openAiModelInfoSafeDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -262,7 +262,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						checked={!!openAiModelInfo?.supportsImages}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
 							modelInfo.supportsImages = isChecked
 							handleModeFieldChange(
 								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
@@ -277,7 +277,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						checked={!!openAiModelInfo?.isR1FormatRequired}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
 							modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
 
 							handleModeFieldChange(
@@ -294,10 +294,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							initialValue={
 								openAiModelInfo?.contextWindow
 									? openAiModelInfo.contextWindow.toString()
-									: (openAiModelInfoSaneDefaults.contextWindow?.toString() ?? "")
+									: (openAiModelInfoSafeDefaults.contextWindow?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
 								modelInfo.contextWindow = Number(value)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
@@ -313,10 +313,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							initialValue={
 								openAiModelInfo?.maxTokens
 									? openAiModelInfo.maxTokens.toString()
-									: (openAiModelInfoSaneDefaults.maxTokens?.toString() ?? "")
+									: (openAiModelInfoSafeDefaults.maxTokens?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
 								modelInfo.maxTokens = Number(value)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
@@ -334,11 +334,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							initialValue={
 								openAiModelInfo?.inputPrice
 									? openAiModelInfo.inputPrice.toString()
-									: (openAiModelInfoSaneDefaults.inputPrice?.toString() ?? "")
+									: (openAiModelInfoSafeDefaults.inputPrice?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.inputPrice = parsePrice(value, openAiModelInfoSaneDefaults.inputPrice ?? 0)
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
+								modelInfo.inputPrice = parsePrice(value, openAiModelInfoSafeDefaults.inputPrice ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -353,11 +353,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							initialValue={
 								openAiModelInfo?.outputPrice
 									? openAiModelInfo.outputPrice.toString()
-									: (openAiModelInfoSaneDefaults.outputPrice?.toString() ?? "")
+									: (openAiModelInfoSafeDefaults.outputPrice?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.outputPrice = parsePrice(value, openAiModelInfoSaneDefaults.outputPrice ?? 0)
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
+								modelInfo.outputPrice = parsePrice(value, openAiModelInfoSafeDefaults.outputPrice ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -374,11 +374,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							initialValue={
 								openAiModelInfo?.temperature
 									? openAiModelInfo.temperature.toString()
-									: (openAiModelInfoSaneDefaults.temperature?.toString() ?? "")
+									: (openAiModelInfoSafeDefaults.temperature?.toString() ?? "")
 							}
 							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.temperature = parsePrice(value, openAiModelInfoSaneDefaults.temperature ?? 0)
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSafeDefaults }
+								modelInfo.temperature = parsePrice(value, openAiModelInfoSafeDefaults.temperature ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -398,8 +398,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					color: "var(--vscode-descriptionForeground)",
 				}}>
 				<span style={{ color: "var(--vscode-errorForeground)" }}>
-					(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude models.
-					Less capable models may not work as expected.)
+					(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts, so behavior can vary across
+					models. Less capable models may not work as expected.)
 				</span>
 			</p>
 

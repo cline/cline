@@ -149,7 +149,7 @@ export interface HicapCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 }
 
-export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
+export const hicapModelInfoSafeDefaults: HicapCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -872,7 +872,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle, from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+		"Claude Sonnet 4.5 is an Anthropic model for coding, agentic search, and AI agent workflows. It supports planning and implementation tasks across the software development lifecycle.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
 // Cline custom model - Devstral
@@ -1466,7 +1466,7 @@ export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
 	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
 ) as Record<string, ModelInfo>
 
-export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
+export const openAiModelInfoSafeDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
@@ -2218,54 +2218,8 @@ export const openAiCodexModels = {
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 
-// DeepSeek
-// https://api-docs.deepseek.com/quick_start/pricing
-export type DeepSeekModelId = keyof typeof deepSeekModels
-export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
-export const deepSeekModels = {
-	"deepseek-v4-flash": {
-		maxTokens: 384_000,
-		contextWindow: 1_000_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 0, // all input is either a cache hit or miss
-		outputPrice: 0.28,
-		cacheWritesPrice: 0.14,
-		cacheReadsPrice: 0.0028,
-	},
-	"deepseek-v4-pro": {
-		maxTokens: 384_000,
-		contextWindow: 1_000_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 0, // all input is either a cache hit or miss
-		outputPrice: 0.87,
-		cacheWritesPrice: 0.435,
-		cacheReadsPrice: 0.003625,
-	},
-	"deepseek-chat": {
-		maxTokens: 8_000,
-		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
-		outputPrice: 1.1,
-		cacheWritesPrice: 0.27,
-		cacheReadsPrice: 0.07,
-	},
-	"deepseek-reasoner": {
-		maxTokens: 8_000,
-		contextWindow: 128_000,
-		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
-		outputPrice: 2.19,
-		cacheWritesPrice: 0.55,
-		cacheReadsPrice: 0.14,
-	},
-} as const satisfies Record<string, ModelInfo>
+// DeepSeek model list and default are sourced from the SDK provider catalog;
+// see src/sdk/model-catalog/ and webview-ui/.../providers/DeepSeekProvider.tsx.
 
 // Hugging Face Inference Providers
 // https://huggingface.co/docs/inference-providers/en/index
@@ -3234,7 +3188,7 @@ export interface LiteLLMModelInfo extends ModelInfo {
 	temperature?: number
 }
 
-export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
+export const liteLlmModelInfoSafeDefaults: LiteLLMModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,

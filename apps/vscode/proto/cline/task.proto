@@ -87,7 +87,7 @@ message GetTaskHistoryRequest {
 // Response for task history
 message TaskHistoryArray {
   repeated TaskItem tasks = 1;
-  int32 total_count = 2;
+  // int32 total_count = 2 [deprecated = true];
 }
 
 // Task item details for history list

@@ -50,8 +50,7 @@ import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
-import { AuthService } from "./services/auth/AuthService"
-import { LogoutReason } from "./services/auth/types"
+import { AuthService, LogoutReason } from "./sdk/auth-service"
 import { telemetryService } from "./services/telemetry"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
@@ -89,7 +88,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
-		context as any, // Adapt VSCode ExtensionContext to generic interface
+		// biome-ignore lint/suspicious/noExplicitAny: Adapt VSCode ExtensionContext to generic interface
+		context as any,
 		(dir: string) => {
 			try {
 				const pattern = new vscode.RelativePattern(dir, "*")
@@ -192,7 +192,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.log("[Cline Dev] Dev mode activated & dev commands registered")
 			})
 			.catch((error) => {
-				Logger.log("[Cline Dev] Failed to register dev commands: " + error)
+				Logger.log(`[Cline Dev] Failed to register dev commands: ${error}`)
 			})
 	}
 
@@ -505,15 +505,6 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	// Register the reconstructTaskHistory command handler
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.ReconstructTaskHistory, async () => {
-			const { reconstructTaskHistory } = await import("./core/commands/reconstructTaskHistory")
-			await reconstructTaskHistory()
-			telemetryService.captureButtonClick("command_reconstructTaskHistory")
-		}),
-	)
-
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
@@ -524,7 +515,10 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	// Listen for secrets changes (cross-window login/logout sync).
+	// NOTE: Credentials now live in providers.json (single source of truth).
+	// This listener catches legacy secrets.json writes from older windows and
+	// triggers a re-read from providers.json via restoreRefreshTokenAndRetrieveAuthInfo().
 	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
 		if (event.key === "cline:clineAccountId") {
 			const secretValue = storageContext.secrets.get<string>(event.key)
@@ -746,6 +740,6 @@ async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<vo
 
 		Logger.info("[VS Code Storage Migrations] Completed")
 	} catch (error) {
-		Logger.warn("[VS Code Storage Migrations] Failed" + (error instanceof Error ? `: ${error.message}` : ""))
+		Logger.warn(`[VS Code Storage Migrations] Failed${error instanceof Error ? `: ${error.message}` : ""}`)
 	}
 }

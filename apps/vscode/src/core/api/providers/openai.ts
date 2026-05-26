@@ -1,5 +1,5 @@
 import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
-import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -111,7 +111,7 @@ export class OpenAiHandler implements ApiHandler {
 			const tempValue = Number(this.options.openAiModelInfo.temperature)
 			temperature = tempValue === 0 ? undefined : tempValue
 		} else {
-			temperature = openAiModelInfoSaneDefaults.temperature
+			temperature = openAiModelInfoSafeDefaults.temperature
 		}
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		let maxTokens: number | undefined
@@ -182,7 +182,7 @@ export class OpenAiHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.openAiModelId ?? "",
-			info: this.options.openAiModelInfo ?? openAiModelInfoSaneDefaults,
+			info: this.options.openAiModelInfo ?? openAiModelInfoSafeDefaults,
 		}
 	}
 }

@@ -1,8 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { EnvironmentMetadataEntry, TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
@@ -11,11 +9,9 @@ import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
-import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
 
 /**
@@ -259,31 +255,6 @@ export async function saveApiConversationHistory(taskId: string, apiConversation
 	}
 }
 
-export async function getSavedClineMessages(taskId: string): Promise<ClineMessage[]> {
-	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.uiMessages)
-	if (await fileExistsAtPath(filePath)) {
-		return JSON.parse(await fs.readFile(filePath, "utf8"))
-	}
-	// check old location
-	const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
-	if (await fileExistsAtPath(oldPath)) {
-		const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
-		await fs.unlink(oldPath) // remove old file
-		return data
-	}
-	return []
-}
-
-export async function saveClineMessages(taskId: string, uiMessages: ClineMessage[]) {
-	try {
-		const taskDir = await ensureTaskDirectoryExists(taskId)
-		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
-	} catch (error) {
-		Logger.error("Failed to save ui messages:", error)
-	}
-}
-
 /**
  * Collects environment metadata for the current system and host.
  * This information is used for debugging and task portability.
@@ -373,57 +344,6 @@ async function getGlobalStorageDir(...subdirs: string[]) {
 	const fullPath = path.resolve(HostProvider.get().globalStorageFsPath, ...subdirs)
 	await fs.mkdir(fullPath, { recursive: true })
 	return fullPath
-}
-
-export async function getTaskHistoryStateFilePath(): Promise<string> {
-	return path.join(await ensureStateDirectoryExists(), "taskHistory.json")
-}
-
-export async function taskHistoryStateFileExists(): Promise<boolean> {
-	const filePath = await getTaskHistoryStateFilePath()
-	return fileExistsAtPath(filePath)
-}
-
-export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
-	try {
-		const filePath = await getTaskHistoryStateFilePath()
-		if (!(await fileExistsAtPath(filePath))) {
-			return []
-		}
-
-		const contents = await fs.readFile(filePath, "utf8")
-
-		try {
-			return JSON.parse(contents)
-		} catch (parseError) {
-			telemetryService.captureExtensionStorageError(parseError, "parseError_attemptingRecovery")
-
-			const result = await reconstructTaskHistory(false)
-			if (result && result.reconstructedTasks > 0) {
-				// Read the reconstructed file
-				const newContents = await fs.readFile(filePath, "utf8")
-				return JSON.parse(newContents)
-			}
-
-			// Recovery failed, all we can do is return an empty array or throw an error, thus preventing the app from starting up
-			// This will wipe out the taskHistory
-			return []
-		}
-	} catch (error) {
-		// Filesystem or other errors - throw them for the caller to handle
-		telemetryService.captureExtensionStorageError(error, "readTaskHistoryFromState")
-		throw error
-	}
-}
-
-export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<void> {
-	try {
-		const filePath = await getTaskHistoryStateFilePath()
-		await atomicWriteFile(filePath, JSON.stringify(items))
-	} catch (error) {
-		Logger.error("[Disk] Failed to write task history:", error)
-		throw error
-	}
 }
 
 export async function readTaskSettingsFromStorage(taskId: string): Promise<Partial<GlobalState>> {
