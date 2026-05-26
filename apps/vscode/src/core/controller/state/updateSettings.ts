@@ -1,4 +1,3 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -14,6 +13,7 @@ import { BrowserSettings as SharedBrowserSettings } from "../../../shared/Browse
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 import { normalizeProviderSwitchModel } from "../models/providerSwitchNormalization"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
 
 /**
  * Updates multiple extension settings in a single request
@@ -54,11 +54,8 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			if (controller.task) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-				const apiConfigForHandler = {
-					...normalizedApiConfiguration,
-					ulid: controller.task.ulid,
-				}
-				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
+				const modelId = resolveActiveModelIdFromApiConfiguration(normalizedApiConfiguration, currentMode)
+				controller.task.api = createTaskApiModelShim(modelId)
 			}
 		}
 
