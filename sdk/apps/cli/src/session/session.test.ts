@@ -63,7 +63,7 @@ describe("createCliCore", () => {
 			readTranscript: vi.fn(),
 			ingestHookEvent: vi.fn(),
 			subscribe: vi.fn(),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		});
 		delete process.env.CLINE_RPC_ADDRESS;
 		delete process.env.CLINE_SESSION_BACKEND_MODE;

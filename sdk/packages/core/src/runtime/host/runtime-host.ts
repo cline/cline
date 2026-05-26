@@ -16,6 +16,7 @@ import type {
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
+import type { ConnectionOverrides } from "../orchestration/session-runtime-orchestrator";
 
 type LocalOnlyCoreSessionConfigKeys =
 	| "hooks"
@@ -166,9 +167,12 @@ export interface SendSessionInput {
 	mode?: AgentMode;
 	userImages?: string[];
 	userFiles?: string[];
+	connection?: SessionConnectionUpdate;
 	delivery?: "queue" | "steer";
 	timeoutMs?: number;
 }
+
+export type SessionConnectionUpdate = ConnectionOverrides;
 
 export interface SessionAccumulatedUsage {
 	inputTokens: number;
@@ -228,8 +232,11 @@ export interface SessionUsageRuntimeService {
 	): Promise<SessionUsageSummary | undefined>;
 }
 
-export interface SessionModelRuntimeService {
-	updateSessionModel(sessionId: string, modelId: string): Promise<void>;
+export interface SessionConnectionRuntimeService {
+	updateSessionConnection(
+		sessionId: string,
+		connection: SessionConnectionUpdate,
+	): Promise<void>;
 }
 
 export interface RuntimeHostSubscribeOptions {

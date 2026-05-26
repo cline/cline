@@ -380,6 +380,8 @@ export type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionRuntimeService,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,

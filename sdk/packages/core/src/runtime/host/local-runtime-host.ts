@@ -20,7 +20,10 @@ import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
-import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import {
+	buildProviderConfig,
+	prepareLocalRuntimeBootstrap,
+} from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -106,6 +109,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -695,6 +699,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				delivery,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
+				connection: input.connection,
 			});
 			return undefined;
 		}
@@ -704,6 +709,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				mode: input.mode,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
+				connection: input.connection,
 			});
 			if (!session.interactive) {
 				await this.finalizeSingleRun(session, result.finishReason);
@@ -917,13 +923,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return this.events.subscribe(listener, options);
 	}
 
-	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
+	async updateSessionConnection(
+		sessionId: string,
+		connection: SessionConnectionUpdate,
+	): Promise<void> {
 		const session = this.getSessionOrThrow(sessionId);
-		session.config.modelId = modelId;
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			modelId,
-		});
-		session.agent.updateConnection({ modelId });
+		await this.applySessionConnectionUpdate(session, connection);
 	}
 
 	// Retained for unit tests that reach in via Reflect.
@@ -950,6 +955,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			mode?: SendSessionInput["mode"];
 			userImages?: string[];
 			userFiles?: string[];
+			connection?: SessionConnectionUpdate;
 		},
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
@@ -960,6 +966,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.pendingPrompt = prompt;
 		}
 		await this.ensureSessionPersisted(session);
+		if (input.connection) {
+			await this.applySessionConnectionUpdate(session, input.connection);
+		}
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
 
@@ -1246,6 +1255,116 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userImages: input.userImages,
 			userFiles: mergedUserFiles.length > 0 ? mergedUserFiles : undefined,
 		};
+	}
+
+	private async applySessionConnectionUpdate(
+		session: ActiveSession,
+		connection: SessionConnectionUpdate,
+	): Promise<void> {
+		const providerChanged =
+			connection.providerId !== undefined &&
+			connection.providerId !== session.config.providerId;
+		const nextConfig: CoreSessionConfig = { ...session.config };
+		if (connection.providerId !== undefined) {
+			nextConfig.providerId = connection.providerId;
+		}
+		if (connection.modelId !== undefined) {
+			nextConfig.modelId = connection.modelId;
+		}
+		if (providerChanged) {
+			if (connection.apiKey === undefined) delete nextConfig.apiKey;
+			if (connection.baseUrl === undefined) delete nextConfig.baseUrl;
+			if (connection.headers === undefined) delete nextConfig.headers;
+			if (connection.providerConfig === undefined) {
+				delete nextConfig.providerConfig;
+			}
+		}
+		if (connection.apiKey !== undefined) nextConfig.apiKey = connection.apiKey;
+		if (connection.baseUrl !== undefined)
+			nextConfig.baseUrl = connection.baseUrl;
+		if (connection.headers !== undefined)
+			nextConfig.headers = connection.headers;
+		if (connection.providerConfig !== undefined) {
+			nextConfig.providerConfig =
+				connection.providerConfig as CoreSessionConfig["providerConfig"];
+		}
+		if (connection.reasoningEffort !== undefined) {
+			nextConfig.reasoningEffort = connection.reasoningEffort;
+		}
+		if (connection.thinking !== undefined)
+			nextConfig.thinking = connection.thinking;
+		if (connection.thinkingBudgetTokens !== undefined) {
+			nextConfig.thinkingBudgetTokens = connection.thinkingBudgetTokens;
+		}
+
+		if (connection.providerConfig === undefined) {
+			const providerConfig = buildProviderConfig(
+				nextConfig,
+				session.sessionId,
+				this.providerSettingsManager,
+				undefined,
+				this.defaultFetch,
+			);
+			nextConfig.providerConfig = providerConfig;
+			nextConfig.apiKey = providerConfig.apiKey;
+			nextConfig.baseUrl = providerConfig.baseUrl;
+			nextConfig.headers = providerConfig.headers;
+			nextConfig.reasoningEffort =
+				nextConfig.reasoningEffort ?? providerConfig.reasoningEffort;
+			nextConfig.thinkingBudgetTokens =
+				nextConfig.thinkingBudgetTokens ?? providerConfig.thinkingBudgetTokens;
+		}
+
+		const runtimeConnection: SessionConnectionUpdate = {
+			providerId: nextConfig.providerId,
+			modelId: nextConfig.modelId,
+			apiKey: nextConfig.apiKey ?? "",
+			baseUrl: nextConfig.baseUrl ?? "",
+			headers: nextConfig.headers ?? {},
+			providerConfig: nextConfig.providerConfig,
+			reasoningEffort: nextConfig.reasoningEffort,
+			thinking: nextConfig.thinking,
+			thinkingBudgetTokens: nextConfig.thinkingBudgetTokens,
+		};
+
+		session.config = nextConfig;
+		session.agent.updateConnection(runtimeConnection);
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			runtimeConnection,
+		);
+		session.runtime.teamRuntime?.updateTeammateConnections(runtimeConnection);
+		await this.persistSessionConnection(session, connection);
+	}
+
+	private async persistSessionConnection(
+		session: ActiveSession,
+		connection: SessionConnectionUpdate,
+	): Promise<void> {
+		if (!session.artifacts) return;
+		if (
+			connection.providerId === undefined &&
+			connection.modelId === undefined
+		) {
+			return;
+		}
+		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+			"updateSession",
+			{
+				sessionId: session.sessionId,
+				provider: connection.providerId ?? session.config.providerId,
+				model: connection.modelId ?? session.config.modelId,
+			},
+		);
+		if (result?.updated === false) {
+			return;
+		}
+		session.artifacts.manifest.provider = session.config.providerId;
+		session.artifacts.manifest.model = session.config.modelId;
+		await this.invoke<void>(
+			"writeSessionManifest",
+			session.artifacts.manifestPath,
+			session.artifacts.manifest,
+		);
 	}
 
 	// ── Session lifecycle ───────────────────────────────────────────────

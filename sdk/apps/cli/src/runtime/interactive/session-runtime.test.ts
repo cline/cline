@@ -116,7 +116,7 @@ function makeManager() {
 		readTranscript: vi.fn(),
 		ingestHookEvent: vi.fn(),
 		subscribe: vi.fn(),
-		updateSessionModel: vi.fn(),
+		updateSessionConnection: vi.fn(),
 		pendingPrompts: {
 			update: vi.fn(),
 		},

@@ -157,6 +157,14 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			fields.push("prompt = ?");
 			params.push(input.prompt ?? null);
 		}
+		if (input.provider !== undefined) {
+			fields.push("provider = ?");
+			params.push(input.provider ?? null);
+		}
+		if (input.model !== undefined) {
+			fields.push("model = ?");
+			params.push(input.model ?? null);
+		}
 		if (input.metadata !== undefined) {
 			fields.push("metadata_json = ?");
 			params.push(stringifyMetadata(input.metadata));

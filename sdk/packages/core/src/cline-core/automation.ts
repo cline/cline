@@ -145,6 +145,11 @@ export function createClineCoreAutomationRuntimeHandlers(
 				prompt: request.prompt,
 				userImages: request.attachments?.userImages,
 				userFiles: request.attachments?.userFiles?.map((file) => file.content),
+				connection: {
+					providerId: request.config.provider,
+					modelId: request.config.model,
+					apiKey: request.config.apiKey?.trim() || undefined,
+				},
 				delivery: request.delivery,
 			});
 			if (!result) {

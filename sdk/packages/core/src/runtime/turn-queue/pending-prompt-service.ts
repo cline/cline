@@ -9,6 +9,7 @@ import type {
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
 	PendingPromptsUpdateInput,
+	SessionConnectionUpdate,
 } from "../host/runtime-host";
 
 export type PendingPromptDelivery = "queue" | "steer";
@@ -20,6 +21,7 @@ export interface PendingPromptEntry {
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
 	userFiles?: string[];
+	connection?: SessionConnectionUpdate;
 }
 
 export interface PendingPromptQueueState {
@@ -35,6 +37,7 @@ export interface PendingPromptsControllerDeps {
 		mode?: AgentMode;
 		userImages?: string[];
 		userFiles?: string[];
+		connection?: SessionConnectionUpdate;
 	}): Promise<unknown>;
 }
 
@@ -44,6 +47,7 @@ export interface PendingPromptEnqueueInput {
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
 	userFiles?: string[];
+	connection?: SessionConnectionUpdate;
 }
 
 export interface PendingPromptConsumeResult {
@@ -150,6 +154,7 @@ export class PendingPromptService {
 				mode: mode ?? existing.mode,
 				userImages: userImages ?? existing.userImages,
 				userFiles: userFiles ?? existing.userFiles,
+				connection: input.connection ?? existing.connection,
 			};
 			if (delivery === "steer" || existing.delivery === "steer") {
 				state.pendingPrompts.unshift({ ...next, delivery: "steer" });
@@ -164,6 +169,7 @@ export class PendingPromptService {
 				delivery,
 				userImages,
 				userFiles,
+				connection: input.connection,
 			};
 			if (delivery === "steer") {
 				state.pendingPrompts.unshift(newEntry);
@@ -243,6 +249,7 @@ export class PendingPromptsController {
 			delivery: "queue" | "steer";
 			userImages?: string[];
 			userFiles?: string[];
+			connection?: SessionConnectionUpdate;
 		},
 	): void {
 		const session = this.deps.getSession(sessionId);
@@ -314,6 +321,7 @@ export class PendingPromptsController {
 				...(next.mode ? { mode: next.mode } : {}),
 				userImages: next.userImages,
 				userFiles: next.userFiles,
+				connection: next.connection,
 			});
 		} catch {
 			continueDrain = false;

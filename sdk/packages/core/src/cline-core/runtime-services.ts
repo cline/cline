@@ -2,7 +2,7 @@ import type {
 	PendingPromptsRuntimeService,
 	PendingPromptsServiceApi,
 	RuntimeHost,
-	SessionModelRuntimeService,
+	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../runtime/host/runtime-host";
 import {
@@ -27,7 +27,7 @@ export type RuntimeHostServiceExtensions = RuntimeHost &
 	Partial<
 		PendingPromptsRuntimeService &
 			SessionUsageRuntimeService &
-			SessionModelRuntimeService
+			SessionConnectionRuntimeService
 	>;
 
 export function createClineCoreSettingsApi(

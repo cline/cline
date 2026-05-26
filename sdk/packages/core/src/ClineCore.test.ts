@@ -100,7 +100,7 @@ describe("ClineCore", () => {
 				listeners.push(listener);
 				return () => {};
 			}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -157,7 +157,7 @@ describe("ClineCore", () => {
 				listener = nextListener;
 				return () => {};
 			}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -193,7 +193,7 @@ describe("ClineCore", () => {
 			deleteSession: vi.fn(),
 			readSessionMessages: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -251,7 +251,7 @@ describe("ClineCore", () => {
 			deleteSession: vi.fn(),
 			readSessionMessages: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 		const askQuestion = vi.fn(async () => "yes");
@@ -300,7 +300,7 @@ describe("ClineCore", () => {
 			deleteSession: vi.fn(),
 			readSessionMessages: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -382,7 +382,7 @@ describe("ClineCore", () => {
 			]),
 			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -437,7 +437,7 @@ describe("ClineCore", () => {
 			readSessionMessages: vi.fn(),
 			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -493,7 +493,7 @@ Summarize the local event.
 			readSessionMessages: vi.fn(),
 			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
@@ -568,7 +568,7 @@ Summarize the local event.
 			readSessionMessages: vi.fn(),
 			dispatchHookEvent: vi.fn(),
 			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
+			updateSessionConnection: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
 
