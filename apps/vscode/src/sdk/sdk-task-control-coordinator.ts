@@ -60,15 +60,7 @@ export class SdkTaskControlCoordinator {
 	async clearTask(): Promise<void> {
 		this.options.interactions.clearPending("Task cleared")
 
-		const activeSession = this.options.sessions.clearActiveSessionReference()
-		if (activeSession) {
-			const { sdkHost, unsubscribe, sessionId } = activeSession
-			unsubscribe()
-
-			// Do not block the webview on SDK session shutdown. The shared SDK host is
-			// intentionally kept alive for future tasks and disposed by SdkController.
-			this.stopSessionInBackground(sdkHost, sessionId)
-		}
+		await this.options.sessions.endActiveSession("clearTask")
 
 		const task = this.options.getTask()
 		if (task) {
@@ -80,25 +72,6 @@ export class SdkTaskControlCoordinator {
 		}
 
 		this.options.resetMessageTranslator()
-	}
-
-	private stopSessionInBackground(sdkHost: { stop(sessionId: string): Promise<unknown> }, sessionId: string): void {
-		const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
-			Promise.race([promise, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))])
-
-		void (async () => {
-			const startedAt = Date.now()
-			try {
-				await withTimeout(sdkHost.stop(sessionId), 3000)
-			} catch (error) {
-				Logger.warn("[SdkController] Error stopping session during clear:", error)
-			}
-
-			const elapsed = Date.now() - startedAt
-			if (elapsed > 250) {
-				Logger.log(`[SdkController] Background session cleanup after clearTask took ${elapsed}ms for ${sessionId}`)
-			}
-		})()
 	}
 
 	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
@@ -117,7 +90,7 @@ export class SdkTaskControlCoordinator {
 			}
 
 			const teardownStartedAt = Date.now()
-			this.silentlyTearDownActiveSession()
+			await this.options.sessions.endActiveSession("showTaskWithId")
 			const teardownElapsed = Date.now() - teardownStartedAt
 
 			const currentTask = this.options.getTask()
@@ -166,17 +139,6 @@ export class SdkTaskControlCoordinator {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to show task:", error)
 		}
-	}
-
-	private silentlyTearDownActiveSession(): void {
-		const activeSession = this.options.sessions.clearActiveSessionReference()
-		if (!activeSession) {
-			return
-		}
-
-		const { sdkHost, unsubscribe, sessionId } = activeSession
-		unsubscribe()
-		sdkHost.stop(sessionId).catch(() => {})
 	}
 
 	private appendFreshResumeMessage(messages: ClineMessage[]): ClineMessage[] {

@@ -38,6 +38,56 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("reuses the shared session host across sessions", async () => {
+		const sdkHost = makeSdkHost({
+			start: vi.fn().mockResolvedValueOnce({ sessionId: "session-1" }).mockResolvedValueOnce({ sessionId: "session-2" }),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+		await lifecycle.endActiveSession("test")
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		expect(mockCreateSessionHost).toHaveBeenCalledOnce()
+		expect(sdkHost.start).toHaveBeenCalledTimes(2)
+		expect(sdkHost.stop).toHaveBeenCalledWith("session-1")
+		expect(sdkHost.dispose).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()?.sessionId).toBe("session-2")
+	})
+
+	it("unsubscribes if session start fails", async () => {
+		const unsubscribe = vi.fn()
+		const error = new Error("start failed")
+		const sdkHost = makeSdkHost({ start: vi.fn().mockRejectedValue(error), unsubscribe })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await expect(lifecycle.startNewSession({} as any)).rejects.toBe(error)
+
+		expect(unsubscribe).toHaveBeenCalledOnce()
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+	})
+
+	it("disposes the shared host only when the lifecycle is disposed", async () => {
+		const unsubscribe = vi.fn()
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" }, unsubscribe })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		await lifecycle.dispose("testDispose")
+
+		expect(unsubscribe).toHaveBeenCalledOnce()
+		expect(sdkHost.stop).toHaveBeenCalledWith("session-123")
+		expect(sdkHost.dispose).toHaveBeenCalledWith("testDispose")
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+	})
+
 	it("passes shared telemetry to the VSCode session host", async () => {
 		const telemetry = { capture: vi.fn() }
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
