@@ -105,7 +105,7 @@ export class SdkTaskStartCoordinator {
 				config.modelId,
 				cwd,
 			)
-			await this.options.taskHistory.updateTaskHistory(newHistoryItem)
+			await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
 
 			this.emitInitialTaskMessage(startResult.sessionId, prompt ?? "")
 			await this.options.postStateToWebview()
