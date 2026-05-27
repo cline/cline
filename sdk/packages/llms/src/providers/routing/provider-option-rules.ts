@@ -324,6 +324,19 @@ const nonGlmProviderRoutingSuppressionRule: ProviderOptionRule = {
 	build: () => undefined,
 };
 
+const genericOpenAiCompatibleGlmSuppressionRule: ProviderOptionRule = {
+	id: "provider.openai-compatible.glm.suppress-generic-reasoning",
+	phase: "provider",
+	description:
+		"Generic OpenAI-compatible GLM endpoints should not receive non-standard reasoning or thinking controls.",
+	applies: (input) =>
+		isGenericOpenAiCompatibleProvider(input) &&
+		input.request.reasoning?.enabled !== undefined &&
+		isGlmModel(input.request, input.context),
+	suppresses: { genericThinking: true, genericEffort: true },
+	build: () => undefined,
+};
+
 const nativeZaiGlmThinkingRule: ProviderOptionRule = {
 	id: "provider.routing.glm-thinking",
 	phase: "model-overlay",
@@ -378,6 +391,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	deepSeekThinkingRule,
 	ollamaReasoningDefaultOnDisableRule,
 	nonGlmProviderRoutingSuppressionRule,
+	genericOpenAiCompatibleGlmSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	routedGlmReasoningRule,
 ];

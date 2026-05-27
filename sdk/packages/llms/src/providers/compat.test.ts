@@ -393,7 +393,10 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
-	it("does not send routed GLM reasoning controls to generic openai-compatible providers", async () => {
+	it.each([
+		false,
+		true,
+	])("does not send GLM reasoning controls to generic openai-compatible providers when thinking=%s", async (thinking) => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -406,7 +409,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 			clientType: "openai-compatible",
 			modelId: "zai-org/GLM-5.1",
 			apiKey: "test-key",
-			thinking: false,
+			thinking,
 			modelInfo: {
 				id: "zai-org/GLM-5.1",
 				name: "GLM 5.1",
@@ -426,8 +429,14 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(call?.providerOptions?.openaiCompatible).not.toHaveProperty(
 			"reasoning",
 		);
+		expect(call?.providerOptions?.openaiCompatible).not.toHaveProperty(
+			"thinking",
+		);
 		expect(call?.providerOptions?.["openai-compatible"]).not.toHaveProperty(
 			"reasoning",
+		);
+		expect(call?.providerOptions?.["openai-compatible"]).not.toHaveProperty(
+			"thinking",
 		);
 	});
 
