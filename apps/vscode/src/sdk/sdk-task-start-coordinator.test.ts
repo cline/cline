@@ -33,13 +33,12 @@ describe("SdkTaskStartCoordinator", () => {
 			mode: "act",
 		})
 		expect(state.task?.taskId).toBe("session-123")
-		expect(options.taskHistory.updateTaskHistory).toHaveBeenCalledWith(
+		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "session-123", task: "hello @file", modelId: "model" }),
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ type: "say", say: "task", text: "hello @file" })],
 			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-			{ save: false },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
@@ -143,6 +142,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: {
 			findHistoryItem: vi.fn(() => (input.hasHistoryItem === false ? undefined : historyItem)),
 			updateTaskHistory: vi.fn().mockResolvedValue([]),
+			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -187,6 +187,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkTaskStartCoordinatorOptions["taskHistory"] & {
 			findHistoryItem: ReturnType<typeof vi.fn>
 			updateTaskHistory: ReturnType<typeof vi.fn>
+			updateTaskHistoryItem: ReturnType<typeof vi.fn>
 		}
 		sessionConfigBuilder: SdkTaskStartCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		buildStartSessionInput: ReturnType<typeof vi.fn>
