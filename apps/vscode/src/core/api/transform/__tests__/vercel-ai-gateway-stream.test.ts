@@ -35,6 +35,29 @@ describe("createVercelAIGatewayStream", () => {
 		thinkingConfig: { maxBudget: 128_000 },
 	})
 
+	it("adds cache control for Vercel models marked as prompt-cache capable", async () => {
+		const { client, create } = createClient()
+
+		await createVercelAIGatewayStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "alibaba/qwen3.6-plus",
+				info: {
+					...createModelInfo(65_536),
+					supportsPromptCache: true,
+				},
+			},
+			"none",
+			8192,
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+	})
+
 	it("disables include_reasoning for Qwen models when reasoning effort is none", async () => {
 		const { client, create } = createClient()
 
