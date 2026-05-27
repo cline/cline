@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.85.0]
+
+### Added
+
+- Add GPT-5.5 support to SAP AI Core.
+- Add DeepSeek V4 Flash and Pro models.
+- Add Gemini 3.5 Flash to Gemini and Vertex providers.
+- Add `/lg-task` URI webhook integration for LG dashboard flows.
+
+### Fixed
+
+- Fix Vertex AI global endpoint handling for Claude models.
+- Route Poolside Laguna models through next-gen prompts and native tool calling.
+
+### Changed
+
+- Update `diff` and `protobufjs` dependencies.
+
 ## [3.84.0]
 
 ### Added

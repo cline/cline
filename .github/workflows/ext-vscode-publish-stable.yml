@@ -36,6 +36,9 @@ jobs:
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish
+        defaults:
+          run:
+            working-directory: apps/vscode
 
         steps:
             - uses: actions/checkout@v4
@@ -47,6 +50,7 @@ jobs:
 
             - name: Resolve Release Tag
               id: resolve_tag
+              working-directory: ${{ github.workspace }}
               env:
                   TAG: ${{ github.event.inputs.tag }}
                   AUTO_CREATE: ${{ github.event.inputs.auto_create_tag_from_main }}
@@ -171,6 +175,7 @@ jobs:
 
             - name: Get Previous Tag
               id: prev_tag
+              working-directory: ${{ github.workspace }}
               run: |
                   CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
                   PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || echo "")
@@ -178,6 +183,7 @@ jobs:
 
             - name: Get Changelog Entry
               id: changelog
+              working-directory: ${{ github.workspace }}
               run: |
                   # Get content between first ## [ and second ## [
                   CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
@@ -189,7 +195,7 @@ jobs:
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.resolve_tag.outputs.tag }}
-                  files: "*.vsix"
+                  files: "apps/vscode/*.vsix"
                   body: |
                       ${{ steps.changelog.outputs.content }}
 
