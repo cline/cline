@@ -74,6 +74,12 @@ function hasGlmThinkingProviderRouting(
 	);
 }
 
+function isGenericOpenAiCompatibleProvider(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return input.request.providerId === "openai-compatible";
+}
+
 function resolveFamilyThinkingType(
 	input: ProviderOptionMatchInput,
 	defaultWhenUnset: "enabled" | "disabled" | undefined,
@@ -337,6 +343,7 @@ const routedGlmReasoningRule: ProviderOptionRule = {
 	description:
 		"Routed GLM models use the generic reasoning include/exclude shape, not thinking.type.",
 	applies: (input) =>
+		!isGenericOpenAiCompatibleProvider(input) &&
 		!usesGlmThinkingProviderRouting(input) &&
 		isGlmModel(input.request, input.context),
 	suppresses: { genericThinking: true },
