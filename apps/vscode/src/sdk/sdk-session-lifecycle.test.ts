@@ -52,10 +52,35 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as any)
 
 		expect(mockCreateSessionHost).toHaveBeenCalledOnce()
+		expect(sdkHost.subscribe).toHaveBeenCalledOnce()
 		expect(sdkHost.start).toHaveBeenCalledTimes(2)
 		expect(sdkHost.stop).toHaveBeenCalledWith("session-1")
 		expect(sdkHost.dispose).not.toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("session-2")
+	})
+
+	it("replaces an existing active session before starting another without resubscribing", async () => {
+		const unsubscribe = vi.fn()
+		const sdkHost = makeSdkHost({
+			start: vi.fn().mockResolvedValueOnce({ sessionId: "session-1" }).mockResolvedValueOnce({ sessionId: "session-2" }),
+			unsubscribe,
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		expect(mockCreateSessionHost).toHaveBeenCalledOnce()
+		expect(sdkHost.subscribe).toHaveBeenCalledOnce()
+		expect(sdkHost.stop).toHaveBeenCalledWith("session-1")
+		expect(unsubscribe).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()?.sessionId).toBe("session-2")
+
+		await lifecycle.dispose("testDispose")
+		expect(unsubscribe).toHaveBeenCalledOnce()
 	})
 
 	it("unsubscribes if session start fails", async () => {
@@ -68,8 +93,11 @@ describe("SdkSessionLifecycle", () => {
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await expect(lifecycle.startNewSession({} as any)).rejects.toBe(error)
 
-		expect(unsubscribe).toHaveBeenCalledOnce()
+		expect(unsubscribe).not.toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()).toBeUndefined()
+
+		await lifecycle.dispose("testDispose")
+		expect(unsubscribe).toHaveBeenCalledOnce()
 	})
 
 	it("disposes the shared host only when the lifecycle is disposed", async () => {
@@ -175,10 +203,11 @@ describe("SdkSessionLifecycle", () => {
 
 		expect(result?.oldSessionId).toBe("old-session")
 		expect(result?.startResult.sessionId).toBe("new-session")
-		expect(oldUnsubscribe).toHaveBeenCalled()
+		expect(oldUnsubscribe).not.toHaveBeenCalled()
 		expect(sdkHost.stop).toHaveBeenCalledWith("old-session")
 		expect(sdkHost.dispose).not.toHaveBeenCalled()
 		expect(mockCreateSessionHost).toHaveBeenCalledOnce()
+		expect(sdkHost.subscribe).toHaveBeenCalledOnce()
 		expect(sdkHost.start).toHaveBeenLastCalledWith({
 			config: {},
 			initialMessages: [{ role: "user", content: "hello" }],
