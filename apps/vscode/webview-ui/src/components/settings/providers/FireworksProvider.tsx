@@ -1,10 +1,9 @@
-import { fireworksModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -23,7 +22,14 @@ export const FireworksProvider = ({ currentMode, isPopup, showModelOptions }: Fi
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange, handleFieldChange } = useApiConfigurationHandlers()
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const savedFireworksModelId =
+		currentMode === "plan" ? apiConfiguration?.planModeFireworksModelId : apiConfiguration?.actModeFireworksModelId
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"fireworks",
+		apiConfiguration,
+		currentMode,
+		{ savedModelId: savedFireworksModelId },
+	)
 
 	return (
 		<div>
@@ -35,7 +41,7 @@ export const FireworksProvider = ({ currentMode, isPopup, showModelOptions }: Fi
 			/>
 			<ModelSelector
 				label="Model"
-				models={fireworksModels}
+				models={models}
 				onChange={(e: any) => {
 					handleModeFieldChange(
 						{
@@ -49,7 +55,12 @@ export const FireworksProvider = ({ currentMode, isPopup, showModelOptions }: Fi
 				selectedModelId={selectedModelId}
 			/>
 
-			<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+			<ModelInfoView
+				hideUsageCost={hideUsageCost}
+				isPopup={isPopup}
+				modelInfo={selectedModelInfo}
+				selectedModelId={selectedModelId}
+			/>
 		</div>
 	)
 }

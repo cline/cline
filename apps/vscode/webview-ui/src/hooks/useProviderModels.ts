@@ -14,11 +14,11 @@ function createRequestId(): string {
  * Read-only provider model-list hook backed by the unified provider catalog RPC.
  *
  * This hook never writes model selection state; selection commits are owned by
- * useProviderConfig/commitModelSelection in later phases.
+ * useProviderConfig/commitModelSelection.
  */
 export function useProviderModels(providerId: ProviderId) {
 	const { providerModelsByProvider, startProviderModelsRequest, applyProviderModelsResponse } = useExtensionState()
-	const state = providerModelsByProvider[providerId]
+	const state = providerModelsByProvider?.[providerId]
 
 	const refresh = useCallback(async () => {
 		const requestId = createRequestId()

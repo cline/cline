@@ -2,6 +2,55 @@ const Module = require("module")
 const originalRequire = Module.prototype.require
 
 /**
+ * Load the real `@cline/llms` module for unit tests.
+ *
+ * `@cline/llms` ships as ESM with an `exports` map that exposes only an
+ * `import` condition, so `require("@cline/llms")` fails under the CommonJS
+ * Mocha + ts-node harness. Node (>= 22, matching the repo's `.nvmrc`) can
+ * `require()` an ESM module when pointed straight at its file, so resolve the
+ * package's entry from its `package.json` and require it by absolute path,
+ * bypassing the exports map. Provider handlers and their tests depend on the
+ * real SDK model catalog, so a stub would not exercise their behavior.
+ */
+let cachedClineLlms: unknown
+function loadRealClineLlms(): unknown {
+	if (cachedClineLlms === undefined) {
+		const nodePath = require("node:path") as typeof import("node:path")
+		const nodeFs = require("node:fs") as typeof import("node:fs")
+		// Find the @cline/llms package directory by walking up from this file
+		// to the nearest node_modules that contains it. The package's exports
+		// map exposes only an import condition and does not expose package.json,
+		// so require.resolve cannot be used to locate it.
+		let dir = __dirname
+		let pkgDir: string | undefined
+		while (true) {
+			const candidate = nodePath.join(dir, "node_modules", "@cline", "llms")
+			if (nodeFs.existsSync(nodePath.join(candidate, "package.json"))) {
+				pkgDir = candidate
+				break
+			}
+			const parent = nodePath.dirname(dir)
+			if (parent === dir) {
+				break
+			}
+			dir = parent
+		}
+		if (!pkgDir) {
+			throw new Error("Unable to locate the @cline/llms package for unit tests")
+		}
+		const pkg = originalRequire.call(module, nodePath.join(pkgDir, "package.json")) as {
+			module?: string
+			main?: string
+		}
+		const entry = nodePath.join(pkgDir, pkg.module ?? pkg.main ?? "dist/index.js")
+		// Require the ESM entry by absolute path so the package's import-only
+		// `exports` map does not reject the lookup.
+		cachedClineLlms = originalRequire.call(module, entry)
+	}
+	return cachedClineLlms
+}
+
+/**
  * VSCode is not available during unit tests
  * @see {@link file://./vscode-mock.ts}
  */
@@ -81,6 +130,7 @@ Module.prototype.require = function (path: string) {
 			},
 			ProviderSettingsManager,
 			resolveProviderConfig: async () => undefined,
+			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
@@ -97,11 +147,7 @@ Module.prototype.require = function (path: string) {
 		}
 	}
 	if (path === "@cline/llms") {
-		return {
-			getAllProviders: async () => [],
-			getGeneratedModelsForProvider: () => ({}),
-			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
-		}
+		return loadRealClineLlms()
 	}
 	if (path === "vitest") {
 		const assert = require("node:assert/strict")

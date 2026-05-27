@@ -1,15 +1,9 @@
 /**
  * SDK-backed Model Catalog — Contracts
  *
- * Companion to:
- *  - tmp/sdk-model-catalog-architecture.md (the *what shape*)
- *  - tmp/sdk-model-catalog-implementation-plan.md (the *what to do*)
- *  - tmp/sdk-model-catalog-design.md (the *why*)
- *
  * This file is the type-level contract for the model catalog system. Every
- * load-bearing invariant from the architecture doc that can be expressed in
- * the type system lives here. Behavior is implemented elsewhere; this file
- * has no runtime side effects.
+ * load-bearing invariant that can be expressed in the type system lives here.
+ * Behavior is implemented elsewhere; this file has no runtime side effects.
  *
  * If you are about to write a value cast like `x as ProviderId` or
  * `x as Fingerprint` outside the parse/compute boundary functions, stop and
@@ -33,7 +27,8 @@ declare const FingerprintBrand: unique symbol
  * `string` without going through `parseProviderId`.
  *
  * Invariant: every `ProviderId` was at some point produced by
- * `parseProviderId`. The string is trimmed and lowercased.
+ * `parseProviderId`. The string is trimmed and lowercased for
+ * config/storage portability.
  */
 export type ProviderId = string & { readonly [ProviderIdBrand]: void }
 
@@ -111,6 +106,12 @@ export interface EffectiveProviderConfig {
  * Empty patches are allowed and are no-ops. A field present with value
  * `null` means "clear this field"; an absent field means "leave unchanged."
  */
+export interface ProviderReasoningPatch {
+	readonly enabled?: boolean
+	readonly effort?: string // "none" | "low" | "medium" | "high" | "xhigh"
+	readonly budgetTokens?: number
+}
+
 export interface ProviderConfigPatch {
 	readonly apiKey?: string | null
 	readonly baseUrl?: string | null
@@ -122,6 +123,7 @@ export interface ProviderConfigPatch {
 		readonly refreshToken?: string
 		readonly accountId?: string
 	} | null
+	readonly reasoning?: ProviderReasoningPatch | null
 	readonly extras?: Readonly<Record<string, unknown>> | null
 }
 
@@ -187,6 +189,15 @@ export interface Disposable {
  * Drives the top-level provider picker dropdown. Does *not* include the
  * full model list; use `resolveModels` for that.
  */
+/**
+ * SDK-driven hint for how to display per-token / total cost in the UI.
+ * Mirrors `ProviderUsageCostDisplay` from `@cline/llms` and the CLI's
+ * `shouldShowCliUsageCost` consumer. When `"hide"`, downstream UIs MUST
+ * suppress per-token pricing rows (in model info cards) and total-cost
+ * lines (in task summaries / status bars).
+ */
+export type UsageCostDisplay = "show" | "hide"
+
 export interface ProviderListing {
 	readonly id: ProviderId
 	readonly name: string
@@ -203,6 +214,12 @@ export interface ProviderListing {
 	 * Anthropic, DeepSeek, Gemini → false.
 	 */
 	readonly allowsCustomModelIds: boolean
+	/**
+	 * SDK-driven hint for per-token / total cost display. See
+	 * {@link UsageCostDisplay}. Defaults to `"show"` when the SDK does not
+	 * set `metadata.usageCostDisplay`.
+	 */
+	readonly usageCostDisplay: UsageCostDisplay
 }
 
 // ---------------------------------------------------------------------------
@@ -270,8 +287,7 @@ export interface ProviderModelsEvent {
 
 /**
  * Read-only view of `ProviderConfigStore`. Held by `ProviderCatalog` so the
- * catalog cannot write. Enforces invariant C1 (catalog is read-only with
- * respect to the store) by type.
+ * catalog is read-only with respect to the store by type — it can never write.
  *
  * If a future need arises to grant a non-store consumer write access,
  * pass it the full `ProviderConfigStore` interface explicitly; do not
@@ -356,6 +372,19 @@ export interface ProviderCatalog {
 	resolveModels(providerId: ProviderId, options?: { readonly forceRefresh?: boolean }): Promise<ProviderModelsResult>
 
 	/**
+	 * Synchronous, non-fetching peek of the catalog cache. Returns the
+	 * cached model list for the given provider's *current* effective
+	 * config fingerprint, or `undefined` if no cached entry exists. Used
+	 * by hot-path handlers (e.g. `resolveModelInfo`) that must respond
+	 * without awaiting a network or live-catalog refresh.
+	 *
+	 * Callers that need an authoritative result should `resolveModels`
+	 * instead; peek is a best-effort optimization and may return stale
+	 * data immediately after a config-change invalidation.
+	 */
+	peekModels(providerId: ProviderId): ProviderModelsResult | undefined
+
+	/**
 	 * Subscribe to model-list updates for a provider. Fires after each
 	 * `resolveModels` completion for that provider.
 	 */
@@ -366,4 +395,4 @@ export interface ProviderCatalog {
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export type { ModelInfo, Mode }
+export type { Mode, ModelInfo }

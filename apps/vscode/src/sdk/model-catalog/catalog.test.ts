@@ -174,6 +174,29 @@ describe("ProviderCatalog Phase 3.1 cache", () => {
 })
 
 describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
+	it("keeps lowercase nousresearch in extension results while using SDK casing at the SDK boundary", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "DeepHermes-3-Llama-3-3-70B-Preview",
+			knownModels: {
+				"DeepHermes-3-Llama-3-3-70B-Preview": { id: "DeepHermes-3-Llama-3-3-70B-Preview" },
+			},
+		})
+		const providerId = parseProviderId("nousResearch")
+		const result = await createProviderCatalog(makeReader({ providerId })).resolveModels(providerId)
+
+		expect(providerId).toBe("nousresearch")
+		expect(result.ok).toBe(true)
+		if (!result.ok) throw new Error("expected success")
+		expect(result.providerId).toBe("nousresearch")
+		expect(result.defaultModelId).toBe("DeepHermes-3-Llama-3-3-70B-Preview")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"nousResearch",
+			expect.anything(),
+			expect.objectContaining({ providerId: "nousResearch" }),
+		)
+	})
+
 	it("resolves SDK knownModels, adapts model info, and uses SDK default when present", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.resolveProviderConfig.mockResolvedValue({
@@ -490,6 +513,7 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 			protocol: "openai-chat",
 			authDescription: "OpenRouter AI platform",
 			allowsCustomModelIds: false,
+			usageCostDisplay: "show",
 		})
 		expect(listings[0]).not.toHaveProperty("models")
 		expect(mocks.getAllProviders).toHaveBeenCalledTimes(1)

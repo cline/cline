@@ -89,6 +89,28 @@ describe("MessageTranslatorState", () => {
 		expect(newReasoningTs).toBeGreaterThan(reasoningTs)
 		expect(newToolTs).toBeGreaterThan(toolTs)
 	})
+
+	it("reset() (per-iteration) does NOT clear attemptCompletionSeen — it is turn-scoped", () => {
+		// The agent can call the completion tool in one iteration and the loop then emits another
+		// `iteration_start` → state.reset() before the turn's `done` event. The completion signal
+		// is turn-scoped and must survive per-iteration resets; otherwise the turn-end phase
+		// resolves to awaiting_followup instead of completed and the footer shows no
+		// "Start New Task" button despite the green "Task Completed" box.
+		const state = new MessageTranslatorState()
+		state.setAttemptCompletionSeen()
+		expect(state.wasAttemptCompletionSeen()).toBe(true)
+
+		state.reset() // simulates the next iteration_start mid-turn
+
+		expect(state.wasAttemptCompletionSeen()).toBe(true)
+	})
+
+	it("clearTurnOutcome() clears attemptCompletionSeen for a genuinely new turn/task", () => {
+		const state = new MessageTranslatorState()
+		state.setAttemptCompletionSeen()
+		state.clearTurnOutcome()
+		expect(state.wasAttemptCompletionSeen()).toBe(false)
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -529,18 +551,14 @@ describe("translateSessionEvent — agent_event done", () => {
 			},
 		}
 
-		// When attempt_completion was NOT called, the done event emits
-		// ask:"completion_result" with empty text (renders as InvisibleSpacer,
-		// no green rectangle) to enable follow-up input.
+		// done emits no transcript message and only signals turnComplete; the authoritative UI
+		// mode comes from TurnState set by the session-event coordinator.
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].ask).toBe("completion_result")
-		expect(result.messages[0].text).toBe("")
-		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages).toHaveLength(0)
 		expect(result.turnComplete).toBe(true)
 	})
 
-	it("done always emits ask:completion_result even when attempt_completion was seen (ENG-1887)", () => {
+	it("done emits no synthetic ask even when attempt_completion was seen (green box from content_end)", () => {
 		const state = new MessageTranslatorState()
 
 		// Simulate attempt_completion being called (content_start)
@@ -576,14 +594,15 @@ describe("translateSessionEvent — agent_event done", () => {
 			state,
 		)
 
-		// content_end should emit say:"completion_result" but NOT ask:"completion_result"
-		// (the ask is deferred to done so it comes after the usage event)
+		// content_end emits say:"completion_result" (the green box) but never ask:"completion_result";
+		// UI mode is TurnState-driven, so no terminal ask is needed.
 		const sayMessages = endResult.messages.filter((m) => m.type === "say" && m.say === "completion_result")
 		const askMessages = endResult.messages.filter((m) => m.type === "ask" && m.ask === "completion_result")
 		expect(sayMessages).toHaveLength(1)
 		expect(askMessages).toHaveLength(0)
 
-		// Now the done event SHOULD emit ask:"completion_result" so it is the last message
+		// The done event emits NO message now (the green box already rendered at content_end);
+		// it only signals turnComplete. The webview reads phase=completed from TurnState.
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -599,11 +618,57 @@ describe("translateSessionEvent — agent_event done", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(1)
-		expect(doneResult.messages[0].type).toBe("ask")
-		expect(doneResult.messages[0].ask).toBe("completion_result")
-		expect(doneResult.messages[0].text).toBe("")
+		expect(doneResult.messages).toHaveLength(0)
 		expect(doneResult.turnComplete).toBe(true)
+	})
+
+	it("recognizes the SDK completion tool submit_and_exit (summary field) → completion_result + completed phase", () => {
+		// The SDK's built-in completion tool is `submit_and_exit` with a `summary` input field
+		// (see sdk/packages/core/.../tools/constants.ts + definitions.ts); the VSCode extra tool
+		// `attempt_completion` uses `result`. The translator recognizes both names and either
+		// field so completion renders the green "Task Completed" box and sets the completed phase.
+		const state = new MessageTranslatorState()
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "submit_and_exit",
+						input: { summary: "All done — issue resolved." },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_start emits a partial say:"completion_result" with the summary text.
+		const startSay = startResult.messages.find((m) => m.type === "say" && m.say === "completion_result")
+		expect(startSay?.text).toBe("All done — issue resolved.")
+		expect(state.wasAttemptCompletionSeen()).toBe(true)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "submit_and_exit",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end finalizes the green "Task Completed" box (non-partial completion_result).
+		const finalSay = endResult.messages.find((m) => m.type === "say" && m.say === "completion_result")
+		expect(finalSay?.partial).toBe(false)
+		expect(finalSay?.text).toBe("All done — issue resolved.")
 	})
 })
 
@@ -910,9 +975,7 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(1)
-		expect(doneResult.messages[0].ask).toBe("completion_result")
-		expect(doneResult.messages[0].text).toBe("")
+		expect(doneResult.messages).toHaveLength(0)
 		expect(doneResult.turnComplete).toBe(true)
 	})
 

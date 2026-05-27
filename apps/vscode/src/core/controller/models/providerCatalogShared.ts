@@ -68,6 +68,7 @@ export function toProviderListingProto(listing: ProviderListing): ProviderListin
 		authDescription: listing.authDescription,
 		baseUrlDescription: listing.baseUrlDescription,
 		allowsCustomModelIds: listing.allowsCustomModelIds,
+		usageCostDisplay: listing.usageCostDisplay,
 	})
 }
 
@@ -144,7 +145,11 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 	return {
 		...(protoPatch.apiKey !== undefined ? { apiKey: protoPatch.apiKey } : {}),
 		...(protoPatch.baseUrl !== undefined ? { baseUrl: protoPatch.baseUrl } : {}),
-		...(Object.keys(protoPatch.headers).length > 0 ? { headers: { ...protoPatch.headers } } : {}),
+		...(protoPatch.clearHeaders
+			? { headers: {} }
+			: Object.keys(protoPatch.headers ?? {}).length > 0
+				? { headers: { ...protoPatch.headers } }
+				: {}),
 		...(protoPatch.region !== undefined ? { region: protoPatch.region } : {}),
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
@@ -153,6 +158,17 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 						accessToken: protoPatch.accessToken,
 						refreshToken: protoPatch.refreshToken,
 						accountId: protoPatch.accountId,
+					},
+				}
+			: {}),
+		...(protoPatch.reasoning
+			? {
+					reasoning: {
+						...(protoPatch.reasoning.enabled !== undefined ? { enabled: protoPatch.reasoning.enabled } : {}),
+						...(protoPatch.reasoning.effort !== undefined ? { effort: protoPatch.reasoning.effort } : {}),
+						...(protoPatch.reasoning.budgetTokens !== undefined
+							? { budgetTokens: protoPatch.reasoning.budgetTokens }
+							: {}),
 					},
 				}
 			: {}),

@@ -45,7 +45,7 @@ describe("normalizeProviderSwitchModel", () => {
 		// the generated model catalog. Provider-switch normalization must match the
 		// model picker/catalog default instead of writing the invalid manifest value.
 		expect(MODEL_COLLECTIONS_BY_PROVIDER_ID.gemini.provider.defaultModelId).toBe("gemma-4-26b")
-		expect(normalized.actModeApiModelId).toBe("gemini-3.1-flash-lite")
+		expect(normalized.actModeApiModelId).toBe("gemini-3.5-flash")
 	})
 
 	it("restores a previously committed DeepSeek selection before falling back to SDK default", () => {
@@ -80,17 +80,19 @@ describe("normalizeProviderSwitchModel", () => {
 		expect(store.readSelection).not.toHaveBeenCalled()
 	})
 
-	it("does not change model id for non-migrated provider switches", () => {
-		const providerId = parseProviderId("anthropic")
+	it("does not change model id when switching to a provider the SDK does not know", () => {
+		// A custom/unregistered provider has no SDK catalog to resolve against, so
+		// the generic model-id slot is left untouched.
+		const providerId = parseProviderId("my-custom-provider")
 		const store = makeStore({ providerId })
 
 		const normalized = normalizeProviderSwitchModel(
 			store,
 			{ actModeApiProvider: "deepseek", actModeApiModelId: "deepseek-v4-flash" },
-			{ actModeApiProvider: "anthropic" },
+			{ actModeApiProvider: "my-custom-provider" as never },
 		)
 
-		expect(normalized).toEqual({ actModeApiProvider: "anthropic" })
+		expect(normalized).toEqual({ actModeApiProvider: "my-custom-provider" })
 		expect(store.readSelection).not.toHaveBeenCalled()
 	})
 

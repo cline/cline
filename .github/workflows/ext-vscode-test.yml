@@ -160,6 +160,11 @@ jobs:
               id: build_step
               run: npm run ci:build
 
+            - name: Vitest Suites (SDK adapter + model catalog)
+              id: vitest_tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:vitest
+
             - name: Unit Tests with coverage - Linux
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}

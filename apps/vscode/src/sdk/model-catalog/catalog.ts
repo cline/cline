@@ -1,5 +1,5 @@
 import { type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
-import { getAllProviders, type ProviderConfig, type ProviderInfo } from "@cline/llms"
+import { getAllProviders, type ProviderConfig, type ProviderInfo, resolveProviderUsageCostDisplay } from "@cline/llms"
 import type {
 	CatalogError,
 	Disposable,
@@ -12,9 +12,12 @@ import type {
 	ProviderListing,
 	ProviderModelsEvent,
 	ProviderModelsResult,
+	UsageCostDisplay,
 } from "./contracts"
 import { computeConfigFingerprint } from "./fingerprint"
+import { applyHostModelInfoOverrides } from "./host-overrides"
 import { parseProviderId } from "./provider-id"
+import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo, CatalogShapeError } from "./shape-adapter"
 
 type ProviderModelsRecord = Extract<ProviderModelsResult, { ok: true }>
@@ -41,7 +44,35 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 	cacheTtlMs: 0,
 }
 
-const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["ollama", "lmstudio", "litellm"])
+// Providers whose model id is user-supplied free text rather than a fixed
+// catalog selection. The SDK catalog for these either has no curated model
+// list (openai-compatible: bring-your-own base URL + model) or a host-fetched
+// list that the user can also bypass (ollama/lmstudio/litellm). For these,
+// the picker must allow arbitrary model ids and model resolution must honor
+// the requested id instead of coercing to the catalog default.
+const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm"])
+
+/**
+ * Whether a provider id accepts a user-supplied (custom) model id. Exported so
+ * model-resolution code paths (e.g. `resolveModelInfo`) can honor a custom id
+ * for these providers rather than falling back to the SDK catalog default.
+ *
+ * Accepts either the extension or SDK provider id spelling (the extension's
+ * `openai` maps to the SDK's `openai-compatible`).
+ */
+export function providerAllowsCustomModelIds(providerId: string): boolean {
+	return CUSTOM_MODEL_ID_PROVIDER_IDS.has(toSdkProviderId(providerId))
+}
+
+/**
+ * Normalize the SDK's usage-cost-display answer (string union) into the
+ * extension's {@link UsageCostDisplay} type. The SDK function takes a
+ * provider id (not metadata) and consults its own registry; we forward
+ * the id and trust the answer rather than re-parsing the metadata bag.
+ */
+function readUsageCostDisplay(providerId: string): UsageCostDisplay {
+	return resolveProviderUsageCostDisplay(providerId) === "hide" ? "hide" : "show"
+}
 
 function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {
 	return `${providerId}:${fingerprint}`
@@ -120,6 +151,7 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 		set,
 		invalidateProviderExcept,
 		resolve,
+		peek: get,
 		_inFlightSize: () => inFlight.size,
 		_cacheSize: () => records.size,
 	}
@@ -127,7 +159,7 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
 	return {
-		providerId: config.providerId,
+		providerId: toSdkProviderId(config.providerId),
 		modelId: selection?.modelId ?? "",
 		apiKey: config.apiKey,
 		baseUrl: config.baseUrl,
@@ -162,7 +194,13 @@ function toProviderListing(provider: ProviderInfo): ProviderListing {
 		// Reuse the lightweight description slot until the RPC-facing picker
 		// contract decides whether it needs a generic provider description field.
 		authDescription: optionalNonEmpty(provider.description),
-		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(provider.id),
+		// The SDK has the right signal for this on each provider (e.g.
+		// `modelsSourceUrl` for ollama/lmstudio, or the `openai-compatible`
+		// family with no curated catalog), but does not yet expose it
+		// through a public helper. Until then this set is the host-side
+		// fallback; remove it as soon as upstream exposes the signal.
+		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(parseProviderId(provider.id)),
+		usageCostDisplay: readUsageCostDisplay(provider.id),
 	}
 }
 
@@ -177,9 +215,19 @@ async function resolveSdkModels(
 	selection: ModelSelection | undefined,
 	now: () => number,
 ): Promise<ProviderModelsRecord> {
-	const resolved = await resolveProviderConfig(providerId, DEFAULT_MODEL_CATALOG_CONFIG, toSdkProviderConfig(config, selection))
+	const sdkProviderId = toSdkProviderId(providerId)
+	const resolved = await resolveProviderConfig(
+		sdkProviderId,
+		DEFAULT_MODEL_CATALOG_CONFIG,
+		toSdkProviderConfig(config, selection),
+	)
 	const sdkModels = resolved?.knownModels ?? {}
-	const models = new Map(Object.entries(sdkModels).map(([modelId, sdkInfo]) => [modelId, adaptSdkModelInfo(sdkInfo)]))
+	const models = new Map(
+		Object.entries(sdkModels).map(([modelId, sdkInfo]) => [
+			modelId,
+			applyHostModelInfoOverrides(providerId, modelId, adaptSdkModelInfo(sdkInfo)),
+		]),
+	)
 	return {
 		ok: true,
 		providerId,
@@ -223,9 +271,9 @@ export const _testing = {
 /**
  * Create a {@link ProviderCatalog}.
  *
- * Accepts a read-only {@link ProviderConfigReader} (not the full store).
- * Enforces invariant C1 by type: the catalog cannot write to the store,
- * and has no `write`/`commitSelection` access by construction.
+ * Accepts a read-only {@link ProviderConfigReader} (not the full store), so
+ * the catalog cannot write to the store: it has no `write`/`commitSelection`
+ * access by construction.
  */
 export function createProviderCatalog(reader: ProviderConfigReader): ProviderCatalog {
 	const now = () => Date.now()
@@ -268,8 +316,8 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			const config = reader.read(providerId)
 			const fingerprint = computeConfigFingerprint(providerId, config)
 			// Selection is not part of model-list identity; it is only a hint for
-			// SDK config surfaces that require a model id. Phase 3 catalog caching
-			// remains keyed solely by provider + effective config fingerprint.
+			// SDK config surfaces that require a model id. The cache stays keyed
+			// solely by provider + effective config fingerprint.
 			const selection = reader.readSelection(providerId, "act")
 			let result: ProviderModelsResult
 			try {
@@ -290,6 +338,12 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			}
 			notifyModelListeners(providerId, result)
 			return result
+		},
+
+		peekModels(providerId: ProviderId): ProviderModelsResult | undefined {
+			const config = reader.read(providerId)
+			const fingerprint = computeConfigFingerprint(providerId, config)
+			return cache.peek(providerId, fingerprint)
 		},
 
 		subscribe(providerId: ProviderId, listener: (event: ProviderModelsEvent) => void): Disposable {

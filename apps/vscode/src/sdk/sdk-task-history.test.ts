@@ -82,6 +82,9 @@ describe("SdkTaskHistory", () => {
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
 			{ type: "say", say: "text", text: "Done", partial: false },
 			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
+			// A trailing ask:"completion_result" is appended so a reopened task
+			// shows the completion/resume affordance instead of a stuck spinner.
+			{ type: "ask", ask: "completion_result", partial: false },
 		])
 	})
 
@@ -138,7 +141,7 @@ describe("SdkTaskHistory", () => {
 			},
 			{
 				role: "user",
-				content: [{ type: "tool_result", tool_use_id: "toolu_1", content: rawToolResult }],
+				content: [{ type: "tool_result", tool_use_id: "toolu_1", name: "editor", content: rawToolResult }],
 			},
 			{ role: "assistant", content: [{ type: "text", text: "Done!" }] },
 		])
@@ -147,6 +150,7 @@ describe("SdkTaskHistory", () => {
 			{ type: "say", say: "task", text: "add a joke", partial: false },
 			{ type: "say", say: "tool", partial: false },
 			{ type: "say", say: "text", text: "Done!", partial: false },
+			{ type: "ask", ask: "completion_result", partial: false },
 		])
 		expect(result.map((message) => message.text).join("\n")).not.toContain(rawToolResult)
 		expect(JSON.parse(result[1].text ?? "{}")).toMatchObject({
@@ -184,11 +188,13 @@ describe("SdkTaskHistory", () => {
 
 	it("updates SDK session metadata for task history changes", async () => {
 		const existing = makeSessionRecord("task-1", { metadata: { existing: true } })
-		const { history, updateSession } = makeHistory([existing])
+		const { history, getSession, listHistory, updateSession } = makeHistory([existing])
 		const updatedItem = makeHistoryItem("task-1", { task: "new title", tokensIn: 5, totalCost: 0.02 })
 
-		await history.updateTaskHistory(updatedItem)
+		await history.updateTaskHistoryItem(updatedItem)
 
+		expect(getSession).toHaveBeenCalledWith("task-1")
+		expect(listHistory).not.toHaveBeenCalled()
 		expect(updateSession).toHaveBeenCalledWith(
 			"task-1",
 			expect.objectContaining({
@@ -290,9 +296,11 @@ function makeHistory(records: SessionHistoryRecord[]) {
 		currentRecords = currentRecords.filter((record) => record.sessionId !== sessionId)
 		return true
 	})
+	const getSession = vi.fn(async (sessionId: string) => currentRecords.find((record) => record.sessionId === sessionId))
 	const listHistory = vi.fn(async () => currentRecords)
 	const readMessages = vi.fn(async () => [])
 	const host = {
+		get: getSession,
 		listHistory,
 		readMessages,
 		update: updateSession,
@@ -306,5 +314,5 @@ function makeHistory(records: SessionHistoryRecord[]) {
 		sessions,
 	})
 
-	return { history, listHistory, updateSession, deleteSession }
+	return { history, getSession, listHistory, updateSession, deleteSession }
 }

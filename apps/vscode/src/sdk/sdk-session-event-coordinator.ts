@@ -2,7 +2,7 @@ import type { CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo, ClineMessage } from "@/shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
@@ -29,6 +29,12 @@ export interface SdkSessionEventCoordinatorOptions {
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	isClineFreeModel?: () => Promise<boolean>
+	/**
+	 * Set the authoritative UI turn phase. Called as the agent streams (streaming), on a
+	 * completed turn (completed if attempt_completion was used, else awaiting_followup), and on
+	 * error. Optional for tests.
+	 */
+	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 }
 
 export class SdkSessionEventCoordinator {
@@ -69,9 +75,8 @@ export class SdkSessionEventCoordinator {
 			)
 		}
 
-		// Track consecutive tool errors and emit mistake_limit_reached when threshold is met.
-		// This mirrors the classic Task.recursivelyMakeClineRequests() behavior where
-		// consecutiveMistakeCount is checked against maxConsecutiveMistakes.
+		// Track consecutive tool errors and emit mistake_limit_reached once the
+		// count reaches the user's maxConsecutiveMistakes setting.
 		this.trackToolErrors(result)
 
 		if (result.messages.length > 0) {
@@ -80,6 +85,27 @@ export class SdkSessionEventCoordinator {
 
 		if (activeSession) {
 			if (result.sessionEnded || result.turnComplete) {
+				// Authoritative UI phase at turn end. If the completion tool was used this turn
+				// the phase is "completed" (green box + Start New Task); otherwise the agent
+				// simply stopped and is waiting for the user ("awaiting_followup"). Error turns
+				// are surfaced as the error phase. The webview reads this, not the array tail.
+				//
+				// EXCEPTION: if the session is already not running, this turn-complete is a
+				// straggler from a turn that was cancelled (cancelTask already set phase
+				// "resumable" and aborted). Overwriting it here would clobber "resumable" with
+				// "awaiting_followup"/"completed" and the footer would lose the Resume Task button
+				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
+				if (!activeSession.isRunning) {
+					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
+				} else if (result.toolError && this.consecutiveToolErrorCount === 0) {
+					// mistake_limit just fired (counter reset in trackToolErrors) — error UI.
+					this.options.setTurnPhase?.("error")
+				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
+					this.options.setTurnPhase?.("completed")
+				} else {
+					this.options.setTurnPhase?.("awaiting_followup")
+				}
+
 				this.options.sessions.setRunning(false)
 				this.options.mcpTools.checkDeferredRestart()
 
@@ -102,7 +128,12 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		if (result.messages.length > 0) {
+		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
+		// `done` event carries no transcript message, yet the authoritative phase just changed to
+		// completed/awaiting_followup/error above; without posting here the webview would stay on
+		// the prior phase (footer stuck on the streaming/scroll state). The webview reducer gates
+		// turnState by seq, so an extra no-message post is safe.
+		if (result.messages.length > 0 || result.sessionEnded || result.turnComplete) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
@@ -131,7 +162,7 @@ export class SdkSessionEventCoordinator {
 					`[SdkController] Consecutive tool error count (${this.consecutiveToolErrorCount}) reached limit (${maxConsecutiveMistakes}), emitting mistake_limit_reached`,
 				)
 
-				// Determine the model-specific guidance message (mirrors classic Task behavior)
+				// Model-specific guidance message shown alongside the limit notice.
 				const modelId = this.getCurrentClineModelId() ?? ""
 				const guidanceMessage = modelId.includes("claude")
 					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
@@ -148,12 +179,10 @@ export class SdkSessionEventCoordinator {
 
 				result.messages.push(mistakeLimitMessage)
 
-				// Mark the turn as complete so handleSessionEvent stops the session.
-				// In the classic Task path, ask("mistake_limit_reached") blocks the
-				// execution loop — the agent WAITS for user input. In the SDK path,
-				// the agent would otherwise continue running and append more messages,
-				// causing mistake_limit_reached to no longer be the last message (so
-				// the webview never shows the correct buttons).
+				// Mark the turn complete so handleSessionEvent stops the session and
+				// the agent waits for user input. Otherwise it keeps running and
+				// appends more messages, pushing mistake_limit_reached out of the
+				// last-message slot so the webview never shows the correct buttons.
 				result.turnComplete = true
 
 				// Abort the SDK session so the agent actually stops producing events.

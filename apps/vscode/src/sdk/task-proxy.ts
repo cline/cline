@@ -246,12 +246,12 @@ export function createTaskProxy(
 		},
 
 		get browserSession() {
-			// Browser automation removed — see ARCHITECTURE.md
+			// Browser automation is not part of the SDK adapter.
 			return undefined
 		},
 
 		get checkpointManager() {
-			// Shadow git checkpoints removed — see ARCHITECTURE.md
+			// Shadow-git checkpoints are not part of the SDK adapter.
 			return undefined
 		},
 

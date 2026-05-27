@@ -30,6 +30,7 @@ export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
 	private sharedHost: SdkSessionHost | undefined
 	private sharedHostPromise: Promise<SdkSessionHost> | undefined
+	private sharedHostUnsubscribe: (() => void) | undefined
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -81,26 +82,23 @@ export class SdkSessionLifecycle {
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
+		if (this.activeSession) {
+			await this.endActiveSession("startNewSession")
+		}
+
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
 		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
 		const sdkHost = await this.getOrCreateSharedHost()
-		const unsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "pending-start")
 
-		let startResult: StartSessionResult
-		try {
-			startResult = await sdkHost.start({
-				...startInput,
-				...(toolPolicies ? { toolPolicies } : {}),
-			})
-		} catch (error) {
-			unsubscribe()
-			throw error
-		}
+		const startResult = await sdkHost.start({
+			...startInput,
+			...(toolPolicies ? { toolPolicies } : {}),
+		})
 		this.activeSession = {
 			sessionId: startResult.sessionId,
 			sdkHost,
-			unsubscribe,
+			unsubscribe: () => {},
 			startResult,
 			isRunning: true,
 		}
@@ -144,6 +142,8 @@ export class SdkSessionLifecycle {
 		const sharedHost = this.sharedHost ?? (await this.sharedHostPromise?.catch(() => undefined))
 		this.sharedHost = undefined
 		this.sharedHostPromise = undefined
+		this.sharedHostUnsubscribe?.()
+		this.sharedHostUnsubscribe = undefined
 		await sharedHost?.dispose(reason)
 	}
 
@@ -165,6 +165,13 @@ export class SdkSessionLifecycle {
 	private safeUnsubscribe(activeSession: ActiveSession, reason: string): void {
 		activeSession.unsubscribe()
 		Logger.debug(`[SdkController] Unsubscribed SDK session listener: ${activeSession.sessionId} (${reason})`)
+	}
+
+	private ensureSharedHostSubscription(sdkHost: SdkSessionHost): void {
+		if (this.sharedHostUnsubscribe) {
+			return
+		}
+		this.sharedHostUnsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "shared-host")
 	}
 
 	private async stopSessionWithTimeout(
@@ -211,6 +218,7 @@ export class SdkSessionLifecycle {
 
 	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
 		if (this.sharedHost) {
+			this.ensureSharedHostSubscription(this.sharedHost)
 			return this.sharedHost
 		}
 		if (!this.sharedHostPromise) {
@@ -225,6 +233,7 @@ export class SdkSessionLifecycle {
 				telemetry: this.options.telemetry,
 			})
 				.then((sdkHost) => {
+					this.ensureSharedHostSubscription(sdkHost)
 					this.sharedHost = sdkHost
 					return sdkHost
 				})

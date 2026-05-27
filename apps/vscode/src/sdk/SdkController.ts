@@ -1,10 +1,9 @@
 // Replaces classic src/core/controller/index.ts (see origin/main)
 //
-// This is the SDK-backed Controller. It provides the same interface as the
-// classic Controller but delegates to the Cline SDK (@cline/core).
-//
-// Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
-// Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
+// The SDK-backed Controller. It provides the same interface as the classic
+// Controller but delegates session lifecycle (initTask, askResponse,
+// cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
+// the webview's gRPC streams.
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -33,6 +32,7 @@ import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager
 import { HostProvider } from "@/hosts/host-provider"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { ExtensionRegistryInfo } from "@/registry"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -63,7 +63,8 @@ import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-hi
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { isToolAutoApproved } from "./sdk-tool-policies"
-import type { TaskProxy } from "./task-proxy"
+import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { TurnStateTracker } from "./turn-state-tracker"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceRootPath } from "./workspace-root"
@@ -118,8 +119,9 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 // ---------------------------------------------------------------------------
 
 export class Controller {
-	// SDK session state (Step 4)
+	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
+	private turnStateTracker!: TurnStateTracker
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
 	private interactions: SdkInteractionCoordinator
@@ -138,21 +140,17 @@ export class Controller {
 	private readonly providerConfigStoreSubscription: Disposable
 	private providerConfigStatePostScheduled = false
 
-	// gRPC bridge (Step 5) — bridges SDK events to webview streams
+	// Bridges SDK events to the webview's gRPC streams.
 	private grpcBridge: WebviewGrpcBridge
 
-	// Task proxy (Step 5) — provides classic Task interface for gRPC handlers
+	// Presents the Task interface that gRPC handlers expect, delegating to the
+	// active SDK session.
 	task?: TaskProxy
 
-	// MCP hub — classic McpHub wired in Step 7; will be replaced by SDK's
-	// InMemoryMcpManager in Step 10 (Cleanup)
 	mcpHub: McpHub
-	// SDK-backed account service (Step 6)
 	accountService: ClineAccountService
-	// SDK-backed auth service (Step 6)
 	authService: AuthService
-	// OCA auth uses the same AuthService (Step 6)
-	ocaAuthService: AuthService
+	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
 	// Lazy terminal manager for foreground terminal execution.
@@ -164,6 +162,7 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
+	private pendingClineAuthRetryPrompt?: string
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
@@ -187,8 +186,6 @@ export class Controller {
 			this.handleProviderConfigChange(event)
 		})
 
-		// MCP hub — using classic McpHub for now (Step 7).
-		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
 		// IMPORTANT: Use ~/.cline/data/settings/ for the settings directory,
 		// NOT ensureSettingsDirectoryExists() which returns the VSCode extension
 		// storage path (HostProvider.globalStorageFsPath/settings/). The MCP
@@ -206,14 +203,20 @@ export class Controller {
 			telemetryService,
 		)
 
-		// Initialize SDK-backed auth and account services (Step 6)
+		// Initialize SDK-backed auth and account services.
 		this.authService = AuthService.getInstance(this)
-		this.ocaAuthService = this.authService
+		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState()
-		this.messages = new SdkMessageCoordinator({ getTask: () => this.task })
+		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
+		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
+		this.messages = new SdkMessageCoordinator({
+			getTask: () => this.task,
+			// Stamp seq/epoch on every message flowing to the webview from the shared authority.
+			getMinter: () => this.messageTranslatorState.getMinter(),
+		})
 		this.sessionHistory = new SdkSessionHistoryLoader()
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
@@ -227,6 +230,10 @@ export class Controller {
 			messages: this.messages,
 			getSessionId: () => this.sessions.getActiveSession()?.sessionId ?? "",
 			postStateToWebview: () => this.postStateToWebview(),
+			// Share the single id/seq/epoch authority so interaction-minted ids (tool-approval
+			// asks, ask_question, user_feedback) never collide with translator-minted ids.
+			getMinter: () => this.messageTranslatorState.getMinter(),
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
@@ -267,6 +274,8 @@ export class Controller {
 				})
 			},
 			onSendError: async (error, sessionId) => {
+				// A turn failed — the UI shows error recovery (Retry / Sign In / Add Credits).
+				this.turnStateTracker.set("error")
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const isClineAuthError =
 					this.isClineProviderActive() &&
@@ -298,6 +307,9 @@ export class Controller {
 		this.taskHistory = new SdkTaskHistory({
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
+			// History rendering mints ids from the shared authority so regenerated history ids
+			// never overlap live-session ids.
+			getMinter: () => this.messageTranslatorState.getMinter(),
 		})
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
@@ -311,7 +323,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			emitClineAuthError: () => this.emitClineAuthError(),
-			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.mcpTools = new SdkMcpCoordinator({
@@ -340,7 +352,7 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthError(),
-			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskControl = new SdkTaskControlCoordinator({
@@ -353,7 +365,11 @@ export class Controller {
 				this.task = task
 			},
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
-			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
+			// Bump the epoch synchronously before abort so straggler events from the cancelled
+			// turn carry the old epoch and are dropped by the webview. The resumable phase is set
+			// in SdkController.cancelTask before this runs.
+			raiseCancelFence: () => this.messageTranslatorState.getMinter().bumpEpoch(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
@@ -364,7 +380,10 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			buildStartSessionInput,
 			createHistoryItemFromSession,
-			clearTask: () => this.clearTask(),
+			clearTask: async () => {
+				this.pendingClineAuthRetryPrompt = undefined
+				await this.taskControl.clearTask()
+			},
 			setTask: (task) => {
 				this.task = task
 			},
@@ -388,6 +407,7 @@ export class Controller {
 			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -469,11 +489,9 @@ export class Controller {
 	}
 
 	/**
-	 * Starts the periodic remote config fetching timer.
-	 * Fetches immediately and then every hour. Mirrors the classic
-	 * Controller.startRemoteConfigTimer() behavior for enterprise
-	 * policy enforcement (provider lockdown, MCP server management,
-	 * OpenTelemetry, etc.).
+	 * Starts the periodic remote config fetching timer. Fetches immediately
+	 * and then every hour, to enforce enterprise policy (provider lockdown,
+	 * MCP server management, OpenTelemetry, etc.).
 	 */
 	private startRemoteConfigTimer(): void {
 		// Initial fetch
@@ -525,16 +543,12 @@ export class Controller {
 	/**
 	 * Resolve `@` context mentions in user text before sending to the SDK.
 	 *
-	 * The classic extension's Task class called `parseMentions()` to inline
-	 * file content (`@/path`), URL content (`@https://...`), diagnostics
-	 * (`@problems`), git state (`@git-changes`), and commit info (`@hash`)
-	 * into the prompt text. The SDK's own mention enricher only handles
-	 * simple `@path` file mentions and doesn't support the webview's
-	 * `@/path` format or special mentions.
-	 *
-	 * This method bridges the gap by calling the classic `parseMentions()`
-	 * before the text is sent to the SDK, ensuring all context mentions
-	 * are resolved into inline content that the LLM can see.
+	 * `parseMentions()` inlines file content (`@/path`), URL content
+	 * (`@https://...`), diagnostics (`@problems`), git state (`@git-changes`),
+	 * and commit info (`@hash`) into the prompt text. We do this here because
+	 * the SDK's own mention enricher only handles simple `@path` file mentions
+	 * and does not understand the webview's `@/path` format or special
+	 * mentions, so the LLM would otherwise never see the referenced content.
 	 */
 	private async resolveContextMentions(text: string): Promise<string> {
 		// Quick check: skip if there are no @ mentions
@@ -619,8 +633,8 @@ export class Controller {
 
 	/**
 	 * Emit a proper auth error for the 'cline' provider when the user is not
-	 * logged in. This produces the same message sequence the classic extension
-	 * emits, so the webview renders the "Sign in to Cline" button via ErrorRow.
+	 * logged in. The message sequence drives ErrorRow to render the
+	 * "Sign in to Cline" button.
 	 *
 	 * Message sequence:
 	 *   1. say:'task'           – the user's message text
@@ -629,6 +643,15 @@ export class Controller {
 	 */
 	private emitClineAuthError(task?: string): void {
 		const ts = Date.now()
+		this.pendingClineAuthRetryPrompt = task
+
+		if (!this.task) {
+			this.task = createTaskProxy(
+				`auth-error-${ts}`,
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				() => this.cancelTask(),
+			)
+		}
 
 		const clineError = new ClineError(
 			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
@@ -728,7 +751,7 @@ export class Controller {
 		this.postStateToWebview().catch(() => {})
 	}
 
-	// ---- Task lifecycle (Step 4) ----
+	// ---- Task lifecycle ----
 
 	async initTask(
 		prompt?: string,
@@ -741,14 +764,24 @@ export class Controller {
 		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
 		// blocking the UI.
 		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
+		// A new task is starting — the agent is about to stream.
+		this.turnStateTracker.set("streaming")
+		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
+		this.messageTranslatorState.clearTurnOutcome()
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		this.turnStateTracker.set("streaming")
+		this.messageTranslatorState.clearTurnOutcome()
 		await this.taskStart.reinitExistingTaskFromId(taskId)
 	}
 
 	async cancelTask(): Promise<void> {
+		// Fence first: mark resumable before aborting so any straggler events from the aborted
+		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
+		// in S6; this sets the authoritative phase now.)
+		this.turnStateTracker.set("resumable")
 		await this.taskControl.cancelTask()
 	}
 
@@ -757,7 +790,11 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
+		this.pendingClineAuthRetryPrompt = undefined
+		// No active task — UI returns to idle (input enabled, no buttons/thinking).
+		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
+		await this.postStateToWebview()
 	}
 
 	async handleTaskCreation(prompt: string): Promise<void> {
@@ -774,6 +811,22 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		if (this.pendingClineAuthRetryPrompt !== undefined && this.task?.taskState?.askResponse === "yesButtonClicked") {
+			const retryPrompt = this.pendingClineAuthRetryPrompt
+			this.pendingClineAuthRetryPrompt = undefined
+			await this.initTask(retryPrompt, images, files)
+			return
+		}
+
+		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
+		// new agent turn — move the authoritative phase to "streaming" so the footer shows
+		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
+		// scroll-arrow default). Mirrors initTask(). The webview gates turnState by seq, and the
+		// session-event coordinator will set the terminal phase (completed/awaiting_followup/error)
+		// when this turn ends.
+		this.turnStateTracker.set("streaming")
+		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
+		this.messageTranslatorState.clearTurnOutcome()
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
 	}
 
@@ -794,26 +847,16 @@ export class Controller {
 	 * 3. Only then push state to the webview
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const startedAt = Date.now()
-		const lookupStartedAt = Date.now()
 		const historyItem = await this.taskHistory.findHistoryItem(taskId)
-		const lookupElapsed = Date.now() - lookupStartedAt
 		if (!historyItem) {
-			Logger.log(
-				`[HistoryPerf] SdkController.showTaskWithId taskId=${taskId} found=false targetedLookup=${lookupElapsed}ms total=${Date.now() - startedAt}ms`,
-			)
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
 
-		const controlStartedAt = Date.now()
 		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
-		Logger.log(
-			`[HistoryPerf] SdkController.showTaskWithId taskId=${taskId} targetedLookup=${lookupElapsed}ms control=${Date.now() - controlStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return historyItemToTaskResponse(historyItem)
 	}
 
-	// ---- Mode switching (Step 8) ----
+	// ---- Mode switching ----
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		return this.mode.toggleActModeForYoloMode()
@@ -830,7 +873,7 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	// ---- Auth callbacks (Step 6) ----
+	// ---- Auth callbacks ----
 
 	async handleSignOut(): Promise<void> {
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
@@ -840,8 +883,7 @@ export class Controller {
 	}
 
 	async handleOcaSignOut(): Promise<void> {
-		// OCA uses the same auth service — clear Cline auth on OCA sign out
-		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
+		await this.ocaAuthService.handleDeauth(LogoutReason.USER_INITIATED)
 		await this.postStateToWebview()
 	}
 
@@ -854,7 +896,7 @@ export class Controller {
 	}
 
 	async handleOcaAuthCallback(code: string, state: string): Promise<void> {
-		await this.authService.handleOcaAuthCallback(code, state)
+		await this.ocaAuthService.handleAuthCallback(code, state)
 		await this.postStateToWebview()
 	}
 
@@ -867,7 +909,7 @@ export class Controller {
 		}
 	}
 
-	// ---- MCP marketplace (Step 7) ----
+	// ---- MCP marketplace ----
 
 	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
 		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
@@ -914,7 +956,7 @@ export class Controller {
 		}
 	}
 
-	// ---- Provider auth callbacks (Step 6) ----
+	// ---- Provider auth callbacks ----
 
 	async handleOpenRouterCallback(code: string): Promise<void> {
 		await this.authService.handleOpenRouterCallback(code)
@@ -937,17 +979,11 @@ export class Controller {
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
-		const startedAt = Date.now()
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
-		const workspaceStartedAt = Date.now()
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const workspaceElapsed = Date.now() - workspaceStartedAt
-		const listStartedAt = Date.now()
 		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false, limit: limit + 1, offset })
-		const listElapsed = Date.now() - listStartedAt
-		const transformStartedAt = Date.now()
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -1010,7 +1046,6 @@ export class Controller {
 		})
 
 		const hasMore = sessionHistory.length > limit
-		const mapStartedAt = Date.now()
 		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
@@ -1028,9 +1063,6 @@ export class Controller {
 			}
 		})
 
-		Logger.log(
-			`[HistoryPerf] SdkController.getTaskHistory offset=${offset} limit=${limit} raw=${sessionHistory.length} filtered=${filteredTasks.length} tasks=${tasks.length} hasMore=${hasMore} workspace=${workspaceElapsed}ms list=${listElapsed}ms filterSortMap=${Date.now() - transformStartedAt}ms map=${Date.now() - mapStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return TaskHistoryArray.create({ tasks, hasMore })
 	}
 
@@ -1142,47 +1174,46 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
-		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
-		const stateStartedAt = Date.now()
 		const state = await this.getStateToPostToWebview()
-		const stateElapsed = Date.now() - stateStartedAt
-		const sendStartedAt = Date.now()
 		await sendStateUpdate(state)
-		Logger.log(
-			`[HistoryPerf] SdkController.postStateToWebview state=${stateElapsed}ms send=${Date.now() - sendStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
+	}
+
+	/**
+	 * Reset the message translator's streaming state AND bump the conversation/replica fence
+	 * (epoch). Called at every conversation boundary (task start/clear, history open, reinit,
+	 * mode rebuild, new-session follow-up). Bumping the epoch BEFORE the new state is pushed
+	 * means any straggler message/state from the previous task or render carries an older epoch
+	 * and is dropped by the webview. Order matters: bump synchronously here, before any await.
+	 */
+	resetMessageTranslatorAndFence(): void {
+		this.messageTranslatorState.reset()
+		this.messageTranslatorState.getMinter().bumpEpoch()
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
-		// Delegate to the classic implementation which reads from StateManager.
-		// This will be gradually replaced with SDK-sourced state in later Steps
-		// For now, we import the classic getStateToPostToWebview logic.
+		// Build the base ExtensionState from StateManager, then layer the SDK's
+		// task history on top.
 		try {
-			const { getStateToPostToWebview: classicGetState } = await import("@core/controller/state/getStateToPostToWebview")
-			const state = await classicGetState({
+			const { getStateToPostToWebview: buildBaseState } = await import("@core/controller/state/getStateToPostToWebview")
+			const state = await buildBaseState({
 				task: this.task,
 				stateManager: this.stateManager,
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			const historyStartedAt = Date.now()
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
-			const historyElapsed = Date.now() - historyStartedAt
-			if (historyElapsed > 250) {
-				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
-			}
-			const classicTaskHistory = state.taskHistory ?? []
+			const legacyTaskHistory = state.taskHistory ?? []
 			const mergedTaskHistoryById = new Map<string, HistoryItem>()
 
 			// Keep the SDK records authoritative for migrated/new tasks, but append
-			// classic persisted history so pre-migration tasks still appear in the UI.
-			for (const item of classicTaskHistory) {
+			// legacy persisted history so pre-migration tasks still appear in the UI.
+			for (const item of legacyTaskHistory) {
 				mergedTaskHistoryById.set(item.id, item)
 			}
 			for (const item of sdkTaskHistory) {
@@ -1218,12 +1249,20 @@ export class Controller {
 				.sort((a, b) => b.ts - a.ts)
 				.slice(0, 100)
 
+			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
+			// from the SAME counter that stamps messages. This lets the webview ignore stale
+			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
+			// synchronously here (no await between sampling and return).
+			const minter = this.messageTranslatorState.getMinter()
 			return {
 				...state,
 				currentTaskItem: this.task?.taskId
 					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
 					: undefined,
 				taskHistory: processedTaskHistory,
+				turnState: this.turnStateTracker.get(),
+				stateVersion: minter.nextSeq(),
+				epoch: minter.epoch,
 			}
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)

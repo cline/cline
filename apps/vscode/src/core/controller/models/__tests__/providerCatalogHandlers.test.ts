@@ -23,6 +23,7 @@ function makeCatalog(): ProviderCatalog {
 	return {
 		listProviders: vi.fn(async () => []),
 		resolveModels: vi.fn(),
+		peekModels: vi.fn(),
 		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
 	}
 }
@@ -57,6 +58,7 @@ describe("provider model catalog handlers", () => {
 				protocol: "openai-chat",
 				authDescription: "DeepSeek models",
 				allowsCustomModelIds: false,
+				usageCostDisplay: "show",
 			},
 		])
 		const controller = makeController(store, catalog)
@@ -73,6 +75,7 @@ describe("provider model catalog handlers", () => {
 				authDescription: "DeepSeek models",
 				baseUrlDescription: undefined,
 				allowsCustomModelIds: false,
+				usageCostDisplay: "show",
 			},
 		])
 		expect(catalog.listProviders).toHaveBeenCalledTimes(1)
@@ -181,6 +184,24 @@ describe("provider model catalog handlers", () => {
 		})
 		expect(response.apiKeyLength).toBe("SECRET_SENTINEL_OLLAMA".length)
 		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL")
+	})
+
+	it("writeProviderConfig can explicitly clear headers", async () => {
+		const { writeProviderConfig } = await import("../writeProviderConfig")
+		const providerId = parseProviderId("openai")
+		const updatedConfig: EffectiveProviderConfig = {
+			providerId,
+			headers: {},
+		}
+		const store = makeStore(updatedConfig)
+		const controller = makeController(store, makeCatalog())
+
+		await writeProviderConfig(controller, {
+			providerId: "openai",
+			patch: { headers: {}, clearHeaders: true },
+		})
+
+		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
 	})
 
 	it("commitModelSelection validates mode and commits the full selection envelope", async () => {

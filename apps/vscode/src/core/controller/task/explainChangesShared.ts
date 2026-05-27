@@ -1,7 +1,7 @@
-import { buildApiHandler } from "@core/api"
 import { isBinaryFile } from "isbinaryfile"
 import { HostProvider } from "@/hosts/host-provider"
 import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdown"
+import { buildApiHandler } from "@/sdk/sdk-api-handler"
 import { ApiConfiguration } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -114,13 +114,8 @@ export async function streamAIExplanationComments(
 	onCommentEnd: () => void,
 	shouldAbort?: () => boolean,
 ): Promise<number> {
-	// Disable thinking/reasoning for faster response
-	const configWithoutThinking: ApiConfiguration = {
-		...apiConfiguration,
-		actModeThinkingBudgetTokens: 0,
-		planModeThinkingBudgetTokens: 0,
-	}
-	const apiHandler = buildApiHandler(configWithoutThinking, "act")
+	// Disable thinking/reasoning for a faster, cheaper response.
+	const apiHandler = buildApiHandler(apiConfiguration, "act", { disableReasoning: true })
 
 	const fileCount = changedFiles.length
 	const maxCommentsPerFile = fileCount > 3 ? 1 : 3
@@ -220,7 +215,7 @@ Output your explanation comments now using the @@@ format:`
 					// Check for LINE header (single line number)
 					if (trimmedLine.startsWith("@@@ LINE:")) {
 						const lineStr = trimmedLine.substring("@@@ LINE:".length).trim()
-						const lineNum = parseInt(lineStr, 10)
+						const lineNum = Number.parseInt(lineStr, 10)
 						if (!Number.isNaN(lineNum) && currentFile) {
 							currentStartLine = lineNum
 							currentEndLine = lineNum
@@ -300,13 +295,6 @@ async function handleCommentReply(
 	conversationContext: string,
 	onChunk: (chunk: string) => void,
 ): Promise<void> {
-	// Disable thinking/reasoning for faster response
-	const configWithoutThinking: ApiConfiguration = {
-		...apiConfiguration,
-		actModeThinkingBudgetTokens: 0,
-		planModeThinkingBudgetTokens: 0,
-	}
-
 	// Find the relevant file - check both absolutePath and relativePath for robustness
 	const file = changedFiles.find((f) => f.absolutePath === filePath || f.relativePath === filePath)
 	if (!file) {
@@ -318,7 +306,8 @@ async function handleCommentReply(
 	const afterLines = file.after.split("\n")
 	const codeSnippet = afterLines.slice(startLine, endLine + 1).join("\n")
 
-	const apiHandler = buildApiHandler(configWithoutThinking, "act")
+	// Disable thinking/reasoning for a faster, cheaper response.
+	const apiHandler = buildApiHandler(apiConfiguration, "act", { disableReasoning: true })
 
 	const systemPrompt = `${EXPLAINER_SYSTEM_PROMPT}
 

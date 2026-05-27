@@ -41,6 +41,7 @@ import type {
 	SubagentStatusItem,
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
+import { MessageIdMinter } from "./message-id-minter"
 
 // ---------------------------------------------------------------------------
 // Translation result
@@ -120,12 +121,24 @@ export class MessageTranslatorState {
 	private streamingToolInput: unknown | undefined
 	/** Stored tool name from content_start — used at content_end for consistency */
 	private streamingToolName: string | undefined
-	/** Monotonic counter for message timestamps */
-	private tsCounter = Date.now()
+	/**
+	 * Process-wide id/seq/epoch authority. Shared with the interaction coordinator and history
+	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
+	 */
+	private readonly minter: MessageIdMinter
 
-	/** Generate a unique timestamp for a new message */
+	constructor(minter: MessageIdMinter = new MessageIdMinter()) {
+		this.minter = minter
+	}
+
+	/** The shared minter, exposed so coordinators and history rendering mint from the same source. */
+	getMinter(): MessageIdMinter {
+		return this.minter
+	}
+
+	/** Generate a unique message id (identity). Pure monotonic counter; never reads the clock. */
 	nextTs(): number {
-		return ++this.tsCounter
+		return this.minter.nextId()
 	}
 
 	/** Get and increment for streaming text */
@@ -309,15 +322,28 @@ export class MessageTranslatorState {
 		this.spawnAgentNextIndex = 0
 	}
 
-	/** Reset all streaming state (new turn) */
+	/**
+	 * Reset per-iteration STREAMING state: the open text/reasoning/tool stream pointers and the
+	 * spawn-agent aggregation. Called on each `iteration_start`, which is mid-turn within the same
+	 * conversation, so it deliberately does NOT touch turn-outcome signals such as
+	 * `attemptCompletionSeen` — those are scoped to the whole turn and survive its iterations.
+	 */
 	reset(): void {
 		this.streamingTextTs = undefined
 		this.streamingReasoningTs = undefined
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
-		this.attemptCompletionSeen = false
 		this.clearSpawnAgents()
+	}
+
+	/**
+	 * Clear turn-outcome signals (`attemptCompletionSeen`). Called at a new user turn / task
+	 * boundary so each turn's phase is computed fresh; it is intentionally separate from the
+	 * per-iteration `reset()` so the completion signal persists across the iterations of one turn.
+	 */
+	clearTurnOutcome(): void {
+		this.attemptCompletionSeen = false
 	}
 }
 
@@ -472,8 +498,8 @@ export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineS
 
 		case "fetch_web_content":
 		case "web_fetch": {
-			// The SDK's fetch_web_content uses { requests: [{ url, prompt }] }
-			// while the classic web_fetch uses { url, prompt } directly.
+			// fetch_web_content carries { requests: [{ url, prompt }] };
+			// web_fetch carries { url, prompt } directly.
 			let url = getStringField(parsedInput, "url") ?? ""
 			if (!url && parsedInput) {
 				const requests = parsedInput.requests
@@ -500,8 +526,8 @@ export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineS
 
 		case "skills":
 		case "use_skill": {
-			// The SDK's skills tool uses { skill: "name", args?: "..." }
-			// while the classic use_skill uses { skill_name: "name" }.
+			// skills carries { skill: "name", args?: "..." };
+			// use_skill carries { skill_name: "name" }.
 			const skillName =
 				getStringField(parsedInput, "skill_name") ??
 				getStringField(parsedInput, "skill") ??
@@ -547,6 +573,25 @@ function parseToolInput(input: unknown): Record<string, unknown> | undefined {
 		}
 	}
 	return undefined
+}
+
+/**
+ * Whether a tool name is the agent's completion tool — the one that declares the task done and
+ * drives the green "Task Completed" box plus the `completed` turn phase. Two names are accepted:
+ * the VSCode extra tool `attempt_completion` and the SDK's built-in `submit_and_exit`
+ * (DefaultToolNames.SUBMIT_AND_EXIT, lifecycle.completesRun=true).
+ */
+function isCompletionTool(toolName: string): boolean {
+	return toolName === "submit_and_exit" || toolName === "attempt_completion"
+}
+
+/**
+ * Extract the completion summary text from a completion-tool input. `attempt_completion` carries
+ * it in `result`; `submit_and_exit` carries it in `summary`. Either renders the same completion UI.
+ */
+function getCompletionResultText(input: unknown): string {
+	const parsed = parseToolInput(input)
+	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
 }
 
 /** Extract file paths from a read_files/read_file input */
@@ -695,10 +740,10 @@ function extractCommandText(input: unknown): string {
 }
 
 /**
- * Build the classic Cline approval ask message for an SDK tool approval request.
- * This keeps approval prompts aligned with the SDK event translator so the
- * webview can render specialized rows (MCP, commands, subagents) instead of a
- * generic tool approval with missing context.
+ * Build the Cline approval ask message for an SDK tool approval request.
+ * Keeps approval prompts aligned with the SDK event translator so the webview
+ * can render specialized rows (MCP, commands, subagents) instead of a generic
+ * tool approval with missing context.
  */
 export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number): ClineMessage {
 	const mcpInfo = parseMcpToolName(toolName)
@@ -797,15 +842,22 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// (content_end doesn't carry the input)
 					state.setStreamingToolContext(toolName, input)
 
-					// attempt_completion is handled specially — it triggers
-					// the green "Task Completed" rectangle in the webview.
-					// In the classic extension, this was the ONLY way to show
-					// the completion UI. We emit say:"completion_result" here
-					// (partial) and ask:"completion_result" at content_end.
-					if (toolName === "attempt_completion") {
+					// ask_question (and ask_followup_question) is NOT a visual tool row: the
+					// SdkInteractionCoordinator services it and emits the proper ask:"followup"
+					// message. Emitting a generic say:"tool" here would leave an orphan partial
+					// row that never finalizes. Suppress it (the CLI does the same).
+					if (toolName === "ask_question" || toolName === "ask_followup_question") {
+						break
+					}
+
+					// The completion tool (attempt_completion / submit_and_exit) is handled specially:
+					// it drives the green "Task Completed" rectangle. We emit say:"completion_result"
+					// here (partial) and finalize it at content_end. Recording attemptCompletionSeen
+					// makes the turn end in the "completed" phase ("Start New Task") rather than
+					// "awaiting_followup".
+					if (isCompletionTool(toolName)) {
 						state.setAttemptCompletionSeen()
-						const parsedInput = parseToolInput(input)
-						const resultText = getStringField(parsedInput, "result") ?? ""
+						const resultText = getCompletionResultText(input)
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -957,6 +1009,12 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 
+					// ask_question is serviced by the interaction coordinator (see content_start);
+					// it produces no transcript row of its own, so its content_end is a no-op.
+					if (toolName === "ask_question" || toolName === "ask_followup_question") {
+						break
+					}
+
 					// spawn_agent → finalize the subagent entry and emit
 					// say:"subagent" (completed/failed) + say:"subagent_usage".
 					// When all spawn_agent calls in this iteration finish, the
@@ -1026,16 +1084,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
-					// attempt_completion → emit ask:"completion_result" to
-					// finalize the green "Task Completed" rectangle and enable
-					// follow-up input. The say:"completion_result" was emitted
-					// at content_start (partial); now we emit the ask version
-					// which the webview uses to enable the follow-up textarea.
-					if (toolName === "attempt_completion") {
+					// Completion tool (attempt_completion / submit_and_exit) → finalize the green
+					// "Task Completed" rectangle. The partial say:"completion_result" was emitted at
+					// content_start; here we emit the non-partial version.
+					if (isCompletionTool(toolName)) {
 						const storedInput = state.getStreamingToolInput()
 						const ts = state.clearStreamingTool()
-						const parsedInput = parseToolInput(storedInput)
-						const resultText = getStringField(parsedInput, "result") ?? ""
+						const resultText = getCompletionResultText(storedInput)
 						// Finalize the say:"completion_result" (non-partial)
 						// This renders the green "Task Completed" rectangle.
 						messages.push({
@@ -1045,13 +1100,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							text: resultText,
 							partial: false,
 						})
-						// NOTE: We do NOT emit ask:"completion_result" here.
-						// The ask must come AFTER the usage event (which arrives
-						// between content_end and done). If we emit it here, the
-						// usage event's say:"api_req_started" becomes the last
-						// message and the webview shows "Thinking..." instead of
-						// the completion UI. The done handler emits the
-						// ask:"completion_result" as the final message.
+						// Only the say:"completion_result" is emitted (the green box). No
+						// ask:"completion_result" is produced — the webview's footer/buttons read
+						// the authoritative TurnState (phase "completed") rather than the message
+						// tail, so the completion UI is immune to trailing bookkeeping events such as
+						// the usage say:"api_req_started" that arrives between content_end and done.
 						break
 					}
 
@@ -1174,9 +1227,8 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// New iteration — reset streaming state for the new turn
 			state.reset()
 
-			// Emit an api_req_started message for the webview's API request
-			// spinner and cost display. The classic Task emits this before
-			// each API request.
+			// Emit an api_req_started message before each API request so the
+			// webview shows its request spinner and cost display.
 			messages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -1207,10 +1259,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "usage": {
-			// Usage events carry token counts. In the classic system,
-			// these are embedded in the api_req_started message's
-			// ClineApiReqInfo. We emit a separate api_req_started update
-			// with the usage data so the webview can display costs.
+			// Usage events carry token counts. The webview reads them from an
+			// api_req_started message's ClineApiReqInfo, so emit a follow-up
+			// api_req_started update carrying the usage data for cost display.
 			const usageEvent = normalizeUsageEvent(event)
 			const apiReqInfo: ClineApiReqInfo = {
 				tokensIn: usageEvent.tokensIn,
@@ -1230,28 +1281,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete. Always emit ask:"completion_result"
-			// as the LAST message so it comes after the usage event's
-			// say:"api_req_started". This is critical: the webview uses
-			// the last raw message to determine UI state. If the usage
-			// event is last, the webview shows "Thinking..." instead of
-			// the completion UI (ENG-1887).
-			//
-			// For attempt_completion: content_end already emitted
-			// say:"completion_result" (the green rectangle). We emit
-			// ask:"completion_result" here with empty text so the
-			// webview enables the follow-up textarea without a second
-			// green rectangle.
-			//
-			// For non-attempt_completion (agent just responded with text):
-			// same empty ask enables the follow-up input.
-			messages.push({
-				ts: state.nextTs(),
-				type: "ask",
-				ask: "completion_result",
-				text: "",
-				partial: false,
-			})
+			// Agent turn is complete. This emits no transcript message — it only signals
+			// turnComplete to the caller. UI mode comes from the authoritative TurnState the
+			// session-event coordinator sets on turn end (completed when the completion tool was
+			// used this turn, otherwise awaiting_followup), and the green "Task Completed" box
+			// comes from the say:"completion_result" emitted at the completion tool's content_end.
 			break
 		}
 
@@ -1574,9 +1608,11 @@ function finalizePersistedToolUse(
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
-export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): ClineMessage[] {
+export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], minter?: MessageIdMinter): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
-	const state = new MessageTranslatorState()
+	// Use the process-wide minter when provided so regenerated history ids are globally unique
+	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
+	const state = new MessageTranslatorState(minter)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
 	const flushUnmatchedToolUses = () => {
@@ -1671,7 +1707,6 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): C
 				continue
 			}
 
-			;``
 			pendingToolUses.delete(block.tool_use_id)
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
 		}

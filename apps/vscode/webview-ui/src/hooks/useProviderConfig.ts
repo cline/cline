@@ -22,9 +22,13 @@ export interface ProviderModelSelection {
 }
 
 function toWriteProviderConfigPatch(patch: ProviderConfigWritePatch): WriteProviderConfigPatch {
+	const headers = patch.headers ?? {}
+	const shouldClearHeaders = patch.headers !== undefined && Object.keys(headers).length === 0
+
 	return WriteProviderConfigPatch.create({
 		...patch,
-		headers: patch.headers ?? {},
+		headers,
+		clearHeaders: shouldClearHeaders || undefined,
 	})
 }
 

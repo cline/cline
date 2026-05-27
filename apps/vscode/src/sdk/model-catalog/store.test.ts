@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => {
 	type MockApiConfiguration = ApiConfiguration & { planActSeparateModelsSetting?: boolean }
 	let apiConfiguration: MockApiConfiguration = {}
 	let providerSettingsById: Record<string, Record<string, unknown>> = {}
-	const saveProviderSettings = vi.fn((settings: Record<string, unknown>, options?: { setLastUsed?: boolean }) => {
+	const saveProviderSettings = vi.fn((settings: Record<string, unknown>, _options?: { setLastUsed?: boolean }) => {
 		const provider = settings.provider
 		if (typeof provider !== "string") {
 			throw new Error("provider is required")
@@ -123,6 +123,22 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toEqual(selection)
 	})
 
+	it("hydrates a generic provider selection from providers.json after reload", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ zai: { provider: "zai", model: "manual-zai-model" } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("zai")
+
+		expect(store.readSelection(providerId, "act")).toEqual({
+			providerId,
+			modelId: "manual-zai-model",
+			modelInfo: expect.objectContaining({
+				name: "manual-zai-model",
+				supportsPromptCache: false,
+			}),
+		})
+	})
+
 	it("does not combine a generic provider's remembered model info with another provider's active model id", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
@@ -168,7 +184,7 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toBeUndefined()
 	})
 
-	it("keeps Plan and Act selections independent when planActSeparateModelsSetting=true", async () => {
+	it("keeps Plan and Act selections independent and mirrors the latest selection to provider settings", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: true })
 		const store = createProviderConfigStore()
@@ -181,7 +197,12 @@ describe("createProviderConfigStore", () => {
 
 		expect(store.readSelection(providerId, "plan")).toEqual(planSelection)
 		expect(store.readSelection(providerId, "act")).toEqual(actSelection)
-		expect(mocks.getSaveProviderSettingsMock()).not.toHaveBeenCalled()
+		expect(mocks.getSavedProviderSettings("openrouter")).toMatchObject({
+			provider: "openrouter",
+			model: "provider/model-b",
+			contextWindow: 64_000,
+			maxTokens: 4_096,
+		})
 	})
 
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {

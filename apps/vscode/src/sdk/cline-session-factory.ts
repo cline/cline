@@ -22,6 +22,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 import type { SdkSessionHost } from "./session-host"
 
@@ -260,12 +261,13 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 const DEFAULT_PROVIDER_ID = "cline"
 
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
-	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
+	const sdkProviderId = toSdkProviderId(providerId)
+	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]
 	if (!collection) {
 		return undefined
 	}
 
-	const generatedModels = getGeneratedModelsForProvider(providerId)
+	const generatedModels = getGeneratedModelsForProvider(sdkProviderId)
 	const defaultModelId = collection.provider.defaultModelId?.trim()
 	if (defaultModelId && (generatedModels[defaultModelId] || collection.models?.[defaultModelId])) {
 		return defaultModelId
@@ -284,7 +286,7 @@ export function getDefaultModelIdForProvider(providerId: string): string | undef
  * For the "cline" provider, reads the OAuth token from providers.json
  * via ProviderSettingsManager (the single source of truth for credentials).
  */
-function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
+export function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
 	// For "cline" provider — read from providers.json
 	if (providerId === "cline") {
 		// First check if clineApiKey is set directly (e.g. from env var)
@@ -324,7 +326,7 @@ function resolveApiKey(providerId: string, config: ApiConfiguration): string | u
  * Resolve the model ID for a given provider and mode from the ApiConfiguration.
  * Uses mode-specific model ID fields when available, falls back to generic fields.
  */
-function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+export function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
 	// Check provider-specific mode model ID fields.
 	// If the provider has a dedicated field, do not fall back to generic
 	// *ModeApiModelId. Those generic slots may contain a stale model from a
@@ -355,7 +357,7 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 		return undefined
 	}
 
-	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.baseUrl
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.baseUrl
 	if (!providerDefaultBaseUrl) {
 		return trimmed
 	}
@@ -377,7 +379,7 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 	return trimmed
 }
 
-function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
+export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",
@@ -527,8 +529,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const stateManager = StateManager.get()
 	const globalSubagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
 
+	// Core resolves providers against the SDK registry, which uses the SDK's
+	// own provider id spelling (e.g. "openai-compatible" rather than the
+	// extension's "openai"). Convert before handing the id to core.
+	const sdkProviderId = toSdkProviderId(providerId)
+
 	const config: CoreSessionConfig = {
-		providerId,
+		providerId: sdkProviderId,
 		modelId,
 		apiKey,
 		baseUrl,
@@ -628,8 +635,6 @@ export function getHistoryItemById(taskId: string, dataDir?: string): HistoryIte
  * Returns the updated history array.
  */
 export function updateHistoryItem(item: HistoryItem, dataDir?: string): HistoryItem[] {
-	// This will be properly implemented when we wire up the gRPC handlers
-	// in Step 5. For now, we read the history, update the item, and return it.
 	const history = readTaskHistory(dataDir)
 	const index = history.findIndex((h) => h.id === item.id)
 	if (index >= 0) {

@@ -32,7 +32,7 @@ Module.prototype.require = function (id) {
 	// Intercept requires for @google/genai
 	if (id === "@google/genai") {
 		// Return the mock instead
-		const mockPath = path.join(baseUrl, "out/src/core/api/providers/gemini-mock.test.js")
+		const mockPath = path.join(baseUrl, "out/src/test/fixtures/google-genai-mock.js")
 		return originalRequire.call(this, mockPath)
 	}
 
@@ -150,6 +150,7 @@ Module.prototype.require = function (id) {
 			},
 			ProviderSettingsManager,
 			resolveProviderConfig: async () => undefined,
+			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
@@ -171,6 +172,7 @@ Module.prototype.require = function (id) {
 		return {
 			getAllProviders: async () => [],
 			getGeneratedModelsForProvider: () => ({}),
+			getProviderCollectionSync: () => undefined,
 			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 		}
 	}

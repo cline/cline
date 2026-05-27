@@ -1,5 +1,5 @@
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import type { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
+import { type ApiConfiguration, type ApiProvider, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { isSecretKey, isSettingsKey, type SecretKey, type SettingsKey } from "@shared/storage/state-keys"
 import { StateManager } from "@/core/storage/StateManager"
@@ -16,6 +16,7 @@ import type {
 	ProviderId,
 } from "./contracts"
 import { buildEffectiveProviderConfig } from "./effective-config"
+import { toSdkProviderId } from "./sdk-provider-id"
 
 type ProviderSettingsRecord = Record<string, unknown>
 type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras"
@@ -102,14 +103,12 @@ const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
 	"vercel-ai-gateway": { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
 }
 
-// Transitional Phase 1.4 compatibility path for providers that only have a
-// mode-specific model id key today (for example DeepSeek/Gemini/generic
-// SDK-backed providers). The architecture requires `ModelInfo` to be part of
-// the selection envelope, but the legacy StateManager schema does not yet
-// provide durable `*ModelInfo` keys for every provider. Keep the full selection
-// keyed by provider+mode so switching between providers that share
-// `*ModeApiModelId` does not combine another provider's current model id with
-// this provider's in-memory model info.
+// In-memory selection envelope for providers that have a mode-specific model
+// id key but no durable `*ModelInfo` key in the StateManager schema (for
+// example DeepSeek/Gemini/generic SDK-backed providers). Keyed by
+// provider+mode so that switching between providers that share the same
+// `*ModeApiModelId` key does not combine one provider's model id with
+// another provider's model info.
 const selectionMemory = new Map<string, ModelSelection>()
 
 function providerKey(providerId: ProviderId): string {
@@ -145,9 +144,47 @@ function isModelInfo(value: unknown): value is ModelInfo {
 }
 
 function isKnownModelIdForProvider(providerId: ProviderId, modelId: string): boolean {
+	const sdkProviderId = toSdkProviderId(providerId)
 	return Boolean(
-		getGeneratedModelsForProvider(providerId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models[modelId],
+		getGeneratedModelsForProvider(sdkProviderId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId],
 	)
+}
+
+function readProviderSettingsModelId(providerId: ProviderId): string | undefined {
+	const model = getProviderSettings(providerId).model
+	return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined
+}
+
+function fallbackModelInfo(modelId: string): ModelInfo {
+	return { ...openAiModelInfoSafeDefaults, name: modelId }
+}
+
+function readKnownModelInfoForProvider(providerId: ProviderId, modelId: string): ModelInfo | undefined {
+	const sdkProviderId = toSdkProviderId(providerId)
+	const generatedModelInfo = getGeneratedModelsForProvider(sdkProviderId)[modelId]
+	if (isModelInfo(generatedModelInfo)) {
+		return generatedModelInfo
+	}
+
+	const collectionModelInfo = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId]
+	if (isModelInfo(collectionModelInfo)) {
+		return collectionModelInfo
+	}
+
+	return undefined
+}
+
+function readSelectionFromProviderSettings(providerId: ProviderId): ModelSelection | undefined {
+	const modelId = readProviderSettingsModelId(providerId)
+	if (!modelId) {
+		return undefined
+	}
+
+	return {
+		providerId,
+		modelId,
+		modelInfo: readKnownModelInfoForProvider(providerId, modelId) ?? fallbackModelInfo(modelId),
+	}
 }
 
 function writeStateKey(key: SecretKey | SettingsKey, value: unknown): void {
@@ -203,6 +240,31 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 		}
 	}
 
+	// Handle reasoning patch separately — maps to ProviderSettings.reasoning
+	if ("reasoning" in patch) {
+		const reasoningPatch = patch.reasoning
+		if (reasoningPatch === null || reasoningPatch === undefined) {
+			delete next.reasoning
+		} else {
+			const existingReasoning = (next as Record<string, unknown>).reasoning as Record<string, unknown> | undefined
+			const merged: Record<string, unknown> = { ...(existingReasoning ?? {}) }
+			if (reasoningPatch.enabled !== undefined) {
+				merged.enabled = reasoningPatch.enabled
+			}
+			if (reasoningPatch.effort !== undefined) {
+				merged.effort = reasoningPatch.effort === "none" ? undefined : reasoningPatch.effort
+				// When effort is "none", disable reasoning
+				if (reasoningPatch.effort === "none") {
+					merged.enabled = false
+				}
+			}
+			if (reasoningPatch.budgetTokens !== undefined) {
+				merged.budgetTokens = reasoningPatch.budgetTokens
+			}
+			;(next as Record<string, unknown>).reasoning = merged
+		}
+	}
+
 	saveProviderSettings(providerId, next)
 }
 
@@ -233,10 +295,17 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 }
 
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
-	if (StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")) {
-		return
+	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
+
+	if (selection.modelInfo.contextWindow !== undefined && selection.modelInfo.contextWindow > 0) {
+		next.contextWindow = selection.modelInfo.contextWindow
 	}
-	saveProviderSettings(providerId, { ...getProviderSettings(providerId), model: selection.modelId })
+
+	if (selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
+		next.maxTokens = selection.modelInfo.maxTokens
+	}
+
+	saveProviderSettings(providerId, next)
 }
 
 function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelection | undefined {
@@ -244,11 +313,12 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelect
 	const modelId = apiConfiguration[getModelIdKey(providerId, mode)]
 	const modelInfoKey = getModelInfoKey(providerId, mode)
 	const rememberedSelection = selectionMemory.get(memoryKey(providerId, mode))
+	const providerSettingsSelection = readSelectionFromProviderSettings(providerId)
 
 	if (modelInfoKey) {
 		const modelInfo = apiConfiguration[modelInfoKey]
 		if (typeof modelId !== "string" || modelId.length === 0 || !isModelInfo(modelInfo)) {
-			return undefined
+			return providerSettingsSelection
 		}
 		return { providerId, modelId, modelInfo }
 	}
@@ -256,19 +326,19 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelect
 	const activeProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 	const provider = providerForStorage(providerId)
 	if (activeProvider !== provider) {
-		return rememberedSelection
+		return rememberedSelection ?? providerSettingsSelection
 	}
 
 	if (typeof modelId !== "string" || modelId.length === 0) {
-		return rememberedSelection
+		return rememberedSelection ?? providerSettingsSelection
 	}
 
 	if (!isKnownModelIdForProvider(providerId, modelId)) {
-		return rememberedSelection
+		return rememberedSelection ?? providerSettingsSelection
 	}
 
 	if (!rememberedSelection || rememberedSelection.modelId !== modelId) {
-		return undefined
+		return providerSettingsSelection
 	}
 	return rememberedSelection
 }

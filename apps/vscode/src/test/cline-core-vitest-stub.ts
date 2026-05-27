@@ -103,10 +103,28 @@ interface ProviderSettingsState {
 	lastUsedProvider?: string
 }
 
-export class ProviderSettingsManager {
-	private state: ProviderSettingsState = { providers: {} }
+// State is keyed by dataDir so that — like the real file-backed manager —
+// two managers constructed for the same directory observe the same providers.
+// (Tests isolate by using a unique dataDir per test.)
+const providerSettingsStores = new Map<string, ProviderSettingsState>()
 
-	constructor(_options?: { filePath?: string; dataDir?: string }) {}
+export class ProviderSettingsManager {
+	private readonly filePath: string
+	private readonly state: ProviderSettingsState
+
+	constructor(options?: { filePath?: string; dataDir?: string }) {
+		this.filePath = options?.filePath ?? options?.dataDir ?? "<default>"
+		let store = providerSettingsStores.get(this.filePath)
+		if (!store) {
+			store = { providers: {} }
+			providerSettingsStores.set(this.filePath, store)
+		}
+		this.state = store
+	}
+
+	getFilePath(): string {
+		return this.filePath
+	}
 
 	read(): ProviderSettingsState {
 		return { providers: { ...this.state.providers }, lastUsedProvider: this.state.lastUsedProvider }
@@ -155,6 +173,25 @@ export async function resolveProviderConfig(
 			: Object.keys(knownModels)[0] || Object.keys(collection?.models ?? {})[0]
 	const modelId = requestedModelId && knownModels[requestedModelId] ? requestedModelId : defaultModelId
 	return { modelId, knownModels }
+}
+
+export interface ClineRecommendedModel {
+	id: string
+	name: string
+	description: string
+	tags: string[]
+}
+
+export interface ClineRecommendedModelsData {
+	recommended: ClineRecommendedModel[]
+	free: ClineRecommendedModel[]
+}
+
+export async function fetchClineRecommendedModels(_options?: {
+	baseUrl?: string
+	fetchImpl?: typeof fetch
+}): Promise<ClineRecommendedModelsData> {
+	return { recommended: [], free: [] }
 }
 
 export function createOAuthClientCallbacks() {

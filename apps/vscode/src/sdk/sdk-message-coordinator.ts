@@ -1,6 +1,7 @@
 import type { CoreSessionEvent } from "@cline/core"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import type { MessageIdMinter } from "./message-id-minter"
 import type { TaskProxy } from "./task-proxy"
 import { pushMessageToWebview } from "./webview-grpc-bridge"
 
@@ -8,6 +9,12 @@ export type SessionEventListener = (messages: ClineMessage[], event: CoreSession
 
 export interface SdkMessageCoordinatorOptions {
 	getTask: () => TaskProxy | undefined
+	/**
+	 * The process-wide id/seq/epoch authority. When provided, every message flowing to the
+	 * webview is stamped with a fresh `seq` and the current `epoch` so the webview can merge
+	 * convergently and fence stale traffic. Optional for tests.
+	 */
+	getMinter?: () => MessageIdMinter
 }
 
 export class SdkMessageCoordinator {
@@ -15,6 +22,25 @@ export class SdkMessageCoordinator {
 	private saveClineMessagesTimer: ReturnType<typeof setTimeout> | undefined
 
 	constructor(private readonly options: SdkMessageCoordinatorOptions) {}
+
+	/**
+	 * Stamp `seq` (freshness) and `epoch` (fence) on each message IN PLACE, synchronously,
+	 * before it is stored or emitted. The same object references are added to the message state
+	 * handler AND emitted through the partial stream, so both channels carry identical stamps.
+	 * A message that is updated (partial → final, same id) passes through again and gets a NEW,
+	 * higher `seq`, so the webview always keeps the freshest copy regardless of arrival order.
+	 */
+	private stamp(messages: ClineMessage[]): void {
+		const minter = this.options.getMinter?.()
+		if (!minter) {
+			return
+		}
+		const epoch = minter.epoch
+		for (const message of messages) {
+			message.seq = minter.nextSeq()
+			message.epoch = epoch
+		}
+	}
 
 	dispose(): void {
 		this.cancelPendingSave()
@@ -46,6 +72,10 @@ export class SdkMessageCoordinator {
 	}
 
 	appendMessages(messages: ClineMessage[]): void {
+		// Stamp seq/epoch BEFORE storing/emitting so both the message-state handler and the
+		// partial-message stream carry identical, freshness-ordered, epoch-fenced messages.
+		this.stamp(messages)
+
 		const task = this.options.getTask()
 		if (!task?.messageStateHandler) {
 			return
