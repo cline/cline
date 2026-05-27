@@ -21,9 +21,9 @@ import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
-	toSettingsPatch,
 } from "./provider-list-view";
 import { RoutineSchedulesContent } from "./routine-view";
+import { toSettingsPatch } from "./settings-patch";
 
 // -----------------------------------------------------------
 // Settings nav categories

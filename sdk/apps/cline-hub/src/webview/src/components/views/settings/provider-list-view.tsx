@@ -11,10 +11,11 @@ import {
 	Loader2,
 	PlusCircle,
 	RefreshCw,
+	Search,
 	Settings2,
 	Star,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -81,37 +82,6 @@ function coerceFieldValue(
 		return Number.isFinite(parsed) ? parsed : null;
 	}
 	return trimmed;
-}
-
-function assignSettingsPath(
-	target: Record<string, unknown>,
-	path: string,
-	value: ProviderConfigFieldPrimitive,
-) {
-	const segments = path.split(".").filter(Boolean);
-	if (segments.length === 0) return;
-	let cursor = target;
-	for (const segment of segments.slice(0, -1)) {
-		const existing = cursor[segment];
-		if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
-			cursor[segment] = {};
-		}
-		cursor = cursor[segment] as Record<string, unknown>;
-	}
-	const last = segments.at(-1);
-	if (last) {
-		cursor[last] = value;
-	}
-}
-
-export function toSettingsPatch(
-	values: Record<string, ProviderConfigFieldPrimitive>,
-): Record<string, unknown> {
-	const settings: Record<string, unknown> = {};
-	for (const [path, value] of Object.entries(values)) {
-		assignSettingsPath(settings, path, value);
-	}
-	return settings;
 }
 
 export function ProviderListContent({
@@ -202,9 +172,42 @@ export function ProviderDetailContent({
 	const [localConfigValues, setLocalConfigValues] = useState<
 		Record<string, ProviderConfigFieldPrimitive>
 	>(() => getInitialConfigValues(provider));
+	const [modelSearchState, setModelSearchState] = useState<{
+		providerId: string;
+		value: string;
+	} | null>(null);
+	const [copiedModelState, setCopiedModelState] = useState<{
+		modelId: string;
+		providerId: string;
+	} | null>(null);
+	const copiedModelTimeoutRef = useRef<number | undefined>(undefined);
 
 	const configFields = provider.configFields ?? [];
 	const apiKeyValue = fieldValueToString(localConfigValues.apiKey);
+	const modelList = provider.modelList ?? [];
+	const modelSearch =
+		modelSearchState?.providerId === provider.id ? modelSearchState.value : "";
+	const copiedModelId =
+		copiedModelState?.providerId === provider.id
+			? copiedModelState.modelId
+			: null;
+	const modelSearchQuery = modelSearch.trim().toLowerCase();
+	const filteredModelList = modelSearchQuery
+		? modelList.filter(
+				(model) =>
+					model.name.toLowerCase().includes(modelSearchQuery) ||
+					model.id.toLowerCase().includes(modelSearchQuery),
+			)
+		: modelList;
+
+	useEffect(
+		() => () => {
+			if (copiedModelTimeoutRef.current !== undefined) {
+				window.clearTimeout(copiedModelTimeoutRef.current);
+			}
+		},
+		[],
+	);
 
 	const commitField = (
 		field: ProviderConfigField,
@@ -227,6 +230,22 @@ export function ProviderDetailContent({
 			updates.baseUrl = fieldValueToString(value);
 		}
 		onUpdate(updates);
+	};
+
+	const copyModelId = (modelId: string) => {
+		if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+			return;
+		}
+		void navigator.clipboard.writeText(modelId).then(() => {
+			setCopiedModelState({ modelId, providerId: provider.id });
+			if (copiedModelTimeoutRef.current !== undefined) {
+				window.clearTimeout(copiedModelTimeoutRef.current);
+			}
+			copiedModelTimeoutRef.current = window.setTimeout(
+				() => setCopiedModelState(null),
+				1600,
+			);
+		});
 	};
 
 	return (
@@ -411,43 +430,83 @@ export function ProviderDetailContent({
 						<div className="rounded-lg border border-border px-4 py-8 text-center">
 							<p className="text-sm text-destructive">{modelsError}</p>
 						</div>
-					) : provider.modelList && provider.modelList.length > 0 ? (
-						<div className="flex flex-col divide-y divide-border rounded-lg border border-border max-h-125 overflow-y-scroll">
-							{provider.modelList.map((model) => (
-								<div
-									className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/30"
-									key={model.id}
-								>
-									{/* Model name */}
-									<span className="flex-1 text-sm text-foreground font-mono">
-										<div className="flex items-center gap-1.5 px-1">
-											{model.name}
-											{/* Capability icons */}
-											{model.supportsAttachments && (
-												<div title="File Support">
-													<FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
-												</div>
-											)}
-											{model.supportsVision && (
-												<div title="Image Support">
-													<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-												</div>
-											)}
-										</div>
-									</span>
-
-									{/* Action icons */}
-									<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-										<Button
-											aria-label={`Favorite ${model.name}`}
-											className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
-											variant="ghost"
+					) : modelList.length > 0 ? (
+						<div className="space-y-3">
+							<div className="flex items-center gap-2 rounded-lg border border-border bg-input px-3 py-2">
+								<Search className="size-4 shrink-0 text-muted-foreground" />
+								<Input
+									aria-label="Search models"
+									className="h-7 flex-1 border-0 text-sm text-foreground placeholder:text-muted-foreground"
+									onChange={(event) =>
+										setModelSearchState({
+											providerId: provider.id,
+											value: event.target.value,
+										})
+									}
+									placeholder="Search models by name or ID"
+									spellCheck={false}
+									value={modelSearch}
+								/>
+							</div>
+							{filteredModelList.length > 0 ? (
+								<div className="flex flex-col divide-y divide-border rounded-lg border border-border max-h-125 overflow-y-scroll">
+									{filteredModelList.map((model) => (
+										<div
+											className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/30"
+											key={model.id}
 										>
-											<Star className="h-3.5 w-3.5" />
-										</Button>
-									</div>
+											<div className="min-w-0 flex-1 font-mono">
+												<div className="flex min-w-0 items-center gap-1.5 px-1 text-sm text-foreground">
+													<span className="truncate">{model.name}</span>
+													{/* Capability icons */}
+													{model.supportsAttachments && (
+														<div title="File Support">
+															<FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
+														</div>
+													)}
+													{model.supportsVision && (
+														<div title="Image Support">
+															<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+														</div>
+													)}
+												</div>
+												<button
+													aria-label={`Copy model ID ${model.id}`}
+													className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													onClick={() => copyModelId(model.id)}
+													title="Copy model ID"
+													type="button"
+												>
+													<span className="min-w-0 truncate">{model.id}</span>
+													<Copy className="size-3 shrink-0" />
+													{copiedModelId === model.id ? (
+														<span className="shrink-0 text-foreground">
+															Copied
+														</span>
+													) : null}
+												</button>
+											</div>
+
+											{/* Action icons */}
+											<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+												<Button
+													aria-label={`Favorite ${model.name}`}
+													className="rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+													variant="ghost"
+												>
+													<Star className="h-3.5 w-3.5" />
+												</Button>
+											</div>
+										</div>
+									))}
 								</div>
-							))}
+							) : (
+								<div className="rounded-lg border border-border px-4 py-8 text-center">
+									<p className="text-sm text-muted-foreground">
+										No models match "{modelSearch.trim()}".
+									</p>
+								</div>
+							)}
 						</div>
 					) : (
 						<div className="rounded-lg border border-border px-4 py-8 text-center">
