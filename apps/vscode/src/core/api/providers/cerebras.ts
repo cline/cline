@@ -251,9 +251,6 @@ export class CerebrasHandler implements ApiHandler {
 			case "qwen-3-coder-480b":
 			case "qwen-3-coder-480b-free":
 				return { requestsPerMinute: 10, tokensPerMinute: 150_000 }
-			case "qwen-3-235b-a22b-instruct-2507":
-			case "qwen-3-235b-a22b-thinking-2507":
-				return { requestsPerMinute: 30, tokensPerMinute: 60_000 }
 			case "gpt-oss-120b":
 				return { requestsPerMinute: 30, tokensPerMinute: 64_000 }
 			default:
