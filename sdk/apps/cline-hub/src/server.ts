@@ -31,6 +31,7 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	ClineCore,
+	CORE_BUILD_VERSION,
 	createLocalHubScheduleRuntimeHandlers,
 	createUserInstructionConfigService,
 	discoverPluginModulePaths,
@@ -200,10 +201,11 @@ const browserConfig: BrowserConfig = {
 
 let hubUrl = "";
 let hubAuthToken = "";
+let hubHealthy = false;
 let cline: ClineCore | undefined;
 let uiClient: HubUIClient | undefined;
 let hubStartedAt: string | undefined;
-let coreVersion: string | undefined;
+let coreVersion: string | undefined = CORE_BUILD_VERSION;
 const clients = new Map<string, TrackedClient>();
 const sessions = new Map<string, TrackedSession>();
 const pendingToolApprovals = new Map<string, PendingToolApproval>();
@@ -1737,16 +1739,54 @@ function hubStatePayload(): WebviewHubState {
 	};
 }
 
+function hubStatusPayload() {
+	const clientList = [...clients.values()].sort(
+		(a, b) => a.connectedAt - b.connectedAt,
+	);
+	const sessionSummaries = [...sessions.values()]
+		.filter((session) =>
+			isActiveSession(session.title, session.status, session.participantCount),
+		)
+		.sort((a, b) => b.updatedAt - a.updatedAt)
+		.map(toActionSessionSummary);
+
+	return {
+		address: hubUrl,
+		status: hubHealthy ? "healthy" : "unhealthy",
+		healthy: hubHealthy,
+		connected: Boolean(cline && uiClient),
+		startedAt: hubStartedAt,
+		uptime: hubStartedAt
+			? formatUptime(Date.now() - Date.parse(hubStartedAt))
+			: undefined,
+		coreVersion,
+		clients: clientList.map((client) => ({
+			clientId: client.clientId,
+			displayName: client.displayName,
+			clientType: client.clientType,
+			connectedAt: new Date(client.connectedAt).toISOString(),
+		})),
+		activeSessions: sessionSummaries.length,
+	};
+}
+
 function broadcastHubState(): void {
 	broadcast(hubStatePayload());
 	broadcast(webviewSessionsPayload());
 }
 
 async function syncHubHealth(): Promise<void> {
-	if (!hubUrl) return;
+	if (!hubUrl) {
+		hubHealthy = false;
+		return;
+	}
 	try {
 		const response = await fetch(toHubHealthUrl(hubUrl));
-		if (!response.ok) return;
+		if (!response.ok) {
+			hubHealthy = false;
+			return;
+		}
+		hubHealthy = true;
 		const health = (await response.json()) as Partial<HubServerDiscoveryRecord>;
 		if (typeof health.startedAt === "string") {
 			hubStartedAt = health.startedAt;
@@ -1755,6 +1795,7 @@ async function syncHubHealth(): Promise<void> {
 			coreVersion = health.coreVersion;
 		}
 	} catch {
+		hubHealthy = false;
 		// best-effort
 	}
 }
@@ -2712,6 +2753,13 @@ const server = Bun.serve<BrowserPeer>({
 	hostname: host,
 	async fetch(req, server) {
 		const url = new URL(req.url);
+		if (url.pathname === "/version") {
+			return createJsonResponse({ coreVersion: CORE_BUILD_VERSION });
+		}
+		if (url.pathname === "/health") {
+			await syncHubHealth();
+			return createJsonResponse(hubStatusPayload());
+		}
 		if (url.pathname === "/browser") {
 			if (!isAuthorizedBrowserRequest(url)) {
 				return createJsonResponse({ error: "invalid_room_secret" }, 401);
