@@ -216,8 +216,12 @@ function withTimeoutFallback(
 	if (envVarName) {
 		const raw = process.env[envVarName];
 		if (raw) {
-			const parsed = Number.parseInt(raw, 10);
-			if (Number.isFinite(parsed) && parsed > 0) {
+			// Number() is stricter than parseInt: it rejects values with
+			// trailing non-numeric characters (e.g. "4000ms" -> NaN) so a
+			// malformed env value falls back to the default instead of
+			// silently consuming its numeric prefix.
+			const parsed = Number(raw);
+			if (Number.isInteger(parsed) && parsed > 0) {
 				return parsed;
 			}
 		}

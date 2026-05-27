@@ -422,7 +422,6 @@ describe("plugin-sandbox", () => {
 			const envDir = await mkdtemp(
 				join(tmpdir(), "core-plugin-sandbox-import-env-"),
 			);
-			const previousEnv = process.env.CLINE_PLUGIN_IMPORT_TIMEOUT_MS;
 			try {
 				const pluginPath = join(envDir, "plugin-import-hang.mjs");
 				// Top-level await that never resolves — module import never
@@ -442,16 +441,12 @@ describe("plugin-sandbox", () => {
 				// Set env override well below the 4000 ms hardcoded default.
 				// If the env var isn't read, this test would block for ~4 s and
 				// the per-test timeout (3000 ms below) would fail it.
-				process.env.CLINE_PLUGIN_IMPORT_TIMEOUT_MS = "150";
+				vi.stubEnv("CLINE_PLUGIN_IMPORT_TIMEOUT_MS", "150");
 				await expect(
 					loadSandboxedPlugins({ pluginPaths: [pluginPath] }),
 				).rejects.toThrow(/timed out/i);
 			} finally {
-				if (previousEnv === undefined) {
-					delete process.env.CLINE_PLUGIN_IMPORT_TIMEOUT_MS;
-				} else {
-					process.env.CLINE_PLUGIN_IMPORT_TIMEOUT_MS = previousEnv;
-				}
+				vi.unstubAllEnvs();
 				await rm(envDir, { recursive: true, force: true });
 			}
 		},
