@@ -79,69 +79,18 @@ describe("createOpenRouterStream", () => {
 	})
 
 	it("adds cache_control blocks for Qwen models that require explicit OpenRouter caching", async () => {
-		const { client, create } = createClient()
+		for (const modelId of ["qwen/qwen3.6-plus", "qwen/qwen3.7-max"]) {
+			const { client, create } = createClient()
 
-		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: "qwen/qwen3.6-plus",
-			info: createModelInfo(65_536),
-		})
-
-		const payload = create.firstCall.args[0] as any
-		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-	})
-
-	it("adds cache_control blocks for the Cline Qwen cache route alias", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
-			id: "alibaba/qwen3.6-plus",
-			info: createModelInfo(65_536),
-		})
-
-		const payload = create.firstCall.args[0] as any
-		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-	})
-
-	it("disables include_reasoning for Qwen models when reasoning effort is none", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(
-			client as any,
-			"system prompt",
-			[{ role: "user", content: "hello" }] as any,
-			{
-				id: "qwen/qwen3.6-plus",
+			await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
+				id: modelId,
 				info: createModelInfo(65_536),
-			},
-			"none",
-			8192,
-		)
+			})
 
-		const payload = create.firstCall.args[0] as any
-		payload.should.have.property("include_reasoning", false)
-		payload.should.not.have.property("reasoning")
-	})
-
-	it("preserves budgeted reasoning when effort is none but a thinking budget is configured", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(
-			client as any,
-			"system prompt",
-			[{ role: "user", content: "hello" }] as any,
-			{
-				id: "anthropic/claude-sonnet-4.5",
-				info: createModelInfo(65_536),
-			},
-			"none",
-			8192,
-		)
-
-		const payload = create.firstCall.args[0] as any
-		payload.should.have.property("include_reasoning", true)
-		payload.reasoning.should.deepEqual({ max_tokens: 8192 })
+			const payload = create.firstCall.args[0] as any
+			payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+			payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+		}
 	})
 
 	it("uses adaptive reasoning with verbosity for Claude Opus adaptive models", async () => {

@@ -46,14 +46,12 @@ export async function createVercelAIGatewayStream(
 	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
-	// Prompt caching for supported models.
-	// Vercel marks write-capable prompt-cache models via pricing metadata. Keep
-	// the Anthropic/MiniMax checks as fallbacks for static or incomplete model info.
+	// Prompt caching for supported models
+	// This handles cache_control for Claude and MiniMax models
 	const isAnthropicModel = model.id.startsWith("anthropic/")
 	const isMinimaxModel = model.id.startsWith("minimax/")
-	const needsCacheControl = isAnthropicModel || isMinimaxModel || !!model.info?.supportsPromptCache
 
-	if (needsCacheControl) {
+	if (isAnthropicModel || isMinimaxModel) {
 		openAiMessages[0] = {
 			role: "system",
 			content: [
@@ -144,18 +142,15 @@ export async function createVercelAIGatewayStream(
 
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
-	const reasoningDisabled = normalizedReasoningEffort === "none" && !reasoning
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = isAdaptiveThinkingModel
 		? !!adaptiveThinking?.enabled
-		: !shouldSkipReasoningForModel(model.id) && !reasoningDisabled
+		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
 	const reasoningPayload = isAdaptiveThinkingModel
 		? adaptiveThinking?.enabled
 			? { enabled: true }
 			: undefined
-		: reasoningDisabled
-			? undefined
-			: (reasoning ?? (reasoningEffortValue ? { effort: reasoningEffortValue } : undefined))
+		: (reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined))
 
 	const requestPayload: Record<string, unknown> = {
 		model: model.id,

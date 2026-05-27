@@ -28,7 +28,7 @@ const openRouterExplicitCacheControlModelIds = new Set([
 	"qwen/qwen-plus",
 	"qwen/qwen3-max",
 	"qwen/qwen3.6-plus",
-	"alibaba/qwen3.6-plus",
+	"qwen/qwen3.7-max",
 	"qwen/qwen3-coder-plus",
 	"qwen/qwen3-coder-flash",
 ])
@@ -178,18 +178,15 @@ export async function createOpenRouterStream(
 
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
-	const reasoningDisabled = normalizedReasoningEffort === "none" && !reasoning
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = isAdaptiveThinkingModel
 		? !!adaptiveThinking?.enabled
-		: !shouldSkipReasoningForModel(model.id) && !reasoningDisabled
+		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
 	const reasoningPayload = isAdaptiveThinkingModel
 		? adaptiveThinking?.enabled
 			? { enabled: true }
 			: undefined
-		: reasoningDisabled
-			? undefined
-			: (reasoning ?? (reasoningEffortValue ? { effort: reasoningEffortValue } : undefined))
+		: (reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined))
 	const maxTokens = isGeminiFlashModel(model.id)
 		? Math.min(model.info.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
 		: undefined

@@ -38,7 +38,6 @@ function normalizeModelId(modelId: string): string {
 }
 
 const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
-const CLINE_PROMPT_CACHE_MODEL_ID_OVERRIDES = new Map([["qwen/qwen3.6-plus", "alibaba/qwen3.6-plus"]])
 
 function getCacheReadTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
@@ -46,17 +45,6 @@ function getCacheReadTokens(usage: any): number {
 
 function getCacheWriteTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cache_write_tokens || usage?.cache_creation_input_tokens || 0
-}
-
-function getClineRequestModelId(modelId: string): string {
-	return CLINE_PROMPT_CACHE_MODEL_ID_OVERRIDES.get(normalizeModelId(modelId)) ?? modelId
-}
-
-function getClineRequestModel(model: { id: string; info: ModelInfo }): { id: string; info: ModelInfo } {
-	return {
-		id: getClineRequestModelId(model.id),
-		info: model.info,
-	}
 }
 
 export class ClineHandler implements ApiHandler {
@@ -153,13 +141,12 @@ export class ClineHandler implements ApiHandler {
 
 			let didOutputUsage = false
 			const freeModelIds = await this.getFreeModelIdSet()
-			const model = this.getModel()
 
 			const stream = await createOpenRouterStream(
 				client,
 				systemPrompt,
 				messages,
-				getClineRequestModel(model),
+				this.getModel(),
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
@@ -249,7 +236,8 @@ export class ClineHandler implements ApiHandler {
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
-					const isFreeModel = freeModelIds.has(normalizeModelId(model.id))
+					const modelId = this.getModel().id
+					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
 					const cacheReadTokens = getCacheReadTokens(chunk.usage)
 					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 

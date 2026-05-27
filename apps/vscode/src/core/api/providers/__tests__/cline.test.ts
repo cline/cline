@@ -137,9 +137,9 @@ describe("ClineHandler", () => {
 		payload.parallel_tool_calls.should.equal(true)
 	})
 
-	it("should route qwen3.6-plus through the cacheable Cline model alias", async () => {
+	it("should send cache_control for qwen3.7-max without changing the selected Cline model id", async () => {
 		const handler = createHandler({
-			openRouterModelId: "qwen/qwen3.6-plus",
+			openRouterModelId: "qwen/qwen3.7-max",
 			openRouterModelInfo: openRouterDefaultModelInfo,
 		})
 		const createStub = sinon.stub().resolves(createAsyncIterable([]))
@@ -157,9 +157,9 @@ describe("ClineHandler", () => {
 			// drain stream
 		}
 
-		handler.getModel().id.should.equal("qwen/qwen3.6-plus")
+		handler.getModel().id.should.equal("qwen/qwen3.7-max")
 		const payload = createStub.firstCall.args[0]
-		payload.model.should.equal("alibaba/qwen3.6-plus")
+		payload.model.should.equal("qwen/qwen3.7-max")
 		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
 		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
 	})
