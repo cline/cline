@@ -28,6 +28,7 @@ const openRouterExplicitCacheControlModelIds = new Set([
 	"qwen/qwen-plus",
 	"qwen/qwen3-max",
 	"qwen/qwen3.6-plus",
+	"qwen/qwen3.7-max",
 	"qwen/qwen3-coder-plus",
 	"qwen/qwen3-coder-flash",
 ])

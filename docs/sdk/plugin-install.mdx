@@ -132,7 +132,7 @@ await cline.start({
 })
 ```
 
-Plugin files must export an `AgentPlugin` as the default export.
+Plugin files must export an `AgentPlugin` as the default export. `pluginPaths` also accepts a package directory -- the SDK reads `package.json` and follows the `cline.plugins` entries, so you can `npm install` once inside a package and iterate without re-running `cline plugin install` on every edit.
 
 ### Using `plugins` (Agent Runtime)
 
