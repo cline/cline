@@ -146,7 +146,7 @@ export class SdkFollowupCoordinator {
 		if (historyItem) {
 			historyItem.ts = Date.now()
 			historyItem.modelId = config.modelId
-			await this.options.taskHistory.updateTaskHistory(historyItem)
+			await this.options.taskHistory.updateTaskHistoryItem(historyItem)
 		}
 
 		if (prompt?.trim()) {
