@@ -109,7 +109,7 @@ describe("SdkFollowupCoordinator", () => {
 			interactive: true,
 			initialMessages: [{ role: "user", content: "hello" }],
 		})
-		expect(options.taskHistory.updateTaskHistory).toHaveBeenCalledWith(
+		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "task-1", modelId: "model" }),
 		)
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("continue")
@@ -170,6 +170,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: {
 			findHistoryItem: vi.fn(() => input.historyItem),
 			updateTaskHistory: vi.fn().mockResolvedValue([]),
+			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -202,6 +203,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkFollowupCoordinatorOptions["taskHistory"] & {
 			findHistoryItem: ReturnType<typeof vi.fn>
 			updateTaskHistory: ReturnType<typeof vi.fn>
+			updateTaskHistoryItem: ReturnType<typeof vi.fn>
 		}
 		sessionConfigBuilder: SdkFollowupCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		getTask: ReturnType<typeof vi.fn>

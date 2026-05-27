@@ -481,9 +481,7 @@ export class SdkTaskHistory {
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
 		await this.withHistoryHost(async (host) => {
-			const existing = (await host.listHistory({ limit: 10_000, includeManifestFallback: true, hydrate: false })).find(
-				(record) => record.sessionId === sessionId,
-			)
+			const existing = await host.get(sessionId)
 			const metadata = {
 				...(existing?.metadata ?? {}),
 				title: item.task,
@@ -499,6 +497,10 @@ export class SdkTaskHistory {
 			await host.update(sessionId, { prompt: item.task, metadata, title: item.task })
 		})
 		this.invalidateMetadataHistoryCache()
+	}
+
+	async updateTaskHistoryItem(item: HistoryItem): Promise<void> {
+		await this.updateSession(item.id, item)
 	}
 
 	private async deleteSession(sessionId: string): Promise<void> {
@@ -562,7 +564,7 @@ export class SdkTaskHistory {
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		await this.updateSession(item.id, item)
+		await this.updateTaskHistoryItem(item)
 		return (await this.listHistory()).map(sessionHistoryRecordToHistoryItem)
 	}
 
@@ -587,6 +589,6 @@ export class SdkTaskHistory {
 		historyItem.totalCost = (historyItem.totalCost || 0) + (usage.totalCost ?? 0)
 		historyItem.ts = Date.now()
 
-		await this.updateTaskHistory(historyItem)
+		await this.updateTaskHistoryItem(historyItem)
 	}
 }
