@@ -6,7 +6,7 @@ import {
 	saveOAuthProviderSettings,
 	toProviderApiKey,
 } from "../commands/auth";
-import { writeErr } from "../utils/output";
+import { writeDiagnostic } from "../utils/output";
 
 /**
  * Supported ACP OAuth provider IDs.
@@ -73,10 +73,10 @@ async function performOAuthLogin(
 				),
 			);
 		},
-		onOutput: (message) => writeErr(`[acp/auth] ${message}`),
+		onOutput: (message) => writeDiagnostic(`[acp/auth] ${message}`),
 		openUrl: (url) => open(url, { wait: false }).then(() => undefined),
 		onOpenUrlError: ({ url }) => {
-			writeErr(
+			writeDiagnostic(
 				`[acp/auth] Could not open browser automatically. Open this URL manually:\n${url}`,
 			);
 		},
@@ -116,12 +116,12 @@ export async function authenticateAcpProvider(
 	// Check for already-stored credentials.
 	const existingKey = getPersistedProviderApiKey(methodId, existing);
 	if (existingKey) {
-		writeErr(`[acp/auth] Using existing credentials for ${methodId}`);
+		writeDiagnostic(`[acp/auth] Using existing credentials for ${methodId}`);
 		return { providerId: methodId, apiKey: existingKey };
 	}
 
 	// Perform a fresh OAuth login.
-	writeErr(`[acp/auth] Starting OAuth login for ${methodId}…`);
+	writeDiagnostic(`[acp/auth] Starting OAuth login for ${methodId}…`);
 	const credentials = await performOAuthLogin(methodId, existing);
 
 	saveOAuthProviderSettings(
@@ -132,6 +132,6 @@ export async function authenticateAcpProvider(
 	);
 
 	const apiKey = toProviderApiKey(methodId, credentials);
-	writeErr(`[acp/auth] Successfully authenticated with ${methodId}`);
+	writeDiagnostic(`[acp/auth] Successfully authenticated with ${methodId}`);
 	return { providerId: methodId, apiKey };
 }
