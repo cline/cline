@@ -61,6 +61,8 @@ const VIEW_PATHS: Record<View, string> = {
 	settings: "/settings",
 };
 
+const CHAT_SESSION_QUERY_PARAM = "id";
+
 const SETTINGS_SECTION_PATHS: Record<SettingsSection, string> = {
 	General: "/settings",
 	Providers: "/settings/providers",
@@ -124,6 +126,21 @@ function settingsSectionFromPath(pathname: string): SettingsSection {
 function readCurrentView(): View {
 	if (typeof window === "undefined") return "home";
 	return viewFromPath(window.location.pathname);
+}
+
+function readCurrentChatSessionId(): string | undefined {
+	if (typeof window === "undefined") return undefined;
+	if (window.location.pathname !== VIEW_PATHS.chat) return undefined;
+	const sessionId = new URLSearchParams(window.location.search)
+		.get(CHAT_SESSION_QUERY_PARAM)
+		?.trim();
+	return sessionId || undefined;
+}
+
+function chatPath(sessionId?: string): string {
+	if (!sessionId) return VIEW_PATHS.chat;
+	const params = new URLSearchParams({ [CHAT_SESSION_QUERY_PARAM]: sessionId });
+	return `${VIEW_PATHS.chat}?${params.toString()}`;
 }
 
 function readCurrentSettingsSection(): SettingsSection {
@@ -240,7 +257,15 @@ function Shell({
 		<div className="grid h-screen min-h-screen grid-rows-[auto_minmax(0,1fr)] bg-background text-foreground">
 			<header className="flex items-center justify-between gap-4 border-b bg-[color-mix(in_oklch,var(--background)_94%,var(--card))] px-4 py-2.5 max-[720px]:flex-col max-[720px]:items-stretch">
 				<div className="min-w-0">
-					<h1 className="truncate text-base font-semibold">Cline Hub</h1>
+					<h1 className="min-w-0">
+						<button
+							className="block truncate rounded-sm text-base font-semibold outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background pointer-cursor"
+							onClick={() => onNavigate("home")}
+							type="button"
+						>
+							Cline Hub
+						</button>
+					</h1>
 				</div>
 				<nav
 					className="flex items-center gap-1.5 max-[720px]:justify-start"
@@ -643,6 +668,7 @@ function RecentSessionRow({
 	session: WebviewSessionSummary;
 }) {
 	const runDetails = sessionRunDetails(session);
+	const currentSessionId = session.sessionId;
 	const currentTitle = session.title || shortId(session.sessionId);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [deleting, setDeleting] = useState(false);
@@ -777,9 +803,14 @@ function RecentSessionRow({
 			<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Session</AlertDialogTitle>
+						<AlertDialogTitle>
+							Delete Session {currentSessionId}
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							This will permanently delete "{currentTitle}" from Cline Hub.
+							This will permanently delete this session from Cline across
+							clients:
+							<br />
+							{currentTitle}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -829,7 +860,9 @@ function App() {
 	const [theme, setTheme] = useState<Theme>(() => readTheme());
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
 	const [restartPending, setRestartPending] = useState(false);
-	const [selectedSessionId, setSelectedSessionId] = useState<string>();
+	const [selectedSessionId, setSelectedSessionId] = useState<
+		string | undefined
+	>(() => readCurrentChatSessionId());
 	const [recentSessions, setRecentSessions] = useState<WebviewSessionSummary[]>(
 		[],
 	);
@@ -841,7 +874,11 @@ function App() {
 
 	useEffect(() => {
 		const handlePopState = () => {
-			setView(readCurrentView());
+			const nextView = readCurrentView();
+			setView(nextView);
+			setSelectedSessionId(
+				nextView === "chat" ? readCurrentChatSessionId() : undefined,
+			);
 			setSettingsSection(readCurrentSettingsSection());
 		};
 		window.addEventListener("popstate", handlePopState);
@@ -899,10 +936,19 @@ function App() {
 
 	const openSession = useCallback((sessionId: string) => {
 		setSelectedSessionId(sessionId);
-		if (window.location.pathname !== VIEW_PATHS.chat) {
-			window.history.pushState(null, "", VIEW_PATHS.chat);
+		const nextPath = chatPath(sessionId);
+		if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+			window.history.pushState(null, "", nextPath);
 		}
 		setView("chat");
+	}, []);
+
+	const updateChatSessionRoute = useCallback((sessionId?: string) => {
+		setSelectedSessionId(sessionId);
+		const nextPath = chatPath(sessionId);
+		if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+			window.history.replaceState(null, "", nextPath);
+		}
 	}, []);
 
 	const deleteSession = useCallback((sessionId: string) => {
@@ -926,7 +972,14 @@ function App() {
 	}, []);
 
 	const content = useMemo(() => {
-		if (view === "chat") return <Chat initialSessionId={selectedSessionId} />;
+		if (view === "chat") {
+			return (
+				<Chat
+					initialSessionId={selectedSessionId}
+					onSessionSelected={updateChatSessionRoute}
+				/>
+			);
+		}
 		if (view === "settings") {
 			return (
 				<SettingsView
@@ -963,6 +1016,7 @@ function App() {
 		selectedSessionId,
 		settingsSection,
 		theme,
+		updateChatSessionRoute,
 		view,
 	]);
 

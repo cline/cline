@@ -298,6 +298,7 @@ const reasonLevels = [
 
 export function Composer({
 	autoApproveTools,
+	disabled = false,
 	enableSpawn,
 	enableTeams,
 	enableTools,
@@ -328,6 +329,7 @@ export function Composer({
 	workspaceRoot,
 }: {
 	autoApproveTools: boolean;
+	disabled?: boolean;
 	enableSpawn: boolean;
 	enableTeams: boolean;
 	enableTools: boolean;
@@ -421,7 +423,7 @@ export function Composer({
 				</PromptInputHeader>
 				<PromptInputBody>
 					<PromptInputTextarea
-						disabled={status.includes("Failed")}
+						disabled={disabled || status.includes("Failed")}
 						onChange={(event) =>
 							controller.textInput.setInput(event.target.value)
 						}
@@ -459,6 +461,7 @@ export function Composer({
 					<div className="flex items-center justify-between gap-3">
 						<PromptInputTools className="shrink-0">
 							<PromptInputButton
+								disabled={disabled}
 								onClick={() => attachments.openFileDialog()}
 								type="button"
 								variant="ghost"
@@ -466,6 +469,7 @@ export function Composer({
 								<PaperclipIcon className="size-3" />
 							</PromptInputButton>
 							<PromptInputButton
+								disabled={disabled}
 								onClick={() => setSettingsOpen((open) => !open)}
 								type="button"
 								variant={settingsOpen ? "default" : "ghost"}
@@ -476,7 +480,7 @@ export function Composer({
 								</span>
 							</PromptInputButton>
 							<PromptInputButton
-								disabled={!thinkingSupported}
+								disabled={disabled || !thinkingSupported}
 								onClick={() => {
 									const nextOption =
 										(reasonLevelOption + 1) % reasonLevels.length;
@@ -491,6 +495,7 @@ export function Composer({
 								<ReasonIcon className="size-3" />
 							</PromptInputButton>
 							<PromptInputButton
+								disabled={disabled}
 								onClick={() => onModeChange(mode === "act" ? "plan" : "act")}
 								type="button"
 								variant={mode === "plan" ? "default" : "ghost"}
@@ -517,7 +522,7 @@ export function Composer({
 								</Button>
 							) : null}
 							<PromptInputSubmit
-								disabled={status.includes("Failed")}
+								disabled={disabled || status.includes("Failed")}
 								status={sending ? "submitted" : "ready"}
 								variant="ghost"
 							/>

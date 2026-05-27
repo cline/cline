@@ -696,12 +696,17 @@ function formatCheckpointTime(createdAt: number): string {
 
 type ChatProps = {
 	initialSessionId?: string;
+	onSessionSelected?: (sessionId?: string) => void;
 };
 
-export default function Chat({ initialSessionId }: ChatProps) {
+export default function Chat({
+	initialSessionId,
+	onSessionSelected,
+}: ChatProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [status, setStatus] = useState("Waiting for RPC initialization...");
 	const [sessionId, setSessionId] = useState<string>();
+	const [hydratingSessionId, setHydratingSessionId] = useState<string>();
 	const [sending, setSending] = useState(false);
 	const [providers, setProviders] = useState<ProviderOption[]>([]);
 	const [modelsByProvider, setModelsByProvider] = useState<
@@ -736,21 +741,51 @@ export default function Chat({ initialSessionId }: ChatProps) {
 	const [forkError, setForkError] = useState<string | null>(null);
 	const activeAssistantIdRef = useRef<string | undefined>(undefined);
 	const initialSessionIdRef = useRef<string | undefined>(undefined);
+	const hydratingSessionIdRef = useRef<string | undefined>(undefined);
+	const sessionIdRef = useRef<string | undefined>(undefined);
+	const onSessionSelectedRef = useRef(onSessionSelected);
 	const lastSelectionRef = useRef(lastSelection);
 	const sessionsRef = useRef(sessions);
 	const defaultsRef = useRef(defaults);
 
-	const attachSession = useCallback((nextSessionId: string) => {
-		setMessages([]);
-		setSending(false);
-		setPendingApprovals([]);
-		activeAssistantIdRef.current = undefined;
-		setStatus(`Attaching to ${nextSessionId}...`);
-		postToHost({
-			type: "attachSession",
-			sessionId: nextSessionId,
-		});
-	}, []);
+	const attachSession = useCallback(
+		(nextSessionId: string) => {
+			if (
+				hydratingSessionIdRef.current === nextSessionId ||
+				(sessionIdRef.current === nextSessionId &&
+					!hydratingSessionIdRef.current)
+			) {
+				return;
+			}
+			sessionIdRef.current = nextSessionId;
+			hydratingSessionIdRef.current = nextSessionId;
+			setSessionId(nextSessionId);
+			setHydratingSessionId(nextSessionId);
+			setMessages([]);
+			setSending(false);
+			setPendingApprovals([]);
+			activeAssistantIdRef.current = undefined;
+			setStatus(`Loading chat history for ${nextSessionId}...`);
+			onSessionSelected?.(nextSessionId);
+			postToHost({
+				type: "attachSession",
+				sessionId: nextSessionId,
+			});
+		},
+		[onSessionSelected],
+	);
+
+	useEffect(() => {
+		hydratingSessionIdRef.current = hydratingSessionId;
+	}, [hydratingSessionId]);
+
+	useEffect(() => {
+		sessionIdRef.current = sessionId;
+	}, [sessionId]);
+
+	useEffect(() => {
+		onSessionSelectedRef.current = onSessionSelected;
+	}, [onSessionSelected]);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -774,6 +809,8 @@ export default function Chat({ initialSessionId }: ChatProps) {
 				case "error":
 					setStatus(`Error: ${message.text}`);
 					setSending(false);
+					setHydratingSessionId(undefined);
+					hydratingSessionIdRef.current = undefined;
 					activeAssistantIdRef.current = undefined;
 					setMessages((current) => {
 						if (current.length === 0) {
@@ -852,12 +889,23 @@ export default function Chat({ initialSessionId }: ChatProps) {
 					});
 					return;
 				case "session_started":
+					sessionIdRef.current = message.sessionId;
 					setSessionId(message.sessionId);
+					onSessionSelectedRef.current?.(message.sessionId);
 					setTitleEditing(false);
 					setSessionTitleDraft("");
 					return;
 				case "session_hydrated":
+					if (
+						hydratingSessionIdRef.current &&
+						hydratingSessionIdRef.current !== message.sessionId
+					) {
+						return;
+					}
+					sessionIdRef.current = message.sessionId;
+					hydratingSessionIdRef.current = undefined;
 					setSessionId(message.sessionId);
+					setHydratingSessionId(undefined);
 					setSending(message.status === "running");
 					if (message.providerId) {
 						setProvider(message.providerId);
@@ -963,12 +1011,16 @@ export default function Chat({ initialSessionId }: ChatProps) {
 					);
 					return;
 				case "reset_done":
+					sessionIdRef.current = undefined;
+					hydratingSessionIdRef.current = undefined;
 					setSessionId(undefined);
+					setHydratingSessionId(undefined);
 					setSending(false);
 					setPendingApprovals([]);
 					setTitleEditing(false);
 					setSessionTitleDraft("");
 					activeAssistantIdRef.current = undefined;
+					onSessionSelectedRef.current?.(undefined);
 					setStatus("Started a new chat session.");
 					setMessages([]);
 					return;
@@ -1030,6 +1082,7 @@ export default function Chat({ initialSessionId }: ChatProps) {
 	}, [provider, model]);
 
 	const models = modelsByProvider[provider] ?? [];
+	const isHydrating = Boolean(hydratingSessionId);
 	const modelSupportsReasoning =
 		models.find((item) => item.id === model)?.supportsThinking === true;
 	const effectiveReasonLevel = modelSupportsReasoning ? reasonLevel : "none";
@@ -1089,6 +1142,7 @@ export default function Chat({ initialSessionId }: ChatProps) {
 						{sessions.length > 0 ? (
 							<select
 								className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs"
+								disabled={isHydrating}
 								onChange={(event) => {
 									const nextSessionId = event.target.value;
 									if (!nextSessionId) {
@@ -1109,9 +1163,16 @@ export default function Chat({ initialSessionId }: ChatProps) {
 								))}
 							</select>
 						) : null}
+						{isHydrating ? (
+							<span className="ml-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+								<Loader2Icon className="size-3 animate-spin" />
+								Loading history
+							</span>
+						) : null}
 						{sessionId ? (
 							<input
 								className="min-w-0 max-w-56 rounded-md border bg-muted px-2 py-1 text-xs"
+								disabled={isHydrating}
 								onBlur={commitSessionTitle}
 								onChange={(event) => setSessionTitleDraft(event.target.value)}
 								onFocus={() => {
@@ -1130,6 +1191,7 @@ export default function Chat({ initialSessionId }: ChatProps) {
 						) : null}
 						{sessionId ? (
 							<Button
+								disabled={isHydrating}
 								onClick={() => {
 									setStatus(`Deleting ${sessionId}...`);
 									postToHost({ type: "deleteSession", sessionId });
@@ -1145,6 +1207,7 @@ export default function Chat({ initialSessionId }: ChatProps) {
 					</div>
 					<div className="flex items-center gap-2">
 						<Button
+							disabled={isHydrating}
 							onClick={() => {
 								postToHost({ type: "reset" });
 								setStatus("Resetting session...");
@@ -1161,7 +1224,14 @@ export default function Chat({ initialSessionId }: ChatProps) {
 				</div>
 				<Conversation className="min-h-0 flex-1">
 					<ConversationContent className="px-4 py-5">
-						{visibleMessages.length === 0 ? (
+						{isHydrating ? (
+							<div className="flex h-full items-center justify-center rounded-xl border border-dashed px-6 py-16 text-center text-sm text-muted-foreground">
+								<span className="inline-flex items-center gap-2">
+									<Loader2Icon className="size-4 animate-spin" />
+									Loading chat history...
+								</span>
+							</div>
+						) : visibleMessages.length === 0 ? (
 							<div className="flex h-full items-center align-middle justify-center rounded-xl border border-dashed px-6 py-16 text-center text-sm text-muted-foreground">
 								How can I help you?
 							</div>
@@ -1300,6 +1370,7 @@ export default function Chat({ initialSessionId }: ChatProps) {
 				) : null}
 				<Composer
 					autoApproveTools={autoApproveTools}
+					disabled={isHydrating}
 					enableSpawn={enableSpawn}
 					enableTeams={enableTeams}
 					enableTools={enableTools}
@@ -1334,6 +1405,9 @@ export default function Chat({ initialSessionId }: ChatProps) {
 						setModel("");
 					}}
 					onSend={({ prompt, attachments, attachmentCount }) => {
+						if (isHydrating) {
+							return;
+						}
 						const assistantMessage = createMessage("assistant", "");
 						activeAssistantIdRef.current = assistantMessage.id;
 						setMessages((current) => [
