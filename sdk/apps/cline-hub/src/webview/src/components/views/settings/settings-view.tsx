@@ -39,7 +39,7 @@ const navCategories = [
 	"Account",
 ] as const;
 
-type NavCategory = (typeof navCategories)[number];
+export type SettingsSection = (typeof navCategories)[number];
 type Theme = "dark" | "light";
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
@@ -57,15 +57,19 @@ let providerCatalogCache: {
 // -----------------------------------------------------------
 
 export function SettingsView({
+	initialSection = "General",
 	onClose,
+	onNavigateSection,
 	onThemeChange,
 	theme,
 }: {
+	initialSection?: SettingsSection;
 	onClose: () => void;
+	onNavigateSection?: (section: SettingsSection) => void;
 	onThemeChange: (theme: Theme) => void;
 	theme: Theme;
 }) {
-	const [activeNav, setActiveNav] = useState<NavCategory>("General");
+	const [activeNav, setActiveNav] = useState<SettingsSection>(initialSection);
 	const [providersExpanded, setProvidersExpanded] = useState(true);
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
@@ -284,6 +288,7 @@ export function SettingsView({
 
 	const openProviderDetail = (id: string) => {
 		setActiveNav("Providers");
+		onNavigateSection?.("Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -304,6 +309,7 @@ export function SettingsView({
 	}, [loadProviderModels, providers, selectedProviderId]);
 
 	const backToProviderList = () => {
+		onNavigateSection?.("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -330,8 +336,16 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
+		onNavigateSection?.("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(true);
+	};
+
+	const selectSection = (section: SettingsSection) => {
+		setActiveNav(section);
+		onNavigateSection?.(section);
+		setSelectedProviderId(null);
+		setAddingProvider(false);
 	};
 
 	return (
@@ -367,9 +381,7 @@ export function SettingsView({
 														: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
 												)}
 												onClick={() => {
-													setActiveNav("Providers");
-													setSelectedProviderId(null);
-													setAddingProvider(false);
+													selectSection("Providers");
 													setProvidersExpanded((p) => !p);
 												}}
 												variant="ghost"
@@ -414,9 +426,7 @@ export function SettingsView({
 										)}
 										key={cat}
 										onClick={() => {
-											setActiveNav(cat);
-											setSelectedProviderId(null);
-											setAddingProvider(false);
+											selectSection(cat);
 										}}
 										variant="ghost"
 									>

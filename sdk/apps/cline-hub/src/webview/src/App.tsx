@@ -1,6 +1,7 @@
 import {
 	ActivityIcon,
 	BotIcon,
+	BoxIcon,
 	ClockIcon,
 	FunnelIcon,
 	HomeIcon,
@@ -45,11 +46,30 @@ import type {
 	WebviewSessionSummary,
 } from "../../webview-protocol";
 import Chat from "./Chat";
-import { SettingsView } from "./components/views/settings/settings-view";
+import {
+	type SettingsSection,
+	SettingsView,
+} from "./components/views/settings/settings-view";
 import { getVsCodeApi, postToHost } from "./vscode";
 
 type View = "home" | "chat" | "settings";
 type Theme = "dark" | "light";
+
+const VIEW_PATHS: Record<View, string> = {
+	home: "/",
+	chat: "/chat",
+	settings: "/settings",
+};
+
+const SETTINGS_SECTION_PATHS: Record<SettingsSection, string> = {
+	General: "/settings",
+	Providers: "/settings/providers",
+	Extensions: "/settings/extensions",
+	MCP: "/settings/mcp",
+	Channels: "/settings/channels",
+	Schedules: "/settings/schedules",
+	Account: "/settings/account",
+};
 
 const EMPTY_HUB_STATE: WebviewHubState = {
 	type: "hub_state",
@@ -79,6 +99,36 @@ function writeTheme(theme: Theme): void {
 	} catch {
 		// Theme persistence is best-effort.
 	}
+}
+
+function viewFromPath(pathname: string): View {
+	if (pathname === VIEW_PATHS.chat) return "chat";
+	if (
+		pathname === VIEW_PATHS.settings ||
+		pathname.startsWith(`${VIEW_PATHS.settings}/`)
+	) {
+		return "settings";
+	}
+	return "home";
+}
+
+function settingsSectionFromPath(pathname: string): SettingsSection {
+	for (const [section, path] of Object.entries(SETTINGS_SECTION_PATHS)) {
+		if (pathname === path) {
+			return section as SettingsSection;
+		}
+	}
+	return "General";
+}
+
+function readCurrentView(): View {
+	if (typeof window === "undefined") return "home";
+	return viewFromPath(window.location.pathname);
+}
+
+function readCurrentSettingsSection(): SettingsSection {
+	if (typeof window === "undefined") return "General";
+	return settingsSectionFromPath(window.location.pathname);
 }
 
 function formatRelativeTime(timestamp?: number): string {
@@ -282,6 +332,11 @@ function HomeView({
 		});
 	};
 
+	const copyText = useCallback((value?: string) => {
+		if (!value || typeof navigator === "undefined") return;
+		void navigator.clipboard?.writeText(value);
+	}, []);
+
 	const confirmRestartHub = () => {
 		setRestartDialogOpen(false);
 		onRestartHub();
@@ -299,22 +354,6 @@ function HomeView({
 					</p> */}
 				</div>
 				<div className="flex flex-wrap items-center justify-end gap-2.5 max-[720px]:justify-start">
-					<div className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground">
-						<LinkIcon className="size-4 shrink-0" />
-						<span
-							className="min-w-0 truncate"
-							title={hubState.hubUrl ?? "No hub URL"}
-						>
-							{hubState.hubUrl ?? "no hub url"}
-						</span>
-					</div>
-					<div
-						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground"
-						title="ClineCore package version"
-					>
-						<span className="font-medium text-foreground">ClineCore</span>v
-						{hubState.coreVersion ?? "Unknown"}
-					</div>
 					<div
 						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground"
 						title="Hub uptime"
@@ -322,11 +361,40 @@ function HomeView({
 						<ClockIcon className="size-4" />
 						{hubState.hubUptime ?? "no uptime"}
 					</div>
+					<button
+						aria-label="Copy hub URL"
+						className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={!hubState.hubUrl}
+						onClick={() => copyText(hubState.hubUrl)}
+						title="Copy hub URL"
+						type="button"
+					>
+						<LinkIcon className="size-4 shrink-0" />
+						<span
+							className="min-w-0 truncate"
+							title={hubState.hubUrl ?? "No hub URL"}
+						>
+							{hubState.hubUrl ?? "no hub url"}
+						</span>
+					</button>
+					<button
+						aria-label="Copy ClineCore SDK version"
+						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={!hubState.coreVersion}
+						onClick={() => copyText(hubState.coreVersion)}
+						title="Copy ClineCore SDK version"
+						type="button"
+					>
+						<BoxIcon className="size-4 shrink-0" />
+						<span title={hubState.coreVersion ?? "Unknown"}>
+							v{hubState.coreVersion ?? "Unknown"}
+						</span>
+					</button>
 					<Button
 						disabled={!hubState.connected || restartPending}
 						onClick={() => setRestartDialogOpen(true)}
 						size="sm"
-						title="Restart hub"
+						title="Restart Cline Hub"
 						type="button"
 						variant="outline"
 					>
@@ -754,7 +822,10 @@ function EventRow({ event }: { event: WebviewHubEvent }) {
 }
 
 function App() {
-	const [view, setView] = useState<View>("home");
+	const [view, setView] = useState<View>(() => readCurrentView());
+	const [settingsSection, setSettingsSection] = useState<SettingsSection>(() =>
+		readCurrentSettingsSection(),
+	);
 	const [theme, setTheme] = useState<Theme>(() => readTheme());
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
 	const [restartPending, setRestartPending] = useState(false);
@@ -767,6 +838,15 @@ function App() {
 		document.documentElement.classList.toggle("dark", theme === "dark");
 		writeTheme(theme);
 	}, [theme]);
+
+	useEffect(() => {
+		const handlePopState = () => {
+			setView(readCurrentView());
+			setSettingsSection(readCurrentSettingsSection());
+		};
+		window.addEventListener("popstate", handlePopState);
+		return () => window.removeEventListener("popstate", handlePopState);
+	}, []);
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<WebviewOutboundMessage>) => {
@@ -799,11 +879,29 @@ function App() {
 		if (nextView === "chat") {
 			setSelectedSessionId(undefined);
 		}
+		if (nextView === "settings") {
+			setSettingsSection("General");
+		}
+		const nextPath = VIEW_PATHS[nextView];
+		if (window.location.pathname !== nextPath) {
+			window.history.pushState(null, "", nextPath);
+		}
 		setView(nextView);
+	}, []);
+
+	const navigateSettingsSection = useCallback((section: SettingsSection) => {
+		setSettingsSection(section);
+		const nextPath = SETTINGS_SECTION_PATHS[section];
+		if (window.location.pathname !== nextPath) {
+			window.history.pushState(null, "", nextPath);
+		}
 	}, []);
 
 	const openSession = useCallback((sessionId: string) => {
 		setSelectedSessionId(sessionId);
+		if (window.location.pathname !== VIEW_PATHS.chat) {
+			window.history.pushState(null, "", VIEW_PATHS.chat);
+		}
 		setView("chat");
 	}, []);
 
@@ -832,7 +930,10 @@ function App() {
 		if (view === "settings") {
 			return (
 				<SettingsView
-					onClose={() => setView("home")}
+					initialSection={settingsSection}
+					key={settingsSection}
+					onClose={() => navigate("home")}
+					onNavigateSection={navigateSettingsSection}
 					onThemeChange={setTheme}
 					theme={theme}
 				/>
@@ -852,12 +953,15 @@ function App() {
 	}, [
 		hubState,
 		deleteSession,
+		navigate,
+		navigateSettingsSection,
 		openSession,
 		recentSessions,
 		renameSession,
 		restartHub,
 		restartPending,
 		selectedSessionId,
+		settingsSection,
 		theme,
 		view,
 	]);

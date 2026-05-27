@@ -274,24 +274,44 @@ function resolveStaticPath(pathname: string): string | undefined {
 	return filePath;
 }
 
+function isWebviewRoute(pathname: string): boolean {
+	return (
+		pathname === "/" ||
+		pathname === "/index.html" ||
+		pathname === "/chat" ||
+		pathname === "/settings" ||
+		pathname.startsWith("/settings/")
+	);
+}
+
+async function serveWebviewIndex(): Promise<Response> {
+	const indexFile = Bun.file(join(webviewDistDir, "index.html"));
+	if (await indexFile.exists()) {
+		return new Response(indexFile, {
+			headers: { "content-type": "text/html; charset=utf-8" },
+		});
+	}
+	return createTextResponse(
+		"Cline Hub webview is not built. Run `bun run build:webview` from sdk/apps/cline-hub.",
+		503,
+	);
+}
+
 async function serveWebviewAsset(pathname: string): Promise<Response> {
 	const devServerUrl = process.env.VITE_DEV_SERVER_URL?.trim();
-	if (devServerUrl && (pathname === "/" || pathname === "/index.html")) {
+	if (devServerUrl && isWebviewRoute(pathname)) {
 		return new Response(renderDevIndexHtml(devServerUrl), {
 			headers: { "content-type": "text/html; charset=utf-8" },
 		});
+	}
+	if (isWebviewRoute(pathname)) {
+		return serveWebviewIndex();
 	}
 
 	const filePath = resolveStaticPath(pathname);
 	if (!filePath) return createTextResponse("not found", 404);
 	const file = Bun.file(filePath);
 	if (!(await file.exists())) {
-		if (pathname === "/" || pathname === "/index.html") {
-			return createTextResponse(
-				"Cline Hub webview is not built. Run `bun run build:webview` from sdk/apps/cline-hub.",
-				503,
-			);
-		}
 		return createTextResponse("not found", 404);
 	}
 	return new Response(file, {
