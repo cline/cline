@@ -52,6 +52,13 @@ function getClineRequestModelId(modelId: string): string {
 	return CLINE_PROMPT_CACHE_MODEL_ID_OVERRIDES.get(normalizeModelId(modelId)) ?? modelId
 }
 
+function getClineRequestModel(model: { id: string; info: ModelInfo }): { id: string; info: ModelInfo } {
+	return {
+		id: getClineRequestModelId(model.id),
+		info: model.info,
+	}
+}
+
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
@@ -146,12 +153,13 @@ export class ClineHandler implements ApiHandler {
 
 			let didOutputUsage = false
 			const freeModelIds = await this.getFreeModelIdSet()
+			const model = this.getModel()
 
 			const stream = await createOpenRouterStream(
 				client,
 				systemPrompt,
 				messages,
-				this.getModel(),
+				getClineRequestModel(model),
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
@@ -241,8 +249,7 @@ export class ClineHandler implements ApiHandler {
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
-					const modelId = this.getModel().id
-					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
+					const isFreeModel = freeModelIds.has(normalizeModelId(model.id))
 					const cacheReadTokens = getCacheReadTokens(chunk.usage)
 					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 
@@ -336,12 +343,12 @@ export class ClineHandler implements ApiHandler {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
-			return { id: getClineRequestModelId(modelId), info: modelInfo }
+			return { id: modelId, info: modelInfo }
 		}
 		// If we have a model ID but no model info (e.g., CLI featured models),
 		// use the ID with default model info rather than falling back to a different model
 		if (modelId) {
-			return { id: getClineRequestModelId(modelId), info: openRouterDefaultModelInfo }
+			return { id: modelId, info: openRouterDefaultModelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}

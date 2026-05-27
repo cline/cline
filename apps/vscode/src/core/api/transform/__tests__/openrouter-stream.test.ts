@@ -124,6 +124,26 @@ describe("createOpenRouterStream", () => {
 		payload.should.not.have.property("reasoning")
 	})
 
+	it("preserves budgeted reasoning when effort is none but a thinking budget is configured", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "anthropic/claude-sonnet-4.5",
+				info: createModelInfo(65_536),
+			},
+			"none",
+			8192,
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", true)
+		payload.reasoning.should.deepEqual({ max_tokens: 8192 })
+	})
+
 	it("uses adaptive reasoning with verbosity for Claude Opus adaptive models", async () => {
 		const { client, create } = createClient()
 

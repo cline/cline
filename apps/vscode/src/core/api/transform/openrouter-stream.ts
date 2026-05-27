@@ -178,7 +178,7 @@ export async function createOpenRouterStream(
 
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
-	const reasoningDisabled = normalizedReasoningEffort === "none"
+	const reasoningDisabled = normalizedReasoningEffort === "none" && !reasoning
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = isAdaptiveThinkingModel
 		? !!adaptiveThinking?.enabled

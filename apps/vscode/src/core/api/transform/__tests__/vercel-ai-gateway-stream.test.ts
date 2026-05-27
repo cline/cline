@@ -30,6 +30,11 @@ describe("createVercelAIGatewayStream", () => {
 		supportsPromptCache: false,
 	})
 
+	const createThinkingModelInfo = (maxTokens: number): ModelInfo => ({
+		...createModelInfo(maxTokens),
+		thinkingConfig: { maxBudget: 128_000 },
+	})
+
 	it("disables include_reasoning for Qwen models when reasoning effort is none", async () => {
 		const { client, create } = createClient()
 
@@ -48,5 +53,25 @@ describe("createVercelAIGatewayStream", () => {
 		const payload = create.firstCall.args[0] as any
 		payload.should.have.property("include_reasoning", false)
 		payload.should.not.have.property("reasoning")
+	})
+
+	it("preserves budgeted reasoning when effort is none but a thinking budget is configured", async () => {
+		const { client, create } = createClient()
+
+		await createVercelAIGatewayStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "anthropic/claude-sonnet-4.5",
+				info: createThinkingModelInfo(65_536),
+			},
+			"none",
+			8192,
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", true)
+		payload.reasoning.should.deepEqual({ max_tokens: 8192 })
 	})
 })

@@ -157,6 +157,7 @@ describe("ClineHandler", () => {
 			// drain stream
 		}
 
+		handler.getModel().id.should.equal("qwen/qwen3.6-plus")
 		const payload = createStub.firstCall.args[0]
 		payload.model.should.equal("alibaba/qwen3.6-plus")
 		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
