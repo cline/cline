@@ -391,7 +391,6 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
 		family: "openai-compatible",
-		protocol: "openai-responses",
 		popular: 8,
 		capabilities: ["prompt-cache"],
 		defaultModelId: "gpt-5.4",

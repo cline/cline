@@ -313,7 +313,8 @@ describe("DefaultRuntimeBuilder", () => {
 			serverPath,
 			`let buffer = "";
 function write(payload) {
-  process.stdout.write(JSON.stringify(payload) + "\\n");
+  const body = JSON.stringify(payload);
+  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
 }
 function handle(message) {
   if (message.method === "initialize") {
@@ -331,12 +332,18 @@ function handle(message) {
 process.stdin.on("data", (chunk) => {
   buffer += chunk.toString("utf8");
   while (true) {
-    const separator = buffer.indexOf("\\n");
+    const separator = buffer.indexOf("\\r\\n\\r\\n");
     if (separator < 0) break;
-    const line = buffer.slice(0, separator).trim();
-    buffer = buffer.slice(separator + 1);
-    if (!line) continue;
-    const message = JSON.parse(line);
+    const header = buffer.slice(0, separator);
+    const match = header.match(/Content-Length:\\s*(\\d+)/i);
+    if (!match) throw new Error("missing content length");
+    const length = Number(match[1]);
+    const start = separator + 4;
+    const end = start + length;
+    if (buffer.length < end) break;
+    const body = buffer.slice(start, end);
+    buffer = buffer.slice(end);
+    const message = JSON.parse(body);
     if (message.method === "notifications/initialized") continue;
     handle(message);
   }
@@ -361,13 +368,16 @@ process.stdin.on("data", (chunk) => {
 		);
 
 		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
 		try {
-			const runtime = await new DefaultRuntimeBuilder().build({
+			runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
 			});
 			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
-			await runtime.shutdown("test");
 		} finally {
+			await runtime?.shutdown("test");
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
 		}
 	});
