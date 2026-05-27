@@ -2756,7 +2756,17 @@ const server = Bun.serve<BrowserPeer>({
 					await deleteSession(peer, frame.sessionId);
 				} else if (frame.type === "updateSessionMetadata") {
 					if (!cline) throw new Error("Hub is not connected.");
-					await cline.update(frame.sessionId, { metadata: frame.metadata });
+					const session = await cline.get(frame.sessionId);
+					const metadata =
+						session?.metadata && typeof session.metadata === "object"
+							? (session.metadata as Record<string, unknown>)
+							: {};
+					await cline.update(frame.sessionId, {
+						metadata: {
+							...metadata,
+							...frame.metadata,
+						},
+					});
 					await syncHubClientsAndSessions();
 					broadcastHubState();
 				} else if (frame.type === "approval_response") {

@@ -2,12 +2,15 @@ import {
 	ActivityIcon,
 	BotIcon,
 	ClockIcon,
+	FunnelIcon,
 	HomeIcon,
 	LinkIcon,
 	MessageSquareIcon,
+	PencilIcon,
 	RotateCcwIcon,
 	RssIcon,
 	SettingsIcon,
+	Trash2Icon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -22,6 +25,17 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import type {
 	WebviewActiveConnector,
 	WebviewConnectedClient,
@@ -138,6 +152,30 @@ function connectorLabel(connector: WebviewActiveConnector): string {
 	return shortId(connector.id);
 }
 
+function sessionRunDetails(session: WebviewSessionSummary): string[] {
+	const inputTokens = formatCompactNumber(session.inputTokens);
+	const outputTokens = formatCompactNumber(session.outputTokens);
+	const cost = formatCost(session.totalCost);
+	return [
+		workspaceName(session.workspaceRoot),
+		`${session.providerId}:${session.model}`,
+		inputTokens ? `${inputTokens}/${outputTokens}` : undefined,
+		cost,
+		session.source,
+	].filter((detail): detail is string => Boolean(detail));
+}
+
+function sessionFilterDetails(session: WebviewSessionSummary): string[] {
+	const name = workspaceName(session.workspaceRoot);
+	return [
+		name ? `workspace:${name}` : undefined,
+		session.status ? `status:${session.status}` : undefined,
+		session.providerId ? `provider:${session.providerId}` : undefined,
+		session.model ? `model:${session.model}` : undefined,
+		session.source ? `source:${session.source}` : undefined,
+	].filter((detail): detail is string => Boolean(detail));
+}
+
 function Shell({
 	children,
 	onNavigate,
@@ -196,12 +234,16 @@ function Shell({
 function HomeView({
 	hubState,
 	onOpenSession,
+	onDeleteSession,
+	onRenameSession,
 	onRestartHub,
 	restartPending,
 	recentSessions,
 }: {
 	hubState: WebviewHubState;
 	onOpenSession: (sessionId: string) => void;
+	onDeleteSession: (sessionId: string) => Promise<void> | void;
+	onRenameSession: (sessionId: string, title: string) => Promise<void> | void;
 	onRestartHub: () => void;
 	restartPending: boolean;
 	recentSessions: WebviewSessionSummary[];
@@ -211,6 +253,34 @@ function HomeView({
 	const connectedConnectors = hubState.connectors ?? [];
 	const latestEvents = hubState.events.slice(0, 6);
 	const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
+	const runDetailFilterOptions = useMemo(
+		() =>
+			Array.from(
+				new Set(
+					recentSessions.flatMap((session) => sessionFilterDetails(session)),
+				),
+			).sort((a, b) => a.localeCompare(b)),
+		[recentSessions],
+	);
+	const filteredRecentSessions = useMemo(() => {
+		if (sessionFilters.length === 0) {
+			return recentSessions;
+		}
+		const selected = new Set(sessionFilters);
+		return recentSessions.filter((session) =>
+			sessionFilterDetails(session).some((detail) => selected.has(detail)),
+		);
+	}, [recentSessions, sessionFilters]);
+
+	const toggleSessionFilter = (detail: string, checked: boolean) => {
+		setSessionFilters((prev) => {
+			if (checked) {
+				return prev.includes(detail) ? prev : [...prev, detail];
+			}
+			return prev.filter((item) => item !== detail);
+		});
+	};
 
 	const confirmRestartHub = () => {
 		setRestartDialogOpen(false);
@@ -218,8 +288,8 @@ function HomeView({
 	};
 
 	return (
-		<div className="h-full overflow-auto p-[18px] max-[720px]:p-3">
-			<section className="flex items-center justify-between gap-4 border-b pb-[18px] max-[720px]:flex-col max-[720px]:items-stretch">
+		<div className="h-full overflow-auto p-4.5 max-[720px]:p-3">
+			<section className="flex items-center justify-between gap-4 border-b pb-4.5 max-[720px]:flex-col max-[720px]:items-stretch">
 				<div>
 					<p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
 						Dashboard
@@ -333,7 +403,7 @@ function HomeView({
 						{connectedClients.length + connectedConnectors.length}
 					</span>
 				</div>
-				<div className="grid max-h-[174px] gap-2 overflow-y-auto p-2.5">
+				<div className="grid max-h-43.5 gap-2 overflow-y-auto p-2.5">
 					{connectedClients.length === 0 && connectedConnectors.length === 0 ? (
 						<p className="px-1 py-4 text-[13px] text-muted-foreground">
 							No connected clients or channels found.
@@ -392,22 +462,76 @@ function HomeView({
 				>
 					<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
 						<h3 className="text-[13px] font-[650]">
-							Last {recentSessions.length} Sessions
+							Last {filteredRecentSessions.length} Sessions
 						</h3>
-						<span className="text-xs text-muted-foreground">
-							<ClockIcon className="size-4" />
-						</span>
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										title="Session Filters"
+										aria-label="Filter sessions"
+										size="icon-sm"
+										type="button"
+										variant={sessionFilters.length > 0 ? "default" : "ghost"}
+									/>
+								}
+							>
+								<FunnelIcon className="size-4" />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent
+								align="end"
+								className="max-h-72 w-72"
+								sideOffset={6}
+							>
+								<DropdownMenuGroup>
+									<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
+									{sessionFilters.length > 0 ? (
+										<>
+											<DropdownMenuItem onClick={() => setSessionFilters([])}>
+												Clear filters
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+										</>
+									) : null}
+									{runDetailFilterOptions.length === 0 ? (
+										<DropdownMenuItem disabled>No run details</DropdownMenuItem>
+									) : (
+										runDetailFilterOptions.map((detail) => (
+											<DropdownMenuCheckboxItem
+												checked={sessionFilters.includes(detail)}
+												key={detail}
+												onCheckedChange={(checked: boolean) =>
+													toggleSessionFilter(detail, checked)
+												}
+											>
+												<span className="truncate" title={detail}>
+													{detail}
+												</span>
+											</DropdownMenuCheckboxItem>
+										))
+									)}
+								</DropdownMenuGroup>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 					<div className="grid gap-2 p-2.5">
 						{recentSessions.length === 0 ? (
 							<p className="px-1 py-4 text-[13px] text-muted-foreground">
 								No recent sessions.
 							</p>
+						) : filteredRecentSessions.length === 0 ? (
+							<p className="px-1 py-4 text-[13px] text-muted-foreground">
+								No sessions match the selected filters.
+							</p>
 						) : (
-							recentSessions.map((session) => (
+							filteredRecentSessions.map((session) => (
 								<RecentSessionRow
 									key={session.sessionId}
+									onDelete={() => onDeleteSession(session.sessionId)}
 									onOpen={() => onOpenSession(session.sessionId)}
+									onRename={(title) =>
+										onRenameSession(session.sessionId, title)
+									}
 									session={session}
 								/>
 							))
@@ -440,41 +564,129 @@ function HomeView({
 }
 
 function RecentSessionRow({
+	onDelete,
 	onOpen,
+	onRename,
 	session,
 }: {
+	onDelete: () => Promise<void> | void;
 	onOpen: () => void;
+	onRename: (title: string) => Promise<void> | void;
 	session: WebviewSessionSummary;
 }) {
-	const inputTokens = formatCompactNumber(session.inputTokens);
-	const outputTokens = formatCompactNumber(session.outputTokens);
-	const cost = formatCost(session.totalCost);
-	const runDetails = [
-		workspaceName(session.workspaceRoot),
-		`${session.providerId}:${session.model}`,
-		inputTokens ? `${inputTokens}/${outputTokens}` : undefined,
-		cost,
-		session.source,
-	].filter((detail): detail is string => Boolean(detail));
+	const runDetails = sessionRunDetails(session);
+	const currentTitle = session.title || shortId(session.sessionId);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+	const [editingTitle, setEditingTitle] = useState(false);
+	const [renaming, setRenaming] = useState(false);
+	const [titleDraft, setTitleDraft] = useState(currentTitle);
+
+	const saveTitle = async () => {
+		if (renaming) return;
+		const nextTitle = titleDraft.replace(/\s+/g, " ").trim();
+		setRenaming(true);
+		try {
+			await onRename(nextTitle);
+			setEditingTitle(false);
+		} finally {
+			setRenaming(false);
+		}
+	};
+
+	const confirmDelete = async () => {
+		setDeleting(true);
+		try {
+			await onDelete();
+			setDeleteDialogOpen(false);
+		} finally {
+			setDeleting(false);
+		}
+	};
 
 	return (
-		<button
-			className="grid w-full gap-2 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-			onClick={onOpen}
-			type="button"
-		>
+		<div className="grid w-full gap-2 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5 text-left transition-colors hover:bg-accent">
 			<div className="flex items-center justify-start gap-3">
 				<span
 					className={`size-2 shrink-0 rounded-full ${statusTone(session.status)}`}
 				/>
-				<div className="min-w-0">
-					<p className="text-[13px] font-semibold leading-tight">
-						{session.title || shortId(session.sessionId)}
-					</p>
-				</div>
+				{editingTitle ? (
+					<form
+						className="flex min-w-0 flex-1 items-center gap-2"
+						onSubmit={(event) => {
+							event.preventDefault();
+							void saveTitle();
+						}}
+					>
+						<Input
+							autoFocus
+							className="h-7 min-w-0 flex-1 text-[13px]"
+							disabled={renaming}
+							onChange={(event) => setTitleDraft(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Escape") {
+									event.preventDefault();
+									setTitleDraft(currentTitle);
+									setEditingTitle(false);
+								}
+							}}
+							value={titleDraft}
+						/>
+						<Button disabled={renaming} size="sm" type="submit">
+							Save
+						</Button>
+						<Button
+							disabled={renaming}
+							onClick={() => {
+								setTitleDraft(currentTitle);
+								setEditingTitle(false);
+							}}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+					</form>
+				) : (
+					<div className="flex min-w-0 flex-1 items-center gap-1.5">
+						<button
+							className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							onClick={onOpen}
+							type="button"
+						>
+							<span className="block truncate text-[13px] font-semibold leading-tight">
+								{currentTitle}
+							</span>
+						</button>
+						<Button
+							title="Edit session title"
+							aria-label="Edit session title"
+							onClick={() => {
+								setTitleDraft(currentTitle);
+								setEditingTitle(true);
+							}}
+							size="icon-sm"
+							type="button"
+							variant="ghost"
+						>
+							<PencilIcon className="size-3.5" />
+						</Button>
+						<Button
+							title="Delete session"
+							aria-label="Delete session"
+							onClick={() => setDeleteDialogOpen(true)}
+							size="icon-sm"
+							type="button"
+							variant="ghost"
+						>
+							<Trash2Icon className="size-3.5" />
+						</Button>
+					</div>
+				)}
 			</div>
 			{runDetails.length > 0 ? (
-				<div className="flex flex-wrap items-center gap-1.5 pl-[18px] text-[11px] text-muted-foreground">
+				<div className="flex flex-wrap items-center gap-1.5 pl-4.5 text-[11px] text-muted-foreground">
 					<span>{formatRelativeTime(session.updatedAt)}</span>
 					<span
 						className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
@@ -494,7 +706,27 @@ function RecentSessionRow({
 					))}
 				</div>
 			) : null}
-		</button>
+			<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Session</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete "{currentTitle}" from Cline Hub.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={deleting}
+							onClick={() => void confirmDelete()}
+							variant="destructive"
+						>
+							{deleting ? "Deleting..." : "Delete"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</div>
 	);
 }
 
@@ -550,7 +782,7 @@ function App() {
 				return;
 			}
 			if (message.type === "sessions") {
-				setRecentSessions(message.sessions.slice(0, 10));
+				setRecentSessions(message.sessions);
 			}
 		};
 		window.addEventListener("message", handleMessage);
@@ -575,6 +807,26 @@ function App() {
 		setView("chat");
 	}, []);
 
+	const deleteSession = useCallback((sessionId: string) => {
+		setRecentSessions((current) =>
+			current.filter((session) => session.sessionId !== sessionId),
+		);
+		postToHost({ type: "deleteSession", sessionId });
+	}, []);
+
+	const renameSession = useCallback((sessionId: string, title: string) => {
+		setRecentSessions((current) =>
+			current.map((session) =>
+				session.sessionId === sessionId ? { ...session, title } : session,
+			),
+		);
+		postToHost({
+			type: "updateSessionMetadata",
+			sessionId,
+			metadata: { title },
+		});
+	}, []);
+
 	const content = useMemo(() => {
 		if (view === "chat") return <Chat initialSessionId={selectedSessionId} />;
 		if (view === "settings") {
@@ -589,7 +841,9 @@ function App() {
 		return (
 			<HomeView
 				hubState={hubState}
+				onDeleteSession={deleteSession}
 				onOpenSession={openSession}
+				onRenameSession={renameSession}
 				onRestartHub={restartHub}
 				recentSessions={recentSessions}
 				restartPending={restartPending}
@@ -597,8 +851,10 @@ function App() {
 		);
 	}, [
 		hubState,
+		deleteSession,
 		openSession,
 		recentSessions,
+		renameSession,
 		restartHub,
 		restartPending,
 		selectedSessionId,
