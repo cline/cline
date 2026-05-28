@@ -3,15 +3,15 @@ import { createSapAiCoreProviderModule } from "./community";
 
 const originalServiceKey = process.env.AICORE_SERVICE_KEY;
 
-afterEach(() => {
-	if (originalServiceKey === undefined) {
-		delete process.env.AICORE_SERVICE_KEY;
-	} else {
-		process.env.AICORE_SERVICE_KEY = originalServiceKey;
-	}
-});
-
 describe("createSapAiCoreProviderModule", () => {
+	afterEach(() => {
+		if (originalServiceKey === undefined) {
+			delete process.env.AICORE_SERVICE_KEY;
+		} else {
+			process.env.AICORE_SERVICE_KEY = originalServiceKey;
+		}
+	});
+
 	it("passes SAP credentials as a provider destination without mutating process env", async () => {
 		process.env.AICORE_SERVICE_KEY = "existing-service-key";
 
