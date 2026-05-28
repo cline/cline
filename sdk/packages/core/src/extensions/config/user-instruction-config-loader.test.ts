@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -242,6 +242,49 @@ Escalation runbook`,
 		} finally {
 			watcher.stop();
 			setHomeDir(originalHomeDir);
+		}
+	});
+
+	it("discovers skill directories through symlinks", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-symlink-skill-"),
+		);
+		tempRoots.push(tempRoot);
+		const skillsDir = join(tempRoot, ".cline", "skills");
+		const externalSkillsDir = join(tempRoot, "external-skills");
+		const targetSkillDir = join(externalSkillsDir, "data-agent-skill");
+		const linkedSkillDir = join(skillsDir, "data-agent-skill");
+		await mkdir(targetSkillDir, { recursive: true });
+		await mkdir(skillsDir, { recursive: true });
+		await writeFile(
+			join(targetSkillDir, "SKILL.md"),
+			`---
+name: data-agent-skill
+description: Analyze data
+---
+Use the data agent skill.`,
+		);
+		await symlink(targetSkillDir, linkedSkillDir, "dir");
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+		});
+
+		const events: Array<UserInstructionConfigWatcherEvent> = [];
+		const unsubscribe = watcher.subscribe((event) => events.push(event));
+
+		try {
+			await watcher.start();
+			await waitForEvent(
+				events,
+				(event) =>
+					event.kind === "upsert" &&
+					event.record.type === "skill" &&
+					event.record.id === "data-agent-skill",
+			);
+		} finally {
+			unsubscribe();
+			watcher.stop();
 		}
 	});
 
