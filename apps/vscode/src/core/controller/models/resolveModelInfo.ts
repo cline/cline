@@ -1,12 +1,37 @@
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import { adaptSdkModelInfo } from "@/sdk/model-catalog/shape-adapter"
+import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
 import { type ProviderCatalogController, parseProviderIdRequest } from "./providerCatalogShared"
 
-// Intentionally async for the generated gRPC handler contract. The body is
-// synchronous in effect: do not add awaits, model-list refreshes, or cache/store
-// mutations to this chat/status metadata path.
+/**
+ * Resolve a single (provider, model) pair for the webview's status /
+ * summary surfaces (`useNormalizedApiConfiguration`, TaskHeader,
+ * context-window indicator, etc.).
+ *
+ * Resolution order:
+ *
+ *   1. Committed selection — the user's most-recently-chosen plan/act
+ *      selection in the provider config store. This is the source of
+ *      truth for dynamic-list providers (openrouter, openai-compatible,
+ *      ollama, lmstudio, requesty, litellm, …) where the picker writes
+ *      the live `ModelInfo` into the selection when the user commits.
+ *
+ *   2. Catalog peek — a non-fetching look-up of the catalog cache for
+ *      the provider's current effective config fingerprint. Hits when
+ *      the catalog has been populated for the current config, either
+ *      by the settings UI opening or by a prior call to this handler.
+ *
+ *   3. Awaited catalog resolve — if the peek misses, awaits
+ *      `catalog.resolveModels(providerId)` so the response carries
+ *      authoritative data the first time it is asked. The catalog has
+ *      in-flight dedup and a per-fingerprint cache, so subsequent
+ *      callers do not pay this cost again.
+ *
+ * If after all three steps neither the committed selection nor the
+ * SDK catalog has anything to say, the handler returns
+ * `source: "unknown"`. Webview consumers render that as a neutral
+ * placeholder rather than fabricating a model info.
+ */
 export async function resolveModelInfo(
 	controller: ProviderCatalogController,
 	request: ResolveModelInfoRequest,
@@ -14,8 +39,8 @@ export async function resolveModelInfo(
 	const providerId = parseProviderIdRequest(request.providerId)
 	const requestedModelId = request.modelId?.trim() || ""
 
+	const store = controller.getProviderConfigStore()
 	if (requestedModelId) {
-		const store = controller.getProviderConfigStore()
 		const actSelection = store.readSelection(providerId, "act")
 		if (actSelection?.modelId === requestedModelId) {
 			return ResolveModelInfoResponse.create({
@@ -37,31 +62,34 @@ export async function resolveModelInfo(
 		}
 	}
 
-	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
-	const generatedModels = getGeneratedModelsForProvider(providerId)
-	const requestedModelInfo = requestedModelId
-		? (generatedModels[requestedModelId] ?? collection?.models?.[requestedModelId])
-		: undefined
-	if (requestedModelId && requestedModelInfo) {
-		return ResolveModelInfoResponse.create({
-			providerId,
-			modelId: requestedModelId,
-			modelInfo: toProtobufModelInfo(adaptSdkModelInfo(requestedModelInfo)),
-			source: "sdk-known-models",
-		})
+	const catalog = controller.getProviderCatalog()
+	const cached = catalog.peekModels(providerId)
+	if (cached?.ok) {
+		const hit = pickFromCatalog(cached, requestedModelId)
+		if (hit) {
+			return ResolveModelInfoResponse.create({
+				providerId,
+				modelId: hit.modelId,
+				modelInfo: toProtobufModelInfo(hit.modelInfo),
+				source: hit.matchedRequested ? "sdk-known-models" : "sdk-default",
+			})
+		}
 	}
 
-	const defaultModelId = collection?.provider?.defaultModelId?.trim() || Object.keys(generatedModels)[0] || ""
-	const defaultModelInfo = defaultModelId
-		? (generatedModels[defaultModelId] ?? collection?.models?.[defaultModelId])
-		: undefined
-	if (defaultModelId && defaultModelInfo) {
-		return ResolveModelInfoResponse.create({
-			providerId,
-			modelId: defaultModelId,
-			modelInfo: toProtobufModelInfo(adaptSdkModelInfo(defaultModelInfo)),
-			source: "sdk-default",
-		})
+	// Cache miss. Await a real resolve so the caller doesn't have to
+	// retry or race a warmer. The catalog dedup'\''s in-flight requests
+	// and caches the result, so the per-fingerprint cost is paid once.
+	const resolved = await catalog.resolveModels(providerId).catch(() => undefined)
+	if (resolved?.ok) {
+		const hit = pickFromCatalog(resolved, requestedModelId)
+		if (hit) {
+			return ResolveModelInfoResponse.create({
+				providerId,
+				modelId: hit.modelId,
+				modelInfo: toProtobufModelInfo(hit.modelInfo),
+				source: hit.matchedRequested ? "sdk-known-models" : "sdk-default",
+			})
+		}
 	}
 
 	return ResolveModelInfoResponse.create({
@@ -69,4 +97,13 @@ export async function resolveModelInfo(
 		modelId: requestedModelId,
 		source: "unknown",
 	})
+}
+
+function pickFromCatalog(result: Extract<ProviderModelsResult, { ok: true }>, requestedModelId: string) {
+	const modelId = requestedModelId && result.models.has(requestedModelId) ? requestedModelId : result.defaultModelId
+	const modelInfo = modelId ? result.models.get(modelId) : undefined
+	if (!modelId || !modelInfo) {
+		return undefined
+	}
+	return { modelId, modelInfo, matchedRequested: requestedModelId === modelId }
 }

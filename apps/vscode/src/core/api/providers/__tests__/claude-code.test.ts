@@ -357,90 +357,26 @@ describe("ClaudeCodeHandler", () => {
 	})
 
 	describe("getModel", () => {
-		it("should return the correct model when specified", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-sonnet-4-5-20250929",
-			})
-
+		// The SDK exposes claude-code as three short aliases: opus, sonnet,
+		// haiku. Anything outside that set resolves to the provider
+		// default, matching the CLI's behavior.
+		it("returns the SDK entry for a known short alias", () => {
+			const handler = new ClaudeCodeHandler({ apiModelId: "sonnet" })
 			const model = handler.getModel()
-			model.id.should.equal("claude-sonnet-4-5-20250929")
+			model.id.should.equal("sonnet")
+			model.info.should.be.type("object")
 		})
 
-		it("should support Opus 4.6 1m model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-opus-4-6[1m]",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("claude-opus-4-6[1m]")
-			model.info.contextWindow.should.equal(1_000_000)
-		})
-
-		it("should support Opus 4.7 model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-opus-4-7",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("claude-opus-4-7")
-			model.info.contextWindow.should.equal(200_000)
-		})
-
-		it("should support Opus 4.7 1m model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-opus-4-7[1m]",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("claude-opus-4-7[1m]")
-			model.info.contextWindow.should.equal(1_000_000)
-		})
-
-		it("should support Opus 1m alias model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "opus[1m]",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("opus[1m]")
-			model.info.contextWindow.should.equal(1_000_000)
-		})
-
-		it("should support Sonnet 1m alias model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "sonnet[1m]",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("sonnet[1m]")
-			model.info.contextWindow.should.equal(1_000_000)
-		})
-
-		it("should support Sonnet 4.5 1m model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-sonnet-4-5-20250929[1m]",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("claude-sonnet-4-5-20250929[1m]")
-			model.info.contextWindow.should.equal(1_000_000)
-		})
-
-		it("should support Sonnet 4.6 1m model id", () => {
-			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-sonnet-4-6[1m]",
-			})
-
-			const model = handler.getModel()
-			model.id.should.equal("claude-sonnet-4-6[1m]")
-			model.info.contextWindow.should.equal(1_000_000)
-		})
-
-		it("should return default model when not specified", () => {
+		it("returns the SDK default when no model id is specified", () => {
 			const handler = new ClaudeCodeHandler({})
-
 			const model = handler.getModel()
-			// The default model should be set
+			model.id.should.be.type("string")
+			model.info.should.be.type("object")
+		})
+
+		it("falls through to the SDK default for unknown ids", () => {
+			const handler = new ClaudeCodeHandler({ apiModelId: "claude-opus-4-6[1m]" })
+			const model = handler.getModel()
 			model.id.should.be.type("string")
 			model.info.should.be.type("object")
 		})

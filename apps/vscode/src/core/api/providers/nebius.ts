@@ -1,4 +1,5 @@
-import { type ModelInfo, type NebiusModelId, nebiusDefaultModelId, nebiusModels } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -86,11 +87,6 @@ export class NebiusHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-
-		if (modelId !== undefined && modelId in nebiusModels) {
-			return { id: modelId, info: nebiusModels[modelId as NebiusModelId] }
-		}
-		return { id: nebiusDefaultModelId, info: nebiusModels[nebiusDefaultModelId] }
+		return getProviderModelFromSdk("nebius", this.options.apiModelId)
 	}
 }

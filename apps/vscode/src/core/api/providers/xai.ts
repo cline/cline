@@ -1,4 +1,5 @@
-import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api"
+import type { ModelInfo, XAIModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -105,14 +106,6 @@ export class XAIHandler implements ApiHandler {
 	}
 
 	getModel(): { id: XAIModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in xaiModels) {
-			const id = modelId as XAIModelId
-			return { id, info: xaiModels[id] }
-		}
-		return {
-			id: xaiDefaultModelId,
-			info: xaiModels[xaiDefaultModelId],
-		}
+		return getProviderModelFromSdk<XAIModelId>("xai", this.options.apiModelId)
 	}
 }

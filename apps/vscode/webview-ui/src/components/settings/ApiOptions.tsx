@@ -6,7 +6,7 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -99,7 +99,8 @@ const ApiOptions = ({
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const selectedProvider =
+		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
 	const { providers: catalogProviderListings } = useProviderListings()
 	const catalogProviderListing = useMemo(
 		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),

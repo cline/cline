@@ -2,9 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { MinimaxModelId, ModelInfo, minimaxDefaultModelId, minimaxModels } from "@/shared/api"
+import type { MinimaxModelId, ModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { getProviderModelFromSdk } from "@/shared/sdk-handler-models"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
@@ -197,12 +198,6 @@ export class MinimaxHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MinimaxModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-
-		if (modelId && modelId in minimaxModels) {
-			const id = modelId as MinimaxModelId
-			return { id, info: minimaxModels[id] }
-		}
-		return { id: minimaxDefaultModelId, info: minimaxModels[minimaxDefaultModelId] }
+		return getProviderModelFromSdk<MinimaxModelId>("minimax", this.options.apiModelId)
 	}
 }

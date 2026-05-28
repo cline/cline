@@ -1,7 +1,8 @@
 import { Mistral } from "@mistralai/mistralai"
 import { HTTPClient } from "@mistralai/mistralai/lib/http"
 import { Tool as MistralTool } from "@mistralai/mistralai/models/components/tool"
-import { MistralModelId, ModelInfo, mistralDefaultModelId, mistralModels } from "@shared/api"
+import type { MistralModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -118,7 +119,7 @@ export class MistralHandler implements ApiHandler {
 					}
 				}
 			} else if (delta?.content) {
-				let content: string = ""
+				let content = ""
 				if (typeof delta.content === "string") {
 					content = delta.content
 				} else if (Array.isArray(delta.content)) {
@@ -141,14 +142,6 @@ export class MistralHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MistralModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in mistralModels) {
-			const id = modelId as MistralModelId
-			return { id, info: mistralModels[id] }
-		}
-		return {
-			id: mistralDefaultModelId,
-			info: mistralModels[mistralDefaultModelId],
-		}
+		return getProviderModelFromSdk<MistralModelId>("mistral", this.options.apiModelId)
 	}
 }

@@ -187,6 +187,15 @@ export interface Disposable {
  * Drives the top-level provider picker dropdown. Does *not* include the
  * full model list; use `resolveModels` for that.
  */
+/**
+ * SDK-driven hint for how to display per-token / total cost in the UI.
+ * Mirrors `ProviderUsageCostDisplay` from `@cline/llms` and the CLI's
+ * `shouldShowCliUsageCost` consumer. When `"hide"`, downstream UIs MUST
+ * suppress per-token pricing rows (in model info cards) and total-cost
+ * lines (in task summaries / status bars).
+ */
+export type UsageCostDisplay = "show" | "hide"
+
 export interface ProviderListing {
 	readonly id: ProviderId
 	readonly name: string
@@ -203,6 +212,12 @@ export interface ProviderListing {
 	 * Anthropic, DeepSeek, Gemini → false.
 	 */
 	readonly allowsCustomModelIds: boolean
+	/**
+	 * SDK-driven hint for per-token / total cost display. See
+	 * {@link UsageCostDisplay}. Defaults to `"show"` when the SDK does not
+	 * set `metadata.usageCostDisplay`.
+	 */
+	readonly usageCostDisplay: UsageCostDisplay
 }
 
 // ---------------------------------------------------------------------------
@@ -354,6 +369,19 @@ export interface ProviderCatalog {
 	 * in-flight dedup is still honored.
 	 */
 	resolveModels(providerId: ProviderId, options?: { readonly forceRefresh?: boolean }): Promise<ProviderModelsResult>
+
+	/**
+	 * Synchronous, non-fetching peek of the catalog cache. Returns the
+	 * cached model list for the given provider's *current* effective
+	 * config fingerprint, or `undefined` if no cached entry exists. Used
+	 * by hot-path handlers (e.g. `resolveModelInfo`) that must respond
+	 * without awaiting a network or live-catalog refresh.
+	 *
+	 * Callers that need an authoritative result should `resolveModels`
+	 * instead; peek is a best-effort optimization and may return stale
+	 * data immediately after a config-change invalidation.
+	 */
+	peekModels(providerId: ProviderId): ProviderModelsResult | undefined
 
 	/**
 	 * Subscribe to model-list updates for a provider. Fires after each
