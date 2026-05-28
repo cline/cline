@@ -226,11 +226,11 @@ function resolveRuleFallbackName(
 		return "Workspace AGENTS.md";
 	}
 
-	if (basename(context.directoryPath) === ".agents") {
+	if (basename(context.directoryPath).toLowerCase() === ".agents") {
 		return "Global AGENTS.md";
 	}
 
-	return AGENTS_RULES_FILE_NAME;
+	return basename(context.filePath, extname(context.filePath));
 }
 
 export function parseSkillConfigFromMarkdown(

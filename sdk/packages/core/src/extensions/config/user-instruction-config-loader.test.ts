@@ -197,18 +197,26 @@ Escalation runbook`,
 		);
 		tempRoots.push(tempRoot);
 
-		const globalAgentsDir = join(tempRoot, "home", ".agents");
+		const globalAgentsDir = join(tempRoot, "home", ".Agents");
+		const fallbackAgentsDir = join(tempRoot, "other");
 		const workspaceRoot = join(tempRoot, "workspace");
 		await mkdir(globalAgentsDir, { recursive: true });
+		await mkdir(fallbackAgentsDir, { recursive: true });
 		await mkdir(workspaceRoot, { recursive: true });
 		const globalAgentsPath = join(globalAgentsDir, "AGENTS.md");
+		const fallbackAgentsPath = join(fallbackAgentsDir, "AGENTS.md");
 		const workspaceAgentsPath = join(workspaceRoot, "AGENTS.md");
 		await writeFile(globalAgentsPath, "Use global AGENTS rules.");
+		await writeFile(fallbackAgentsPath, "Use fallback AGENTS rules.");
 		await writeFile(workspaceAgentsPath, "Use workspace AGENTS rules.");
 
 		const watcher = createUserInstructionConfigWatcher({
 			rules: {
-				directories: [globalAgentsPath, workspaceAgentsPath],
+				directories: [
+					globalAgentsPath,
+					workspaceAgentsPath,
+					fallbackAgentsPath,
+				],
 				workspacePath: workspaceRoot,
 			},
 		});
@@ -222,6 +230,9 @@ Escalation runbook`,
 			);
 			expect(rules.get("workspace agents.md")?.item.instructions).toBe(
 				"Use workspace AGENTS rules.",
+			);
+			expect(rules.get("agents")?.item.instructions).toBe(
+				"Use fallback AGENTS rules.",
 			);
 		} finally {
 			watcher.stop();
