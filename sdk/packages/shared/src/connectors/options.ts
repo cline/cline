@@ -94,6 +94,8 @@ export type ConnectDiscordOptions = {
 	applicationId: string;
 	botToken: string;
 	publicKey: string;
+	ownerUserId?: string;
+	allowBotAuthors: boolean;
 	mentionRoleIds?: string[];
 	cwd: string;
 	model?: string;

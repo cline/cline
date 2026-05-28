@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createOpenAICompatibleProvider, createOpenAIProvider } from "./ai-sdk";
+import {
+	createOpenAICompatibleProvider,
+	createOpenAIProvider,
+	createSapAiCoreProvider,
+} from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
 import { BUILT_IN_PROVIDER_IDS, normalizeProviderId } from "./ids";
@@ -119,5 +123,21 @@ describe("provider-ids", () => {
 				createProvider: createOpenAIProvider,
 			});
 		}
+	});
+
+	it("routes SAP AI Core through the SAP AI SDK provider factory", async () => {
+		await expect(getProvider("sapaicore")).resolves.toMatchObject({
+			id: "sapaicore",
+			name: "SAP AI Core",
+			client: "ai-sdk-community",
+			defaultModelId: "anthropic--claude-3.5-sonnet",
+		});
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "sapaicore",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createSapAiCoreProvider,
+		});
 	});
 });

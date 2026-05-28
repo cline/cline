@@ -396,6 +396,26 @@ describe("ClaudeCodeHandler", () => {
 			model.info.contextWindow.should.equal(1_000_000)
 		})
 
+		it("should support Opus 4.8 model id", () => {
+			const handler = new ClaudeCodeHandler({
+				apiModelId: "claude-opus-4-8",
+			})
+
+			const model = handler.getModel()
+			model.id.should.equal("claude-opus-4-8")
+			model.info.contextWindow.should.equal(200_000)
+		})
+
+		it("should support Opus 4.8 1m model id", () => {
+			const handler = new ClaudeCodeHandler({
+				apiModelId: "claude-opus-4-8[1m]",
+			})
+
+			const model = handler.getModel()
+			model.id.should.equal("claude-opus-4-8[1m]")
+			model.info.contextWindow.should.equal(1_000_000)
+		})
+
 		it("should support Opus 1m alias model id", () => {
 			const handler = new ClaudeCodeHandler({
 				apiModelId: "opus[1m]",

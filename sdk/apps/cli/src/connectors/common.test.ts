@@ -1,7 +1,11 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { __test__, readSessionReplyText } from "./common";
+import {
+	__test__,
+	readSessionMessageCount,
+	readSessionReplyText,
+} from "./common";
 
 describe("spawnDetachedConnector", () => {
 	it("preserves the connect subcommand when building detached connector args", () => {
@@ -106,5 +110,64 @@ describe("readSessionReplyText", () => {
 		await expect(
 			readSessionReplyText(client as never, "session-1"),
 		).resolves.toBe("latest reply");
+	});
+
+	it("can restrict fallback replies to messages after a known boundary", async () => {
+		const client = {
+			readMessages: async () => [
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "previous reply" }],
+				},
+				{
+					role: "user",
+					content: [{ type: "text", text: "next question" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "current reply" }],
+				},
+			],
+		};
+
+		await expect(
+			readSessionReplyText(client as never, "session-1", {
+				minMessageIndex: 1,
+			}),
+		).resolves.toBe("current reply");
+	});
+
+	it("does not read prior assistant replies before the boundary", async () => {
+		const client = {
+			readMessages: async () => [
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "previous reply" }],
+				},
+				{
+					role: "user",
+					content: [{ type: "text", text: "next question" }],
+				},
+			],
+		};
+
+		await expect(
+			readSessionReplyText(client as never, "session-1", {
+				minMessageIndex: 1,
+			}),
+		).resolves.toBeUndefined();
+	});
+
+	it("reads the session message count through the hub session client", async () => {
+		const client = {
+			readMessages: async () => [
+				{ role: "user", content: "one" },
+				{ role: "assistant", content: "two" },
+			],
+		};
+
+		await expect(
+			readSessionMessageCount(client as never, "session-1"),
+		).resolves.toBe(2);
 	});
 });

@@ -296,6 +296,29 @@ export const anthropicModels = {
 		description:
 			"Anthropic fast mode preview for Claude Opus 4.6 with the 1M context beta enabled. Same model and capabilities with higher output token speed at premium pricing across the full 1M context window. Requires both fast mode and 1M context access on your Anthropic account.",
 	},
+	"claude-opus-4-8": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"claude-opus-4-8:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -422,13 +445,13 @@ export const claudeCodeModels = {
 		supportsPromptCache: false,
 	},
 	opus: {
-		...anthropicModels["claude-opus-4-7"],
+		...anthropicModels["claude-opus-4-8"],
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
 	"opus[1m]": {
-		...anthropicModels["claude-opus-4-7:1m"],
+		...anthropicModels["claude-opus-4-8:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -469,6 +492,17 @@ export const claudeCodeModels = {
 	},
 	"claude-opus-4-6[1m]": {
 		...anthropicModels["claude-opus-4-6:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-8": {
+		...anthropicModels["claude-opus-4-8"],
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-8[1m]": {
+		...anthropicModels["claude-opus-4-8:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -615,6 +649,31 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.5,
 	},
 	"anthropic.claude-opus-4-6-v1:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"anthropic.claude-opus-4-8": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"anthropic.claude-opus-4-8:1m": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -863,6 +922,7 @@ export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${C
 export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus471mModelId = `anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeOpus481mModelId = `anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
 	contextWindow: 200_000,
@@ -1111,6 +1171,31 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-opus-4-6:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-opus-4-8": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+	},
+	"claude-opus-4-8:1m": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -4674,6 +4759,16 @@ export const sapAiCoreModels = {
 // Moonshot AI Studio
 // https://platform.moonshot.ai/docs/pricing/chat
 export const moonshotModels = {
+	"kimi-k2.6": {
+		maxTokens: 32_000,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.95,
+		outputPrice: 4.0,
+		cacheReadsPrice: 0.16,
+		temperature: 1.0,
+	},
 	"kimi-k2.5": {
 		maxTokens: 32_000,
 		contextWindow: 262_144,

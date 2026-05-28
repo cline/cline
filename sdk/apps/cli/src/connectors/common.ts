@@ -327,15 +327,31 @@ function extractMessageReplyText(message: unknown): string | undefined {
 export async function readSessionReplyText(
 	client: HubSessionClient,
 	sessionId: string,
+	options: { minMessageIndex?: number } = {},
 ): Promise<string | undefined> {
 	try {
 		const messages = await client.readMessages(sessionId);
-		for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const minMessageIndex = Math.max(0, options.minMessageIndex ?? 0);
+		for (
+			let index = messages.length - 1;
+			index >= minMessageIndex;
+			index -= 1
+		) {
 			const text = extractMessageReplyText(messages[index]);
 			if (text) {
 				return text;
 			}
 		}
+	} catch {}
+	return undefined;
+}
+
+export async function readSessionMessageCount(
+	client: HubSessionClient,
+	sessionId: string,
+): Promise<number | undefined> {
+	try {
+		return (await client.readMessages(sessionId)).length;
 	} catch {}
 	return undefined;
 }

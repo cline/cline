@@ -142,6 +142,7 @@ describe("provider readiness", () => {
 		expect(
 			isProviderSettingsUsable("sapaicore", {
 				provider: "sapaicore",
+				baseUrl: "https://api.ai.example.invalid",
 				sap: {
 					clientId: "client",
 					clientSecret: "secret",
@@ -149,5 +150,15 @@ describe("provider readiness", () => {
 				},
 			} satisfies ProviderSettings),
 		).toBe(true);
+		expect(
+			isProviderSettingsUsable("sapaicore", {
+				provider: "sapaicore",
+				sap: {
+					clientId: "client",
+					clientSecret: "secret",
+					tokenUrl: "https://example.com/token",
+				},
+			} satisfies ProviderSettings),
+		).toBe(false);
 	});
 });
