@@ -7,7 +7,9 @@ import {
 	gaugesInViewPayloadSchema,
 	hucAtPointPayloadSchema,
 	hydroCommandSchema,
+	meritCatchmentLayersPayloadSchema,
 	meritEnsureBasinPayloadSchema,
+	meritEnsureBasinsRegionPayloadSchema,
 	meritEnsureRegionPayloadSchema,
 	meritLayersPayloadSchema,
 	searchHydrologyPayloadSchema,
@@ -52,6 +54,23 @@ export async function handleHydroMapCommand(
 				})
 				break
 			}
+			case "meritEnsureBasinsRegion": {
+				const p = meritEnsureBasinsRegionPayloadSchema.parse(payload ?? {})
+				const result = await MapHydrologyService.meritEnsureBasinsRegion({
+					pfaf: p.pfaf,
+					lat: p.lat,
+					lon: p.lon,
+					download: p.download === true,
+				})
+				await postMessage({
+					type: "aihydro-hydro-result",
+					requestId,
+					ok: result.ok,
+					message: result.message,
+					result,
+				})
+				break
+			}
 			case "meritEnsureRegion": {
 				const p = meritEnsureRegionPayloadSchema.parse(payload ?? {})
 				const result = await MapHydrologyService.meritEnsureRegion(p.preset, p.lat, p.lon, p.download !== false)
@@ -74,7 +93,34 @@ export async function handleHydroMapCommand(
 					maxLon: p.maxLon,
 					maxLat: p.maxLat,
 					includeCatchments: p.includeCatchments,
+					includeRivers: p.includeRivers,
 					includeLevel2: p.includeLevel2,
+				})
+				if (result.ok && result.layers?.length) {
+					for (const spec of result.layers) {
+						controller.addMapLayer(buildMeritMapLayer(spec))
+					}
+				}
+				await postMessage({
+					type: "aihydro-hydro-result",
+					requestId,
+					ok: result.ok,
+					message: result.message,
+					result,
+				})
+				break
+			}
+			case "meritCatchmentLayers": {
+				const p = meritCatchmentLayersPayloadSchema.parse(payload ?? {})
+				const result = await MapHydrologyService.meritCatchmentLayers({
+					lat: p.lat,
+					lon: p.lon,
+					minLon: p.minLon,
+					minLat: p.minLat,
+					maxLon: p.maxLon,
+					maxLat: p.maxLat,
+					pfaf: p.pfaf,
+					download: p.download !== false,
 				})
 				if (result.ok && result.layers?.length) {
 					for (const spec of result.layers) {

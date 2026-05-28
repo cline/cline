@@ -16,7 +16,7 @@
 
 import { StringRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
-import { AddMapLayerRequest, RemoveMapLayerRequest } from "@shared/proto/cline/map"
+import { AddMapLayerRequest, RemoveMapLayerRequest, SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { FileServiceClient, MapServiceClient } from "../../services/grpc-client"
@@ -192,6 +192,24 @@ const exportLayer = (layer: MapLayer, displayName: string) => {
 	URL.revokeObjectURL(url)
 }
 
+const saveLayerToWorkspace = async (layer: MapLayer, displayName: string): Promise<string> => {
+	if (!layer.geojson) {
+		throw new Error("Layer has no vector geometry to save.")
+	}
+	const safeName = displayName.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/^_+|_+$/g, "") || "map_layer"
+	const res = await MapServiceClient.saveRoiToWorkspace(
+		SaveRoiToWorkspaceRequest.create({
+			name: safeName,
+			roi: {
+				name: displayName,
+				source: "map_layer",
+				geojson: layer.geojson,
+			},
+		}),
+	)
+	return res.workspacePath
+}
+
 // ─── component ──────────────────────────────────────────────────────────────
 
 export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
@@ -220,6 +238,7 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 	const [symbologyMode, setSymbologyMode] = useState<"basic" | "graduated">("basic")
 	const [confirmingClear, setConfirmingClear] = useState(false)
 	const [loadStatus, setLoadStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
+	const [savingLayerId, setSavingLayerId] = useState<string | null>(null)
 
 	// Drag-to-reorder rows
 	const rowDragRef = useRef<{ dragId: string; overIndex: number } | null>(null)
@@ -271,6 +290,19 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 		} catch (err) {
 			console.error("[LayerPanel] Failed to save layer name:", err)
 			setLayerAliases((prev) => ({ ...prev, [layerId]: trimmed }))
+		}
+	}
+
+	const handleSaveLayerToWorkspace = async (layer: MapLayer, displayName: string) => {
+		setSavingLayerId(layer.id)
+		try {
+			const workspacePath = await saveLayerToWorkspace(layer, displayName)
+			setLoadStatus({ kind: "ok", msg: `Saved ${workspacePath}` })
+			window.setTimeout(() => setLoadStatus({ kind: "idle", msg: "" }), 3500)
+		} catch (err) {
+			setLoadStatus({ kind: "err", msg: err instanceof Error ? err.message : "Save failed" })
+		} finally {
+			setSavingLayerId(null)
 		}
 	}
 
@@ -729,6 +761,16 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 											onClick={() => setAttrTableFor(attrOpen ? null : layer.id)}
 											title="Attribute table">
 											📊
+										</IconBtn>
+									)}
+									{!isRaster && layer.metadata?.source !== "workspace" && (
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => void handleSaveLayerToWorkspace(layer, displayName)}
+											style={{ opacity: savingLayerId === layer.id ? 0.5 : 1 }}
+											title="Save to workspace vectors">
+											{savingLayerId === layer.id ? "…" : "📁"}
 										</IconBtn>
 									)}
 									{!isRaster && layer.metadata?.source !== "workspace" && (

@@ -29,6 +29,19 @@ import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
 
 export type RibbonTool = "basemap" | "layers" | "hydrography" | "search" | "measure" | "draw" | "export" | null
 
+const TOOL_PANEL_SIZE: Record<
+	Exclude<RibbonTool, null>,
+	{ width: number; height: number; minWidth: number; minHeight: number; maxWidth: number; maxHeightRatio: number }
+> = {
+	basemap: { width: 300, height: 420, minWidth: 240, minHeight: 240, maxWidth: 420, maxHeightRatio: 0.78 },
+	layers: { width: 340, height: 500, minWidth: 280, minHeight: 280, maxWidth: 520, maxHeightRatio: 0.85 },
+	hydrography: { width: 380, height: 560, minWidth: 320, minHeight: 340, maxWidth: 560, maxHeightRatio: 0.85 },
+	search: { width: 360, height: 170, minWidth: 300, minHeight: 118, maxWidth: 480, maxHeightRatio: 0.45 },
+	measure: { width: 280, height: 250, minWidth: 240, minHeight: 180, maxWidth: 380, maxHeightRatio: 0.55 },
+	draw: { width: 300, height: 310, minWidth: 250, minHeight: 220, maxWidth: 420, maxHeightRatio: 0.62 },
+	export: { width: 620, height: 540, minWidth: 460, minHeight: 360, maxWidth: 980, maxHeightRatio: 0.88 },
+}
+
 interface MapToolRibbonProps {
 	mapStyle: "dark" | "light"
 	currentBasemap: string
@@ -56,6 +69,7 @@ interface MapToolRibbonProps {
 	onShowAllLayers?: () => void
 	onHideAllLayers?: () => void
 	viewState?: MapViewState
+	layers?: MapLayer[]
 	/** Search UI rendered inside the Search ribbon panel */
 	searchPanel?: React.ReactNode
 }
@@ -87,6 +101,7 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	onShowAllLayers,
 	onHideAllLayers,
 	viewState,
+	layers,
 	searchPanel,
 }) => {
 	const persisted = loadMapWorkspace()
@@ -100,6 +115,9 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 
 	useEffect(() => {
 		if (searchOpen && active !== "search") {
+			const size = TOOL_PANEL_SIZE.search
+			setPanelWidth(size.width)
+			setPanelHeight(size.height)
 			setActive("search")
 		}
 	}, [searchOpen, active])
@@ -111,14 +129,46 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	const subtle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"
 	const accent = "var(--vscode-button-background, #0e639c)"
 
-	const toggle = (tool: RibbonTool) => setActive((cur) => (cur === tool ? null : tool))
+	const clampPanelWidth = (width: number, tool: RibbonTool = active) => {
+		const size = tool ? TOOL_PANEL_SIZE[tool] : TOOL_PANEL_SIZE.layers
+		const max = Math.min(size.maxWidth, Math.max(size.minWidth, window.innerWidth - 120))
+		const min = Math.min(size.minWidth, max)
+		return Math.max(min, Math.min(max, width))
+	}
+
+	const clampPanelHeight = (height: number, tool: RibbonTool = active) => {
+		const size = tool ? TOOL_PANEL_SIZE[tool] : TOOL_PANEL_SIZE.layers
+		const max = Math.min(
+			Math.round(window.innerHeight * size.maxHeightRatio),
+			Math.max(size.minHeight, window.innerHeight - 48),
+		)
+		const min = Math.min(size.minHeight, max)
+		return Math.max(min, Math.min(max, height))
+	}
+
+	const applyToolSize = (tool: Exclude<RibbonTool, null>) => {
+		const size = TOOL_PANEL_SIZE[tool]
+		setPanelWidth(clampPanelWidth(size.width, tool))
+		setPanelHeight(clampPanelHeight(size.height, tool))
+	}
+
+	const toggle = (tool: RibbonTool) =>
+		setActive((cur) => {
+			if (cur === tool) {
+				return null
+			}
+			if (tool) {
+				applyToolSize(tool)
+			}
+			return tool
+		})
 
 	const onResizeWidthStart = (e: React.MouseEvent) => {
 		e.preventDefault()
 		const startX = e.clientX
 		const startW = panelWidth
 		const onMove = (ev: MouseEvent) => {
-			const next = Math.max(220, Math.min(520, startW + (startX - ev.clientX)))
+			const next = clampPanelWidth(startW + (startX - ev.clientX))
 			setPanelWidth(next)
 		}
 		const onUp = () => {
@@ -134,7 +184,7 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 		const startY = e.clientY
 		const startH = panelHeight
 		const onMove = (ev: MouseEvent) => {
-			const next = Math.max(200, Math.min(Math.round(window.innerHeight * 0.85), startH + (ev.clientY - startY)))
+			const next = clampPanelHeight(startH + (ev.clientY - startY))
 			setPanelHeight(next)
 		}
 		const onUp = () => {
@@ -175,9 +225,11 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 						top: 10,
 						right: 52,
 						zIndex: 4,
-						width: panelWidth,
-						height: panelHeight,
-						maxHeight: "min(85vh, 720px)",
+						width: clampPanelWidth(panelWidth, active),
+						height: clampPanelHeight(panelHeight, active),
+						minWidth: active ? TOOL_PANEL_SIZE[active].minWidth : 220,
+						maxWidth: active ? TOOL_PANEL_SIZE[active].maxWidth : 520,
+						maxHeight: active ? `${Math.round(TOOL_PANEL_SIZE[active].maxHeightRatio * 100)}vh` : "85vh",
 						background: bg,
 						color: fg,
 						border: `1px solid ${border}`,
@@ -199,11 +251,12 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 							left: 0,
 							top: 0,
 							bottom: 0,
-							width: 4,
+							width: active === "export" ? 9 : 4,
 							cursor: "ew-resize",
 							zIndex: 1,
+							background: active === "export" ? "rgba(255,255,255,0.08)" : "transparent",
 						}}
-						title="Drag to resize"
+						title="Drag left edge to resize"
 					/>
 
 					{/* Panel header */}
@@ -251,6 +304,11 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 														? "Export"
 														: ""}
 						</span>
+						{active === "export" && (
+							<span style={{ fontSize: 10, opacity: 0.68, marginRight: 8 }}>
+								Drag left or bottom edge to resize
+							</span>
+						)}
 						<button
 							aria-label="Close panel"
 							onClick={closePanel}
@@ -280,11 +338,12 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 							left: 0,
 							right: 0,
 							bottom: 0,
-							height: 5,
+							height: active === "export" ? 9 : 5,
 							cursor: "ns-resize",
 							zIndex: 1,
+							background: active === "export" ? "rgba(255,255,255,0.08)" : "transparent",
 						}}
-						title="Drag to resize height"
+						title="Drag bottom edge to resize height"
 					/>
 
 					{/* Panel content — scrollable */}
@@ -313,16 +372,7 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 								visibleLayerIds={visibleLayerIds}
 							/>
 						)}
-						{active === "search" && (
-							<div style={{ padding: 10 }}>
-								<p style={{ fontSize: 11, opacity: 0.75, margin: "0 0 10px", lineHeight: 1.5 }}>
-									Search and pan to a location. Gauges, dams, and layers in view are under{" "}
-									<strong>Reference vectors</strong>. Coordinates:{" "}
-									<code style={{ fontSize: 10 }}>40.45,-86.85</code>
-								</p>
-								{searchPanel}
-							</div>
-						)}
+						{active === "search" && <div style={{ padding: 8 }}>{searchPanel}</div>}
 						{active === "measure" && (
 							<div style={{ padding: 10 }}>
 								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
@@ -438,7 +488,14 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 						{active === "hydrography" && viewState && <HydrographyPanel mapStyle={mapStyle} viewState={viewState} />}
 						{active === "export" && (
 							<div style={{ padding: 10 }}>
-								<MapExport mapStyle={mapStyle} onClose={() => toggle("export")} />
+								<MapExport
+									currentBasemap={currentBasemap}
+									layers={layers}
+									mapStyle={mapStyle}
+									onClose={() => toggle("export")}
+									viewState={viewState}
+									visibleLayerIds={visibleLayerIds}
+								/>
 							</div>
 						)}
 					</div>

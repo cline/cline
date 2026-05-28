@@ -7,6 +7,7 @@ import type {
 	DelineatePointResult,
 	HucAtPointResult,
 	MeritEnsureBasinResult,
+	MeritEnsureBasinsRegionResult,
 	MeritEnsureRegionResult,
 	MeritLayersResult,
 	MeritPresetsResult,
@@ -175,6 +176,28 @@ export class MapHydrologyService {
 		return { ok: false, type: "merit_ensure_region", message: run.error || "merit_ensure_region failed" }
 	}
 
+	static async meritEnsureBasinsRegion(params: {
+		pfaf?: string
+		lat?: number
+		lon?: number
+		download?: boolean
+	}): Promise<MeritEnsureBasinsRegionResult> {
+		const args = ["merit-ensure-basins-region"]
+		if (params.pfaf) args.push("--pfaf", params.pfaf)
+		if (params.lat !== undefined) args.push("--lat", String(params.lat))
+		if (params.lon !== undefined) args.push("--lon", String(params.lon))
+		if (params.download) args.push("--download")
+		const run = await MapHydrologyService.runHydroCli(args, 900_000)
+		if (run.result) {
+			return run.result as unknown as MeritEnsureBasinsRegionResult
+		}
+		return {
+			ok: false,
+			type: "merit_ensure_basins_region",
+			message: run.error || "merit_ensure_basins_region failed",
+		}
+	}
+
 	static async meritLayers(params: {
 		lat: number
 		lon: number
@@ -183,6 +206,7 @@ export class MapHydrologyService {
 		maxLon?: number
 		maxLat?: number
 		includeCatchments?: boolean
+		includeRivers?: boolean
 		/** Level-2 Pfaf index polygons (lookup only; not needed for map display). Default false. */
 		includeLevel2?: boolean
 	}): Promise<MeritLayersResult> {
@@ -192,12 +216,37 @@ export class MapHydrologyService {
 		if (params.maxLon !== undefined) args.push("--max-lon", String(params.maxLon))
 		if (params.maxLat !== undefined) args.push("--max-lat", String(params.maxLat))
 		if (params.includeCatchments) args.push("--catchments")
+		if (params.includeRivers === false) args.push("--no-rivers")
 		if (params.includeLevel2 !== true) args.push("--no-level2")
 		const run = await MapHydrologyService.runHydroCli(args, 120_000)
 		if (run.result) {
 			return run.result as unknown as MeritLayersResult
 		}
 		return { ok: false, type: "merit_layers", message: run.error || "merit_layers failed" }
+	}
+
+	static async meritCatchmentLayers(params: {
+		lat: number
+		lon: number
+		minLon?: number
+		minLat?: number
+		maxLon?: number
+		maxLat?: number
+		pfaf?: string
+		download?: boolean
+	}): Promise<MeritLayersResult> {
+		const args = ["merit-catchment-layers", "--lat", String(params.lat), "--lon", String(params.lon)]
+		if (params.minLon !== undefined) args.push("--min-lon", String(params.minLon))
+		if (params.minLat !== undefined) args.push("--min-lat", String(params.minLat))
+		if (params.maxLon !== undefined) args.push("--max-lon", String(params.maxLon))
+		if (params.maxLat !== undefined) args.push("--max-lat", String(params.maxLat))
+		if (params.pfaf) args.push("--pfaf", params.pfaf)
+		if (params.download === false) args.push("--no-download")
+		const run = await MapHydrologyService.runHydroCli(args, 900_000)
+		if (run.result) {
+			return run.result as unknown as MeritLayersResult
+		}
+		return { ok: false, type: "merit_catchment_layers", message: run.error || "merit_catchment_layers failed" }
 	}
 
 	static async wbdLayers(params: {
@@ -332,13 +381,18 @@ export class MapHydrologyService {
 			String(params.lat),
 			"--lon",
 			String(params.lon),
-			"--session-id",
-			params.sessionId || "map",
 			"--method",
 			params.method || "auto",
 			"--workspace-dir",
 			workspaceDir,
 		]
+		// Wave 3 Axis 3: omit --session-id entirely when not provided so the
+		// Python CLI generates a coordinate-based slug (e.g. basin_26p9_78p1)
+		// rather than hardcoding the legacy "map" placeholder that collides
+		// across chats.
+		if (params.sessionId) {
+			args.splice(2, 0, "--session-id", params.sessionId)
+		}
 		if (params.expectedAreaKm2 !== undefined) {
 			args.push("--expected-area-km2", String(params.expectedAreaKm2))
 		}

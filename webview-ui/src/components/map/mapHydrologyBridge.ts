@@ -2,8 +2,10 @@ import { PLATFORM_CONFIG } from "../../config/platform.config"
 
 export type HydroMapCommand =
 	| "meritEnsureBasin"
+	| "meritEnsureBasinsRegion"
 	| "meritEnsureRegion"
 	| "meritLayers"
+	| "meritCatchmentLayers"
 	| "wbdLayers"
 	| "hucAtPoint"
 	| "searchHydrology"
@@ -16,12 +18,14 @@ export interface HydroCommandPayload {
 	lat?: number
 	lon?: number
 	preset?: string
+	pfaf?: string
 	download?: boolean
 	minLon?: number
 	minLat?: number
 	maxLon?: number
 	maxLat?: number
 	includeCatchments?: boolean
+	includeRivers?: boolean
 	hucLevel?: number
 	q?: string
 	limit?: number

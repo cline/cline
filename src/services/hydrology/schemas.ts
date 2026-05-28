@@ -5,8 +5,10 @@ export const hydroCommandSchema = z.object({
 	requestId: z.string(),
 	command: z.enum([
 		"meritEnsureBasin",
+		"meritEnsureBasinsRegion",
 		"meritEnsureRegion",
 		"meritLayers",
+		"meritCatchmentLayers",
 		"wbdLayers",
 		"hucAtPoint",
 		"searchHydrology",
@@ -31,6 +33,13 @@ export const meritEnsureRegionPayloadSchema = z.object({
 	download: z.boolean().optional(),
 })
 
+export const meritEnsureBasinsRegionPayloadSchema = z.object({
+	pfaf: z.string().optional(),
+	lat: z.number().optional(),
+	lon: z.number().optional(),
+	download: z.boolean().optional(),
+})
+
 export const meritLayersPayloadSchema = z.object({
 	lat: z.number(),
 	lon: z.number(),
@@ -39,7 +48,19 @@ export const meritLayersPayloadSchema = z.object({
 	maxLon: z.number().optional(),
 	maxLat: z.number().optional(),
 	includeCatchments: z.boolean().optional(),
+	includeRivers: z.boolean().optional(),
 	includeLevel2: z.boolean().optional(),
+})
+
+export const meritCatchmentLayersPayloadSchema = z.object({
+	lat: z.number(),
+	lon: z.number(),
+	minLon: z.number().optional(),
+	minLat: z.number().optional(),
+	maxLon: z.number().optional(),
+	maxLat: z.number().optional(),
+	pfaf: z.string().optional(),
+	download: z.boolean().optional(),
 })
 
 export const wbdLayersPayloadSchema = z.object({

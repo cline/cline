@@ -11,7 +11,41 @@ import { HostProvider } from "@/hosts/host-provider"
 
 const SERVER_NAME = "ai-hydro"
 const CACHE_DIR = path.join(os.homedir(), ".aihydro", "cache")
+const ACTIVE_WORKSPACE_FILE = path.join(os.homedir(), ".aihydro", "active_workspace.json")
 const PIP_COMMAND = "pip install aihydro-tools"
+
+/**
+ * Write the current VS Code workspace root to ~/.aihydro/active_workspace.json.
+ *
+ * The Python MCP server reads this file in _maybe_set_workspace() so that
+ * session.workspace_dir is populated even without per-call _workspace injection.
+ * Called on activation and whenever workspace folders change.
+ */
+async function writeActiveWorkspace(): Promise<void> {
+	try {
+		// Use HostProvider abstraction to satisfy the no-direct-vscode lint rule.
+		const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
+		const primaryPath = workspacePaths.paths?.[0]
+		if (!primaryPath) {
+			return
+		}
+		const content = JSON.stringify({ workspace: primaryPath, updated_at: new Date().toISOString() }, null, 2)
+		await fs.mkdir(path.dirname(ACTIVE_WORKSPACE_FILE), { recursive: true })
+		await fs.writeFile(ACTIVE_WORKSPACE_FILE, content, "utf-8")
+	} catch {
+		// Non-fatal — MCP per-call injection is still the primary path
+	}
+}
+
+/**
+ * Write the active workspace on extension activation and keep it updated
+ * whenever workspace folders change.  Returns a disposable to push onto
+ * context.subscriptions.
+ */
+export async function setupActiveWorkspaceTracking(context: vscode.ExtensionContext): Promise<void> {
+	await writeActiveWorkspace()
+	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => writeActiveWorkspace()))
+}
 
 /**
  * Return candidate paths where pip may have installed `aihydro-mcp`.

@@ -1,3 +1,5 @@
+import * as os from "node:os"
+import * as path from "node:path"
 import type { Controller } from "@core/controller"
 import { handleMapAgentTaskMessage } from "@core/map/handleMapAgentTask"
 import * as vscode from "vscode"
@@ -7,6 +9,16 @@ import { buildGeeMapLayer } from "@/services/gee/mapMessageHandler"
 import { geeCommandSchema, geePreviewChirpsPayloadSchema, geeStatusPayloadSchema } from "@/services/gee/schemas"
 import type { GeeProjectInfo, GeeStatusResult } from "@/services/gee/types"
 import { handleHydroMapCommand } from "@/services/hydrology/handleHydroMapCommand"
+
+function expandHomePath(filePath: string): string {
+	if (filePath === "~") {
+		return os.homedir()
+	}
+	if (filePath.startsWith("~/")) {
+		return path.join(os.homedir(), filePath.slice(2))
+	}
+	return filePath
+}
 
 function geeNeedsProject(result: GeeStatusResult): boolean {
 	const text = `${result.message ?? ""}\n${result.error ?? ""}`.toLowerCase()
@@ -105,7 +117,8 @@ export class VscodeMapPanelProvider {
 	/**
 	 * Send raw file bytes to the map webview for client-side parsing.
 	 * Opens the panel first if it's not already visible.
-	 * Called by the "Add to AI-Hydro Map" explorer context menu command.
+	 * Kept for small legacy callers. Prefer sendFileUrisToMap for workspace files,
+	 * especially binary rasters, to avoid JSON-serializing large byte arrays.
 	 */
 	public static async sendFilesToMap(files: Array<{ name: string; data: Uint8Array }>): Promise<void> {
 		await VscodeMapPanelProvider.createOrShow()
@@ -125,6 +138,48 @@ export class VscodeMapPanelProvider {
 		}
 	}
 
+	/**
+	 * Send file references to the map webview. The webview fetches each URI as
+	 * a Blob and parses it client-side, avoiding the huge number[] payload that
+	 * can crash VS Code/webview when loading GeoTIFFs from the file prompt.
+	 */
+	public static async sendFileUrisToMap(uris: vscode.Uri[]): Promise<void> {
+		await VscodeMapPanelProvider.createOrShow()
+		const panel = VscodeMapPanelProvider.currentPanel
+		if (!panel) {
+			return
+		}
+		VscodeMapPanelProvider.allowLocalFileRoots(
+			panel,
+			uris.map((uri) => vscode.Uri.file(path.dirname(uri.fsPath))),
+		)
+		await new Promise((resolve) => setTimeout(resolve, 400))
+		for (const uri of uris) {
+			await panel.webview.postMessage({
+				type: "aihydro-load-file-uri",
+				name: path.basename(uri.fsPath),
+				uri: panel.webview.asWebviewUri(uri).toString(),
+			})
+		}
+	}
+
+	private static allowLocalFileRoots(panel: vscode.WebviewPanel, roots: vscode.Uri[]): void {
+		const existing = panel.webview.options.localResourceRoots ?? []
+		const next = [...existing]
+		const seen = new Set(existing.map((uri) => uri.toString()))
+		for (const root of roots) {
+			const key = root.toString()
+			if (!seen.has(key)) {
+				seen.add(key)
+				next.push(root)
+			}
+		}
+		panel.webview.options = {
+			...panel.webview.options,
+			localResourceRoots: next,
+		}
+	}
+
 	public static async createOrShow() {
 		if (!VscodeMapPanelProvider.context) {
 			console.warn("[VscodeMapPanelProvider] Not yet initialized — cannot open map panel")
@@ -140,10 +195,14 @@ export class VscodeMapPanelProvider {
 		}
 
 		// Otherwise, create a new panel
+		const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? []
 		const panel = vscode.window.createWebviewPanel("aihydroMapView", "AI-Hydro Map", column, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
-			localResourceRoots: [vscode.Uri.joinPath(VscodeMapPanelProvider.context.extensionUri, "webview-ui", "build")],
+			localResourceRoots: [
+				vscode.Uri.joinPath(VscodeMapPanelProvider.context.extensionUri, "webview-ui", "build"),
+				...workspaceRoots,
+			],
 		})
 
 		VscodeMapPanelProvider.currentPanel = panel
@@ -216,6 +275,32 @@ export class VscodeMapPanelProvider {
 						if (mainWebview?.controller) {
 							await handleMapAgentTaskMessage(mainWebview.controller, message, async (response) => {
 								await postMessageToWebview(response)
+							})
+						}
+						break
+					}
+					case "aihydro-resolve-file-uri": {
+						const requestId = message.requestId
+						const filePath = typeof message.path === "string" ? expandHomePath(message.path) : ""
+						try {
+							if (!filePath) {
+								throw new Error("Missing file path")
+							}
+							const uri = vscode.Uri.file(filePath)
+							VscodeMapPanelProvider.allowLocalFileRoots(panel, [vscode.Uri.file(path.dirname(uri.fsPath))])
+							await panel.webview.postMessage({
+								type: "aihydro-resolve-file-uri-result",
+								requestId,
+								ok: true,
+								name: path.basename(uri.fsPath),
+								uri: panel.webview.asWebviewUri(uri).toString(),
+							})
+						} catch (err) {
+							await panel.webview.postMessage({
+								type: "aihydro-resolve-file-uri-result",
+								requestId,
+								ok: false,
+								error: err instanceof Error ? err.message : String(err),
 							})
 						}
 						break

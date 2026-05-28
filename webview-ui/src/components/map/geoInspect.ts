@@ -133,8 +133,8 @@ export function collectFeaturesAtPoint(
 	isVectorLayer: (layer: { geojson: string; layerType: string }) => boolean,
 	lon: number,
 	lat: number,
-): Array<{ layerId: string; layerName: string; properties: Record<string, unknown> }> {
-	const clicked: Array<{ layerId: string; layerName: string; properties: Record<string, unknown> }> = []
+): Array<{ layerId: string; layerName: string; properties: Record<string, unknown>; geometry?: unknown }> {
+	const clicked: Array<{ layerId: string; layerName: string; properties: Record<string, unknown>; geometry?: unknown }> = []
 
 	for (const layer of layers) {
 		if (!visibleLayerIds.has(layer.id) || !isVectorLayer(layer as { geojson: string; layerType: string })) {
@@ -148,6 +148,7 @@ export function collectFeaturesAtPoint(
 						layerId: layer.id,
 						layerName: layer.name,
 						properties: (feature.properties as Record<string, unknown>) || {},
+						geometry: feature.geometry,
 					})
 				}
 			}

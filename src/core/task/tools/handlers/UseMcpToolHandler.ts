@@ -1,6 +1,7 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { AiHydroAsk, AiHydroAskUseMcpServer } from "@shared/ExtensionMessage"
+import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { AiHydroDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -129,8 +130,33 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
 			}
 
+			// Wave 3 Axis 3 + Design A: inject _chat_id + _workspace into every
+			// ai-hydro MCP tool call so the Python session resolver can bind this
+			// chat ↔ study and auto-set workspace_dir for file outputs.
+			// Both fields are stripped server-side before reaching any tool parameter;
+			// they never appear in tool schemas or LLM context.
+			let argsWithChatId = parsedArguments
+			if (server_name === "ai-hydro" && config.ulid) {
+				// Workspace: use HostProvider abstraction (VS Code workspace folder
+				// visible in the Explorer), fall back to the task cwd.
+				let workspaceRoot: string | undefined = config.cwd
+				try {
+					const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
+					if (workspacePaths.paths && workspacePaths.paths.length > 0) {
+						workspaceRoot = workspacePaths.paths[0]
+					}
+				} catch {
+					// HostProvider unavailable (test env, non-VS Code host) — keep cwd
+				}
+				argsWithChatId = {
+					...(parsedArguments ?? {}),
+					_chat_id: config.ulid,
+					...(workspaceRoot ? { _workspace: workspaceRoot } : {}),
+				}
+			}
+
 			// Execute the MCP tool
-			const toolResult = await config.services.mcpHub.callTool(server_name, tool_name, parsedArguments, config.ulid)
+			const toolResult = await config.services.mcpHub.callTool(server_name, tool_name, argsWithChatId, config.ulid)
 
 			// Check for any pending notifications after the tool call
 			const notificationsAfter = config.services.mcpHub.getPendingNotifications()

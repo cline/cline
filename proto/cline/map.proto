@@ -100,6 +100,7 @@ message SetActiveRoiRequest {
 message SaveRoiToWorkspaceRequest {
     string name = 1;       // slug for roi/<name>.geojson
     MapRoi roi = 2;        // uses active roi when omitted
+    string format = 3;     // geojson | shapefile
 }
 
 message SaveRoiToWorkspaceResponse {
@@ -125,6 +126,48 @@ message GetRecentMapEventsRequest {
 
 message MapEventsResponse {
     repeated MapEvent events = 1;
+}
+
+message PrepareMapExportRequest {
+    string export_id = 1;
+    string suggested_filename = 2;
+    repeated string formats = 3; // png | pdf
+}
+
+message PrepareMapExportResponse {
+    bool accepted = 1;
+    string base_path = 2; // absolute path without extension
+    string message = 3;
+}
+
+message MapExportArtifact {
+    string format = 1;      // png | pdf
+    string filename = 2;
+    string mime_type = 3;
+    // ProtoBus currently serializes webview messages as JSON, so browser-side
+    // binary bytes must cross the bridge as base64 instead of Node Buffer bytes.
+    string data_base64 = 4;
+}
+
+message MapExportOutput {
+    string format = 1;      // png | pdf | provenance
+    string uri = 2;
+    string filename = 3;
+    string sha256 = 4;
+    int64 size_bytes = 5;
+}
+
+message SaveMapExportRequest {
+    string export_id = 1;
+    string base_path = 2;       // from PrepareMapExportResponse
+    repeated MapExportArtifact artifacts = 3;
+    string manifest_json = 4;
+}
+
+message SaveMapExportResponse {
+    bool ok = 1;
+    repeated MapExportOutput outputs = 2;
+    string message = 3;
 }
 
 // Service for map operations
@@ -156,4 +199,6 @@ service MapService {
     rpc getRecentMapEvents(GetRecentMapEventsRequest) returns (MapEventsResponse);
     rpc subscribeToMapSession(EmptyRequest) returns (stream MapSessionState);
     rpc subscribeToMapEvents(EmptyRequest) returns (stream MapEvent);
+    rpc prepareMapExport(PrepareMapExportRequest) returns (PrepareMapExportResponse);
+    rpc saveMapExport(SaveMapExportRequest) returns (SaveMapExportResponse);
 }

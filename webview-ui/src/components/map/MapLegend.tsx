@@ -31,6 +31,18 @@ interface MapLegendProps {
  * Uses metadata.legend when present; falls back to raster colormap conventions.
  */
 export const MapLegend: React.FC<MapLegendProps> = ({ layers, visibleLayerIds, mapStyle, cursorReading }) => {
+	const meritRiverLayer = useMemo(
+		() =>
+			layers.find(
+				(l) =>
+					visibleLayerIds.has(l.id) &&
+					(l.metadata?.merit_layer === "rivers" ||
+						`${l.id} ${l.name}`.toLowerCase().includes("merit-rivers") ||
+						`${l.id} ${l.name}`.toLowerCase().includes("merit rivers")),
+			),
+		[layers, visibleLayerIds],
+	)
+
 	const legendLayer = useMemo(() => {
 		const candidates = layers.filter(
 			(l) => (l.layerType === "raster" || l.layerType === "gee_tile") && visibleLayerIds.has(l.id),
@@ -49,15 +61,19 @@ export const MapLegend: React.FC<MapLegendProps> = ({ layers, visibleLayerIds, m
 
 	const spec = useMemo(() => (legendLayer ? parseLayerLegend(legendLayer) : undefined), [legendLayer])
 
-	if (!legendLayer || !spec) {
-		return null
-	}
-
 	const isDark = mapStyle === "dark"
 	const bg = isDark ? "rgba(18,18,26,0.88)" : "rgba(252,252,252,0.90)"
 	const fg = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)"
 	const bdClr = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)"
 	const tickColor = isDark ? "#ffffff" : "#000000"
+
+	if (meritRiverLayer && !legendLayer) {
+		return <MeritRiverLegend bdClr={bdClr} bg={bg} fg={fg} />
+	}
+
+	if (!legendLayer || !spec) {
+		return null
+	}
 
 	if (spec.type === "categorical") {
 		return <CategoricalLegend bdClr={bdClr} bg={bg} fg={fg} layerName={legendLayer.name} spec={spec} />
@@ -143,6 +159,48 @@ export const MapLegend: React.FC<MapLegendProps> = ({ layers, visibleLayerIds, m
 		</div>
 	)
 }
+
+const MeritRiverLegend: React.FC<{ bg: string; fg: string; bdClr: string }> = ({ bg, fg, bdClr }) => (
+	<div
+		style={{
+			position: "absolute",
+			bottom: 42,
+			left: 12,
+			zIndex: 4,
+			padding: "6px 10px",
+			background: bg,
+			border: `1px solid ${bdClr}`,
+			borderRadius: 5,
+			boxShadow: "0 1px 5px rgba(0,0,0,0.28)",
+			fontFamily: "var(--vscode-font-family, system-ui, sans-serif)",
+			fontSize: 10,
+			color: fg,
+			minWidth: 160,
+			pointerEvents: "none",
+		}}>
+		<div style={{ marginBottom: 6, opacity: 0.75 }}>MERIT rivers</div>
+		{[
+			{ label: "minor drainage", color: "#7dd3fc", width: 2 },
+			{ label: "medium river", color: "#0ea5e9", width: 4 },
+			{ label: "major river", color: "#0c4a6e", width: 7 },
+		].map((item) => (
+			<div key={item.label} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+				<span
+					style={{
+						width: 36,
+						height: item.width,
+						borderRadius: 2,
+						background: item.color,
+						boxShadow: "0 0 0 1px rgba(0,0,0,0.18)",
+						flexShrink: 0,
+					}}
+				/>
+				<span style={{ opacity: 0.78 }}>{item.label}</span>
+			</div>
+		))}
+		<div style={{ marginTop: 4, fontSize: 9, opacity: 0.62 }}>width/color by stream order or upstream area</div>
+	</div>
+)
 
 const CategoricalLegend: React.FC<{
 	spec: Extract<LegendSpec, { type: "categorical" }>

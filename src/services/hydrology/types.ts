@@ -23,6 +23,27 @@ export interface MeritEnsureRegionResult {
 	error?: string
 }
 
+export interface MeritEnsureBasinsRegionResult {
+	ok: boolean
+	type: string
+	pfaf_region?: string
+	catchments_ready?: boolean
+	catchments_path?: string
+	rivers_ready?: boolean
+	rivers_path?: string
+	acquisition_required?: boolean
+	acquisition_policy?: string
+	estimated_download_size_bytes?: number | null
+	metadata_path?: string | null
+	source?: string | null
+	license?: string
+	citation?: string
+	merit_root?: string
+	message?: string
+	downloaded?: string[]
+	error?: string
+}
+
 export interface MeritLayerSpec {
 	id: string
 	name: string
@@ -87,8 +108,10 @@ export interface HucAtPointResult {
 
 export type HydroMapCommand =
 	| "meritEnsureBasin"
+	| "meritEnsureBasinsRegion"
 	| "meritEnsureRegion"
 	| "meritLayers"
+	| "meritCatchmentLayers"
 	| "wbdLayers"
 	| "hucAtPoint"
 	| "searchHydrology"

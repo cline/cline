@@ -13,12 +13,17 @@ export async function saveRoiToWorkspace(
 		const result = await controller.mapSessionService.saveGeometryToWorkspace(
 			request.name || request.roi.name || "drawn",
 			request.roi.geojson,
+			request.format || "geojson",
 		)
 		const layerId = `workspace_${result.workspacePath.replace(/[^a-zA-Z0-9]/g, "_")}`
 		let layerType: "polygon" | "line" | "point" = "polygon"
 		try {
-			const parsed = JSON.parse(request.roi.geojson) as { geometry?: { type?: string } }
-			const g = parsed.geometry?.type
+			const parsed = JSON.parse(request.roi.geojson) as {
+				type?: string
+				geometry?: { type?: string }
+				features?: Array<{ geometry?: { type?: string } }>
+			}
+			const g = parsed.geometry?.type ?? parsed.features?.find((feature) => feature.geometry?.type)?.geometry?.type
 			if (g === "LineString" || g === "MultiLineString") {
 				layerType = "line"
 			} else if (g === "Point" || g === "MultiPoint") {

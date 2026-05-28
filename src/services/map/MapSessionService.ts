@@ -1,12 +1,15 @@
 import type { MapEvent, MapLayer, MapRoi, MapSessionState, MapSessionView } from "@shared/proto/cline/map"
 import { MapRoi as MapRoiProto, MapSessionState as MapSessionStateProto } from "@shared/proto/cline/map"
+import { execFile } from "child_process"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { promisify } from "util"
 
 const MAP_SESSION_FILE = path.join(os.homedir(), ".aihydro", "map_session.json")
 const OUTBOUND_EVENTS_DIR = path.join(os.homedir(), ".aihydro", "map_events", "outbound")
 const MAX_EVENTS = 100
+const execFileAsync = promisify(execFile)
 
 export type MapSessionSubscriber = (state: MapSessionState) => void
 export type MapEventSubscriber = (event: MapEvent) => void
@@ -189,7 +192,7 @@ export class MapSessionService {
 	}
 
 	/** Save drawn or imported geometry as a workspace vector file (no global ROI pointer). */
-	async saveGeometryToWorkspace(name: string, geojson: string): Promise<{ workspacePath: string }> {
+	async saveGeometryToWorkspace(name: string, geojson: string, format: string = "geojson"): Promise<{ workspacePath: string }> {
 		const root = this.workspaceRoot
 		if (!root) {
 			throw new Error("Workspace root not set — open a folder workspace first")
@@ -200,6 +203,17 @@ export class MapSessionService {
 		const slug = slugify(name || "drawn")
 		const vectorsDir = path.join(root, "vectors")
 		await fs.mkdir(vectorsDir, { recursive: true })
+		if (format === "shapefile" || format === "shp") {
+			const relZip = `vectors/${slug}.shp.zip`
+			await this.writeShapefileZip(geojson, path.join(root, relZip), slug)
+			this.appendEvent({
+				type: "user.file_saved",
+				payloadJson: JSON.stringify({ path: relZip, name: slug, format: "shapefile" }),
+				timestampMs: Date.now(),
+				source: "user",
+			})
+			return { workspacePath: relZip }
+		}
 		const relGeo = `vectors/${slug}.geojson`
 		await fs.writeFile(path.join(root, relGeo), geojson, "utf8")
 		this.appendEvent({
@@ -209,6 +223,49 @@ export class MapSessionService {
 			source: "user",
 		})
 		return { workspacePath: relGeo }
+	}
+
+	private async writeShapefileZip(geojson: string, outZipPath: string, slug: string): Promise<void> {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "aihydro-shp-"))
+		const inputPath = path.join(tmpDir, "input.geojson")
+		await fs.writeFile(inputPath, geojson, "utf8")
+		const script = `
+import geopandas as gpd
+import pathlib
+import sys
+import zipfile
+
+src = pathlib.Path(sys.argv[1])
+out_zip = pathlib.Path(sys.argv[2])
+name = sys.argv[3]
+work = out_zip.with_suffix("")
+work.mkdir(parents=True, exist_ok=True)
+gdf = gpd.read_file(src)
+if gdf.empty:
+    raise SystemExit("No features to export")
+for col in list(gdf.columns):
+    if col != "geometry" and gdf[col].map(lambda v: isinstance(v, (dict, list))).any():
+        gdf[col] = gdf[col].astype(str)
+shp_path = work / f"{name}.shp"
+gdf.to_file(shp_path, driver="ESRI Shapefile")
+with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+    for item in work.iterdir():
+        if item.is_file():
+            zf.write(item, arcname=item.name)
+`
+		let lastError: unknown
+		for (const python of ["python3", "python"]) {
+			try {
+				await execFileAsync(python, ["-c", script, inputPath, outZipPath, slug], { timeout: 120_000 })
+				await fs.rm(tmpDir, { recursive: true, force: true })
+				return
+			} catch (err) {
+				lastError = err
+			}
+		}
+		await fs.rm(tmpDir, { recursive: true, force: true })
+		const detail = lastError instanceof Error ? lastError.message : String(lastError)
+		throw new Error(`Could not export shapefile. Install geopandas/fiona for Python shapefile export. ${detail}`)
 	}
 
 	async saveRoiToWorkspace(name: string, roi?: MapRoi): Promise<{ workspacePath: string; activePointerPath: string }> {

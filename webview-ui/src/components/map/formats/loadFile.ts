@@ -16,8 +16,13 @@ const slugify = (s: string): string =>
 
 const stripExt = (s: string): string => s.replace(/\.[^.]+$/, "")
 
+const MAX_TIFF_RENDER_DIM = 1536
+const MAX_TIFF_RENDER_PIXELS = 1_500_000
+
 export interface LoadOptions {
 	idPrefix?: string
+	idOverride?: string
+	nameOverride?: string
 }
 
 export async function loadFile(file: File, opts: LoadOptions = {}): Promise<LayerSpec> {
@@ -30,8 +35,8 @@ export async function loadFile(file: File, opts: LoadOptions = {}): Promise<Laye
 	// the existing layer (MapContext keys layers by id) instead of duplicating.
 	// Two files with the same name from different folders will collide; that's
 	// an acceptable edge case for now.
-	const baseId = `${opts.idPrefix ?? "user"}-${slugify(stripExt(file.name))}`
-	const baseName = stripExt(file.name)
+	const baseId = opts.idOverride ?? `${opts.idPrefix ?? "user"}-${slugify(stripExt(file.name))}`
+	const baseName = opts.nameOverride ?? stripExt(file.name)
 
 	try {
 		switch (fmt) {
@@ -240,12 +245,22 @@ async function loadTiff(file: File, id: string, name: string): Promise<LayerSpec
 	const srcBbox = image.getBoundingBox() // [minX, minY, maxX, maxY] in source CRS
 	const geoKeys = image.getGeoKeys?.() ?? {}
 	const epsg: number | null = geoKeys?.ProjectedCSTypeGeoKey ?? geoKeys?.GeographicTypeGeoKey ?? null
+	const sourceWidth = image.getWidth()
+	const sourceHeight = image.getHeight()
+	const sampleSize = fitRasterSize(sourceWidth, sourceHeight)
 
-	// Read raster pixel data (single band default — average if multi-band)
-	const rasters = (await image.readRasters({ interleave: false })) as any
-	const srcWidth = image.getWidth()
-	const srcHeight = image.getHeight()
-	const srcBand = Float32Array.from(Array.isArray(rasters) ? rasters[0] : rasters)
+	// Read a bounded display-resolution sample. Native GeoTIFFs can be many
+	// millions of pixels; decoding/rendering them at full size can freeze the
+	// VS Code webview and bloat the gRPC layer metadata.
+	const rasters = (await image.readRasters({
+		interleave: false,
+		samples: [0],
+		width: sampleSize.width,
+		height: sampleSize.height,
+		resampleMethod: "bilinear",
+	})) as any
+	const nodata = parseNoData(image)
+	const srcBand = normalizeRasterBand(rasters, nodata)
 
 	// Compute min/max from source data (skip nodata / NaN)
 	let min = Infinity
@@ -288,15 +303,15 @@ async function loadTiff(file: File, id: string, name: string): Promise<LayerSpec
 		}
 		// Warp pixel grid: for each WGS84 output pixel, inverse-project to source CRS
 		// and bilinear-interpolate. This aligns the raster with vector layers in WGS84.
-		const warped = await warpPixelsToWgs84(srcBand, srcWidth, srcHeight, srcBbox, wgs84Bbox, proj4Def)
+		const warped = await warpPixelsToWgs84(srcBand, sampleSize.width, sampleSize.height, srcBbox, wgs84Bbox, proj4Def)
 		renderBand = warped.data
 		renderW = warped.width
 		renderH = warped.height
 	} else {
 		wgs84Bbox = [srcBbox[0], srcBbox[1], srcBbox[2], srcBbox[3]]
 		renderBand = srcBand
-		renderW = srcWidth
-		renderH = srcHeight
+		renderW = sampleSize.width
+		renderH = sampleSize.height
 	}
 
 	// Apply viridis colormap to render band
@@ -317,13 +332,68 @@ async function loadTiff(file: File, id: string, name: string): Promise<LayerSpec
 			format: "geotiff",
 			width: String(renderW),
 			height: String(renderH),
+			source_width: String(sourceWidth),
+			source_height: String(sourceHeight),
+			render_width: String(renderW),
+			render_height: String(renderH),
+			resampled:
+				sourceWidth !== sampleSize.width || sourceHeight !== sampleSize.height
+					? `${sourceWidth}x${sourceHeight} -> ${sampleSize.width}x${sampleSize.height}`
+					: "no",
+			raster_recolorable: "true",
 			min: min.toFixed(4),
 			max: max.toFixed(4),
+			...(nodata !== null ? { nodata: String(nodata) } : {}),
 			...(epsg && epsg !== 4326 && epsg !== 4269
 				? { crs: `EPSG:${epsg}`, reprojected: reprojected ? "yes (pixel-warped)" : "no" }
 				: {}),
 		},
 	}
+}
+
+function fitRasterSize(width: number, height: number): { width: number; height: number } {
+	if (width <= 0 || height <= 0) {
+		return { width: 1, height: 1 }
+	}
+	const dimScale = Math.min(1, MAX_TIFF_RENDER_DIM / Math.max(width, height))
+	const pixelScale = Math.min(1, Math.sqrt(MAX_TIFF_RENDER_PIXELS / Math.max(1, width * height)))
+	const scale = Math.min(dimScale, pixelScale)
+	return {
+		width: Math.max(1, Math.round(width * scale)),
+		height: Math.max(1, Math.round(height * scale)),
+	}
+}
+
+function parseNoData(image: any): number | null {
+	const raw =
+		typeof image.getGDALNoData === "function"
+			? image.getGDALNoData()
+			: (image.getFileDirectory?.()?.GDAL_NODATA ?? image.fileDirectory?.GDAL_NODATA)
+	if (raw === undefined || raw === null || raw === "") {
+		return null
+	}
+	const parsed = typeof raw === "number" ? raw : Number(String(raw).trim())
+	return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeRasterBand(rasters: any, nodata: number | null): Float32Array {
+	const firstBand = Array.isArray(rasters)
+		? rasters[0]
+		: ArrayBuffer.isView(rasters)
+			? rasters
+			: ArrayBuffer.isView(rasters?.[0])
+				? rasters[0]
+				: rasters
+	const out = Float32Array.from(firstBand ?? [])
+	if (nodata === null) {
+		return out
+	}
+	for (let i = 0; i < out.length; i++) {
+		if (Object.is(out[i], nodata) || Math.abs(out[i] - nodata) < 1e-9) {
+			out[i] = NaN
+		}
+	}
+	return out
 }
 
 /**

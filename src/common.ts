@@ -12,7 +12,7 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { ensureDefaultMcpServer } from "./core/mcp/ensureDefaultMcpServer"
+import { ensureDefaultMcpServer, setupActiveWorkspaceTracking } from "./core/mcp/ensureDefaultMcpServer"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
@@ -70,6 +70,11 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Auto-register the aihydro-tools MCP server if installed and not already configured
 	await ensureDefaultMcpServer(context)
+
+	// Write active workspace path to ~/.aihydro/active_workspace.json so the Python
+	// MCP server can find it without relying on per-call _workspace injection.
+	// Also keeps the file updated when workspace folders change.
+	await setupActiveWorkspaceTracking(context)
 
 	const webview = HostProvider.get().createWebviewProvider()
 

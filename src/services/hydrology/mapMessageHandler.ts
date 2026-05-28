@@ -68,6 +68,9 @@ export function buildMeritMapLayer(spec: MeritLayerSpec): MapLayer {
 		const styleKey = spec.style_preset || "default"
 		metadata.source = styleKey === "huc" ? "wbd" : styleKey === "gauge" ? "nwis" : styleKey === "dam" ? "nid" : "merit"
 	}
+	if (spec.style_preset && !metadata.style_preset) {
+		metadata.style_preset = spec.style_preset
+	}
 
 	return MapLayer.create({
 		id: spec.id,

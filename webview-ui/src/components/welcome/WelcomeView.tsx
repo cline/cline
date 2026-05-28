@@ -1,27 +1,8 @@
+import { BooleanRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Globe, Sparkles, Terminal, Wrench } from "lucide-react"
 import { memo, useEffect, useState } from "react"
-
-// AI-Hydro droplet logo SVG — the original brand icon
-const AihydroLogo = () => (
-	<svg className="drop-shadow-sm" fill="none" height="56" viewBox="0 0 100 100" width="56" xmlns="http://www.w3.org/2000/svg">
-		<defs>
-			<linearGradient gradientUnits="userSpaceOnUse" id="dropletGrad" x1="50" x2="50" y1="10" y2="90">
-				<stop offset="0%" stopColor="#00A3FF" />
-				<stop offset="100%" stopColor="#00DDFF" />
-			</linearGradient>
-		</defs>
-		<path d="M50 10 C50 10 25 35 25 55 C25 70 35 85 50 85 C65 85 75 70 75 55 C75 35 50 10 50 10 Z" fill="url(#dropletGrad)" />
-		<ellipse cx="20" cy="52" fill="url(#dropletGrad)" rx="5" ry="7" />
-		<ellipse cx="80" cy="52" fill="url(#dropletGrad)" rx="5" ry="7" />
-		<ellipse cx="40" cy="48" fill="#1a1a2e" rx="6" ry="9" />
-		<ellipse cx="60" cy="48" fill="#1a1a2e" rx="6" ry="9" />
-		<path d="M 38 62 Q 50 68 62 62" fill="none" stroke="#1a1a2e" strokeLinecap="round" strokeWidth="3" />
-		<circle cx="50" cy="14" fill="url(#dropletGrad)" r="4" />
-	</svg>
-)
-
-import { BooleanRequest } from "@shared/proto/cline/common"
+import AiHydroLogoVariable from "@/assets/AiHydroLogoVariable"
 import ApiOptions from "@/components/settings/ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
@@ -31,7 +12,7 @@ const features = [
 	{
 		icon: Sparkles,
 		label: "Agentic Coding",
-		description: "Powered by Claude 4 Sonnet",
+		description: "Plan, edit, and iterate across projects",
 		color: "#6BB6FF",
 	},
 	{
@@ -55,7 +36,7 @@ const features = [
 ]
 
 const WelcomeView = memo(() => {
-	const { apiConfiguration, mode } = useExtensionState()
+	const { apiConfiguration, environment, mode } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 
 	const disableLetsGoButton = apiErrorMessage != null
@@ -84,11 +65,8 @@ const WelcomeView = memo(() => {
 					{/* Hero Logo */}
 					<div className="animate-float mb-6">
 						<div className="relative">
-							<div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-aihydro-ocean-blue to-aihydro-teal flex items-center justify-center shadow-lg shadow-aihydro-ocean-blue/20">
-								{" "}
-								<AihydroLogo />
-							</div>
-							<div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-aihydro-ocean-blue to-aihydro-teal opacity-20 blur-lg" />
+							<AiHydroLogoVariable className="size-20 drop-shadow-sm" environment={environment} />
+							<div className="absolute -inset-4 rounded-full bg-gradient-to-br from-aihydro-ocean-blue/15 to-aihydro-teal/15 blur-2xl -z-10" />
 						</div>
 					</div>
 
@@ -118,14 +96,14 @@ const WelcomeView = memo(() => {
 					{/* Description Card */}
 					<div className="w-full rounded-xl border border-[var(--vscode-panel-border)] bg-[var(--vscode-editor-background)]/80 backdrop-blur-sm p-5 mb-8 animate-fade-in-up stagger-3">
 						<p className="text-sm text-[var(--vscode-foreground)] leading-relaxed text-center">
-							I can do all kinds of tasks thanks to breakthroughs in{" "}
-							<VSCodeLink className="inline" href="https://www.anthropic.com/claude/sonnet">
-								Claude 4 Sonnet's
-							</VSCodeLink>{" "}
-							agentic coding capabilities and access to tools that let me create & edit files, explore complex
-							projects, use a browser, and execute terminal commands{" "}
-							<i className="text-[var(--vscode-descriptionForeground)]">(with your permission, of course)</i>. I can
-							even use MCP to create new tools and extend my own capabilities.
+							AI-Hydro helps you move from hydrology questions to working artifacts: exploring projects, editing
+							files, running analyses, using the browser, and executing terminal commands{" "}
+							<i className="text-[var(--vscode-descriptionForeground)]">(only when you approve)</i>. With{" "}
+							<VSCodeLink className="inline" href="https://modelcontextprotocol.io/">
+								MCP
+							</VSCodeLink>
+							, it can connect to specialized tools for watershed modeling, data workflows, and reproducible
+							research.
 						</p>
 					</div>
 

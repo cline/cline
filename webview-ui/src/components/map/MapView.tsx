@@ -4,6 +4,7 @@ import { BitmapLayer, GeoJsonLayer, TextLayer } from "@deck.gl/layers"
 import DeckGL from "@deck.gl/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
+import { SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { MapServiceClient } from "../../services/grpc-client"
@@ -27,12 +28,188 @@ import VectorDrawTool, { type CompletedVectorDraw, type VectorDrawMode } from ".
 import VectorSavePanel from "./VectorSavePanel"
 
 type BoundingBox = [number, number, number, number]
+const QUICK_DELINEATE_MAX_MERIT_UPAREA_KM2 = 50_000
+const MERIT_RIVER_COLOR_RAMP: Array<[number, number, number]> = [
+	[125, 211, 252],
+	[56, 189, 248],
+	[14, 165, 233],
+	[2, 132, 199],
+	[3, 105, 161],
+	[12, 74, 110],
+]
+const MERIT_CATCHMENT_COLOR_RAMP: Array<[number, number, number]> = [
+	[204, 251, 241],
+	[153, 246, 228],
+	[94, 234, 212],
+	[45, 212, 191],
+	[20, 184, 166],
+	[15, 118, 110],
+]
+
+function featureNumber(props: Record<string, unknown> | undefined, keys: string[]): number | undefined {
+	if (!props) return undefined
+	for (const key of keys) {
+		const value = props[key]
+		if (typeof value === "number" && Number.isFinite(value)) return value
+		if (typeof value === "string") {
+			const parsed = Number(value)
+			if (Number.isFinite(parsed)) return parsed
+		}
+	}
+	return undefined
+}
+
+function selectedMeritUpareaKm2(features: ClickedFeature[]): number | undefined {
+	for (const feature of features) {
+		const uparea = featureNumber(feature.properties, ["uparea", "UPAREA", "upArea", "UpArea"])
+		if (uparea !== undefined && uparea > 0) return uparea
+	}
+	return undefined
+}
+
+function selectedFeatureKey(feature: ClickedFeature): string {
+	const props = feature.properties ?? {}
+	const stableId =
+		props.COMID ??
+		props.comid ??
+		props.id ??
+		props.ID ??
+		props.huc12 ??
+		props.HUC12 ??
+		props.name ??
+		props.Name ??
+		JSON.stringify(feature.geometry ?? props).slice(0, 180)
+	return `${feature.layerId}:${String(stableId)}`
+}
+
+function selectedFeaturesToGeojson(features: ClickedFeature[]): string {
+	return JSON.stringify({
+		type: "FeatureCollection",
+		features: features
+			.filter((feature) => feature.geometry)
+			.map((feature) => ({
+				type: "Feature",
+				geometry: feature.geometry,
+				properties: {
+					...(feature.properties ?? {}),
+					_aihydro_layer_id: feature.layerId,
+					_aihydro_layer_name: feature.layerName,
+				},
+			})),
+	})
+}
+
+function selectedFeatureSummary(feature: ClickedFeature): Record<string, unknown> {
+	const props = feature.properties ?? {}
+	const keys = [
+		"COMID",
+		"comid",
+		"unitarea",
+		"uparea",
+		"lengthkm",
+		"lengthdir",
+		"sinuosity",
+		"slope",
+		"huc12",
+		"HUC12",
+		"name",
+		"Name",
+	]
+	const summary: Record<string, unknown> = {}
+	for (const key of keys) {
+		if (props[key] !== undefined) {
+			summary[key] = props[key]
+		}
+	}
+	if (Object.keys(summary).length === 0) {
+		for (const [key, value] of Object.entries(props)
+			.filter(([k]) => !k.startsWith("_"))
+			.slice(0, 6)) {
+			summary[key] = value
+		}
+	}
+	return summary
+}
+
+function selectedFeaturesPayload(features: ClickedFeature[]): Record<string, unknown> {
+	const exportable = features.filter((feature) => feature.geometry)
+	return {
+		count: exportable.length,
+		layerIds: Array.from(new Set(exportable.map((feature) => feature.layerId))),
+		layerNames: Array.from(new Set(exportable.map((feature) => feature.layerName))),
+		features: exportable.slice(0, 20).map((feature) => ({
+			key: selectedFeatureKey(feature),
+			layerId: feature.layerId,
+			layerName: feature.layerName,
+			properties: selectedFeatureSummary(feature),
+		})),
+		truncated: exportable.length > 20,
+	}
+}
+
+function clamp(value: number, min: number, max: number): number {
+	return Math.max(min, Math.min(max, value))
+}
+
+function numericProperty(feature: any, keys: string[]): number | undefined {
+	const props = (feature?.properties || {}) as Record<string, unknown>
+	return featureNumber(props, keys)
+}
+
+function meritLayerKind(layer: MapLayer): "rivers" | "catchments" | "level2" | undefined {
+	const explicit = layer.metadata?.merit_layer?.toLowerCase()
+	if (explicit === "rivers" || explicit === "catchments" || explicit === "level2") {
+		return explicit
+	}
+	const idName = `${layer.id} ${layer.name}`.toLowerCase()
+	if (idName.includes("merit-rivers") || idName.includes("merit rivers")) return "rivers"
+	if (idName.includes("merit-catchments") || idName.includes("merit catchments")) return "catchments"
+	if (idName.includes("merit-level2") || idName.includes("pfaf basins")) return "level2"
+	return undefined
+}
+
+function rampColor(ramp: Array<[number, number, number]>, value: number, min: number, max: number): [number, number, number] {
+	const t = max <= min ? 0 : clamp((value - min) / (max - min), 0, 1)
+	const idx = clamp(Math.floor(t * ramp.length), 0, ramp.length - 1)
+	return ramp[idx]
+}
+
+function meritRiverVisual(feature: any, layerOpacity: number): { color: [number, number, number, number]; width: number } {
+	const order = numericProperty(feature, ["strmOrder", "stream_order", "order", "ORD_FLOW", "ord_flow"])
+	const uparea = numericProperty(feature, ["uparea", "UPAREA", "upArea", "UpArea"])
+	const score = order !== undefined ? order : uparea !== undefined ? Math.log10(Math.max(1, uparea)) : 1
+	const color = rampColor(MERIT_RIVER_COLOR_RAMP, score, 1, order !== undefined ? 8 : 6)
+	const width = order !== undefined ? 0.8 + score * 0.55 : 1 + score * 0.75
+	return {
+		color: [color[0], color[1], color[2], Math.round(245 * layerOpacity)],
+		width: clamp(width, 1.1, 8),
+	}
+}
+
+function meritCatchmentVisual(
+	feature: any,
+	layerOpacity: number,
+): {
+	fill: [number, number, number, number]
+	stroke: [number, number, number, number]
+} {
+	const unitArea = numericProperty(feature, ["unitarea", "unitArea", "UNITAREA", "area", "Area"])
+	const uparea = numericProperty(feature, ["uparea", "UPAREA", "upArea", "UpArea"])
+	const score =
+		unitArea !== undefined ? Math.log10(Math.max(1, unitArea)) : uparea !== undefined ? Math.log10(Math.max(1, uparea)) : 1
+	const color = rampColor(MERIT_CATCHMENT_COLOR_RAMP, score, 0, 4)
+	return {
+		fill: [color[0], color[1], color[2], Math.round(58 * layerOpacity)],
+		stroke: [15, 118, 110, Math.round(185 * layerOpacity)],
+	}
+}
 
 function buildMapAgentContext(
 	pt: MapInspectPoint,
 	features: ClickedFeature[],
 	layers: MapLayer[],
 	visibleLayerIds: Set<string>,
+	selectedFeatures: ClickedFeature[] = [],
 ): MapAgentInspectContext {
 	const primary = features[0]
 	return {
@@ -41,6 +218,14 @@ function buildMapAgentContext(
 		layerName: primary?.layerName,
 		featureProperties: primary?.properties,
 		visibleLayerNames: layers.filter((l) => visibleLayerIds.has(l.id)).map((l) => l.name),
+		selectedFeatureCount: selectedFeatures.filter((feature) => feature.geometry).length,
+		selectedFeatureSummaries: selectedFeatures
+			.filter((feature) => feature.geometry)
+			.slice(0, 10)
+			.map((feature) => ({
+				layerName: feature.layerName,
+				properties: selectedFeatureSummary(feature),
+			})),
 	}
 }
 
@@ -380,6 +565,7 @@ const useEscToClosePanels = ({
 export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	const { layers } = useMapContext()
 	const knownLayerIdsRef = useRef<Set<string>>(new Set())
+	const pendingAutoFitLayerIdsRef = useRef<string[]>([])
 	const lastAutoFitKeyRef = useRef<string>("")
 	const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -472,12 +658,17 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 
 	// Feature identifier — stores clicked vector features at a point
 	const [clickedFeatures, setClickedFeatures] = useState<ClickedFeature[]>([])
+	const [selectedFeatures, setSelectedFeatures] = useState<ClickedFeature[]>([])
 	const [inspectPoint, setInspectPoint] = useState<{ lon: number; lat: number } | null>(null)
 	const [delineating, setDelineating] = useState(false)
 	const [delineateStatus, setDelineateStatus] = useState<string | null>(null)
 	const [agentStarting, setAgentStarting] = useState(false)
 	const [agentStatus, setAgentStatus] = useState<string | null>(null)
 	const [inspectRasterReading, setInspectRasterReading] = useState<CursorRasterReading | null>(null)
+
+	useEffect(() => {
+		reportMapEvent("selection.changed", selectedFeaturesPayload(selectedFeatures))
+	}, [selectedFeatures])
 
 	const onDragEnter = useCallback((e: React.DragEvent) => {
 		// Only react if files are being dragged (not text/HTML from inside the editor)
@@ -580,22 +771,43 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	}, [viewState.longitude, viewState.latitude, viewState.zoom])
 
 	// Listen for files sent from the VS Code extension side (e.g. right-click "Add to Map").
-	// The extension reads the file bytes and posts { type:'aihydro-load-file', name, data: number[] }.
+	// Prefer URI loading for binary rasters; the legacy number[] path is kept
+	// only for small older callers.
 	useEffect(() => {
 		const handler = async (event: MessageEvent) => {
 			const msg = event.data
-			if (msg?.type !== "aihydro-load-file" || !msg.name || !Array.isArray(msg.data)) {
+			let file: File | null = null
+			if (msg?.type === "aihydro-load-file-uri" && msg.name && typeof msg.uri === "string") {
+				try {
+					const response = await fetch(msg.uri)
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}`)
+					}
+					const blob = await response.blob()
+					file = new File([blob], msg.name)
+				} catch (err) {
+					setDropStatus({
+						kind: "err",
+						msg: `Failed to read ${msg.name}: ${err instanceof Error ? err.message : String(err)}`,
+					})
+					window.setTimeout(() => setDropStatus(null), 5000)
+					return
+				}
+			} else if (msg?.type === "aihydro-load-file" && msg.name && Array.isArray(msg.data)) {
+				const bytes = new Uint8Array(msg.data)
+				file = new File([bytes], msg.name)
+			}
+			if (!file) {
 				return
 			}
-			const bytes = new Uint8Array(msg.data)
-			const file = new File([bytes], msg.name)
+			setDropStatus({ kind: "ok", msg: `Loading ${file.name}...` })
 			const result = await loadAndPushFiles([file])
-			if (result.loaded > 0 && result.errors.length === 0) {
-				setDropStatus({ kind: "ok", msg: `Loaded ${msg.name}.` })
-			} else {
-				setDropStatus({ kind: "err", msg: result.errors[0] ?? `Failed to load ${msg.name}.` })
-			}
-			window.setTimeout(() => setDropStatus(null), 4000)
+			setDropStatus(
+				result.loaded > 0 && result.errors.length === 0
+					? { kind: "ok", msg: `Loaded ${file.name}.` }
+					: { kind: "err", msg: result.errors[0] ?? `Failed to load ${file.name}.` },
+			)
+			window.setTimeout(() => setDropStatus(null), 5000)
 		}
 		window.addEventListener("message", handler)
 		return () => window.removeEventListener("message", handler)
@@ -651,6 +863,12 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 
 	useEffect(() => {
 		const previousLayerIds = knownLayerIdsRef.current
+		const addedVisibleLayerIds = layers
+			.filter((layer) => !previousLayerIds.has(layer.id) && layer.visible !== false)
+			.map((layer) => layer.id)
+		if (addedVisibleLayerIds.length > 0) {
+			pendingAutoFitLayerIdsRef.current = addedVisibleLayerIds
+		}
 		setVisibleLayerIds((previousVisibleLayers) => {
 			const nextVisibleLayers = new Set<string>()
 			layers.forEach((layer) => {
@@ -699,7 +917,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 					if (cancelled) {
 						return
 					}
-					rasterCache.set(layer.id, { image, bounds })
+					rasterCache.set(layer.id, { image, bounds, colormap: layer.metadata?.raster_colormap ?? "pre-rendered" })
 					setRasterReadyTick((t) => t + 1)
 				})
 				.catch((err) => {
@@ -744,16 +962,17 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		if (layers.length === 0) {
 			return
 		}
+		const pendingAutoFitLayerIds = pendingAutoFitLayerIdsRef.current
+		if (pendingAutoFitLayerIds.length === 0) {
+			return
+		}
 		const visibleKey = Array.from(visibleLayerIds).sort().join("|")
-		const autoFitKey = `${layers
-			.map((layer) => layer.id)
-			.sort()
-			.join("|")}::${visibleKey}`
+		const autoFitKey = `${[...pendingAutoFitLayerIds].sort().join("|")}::${visibleKey}`
 		if (lastAutoFitKeyRef.current === autoFitKey) {
 			return
 		}
-		const targetLayers = layers.filter((layer) => visibleLayerIds.has(layer.id))
-		const layersToFit = targetLayers.length > 0 ? targetLayers : layers
+		const pendingSet = new Set(pendingAutoFitLayerIds)
+		const layersToFit = layers.filter((layer) => pendingSet.has(layer.id) && visibleLayerIds.has(layer.id))
 		const bounds = mergeBounds(
 			layersToFit
 				.map((layer) => getLayerBounds(layer, rasterCache))
@@ -762,6 +981,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		if (!bounds) {
 			return
 		}
+		pendingAutoFitLayerIdsRef.current = []
 		lastAutoFitKeyRef.current = autoFitKey
 		setViewState((previousViewState) => fitViewStateToBounds(bounds, dimensions, previousViewState))
 	}, [layers, visibleLayerIds, dimensions])
@@ -940,6 +1160,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						layerId: pickedLayer.id,
 						layerName: pickedLayer.name,
 						properties: (info.object.properties as Record<string, unknown>) || {},
+						geometry: info.object.geometry,
 					})
 				}
 			}
@@ -953,6 +1174,20 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 			}
 
 			setClickedFeatures(clicked)
+			if (info.srcEvent?.shiftKey && clicked.length > 0) {
+				setSelectedFeatures((previous) => {
+					const selectedByKey = new Map(previous.map((feature) => [selectedFeatureKey(feature), feature]))
+					for (const feature of clicked.filter((item) => item.geometry)) {
+						const key = selectedFeatureKey(feature)
+						if (selectedByKey.has(key)) {
+							selectedByKey.delete(key)
+						} else {
+							selectedByKey.set(key, feature)
+						}
+					}
+					return Array.from(selectedByKey.values())
+				})
+			}
 			setInspectPoint({ lon: clickLon, lat: clickLat })
 			setInspectRasterReading(
 				sampleTopRasterAtPoint(sortedLayers, visibleLayerIds, layerOrder, clickLon, clickLat, rasterCache),
@@ -1093,6 +1328,9 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 							(style?.fillOpacity !== undefined ? style.fillOpacity : 0.6) * 255 * layerOpacity,
 						)
 						const strokeWidth = style?.strokeWidth ?? style?.weight ?? 2
+						const meritKind = meritLayerKind(layer)
+						const userStyled = layer.metadata?.symbology_user_override === "true" || !!layer.metadata?.graduated_attr
+						const useMeritDefaultSymbology = !!meritKind && !userStyled
 
 						// Check for graduated symbology
 						const graduatedAttr = layer.metadata?.graduated_attr
@@ -1135,12 +1373,28 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 							lineWidthUnits: "pixels" as const,
 							lineWidthMinPixels: 1,
 							lineWidthMaxPixels: 20,
-							getLineWidth: strokeWidth,
+							autoHighlight: true,
+							highlightColor: [255, 213, 79, Math.round(190 * layerOpacity)],
+							getLineWidth: (feature: any) => {
+								if (useMeritDefaultSymbology && meritKind === "rivers") {
+									return meritRiverVisual(feature, layerOpacity).width
+								}
+								if (useMeritDefaultSymbology && meritKind === "catchments") {
+									return 1.25
+								}
+								return strokeWidth
+							},
 							getFillColor: (feature: any): [number, number, number, number] => {
 								const count = feature.properties?._clusterCount
 								if (typeof count === "number" && count > 1) {
 									// Use accent color for clusters
 									return [14, 99, 156, Math.round(200 * layerOpacity)]
+								}
+								if (useMeritDefaultSymbology && meritKind === "rivers") {
+									return [0, 0, 0, 0]
+								}
+								if (useMeritDefaultSymbology && meritKind === "catchments") {
+									return meritCatchmentVisual(feature, layerOpacity).fill
 								}
 								const c = typeof getColorFunction === "function" ? getColorFunction(feature) : getColorFunction
 								return [c[0], c[1], c[2], c[3] ?? 255]
@@ -1149,6 +1403,16 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 								const count = feature.properties?._clusterCount
 								if (typeof count === "number" && count > 1) {
 									return [14, 99, 156, Math.round(255 * layerOpacity)]
+								}
+								if (layer.layerType === "line" && typeof getColorFunction === "function") {
+									const c = getColorFunction(feature)
+									return [c[0], c[1], c[2], c[3] ?? Math.round(255 * layerOpacity)]
+								}
+								if (useMeritDefaultSymbology && meritKind === "rivers") {
+									return meritRiverVisual(feature, layerOpacity).color
+								}
+								if (useMeritDefaultSymbology && meritKind === "catchments") {
+									return meritCatchmentVisual(feature, layerOpacity).stroke
 								}
 								return [strokeColor[0], strokeColor[1], strokeColor[2], Math.round(255 * layerOpacity)]
 							},
@@ -1358,9 +1622,89 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		return [pinPoint, pinRing]
 	}, [searchPin])
 
-	const allLayers = [basemapLayer, ...dataLayers, measureLayer, drawLayer, ...measureLabels, ...searchPinLayers].filter(
-		Boolean,
-	) as any[]
+	const inspectHighlightLayer = useMemo(() => {
+		const uniqueFeatures = new Map<string, ClickedFeature>()
+		for (const feature of selectedFeatures) {
+			uniqueFeatures.set(selectedFeatureKey(feature), feature)
+		}
+		for (const feature of clickedFeatures) {
+			uniqueFeatures.set(selectedFeatureKey(feature), feature)
+		}
+		const features = Array.from(uniqueFeatures.values())
+			.filter((feature) => feature.geometry)
+			.slice(0, 250)
+			.map((feature) => ({
+				type: "Feature" as const,
+				geometry: feature.geometry,
+				properties: feature.properties,
+			}))
+		if (features.length === 0) {
+			return null
+		}
+		return new GeoJsonLayer({
+			id: "__inspect-pinned-highlight",
+			data: { type: "FeatureCollection" as const, features },
+			pickable: false,
+			stroked: true,
+			filled: true,
+			extruded: false,
+			lineWidthUnits: "pixels" as const,
+			lineWidthMinPixels: 3,
+			lineWidthMaxPixels: 10,
+			getLineWidth: 4,
+			getLineColor: [255, 213, 79, 245],
+			getFillColor: [255, 213, 79, 64],
+			pointRadiusUnits: "pixels" as const,
+			pointRadiusMinPixels: 7,
+			pointRadiusMaxPixels: 18,
+			getPointRadius: 9,
+		})
+	}, [clickedFeatures, selectedFeatures])
+
+	const allLayers = [
+		basemapLayer,
+		...dataLayers,
+		inspectHighlightLayer,
+		measureLayer,
+		drawLayer,
+		...measureLabels,
+		...searchPinLayers,
+	].filter(Boolean) as any[]
+
+	const saveFeaturesToWorkspace = useCallback(async (features: ClickedFeature[], format: "geojson" | "shapefile") => {
+		const exportable = features.filter((feature) => feature.geometry)
+		if (exportable.length === 0) {
+			setAgentStatus("No selected feature geometry to save.")
+			return
+		}
+		const first = exportable[0]
+		const comid = first.properties?.COMID ?? first.properties?.comid
+		const suffix = exportable.length === 1 && comid ? String(comid) : `${exportable.length}_features`
+		const nameBase = `${first.layerName || "map_selection"}_${suffix}`.replace(/[^a-zA-Z0-9_-]/g, "_")
+		setAgentStatus(`Saving ${exportable.length} feature${exportable.length === 1 ? "" : "s"} as ${format}...`)
+		try {
+			const response = await MapServiceClient.saveRoiToWorkspace(
+				SaveRoiToWorkspaceRequest.create({
+					name: nameBase,
+					format,
+					roi: {
+						name: exportable.length === 1 ? first.layerName : `${exportable.length} selected features`,
+						source: "map_selection",
+						geojson: selectedFeaturesToGeojson(exportable),
+					},
+				}),
+			)
+			setAgentStatus(`Saved ${response.workspacePath}`)
+			reportMapEvent("user.file_saved", { path: response.workspacePath, format, count: exportable.length })
+			reportMapEvent("selection.exported", {
+				...selectedFeaturesPayload(exportable),
+				path: response.workspacePath,
+				format,
+			})
+		} catch (err) {
+			setAgentStatus(err instanceof Error ? err.message : `Failed to save ${format}`)
+		}
+	}, [])
 
 	const bgColor = mapStyle === "dark" ? "#1a1a2e" : "#f0f0f0"
 
@@ -1526,6 +1870,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				layerCount={layers.length}
 				layerOpacities={layerOpacities}
 				layerOrder={layerOrder}
+				layers={sortedLayers}
 				mapStyle={mapStyle === "dark" ? "dark" : "light"}
 				measureMode={measureMode}
 				onBasemapChange={setSelectedBaseMap}
@@ -1583,11 +1928,22 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				features={clickedFeatures}
 				inspectPoint={inspectPoint}
 				mapStyle={mapStyle}
+				onAddSelection={(features) => {
+					setSelectedFeatures((previous) => {
+						const selectedByKey = new Map(previous.map((feature) => [selectedFeatureKey(feature), feature]))
+						for (const feature of features.filter((item) => item.geometry)) {
+							selectedByKey.set(selectedFeatureKey(feature), feature)
+						}
+						const next = Array.from(selectedByKey.values())
+						reportMapEvent("selection.changed", selectedFeaturesPayload(next))
+						return next
+					})
+				}}
 				onAgentAsk={async (pt) => {
 					setAgentStarting(true)
 					setAgentStatus(null)
 					setDelineateStatus(null)
-					const ctx = buildMapAgentContext(pt, clickedFeatures, sortedLayers, visibleLayerIds)
+					const ctx = buildMapAgentContext(pt, clickedFeatures, sortedLayers, visibleLayerIds, selectedFeatures)
 					try {
 						const result = await askAgentAboutMap(ctx)
 						setAgentStatus(
@@ -1605,7 +1961,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 					setAgentStarting(true)
 					setAgentStatus(null)
 					setDelineateStatus(null)
-					const ctx = buildMapAgentContext(pt, clickedFeatures, sortedLayers, visibleLayerIds)
+					const ctx = buildMapAgentContext(pt, clickedFeatures, sortedLayers, visibleLayerIds, selectedFeatures)
 					try {
 						const result = await askAgentToDelineate(ctx)
 						setAgentStatus(
@@ -1619,6 +1975,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						setAgentStarting(false)
 					}
 				}}
+				onClearSelection={() => setSelectedFeatures([])}
 				onClose={() => {
 					setClickedFeatures([])
 					setInspectPoint(null)
@@ -1631,6 +1988,13 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						setDelineateStatus(meritRiversRequiredMessage())
 						return
 					}
+					const expectedAreaKm2 = selectedMeritUpareaKm2(clickedFeatures)
+					if (expectedAreaKm2 && expectedAreaKm2 > QUICK_DELINEATE_MAX_MERIT_UPAREA_KM2) {
+						setDelineateStatus(
+							`Large basin (~${Math.round(expectedAreaKm2).toLocaleString()} km²). Quick raster delineation exceeds the interactive envelope; use Delineate with agent so the hybrid workflow can stage MERIT-Basins assets.`,
+						)
+						return
+					}
 					reportMapEvent("delineation.requested", { lat: pt.lat, lon: pt.lon })
 					setDelineating(true)
 					setDelineateStatus(null)
@@ -1641,6 +2005,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 							lon: pt.lon,
 							sessionId: "map",
 							method: "auto",
+							expectedAreaKm2,
 						})
 						if (result.ok) {
 							const area = (result.result?.data as { area_km2?: number })?.area_km2
@@ -1666,7 +2031,9 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						setDelineating(false)
 					}
 				}}
+				onSaveFeatures={saveFeaturesToWorkspace}
 				rasterReading={inspectRasterReading}
+				selectedFeatures={selectedFeatures}
 			/>
 
 			<MapBottomBar

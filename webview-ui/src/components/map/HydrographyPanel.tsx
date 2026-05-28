@@ -15,6 +15,18 @@ interface HydrographyPanelProps {
 	onStatus?: (text: string) => void
 }
 
+interface BasinsRegionResult {
+	pfaf_region?: string
+	catchments_ready?: boolean
+	rivers_ready?: boolean
+	acquisition_required?: boolean
+	catchments_path?: string
+	source?: string
+	license?: string
+	citation?: string
+	message?: string
+}
+
 const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState, onStatus }) => {
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
@@ -24,7 +36,6 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 	const [busy, setBusy] = useState(false)
 	const [status, setStatus] = useState("")
 	const [presets, setPresets] = useState<Preset[]>([])
-	const [includeCatchments, setIncludeCatchments] = useState(false)
 	const [hucLevel, setHucLevel] = useState(8)
 	const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -91,13 +102,93 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 				lat: center.lat,
 				lon: center.lon,
 				...bb,
-				includeCatchments,
+				includeCatchments: false,
+				includeRivers: true,
 				includeLevel2: false,
 			})
 			setMsg(
 				layers.ok
 					? layers.message || "MERIT rivers loaded for this view"
 					: layers.error || layers.message || "Could not add layers to map",
+			)
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e))
+		} finally {
+			setBusy(false)
+		}
+	}
+
+	const addMeritLayersForView = async (includeRivers: boolean, includeCatchmentsForLayer: boolean) => {
+		const bb = viewBbox()
+		return sendHydroMapCommand("meritLayers", {
+			lat: center.lat,
+			lon: center.lon,
+			...bb,
+			includeRivers,
+			includeCatchments: includeCatchmentsForLayer,
+			includeLevel2: false,
+		})
+	}
+
+	const loadCatchmentsForView = async () => {
+		setBusy(true)
+		setMsg("Loading MERIT-Basins catchments for this view…")
+		try {
+			const bb = viewBbox()
+			const layers = await sendHydroMapCommand("meritCatchmentLayers", {
+				lat: center.lat,
+				lon: center.lon,
+				...bb,
+				download: true,
+			})
+			setMsg(
+				layers.ok
+					? layers.message || "MERIT catchments loaded for this view"
+					: layers.error || layers.message || "Could not add MERIT catchments to map",
+			)
+		} catch (e) {
+			setMsg(e instanceof Error ? e.message : String(e))
+		} finally {
+			setBusy(false)
+		}
+	}
+
+	const loadRiversAndCatchmentsForView = async () => {
+		setBusy(true)
+		setMsg("Installing MERIT rivers and catchments for this view…")
+		try {
+			const rivers = await sendHydroMapCommand("meritEnsureBasin", {
+				lat: center.lat,
+				lon: center.lon,
+				download: true,
+			})
+			if (!rivers.ok) {
+				setMsg(rivers.error || rivers.message || "MERIT river install failed")
+				return
+			}
+			const ok = window.confirm(
+				"Stage the regional MERIT-Basins catchment package as well?\n\n" +
+					"AI-Hydro will download only the Pfaf Level-2 region for the current view.",
+			)
+			if (!ok) {
+				setMsg(rivers.message || "Rivers installed; catchment staging cancelled.")
+				return
+			}
+			const catchments = await sendHydroMapCommand("meritEnsureBasinsRegion", {
+				lat: center.lat,
+				lon: center.lon,
+				download: true,
+			})
+			const catchmentResult = (catchments.result ?? {}) as BasinsRegionResult
+			if (catchmentResult.catchments_ready !== true) {
+				setMsg(catchments.error || catchmentResult.message || "MERIT catchment staging failed.")
+				return
+			}
+			const layers = await addMeritLayersForView(true, true)
+			setMsg(
+				layers.ok
+					? layers.message || "MERIT rivers and catchments loaded for this view"
+					: layers.error || layers.message || "Could not add MERIT layers to map",
 			)
 		} catch (e) {
 			setMsg(e instanceof Error ? e.message : String(e))
@@ -202,9 +293,8 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 				Reference vectors
 			</p>
 			<p style={{ margin: "0 0 8px", color: muted, lineHeight: 1.45 }}>
-				Adds <strong>MERIT river flowlines</strong> clipped to the map view (for snapping quick delineation outside
-				CONUS). A small Pfaf index file may download in the background for lookup — it is not drawn on the map. For full
-				MERIT-Basins accuracy, use <strong>Delineate with agent</strong>. Cache:{" "}
+				Adds <strong>MERIT-Basins reference vectors</strong> clipped to the map view. Rivers and catchments are staged by
+				Pfaf Level-2 region, never as a global bulk download. Cache:{" "}
 				<code style={{ fontSize: 10 }}>~/.aihydro/merit</code>.
 			</p>
 
@@ -217,22 +307,14 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 					type="button">
 					🌊 Load rivers for this view
 				</button>
-				<label
-					style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 10, color: muted, lineHeight: 1.4 }}
-					title="Only shows polygons if cat_pfaf_*.shp is already on disk — Load rivers does not download catchments">
-					<input
-						checked={includeCatchments}
-						disabled={busy}
-						onChange={(e) => setIncludeCatchments(e.target.checked)}
-						style={{ marginTop: 2 }}
-						type="checkbox"
-					/>
-					<span>
-						Show MERIT catchment polygons on map (if already installed under{" "}
-						<code style={{ fontSize: 9 }}>~/.aihydro/merit/shp/merit_catchments</code>) — not downloaded by this
-						button
-					</span>
-				</label>
+				<button
+					disabled={busy}
+					onClick={() => void loadCatchmentsForView()}
+					style={btn}
+					title="Stage official MERIT-Basins catchment polygons for this Pfaf region, then add clipped polygons to the map"
+					type="button">
+					▧ Load catchments for this view
+				</button>
 				<button
 					disabled={busy}
 					onClick={() => setShowAdvanced((v) => !v)}
@@ -255,7 +337,7 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 						disabled={busy}
 						onClick={() =>
 							run(
-								"Install only (no map)",
+								"Install rivers only (no map)",
 								() =>
 									sendHydroMapCommand("meritEnsureBasin", {
 										lat: center.lat,
@@ -267,7 +349,10 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 						}
 						style={btn}
 						type="button">
-						⬇ Install data only (no layers)
+						⬇ Install rivers only (no layers)
+					</button>
+					<button disabled={busy} onClick={() => void loadRiversAndCatchmentsForView()} style={btn} type="button">
+						⬇ Load rivers + catchments
 					</button>
 					<button
 						disabled={busy}
@@ -278,7 +363,8 @@ const HydrographyPanel: React.FC<HydrographyPanelProps> = ({ mapStyle, viewState
 									lat: center.lat,
 									lon: center.lon,
 									...bb,
-									includeCatchments,
+									includeCatchments: true,
+									includeRivers: true,
 									includeLevel2: false,
 								}),
 							)

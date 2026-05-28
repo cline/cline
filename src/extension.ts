@@ -251,27 +251,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (uris.length === 0) {
 				return
 			}
-			const MAX_BYTES = 200 * 1024 * 1024 // 200 MB guard
-			const files: Array<{ name: string; data: Uint8Array }> = []
-			for (const uri of uris) {
-				try {
-					const bytes = await vscode.workspace.fs.readFile(uri)
-					if (bytes.byteLength > MAX_BYTES) {
-						vscode.window.showWarningMessage(
-							`AI-Hydro Map: ${path.basename(uri.fsPath)} is too large (>${MAX_BYTES / 1024 / 1024} MB). Use the + Add Layer button inside the map panel instead.`,
-						)
-						continue
-					}
-					files.push({ name: path.basename(uri.fsPath), data: bytes })
-				} catch (err) {
-					vscode.window.showErrorMessage(
-						`AI-Hydro Map: Failed to read ${path.basename(uri.fsPath)}: ${err instanceof Error ? err.message : String(err)}`,
-					)
-				}
-			}
-			if (files.length > 0) {
-				await VscodeMapPanelProvider.sendFilesToMap(files)
-			}
+			await VscodeMapPanelProvider.sendFileUrisToMap(uris)
 		}),
 	)
 
@@ -410,14 +390,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		)
 		if (action === "Add to Map") {
 			try {
-				const bytes = await vscode.workspace.fs.readFile(uri)
-				await VscodeMapPanelProvider.sendFilesToMap([{ name: path.basename(uri.fsPath), data: bytes }])
-				// Best-effort: close the editor tab now that we've added it to the map.
-				try {
-					await vscode.commands.executeCommand("workbench.action.closeActiveEditor")
-				} catch {
-					/* ignore */
-				}
+				await VscodeMapPanelProvider.sendFileUrisToMap([uri])
 			} catch (err) {
 				vscode.window.showErrorMessage(`AI-Hydro Map: ${err instanceof Error ? err.message : String(err)}`)
 			}
