@@ -4335,6 +4335,15 @@ export const rodiumaiModels = {
 		inputPrice: 15,
 		outputPrice: 75,
 	},
+	"anthropic/claude-opus-4-8": {
+		maxTokens: 32_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		inputPrice: 15,
+		outputPrice: 75,
+	},
 	"anthropic/claude-sonnet-4-6": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
