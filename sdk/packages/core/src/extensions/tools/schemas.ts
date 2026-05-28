@@ -102,13 +102,29 @@ const CommandInputSchema = z
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
 
+export const RUN_COMMANDS_TIMEOUT_MIN_MS = 1_000;
+export const RUN_COMMANDS_TIMEOUT_MAX_MS = 600_000;
+
+const RunCommandsTimeoutSchema = z
+	.number()
+	.optional()
+	.describe(
+		`Optional per-call timeout in milliseconds. Clamped to [${RUN_COMMANDS_TIMEOUT_MIN_MS}, ${RUN_COMMANDS_TIMEOUT_MAX_MS}]. If omitted, the workspace default applies.`,
+	);
+
 /**
- * Schema for run_commands tool input
+ * Schema for run_commands tool input.
+ *
+ * Uses `looseObject` so model-supplied keys that are not part of the contract
+ * (e.g. some OpenAI/Codex shell tool variants emit `timeout`) round-trip
+ * through zodToJsonSchema as `additionalProperties: true` and are not rejected
+ * before reaching `execute`. Recognised optional keys are declared explicitly.
  */
-export const RunCommandsInputSchema = z.object({
+export const RunCommandsInputSchema = z.looseObject({
 	commands: z
 		.array(CommandInputSchema)
 		.describe("Array of shell commands to execute"),
+	timeout: RunCommandsTimeoutSchema,
 });
 
 /**
@@ -139,14 +155,17 @@ export const StructuredCommandEntrySchema = z.union([
 	StructuredCommandInputSchema,
 ]);
 /**
- * Schema for run_commands tool input
+ * Schema for run_commands tool input.
+ *
+ * See `RunCommandsInputSchema` for the rationale behind `looseObject`.
  */
-export const StructuredCommandsInputSchema = z.object({
+export const StructuredCommandsInputSchema = z.looseObject({
 	commands: z
 		.array(StructuredCommandEntrySchema)
 		.describe(
 			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
 		),
+	timeout: RunCommandsTimeoutSchema,
 });
 
 /**

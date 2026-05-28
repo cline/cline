@@ -32,6 +32,8 @@ import {
 	FetchWebContentInputSchema,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
+	RUN_COMMANDS_TIMEOUT_MAX_MS,
+	RUN_COMMANDS_TIMEOUT_MIN_MS,
 	type RunCommandsInput,
 	RunCommandsInputSchema,
 	RunCommandsInputUnionSchema,
@@ -203,7 +205,7 @@ export function createBashTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const defaultTimeoutMs = config.bashTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<RunCommandsInput, ToolOperationResult[]>({
@@ -212,9 +214,13 @@ export function createBashTool(
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
 			"Commands should be properly shell-escaped and targeted to avoid error or timeout. " +
-			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
+			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later. " +
+			`Optional \`timeout\` field (milliseconds, ${RUN_COMMANDS_TIMEOUT_MIN_MS}-${RUN_COMMANDS_TIMEOUT_MAX_MS}) overrides the default per-command timeout.`,
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
-		timeoutMs: timeoutMs * 2,
+		timeoutMs: Math.max(
+			defaultTimeoutMs * 2,
+			RUN_COMMANDS_TIMEOUT_MAX_MS + 30_000,
+		),
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
@@ -234,13 +240,18 @@ export function createBashTool(
 				commands = [validate.cmd];
 			}
 
+			const effectiveTimeoutMs = resolveRunCommandsTimeoutMs(
+				input,
+				defaultTimeoutMs,
+			);
+
 			return Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
-							timeoutMs,
-							`Command timed out after ${timeoutMs}ms`,
+							effectiveTimeoutMs,
+							`Command timed out after ${effectiveTimeoutMs}ms`,
 						);
 						return {
 							query: command,
@@ -271,7 +282,7 @@ export function createWindowsShellTool(
 	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const defaultTimeoutMs = config.bashTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
@@ -279,21 +290,29 @@ export function createWindowsShellTool(
 		description:
 			"Run shell commands from the root of the workspacein Windows environment. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped.",
+			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. " +
+			`Optional \`timeout\` field (milliseconds, ${RUN_COMMANDS_TIMEOUT_MIN_MS}-${RUN_COMMANDS_TIMEOUT_MAX_MS}) overrides the default per-command timeout.`,
 		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
-		timeoutMs: timeoutMs * 2,
+		timeoutMs: Math.max(
+			defaultTimeoutMs * 2,
+			RUN_COMMANDS_TIMEOUT_MAX_MS + 30_000,
+		),
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
 			const commands = normalizeRunCommandsInput(input);
+			const effectiveTimeoutMs = resolveRunCommandsTimeoutMs(
+				input,
+				defaultTimeoutMs,
+			);
 
 			return Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
-							timeoutMs,
-							`Command timed out after ${timeoutMs}ms`,
+							effectiveTimeoutMs,
+							`Command timed out after ${effectiveTimeoutMs}ms`,
 						);
 						return {
 							query: formatRunCommandQuery(command),
@@ -313,6 +332,31 @@ export function createWindowsShellTool(
 			);
 		},
 	});
+}
+
+/**
+ * Extract an optional `timeout` (milliseconds) from raw tool input and clamp
+ * it to the supported range, falling back to the workspace default when
+ * absent or invalid. Tolerates payloads from models that emit `timeout`
+ * alongside `commands` (e.g. GPT-5 family shell tool variants); the schema
+ * validates `timeout` as a number, so non-finite values can only arise from
+ * unusual call paths and are defended against here.
+ */
+function resolveRunCommandsTimeoutMs(
+	input: unknown,
+	defaultTimeoutMs: number,
+): number {
+	if (input === null || typeof input !== "object") {
+		return defaultTimeoutMs;
+	}
+	const raw = (input as { timeout?: unknown }).timeout;
+	if (typeof raw !== "number" || !Number.isFinite(raw)) {
+		return defaultTimeoutMs;
+	}
+	return Math.min(
+		Math.max(Math.trunc(raw), RUN_COMMANDS_TIMEOUT_MIN_MS),
+		RUN_COMMANDS_TIMEOUT_MAX_MS,
+	);
 }
 
 /**

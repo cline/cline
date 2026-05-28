@@ -1,11 +1,20 @@
+import { zodToJsonSchema } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import {
+	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
-import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import {
+	INPUT_ARG_CHAR_LIMIT,
+	RUN_COMMANDS_TIMEOUT_MAX_MS,
+	RUN_COMMANDS_TIMEOUT_MIN_MS,
+	RunCommandsInputSchema,
+	StructuredCommandsInputSchema,
+} from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 function createMockSkillsExecutor(
@@ -550,6 +559,167 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	describe("timeout handling", () => {
+		// Reproduce the validation path used by ai-sdk.ts: JSON Schema is
+		// generated via the project's zodToJsonSchema wrapper (the same one
+		// createBashTool stores on inputSchema), then round-tripped through
+		// z.fromJSONSchema before being parsed. Using the wrapper here — not
+		// Zod's built-in z.toJSONSchema — is what makes this test actually
+		// guard against the original `Unrecognized key: "timeout"` regression.
+		function parseViaAiSdkPath(
+			schema:
+				| typeof RunCommandsInputSchema
+				| typeof StructuredCommandsInputSchema,
+			value: unknown,
+		) {
+			const json = zodToJsonSchema(schema);
+			return z.fromJSONSchema(json).safeParse(value);
+		}
+
+		it("emits additionalProperties: true via the project's zodToJsonSchema", () => {
+			// Without this, the schema change would silently fail to take effect
+			// because ai-sdk.ts uses the JSON Schema produced here for validation.
+			const json = zodToJsonSchema(RunCommandsInputSchema) as {
+				additionalProperties?: unknown;
+			};
+			expect(json.additionalProperties).not.toBe(false);
+			const structuredJson = zodToJsonSchema(StructuredCommandsInputSchema) as {
+				additionalProperties?: unknown;
+			};
+			expect(structuredJson.additionalProperties).not.toBe(false);
+		});
+
+		it("accepts payloads with timeout (the GPT-5.5 regression)", () => {
+			const payload = {
+				commands: [
+					"cd /tmp && python3 -m unittest discover -s app/tests -p 'test_*.py' -v",
+				],
+				timeout: 120000,
+			};
+			expect(parseViaAiSdkPath(RunCommandsInputSchema, payload).success).toBe(
+				true,
+			);
+			expect(
+				parseViaAiSdkPath(StructuredCommandsInputSchema, payload).success,
+			).toBe(true);
+		});
+
+		it("tolerates unrecognised passthrough keys without rejecting the call", () => {
+			const payload = {
+				commands: ["echo ok"],
+				timeout: 5000,
+				working_directory: "/tmp",
+				cwd: "/tmp",
+			};
+			expect(parseViaAiSdkPath(RunCommandsInputSchema, payload).success).toBe(
+				true,
+			);
+		});
+
+		it("uses the supplied timeout when the command outlives it", async () => {
+			vi.useFakeTimers();
+			try {
+				const tool = createBashTool(() => new Promise<string>(() => {}));
+				const requested = RUN_COMMANDS_TIMEOUT_MIN_MS * 5;
+				const pending = tool.execute(
+					{ commands: ["sleep 999"], timeout: requested } as never,
+					{ agentId: "a", conversationId: "c", iteration: 1 },
+				);
+				await vi.advanceTimersByTimeAsync(requested + 1);
+				const result = await pending;
+				expect(result[0]?.success).toBe(false);
+				expect(result[0]?.error).toMatch(
+					new RegExp(`timed out after ${requested}ms`),
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("clamps below-range timeout up to the minimum", async () => {
+			vi.useFakeTimers();
+			try {
+				const tool = createBashTool(() => new Promise<string>(() => {}));
+				const pending = tool.execute(
+					{ commands: ["sleep"], timeout: 1 } as never,
+					{ agentId: "a", conversationId: "c", iteration: 1 },
+				);
+				await vi.advanceTimersByTimeAsync(RUN_COMMANDS_TIMEOUT_MIN_MS + 1);
+				const result = await pending;
+				expect(result[0]?.success).toBe(false);
+				expect(result[0]?.error).toMatch(
+					new RegExp(`timed out after ${RUN_COMMANDS_TIMEOUT_MIN_MS}ms`),
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("clamps above-range timeout down to the maximum", async () => {
+			vi.useFakeTimers();
+			try {
+				const tool = createBashTool(() => new Promise<string>(() => {}));
+				const pending = tool.execute(
+					{
+						commands: ["sleep"],
+						timeout: RUN_COMMANDS_TIMEOUT_MAX_MS * 10,
+					} as never,
+					{ agentId: "a", conversationId: "c", iteration: 1 },
+				);
+				await vi.advanceTimersByTimeAsync(RUN_COMMANDS_TIMEOUT_MAX_MS + 1);
+				const result = await pending;
+				expect(result[0]?.success).toBe(false);
+				expect(result[0]?.error).toMatch(
+					new RegExp(`timed out after ${RUN_COMMANDS_TIMEOUT_MAX_MS}ms`),
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("falls back to the workspace default when timeout is omitted", async () => {
+			vi.useFakeTimers();
+			try {
+				const tool = createBashTool(() => new Promise<string>(() => {}), {
+					bashTimeoutMs: 7_500,
+				});
+				const pending = tool.execute({ commands: ["sleep"] } as never, {
+					agentId: "a",
+					conversationId: "c",
+					iteration: 1,
+				});
+				await vi.advanceTimersByTimeAsync(7_501);
+				const result = await pending;
+				expect(result[0]?.success).toBe(false);
+				expect(result[0]?.error).toMatch(/timed out after 7500ms/);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("respects timeout for createWindowsShellTool", async () => {
+			vi.useFakeTimers();
+			try {
+				const tool = createWindowsShellTool(
+					() => new Promise<string>(() => {}),
+				);
+				const requested = RUN_COMMANDS_TIMEOUT_MIN_MS * 3;
+				const pending = tool.execute(
+					{ commands: ["sleep"], timeout: requested } as never,
+					{ agentId: "a", conversationId: "c", iteration: 1 },
+				);
+				await vi.advanceTimersByTimeAsync(requested + 1);
+				const result = await pending;
+				expect(result[0]?.success).toBe(false);
+				expect(result[0]?.error).toMatch(
+					new RegExp(`timed out after ${requested}ms`),
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
 	});
 });
 
