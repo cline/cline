@@ -1,6 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+	resolveGlobalAgentsRulesPath,
+	setHomeDir,
+} from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	createRulesConfigDefinition,
@@ -197,13 +201,14 @@ Escalation runbook`,
 		);
 		tempRoots.push(tempRoot);
 
-		const globalAgentsDir = join(tempRoot, "home", ".Agents");
-		const fallbackAgentsDir = join(tempRoot, "other");
+		const originalHomeDir = process.env.HOME?.trim() || homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const globalAgentsPath = resolveGlobalAgentsRulesPath();
+		const fallbackAgentsDir = join(tempRoot, "other", ".agents");
 		const workspaceRoot = join(tempRoot, "workspace");
-		await mkdir(globalAgentsDir, { recursive: true });
+		await mkdir(join(tempRoot, "home", ".agents"), { recursive: true });
 		await mkdir(fallbackAgentsDir, { recursive: true });
 		await mkdir(workspaceRoot, { recursive: true });
-		const globalAgentsPath = join(globalAgentsDir, "AGENTS.md");
 		const fallbackAgentsPath = join(fallbackAgentsDir, "AGENTS.md");
 		const workspaceAgentsPath = join(workspaceRoot, "AGENTS.md");
 		await writeFile(globalAgentsPath, "Use global AGENTS rules.");
@@ -236,6 +241,7 @@ Escalation runbook`,
 			);
 		} finally {
 			watcher.stop();
+			setHomeDir(originalHomeDir);
 		}
 	});
 

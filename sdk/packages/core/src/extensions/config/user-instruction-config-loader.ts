@@ -3,6 +3,7 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import {
 	AGENTS_RULES_FILE_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
+	resolveGlobalAgentsRulesPath,
 	resolveRulesConfigSearchPaths as resolveRulesConfigSearchPathsFromShared,
 	resolveSkillsConfigSearchPaths as resolveSkillsConfigSearchPathsFromShared,
 	resolveWorkflowsConfigSearchPaths as resolveWorkflowsConfigSearchPathsFromShared,
@@ -226,7 +227,7 @@ function resolveRuleFallbackName(
 		return "Workspace AGENTS.md";
 	}
 
-	if (basename(context.directoryPath).toLowerCase() === ".agents") {
+	if (resolve(context.filePath) === resolve(resolveGlobalAgentsRulesPath())) {
 		return "Global AGENTS.md";
 	}
 
