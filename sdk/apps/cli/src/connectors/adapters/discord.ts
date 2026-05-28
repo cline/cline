@@ -975,11 +975,14 @@ class DiscordConnector extends ConnectorBase<
 
 		const statePath = this.resolveConnectorStatePath(options.applicationId);
 		const bindingsPath = this.resolveBindingsPath(options.applicationId);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<DiscordThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs,
@@ -1483,6 +1486,7 @@ class DiscordConnector extends ConnectorBase<
 		}
 
 		await stopPromise;
+		clearBindingSessionIds<DiscordThreadState>(bindingsPath);
 		gatewayAbortController.abort();
 		stopTaskUpdateStream();
 		stopEventStream();

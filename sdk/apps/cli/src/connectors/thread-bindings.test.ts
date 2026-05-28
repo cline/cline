@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Thread } from "chat";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	clearBindingSessionIds,
 	type ConnectorThreadState,
 	readBindingForThread,
 	readBindings,
@@ -118,5 +119,45 @@ describe("thread binding refresh", () => {
 		expect(
 			readBindings<TestState>(path)[participantKey]?.serializedThread,
 		).toContain("new_thread_id");
+	});
+});
+
+describe("clearBindingSessionIds", () => {
+	it("clears session ids from bindings and serialized thread state", () => {
+		const path = createBindingsPath();
+		writeBindings<TestState>(path, {
+			thread_1: {
+				channelId: "discord:C123",
+				isDM: false,
+				serializedThread: JSON.stringify({
+					id: "thread_1",
+					channelId: "discord:C123",
+					isDM: false,
+					sessionId: "legacy-root-session",
+					state: {
+						sessionId: "sess-1",
+						cwd: "/tmp/work",
+						teamId: "T123",
+					},
+				}),
+				sessionId: "sess-1",
+				state: { sessionId: "sess-1", cwd: "/tmp/work", teamId: "T123" },
+				updatedAt: "2026-03-17T00:00:00.000Z",
+			},
+		});
+
+		clearBindingSessionIds<TestState>(path);
+
+		const binding = readBindings<TestState>(path).thread_1;
+		expect(binding?.sessionId).toBeUndefined();
+		expect(binding?.state?.sessionId).toBeUndefined();
+		expect(binding?.state?.cwd).toBe("/tmp/work");
+		const serializedThread = JSON.parse(binding?.serializedThread ?? "{}") as {
+			sessionId?: string;
+			state?: TestState;
+		};
+		expect(serializedThread.sessionId).toBeUndefined();
+		expect(serializedThread.state?.sessionId).toBeUndefined();
+		expect(serializedThread.state?.cwd).toBe("/tmp/work");
 	});
 });
