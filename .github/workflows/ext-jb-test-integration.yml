@@ -29,7 +29,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: 1998650
+          app-id: ${{ vars.CLINE_JETBRAINS_WORKFLOW_ID }}
           private-key: ${{ secrets.CLINE_JETBRAINS_WORKFLOW_KEY }}
           owner: cline
           repositories: intellij-plugin
