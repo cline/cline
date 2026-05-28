@@ -225,13 +225,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Register AI-Hydro: External Connectors command
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.ConnectorsButton, () => {
-			sendConnectorsButtonClickedEvent()
-		}),
-	)
-
 	// Register AI-Hydro: Skills command
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.SkillsButton, () => {
