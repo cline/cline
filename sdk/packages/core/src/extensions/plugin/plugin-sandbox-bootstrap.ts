@@ -40,6 +40,12 @@ interface PluginCommand {
 	handler?: (input: string) => Promise<string>;
 }
 
+interface PluginRule {
+	id: string;
+	content: string | (() => string | Promise<string>);
+	source?: string;
+}
+
 interface PluginMessageBuilder {
 	name: string;
 	build: (message: unknown[]) => unknown[]; // Message[]
@@ -64,6 +70,7 @@ interface PluginAutomationEventType {
 interface PluginApi {
 	registerTool(tool: PluginTool): void;
 	registerCommand(command: PluginCommand): void;
+	registerRule(rule: PluginRule): void;
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 	registerAutomationEventType(eventType: PluginAutomationEventType): void;
@@ -103,6 +110,14 @@ interface ContributionDescriptor {
 	metadata?: Record<string, unknown>;
 }
 
+interface RuleContributionDescriptor {
+	id: string;
+	ruleId: string;
+	content?: string;
+	source?: string;
+	hasContentHandler?: boolean;
+}
+
 interface AutomationEventTypeDescriptor {
 	id: string;
 	eventType: string;
@@ -123,6 +138,7 @@ interface PluginDescriptor {
 	contributions: {
 		tools: ContributionDescriptor[];
 		commands: ContributionDescriptor[];
+		rules: RuleContributionDescriptor[];
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 		automationEventTypes: AutomationEventTypeDescriptor[];
@@ -158,6 +174,7 @@ interface PluginState {
 	handlers: {
 		tools: Map<string, PluginTool["execute"]>;
 		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
+		rules: Map<string, () => string | Promise<string>>;
 		messageBuilders: Map<string, PluginMessageBuilder["build"]>;
 	};
 }
@@ -405,6 +422,7 @@ async function loadPluginDescriptor(args: {
 		const contributions: PluginDescriptor["contributions"] = {
 			tools: [],
 			commands: [],
+			rules: [],
 			messageBuilders: [],
 			providers: [],
 			automationEventTypes: [],
@@ -414,6 +432,7 @@ async function loadPluginDescriptor(args: {
 		const handlers: PluginState["handlers"] = {
 			tools: new Map(),
 			commands: new Map(),
+			rules: new Map(),
 			messageBuilders: new Map(),
 		};
 
@@ -439,6 +458,25 @@ async function loadPluginDescriptor(args: {
 					id,
 					name: command.name,
 					description: command.description,
+				});
+			},
+			registerRule: (rule) => {
+				const id = makeId(args.pluginId, "rule");
+				if (typeof rule.content === "function") {
+					handlers.rules.set(id, rule.content);
+					contributions.rules.push({
+						id,
+						ruleId: rule.id,
+						source: rule.source,
+						hasContentHandler: true,
+					});
+					return;
+				}
+				contributions.rules.push({
+					id,
+					ruleId: rule.id,
+					content: rule.content,
+					source: rule.source,
 				});
 			},
 			registerMessageBuilder: (builder) => {
@@ -690,6 +728,18 @@ async function buildMessages(args: {
 	return await handler(args.messages);
 }
 
+async function resolveRuleContent(args: {
+	pluginId: string;
+	contributionId: string;
+}): Promise<string> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.handlers.rules.get(args.contributionId);
+	if (typeof handler !== "function") {
+		return "";
+	}
+	return await handler();
+}
+
 // ---------------------------------------------------------------------------
 // Message dispatch
 // ---------------------------------------------------------------------------
@@ -700,6 +750,7 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	executeTool,
 	executeCommand,
 	buildMessages,
+	resolveRuleContent,
 };
 
 process.on(
