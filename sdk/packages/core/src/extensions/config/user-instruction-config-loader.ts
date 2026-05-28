@@ -103,7 +103,8 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	return (
 		nodeError?.code === "ENOENT" ||
 		nodeError?.code === "EACCES" ||
-		nodeError?.code === "EPERM"
+		nodeError?.code === "EPERM" ||
+		nodeError?.code === "ELOOP"
 	);
 }
 

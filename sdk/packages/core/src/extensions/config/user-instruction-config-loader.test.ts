@@ -288,6 +288,46 @@ Use the data agent skill.`,
 		}
 	});
 
+	it("ignores circular symlinks while discovering skill directories", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-circular-symlink-skill-"),
+		);
+		tempRoots.push(tempRoot);
+		const skillsDir = join(tempRoot, ".cline", "skills");
+		const skillDir = join(skillsDir, "commit");
+		const circularLink = join(skillsDir, "loop");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: commit
+---
+Use conventional commits.`,
+		);
+		await symlink(circularLink, circularLink, "dir");
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+		});
+
+		const events: Array<UserInstructionConfigWatcherEvent> = [];
+		const unsubscribe = watcher.subscribe((event) => events.push(event));
+
+		try {
+			await watcher.start();
+			await waitForEvent(
+				events,
+				(event) =>
+					event.kind === "upsert" &&
+					event.record.type === "skill" &&
+					event.record.id === "commit",
+			);
+		} finally {
+			unsubscribe();
+			watcher.stop();
+		}
+	});
+
 	it("loads enterprise-style managed rules, workflows, and skills through the default workspace watcher", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-managed-"),
