@@ -87,6 +87,7 @@ describe("ensureDetachedHubServer", () => {
 	const fetchMock = vi.fn(async () => ({ ok: true }));
 
 	beforeEach(() => {
+		delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
 		vi.stubGlobal("fetch", fetchMock);
 	});
 

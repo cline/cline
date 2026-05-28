@@ -54,6 +54,22 @@ interface IndexResponseMessage {
 
 const CACHE = new Map<string, CacheEntry>();
 
+function canUseFileIndexWorker(): boolean {
+	if (!isMainThread) {
+		return false;
+	}
+
+	// Vitest already runs tests inside worker pools. Spawning a second worker from a
+	// transformed TypeScript module is especially fragile on Windows and can abort
+	// the Vitest worker process before an assertion failure is reported. The
+	// synchronous fallback is deterministic and fast enough for tests.
+	if (process.env.VITEST) {
+		return false;
+	}
+
+	return true;
+}
+
 function pruneStaleCacheEntries(now: number): void {
 	if (CACHE.size <= 1) {
 		return;
@@ -276,7 +292,7 @@ startWorkerServer();
 let workerClient: FileIndexWorkerClient | null | undefined;
 
 function getWorkerClient(): FileIndexWorkerClient | null {
-	if (!isMainThread) {
+	if (!canUseFileIndexWorker()) {
 		return null;
 	}
 	if (workerClient === undefined) {
