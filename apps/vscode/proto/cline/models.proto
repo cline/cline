@@ -140,6 +140,12 @@ message ProviderListing {
   optional string auth_description = 6;
   optional string base_url_description = 7;
   bool allows_custom_model_ids = 8;
+
+  // SDK-driven hint for cost display. Values: "show" (default) or "hide".
+  // Sourced from `resolveProviderUsageCostDisplay(provider.metadata)` in
+  // `@cline/llms`. When "hide", consumers must suppress per-token pricing
+  // and total cost displays (matches the CLI's `shouldShowCliUsageCost`).
+  string usage_cost_display = 11;
 }
 
 message ProviderListingsResponse {

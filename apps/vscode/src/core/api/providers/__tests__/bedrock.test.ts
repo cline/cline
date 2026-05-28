@@ -1,7 +1,8 @@
 import { ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
-import { bedrockModels, vertexGlobalModels, vertexModels } from "@shared/api"
 import should from "should"
 import { Readable } from "stream"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import { vertexModelSupportsGlobalEndpoint } from "@/sdk/model-catalog/vertex-global-endpoint"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import type { AwsBedrockHandlerOptions } from "../bedrock"
 import { AwsBedrockHandler } from "../bedrock"
@@ -204,29 +205,24 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
-	describe("model metadata parity", () => {
-		it("should mark Bedrock Opus 4.7 variants as global-endpoint capable", () => {
-			bedrockModels["anthropic.claude-opus-4-7"].supportsGlobalEndpoint.should.equal(true)
-			bedrockModels["anthropic.claude-opus-4-7:1m"].supportsGlobalEndpoint.should.equal(true)
+	describe("vertex global-endpoint allowlist", () => {
+		// `supportsGlobalEndpoint` lives in the host-side allowlist
+		// (see apps/vscode/src/sdk/model-catalog/vertex-global-endpoint.ts)
+		// because the SDK doesn't yet model that capability per-model.
+		// These assertions are sentinels: when new Vertex Claude variants
+		// ship, the allowlist must include them or the picker silently
+		// stops offering them under `vertexRegion: "global"`.
+		it("flags claude-opus-4-7 base id", () => {
+			vertexModelSupportsGlobalEndpoint(parseProviderId("vertex"), "claude-opus-4-7").should.be.true()
 		})
-
-		it("should mark Bedrock Opus 4.8 variants as global-endpoint capable", () => {
-			bedrockModels["anthropic.claude-opus-4-8"].supportsGlobalEndpoint.should.equal(true)
-			bedrockModels["anthropic.claude-opus-4-8:1m"].supportsGlobalEndpoint.should.equal(true)
+		it("flags claude-opus-4-7:1m variant", () => {
+			vertexModelSupportsGlobalEndpoint(parseProviderId("vertex"), "claude-opus-4-7:1m").should.be.true()
 		})
-
-		it("should include Vertex Opus 4.7 variants in the derived global model list", () => {
-			vertexModels["claude-opus-4-7"].supportsGlobalEndpoint.should.equal(true)
-			vertexModels["claude-opus-4-7:1m"].supportsGlobalEndpoint.should.equal(true)
-			vertexGlobalModels.should.have.property("claude-opus-4-7")
-			vertexGlobalModels.should.have.property("claude-opus-4-7:1m")
+		it("flags @default-suffixed variants", () => {
+			vertexModelSupportsGlobalEndpoint(parseProviderId("vertex"), "claude-opus-4-7@default").should.be.true()
 		})
-
-		it("should include Vertex Opus 4.8 variants in the derived global model list", () => {
-			vertexModels["claude-opus-4-8"].supportsGlobalEndpoint.should.equal(true)
-			vertexModels["claude-opus-4-8:1m"].supportsGlobalEndpoint.should.equal(true)
-			vertexGlobalModels.should.have.property("claude-opus-4-8")
-			vertexGlobalModels.should.have.property("claude-opus-4-8:1m")
+		it("does not flag pre-4.x Claude variants", () => {
+			vertexModelSupportsGlobalEndpoint(parseProviderId("vertex"), "claude-3-5-sonnet@20241022").should.be.false()
 		})
 	})
 
@@ -1129,7 +1125,7 @@ describe("AwsBedrockHandler", () => {
 			]
 
 			// Consume the generator to trigger createAnthropicMessage
-			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), false, tools)
+			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), tools)
 			for await (const _ of gen) {
 				// drain
 			}

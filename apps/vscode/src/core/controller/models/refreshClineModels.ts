@@ -3,23 +3,12 @@ import type { ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import axios from "axios"
-import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { featureFlagsService } from "@/services/feature-flags"
-import {
-	ANTHROPIC_MAX_THINKING_BUDGET,
-	CLAUDE_OPUS_1M_TIERS,
-	CLAUDE_SONNET_1M_TIERS,
-	openRouterClaudeOpus461mModelId,
-	openRouterClaudeOpus471mModelId,
-	openRouterClaudeOpus481mModelId,
-	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
-	openRouterClaudeSonnet461mModelId,
-} from "@/shared/api"
+import { ANTHROPIC_MAX_THINKING_BUDGET } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
@@ -173,10 +162,6 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				tiers: rawModel.tiers ?? undefined,
 			}
 
-			if (modelInfo.cacheReadsPrice !== undefined || modelInfo.cacheWritesPrice !== undefined) {
-				modelInfo.supportsPromptCache = true
-			}
-
 			// Apply model-specific overrides for known models
 			switch (rawModel.id) {
 				case "anthropic/claude-sonnet-4.6":
@@ -198,7 +183,6 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 					break
 				case "anthropic/claude-opus-4.6":
 				case "anthropic/claude-opus-4.7":
-				case "anthropic/claude-opus-4.8":
 					modelInfo.contextWindow = 200_000
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 6.25
@@ -257,48 +241,6 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 			}
 
 			models[rawModel.id] = modelInfo
-
-			// Add custom :1m model variant for Sonnet models
-			if (
-				rawModel.id === "anthropic/claude-sonnet-4" ||
-				rawModel.id === "anthropic/claude-sonnet-4.5" ||
-				rawModel.id === "anthropic/claude-sonnet-4.6" ||
-				rawModel.id === "anthropic/claude-4.6-sonnet"
-			) {
-				const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
-				claudeSonnet1mModelInfo.contextWindow = 1_000_000
-				claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
-
-				if (rawModel.id === "anthropic/claude-sonnet-4") {
-					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
-				}
-				if (rawModel.id === "anthropic/claude-sonnet-4.5") {
-					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
-				}
-				if (rawModel.id === "anthropic/claude-sonnet-4.6" || rawModel.id === "anthropic/claude-4.6-sonnet") {
-					models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo
-				}
-			}
-
-			// Add custom :1m model variant for Opus 4.6, 4.7 and 4.8
-			if (
-				rawModel.id === "anthropic/claude-opus-4.6" ||
-				rawModel.id === "anthropic/claude-opus-4.7" ||
-				rawModel.id === "anthropic/claude-opus-4.8"
-			) {
-				const claudeOpus1mModelInfo = cloneDeep(modelInfo)
-				claudeOpus1mModelInfo.contextWindow = 1_000_000
-				claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
-				if (rawModel.id === "anthropic/claude-opus-4.6") {
-					models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo
-				}
-				if (rawModel.id === "anthropic/claude-opus-4.7") {
-					models[openRouterClaudeOpus471mModelId] = claudeOpus1mModelInfo
-				}
-				if (rawModel.id === "anthropic/claude-opus-4.8") {
-					models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo
-				}
-			}
 		}
 		if (Object.keys(models).length === 0) {
 			throw new Error("No Cline models returned from API")

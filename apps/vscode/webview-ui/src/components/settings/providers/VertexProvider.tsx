@@ -1,9 +1,10 @@
-import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -11,7 +12,7 @@ import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -48,14 +49,29 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	// Catalog and selection come from the SDK via gRPC. Vertex carries a
+	// per-model `supportsGlobalEndpoint` flag (populated host-side from
+	// the allowlist in
+	// `apps/vscode/src/sdk/model-catalog/vertex-global-endpoint.ts`).
+	// When the user selects `vertexRegion === "global"` the picker is
+	// filtered to only models known to work with that endpoint so the
+	// runtime cannot produce a `model not available in region: global`
+	// error from a user-pickable combination.
+	const {
+		models: allVertexModels,
+		selectedModelId,
+		selectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection("vertex", apiConfiguration, currentMode)
+	const modelsToUse = useMemo(() => {
+		if (apiConfiguration?.vertexRegion !== "global") {
+			return allVertexModels
+		}
+		return Object.fromEntries(Object.entries(allVertexModels).filter(([, info]) => info.supportsGlobalEndpoint === true))
+	}, [allVertexModels, apiConfiguration?.vertexRegion])
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
-
-	// Determine which models to use based on region
-	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
 
 	return (
 		<div
@@ -155,7 +171,12 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						<ReasoningEffortSelector currentMode={currentMode} />
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

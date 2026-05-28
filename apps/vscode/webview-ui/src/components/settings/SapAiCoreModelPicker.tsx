@@ -1,7 +1,7 @@
-import { sapAiCoreModels } from "@shared/api"
 import { SapAiCoreModelDeployment } from "@shared/proto/index.cline"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo } from "react"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { DropdownContainer } from "./common/ModelSelector"
 
 export const SAP_AI_CORE_MODEL_PICKER_Z_INDEX = 1_000
@@ -29,6 +29,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 	placeholder = "Select a model...",
 	useOrchestrationMode = false,
 }) => {
+	const { models: sapAiCoreModels } = useProviderModels("sapaicore")
 	// Auto-fix deployment ID mismatch or missing deployment ID when deployments change (when ai core creds changes)
 	useEffect(() => {
 		if (!selectedModelId) {
@@ -94,7 +95,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 		}))
 
 		return { deployed, supported }
-	}, [sapAiCoreModelDeployments])
+	}, [sapAiCoreModelDeployments, sapAiCoreModels])
 
 	const renderOptions = () => {
 		const options: React.ReactNode[] = []

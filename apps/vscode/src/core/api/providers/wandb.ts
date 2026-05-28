@@ -1,4 +1,6 @@
-import { type ModelInfo, openAiModelInfoSafeDefaults, type WandbModelId, wandbDefaultModelId, wandbModels } from "@shared/api"
+import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { type ModelInfo, openAiModelInfoSafeDefaults, type WandbModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -88,15 +90,16 @@ export class WandbHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId?.trim()
+		const wandbCollection = MODEL_COLLECTIONS_BY_PROVIDER_ID["wandb"]
 
-		if (modelId && modelId in wandbModels) {
-			return { id: modelId, info: wandbModels[modelId as WandbModelId] }
-		}
-
-		if (modelId) {
+		// Custom id not in the SDK catalog: let it through with safe
+		// defaults. wandb hosts a wide range of model ids the SDK doesn't
+		// enumerate, so we trust the user-supplied value rather than
+		// snapping to the default.
+		if (modelId && wandbCollection && !(modelId in wandbCollection.models)) {
 			return { id: modelId, info: openAiModelInfoSafeDefaults }
 		}
 
-		return { id: wandbDefaultModelId, info: wandbModels[wandbDefaultModelId] }
+		return getProviderModelFromSdk<WandbModelId>("wandb", modelId)
 	}
 }

@@ -1,8 +1,9 @@
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ModelInfo, MoonshotModelId, moonshotDefaultModelId, moonshotModels } from "@/shared/api"
+import type { ModelInfo, MoonshotModelId } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
+import { getProviderModelFromSdk } from "@/shared/sdk-handler-models"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -99,12 +100,6 @@ export class MoonshotHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MoonshotModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-
-		if (modelId && modelId in moonshotModels) {
-			const id = modelId as MoonshotModelId
-			return { id, info: moonshotModels[id] }
-		}
-		return { id: moonshotDefaultModelId, info: moonshotModels[moonshotDefaultModelId] }
+		return getProviderModelFromSdk<MoonshotModelId>("moonshot", this.options.apiModelId)
 	}
 }
