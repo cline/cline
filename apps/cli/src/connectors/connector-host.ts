@@ -86,6 +86,21 @@ async function editConnectorText(
 	return await message.edit(connectorTextPayload(transport, text));
 }
 
+function isConnectorRuntimeSessionMissingError(
+	error: unknown,
+	sessionId: string,
+): boolean {
+	if (isRuntimeSessionNotFoundError(error, sessionId)) {
+		return true;
+	}
+	// Some chat delivery adapters consume async iterables internally and rethrow
+	// plain Errors, which drops the structured HubCommandError code.
+	return (
+		error instanceof Error &&
+		error.message === `session not found: ${sessionId}`
+	);
+}
+
 function buildAttachments(input: {
 	userImages: string[];
 	userFiles: string[];
@@ -1051,7 +1066,7 @@ export async function handleConnectorUserTurn<
 			const staleSessionId = currentState.sessionId?.trim();
 			if (
 				activeSessionId !== staleSessionId ||
-				!isRuntimeSessionNotFoundError(error, activeSessionId)
+				!isConnectorRuntimeSessionMissingError(error, activeSessionId)
 			) {
 				throw error;
 			}

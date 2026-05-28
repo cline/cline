@@ -44,7 +44,21 @@ function createThread(initialState: TestState = {}, isDM = true) {
 				state = { ...nextState };
 			},
 			async post(message: unknown) {
-				posts.push(message);
+				const asyncIterator =
+					message && typeof message === "object"
+						? (message as { [Symbol.asyncIterator]?: unknown })[
+								Symbol.asyncIterator
+							]
+						: undefined;
+				if (typeof asyncIterator === "function") {
+					let text = "";
+					for await (const chunk of message as AsyncIterable<string>) {
+						text += chunk;
+					}
+					posts.push(text);
+				} else {
+					posts.push(message);
+				}
 				const sentMessage = {
 					edit: async (nextMessage: unknown) => {
 						posts.push(nextMessage);
@@ -1394,87 +1408,86 @@ describe("handleConnectorUserTurn", () => {
 			label: "wrapped streaming error",
 			createError: () => new Error("session not found: stale-session"),
 		},
-	])(
-		"replaces stale persisted sessions when the runtime no longer has them ($label)",
-		async ({ createError }) => {
-			const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
-			tempDirs.push(dir);
-			const bindingsPath = join(dir, "threads.json");
-			const { thread, posts, getState } = createThread({
-				sessionId: "stale-session",
-				enableTools: false,
-				autoApproveTools: false,
-				cwd: "/tmp/work",
-				workspaceRoot: "/tmp/work",
-				participantKey: "slack:team:T123:user:U123",
-				participantLabel: "alice",
-			});
-			const startRuntimeSession = vi.fn(async () => ({
-				sessionId: "fresh-session",
-			}));
-			const sendRuntimeSession = vi.fn(async (sessionId: string) => {
-				if (sessionId === "stale-session") {
-					throw createError();
-				}
-				return {
-					result: {
-						text: "fresh reply",
-						finishReason: "stop",
-						iterations: 1,
-					},
-				};
-			});
-			const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
-			const deleteSession = vi.fn(async () => ({ deleted: true }));
+	])("replaces stale persisted sessions when the runtime no longer has them ($label)", async ({
+		createError,
+	}) => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "stale-session",
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "slack:team:T123:user:U123",
+			participantLabel: "alice",
+		});
+		const startRuntimeSession = vi.fn(async () => ({
+			sessionId: "fresh-session",
+		}));
+		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
+			if (sessionId === "stale-session") {
+				throw createError();
+			}
+			return {
+				result: {
+					text: "fresh reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+		const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
+		const deleteSession = vi.fn(async () => ({ deleted: true }));
 
-			await handleConnectorUserTurn({
-				thread: thread as never,
-				text: "hello",
-				client: {
-					startRuntimeSession,
-					updateSession: vi.fn(async () => undefined),
-					sendRuntimeSession,
-					stopRuntimeSession,
-					deleteSession,
-					streamEvents: vi.fn(() => () => undefined),
-				} as never,
-				pendingApprovals: new Map(),
-				baseStartRequest: baseStartRequest() as never,
-				explicitSystemPrompt: undefined,
-				clientId: "client-1",
-				logger: {
-					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
-				} as never,
-				transport: "slack",
-				botUserName: "ClineAdapterBot",
-				requestStop: vi.fn(),
-				bindingsPath,
-				systemRules: "rules",
-				errorLabel: "Slack",
-				getSessionMetadata: () => ({}),
-				reusedLogMessage: "reused",
-				startedLogMessage: "started",
-			});
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: {
+				startRuntimeSession,
+				updateSession: vi.fn(async () => undefined),
+				sendRuntimeSession,
+				stopRuntimeSession,
+				deleteSession,
+				streamEvents: vi.fn(() => () => undefined),
+			} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
 
-			expect(sendRuntimeSession).toHaveBeenNthCalledWith(
-				1,
-				"stale-session",
-				expect.anything(),
-				{ timeoutMs: null },
-			);
-			expect(sendRuntimeSession).toHaveBeenNthCalledWith(
-				2,
-				"fresh-session",
-				expect.anything(),
-				{ timeoutMs: null },
-			);
-			expect(startRuntimeSession).toHaveBeenCalledTimes(1);
-			expect(stopRuntimeSession).toHaveBeenCalledWith("stale-session");
-			expect(deleteSession).toHaveBeenCalledWith("stale-session", true);
-			expect(posts.at(-1)).toBe("fresh reply");
-			expect(getState().sessionId).toBe("fresh-session");
-		},
-	);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			1,
+			"stale-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			2,
+			"fresh-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(stopRuntimeSession).toHaveBeenCalledWith("stale-session");
+		expect(deleteSession).toHaveBeenCalledWith("stale-session", true);
+		expect(posts.at(-1)).toBe("fresh reply");
+		expect(getState().sessionId).toBe("fresh-session");
+	});
 
 	it("steers active Telegram turns without the hub command timeout", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
