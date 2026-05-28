@@ -238,7 +238,7 @@
 			},
 			{
 				"command": "aihydro.map.gallery",
-				"title": "AI-Hydro Map: Gallery",
+				"title": "AI-Hydro Map: Open Research Gallery",
 				"category": "AI-Hydro",
 				"icon": "$(preview)"
 			},

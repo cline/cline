@@ -80,4 +80,14 @@ describe("AI-Hydro map VS Code contributions", () => {
 		keybinding.when.should.containEql("resourceExtname == .geojson")
 		keybinding.when.should.containEql("resourceExtname == .tif")
 	})
+
+	it("keeps Research Gallery as a secondary discovery command", async () => {
+		const packageJson = await readPackageJson()
+		const galleryCommand = packageJson.contributes.commands.find(
+			(entry: { command: string }) => entry.command === "aihydro.map.gallery",
+		)
+
+		should.exist(galleryCommand)
+		galleryCommand.title.should.equal("AI-Hydro Map: Open Research Gallery")
+	})
 })

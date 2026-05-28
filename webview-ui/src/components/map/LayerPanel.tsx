@@ -548,7 +548,7 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 
 			{/* Add Layer bar */}
 			<div style={{ padding: "6px 8px", borderBottom: `1px solid ${border}` }}>
-				<div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: 5 }}>
+				<div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 5 }}>
 					<button
 						onClick={onPickFiles}
 						style={{
@@ -576,13 +576,6 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 						title="Add layer from URL"
 						type="button">
 						🔗 URL
-					</button>
-					<button
-						onClick={() => PLATFORM_CONFIG.postMessage({ type: "aihydro-map-gallery-command" })}
-						style={smallBtn(fg, border)}
-						title="Open AI-Hydro Map Gallery"
-						type="button">
-						🧪 Gallery
 					</button>
 				</div>
 				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 5 }}>

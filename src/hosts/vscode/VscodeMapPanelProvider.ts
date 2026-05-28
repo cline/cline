@@ -54,7 +54,12 @@ const safeFilename = (value: string, fallback = "map-layer"): string => {
 
 const checksum = (bytes: Uint8Array | string): string => crypto.createHash("sha256").update(bytes).digest("hex")
 
-const mapGallerySamples: Array<{
+const researchGalleryItems: Array<{
+	id: string
+	type: "map_scene" | "style_preset" | "case_study" | "dataset_connector"
+	trust: "official" | "reviewed" | "community" | "local"
+	license: string
+	citation: string
 	label: string
 	description: string
 	detail: string
@@ -62,16 +67,21 @@ const mapGallerySamples: Array<{
 	content: string
 }> = [
 	{
-		label: "$(map) Sample watershed polygon",
-		description: "GeoJSON",
-		detail: "Small basin polygon for testing layer load, fit, style, export, and scene save.",
+		id: "official-small-watershed-scene",
+		type: "map_scene",
+		trust: "official",
+		license: "AI-Hydro example data",
+		citation: "AI-Hydro Research Gallery official example.",
+		label: "$(map) Official small watershed scene",
+		description: "Map scene",
+		detail: "Official gallery seed: small basin polygon for testing layer load, fit, style, export, and scene save.",
 		fileName: "aihydro_gallery_sample_watershed.geojson",
 		content: JSON.stringify({
 			type: "FeatureCollection",
 			features: [
 				{
 					type: "Feature",
-					properties: { name: "Sample watershed", area_km2: 128.4, source: "AI-Hydro gallery" },
+					properties: { name: "Sample watershed", area_km2: 128.4, source: "AI-Hydro Research Gallery" },
 					geometry: {
 						type: "Polygon",
 						coordinates: [
@@ -91,9 +101,14 @@ const mapGallerySamples: Array<{
 		}),
 	},
 	{
-		label: "$(symbol-method) Sample stream network",
-		description: "GeoJSON lines",
-		detail: "Three stream reaches with order/upstream-area attributes for symbology testing.",
+		id: "official-stream-order-style-fixture",
+		type: "style_preset",
+		trust: "official",
+		license: "AI-Hydro example data",
+		citation: "AI-Hydro Research Gallery official example.",
+		label: "$(symbol-method) Official stream-order style fixture",
+		description: "Style preset fixture",
+		detail: "Official gallery seed: stream reaches with order/upstream-area attributes for symbology and legend testing.",
 		fileName: "aihydro_gallery_sample_streams.geojson",
 		content: JSON.stringify({
 			type: "FeatureCollection",
@@ -138,9 +153,14 @@ const mapGallerySamples: Array<{
 		}),
 	},
 	{
-		label: "$(location) Sample station CSV",
-		description: "CSV points",
-		detail: "Lat/lon station points for CSV detection and point-layer testing.",
+		id: "official-station-dataset-connector-fixture",
+		type: "dataset_connector",
+		trust: "official",
+		license: "AI-Hydro example data",
+		citation: "AI-Hydro Research Gallery official example.",
+		label: "$(location) Official station connector fixture",
+		description: "Dataset connector fixture",
+		detail: "Official gallery seed: lat/lon station points for CSV detection and point-layer testing.",
 		fileName: "aihydro_gallery_sample_stations.csv",
 		content:
 			"name,lat,lon,drainage_area_km2\nStation A,39.62,-86.82,42\nStation B,39.55,-86.65,118\nStation C,39.70,-86.58,377\n",
@@ -358,9 +378,9 @@ export class VscodeMapPanelProvider {
 			vscode.window.showWarningMessage("AI-Hydro Map is not ready yet.")
 			return
 		}
-		const selected = await vscode.window.showQuickPick(mapGallerySamples, {
-			title: "AI-Hydro Map Gallery",
-			placeHolder: "Load a small sample layer for testing map workflows",
+		const selected = await vscode.window.showQuickPick(researchGalleryItems, {
+			title: "AI-Hydro Research Gallery",
+			placeHolder: "Import a reviewed research scene, style fixture, case study, or dataset connector",
 			ignoreFocusOut: true,
 		})
 		if (!selected) {
@@ -372,9 +392,13 @@ export class VscodeMapPanelProvider {
 		await vscode.workspace.fs.writeFile(target, Buffer.from(selected.content, "utf8"))
 		await VscodeMapPanelProvider.sendFileUrisToMap([target], {
 			[target.fsPath]: {
-				sourceDisplayPath: `AI-Hydro gallery: ${selected.description}`,
+				sourceDisplayPath: `AI-Hydro Research Gallery: ${selected.label.replace(/^\$\([^)]*\)\s*/, "")}`,
+				sourceRemoteUrl: `aihydro-gallery://${selected.id}`,
 			},
 		})
+		vscode.window.showInformationMessage(
+			`AI-Hydro Research Gallery: Imported ${selected.label.replace(/^\$\([^)]*\)\s*/, "")}.`,
+		)
 	}
 
 	public static async requestSaveMapScene(): Promise<void> {
