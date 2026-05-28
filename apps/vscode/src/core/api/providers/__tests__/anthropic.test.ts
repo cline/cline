@@ -63,6 +63,30 @@ describe("AnthropicHandler", () => {
 			result.id.should.equal("claude-opus-4-7:1m")
 			result.info.should.deepEqual(anthropicModels["claude-opus-4-7:1m"])
 		})
+
+		it("should return the 4.8 model when configured", () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-opus-4-8",
+			})
+
+			const result = handler.getModel()
+
+			result.id.should.equal("claude-opus-4-8")
+			result.info.should.deepEqual(anthropicModels["claude-opus-4-8"])
+		})
+
+		it("should return the 4.8 1m model when configured", () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-opus-4-8:1m",
+			})
+
+			const result = handler.getModel()
+
+			result.id.should.equal("claude-opus-4-8:1m")
+			result.info.should.deepEqual(anthropicModels["claude-opus-4-8:1m"])
+		})
 	})
 
 	describe("createMessage", () => {

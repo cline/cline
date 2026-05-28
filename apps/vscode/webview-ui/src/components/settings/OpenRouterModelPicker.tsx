@@ -323,6 +323,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					)}
 				</DropdownWrapper>
 
+				{/* Context window switcher for Claude Opus 4.8 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.8"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Opus 4.7 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}

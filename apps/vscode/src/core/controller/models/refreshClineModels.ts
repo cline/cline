@@ -15,6 +15,7 @@ import {
 	CLAUDE_SONNET_1M_TIERS,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeOpus471mModelId,
+	openRouterClaudeOpus481mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
@@ -197,6 +198,7 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 					break
 				case "anthropic/claude-opus-4.6":
 				case "anthropic/claude-opus-4.7":
+				case "anthropic/claude-opus-4.8":
 					modelInfo.contextWindow = 200_000
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 6.25
@@ -278,8 +280,12 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				}
 			}
 
-			// Add custom :1m model variant for Opus 4.6 and 4.7
-			if (rawModel.id === "anthropic/claude-opus-4.6" || rawModel.id === "anthropic/claude-opus-4.7") {
+			// Add custom :1m model variant for Opus 4.6, 4.7 and 4.8
+			if (
+				rawModel.id === "anthropic/claude-opus-4.6" ||
+				rawModel.id === "anthropic/claude-opus-4.7" ||
+				rawModel.id === "anthropic/claude-opus-4.8"
+			) {
 				const claudeOpus1mModelInfo = cloneDeep(modelInfo)
 				claudeOpus1mModelInfo.contextWindow = 1_000_000
 				claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
@@ -288,6 +294,9 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				}
 				if (rawModel.id === "anthropic/claude-opus-4.7") {
 					models[openRouterClaudeOpus471mModelId] = claudeOpus1mModelInfo
+				}
+				if (rawModel.id === "anthropic/claude-opus-4.8") {
+					models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo
 				}
 			}
 		}
