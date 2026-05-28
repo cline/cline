@@ -63,6 +63,10 @@ async function loadFamilyFactory(
 				const module = await import("./ai-sdk");
 				return module.createDifyProvider;
 			}
+			case "sap-ai-core": {
+				const module = await import("./ai-sdk");
+				return module.createSapAiCoreProvider;
+			}
 		}
 	})();
 

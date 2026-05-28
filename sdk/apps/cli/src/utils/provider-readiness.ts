@@ -45,7 +45,8 @@ function hasSapCredentials(settings: ProviderSettings): boolean {
 	return (
 		hasText(sap?.clientId) &&
 		hasText(sap?.clientSecret) &&
-		hasText(sap?.tokenUrl)
+		hasText(sap?.tokenUrl) &&
+		hasText(settings.baseUrl)
 	);
 }
 
@@ -68,6 +69,9 @@ export function isProviderSettingsUsable(
 			hasAwsRegion(settings)
 		);
 	}
+	if (normalizedProviderId === "sapaicore") {
+		return hasSapCredentials(settings);
+	}
 	if (getPersistedProviderApiKey(normalizedProviderId, settings)) {
 		return true;
 	}
@@ -83,9 +87,6 @@ export function isProviderSettingsUsable(
 	}
 	if (normalizedProviderId === "azure") {
 		return hasAzureCredentials(settings);
-	}
-	if (normalizedProviderId === "sapaicore") {
-		return hasSapCredentials(settings);
 	}
 	if (!fields.fields.baseUrl) {
 		return false;

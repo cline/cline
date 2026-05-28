@@ -27,6 +27,7 @@ import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
 import { getProviderSection } from "../../utils/provider-sections";
@@ -316,6 +317,11 @@ const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	baseUrl: "Base URL",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
+	sapClientId: "Client ID",
+	sapClientSecret: "Client Secret",
+	sapTokenUrl: "Token URL",
+	sapResourceGroup: "Resource Group",
+	sapDeploymentId: "Deployment ID",
 };
 
 const DEFAULT_FIELD_PLACEHOLDERS: Partial<
@@ -325,6 +331,11 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	baseUrl: "",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
+	sapClientId: "sb-...|xsuaa_std!b...",
+	sapClientSecret: "SAP AI Core client secret",
+	sapTokenUrl: "https://<subdomain>.authentication.sap.hana.ondemand.com",
+	sapResourceGroup: "default",
+	sapDeploymentId: "",
 };
 
 /** Render order for cycling focus with Tab. */
@@ -333,6 +344,11 @@ const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"baseUrl",
 	"apiKey",
 	"awsProfile",
+	"sapClientId",
+	"sapClientSecret",
+	"sapTokenUrl",
+	"sapResourceGroup",
+	"sapDeploymentId",
 ];
 
 export type ProviderConfigInputFields = Partial<
@@ -391,6 +407,19 @@ export function ProviderConfigInputContent(
 			initial.apiKey = existingSettings?.apiKey?.trim() ?? "";
 		if (config.fields.awsProfile)
 			initial.awsProfile = existingSettings?.aws?.profile?.trim() ?? "";
+		if (config.fields.sapClientId)
+			initial.sapClientId = existingSettings?.sap?.clientId?.trim() ?? "";
+		if (config.fields.sapClientSecret)
+			initial.sapClientSecret =
+				existingSettings?.sap?.clientSecret?.trim() ?? "";
+		if (config.fields.sapTokenUrl)
+			initial.sapTokenUrl = existingSettings?.sap?.tokenUrl?.trim() ?? "";
+		if (config.fields.sapResourceGroup)
+			initial.sapResourceGroup =
+				existingSettings?.sap?.resourceGroup?.trim() ?? "default";
+		if (config.fields.sapDeploymentId)
+			initial.sapDeploymentId =
+				existingSettings?.sap?.deploymentId?.trim() ?? "";
 		return initial;
 	});
 
@@ -402,6 +431,12 @@ export function ProviderConfigInputContent(
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
+		const hasSapFields =
+			config.fields.sapClientId ||
+			config.fields.sapClientSecret ||
+			config.fields.sapTokenUrl ||
+			config.fields.sapResourceGroup ||
+			config.fields.sapDeploymentId;
 		saveLocalProviderSettings(providerSettingsManager, {
 			providerId,
 			apiKey: config.fields.apiKey ? apiKey : undefined,
@@ -413,6 +448,7 @@ export function ProviderConfigInputContent(
 						profile: apiKey ? undefined : awsProfile || undefined,
 					}
 				: undefined,
+			sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
 		});
 		resolve(true);
 	};

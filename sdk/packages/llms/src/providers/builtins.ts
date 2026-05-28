@@ -40,7 +40,8 @@ export type ProviderFamily =
 	| "claude-code"
 	| "openai-codex"
 	| "opencode"
-	| "dify";
+	| "dify"
+	| "sap-ai-core";
 
 export interface BuiltinSpec {
 	id: string;
@@ -245,6 +246,7 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 		case "openai-codex":
 		case "opencode":
 		case "dify":
+		case "sap-ai-core":
 			return "ai-sdk-community";
 		default:
 			return "openai-compatible";
@@ -638,18 +640,6 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsFactory: () => ({}),
 		defaults: { baseUrl: "https://api.asksage.ai/server" },
 	},
-	{
-		id: "sapaicore",
-		name: "SAP AI Core",
-		description: "SAP AI Core inference and orchestration platform",
-		family: "openai-compatible",
-		client: "ai-sdk-community",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
-		defaultModelId: "anthropic--claude-3.5-sonnet",
-		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
-		modelsProviderId: "sapaicore",
-		metadata: ANTHROPIC_ROUTING_METADATA,
-	},
 ];
 
 export const BUILTIN_SPECS: BuiltinSpec[] = [
@@ -800,6 +790,18 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		defaultModelId: "default",
 		apiKeyEnv: ["DIFY_API_KEY"],
 		modelsFactory: () => ({}),
+	},
+	{
+		id: "sapaicore",
+		name: "SAP AI Core",
+		description: "SAP AI Core inference and orchestration platform",
+		family: "sap-ai-core",
+		client: "ai-sdk-community",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		defaultModelId: "anthropic--claude-3.5-sonnet",
+		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
+		modelsProviderId: "sapaicore",
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	...OPENAI_COMPATIBLE_SPECS,
 ];

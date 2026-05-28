@@ -110,6 +110,25 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.awsProfile?.optional).toBe(true);
 	});
 
+	it("returns SAP AI Core client credential fields instead of a generic API key", () => {
+		const result = getProviderConfigFields("sapaicore");
+		expect(result.providerId).toBe("sapaicore");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/not a generic API key/i);
+		expect(Object.keys(result.fields)).toEqual([
+			"baseUrl",
+			"sapClientId",
+			"sapClientSecret",
+			"sapTokenUrl",
+			"sapResourceGroup",
+			"sapDeploymentId",
+		]);
+		expect(result.fields.apiKey).toBeUndefined();
+		expect(result.fields.baseUrl?.label).toBe("AI Core Base URL");
+		expect(result.fields.sapResourceGroup?.optional).toBe(true);
+		expect(result.fields.sapDeploymentId?.optional).toBe(true);
+	});
+
 	it("falls back to a single api-key field for unknown providers", () => {
 		const result = getProviderConfigFields("not-a-real-provider");
 		expect(result.authMethod).toBe("api-key");
