@@ -61,6 +61,11 @@ describe("user instruction config loader", () => {
 				join(workspacePath, ".cline", "rules"),
 			]),
 		);
+		expect(
+			resolveRulesConfigSearchPaths(workspacePath).some((path) =>
+				path.endsWith(join(".agents", "AGENTS.md")),
+			),
+		).toBe(true);
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 		expect(paths).toContain(join(workspacePath, ".clinerules", "workflows"));
 		expect(paths).toContain(join(workspacePath, ".cline", "workflows"));
@@ -182,6 +187,43 @@ Escalation runbook`,
 			);
 		} finally {
 			unsubscribe();
+			watcher.stop();
+		}
+	});
+
+	it("loads global and workspace AGENTS.md rules without clobbering either source", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-agents-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const globalAgentsDir = join(tempRoot, "home", ".agents");
+		const workspaceRoot = join(tempRoot, "workspace");
+		await mkdir(globalAgentsDir, { recursive: true });
+		await mkdir(workspaceRoot, { recursive: true });
+		const globalAgentsPath = join(globalAgentsDir, "AGENTS.md");
+		const workspaceAgentsPath = join(workspaceRoot, "AGENTS.md");
+		await writeFile(globalAgentsPath, "Use global AGENTS rules.");
+		await writeFile(workspaceAgentsPath, "Use workspace AGENTS rules.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: {
+				directories: [globalAgentsPath, workspaceAgentsPath],
+				workspacePath: workspaceRoot,
+			},
+		});
+
+		try {
+			await watcher.start();
+			const rules = watcher.getSnapshot("rule");
+
+			expect(rules.get("global agents.md")?.item.instructions).toBe(
+				"Use global AGENTS rules.",
+			);
+			expect(rules.get("workspace agents.md")?.item.instructions).toBe(
+				"Use workspace AGENTS rules.",
+			);
+		} finally {
 			watcher.stop();
 		}
 	});
