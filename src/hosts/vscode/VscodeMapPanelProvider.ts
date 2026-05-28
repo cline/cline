@@ -3,7 +3,9 @@ import * as os from "node:os"
 import * as path from "node:path"
 import type { Controller } from "@core/controller"
 import { handleMapAgentTaskMessage } from "@core/map/handleMapAgentTask"
+import axios from "axios"
 import * as vscode from "vscode"
+import { AiHydroEnv } from "@/config"
 import { GeeService } from "@/services/gee/GeeService"
 import { GeeTileProxyService } from "@/services/gee/GeeTileProxyService"
 import { buildGeeMapLayer } from "@/services/gee/mapMessageHandler"
@@ -54,27 +56,36 @@ const safeFilename = (value: string, fallback = "map-layer"): string => {
 
 const checksum = (bytes: Uint8Array | string): string => crypto.createHash("sha256").update(bytes).digest("hex")
 
-const researchGalleryItems: Array<{
+type ResearchGalleryItemType = "map_scene" | "style_preset" | "case_study" | "dataset_connector" | "map_plate_template"
+type ResearchGalleryTrustLevel = "official" | "reviewed" | "community" | "local"
+
+interface ResearchGalleryItem {
 	id: string
-	type: "map_scene" | "style_preset" | "case_study" | "dataset_connector"
-	trust: "official" | "reviewed" | "community" | "local"
-	license: string
-	citation: string
-	label: string
+	type: ResearchGalleryItemType
+	title: string
 	description: string
-	detail: string
-	fileName: string
-	content: string
-}> = [
-	{
-		id: "official-small-watershed-scene",
-		type: "map_scene",
-		trust: "official",
-		license: "AI-Hydro example data",
-		citation: "AI-Hydro Research Gallery official example.",
-		label: "$(map) Official small watershed scene",
-		description: "Map scene",
-		detail: "Official gallery seed: small basin polygon for testing layer load, fit, style, export, and scene save.",
+	version: string
+	author: string
+	license: string
+	trustLevel: ResearchGalleryTrustLevel
+	tags: string[]
+	thumbnailUrl?: string
+	githubUrl?: string
+	artifactUrl?: string
+	citation: string
+	createdAt?: string
+	updatedAt?: string
+	isFeatured?: boolean
+	isInstalled?: boolean
+	downloadCount?: number
+	githubReactions?: number
+	discussionUrl?: string
+	source?: "remote" | "built_in" | "local"
+	importWarnings?: string[]
+}
+
+const builtInResearchGalleryArtifacts: Record<string, { fileName: string; content: string }> = {
+	"official-small-watershed-scene": {
 		fileName: "aihydro_gallery_sample_watershed.geojson",
 		content: JSON.stringify({
 			type: "FeatureCollection",
@@ -100,15 +111,7 @@ const researchGalleryItems: Array<{
 			],
 		}),
 	},
-	{
-		id: "official-stream-order-style-fixture",
-		type: "style_preset",
-		trust: "official",
-		license: "AI-Hydro example data",
-		citation: "AI-Hydro Research Gallery official example.",
-		label: "$(symbol-method) Official stream-order style fixture",
-		description: "Style preset fixture",
-		detail: "Official gallery seed: stream reaches with order/upstream-area attributes for symbology and legend testing.",
+	"official-stream-order-style-fixture": {
 		fileName: "aihydro_gallery_sample_streams.geojson",
 		content: JSON.stringify({
 			type: "FeatureCollection",
@@ -152,18 +155,59 @@ const researchGalleryItems: Array<{
 			],
 		}),
 	},
-	{
-		id: "official-station-dataset-connector-fixture",
-		type: "dataset_connector",
-		trust: "official",
-		license: "AI-Hydro example data",
-		citation: "AI-Hydro Research Gallery official example.",
-		label: "$(location) Official station connector fixture",
-		description: "Dataset connector fixture",
-		detail: "Official gallery seed: lat/lon station points for CSV detection and point-layer testing.",
+	"official-station-dataset-connector-fixture": {
 		fileName: "aihydro_gallery_sample_stations.csv",
 		content:
 			"name,lat,lon,drainage_area_km2\nStation A,39.62,-86.82,42\nStation B,39.55,-86.65,118\nStation C,39.70,-86.58,377\n",
+	},
+}
+
+const builtInResearchGalleryItems: ResearchGalleryItem[] = [
+	{
+		id: "official-small-watershed-scene",
+		type: "map_scene",
+		title: "Official small watershed scene",
+		description: "Small basin polygon for testing layer load, fit, style, export, and scene save.",
+		version: "0.1.0",
+		author: "AI-Hydro Team",
+		license: "AI-Hydro example data",
+		trustLevel: "official",
+		tags: ["watershed", "scene", "geojson", "example"],
+		artifactUrl: "aihydro-gallery://official-small-watershed-scene",
+		citation: "AI-Hydro Research Gallery official example.",
+		isFeatured: true,
+		source: "built_in",
+	},
+	{
+		id: "official-stream-order-style-fixture",
+		type: "style_preset",
+		title: "Official stream-order style fixture",
+		description: "Stream reaches with order/upstream-area attributes for symbology and legend testing.",
+		version: "0.1.0",
+		author: "AI-Hydro Team",
+		license: "AI-Hydro example data",
+		trustLevel: "official",
+		tags: ["streams", "symbology", "style", "geojson", "example"],
+		artifactUrl: "aihydro-gallery://official-stream-order-style-fixture",
+		citation: "AI-Hydro Research Gallery official example.",
+		isFeatured: true,
+		source: "built_in",
+		importWarnings: ["This seed imports sample stream features; full style-preset application is handled by layer styling."],
+	},
+	{
+		id: "official-station-dataset-connector-fixture",
+		type: "dataset_connector",
+		title: "Official station connector fixture",
+		description: "Lat/lon station points for CSV detection and point-layer testing.",
+		version: "0.1.0",
+		author: "AI-Hydro Team",
+		license: "AI-Hydro example data",
+		trustLevel: "official",
+		tags: ["csv", "stations", "points", "example"],
+		artifactUrl: "aihydro-gallery://official-station-dataset-connector-fixture",
+		citation: "AI-Hydro Research Gallery official example.",
+		isFeatured: true,
+		source: "built_in",
 	},
 ]
 
@@ -378,27 +422,200 @@ export class VscodeMapPanelProvider {
 			vscode.window.showWarningMessage("AI-Hydro Map is not ready yet.")
 			return
 		}
-		const selected = await vscode.window.showQuickPick(researchGalleryItems, {
-			title: "AI-Hydro Research Gallery",
-			placeHolder: "Import a reviewed research scene, style fixture, case study, or dataset connector",
-			ignoreFocusOut: true,
+		await VscodeMapPanelProvider.createOrShow()
+		await VscodeMapPanelProvider.currentPanel?.webview.postMessage({
+			type: "aihydro-open-research-gallery",
 		})
-		if (!selected) {
+	}
+
+	private static normalizeResearchGalleryItem(item: any, source: "remote" | "built_in" | "local"): ResearchGalleryItem {
+		const id = String(item.id || item.galleryId || "")
+		const rawType = String(item.type || "dataset_connector")
+		const validTypes = new Set<ResearchGalleryItemType>([
+			"map_scene",
+			"style_preset",
+			"dataset_connector",
+			"case_study",
+			"map_plate_template",
+		])
+		const type = validTypes.has(rawType as ResearchGalleryItemType)
+			? (rawType as ResearchGalleryItemType)
+			: "dataset_connector"
+		const rawTrust = String(
+			item.trustLevel || item.trust_level || item.trust || (source === "built_in" ? "official" : "community"),
+		)
+		const validTrust = new Set<ResearchGalleryTrustLevel>(["official", "reviewed", "community", "local"])
+		const trustLevel = validTrust.has(rawTrust as ResearchGalleryTrustLevel)
+			? (rawTrust as ResearchGalleryTrustLevel)
+			: "community"
+		return {
+			id,
+			type,
+			title: String(item.title || item.name || id || "Untitled gallery item"),
+			description: String(item.description || ""),
+			version: String(item.version || "0.1.0"),
+			author: String(item.author || "Unknown"),
+			license: String(item.license || ""),
+			trustLevel,
+			tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+			thumbnailUrl: item.thumbnailUrl || item.thumbnail_url || "",
+			githubUrl: item.githubUrl || item.github_url || "",
+			artifactUrl: item.artifactUrl || item.artifact_url || item.downloadUrl || item.download_url || "",
+			citation: typeof item.citation === "string" ? item.citation : item.citation?.text || "",
+			createdAt: item.createdAt || item.created_at || "",
+			updatedAt: item.updatedAt || item.updated_at || "",
+			isFeatured: Boolean(item.isFeatured ?? item.is_featured ?? false),
+			isInstalled: Boolean(item.isInstalled ?? item.is_installed ?? false),
+			downloadCount: Number(item.downloadCount ?? item.download_count ?? 0),
+			githubReactions: Number(item.githubReactions ?? item.github_reactions ?? 0),
+			discussionUrl: item.discussionUrl || item.discussion_url || "",
+			source,
+			importWarnings: Array.isArray(item.importWarnings ?? item.import_warnings)
+				? (item.importWarnings ?? item.import_warnings).map(String)
+				: [],
+		}
+	}
+
+	private static async fetchResearchGalleryCatalog(): Promise<{
+		items: ResearchGalleryItem[]
+		sourceUrl: string
+		warning?: string
+	}> {
+		const sourceUrl = `${AiHydroEnv.config().researchGalleryBaseUrl}/gallery.json`
+		try {
+			const response = await axios.get(sourceUrl, {
+				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+				timeout: 10_000,
+			})
+			const rawItems: any[] = Array.isArray(response.data)
+				? response.data
+				: Array.isArray(response.data?.items)
+					? response.data.items
+					: []
+			const remoteItems = rawItems
+				.map((item) => VscodeMapPanelProvider.normalizeResearchGalleryItem(item, "remote"))
+				.filter((item) => item.id && item.title)
+			const builtinIds = new Set(remoteItems.map((item) => item.id))
+			const fallbackItems = builtInResearchGalleryItems.filter((item) => !builtinIds.has(item.id))
+			return { items: [...remoteItems, ...fallbackItems], sourceUrl }
+		} catch (err) {
+			return {
+				items: builtInResearchGalleryItems,
+				sourceUrl,
+				warning: `Remote catalog unavailable; showing built-in official seed items. ${err instanceof Error ? err.message : String(err)}`,
+			}
+		}
+	}
+
+	private static async importResearchGalleryItem(panel: vscode.WebviewPanel, requestId: string, item: ResearchGalleryItem) {
+		try {
+			if (!VscodeMapPanelProvider.context) {
+				throw new Error("AI-Hydro Map is not ready yet.")
+			}
+			if (item.type === "map_plate_template") {
+				await panel.webview.postMessage({
+					type: "aihydro-open-export-panel",
+				})
+				await panel.webview.postMessage({
+					type: "aihydro-research-gallery-import-result",
+					requestId,
+					ok: true,
+					openExport: true,
+					message: `Opened Research Plate Export for ${item.title}. Template-specific presets will be attached when template manifests are available.`,
+				})
+				return
+			}
+
+			const artifact = builtInResearchGalleryArtifacts[item.id]
+			const artifactUrl = item.artifactUrl ?? ""
+			let fileName = artifact?.fileName || safeFilename(artifactUrl, `${item.id}.geojson`)
+			let bytes: Uint8Array
+			if (artifact) {
+				bytes = Buffer.from(artifact.content, "utf8")
+			} else {
+				if (!/^https?:\/\//i.test(artifactUrl)) {
+					throw new Error("Gallery item does not provide an importable artifact URL.")
+				}
+				const response = await axios.get(artifactUrl, { responseType: "arraybuffer", timeout: 30_000 })
+				bytes = new Uint8Array(response.data)
+				fileName = safeFilename(artifactUrl, fileName)
+			}
+
+			const galleryDir = vscode.Uri.joinPath(VscodeMapPanelProvider.context.globalStorageUri, "research-gallery", item.id)
+			await vscode.workspace.fs.createDirectory(galleryDir)
+			const target = vscode.Uri.joinPath(galleryDir, fileName)
+			await vscode.workspace.fs.writeFile(target, bytes)
+
+			const text = Buffer.from(bytes).toString("utf8")
+			const parsed = (() => {
+				try {
+					return JSON.parse(text)
+				} catch {
+					return undefined
+				}
+			})()
+			if (parsed?.artifactType === "ai-hydro.map-scene") {
+				await panel.webview.postMessage({
+					type: "aihydro-open-map-scene",
+					name: fileName,
+					scene: text,
+				})
+			} else {
+				await VscodeMapPanelProvider.sendFileUrisToMap([target], {
+					[target.fsPath]: {
+						sourceRemoteUrl: artifactUrl || `aihydro-gallery://${item.id}`,
+						sourceDisplayPath: `AI-Hydro Research Gallery: ${item.title}`,
+					},
+				})
+			}
+
+			await panel.webview.postMessage({
+				type: "aihydro-research-gallery-import-result",
+				requestId,
+				ok: true,
+				message: `Imported ${item.title} from Research Gallery.`,
+				itemId: item.id,
+				path: target.fsPath,
+				sha256: checksum(bytes),
+			})
+		} catch (err) {
+			await panel.webview.postMessage({
+				type: "aihydro-research-gallery-import-result",
+				requestId,
+				ok: false,
+				error: err instanceof Error ? err.message : String(err),
+				itemId: item?.id,
+			})
+		}
+	}
+
+	private static async postResearchGalleryCatalog(panel: vscode.WebviewPanel, requestId: string) {
+		try {
+			const catalog = await VscodeMapPanelProvider.fetchResearchGalleryCatalog()
+			await panel.webview.postMessage({
+				type: "aihydro-research-gallery-catalog-result",
+				requestId,
+				ok: true,
+				items: catalog.items,
+				sourceUrl: catalog.sourceUrl,
+				warning: catalog.warning,
+			})
+		} catch (err) {
+			await panel.webview.postMessage({
+				type: "aihydro-research-gallery-catalog-result",
+				requestId,
+				ok: false,
+				error: err instanceof Error ? err.message : String(err),
+			})
+		}
+	}
+
+	private static async openExternalUrl(url: string): Promise<void> {
+		if (!/^https?:\/\//i.test(url)) {
+			vscode.window.showWarningMessage("AI-Hydro Map: only http(s) URLs can be opened externally.")
 			return
 		}
-		const galleryDir = vscode.Uri.joinPath(VscodeMapPanelProvider.context.globalStorageUri, "map-gallery")
-		await vscode.workspace.fs.createDirectory(galleryDir)
-		const target = vscode.Uri.joinPath(galleryDir, selected.fileName)
-		await vscode.workspace.fs.writeFile(target, Buffer.from(selected.content, "utf8"))
-		await VscodeMapPanelProvider.sendFileUrisToMap([target], {
-			[target.fsPath]: {
-				sourceDisplayPath: `AI-Hydro Research Gallery: ${selected.label.replace(/^\$\([^)]*\)\s*/, "")}`,
-				sourceRemoteUrl: `aihydro-gallery://${selected.id}`,
-			},
-		})
-		vscode.window.showInformationMessage(
-			`AI-Hydro Research Gallery: Imported ${selected.label.replace(/^\$\([^)]*\)\s*/, "")}.`,
-		)
+		await vscode.env.openExternal(vscode.Uri.parse(url))
 	}
 
 	public static async requestSaveMapScene(): Promise<void> {
@@ -613,6 +830,22 @@ export class VscodeMapPanelProvider {
 					}
 					case "aihydro-map-gallery-command": {
 						await VscodeMapPanelProvider.openMapGallery()
+						break
+					}
+					case "aihydro-research-gallery-catalog": {
+						await VscodeMapPanelProvider.postResearchGalleryCatalog(panel, String(message.requestId ?? ""))
+						break
+					}
+					case "aihydro-research-gallery-import": {
+						await VscodeMapPanelProvider.importResearchGalleryItem(
+							panel,
+							String(message.requestId ?? ""),
+							message.item as ResearchGalleryItem,
+						)
+						break
+					}
+					case "openExternal": {
+						await VscodeMapPanelProvider.openExternalUrl(String(message.url ?? ""))
 						break
 					}
 					case "aihydro-map-save-scene-command": {

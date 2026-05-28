@@ -26,8 +26,9 @@ import HydrographyPanel from "./HydrographyPanel"
 import { LayerPanelContent } from "./LayerPanel"
 import MapExport from "./MapExport"
 import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
+import ResearchGalleryPanel from "./ResearchGalleryPanel"
 
-export type RibbonTool = "basemap" | "layers" | "hydrography" | "search" | "measure" | "draw" | "export" | null
+export type RibbonTool = "basemap" | "layers" | "gallery" | "hydrography" | "search" | "measure" | "draw" | "export" | null
 
 const TOOL_PANEL_SIZE: Record<
 	Exclude<RibbonTool, null>,
@@ -35,6 +36,7 @@ const TOOL_PANEL_SIZE: Record<
 > = {
 	basemap: { width: 300, height: 420, minWidth: 240, minHeight: 240, maxWidth: 420, maxHeightRatio: 0.78 },
 	layers: { width: 340, height: 500, minWidth: 280, minHeight: 280, maxWidth: 520, maxHeightRatio: 0.85 },
+	gallery: { width: 620, height: 560, minWidth: 420, minHeight: 360, maxWidth: 820, maxHeightRatio: 0.86 },
 	hydrography: { width: 380, height: 560, minWidth: 320, minHeight: 340, maxWidth: 560, maxHeightRatio: 0.85 },
 	search: { width: 360, height: 170, minWidth: 300, minHeight: 118, maxWidth: 480, maxHeightRatio: 0.45 },
 	measure: { width: 280, height: 250, minWidth: 240, minHeight: 180, maxWidth: 380, maxHeightRatio: 0.55 },
@@ -60,6 +62,8 @@ interface MapToolRibbonProps {
 	onFitExtent?: () => void
 	searchOpen?: boolean
 	onSearchToggle?: () => void
+	galleryOpen?: boolean
+	onGalleryToggle?: () => void
 	exportOpen?: boolean
 	onExportToggle?: () => void
 	layerOpacities?: Record<string, number>
@@ -92,6 +96,8 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	onFitExtent,
 	searchOpen,
 	onSearchToggle,
+	galleryOpen,
+	onGalleryToggle,
 	exportOpen,
 	onExportToggle,
 	layerOpacities,
@@ -121,6 +127,15 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 			setActive("search")
 		}
 	}, [searchOpen, active])
+
+	useEffect(() => {
+		if (galleryOpen && active !== "gallery") {
+			const size = TOOL_PANEL_SIZE.gallery
+			setPanelWidth(size.width)
+			setPanelHeight(size.height)
+			setActive("gallery")
+		}
+	}, [galleryOpen, active])
 
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
@@ -208,6 +223,9 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 		if (active === "search") {
 			onSearchToggle?.()
 		}
+		if (active === "gallery") {
+			onGalleryToggle?.()
+		}
 		if (active === "export") {
 			onExportToggle?.()
 		}
@@ -275,34 +293,38 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 								? "🗺️"
 								: active === "layers"
 									? "📑"
-									: active === "search"
-										? "🔍"
-										: active === "measure"
-											? "📏"
-											: active === "draw"
-												? "✏️"
-												: active === "hydrography"
-													? "🌊"
-													: active === "export"
-														? "🖼️"
-														: ""}
+									: active === "gallery"
+										? "🧭"
+										: active === "search"
+											? "🔍"
+											: active === "measure"
+												? "📏"
+												: active === "draw"
+													? "✏️"
+													: active === "hydrography"
+														? "🌊"
+														: active === "export"
+															? "🖼️"
+															: ""}
 						</span>
 						<span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
 							{active === "basemap"
 								? "Basemap"
 								: active === "layers"
 									? `Layers (${layerCount})`
-									: active === "search"
-										? "Search"
-										: active === "measure"
-											? "Measure"
-											: active === "draw"
-												? "Create vector"
-												: active === "hydrography"
-													? "Reference vectors"
-													: active === "export"
-														? "Export"
-														: ""}
+									: active === "gallery"
+										? "Research Gallery"
+										: active === "search"
+											? "Search"
+											: active === "measure"
+												? "Measure"
+												: active === "draw"
+													? "Create vector"
+													: active === "hydrography"
+														? "Reference vectors"
+														: active === "export"
+															? "Export"
+															: ""}
 						</span>
 						{active === "export" && (
 							<span style={{ fontSize: 10, opacity: 0.68, marginRight: 8 }}>
@@ -373,6 +395,14 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 							/>
 						)}
 						{active === "search" && <div style={{ padding: 8 }}>{searchPanel}</div>}
+						{active === "gallery" && (
+							<ResearchGalleryPanel
+								mapStyle={mapStyle}
+								onOpenExport={() => {
+									toggle("export")
+								}}
+							/>
+						)}
 						{active === "measure" && (
 							<div style={{ padding: 10 }}>
 								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
@@ -536,6 +566,16 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 					icon="📑"
 					label={layerCount > 0 ? `Layer manager (${layerCount})` : "Layer manager"}
 					onClick={() => toggle("layers")}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "gallery" || !!galleryOpen}
+					icon="🧭"
+					label="Research Gallery"
+					onClick={() => {
+						toggle("gallery")
+						onGalleryToggle?.()
+					}}
 				/>
 				<RibbonButton
 					accent={accent}

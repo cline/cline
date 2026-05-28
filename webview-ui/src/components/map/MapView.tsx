@@ -592,6 +592,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	const [drawMode, setDrawMode] = useState<VectorDrawMode>(null)
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [exportOpen, setExportOpen] = useState(false)
+	const [galleryOpen, setGalleryOpen] = useState(false)
 	const [saveVectorBusy, setSaveVectorBusy] = useState(false)
 	// Point clustering — layers that should cluster dense point data at low zoom
 	const [clusterLayerIds, setClusterLayerIds] = useState<Set<string>>(new Set(persisted.clusterLayerIds ?? []))
@@ -855,6 +856,12 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						: { kind: msg.cancelled ? "ok" : "err", msg: msg.message ?? msg.error ?? "Scene save failed." },
 				)
 				window.setTimeout(() => setDropStatus(null), 5000)
+				return
+			} else if (msg?.type === "aihydro-open-research-gallery") {
+				setGalleryOpen(true)
+				return
+			} else if (msg?.type === "aihydro-open-export-panel") {
+				setExportOpen(true)
 				return
 			} else if (msg?.type === "aihydro-open-map-scene" && typeof msg.scene === "string") {
 				try {
@@ -1946,6 +1953,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				currentBasemap={selectedBaseMap}
 				drawMode={drawMode}
 				exportOpen={exportOpen}
+				galleryOpen={galleryOpen}
 				layerCount={layers.length}
 				layerOpacities={layerOpacities}
 				layerOrder={layerOrder}
@@ -1961,6 +1969,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 				}}
 				onExportToggle={() => setExportOpen((v) => !v)}
 				onFitExtent={handleFitExtent}
+				onGalleryToggle={() => setGalleryOpen((v) => !v)}
 				onHideAllLayers={() => setVisibleLayerIds(new Set())}
 				onMeasureModeChange={(m) => {
 					setDrawMode(null)

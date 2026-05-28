@@ -10,6 +10,7 @@ export interface EnvironmentConfig {
 	apiBaseUrl: string
 	mcpBaseUrl: string
 	modulesBaseUrl: string
+	researchGalleryBaseUrl: string
 	connectorsBaseUrl: string
 	skillsBaseUrl: string
 	firebase: {
@@ -78,6 +79,10 @@ class AiHydroEndpoint {
 						"AI_HYDRO_MODULES_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Modules/api",
 					),
+					researchGalleryBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL_STAGING",
+						"https://ai-hydro.github.io/Gallery/api",
+					),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Connectors/api",
@@ -99,6 +104,10 @@ class AiHydroEndpoint {
 					apiBaseUrl: getEnvOrDefault("AI_HYDRO_API_BASE_URL_LOCAL", "http://localhost:7777"),
 					mcpBaseUrl: getEnvOrDefault("AI_HYDRO_MCP_BASE_URL_LOCAL", "https://ai-hydro.github.io/Marketplace/api"),
 					modulesBaseUrl: getEnvOrDefault("AI_HYDRO_MODULES_BASE_URL_LOCAL", "https://ai-hydro.github.io/Modules/api"),
+					researchGalleryBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL_LOCAL",
+						"https://ai-hydro.github.io/Gallery/api",
+					),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL_LOCAL",
 						"https://ai-hydro.github.io/Connectors/api",
@@ -117,6 +126,10 @@ class AiHydroEndpoint {
 					apiBaseUrl: getEnvOrDefault("AI_HYDRO_API_BASE_URL", "http://127.0.0.1:7777"),
 					mcpBaseUrl: getEnvOrDefault("AI_HYDRO_MCP_BASE_URL", "https://ai-hydro.github.io/Marketplace/api"),
 					modulesBaseUrl: getEnvOrDefault("AI_HYDRO_MODULES_BASE_URL", "https://ai-hydro.github.io/Modules/api"),
+					researchGalleryBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL",
+						"https://ai-hydro.github.io/Gallery/api",
+					),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL",
 						"https://ai-hydro.github.io/Connectors/api",
