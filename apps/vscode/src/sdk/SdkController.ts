@@ -63,7 +63,7 @@ import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-hi
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { isToolAutoApproved } from "./sdk-tool-policies"
-import type { TaskProxy } from "./task-proxy"
+import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceRootPath } from "./workspace-root"
@@ -164,6 +164,7 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
+	private pendingClineAuthRetryPrompt?: string
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
@@ -364,7 +365,10 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			buildStartSessionInput,
 			createHistoryItemFromSession,
-			clearTask: () => this.clearTask(),
+			clearTask: async () => {
+				this.pendingClineAuthRetryPrompt = undefined
+				await this.taskControl.clearTask()
+			},
 			setTask: (task) => {
 				this.task = task
 			},
@@ -629,6 +633,15 @@ export class Controller {
 	 */
 	private emitClineAuthError(task?: string): void {
 		const ts = Date.now()
+		this.pendingClineAuthRetryPrompt = task
+
+		if (!this.task) {
+			this.task = createTaskProxy(
+				`auth-error-${ts}`,
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				() => this.cancelTask(),
+			)
+		}
 
 		const clineError = new ClineError(
 			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
@@ -757,7 +770,9 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
+		this.pendingClineAuthRetryPrompt = undefined
 		await this.taskControl.clearTask()
+		await this.postStateToWebview()
 	}
 
 	async handleTaskCreation(prompt: string): Promise<void> {
@@ -774,6 +789,13 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		if (this.pendingClineAuthRetryPrompt !== undefined && this.task?.taskState?.askResponse === "yesButtonClicked") {
+			const retryPrompt = this.pendingClineAuthRetryPrompt
+			this.pendingClineAuthRetryPrompt = undefined
+			await this.initTask(retryPrompt, images, files)
+			return
+		}
+
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
 	}
 
