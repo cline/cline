@@ -341,12 +341,26 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	private getShellArgs(shell: string, command: string): string[] {
 		if (process.platform === "win32") {
 			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
-				return ["-Command", command]
+				// -NoProfile silences user $PROFILE side effects that otherwise
+				// leak into the captured output; -NonInteractive avoids prompts.
+				return ["-NoProfile", "-NonInteractive", "-Command", StandaloneTerminalProcess.unwrapPowerShell(command)]
 			}
-			return ["/c", command]
+			return ["/d", "/s", "/c", command]
 		}
-		// Use -l for login shell, -c for command
-		return ["-l", "-c", command]
+		return ["-c", command]
+	}
+
+	/**
+	 * Strip a redundant outer `powershell|pwsh [.exe] -Command|-c "…"` wrapper
+	 * that LLMs sometimes emit. Without this we'd spawn powershell.exe with
+	 * another powershell.exe as its -Command argument and the inner shell would
+	 * receive quote-shredded args (issue #10948).
+	 */
+	private static unwrapPowerShell(command: string): string {
+		const match = command.match(
+			/^\s*(?:powershell|pwsh)(?:\.exe)?\s+-(?:Command|c)\s+(['"])([\s\S]*)\1\s*$/i,
+		)
+		return match ? match[2] : command
 	}
 
 	/**
