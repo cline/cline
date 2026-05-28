@@ -39,6 +39,13 @@ export {
 	type SearchExecutorOptions,
 	type WebFetchExecutorOptions,
 } from "./executors/index";
+// Maestro tools — opt-in HTTP-backed tools for driving Docker desktop sessions
+// managed by an external maestro-daemon. Not part of createDefaultTools()
+// because they require an external service.
+export {
+	type CreateMaestroToolsOptions,
+	createMaestroTools,
+} from "./maestro";
 export {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	resolveToolRoutingConfig,
