@@ -25,8 +25,9 @@ function incrementPatchVersion(input: string): string {
 	return `${major}.${minor}.${Number(patch) + 1}`;
 }
 
-const root = join(import.meta.dir, "..");
-const packagesDir = join(root, "packages");
+const root = join(import.meta.dir, "..", "..");
+const sdkRoot = join(import.meta.dir, "..");
+const packagesDir = join(sdkRoot, "packages");
 const dirs = await readdir(packagesDir, { withFileTypes: true });
 const workspaces = dirs.filter((d) => d.isDirectory()).map((d) => d.name);
 
