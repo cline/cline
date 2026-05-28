@@ -481,27 +481,44 @@ export class VscodeMapPanelProvider {
 		sourceUrl: string
 		warning?: string
 	}> {
-		const sourceUrl = `${AiHydroEnv.config().researchGalleryBaseUrl}/gallery.json`
+		const configuredUrl = `${AiHydroEnv.config().researchGalleryBaseUrl}/gallery.json`
+		const fallbackUrl = "https://raw.githubusercontent.com/AI-Hydro/Gallery/main/api/gallery.json"
+		const candidateUrls = Array.from(new Set([configuredUrl, fallbackUrl]))
+		let lastError: unknown
 		try {
-			const response = await axios.get(sourceUrl, {
-				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
-				timeout: 10_000,
-			})
-			const rawItems: any[] = Array.isArray(response.data)
-				? response.data
-				: Array.isArray(response.data?.items)
-					? response.data.items
-					: []
-			const remoteItems = rawItems
-				.map((item) => VscodeMapPanelProvider.normalizeResearchGalleryItem(item, "remote"))
-				.filter((item) => item.id && item.title)
-			const builtinIds = new Set(remoteItems.map((item) => item.id))
-			const fallbackItems = builtInResearchGalleryItems.filter((item) => !builtinIds.has(item.id))
-			return { items: [...remoteItems, ...fallbackItems], sourceUrl }
+			for (const sourceUrl of candidateUrls) {
+				try {
+					const response = await axios.get(sourceUrl, {
+						headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+						timeout: 10_000,
+					})
+					const rawItems: any[] = Array.isArray(response.data)
+						? response.data
+						: Array.isArray(response.data?.items)
+							? response.data.items
+							: []
+					const remoteItems = rawItems
+						.map((item) => VscodeMapPanelProvider.normalizeResearchGalleryItem(item, "remote"))
+						.filter((item) => item.id && item.title)
+					const builtinIds = new Set(remoteItems.map((item) => item.id))
+					const fallbackItems = builtInResearchGalleryItems.filter((item) => !builtinIds.has(item.id))
+					return {
+						items: [...remoteItems, ...fallbackItems],
+						sourceUrl,
+						warning:
+							sourceUrl !== configuredUrl
+								? `GitHub Pages catalog is not available yet; using the live raw GitHub catalog.`
+								: undefined,
+					}
+				} catch (err) {
+					lastError = err
+				}
+			}
+			throw lastError
 		} catch (err) {
 			return {
 				items: builtInResearchGalleryItems,
-				sourceUrl,
+				sourceUrl: configuredUrl,
 				warning: `Remote catalog unavailable; showing built-in official seed items. ${err instanceof Error ? err.message : String(err)}`,
 			}
 		}
