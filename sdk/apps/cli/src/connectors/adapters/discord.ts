@@ -47,6 +47,7 @@ import { InMemoryStateAdapter } from "../stores/memory-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
 	type ConnectorBindingStore,
+	type ConnectorMuteTarget,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
 	findBindingForParticipantKey,
@@ -73,6 +74,8 @@ const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 		"You can respond in Discord threads, channels, and DMs, and you can use tools according to the user's requests and your capabilities.",
 		"When asked to mention a Discord user or bot by name, write the mention as @display-name or @username. The connector resolves unique guild names to Discord mention IDs before sending. Do not ask the user for a Discord ID unless the name cannot be resolved.",
 		"Discord subscribed thread messages may arrive even when they are not addressed to you. Check <discord_message_context>: when isDirectMention is false and the message is part of another user or bot conversation that does not require your action, reply exactly /idle and nothing else. The connector treats /idle as a private no-op and will not post it to Discord.",
+		"If this Discord thread is caught in a bot loop or the user wants the connector to stop processing this thread, tell them to send /mute. Tell them to send /unmute when they want this connector to resume processing the thread.",
+		"If the user wants to mute only one Discord user or bot in the current thread, tell them to send /mute @user-or-bot, or /unmute @user-or-bot to resume processing that participant.",
 	].join("\n"),
 );
 
@@ -273,6 +276,22 @@ function formatDiscordRuntimeText(
 		"",
 		text,
 	].join("\n");
+}
+
+function resolveDiscordMuteTarget(
+	rawTarget: string,
+): ConnectorMuteTarget | undefined {
+	const trimmed = rawTarget.trim();
+	const userId =
+		trimmed.match(/^<@!?(\d{15,25})>$/)?.[1] ??
+		trimmed.match(/^@?(\d{15,25})$/)?.[1];
+	if (!userId) {
+		return undefined;
+	}
+	return {
+		participantKey: `discord:user:${userId}`,
+		participantLabel: `<@${userId}>`,
+	};
 }
 
 function decodeDiscordThreadId(threadId: string): DiscordThreadIdParts {
@@ -1125,6 +1144,9 @@ class DiscordConnector extends ConnectorBase<
 						logger: loggerAdapter,
 						transport: "discord",
 						botUserName: options.userName,
+						ownerParticipantKeys: options.ownerUserId
+							? [`discord:user:${options.ownerUserId}`]
+							: undefined,
 						requestStop,
 						bindingsPath,
 						hookCommand: options.hookCommand,
@@ -1135,6 +1157,7 @@ class DiscordConnector extends ConnectorBase<
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
+						resolveMuteTarget: ({ target }) => resolveDiscordMuteTarget(target),
 						createEmptyRuntimeReplyResolver:
 							createDiscordEmptyRuntimeReplyResolver,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
@@ -1502,6 +1525,7 @@ export const __test__ = {
 	DISCORD_SYSTEM_RULES,
 	createDiscordEmptyRuntimeReplyResolver,
 	formatDiscordRuntimeText,
+	resolveDiscordMuteTarget,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<DiscordThreadState>,
 		thread: Pick<Thread<DiscordThreadState>, "id" | "channelId" | "isDM"> & {

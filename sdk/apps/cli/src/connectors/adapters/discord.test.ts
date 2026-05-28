@@ -345,6 +345,27 @@ describe("discordConnector", () => {
 	it("instructs Discord agents to use /idle for unrelated subscribed thread messages", () => {
 		expect(__test__.DISCORD_SYSTEM_RULES).toContain("reply exactly /idle");
 		expect(__test__.DISCORD_SYSTEM_RULES).toContain("isDirectMention is false");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("send /mute");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("send /unmute");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("/mute @user-or-bot");
+	});
+
+	it("resolves Discord mute targets from user mentions and ids", () => {
+		expect(__test__.resolveDiscordMuteTarget("<@123456789012345678>")).toEqual({
+			participantKey: "discord:user:123456789012345678",
+			participantLabel: "<@123456789012345678>",
+		});
+		expect(__test__.resolveDiscordMuteTarget("<@!123456789012345678>")).toEqual(
+			{
+				participantKey: "discord:user:123456789012345678",
+				participantLabel: "<@123456789012345678>",
+			},
+		);
+		expect(__test__.resolveDiscordMuteTarget("@123456789012345678")).toEqual({
+			participantKey: "discord:user:123456789012345678",
+			participantLabel: "<@123456789012345678>",
+		});
+		expect(__test__.resolveDiscordMuteTarget("@not-a-user-id")).toBeUndefined();
 	});
 
 	it("resolves outbound Discord mention names to user mention ids", async () => {
