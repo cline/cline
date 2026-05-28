@@ -559,9 +559,6 @@ export function clearBindingSessionIds<TState extends ConnectorThreadState>(
 		const serialized = clearSerializedThreadSessionId(binding.serializedThread);
 		if (serialized.updated) {
 			binding.serializedThread = serialized.serializedThread ?? "";
-			if (binding.state) {
-				delete binding.state.sessionId;
-			}
 			updated = true;
 		}
 	}
