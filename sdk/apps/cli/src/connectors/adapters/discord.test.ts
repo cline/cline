@@ -371,6 +371,33 @@ describe("discordConnector", () => {
 		).resolves.toBe("<@1509620637721821224> how is your day?");
 	});
 
+	it("does not resolve outbound mentions from non-exact Discord member search results", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify([
+					{
+						nick: "team-alice-bot",
+						user: {
+							id: "wrong-user",
+							username: "team-alice-bot",
+							bot: true,
+						},
+					},
+				]),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			__test__.resolveDiscordOutboundMentions({
+				botToken: "token",
+				threadId: "discord:guild-123:channel-123:thread-123",
+				text: "@alice can you check this?",
+			}),
+		).resolves.toBe("@alice can you check this?");
+	});
+
 	it("normalizes forwarded bot-role mentions as Discord mentions", async () => {
 		const fetchMock = vi.fn(async (url: string | URL) => {
 			expect(String(url)).toContain("/guilds/guild-role-test/members/app-123");
@@ -411,6 +438,62 @@ describe("discordConnector", () => {
 		};
 
 		expect(event.data.is_mention).toBe(true);
+	});
+
+	it("retries bot role lookups after transient Discord API failures", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("temporary", { status: 500 }))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ roles: ["role-123"] }), {
+					status: 200,
+				}),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const buildRequest = () =>
+			new Request("https://example.test/api/webhooks/discord", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					type: "GATEWAY_MESSAGE_CREATE",
+					data: {
+						id: "message-1",
+						guild_id: "guild-retry-test",
+						channel_id: "channel-1",
+						content: "<@&role-123> hello",
+						mention_roles: ["role-123"],
+						mentions: [],
+						author: {
+							id: "user-1",
+							username: "alice",
+							bot: false,
+						},
+					},
+				}),
+			});
+
+		const failed = await __test__.normalizeDiscordForwardedGatewayRequest({
+			request: buildRequest(),
+			botToken: "token",
+			applicationId: "app-retry",
+		});
+		const failedEvent = (await failed.json()) as {
+			data: { is_mention?: boolean };
+		};
+		expect(failedEvent.data.is_mention).toBeUndefined();
+
+		const retried = await __test__.normalizeDiscordForwardedGatewayRequest({
+			request: buildRequest(),
+			botToken: "token",
+			applicationId: "app-retry",
+		});
+		const retriedEvent = (await retried.json()) as {
+			data: { is_mention?: boolean };
+		};
+
+		expect(retriedEvent.data.is_mention).toBe(true);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("restores persisted thread subscriptions once on startup", async () => {

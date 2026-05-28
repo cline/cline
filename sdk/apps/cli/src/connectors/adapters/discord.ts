@@ -287,12 +287,16 @@ async function readDiscordBotGuildRoleIds(input: {
 	const pending = fetchDiscordJson({
 		botToken: input.botToken,
 		path: `/guilds/${encodeURIComponent(input.guildId)}/members/${encodeURIComponent(input.applicationId)}`,
-	})
-		.then((value) => {
+	}).then(
+		(value) => {
 			const member = value as DiscordGuildMemberResponse;
 			return new Set(readStringArray(member.roles));
-		})
-		.catch(() => new Set<string>());
+		},
+		() => {
+			botGuildRoleCache.delete(cacheKey);
+			return new Set<string>();
+		},
+	);
 	botGuildRoleCache.set(cacheKey, pending);
 	return pending;
 }
@@ -434,9 +438,6 @@ function pickDiscordMemberByName(
 	});
 	if (exact.length === 1) {
 		return exact[0];
-	}
-	if (members.length === 1) {
-		return members[0];
 	}
 	return undefined;
 }
