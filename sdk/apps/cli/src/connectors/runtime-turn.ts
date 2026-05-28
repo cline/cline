@@ -275,7 +275,12 @@ export function createConnectorRuntimeTurnStream(input: {
 				.sendRuntimeSession(input.sessionId, input.request, { timeoutMs: null })
 				.then(async (response) => {
 					if (!response.result) {
-						throw new Error("connector runtime turn unexpectedly queued");
+						input.logger.core.log("Connector runtime turn queued", {
+							transport: input.transport,
+							conversationId: input.conversationId,
+							sessionId: input.sessionId,
+						});
+						return;
 					}
 					if (failed) {
 						return;

@@ -297,7 +297,11 @@ describe("discordConnector", () => {
 					key: "discord:user:850213762576810065",
 					label: "Alice Example",
 				},
-				{ ownerUserId: "850213762576810065" },
+				{
+					ownerUserId: "850213762576810065",
+					isDirectMention: false,
+					isSubscribedThreadMessage: true,
+				},
 			),
 		).toContain("authorId: 850213762576810065");
 		expect(
@@ -310,6 +314,37 @@ describe("discordConnector", () => {
 				{ ownerUserId: "850213762576810065" },
 			),
 		).toContain("isOwner: true");
+		expect(
+			__test__.formatDiscordRuntimeText(
+				"Heyo",
+				{
+					key: "discord:user:850213762576810065",
+					label: "Alice Example",
+				},
+				{
+					isDirectMention: false,
+					isSubscribedThreadMessage: true,
+				},
+			),
+		).toContain("isDirectMention: false");
+		expect(
+			__test__.formatDiscordRuntimeText(
+				"Heyo",
+				{
+					key: "discord:user:850213762576810065",
+					label: "Alice Example",
+				},
+				{
+					isDirectMention: false,
+					isSubscribedThreadMessage: true,
+				},
+			),
+		).toContain("isSubscribedThreadMessage: true");
+	});
+
+	it("instructs Discord agents to use /idle for unrelated subscribed thread messages", () => {
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("reply exactly /idle");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("isDirectMention is false");
 	});
 
 	it("resolves outbound Discord mention names to user mention ids", async () => {
