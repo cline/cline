@@ -33,11 +33,13 @@ import {
 import {
 	type ConnectorMuteTarget,
 	type ConnectorThreadState,
-	isParticipantMuted,
-	isThreadMuted,
+	findMutedParticipantsForThread,
+	isParticipantMutedInBindings,
+	isThreadMutedInBindings,
 	loadThreadState,
 	persistMergedThreadState,
 	persistThreadBinding,
+	readBindings,
 	resolveThreadBindingKey,
 	setParticipantMuted,
 	setThreadMuted,
@@ -192,6 +194,10 @@ function participantMatchesOwner(
 
 function formatMuteTargetLabel(target: ConnectorMuteTarget): string {
 	return target.participantLabel?.trim() || target.participantKey;
+}
+
+function formatMuteTargetList(targets: ConnectorMuteTarget[]): string {
+	return targets.map(formatMuteTargetLabel).join(", ");
 }
 
 export async function handleConnectorUserTurn<
@@ -356,7 +362,7 @@ export async function handleConnectorUserTurn<
 		resolvedInput,
 		input.botUserName,
 	);
-	const isConnectorCommand = commandName?.startsWith("/") === true;
+	const isConnectorCommand = commandName !== undefined;
 	if (
 		isConnectorCommand &&
 		!input.thread.isDM &&
@@ -394,9 +400,10 @@ export async function handleConnectorUserTurn<
 		});
 		return;
 	}
-	const threadMuted = isThreadMuted(input.bindingsPath, input.thread);
-	const participantMuted = isParticipantMuted(
-		input.bindingsPath,
+	const turnBindings = readBindings<TState>(input.bindingsPath);
+	const threadMuted = isThreadMutedInBindings(turnBindings, input.thread);
+	const participantMuted = isParticipantMutedInBindings(
+		turnBindings,
 		input.thread,
 		initialState.participantKey,
 	);
@@ -513,7 +520,7 @@ export async function handleConnectorUserTurn<
 						effectiveCurrent.workspaceRoot ||
 						input.baseStartRequest.workspaceRoot,
 					toolsLocked: input.forceDisableTools,
-					threadMuted: isThreadMuted(input.bindingsPath, input.thread),
+					threadMuted: isThreadMutedInBindings(turnBindings, input.thread),
 				};
 			},
 			setState: async (next: ChatCommandState) => {
@@ -685,6 +692,16 @@ export async function handleConnectorUserTurn<
 					);
 					return `Unmuted ${formatMuteTargetLabel(target)} in this thread.`;
 				}
+				if (!threadMuted) {
+					const mutedParticipants = findMutedParticipantsForThread(
+						turnBindings,
+						input.thread,
+					);
+					if (mutedParticipants.length > 0) {
+						return `No thread-level mute is active. Participant-specific mutes are still active for ${formatMuteTargetList(mutedParticipants)}. Use /unmute <target> to clear one.`;
+					}
+					return "Thread is not muted.";
+				}
 				setThreadMuted(
 					input.bindingsPath,
 					input.thread,
@@ -748,7 +765,7 @@ export async function handleConnectorUserTurn<
 					`isDM=${input.thread.isDM ? "true" : "false"}`,
 					`tools=${effectiveCurrent.enableTools ? "on" : "off"}`,
 					`yolo=${effectiveCurrent.autoApproveTools ? "on" : "off"}`,
-					`muted=${isThreadMuted(input.bindingsPath, input.thread) ? "true" : "false"}`,
+					`muted=${threadMuted ? "true" : "false"}`,
 					`cwd=${effectiveCurrent.cwd || input.baseStartRequest.cwd}`,
 					`workspaceRoot=${effectiveCurrent.workspaceRoot || input.baseStartRequest.workspaceRoot}`,
 				].join("\n");
