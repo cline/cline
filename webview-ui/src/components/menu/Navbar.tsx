@@ -9,6 +9,13 @@ const ConnectorsIcon = ({ size, strokeWidth }: { size?: number; strokeWidth?: nu
 	<span className="codicon codicon-plug flex items-center justify-center" style={{ fontSize: size ? `${size}px` : "16px" }} />
 )
 
+const ConnectorsIcon = ({ className, size }: { className?: string; size?: number }) => (
+	<span
+		className={`codicon codicon-plug flex items-center ${className || ""}`}
+		style={{ fontSize: size ? `${size}px` : "12.5px", marginBottom: "1px" }}
+	/>
+)
+
 export const Navbar = () => {
 	const {
 		navigateToHistory,
@@ -33,7 +40,6 @@ export const Navbar = () => {
 				icon: PlusIcon,
 				isActive: !showMcp && !showMap && !showConnectors && !showHistory && !showSettings,
 				navigate: () => {
-					// Close the current task, then navigate to the chat view
 					TaskServiceClient.clearTask({})
 						.catch((error) => {
 							console.error("Failed to clear task:", error)

@@ -179,6 +179,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ConnectorsButton, () => {
+			sendConnectorsButtonClickedEvent()
+		}),
+	)
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.SettingsButton, () => {
 			sendSettingsButtonClickedEvent()
 		}),
