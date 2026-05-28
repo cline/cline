@@ -140,6 +140,7 @@ export async function handleConnectorUserTurn<
 >(input: {
 	thread: Thread<TState>;
 	text: string;
+	runtimeText?: string;
 	client: HubSessionClient;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
 	baseStartRequest: ChatStartSessionRequest;
@@ -206,6 +207,7 @@ export async function handleConnectorUserTurn<
 	if (!resolvedInput) {
 		return;
 	}
+	const runtimeInput = input.runtimeText?.trim() || resolvedInput;
 
 	const initialState = await loadThreadState(
 		input.thread,
@@ -689,7 +691,7 @@ export async function handleConnectorUserTurn<
 	const activeTurn = input.activeTurns?.get(turnKey);
 	if (activeTurn?.sessionId?.trim()) {
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
-			resolvedInput,
+			runtimeInput,
 			input.userInstructionService,
 		);
 		await input.client.sendRuntimeSession(
@@ -729,7 +731,7 @@ export async function handleConnectorUserTurn<
 		startedLogMessage: input.startedLogMessage,
 	});
 	const { prompt, userImages, userFiles } = await buildUserInputMessage(
-		resolvedInput,
+		runtimeInput,
 		input.userInstructionService,
 	);
 	const request: ChatRunTurnRequest = {
