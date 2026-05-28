@@ -5,14 +5,10 @@ import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import HeroTooltip from "../common/HeroTooltip"
 
-const ConnectorsIcon = ({ size, strokeWidth }: { size?: number; strokeWidth?: number }) => (
-	<span className="codicon codicon-plug flex items-center justify-center" style={{ fontSize: size ? `${size}px` : "16px" }} />
-)
-
-const ConnectorsIcon = ({ className, size }: { className?: string; size?: number }) => (
+const ConnectorsIcon = ({ className, size }: { className?: string; size?: number; strokeWidth?: number }) => (
 	<span
-		className={`codicon codicon-plug flex items-center ${className || ""}`}
-		style={{ fontSize: size ? `${size}px` : "12.5px", marginBottom: "1px" }}
+		className={`codicon codicon-plug flex items-center justify-center ${className || ""}`}
+		style={{ fontSize: size ? `${size}px` : "16px", marginBottom: "1px" }}
 	/>
 )
 

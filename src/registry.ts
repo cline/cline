@@ -35,7 +35,6 @@ const AiHydroCommands = {
 	GeeDisconnect: prefix + ".gee.disconnect",
 	HtmlPreviewButton: prefix + ".htmlPreviewButtonClicked",
 	AddFileToHtmlPreview: prefix + ".addFileToHtmlPreview",
-	ConnectorsButton: prefix + ".connectorsButtonClicked",
 	SkillsButton: prefix + ".skillsButtonClicked",
 }
 

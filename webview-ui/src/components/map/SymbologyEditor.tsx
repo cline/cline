@@ -14,6 +14,7 @@ import { MapServiceClient } from "../../services/grpc-client"
 import { loadFile } from "./formats/loadFile"
 import { dataUrlToImage, rasterCache } from "./formats/rasterCache"
 import type { RasterLayerSpec } from "./formats/types"
+import { deriveLayerIntelligence } from "./layerIntelligence"
 
 interface SymbologyEditorProps {
 	layer: MapLayer
@@ -75,6 +76,7 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 	const [, setCacheVersion] = useState(0)
 	const rasterEntry = isRaster ? rasterCache.get(layer.id) : undefined
 	const canRecolorRaster = Boolean(rasterEntry?.rawPixels)
+	const intelligence = deriveLayerIntelligence(layer, { rawRasterValuesAvailable: canRecolorRaster })
 	const sourceCandidates = isRaster ? rasterSourceCandidates(layer) : []
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
@@ -223,6 +225,17 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 
 			{isRaster ? (
 				<>
+					<div
+						style={{
+							padding: "5px 7px",
+							borderRadius: 4,
+							background: canRecolorRaster ? "rgba(43, 183, 117, 0.10)" : "rgba(255, 190, 80, 0.10)",
+							color: canRecolorRaster ? "#6ee7a8" : "var(--vscode-editorWarning-foreground, #cca700)",
+							lineHeight: 1.35,
+						}}>
+						<strong>{intelligence.statusLabel}</strong>
+						<div style={{ color: fg, opacity: 0.72, marginTop: 2 }}>{intelligence.statusDetail}</div>
+					</div>
 					<Row label="Colormap">
 						<select
 							disabled={!canRecolorRaster}
@@ -238,8 +251,8 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 					</Row>
 					{!canRecolorRaster ? (
 						<div style={{ color: fg, fontSize: 11, lineHeight: 1.35, opacity: 0.72 }}>
-							This raster is a pre-rendered image layer. Opacity can be changed; colormap editing requires a loaded
-							GeoTIFF with raw pixel values in the current map session.
+							Opacity is available now. Load raster values to enable colormap editing, value probing, and
+							analysis-ready map styling.
 							{sourceCandidates.length > 0 ? (
 								<div style={{ marginTop: 6 }}>
 									<button
@@ -255,7 +268,7 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 											cursor: hydrating ? "not-allowed" : "pointer",
 										}}
 										type="button">
-										{hydrating ? "Loading GeoTIFF values..." : "Load GeoTIFF values for colormap editing"}
+										{hydrating ? "Loading raster values..." : "Load raster values"}
 									</button>
 								</div>
 							) : null}

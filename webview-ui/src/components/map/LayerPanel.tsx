@@ -21,7 +21,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { FileServiceClient, MapServiceClient } from "../../services/grpc-client"
 import { ACCEPTED_EXTENSIONS, loadAndPushFiles } from "./formats"
+import { rasterCache } from "./formats/rasterCache"
 import GraduatedSymbologyEditor from "./GraduatedSymbologyEditor"
+import { deriveLayerIntelligence, type LayerIntelligence, warningText } from "./layerIntelligence"
 import { geeDisplayLines } from "./mapLayerAdapters"
 import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
 import { SymbologyEditor } from "./SymbologyEditor"
@@ -154,6 +156,23 @@ const colorSwatch = (layer: MapLayer): string => {
 		return gradients[cmap] ?? "linear-gradient(to right, #440154, #fde725)"
 	}
 	return layer.style?.fillColor || layer.style?.color || "#0066CC"
+}
+
+const statusColors = (dataState: LayerIntelligence["dataState"]) => {
+	switch (dataState) {
+		case "analysis_ready_raster":
+			return { bg: "rgba(43, 183, 117, 0.14)", fg: "#6ee7a8", bd: "rgba(43, 183, 117, 0.32)" }
+		case "visual_preview_raster":
+			return { bg: "rgba(255, 190, 80, 0.14)", fg: "#ffc857", bd: "rgba(255, 190, 80, 0.34)" }
+		case "remote_raster":
+			return { bg: "rgba(93, 173, 226, 0.14)", fg: "#7cc7ff", bd: "rgba(93, 173, 226, 0.32)" }
+		case "reference_vector":
+			return { bg: "rgba(52, 211, 153, 0.12)", fg: "#8ee8d1", bd: "rgba(52, 211, 153, 0.28)" }
+		case "analysis_output":
+			return { bg: "rgba(147, 197, 253, 0.12)", fg: "#a9d0ff", bd: "rgba(147, 197, 253, 0.28)" }
+		default:
+			return { bg: "rgba(255,255,255,0.08)", fg: "inherit", bd: "rgba(255,255,255,0.16)" }
+	}
 }
 
 const buildDisplayNames = (layers: MapLayer[], aliases: Record<string, string>): Map<string, string> => {
@@ -516,6 +535,11 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 						const isGeeTile = layer.layerType === "gee_tile"
 						const provenancePath = layer.metadata?.provenance_path
 						const hasGeojson = !!layer.geojson && !isRaster
+						const intelligence = deriveLayerIntelligence(layer, {
+							rawRasterValuesAvailable: Boolean(rasterCache.get(layer.id)?.rawPixels),
+						})
+						const statusTone = statusColors(intelligence.dataState)
+						const primaryWarning = intelligence.warnings[0]
 
 						return (
 							<div
@@ -593,6 +617,35 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 											}}
 											title="Mock tile layer">
 											mock
+										</span>
+									)}
+									<span
+										style={{
+											fontSize: 9,
+											lineHeight: "15px",
+											padding: "0 5px",
+											borderRadius: 999,
+											background: statusTone.bg,
+											border: `1px solid ${statusTone.bd}`,
+											color: statusTone.fg,
+											flexShrink: 0,
+											maxWidth: 112,
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+										}}
+										title={intelligence.statusDetail}>
+										{intelligence.statusLabel}
+									</span>
+									{primaryWarning && (
+										<span
+											style={{
+												fontSize: 11,
+												color: "var(--vscode-editorWarning-foreground, #cca700)",
+												flexShrink: 0,
+											}}
+											title={intelligence.warnings.map(warningText).join(" · ")}>
+											⚠
 										</span>
 									)}
 
@@ -912,6 +965,16 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 									</>
 								)}
 
+								{(expanded || editing) && (
+									<LayerInspector
+										border={border}
+										fg={fg}
+										intelligence={intelligence}
+										layer={layer}
+										niceMeta={niceMeta}
+									/>
+								)}
+
 								{/* ── Full metadata details ── */}
 								{(expanded || showDetails) && detailsOn && (
 									<div
@@ -1094,6 +1157,145 @@ const AttributeTable: React.FC<{ layer: MapLayer; border: string; fg: string }> 
 		</div>
 	)
 }
+
+const LayerInspector: React.FC<{
+	layer: MapLayer
+	intelligence: LayerIntelligence
+	niceMeta: Array<[string, string]>
+	border: string
+	fg: string
+}> = ({ layer, intelligence, niceMeta, border, fg }) => {
+	const [tab, setTab] = useState<"overview" | "data" | "provenance">("overview")
+	const meta = layer.metadata ?? {}
+	const all = allMetadata(layer)
+	const statusTone = statusColors(intelligence.dataState)
+	const rasterRange =
+		meta.min || meta.max ? `${meta.min ?? "?"} – ${meta.max ?? "?"}${meta.units ? ` ${meta.units}` : ""}` : undefined
+	const resolution = meta.resolution || meta.pixel_size || meta.cell_size || meta.raster_resolution
+
+	return (
+		<div
+			style={{
+				marginTop: 8,
+				border: `1px solid ${border}`,
+				borderRadius: 5,
+				overflow: "hidden",
+				background: "rgba(0,0,0,0.10)",
+			}}>
+			<div style={{ display: "flex", gap: 2, padding: 4, borderBottom: `1px solid ${border}` }}>
+				{[
+					["overview", "Overview"],
+					["data", "Data"],
+					["provenance", "Provenance"],
+				].map(([key, label]) => (
+					<button
+						key={key}
+						onClick={() => setTab(key as typeof tab)}
+						style={{
+							padding: "3px 8px",
+							fontSize: 10,
+							border: `1px solid ${tab === key ? statusTone.bd : "transparent"}`,
+							borderRadius: 3,
+							background: tab === key ? statusTone.bg : "transparent",
+							color: fg,
+							cursor: "pointer",
+						}}
+						type="button">
+						{label}
+					</button>
+				))}
+			</div>
+			<div style={{ padding: 8, fontSize: 11, lineHeight: 1.45 }}>
+				{tab === "overview" && (
+					<>
+						<div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+							<strong style={{ fontSize: 12 }}>{layer.name || layer.id}</strong>
+							<span
+								style={{
+									fontSize: 9,
+									padding: "1px 6px",
+									borderRadius: 999,
+									background: statusTone.bg,
+									border: `1px solid ${statusTone.bd}`,
+									color: statusTone.fg,
+								}}>
+								{intelligence.statusLabel}
+							</span>
+						</div>
+						<div style={{ opacity: 0.78, marginBottom: 8 }}>{intelligence.statusDetail}</div>
+						<InspectorGrid
+							border={border}
+							rows={[
+								["Type", intelligence.typeLabel],
+								["Source", intelligence.sourceLabel],
+								...(rasterRange ? ([["Value range", rasterRange]] as Array<[string, string]>) : []),
+								...(resolution ? ([["Resolution", resolution]] as Array<[string, string]>) : []),
+								...niceMeta.slice(0, 5),
+							]}
+						/>
+						{intelligence.warnings.length > 0 && (
+							<div
+								style={{
+									marginTop: 8,
+									padding: "5px 7px",
+									borderRadius: 4,
+									background: "rgba(255, 190, 80, 0.10)",
+									color: "var(--vscode-editorWarning-foreground, #cca700)",
+								}}>
+								{intelligence.warnings.map(warningText).join(" · ")}
+							</div>
+						)}
+					</>
+				)}
+				{tab === "data" && (
+					<InspectorGrid
+						border={border}
+						rows={[
+							["Capabilities", Array.from(intelligence.capabilities).join(", ")],
+							["Layer state", intelligence.dataState.replace(/_/g, " ")],
+							[
+								"Feature/raster info",
+								niceMeta.length > 0 ? niceMeta.map(([k, v]) => `${k}: ${v}`).join("; ") : "No summary available",
+							],
+						]}
+					/>
+				)}
+				{tab === "provenance" && (
+					<InspectorGrid
+						border={border}
+						rows={[
+							["Source", intelligence.sourceLabel],
+							["Provenance", intelligence.provenancePath ?? "No provenance record linked"],
+							["Citation", intelligence.citation ?? meta.dataset ?? meta.gee_dataset_id ?? "No citation recorded"],
+							["License", intelligence.license ?? "No license recorded"],
+							["Path", meta.path ?? meta.raster_source_path ?? meta.raster_path ?? "No local source path recorded"],
+							["Metadata fields", String(all.length)],
+						]}
+					/>
+				)}
+			</div>
+		</div>
+	)
+}
+
+const InspectorGrid: React.FC<{ rows: Array<[string, string]>; border: string }> = ({ rows, border }) => (
+	<div
+		style={{
+			display: "grid",
+			gridTemplateColumns: "minmax(78px, auto) 1fr",
+			gap: "3px 8px",
+			wordBreak: "break-word",
+		}}>
+		{rows
+			.filter(([, value]) => value !== "")
+			.map(([key, value]) => (
+				<React.Fragment key={`${key}-${value}`}>
+					<span style={{ opacity: 0.58 }}>{key}</span>
+					<span style={{ borderBottom: `1px solid ${border}`, paddingBottom: 2 }}>{value}</span>
+				</React.Fragment>
+			))}
+	</div>
+)
 
 // ─── Style helpers ───────────────────────────────────────────────────────────
 
