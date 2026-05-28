@@ -172,6 +172,10 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				tiers: rawModel.tiers ?? undefined,
 			}
 
+			if (modelInfo.cacheReadsPrice !== undefined || modelInfo.cacheWritesPrice !== undefined) {
+				modelInfo.supportsPromptCache = true
+			}
+
 			// Apply model-specific overrides for known models
 			switch (rawModel.id) {
 				case "anthropic/claude-sonnet-4.6":

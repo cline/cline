@@ -40,6 +40,16 @@ export type ActiveConnectorTurn = {
 	sessionId: string;
 };
 
+type EmptyRuntimeReplyResolver = () => Promise<string | undefined>;
+
+type EmptyRuntimeReplyResolverFactory = (input: {
+	client: HubSessionClient;
+	sessionId: string;
+}) =>
+	| Promise<EmptyRuntimeReplyResolver | undefined>
+	| EmptyRuntimeReplyResolver
+	| undefined;
+
 function connectorTextPayload(
 	transport: string,
 	text: string,
@@ -87,8 +97,9 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	transport: string,
 	stream: AsyncIterable<string>,
 	postFinalReply?: (text: string) => Promise<void>,
+	resolveFallbackText?: () => Promise<string | undefined>,
 ): Promise<void> {
-	if (transport !== "telegram") {
+	if (transport !== "telegram" && !postFinalReply && !resolveFallbackText) {
 		await thread.post(stream);
 		return;
 	}
@@ -96,6 +107,12 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	let text = "";
 	for await (const chunk of stream) {
 		text += chunk;
+	}
+	if (!text.trim()) {
+		text = (await resolveFallbackText?.())?.trim() || "";
+	}
+	if (resolveFallbackText && !text.trim()) {
+		throw new Error("Runtime completed without assistant reply text.");
 	}
 	if (postFinalReply) {
 		await postFinalReply(text);
@@ -171,6 +188,7 @@ export async function handleConnectorUserTurn<
 		thread: Thread<TState>;
 		text: string;
 	}) => Promise<void>;
+	createEmptyRuntimeReplyResolver?: EmptyRuntimeReplyResolverFactory;
 	onReplyCompleted?: (result: {
 		sessionId: string;
 		threadId: string;
@@ -719,6 +737,10 @@ export async function handleConnectorUserTurn<
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
+	const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
+		client: input.client,
+		sessionId,
+	});
 
 	input.activeTurns?.set(turnKey, { sessionId });
 	await input.thread.startTyping();
@@ -781,6 +803,7 @@ export async function handleConnectorUserTurn<
 				},
 			}),
 			postFinalReply,
+			resolveFallbackText,
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
