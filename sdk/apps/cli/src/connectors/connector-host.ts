@@ -27,8 +27,6 @@ import {
 	buildThreadStartRequest,
 	clearSession,
 	getOrCreateSessionId,
-	readSessionMessageCount,
-	readSessionReplyText,
 } from "./session-runtime";
 import {
 	type ConnectorThreadState,
@@ -41,6 +39,16 @@ import {
 export type ActiveConnectorTurn = {
 	sessionId: string;
 };
+
+type EmptyRuntimeReplyResolver = () => Promise<string | undefined>;
+
+type EmptyRuntimeReplyResolverFactory = (input: {
+	client: HubSessionClient;
+	sessionId: string;
+}) =>
+	| Promise<EmptyRuntimeReplyResolver | undefined>
+	| EmptyRuntimeReplyResolver
+	| undefined;
 
 function connectorTextPayload(
 	transport: string,
@@ -91,7 +99,7 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	postFinalReply?: (text: string) => Promise<void>,
 	resolveFallbackText?: () => Promise<string | undefined>,
 ): Promise<void> {
-	if (transport !== "telegram" && transport !== "discord") {
+	if (transport !== "telegram" && !postFinalReply && !resolveFallbackText) {
 		await thread.post(stream);
 		return;
 	}
@@ -103,7 +111,7 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	if (!text.trim()) {
 		text = (await resolveFallbackText?.())?.trim() || "";
 	}
-	if (transport === "discord" && !text.trim()) {
+	if (resolveFallbackText && !text.trim()) {
 		throw new Error("Runtime completed without assistant reply text.");
 	}
 	if (postFinalReply) {
@@ -180,6 +188,7 @@ export async function handleConnectorUserTurn<
 		thread: Thread<TState>;
 		text: string;
 	}) => Promise<void>;
+	createEmptyRuntimeReplyResolver?: EmptyRuntimeReplyResolverFactory;
 	onReplyCompleted?: (result: {
 		sessionId: string;
 		threadId: string;
@@ -728,10 +737,10 @@ export async function handleConnectorUserTurn<
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
-	const fallbackMessageStartIndex =
-		input.transport === "discord"
-			? await readSessionMessageCount(input.client, sessionId)
-			: undefined;
+	const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
+		client: input.client,
+		sessionId,
+	});
 
 	input.activeTurns?.set(turnKey, { sessionId });
 	await input.thread.startTyping();
@@ -794,12 +803,7 @@ export async function handleConnectorUserTurn<
 				},
 			}),
 			postFinalReply,
-			input.transport === "discord" && fallbackMessageStartIndex !== undefined
-				? async () =>
-						readSessionReplyText(input.client, sessionId, {
-							minMessageIndex: fallbackMessageStartIndex,
-						})
-				: undefined,
+			resolveFallbackText,
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);

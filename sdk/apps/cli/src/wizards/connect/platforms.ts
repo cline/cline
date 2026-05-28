@@ -185,8 +185,8 @@ export const PLATFORMS: PlatformDef[] = [
 				placeholder: "https://example.com",
 				required: true,
 				help: [
-					"Your public connector base URL, for example from ngrok",
-					"Set the Discord Interactions Endpoint URL to <base-url>/api/webhooks/discord",
+					"Base URL for the connector",
+					"For Discord, set the Interactions Endpoint URL to <base-url>/api/webhooks/discord",
 				],
 			},
 		],

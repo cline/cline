@@ -631,7 +631,7 @@ describe("handleConnectorUserTurn", () => {
 		expect(posts).not.toContainEqual({ raw: "**Formatted** reply" });
 	});
 
-	it("posts Discord replies from session history when the runtime stream is empty", async () => {
+	it("posts adapter fallback replies when the runtime stream is empty", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
 		const bindingsPath = join(dir, "threads.json");
@@ -641,31 +641,13 @@ describe("handleConnectorUserTurn", () => {
 			cwd: "/tmp/work",
 			workspaceRoot: "/tmp/work",
 		});
-		const priorMessages = [
-			{
-				role: "user",
-				content: [{ type: "text", text: "previous question" }],
-			},
-			{
-				role: "assistant",
-				content: [{ type: "text", text: "Previous reply." }],
-			},
-		];
-		const currentMessages = [
-			...priorMessages,
-			{
-				role: "user",
-				content: [{ type: "text", text: "read README.md" }],
-			},
-			{
-				role: "assistant",
-				content: [{ type: "text", text: "Summary from saved session." }],
-			},
-		];
 		const runtime = createRuntimeClient("");
-		runtime.readMessages
-			.mockResolvedValueOnce(priorMessages)
-			.mockResolvedValueOnce(currentMessages);
+		const resolveFallbackText = vi.fn(
+			async () => "Summary from adapter fallback.",
+		);
+		const createEmptyRuntimeReplyResolver = vi.fn(
+			async () => resolveFallbackText,
+		);
 
 		await handleConnectorUserTurn({
 			thread: thread as never,
@@ -690,13 +672,19 @@ describe("handleConnectorUserTurn", () => {
 			getSessionMetadata: () => ({}),
 			reusedLogMessage: "reused",
 			startedLogMessage: "started",
+			createEmptyRuntimeReplyResolver,
 		});
 
-		expect(runtime.readMessages).toHaveBeenCalledTimes(2);
-		expect(posts.at(-1)).toBe("Summary from saved session.");
+		expect(createEmptyRuntimeReplyResolver).toHaveBeenCalledWith({
+			client: runtime.client,
+			sessionId: "session-1",
+		});
+		expect(resolveFallbackText).toHaveBeenCalledTimes(1);
+		expect(runtime.readMessages).not.toHaveBeenCalled();
+		expect(posts.at(-1)).toBe("Summary from adapter fallback.");
 	});
 
-	it("does not post stale Discord replies when no current-turn reply exists", async () => {
+	it("does not post stale fallback replies when no current-turn reply exists", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
 		const bindingsPath = join(dir, "threads.json");
@@ -706,31 +694,11 @@ describe("handleConnectorUserTurn", () => {
 			cwd: "/tmp/work",
 			workspaceRoot: "/tmp/work",
 		});
-		const priorMessages = [
-			{
-				role: "user",
-				content: [{ type: "text", text: "previous question" }],
-			},
-			{
-				role: "assistant",
-				content: [{ type: "text", text: "Previous reply." }],
-			},
-		];
-		const currentMessages = [
-			...priorMessages,
-			{
-				role: "user",
-				content: [{ type: "text", text: "run ls /tmp" }],
-			},
-			{
-				role: "tool",
-				content: [{ type: "text", text: "tool output" }],
-			},
-		];
 		const runtime = createRuntimeClient("");
-		runtime.readMessages
-			.mockResolvedValueOnce(priorMessages)
-			.mockResolvedValueOnce(currentMessages);
+		const resolveFallbackText = vi.fn(async () => undefined);
+		const createEmptyRuntimeReplyResolver = vi.fn(
+			async () => resolveFallbackText,
+		);
 
 		await expect(
 			handleConnectorUserTurn({
@@ -756,10 +724,16 @@ describe("handleConnectorUserTurn", () => {
 				getSessionMetadata: () => ({}),
 				reusedLogMessage: "reused",
 				startedLogMessage: "started",
+				createEmptyRuntimeReplyResolver,
 			}),
 		).rejects.toThrow("Runtime completed without assistant reply text.");
 
-		expect(runtime.readMessages).toHaveBeenCalledTimes(2);
+		expect(createEmptyRuntimeReplyResolver).toHaveBeenCalledWith({
+			client: runtime.client,
+			sessionId: "session-1",
+		});
+		expect(resolveFallbackText).toHaveBeenCalledTimes(1);
+		expect(runtime.readMessages).not.toHaveBeenCalled();
 		expect(posts).not.toContain("Previous reply.");
 	});
 

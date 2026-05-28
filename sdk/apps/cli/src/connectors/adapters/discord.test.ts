@@ -46,6 +46,86 @@ describe("discordConnector", () => {
 		expect(options.botToken).toBe("other-token");
 	});
 
+	it("builds empty-runtime fallback replies from the current Discord turn", async () => {
+		const priorMessages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "previous question" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Previous reply." }],
+			},
+		];
+		const currentMessages = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "read README.md" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Summary from saved session." }],
+			},
+		];
+		const client = {
+			readMessages: vi
+				.fn()
+				.mockResolvedValueOnce(priorMessages)
+				.mockResolvedValueOnce(currentMessages),
+		};
+
+		const resolveFallbackText =
+			await __test__.createDiscordEmptyRuntimeReplyResolver({
+				client: client as never,
+				sessionId: "session-1",
+			});
+
+		await expect(resolveFallbackText?.()).resolves.toBe(
+			"Summary from saved session.",
+		);
+		expect(client.readMessages).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not reuse prior Discord replies as empty-runtime fallback text", async () => {
+		const priorMessages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "previous question" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Previous reply." }],
+			},
+		];
+		const currentMessages = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "run ls /tmp" }],
+			},
+			{
+				role: "tool",
+				content: [{ type: "text", text: "tool output" }],
+			},
+		];
+		const client = {
+			readMessages: vi
+				.fn()
+				.mockResolvedValueOnce(priorMessages)
+				.mockResolvedValueOnce(currentMessages),
+		};
+
+		const resolveFallbackText =
+			await __test__.createDiscordEmptyRuntimeReplyResolver({
+				client: client as never,
+				sessionId: "session-1",
+			});
+
+		await expect(resolveFallbackText?.()).resolves.toBeUndefined();
+		expect(client.readMessages).toHaveBeenCalledTimes(2);
+	});
+
 	it("restores persisted thread subscriptions once on startup", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "discord-bindings-"));
 		const bindingsPath = join(dir, "threads.json");
