@@ -115,11 +115,15 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				// Spawn the process with special handling for "cmd.exe"
 				this.childProcess = spawn("cmd.exe", shellArgs, shellOptions)
 			} else {
-				// Spawn the process with detached: true to create a process group
-				// This allows us to kill the entire process tree when terminating
+				// On Windows, detached:true without windowsHide:true allocates a new
+				// console for the child when the parent (cline-core launched by the
+				// IDE) has none, routing the child's stdio to that console instead
+				// of our pipes. Drop detached on win32 (tree-kill handles cleanup)
+				// and force windowsHide so the child stays attached to our pipes.
 				this.childProcess = spawn(shell, shellArgs, {
 					...shellOptions,
-					detached: true,
+					detached: process.platform !== "win32",
+					windowsHide: true,
 				})
 			}
 
