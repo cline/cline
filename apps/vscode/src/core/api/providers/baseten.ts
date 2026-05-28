@@ -1,4 +1,5 @@
-import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
+import type { BasetenModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -59,31 +60,16 @@ export class BasetenHandler implements ApiHandler {
 	}
 
 	getModel(): { id: BasetenModelId; info: ModelInfo } {
-		// First priority: basetenModelId and basetenModelInfo
-		const basetenModelId = this.options.basetenModelId
-		const basetenModelInfo = this.options.basetenModelInfo
-		if (basetenModelId && basetenModelInfo) {
-			return { id: basetenModelId as BasetenModelId, info: basetenModelInfo }
-		}
-
-		// Second priority: basetenModelId with static model info
-		if (basetenModelId && basetenModelId in basetenModels) {
-			const id = basetenModelId as BasetenModelId
-			return { id, info: basetenModels[id] }
-		}
-
-		// Third priority: apiModelId (for backward compatibility)
-		const apiModelId = this.options.apiModelId
-		if (apiModelId && apiModelId in basetenModels) {
-			const id = apiModelId as BasetenModelId
-			return { id, info: basetenModels[id] }
-		}
-
-		// Default fallback
-		return {
-			id: basetenDefaultModelId,
-			info: basetenModels[basetenDefaultModelId],
-		}
+		// First priority: a committed (basetenModelId + basetenModelInfo)
+		// tuple lets users pick a model the SDK does not yet ship.
+		// Second priority: basetenModelId looked up in the SDK catalog.
+		// Third priority: apiModelId for backward compatibility.
+		// Falls through to the SDK-declared default if none match.
+		return getProviderModelFromSdk<BasetenModelId>(
+			"baseten",
+			this.options.basetenModelId ?? this.options.apiModelId,
+			this.options.basetenModelId && this.options.basetenModelInfo ? this.options.basetenModelInfo : undefined,
+		)
 	}
 
 	private async *yieldUsage(modelInfo: ModelInfo, usage: any): ApiStream {

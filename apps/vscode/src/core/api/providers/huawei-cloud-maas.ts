@@ -1,4 +1,5 @@
-import { HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasModels, ModelInfo } from "@shared/api"
+import type { HuaweiCloudMaasModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -40,24 +41,16 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 	}
 
 	getModel(): { id: HuaweiCloudMaasModelId; info: ModelInfo } {
-		// First priority: huaweiCloudMaasModelId and huaweiCloudMaasModelInfo (like Groq does)
-		const huaweiCloudMaasModelId = this.options.huaweiCloudMaasModelId
-		const huaweiCloudMaasModelInfo = this.options.huaweiCloudMaasModelInfo
-		if (huaweiCloudMaasModelId && huaweiCloudMaasModelInfo) {
-			return { id: huaweiCloudMaasModelId as HuaweiCloudMaasModelId, info: huaweiCloudMaasModelInfo }
-		}
-
-		// Second priority: huaweiCloudMaasModelId with static model info
-		if (huaweiCloudMaasModelId && huaweiCloudMaasModelId in huaweiCloudMaasModels) {
-			const id = huaweiCloudMaasModelId as HuaweiCloudMaasModelId
-			return { id, info: huaweiCloudMaasModels[id] }
-		}
-
-		// Default fallback
-		return {
-			id: huaweiCloudMaasDefaultModelId,
-			info: huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
-		}
+		// Honors a committed `huaweiCloudMaasModelInfo` when present so
+		// users can pick a model the SDK does not yet ship. Falls
+		// through to the SDK catalog and then the SDK-declared default.
+		return getProviderModelFromSdk<HuaweiCloudMaasModelId>(
+			"huawei-cloud-maas",
+			this.options.huaweiCloudMaasModelId,
+			this.options.huaweiCloudMaasModelId && this.options.huaweiCloudMaasModelInfo
+				? this.options.huaweiCloudMaasModelInfo
+				: undefined,
+		)
 	}
 
 	@withRetry()
@@ -79,7 +72,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 		})
 
 		let reasoning: string | null = null
-		let didOutputUsage: boolean = false
+		let didOutputUsage = false
 		let finalUsage: any = null
 
 		const toolCallProcessor = new ToolCallProcessor()

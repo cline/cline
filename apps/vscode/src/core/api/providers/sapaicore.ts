@@ -6,7 +6,8 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
 import { HttpDestination, transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
-import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
+import type { ModelInfo, SapAiCoreModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import axios from "axios"
 import JSON5 from "json5"
 import OpenAI from "openai"
@@ -1252,12 +1253,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	getModel(): { id: SapAiCoreModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in sapAiCoreModels) {
-			const id = modelId as SapAiCoreModelId
-			return { id, info: sapAiCoreModels[id] }
-		}
-		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
+		return getProviderModelFromSdk<SapAiCoreModelId>("sapaicore", this.options.apiModelId)
 	}
 	private convertMessageParamToSAPMessages(messages: ClineStorageMessage[]): ChatMessage[] {
 		// Use the existing OpenAI converter since the logic is identical

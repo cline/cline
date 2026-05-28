@@ -1,7 +1,8 @@
 import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-filter"
 import { runClaudeCode } from "@/integrations/claude-code/run"
-import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
+import type { ClaudeCodeModelId } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { getProviderModelFromSdk } from "@/shared/sdk-handler-models"
 import { Logger } from "@/shared/services/Logger"
 import { type ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
@@ -215,15 +216,6 @@ export class ClaudeCodeHandler implements ApiHandler {
 	}
 
 	getModel() {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in claudeCodeModels) {
-			const id = modelId as ClaudeCodeModelId
-			return { id, info: claudeCodeModels[id] }
-		}
-
-		return {
-			id: claudeCodeDefaultModelId,
-			info: claudeCodeModels[claudeCodeDefaultModelId],
-		}
+		return getProviderModelFromSdk<ClaudeCodeModelId>("claude-code", this.options.apiModelId)
 	}
 }

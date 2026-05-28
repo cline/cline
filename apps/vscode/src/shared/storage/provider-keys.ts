@@ -1,28 +1,8 @@
 // Map providers to their specific model ID keys
 
+import { getProviderCollectionSync } from "@cline/llms"
 import { Secrets, SettingsKey } from "@shared/storage/state-keys"
-import {
-	ApiProvider,
-	anthropicDefaultModelId,
-	basetenDefaultModelId,
-	bedrockDefaultModelId,
-	fireworksDefaultModelId,
-	geminiDefaultModelId,
-	groqDefaultModelId,
-	huaweiCloudMaasDefaultModelId,
-	huggingFaceDefaultModelId,
-	internationalQwenDefaultModelId,
-	liteLlmDefaultModelId,
-	minimaxDefaultModelId,
-	moonshotDefaultModelId,
-	nousResearchDefaultModelId,
-	openAiNativeDefaultModelId,
-	openRouterDefaultModelId,
-	requestyDefaultModelId,
-	sapAiCoreDefaultModelId,
-	wandbDefaultModelId,
-	xaiDefaultModelId,
-} from "../api"
+import { type ApiProvider, liteLlmDefaultModelId, openRouterDefaultModelId, requestyDefaultModelId } from "../api"
 
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
@@ -86,35 +66,31 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	wandb: "wandbApiKey",
 } as const
 
-const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
-	anthropic: anthropicDefaultModelId,
+/**
+ * Provider ids whose "default model" is not the SDK-declared catalog
+ * default but a stored-on-`ApiConfiguration` slot belonging to another
+ * provider. Dynamic-list providers (openrouter, cline, requesty, etc.)
+ * write their committed ModelInfo back to their own provider field, so
+ * here we expose a stable id string that downstream code can use as a
+ * pre-commit placeholder.
+ *
+ * Anything not listed here falls through to the SDK catalog default for
+ * its `providerId` (handled by `getProviderDefaultModelId` below).
+ */
+const NON_SDK_PROVIDER_DEFAULTS: Partial<Record<ApiProvider, string>> = {
 	openrouter: openRouterDefaultModelId,
 	cline: openRouterDefaultModelId,
-	openai: openAiNativeDefaultModelId,
+	together: openRouterDefaultModelId,
+	aihubmix: openRouterDefaultModelId,
+	"vercel-ai-gateway": openRouterDefaultModelId,
+	litellm: liteLlmDefaultModelId,
+	oca: liteLlmDefaultModelId,
+	requesty: requestyDefaultModelId,
+	// Local-only providers have no remote default to nominate.
 	ollama: "",
 	lmstudio: "",
-	litellm: liteLlmDefaultModelId,
-	requesty: requestyDefaultModelId,
-	together: openRouterDefaultModelId,
-	fireworks: fireworksDefaultModelId,
-	sapaicore: sapAiCoreDefaultModelId,
-	groq: groqDefaultModelId,
-	baseten: basetenDefaultModelId,
-	huggingface: huggingFaceDefaultModelId,
-	"huawei-cloud-maas": huaweiCloudMaasDefaultModelId,
-	oca: liteLlmDefaultModelId,
-	aihubmix: openRouterDefaultModelId,
-	bedrock: bedrockDefaultModelId,
 	hicap: "",
-	nousResearch: nousResearchDefaultModelId,
-	"vercel-ai-gateway": openRouterDefaultModelId,
-	xai: xaiDefaultModelId,
-	gemini: geminiDefaultModelId,
-	minimax: minimaxDefaultModelId,
-	moonshot: moonshotDefaultModelId,
-	qwen: internationalQwenDefaultModelId,
-	wandb: wandbDefaultModelId,
-} as const
+}
 
 /**
  * Get the provider-specific model ID key for a given provider and mode.
@@ -132,6 +108,20 @@ export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan
 	return `${mode}ModeApiModelId`
 }
 
+/**
+ * Resolve the canonical "default model id" for a provider.
+ *
+ * 1. Hardcoded overrides for dynamic-list providers / local-only providers
+ *    (see `NON_SDK_PROVIDER_DEFAULTS`).
+ * 2. SDK catalog default for everything else, looked up synchronously via
+ *    `getProviderCollectionSync(provider).provider.defaultModelId`.
+ * 3. Empty string when the SDK has no entry for `provider`.
+ */
 export function getProviderDefaultModelId(provider: ApiProvider): string | null {
-	return ProviderDefaultModelMap[provider] || ""
+	const override = NON_SDK_PROVIDER_DEFAULTS[provider]
+	if (override !== undefined) {
+		return override
+	}
+	const collection = getProviderCollectionSync(provider)
+	return collection?.provider.defaultModelId ?? ""
 }

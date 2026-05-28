@@ -1,4 +1,5 @@
-import { FireworksModelId, fireworksDefaultModelId, fireworksModels, ModelInfo } from "@shared/api"
+import type { FireworksModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
@@ -103,14 +104,6 @@ export class FireworksHandler implements ApiHandler {
 	}
 
 	getModel(): { id: FireworksModelId; info: ModelInfo } {
-		const modelId = this.options.fireworksModelId
-		if (modelId && modelId in fireworksModels) {
-			const id = modelId as FireworksModelId
-			return { id, info: fireworksModels[id] }
-		}
-		return {
-			id: fireworksDefaultModelId,
-			info: fireworksModels[fireworksDefaultModelId],
-		}
+		return getProviderModelFromSdk<FireworksModelId>("fireworks", this.options.fireworksModelId)
 	}
 }

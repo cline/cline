@@ -100,6 +100,7 @@ Module.prototype.require = function (path: string) {
 		return {
 			getAllProviders: async () => [],
 			getGeneratedModelsForProvider: () => ({}),
+			getProviderCollectionSync: () => undefined,
 			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 		}
 	}

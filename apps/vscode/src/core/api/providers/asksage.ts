@@ -1,4 +1,5 @@
-import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { type AskSageModelId, askSageDefaultURL, type ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -179,15 +180,7 @@ export class AskSageHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in askSageModels) {
-			const id = modelId as AskSageModelId
-			return { id, info: askSageModels[id] }
-		}
-		return {
-			id: askSageDefaultModelId,
-			info: askSageModels[askSageDefaultModelId],
-		}
+		return getProviderModelFromSdk<AskSageModelId>("asksage", this.options.apiModelId)
 	}
 
 	private headers() {

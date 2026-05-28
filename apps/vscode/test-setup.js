@@ -171,6 +171,7 @@ Module.prototype.require = function (id) {
 		return {
 			getAllProviders: async () => [],
 			getGeneratedModelsForProvider: () => ({}),
+			getProviderCollectionSync: () => undefined,
 			MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 		}
 	}

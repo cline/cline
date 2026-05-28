@@ -1,4 +1,5 @@
-import { ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -90,14 +91,6 @@ export class SambanovaHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in sambanovaModels) {
-			const id = modelId as SambanovaModelId
-			return { id, info: sambanovaModels[id] }
-		}
-		return {
-			id: sambanovaDefaultModelId,
-			info: sambanovaModels[sambanovaDefaultModelId],
-		}
+		return getProviderModelFromSdk("sambanova", this.options.apiModelId)
 	}
 }
