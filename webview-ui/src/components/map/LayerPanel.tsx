@@ -18,9 +18,10 @@ import { StringRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
 import { AddMapLayerRequest, RemoveMapLayerRequest, SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { PLATFORM_CONFIG } from "../../config/platform.config"
 import { useMapContext } from "../../context/MapContext"
 import { FileServiceClient, MapServiceClient } from "../../services/grpc-client"
-import { ACCEPTED_EXTENSIONS, loadAndPushFiles } from "./formats"
+import { ACCEPTED_EXTENSIONS, loadAndPushFileEntries, loadAndPushFiles } from "./formats"
 import { rasterCache } from "./formats/rasterCache"
 import GraduatedSymbologyEditor from "./GraduatedSymbologyEditor"
 import { deriveLayerIntelligence, type LayerIntelligence, warningText } from "./layerIntelligence"
@@ -87,6 +88,18 @@ const HIDDEN_KEYS = new Set([
 	"gee_tile_url_template",
 	"gee_remote_tile_url_template",
 	"addedAt",
+	"source_uri",
+	"source_path",
+	"source_display_path",
+	"source_format",
+	"source_mtime_ms",
+	"source_size_bytes",
+	"source_loaded_at_utc",
+	"source_status",
+	"source_remote_url",
+	"source_derived_from",
+	"converted_artifact_path",
+	"conversion",
 ])
 
 const niceMetadata = (layer: MapLayer): Array<[string, string]> => {
@@ -132,6 +145,39 @@ const openProvenance = async (path: string) => {
 	} catch (err) {
 		console.error("[LayerPanel] Failed to open provenance:", err)
 	}
+}
+
+const openSourceFile = (filePath: string) => {
+	PLATFORM_CONFIG.postMessage({ type: "aihydro-open-source-file", path: filePath })
+}
+
+function newUiRequestId(prefix: string): string {
+	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function resolveSourceFileUri(filePath: string): Promise<{ uri: string; name: string }> {
+	const requestId = newUiRequestId("source")
+	return new Promise((resolve, reject) => {
+		const timeout = window.setTimeout(() => {
+			window.removeEventListener("message", onMessage)
+			reject(new Error("Timed out resolving source file"))
+		}, 30_000)
+		const onMessage = (event: MessageEvent) => {
+			const data = event.data
+			if (!data || data.type !== "aihydro-resolve-file-uri-result" || data.requestId !== requestId) {
+				return
+			}
+			window.clearTimeout(timeout)
+			window.removeEventListener("message", onMessage)
+			if (data.ok && typeof data.uri === "string") {
+				resolve({ uri: data.uri, name: data.name ?? filePath.split("/").pop() ?? "layer" })
+			} else {
+				reject(new Error(data.error ?? "Could not resolve source file"))
+			}
+		}
+		window.addEventListener("message", onMessage)
+		PLATFORM_CONFIG.postMessage({ type: "aihydro-resolve-file-uri", requestId, path: filePath })
+	})
 }
 
 const allMetadata = (layer: MapLayer): Array<[string, string]> =>
@@ -325,6 +371,43 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 		}
 	}
 
+	const handleReloadSource = async (layer: MapLayer, displayName: string) => {
+		const sourcePath = layer.metadata?.source_path || layer.metadata?.path || layer.metadata?.raster_source_path
+		if (!sourcePath) {
+			setLoadStatus({ kind: "err", msg: "No source file path recorded for this layer." })
+			return
+		}
+		setLoadStatus({ kind: "idle", msg: `Reloading ${displayName}…` })
+		try {
+			const resolved = await resolveSourceFileUri(sourcePath)
+			const response = await fetch(resolved.uri)
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`)
+			}
+			const blob = await response.blob()
+			const file = new File([blob], resolved.name)
+			const result = await loadAndPushFileEntries([
+				{
+					file,
+					source: {
+						path: sourcePath,
+						uri: layer.metadata?.source_uri,
+						displayPath: layer.metadata?.source_display_path ?? sourcePath,
+						format: layer.metadata?.source_format ?? layer.metadata?.format,
+					},
+				},
+			])
+			if (result.loaded > 0) {
+				setLoadStatus({ kind: "ok", msg: `Reloaded ${displayName}.` })
+			} else {
+				setLoadStatus({ kind: "err", msg: result.errors[0] ?? "Reload failed." })
+			}
+		} catch (err) {
+			setLoadStatus({ kind: "err", msg: err instanceof Error ? err.message : "Reload failed." })
+		}
+		window.setTimeout(() => setLoadStatus({ kind: "idle", msg: "" }), 5000)
+	}
+
 	// Sorted layer list respects the custom order maintained in MapView
 	const orderedLayers = useMemo(() => {
 		if (layerOrder.length === 0) return layers
@@ -465,28 +548,59 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 
 			{/* Add Layer bar */}
 			<div style={{ padding: "6px 8px", borderBottom: `1px solid ${border}` }}>
-				<button
-					onClick={onPickFiles}
-					style={{
-						width: "100%",
-						padding: "6px 8px",
-						fontSize: 12,
-						fontWeight: 500,
-						background: "var(--vscode-button-background, #0e639c)",
-						color: "var(--vscode-button-foreground, #fff)",
-						border: "none",
-						borderRadius: 3,
-						cursor: "pointer",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						gap: 6,
-					}}
-					title="Add layer from file (GeoJSON, KML, KMZ, GPX, Shapefile.zip, GeoTIFF, CSV)"
-					type="button">
-					<span>＋</span>
-					<span>Add Layer…</span>
-				</button>
+				<div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: 5 }}>
+					<button
+						onClick={onPickFiles}
+						style={{
+							padding: "6px 8px",
+							fontSize: 12,
+							fontWeight: 500,
+							background: "var(--vscode-button-background, #0e639c)",
+							color: "var(--vscode-button-foreground, #fff)",
+							border: "none",
+							borderRadius: 3,
+							cursor: "pointer",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							gap: 6,
+						}}
+						title="Add layer from file (GeoJSON, KML, KMZ, GPX, Shapefile.zip, GeoTIFF, CSV)"
+						type="button">
+						<span>＋</span>
+						<span>Add file</span>
+					</button>
+					<button
+						onClick={() => PLATFORM_CONFIG.postMessage({ type: "aihydro-map-add-url-command" })}
+						style={smallBtn(fg, border)}
+						title="Add layer from URL"
+						type="button">
+						🔗 URL
+					</button>
+					<button
+						onClick={() => PLATFORM_CONFIG.postMessage({ type: "aihydro-map-gallery-command" })}
+						style={smallBtn(fg, border)}
+						title="Open AI-Hydro Map Gallery"
+						type="button">
+						🧪 Gallery
+					</button>
+				</div>
+				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 5 }}>
+					<button
+						onClick={() => PLATFORM_CONFIG.postMessage({ type: "aihydro-map-save-scene-command" })}
+						style={smallBtn(fg, border)}
+						title="Save the current layer stack, styles, view, and source references"
+						type="button">
+						💾 Save scene
+					</button>
+					<button
+						onClick={() => PLATFORM_CONFIG.postMessage({ type: "aihydro-map-open-scene-command" })}
+						style={smallBtn(fg, border)}
+						title="Open a saved AI-Hydro map scene"
+						type="button">
+						📂 Open scene
+					</button>
+				</div>
 				{loadStatus.msg && (
 					<div
 						style={{
@@ -534,6 +648,9 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 						const isRaster = layer.layerType === "raster"
 						const isGeeTile = layer.layerType === "gee_tile"
 						const provenancePath = layer.metadata?.provenance_path
+						const sourcePath =
+							layer.metadata?.source_path || layer.metadata?.path || layer.metadata?.raster_source_path
+						const sourceStatus = layer.metadata?.source_status
 						const hasGeojson = !!layer.geojson && !isRaster
 						const intelligence = deriveLayerIntelligence(layer, {
 							rawRasterValuesAvailable: Boolean(rasterCache.get(layer.id)?.rawPixels),
@@ -617,6 +734,20 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 											}}
 											title="Mock tile layer">
 											mock
+										</span>
+									)}
+									{sourceStatus === "source_changed" && (
+										<span
+											style={{
+												fontSize: 9,
+												padding: "1px 5px",
+												borderRadius: 3,
+												background: "rgba(255, 190, 80, 0.14)",
+												color: "var(--vscode-editorWarning-foreground, #cca700)",
+												flexShrink: 0,
+											}}
+											title="The source file changed after this layer was loaded. Reload source to refresh it.">
+											stale
 										</span>
 									)}
 									<span
@@ -781,6 +912,24 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 											onClick={() => void openProvenance(provenancePath)}
 											title="Open provenance record">
 											📋
+										</IconBtn>
+									)}
+									{sourcePath && (
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => openSourceFile(sourcePath)}
+											title="Open source file">
+											↗
+										</IconBtn>
+									)}
+									{sourcePath && (
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => void handleReloadSource(layer, displayName)}
+											title="Reload source file">
+											⟳
 										</IconBtn>
 									)}
 									<IconBtn
@@ -1265,6 +1414,16 @@ const LayerInspector: React.FC<{
 						border={border}
 						rows={[
 							["Source", intelligence.sourceLabel],
+							[
+								"Source status",
+								meta.source_status === "source_changed" ? "Source changed — reload recommended" : "Current",
+							],
+							[
+								"Source file",
+								meta.source_display_path ?? meta.source_path ?? meta.path ?? "No local source path recorded",
+							],
+							["Source format", meta.source_format ?? meta.format ?? "Unknown"],
+							["Converted artifact", meta.converted_artifact_path ?? "Not a converted vector layer"],
 							["Provenance", intelligence.provenancePath ?? "No provenance record linked"],
 							["Citation", intelligence.citation ?? meta.dataset ?? meta.gee_dataset_id ?? "No citation recorded"],
 							["License", intelligence.license ?? "No license recorded"],

@@ -51,6 +51,33 @@ import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 
+const MAP_FILE_EXTENSIONS = new Set([".geojson", ".json", ".topojson", ".kml", ".kmz", ".gpx", ".zip", ".tif", ".tiff", ".csv"])
+
+function activeMapFileUri(): vscode.Uri | undefined {
+	const activeEditorUri = vscode.window.activeTextEditor?.document.uri
+	if (activeEditorUri?.scheme === "file" && MAP_FILE_EXTENSIONS.has(path.extname(activeEditorUri.fsPath).toLowerCase())) {
+		return activeEditorUri
+	}
+	const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab
+	const input = activeTab?.input
+	if (input instanceof vscode.TabInputText && input.uri.scheme === "file") {
+		return MAP_FILE_EXTENSIONS.has(path.extname(input.uri.fsPath).toLowerCase()) ? input.uri : undefined
+	}
+	if (input instanceof vscode.TabInputCustom && input.uri.scheme === "file") {
+		return MAP_FILE_EXTENSIONS.has(path.extname(input.uri.fsPath).toLowerCase()) ? input.uri : undefined
+	}
+	return undefined
+}
+
+function mapUrisFromCommandArgs(args: unknown[]): vscode.Uri[] {
+	const fromArgs = args.flat().filter((a): a is vscode.Uri => a instanceof vscode.Uri)
+	if (fromArgs.length > 0) {
+		return fromArgs
+	}
+	const active = activeMapFileUri()
+	return active ? [active] : []
+}
+
 function geeNeedsProject(result: GeeStatusResult): boolean {
 	const text = `${result.message ?? ""}\n${result.error ?? ""}`.toLowerCase()
 	return text.includes("project") && (text.includes("registered") || text.includes("serviceusage"))
@@ -244,13 +271,38 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Accepts one or more URIs (VS Code passes selected items as args when multi-select).
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.AddFileToMap, async (...args: unknown[]) => {
-			// VS Code passes selected URIs as rest args when invoked from explorer/context.
-			// First arg is the right-clicked file; remaining args are additional selections.
-			const uris: vscode.Uri[] = args.flat().filter((a): a is vscode.Uri => a instanceof vscode.Uri)
+			// VS Code passes selected URIs from Explorer/editor title; when invoked
+			// from the Command Palette or keybinding, fall back to the active editor/tab.
+			const uris = mapUrisFromCommandArgs(args)
 			if (uris.length === 0) {
+				vscode.window.showWarningMessage("AI-Hydro Map: open or select a supported geospatial file first.")
 				return
 			}
 			await VscodeMapPanelProvider.sendFileUrisToMap(uris)
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.AddMapLayerFromUrl, async () => {
+			await VscodeMapPanelProvider.addLayerFromUrl()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.MapGallery, async () => {
+			await VscodeMapPanelProvider.openMapGallery()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.SaveMapScene, async () => {
+			await VscodeMapPanelProvider.requestSaveMapScene()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.OpenMapScene, async () => {
+			await VscodeMapPanelProvider.openMapScene()
 		}),
 	)
 
@@ -588,6 +640,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Trigger auto-open on save (e.g. agent edits an existing module)
 	context.subscriptions.push(
 		vscode.workspace.onDidSaveTextDocument((doc) => {
+			void VscodeMapPanelProvider.notifyFileSaved(doc.uri)
 			void autoOpenIfAiHydroModule(doc.uri)
 		}),
 	)

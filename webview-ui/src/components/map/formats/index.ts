@@ -10,7 +10,12 @@ export { ACCEPTED_EXTENSIONS, detectFormat, LayerLoadError, SUPPORTED_FORMATS } 
 
 import { loadFile } from "./loadFile"
 import { pushLayerSpec } from "./pushLayer"
-import { detectFormat, LayerLoadError } from "./types"
+import { detectFormat, LayerLoadError, type LayerSourceSpec } from "./types"
+
+export interface FileLoadEntry {
+	file: File
+	source?: LayerSourceSpec
+}
 
 /**
  * High-level "drop these files on the map" entry point.
@@ -21,12 +26,21 @@ export async function loadAndPushFiles(files: File[] | FileList): Promise<{
 	skipped: number
 	errors: string[]
 }> {
-	const list = Array.from(files)
+	return loadAndPushFileEntries(Array.from(files).map((file) => ({ file })))
+}
+
+export async function loadAndPushFileEntries(entries: FileLoadEntry[]): Promise<{
+	loaded: number
+	skipped: number
+	errors: string[]
+}> {
+	const list = entries
 	let loaded = 0
 	let skipped = 0
 	const errors: string[] = []
 
-	for (const file of list) {
+	for (const entry of list) {
+		const file = entry.file
 		const fmt = detectFormat(file.name)
 		if (!fmt) {
 			skipped++
@@ -34,7 +48,7 @@ export async function loadAndPushFiles(files: File[] | FileList): Promise<{
 			continue
 		}
 		try {
-			const spec = await loadFile(file)
+			const spec = await loadFile(file, { source: { ...entry.source, format: entry.source?.format ?? fmt } })
 			await pushLayerSpec(spec)
 			loaded++
 		} catch (err) {

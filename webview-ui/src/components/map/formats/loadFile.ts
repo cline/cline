@@ -5,6 +5,8 @@
  * stays small for users who never load that format.
  */
 
+import { PLATFORM_CONFIG } from "../../../config/platform.config"
+import type { LayerSourceSpec } from "./types"
 import { detectFormat, LayerLoadError, type LayerSpec, type RasterPixels } from "./types"
 
 const slugify = (s: string): string =>
@@ -23,6 +25,72 @@ export interface LoadOptions {
 	idPrefix?: string
 	idOverride?: string
 	nameOverride?: string
+	source?: LayerSourceSpec
+}
+
+function requestId(prefix: string): string {
+	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function writeDerivedGeojson(args: {
+	name: string
+	geojson: string
+	format: string
+	source?: LayerSourceSpec
+	warnings?: string[]
+}): Promise<{ artifactPath?: string; provenancePath?: string }> {
+	const id = requestId("derived")
+	return new Promise((resolve) => {
+		const timeout = window.setTimeout(() => {
+			window.removeEventListener("message", onMessage)
+			resolve({})
+		}, 20_000)
+		const onMessage = (event: MessageEvent) => {
+			const data = event.data
+			if (!data || data.type !== "aihydro-write-derived-geojson-result" || data.requestId !== id) {
+				return
+			}
+			window.clearTimeout(timeout)
+			window.removeEventListener("message", onMessage)
+			if (data.ok) {
+				resolve({ artifactPath: data.artifactPath, provenancePath: data.provenancePath })
+			} else {
+				resolve({})
+			}
+		}
+		window.addEventListener("message", onMessage)
+		PLATFORM_CONFIG.postMessage({
+			type: "aihydro-write-derived-geojson",
+			requestId: id,
+			name: args.name,
+			geojson: args.geojson,
+			format: args.format,
+			source: args.source,
+			warnings: args.warnings ?? [],
+		})
+	})
+}
+
+async function attachVectorDerivedArtifact(
+	spec: LayerSpec,
+	file: File,
+	format: string,
+	source?: LayerSourceSpec,
+): Promise<LayerSpec> {
+	if (spec.kind !== "vector" || format === "geojson") {
+		return { ...spec, source }
+	}
+	const written = await writeDerivedGeojson({ name: `${stripExt(file.name)}.geojson`, geojson: spec.geojson, format, source })
+	return {
+		...spec,
+		source: { ...source, derivedFrom: source?.path ?? source?.uri ?? file.name },
+		metadata: {
+			...(spec.metadata ?? {}),
+			converted_artifact_path: written.artifactPath ?? "",
+			provenance_path: written.provenancePath ?? spec.metadata?.provenance_path ?? "",
+			conversion: `${format}->geojson`,
+		},
+	}
 }
 
 export async function loadFile(file: File, opts: LoadOptions = {}): Promise<LayerSpec> {
@@ -42,19 +110,19 @@ export async function loadFile(file: File, opts: LoadOptions = {}): Promise<Laye
 		switch (fmt) {
 			case "geojson":
 			case "topojson":
-				return await loadJsonish(file, baseId, baseName)
+				return await attachVectorDerivedArtifact(await loadJsonish(file, baseId, baseName), file, fmt, opts.source)
 			case "kml":
-				return await loadKml(file, baseId, baseName)
+				return await attachVectorDerivedArtifact(await loadKml(file, baseId, baseName), file, fmt, opts.source)
 			case "kmz":
-				return await loadKmz(file, baseId, baseName)
+				return await attachVectorDerivedArtifact(await loadKmz(file, baseId, baseName), file, fmt, opts.source)
 			case "gpx":
-				return await loadGpx(file, baseId, baseName)
+				return await attachVectorDerivedArtifact(await loadGpx(file, baseId, baseName), file, fmt, opts.source)
 			case "shp":
-				return await loadShp(file, baseId, baseName)
+				return await attachVectorDerivedArtifact(await loadShp(file, baseId, baseName), file, fmt, opts.source)
 			case "tiff":
-				return await loadTiff(file, baseId, baseName)
+				return { ...(await loadTiff(file, baseId, baseName)), source: opts.source }
 			case "csv":
-				return await loadCsv(file, baseId, baseName)
+				return await attachVectorDerivedArtifact(await loadCsv(file, baseId, baseName), file, fmt, opts.source)
 		}
 	} catch (err) {
 		if (err instanceof LayerLoadError) {

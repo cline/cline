@@ -4,13 +4,13 @@ import { BitmapLayer, GeoJsonLayer, TextLayer } from "@deck.gl/layers"
 import DeckGL from "@deck.gl/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
-import { SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
+import { AddMapLayerRequest, SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { MapServiceClient } from "../../services/grpc-client"
 import { BASE_MAP_STYLES } from "./BaseMapSelector"
 import FeatureIdentifier, { type ClickedFeature, type MapInspectPoint } from "./FeatureIdentifier"
-import { loadAndPushFiles } from "./formats"
+import { loadAndPushFileEntries, loadAndPushFiles } from "./formats"
 import { applyColormap, dataUrlToImage, rasterCache, rasterRecolorInFlight } from "./formats/rasterCache"
 import { collectFeaturesAtPoint } from "./geoInspect"
 import { fmtDist, haversineKm } from "./geoMeasureMath"
@@ -777,6 +777,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		const handler = async (event: MessageEvent) => {
 			const msg = event.data
 			let file: File | null = null
+			let source: Record<string, unknown> | undefined
 			if (msg?.type === "aihydro-load-file-uri" && msg.name && typeof msg.uri === "string") {
 				try {
 					const response = await fetch(msg.uri)
@@ -785,6 +786,14 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 					}
 					const blob = await response.blob()
 					file = new File([blob], msg.name)
+					source = {
+						uri: msg.sourceUri,
+						path: msg.sourcePath,
+						displayPath: msg.sourceDisplayPath ?? msg.sourcePath ?? msg.sourceUri,
+						mtimeMs: typeof msg.sourceMtimeMs === "number" ? msg.sourceMtimeMs : undefined,
+						sizeBytes: typeof msg.sourceSizeBytes === "number" ? msg.sourceSizeBytes : undefined,
+						remoteUrl: typeof msg.sourceRemoteUrl === "string" ? msg.sourceRemoteUrl : undefined,
+					}
 				} catch (err) {
 					setDropStatus({
 						kind: "err",
@@ -796,12 +805,82 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 			} else if (msg?.type === "aihydro-load-file" && msg.name && Array.isArray(msg.data)) {
 				const bytes = new Uint8Array(msg.data)
 				file = new File([bytes], msg.name)
+			} else if (msg?.type === "aihydro-source-file-saved" && typeof msg.path === "string") {
+				const savedPath = msg.path
+				for (const layer of layers) {
+					if (layer.metadata?.source_path !== savedPath) {
+						continue
+					}
+					await MapServiceClient.addMapLayer(
+						AddMapLayerRequest.create({
+							layer: {
+								...layer,
+								metadata: {
+									...(layer.metadata ?? {}),
+									source_status: "source_changed",
+									source_mtime_ms:
+										typeof msg.mtimeMs === "number" ? String(msg.mtimeMs) : layer.metadata?.source_mtime_ms,
+									source_size_bytes:
+										typeof msg.sizeBytes === "number"
+											? String(msg.sizeBytes)
+											: layer.metadata?.source_size_bytes,
+								},
+							},
+							replaceExisting: true,
+						}),
+					)
+				}
+				setDropStatus({ kind: "ok", msg: "A source file changed. Use Reload source in Layers to refresh it." })
+				window.setTimeout(() => setDropStatus(null), 5000)
+				return
+			} else if (msg?.type === "aihydro-map-save-scene-request") {
+				const scene = {
+					schemaVersion: "1.0",
+					artifactType: "ai-hydro.map-scene",
+					generatedAtUtc: new Date().toISOString(),
+					viewState,
+					basemap: selectedBaseMap,
+					visibleLayerIds: Array.from(visibleLayerIds),
+					layerOrder,
+					layerOpacities,
+					layers,
+				}
+				const { PLATFORM_CONFIG } = await import("../../config/platform.config")
+				PLATFORM_CONFIG.postMessage({ type: "aihydro-save-map-scene", scene: JSON.stringify(scene, null, 2) })
+				return
+			} else if (msg?.type === "aihydro-save-map-scene-result") {
+				setDropStatus(
+					msg.ok
+						? { kind: "ok", msg: `Saved map scene: ${msg.path}` }
+						: { kind: msg.cancelled ? "ok" : "err", msg: msg.message ?? msg.error ?? "Scene save failed." },
+				)
+				window.setTimeout(() => setDropStatus(null), 5000)
+				return
+			} else if (msg?.type === "aihydro-open-map-scene" && typeof msg.scene === "string") {
+				try {
+					const scene = JSON.parse(msg.scene)
+					if (scene?.viewState) setViewState(scene.viewState)
+					if (typeof scene?.basemap === "string") setSelectedBaseMap(scene.basemap)
+					if (Array.isArray(scene?.visibleLayerIds)) setVisibleLayerIds(new Set(scene.visibleLayerIds))
+					if (Array.isArray(scene?.layerOrder)) setLayerOrder(scene.layerOrder)
+					if (scene?.layerOpacities && typeof scene.layerOpacities === "object") setLayerOpacities(scene.layerOpacities)
+					if (Array.isArray(scene?.layers)) {
+						for (const layer of scene.layers as MapLayer[]) {
+							await MapServiceClient.addMapLayer(AddMapLayerRequest.create({ layer, replaceExisting: true }))
+						}
+					}
+					setDropStatus({ kind: "ok", msg: `Opened map scene ${msg.name ?? ""}`.trim() })
+				} catch (err) {
+					setDropStatus({ kind: "err", msg: err instanceof Error ? err.message : "Invalid map scene." })
+				}
+				window.setTimeout(() => setDropStatus(null), 5000)
+				return
 			}
 			if (!file) {
 				return
 			}
 			setDropStatus({ kind: "ok", msg: `Loading ${file.name}...` })
-			const result = await loadAndPushFiles([file])
+			const result = await loadAndPushFileEntries([{ file, source: source as any }])
 			setDropStatus(
 				result.loaded > 0 && result.errors.length === 0
 					? { kind: "ok", msg: `Loaded ${file.name}.` }
@@ -811,7 +890,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		}
 		window.addEventListener("message", handler)
 		return () => window.removeEventListener("message", handler)
-	}, [])
+	}, [layers, viewState, selectedBaseMap, visibleLayerIds, layerOrder, layerOpacities])
 
 	// Build deck.gl TileLayer for the base map.
 	// Uses fetch + createImageBitmap so no loaders.gl or Mapbox token is needed.

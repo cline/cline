@@ -231,6 +231,30 @@
 				"category": "AI-Hydro"
 			},
 			{
+				"command": "aihydro.map.addLayerFromUrl",
+				"title": "AI-Hydro Map: Add Layer from URL",
+				"category": "AI-Hydro",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "aihydro.map.gallery",
+				"title": "AI-Hydro Map: Gallery",
+				"category": "AI-Hydro",
+				"icon": "$(preview)"
+			},
+			{
+				"command": "aihydro.map.saveScene",
+				"title": "AI-Hydro Map: Save Scene",
+				"category": "AI-Hydro",
+				"icon": "$(save)"
+			},
+			{
+				"command": "aihydro.map.openScene",
+				"title": "AI-Hydro Map: Open Scene",
+				"category": "AI-Hydro",
+				"icon": "$(folder-opened)"
+			},
+			{
 				"command": "aihydro.gee.connect",
 				"title": "AI-Hydro: Connect Google Earth Engine",
 				"category": "AI-Hydro"
@@ -286,6 +310,14 @@
 				"win": "ctrl+'",
 				"linux": "ctrl+'",
 				"when": "!editorHasSelection"
+			},
+			{
+				"command": "aihydro.addFileToMap",
+				"key": "cmd+alt+m",
+				"mac": "cmd+alt+m",
+				"win": "ctrl+alt+m",
+				"linux": "ctrl+alt+m",
+				"when": "resourceExtname == .geojson || resourceExtname == .json || resourceExtname == .topojson || resourceExtname == .kml || resourceExtname == .kmz || resourceExtname == .gpx || resourceExtname == .zip || resourceExtname == .tif || resourceExtname == .tiff || resourceExtname == .csv"
 			}
 		],
 		"menus": {
@@ -343,6 +375,20 @@
 					"when": "resourceExtname == .html || resourceExtname == .htm"
 				}
 			],
+			"editor/title": [
+				{
+					"command": "aihydro.addFileToMap",
+					"group": "navigation@1",
+					"when": "resourceExtname == .geojson || resourceExtname == .json || resourceExtname == .topojson || resourceExtname == .kml || resourceExtname == .kmz || resourceExtname == .gpx || resourceExtname == .zip || resourceExtname == .tif || resourceExtname == .tiff || resourceExtname == .csv"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "aihydro.addFileToMap",
+					"group": "aihydro@1",
+					"when": "resourceExtname == .geojson || resourceExtname == .json || resourceExtname == .topojson || resourceExtname == .kml || resourceExtname == .kmz || resourceExtname == .gpx || resourceExtname == .zip || resourceExtname == .tif || resourceExtname == .tiff || resourceExtname == .csv"
+				}
+			],
 			"editor/context": [
 				{
 					"command": "aihydro.addToChat",
@@ -370,6 +416,18 @@
 			],
 			"commandPalette": [
 				{
+					"command": "aihydro.map.addLayerFromUrl"
+				},
+				{
+					"command": "aihydro.map.gallery"
+				},
+				{
+					"command": "aihydro.map.saveScene"
+				},
+				{
+					"command": "aihydro.map.openScene"
+				},
+				{
 					"command": "aihydro.generateGitCommitMessage",
 					"when": "config.git.enabled && scmProvider == git && !aihydro.isGeneratingCommit"
 				},
@@ -379,6 +437,73 @@
 				}
 			]
 		},
+		"languages": [
+			{
+				"id": "geojson",
+				"aliases": [
+					"GeoJSON"
+				],
+				"extensions": [
+					".geojson"
+				]
+			},
+			{
+				"id": "topojson",
+				"aliases": [
+					"TopoJSON"
+				],
+				"extensions": [
+					".topojson",
+					".topo.json"
+				]
+			},
+			{
+				"id": "kml",
+				"aliases": [
+					"KML"
+				],
+				"extensions": [
+					".kml",
+					".kmz"
+				]
+			},
+			{
+				"id": "gpx",
+				"aliases": [
+					"GPX"
+				],
+				"extensions": [
+					".gpx"
+				]
+			},
+			{
+				"id": "geotiff",
+				"aliases": [
+					"GeoTIFF"
+				],
+				"extensions": [
+					".tif",
+					".tiff"
+				]
+			},
+			{
+				"id": "shapefile-zip",
+				"aliases": [
+					"Zipped Shapefile"
+				],
+				"extensions": [
+					".zip"
+				]
+			}
+		],
+		"jsonValidation": [
+			{
+				"fileMatch": [
+					"*.geojson"
+				],
+				"url": "https://geojson.org/schema/GeoJSON.json"
+			}
+		],
 		"configuration": {
 			"title": "AI-Hydro",
 			"properties": {

@@ -20,6 +20,18 @@ export interface VectorLayerSpec {
 		strokeWidth?: number
 	}
 	metadata?: Record<string, string>
+	source?: LayerSourceSpec
+}
+
+export interface LayerSourceSpec {
+	uri?: string
+	path?: string
+	displayPath?: string
+	format?: string
+	mtimeMs?: number
+	sizeBytes?: number
+	remoteUrl?: string
+	derivedFrom?: string
 }
 
 export interface RasterPixels {
@@ -41,6 +53,7 @@ export interface RasterLayerSpec {
 	/** Raw Float32 band values — enables client-side colormap recoloring without re-loading the file. */
 	rawPixels?: RasterPixels
 	metadata?: Record<string, string>
+	source?: LayerSourceSpec
 }
 
 export type LayerSpec = VectorLayerSpec | RasterLayerSpec

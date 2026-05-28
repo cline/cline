@@ -11,6 +11,26 @@ import { MapServiceClient } from "../../../services/grpc-client"
 import { dataUrlToImage, rasterCache } from "./rasterCache"
 import type { LayerSpec } from "./types"
 
+function sourceMetadata(spec: LayerSpec): Record<string, string> {
+	const source = spec.source
+	if (!source) {
+		return {}
+	}
+	const out: Record<string, string> = {
+		source_uri: source.uri ?? "",
+		source_path: source.path ?? "",
+		source_display_path: source.displayPath ?? source.path ?? source.uri ?? "",
+		source_format: source.format ?? spec.metadata?.format ?? "",
+		source_loaded_at_utc: new Date().toISOString(),
+		source_status: "current",
+	}
+	if (source.mtimeMs !== undefined) out.source_mtime_ms = String(source.mtimeMs)
+	if (source.sizeBytes !== undefined) out.source_size_bytes = String(source.sizeBytes)
+	if (source.remoteUrl) out.source_remote_url = source.remoteUrl
+	if (source.derivedFrom) out.source_derived_from = source.derivedFrom
+	return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== ""))
+}
+
 export async function pushLayerSpec(spec: LayerSpec): Promise<void> {
 	if (spec.kind === "vector") {
 		const style = MapLayerStyle.create({
@@ -31,6 +51,7 @@ export async function pushLayerSpec(spec: LayerSpec): Promise<void> {
 			visible: true,
 			metadata: {
 				...(spec.metadata ?? {}),
+				...sourceMetadata(spec),
 				source: "user",
 				addedAt: new Date().toISOString(),
 			},
@@ -60,6 +81,7 @@ export async function pushLayerSpec(spec: LayerSpec): Promise<void> {
 		visible: true,
 		metadata: {
 			...(spec.metadata ?? {}),
+			...sourceMetadata(spec),
 			source: "user",
 			addedAt: new Date().toISOString(),
 			raster_bounds: JSON.stringify(spec.bounds),
