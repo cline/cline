@@ -1,9 +1,14 @@
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type { SAPAIProviderSettings } from "@jerome-benoit/sap-ai-provider";
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import { createCodexExec } from "ai-sdk-provider-codex-cli";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
+
+type SapAiProviderModule = typeof import("@jerome-benoit/sap-ai-provider");
+type SapDestination = NonNullable<SAPAIProviderSettings["destination"]>;
+const SAP_AI_PROVIDER_PACKAGE = "@jerome-benoit/sap-ai-provider";
 
 function readOptions(
 	config: GatewayResolvedProviderConfig,
@@ -93,5 +98,110 @@ export async function createDifyProviderModule(
 			provider(modelId, {
 				apiKey,
 			}),
+	};
+}
+
+function readStringOption(
+	options: Record<string, unknown>,
+	key: string,
+): string | undefined {
+	const value = options[key];
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: undefined;
+}
+
+function normalizeSapTokenServiceUrl(tokenUrl: string): string {
+	const trimmed = tokenUrl.replace(/\/+$/, "");
+	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
+}
+
+function hasExplicitSapConnectionConfig(
+	config: GatewayResolvedProviderConfig,
+	options: Record<string, unknown>,
+): boolean {
+	return Boolean(
+		config.apiKey?.trim() ||
+			config.baseUrl?.trim() ||
+			readStringOption(options, "clientId") ||
+			readStringOption(options, "clientSecret") ||
+			readStringOption(options, "tokenUrl"),
+	);
+}
+
+function buildSapDestination(
+	config: GatewayResolvedProviderConfig,
+	options: Record<string, unknown>,
+): SapDestination | undefined {
+	const clientId = readStringOption(options, "clientId");
+	const clientSecret =
+		readStringOption(options, "clientSecret") ?? config.apiKey?.trim();
+	const tokenUrl = readStringOption(options, "tokenUrl");
+	const baseUrl = config.baseUrl?.trim();
+	if (!clientId || !clientSecret || !tokenUrl || !baseUrl) {
+		if (!hasExplicitSapConnectionConfig(config, options)) {
+			return undefined;
+		}
+		const missing = [
+			!clientId ? "sap.clientId" : undefined,
+			!clientSecret ? "sap.clientSecret" : undefined,
+			!tokenUrl ? "sap.tokenUrl" : undefined,
+			!baseUrl ? "baseUrl" : undefined,
+		].filter(Boolean);
+		throw new Error(
+			`SAP AI Core provider is missing required configuration: ${missing.join(
+				", ",
+			)}.`,
+		);
+	}
+	return {
+		authentication: "OAuth2ClientCredentials" as const,
+		clientId,
+		clientSecret,
+		name: config.providerId,
+		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
+		url: baseUrl.replace(/\/+$/, ""),
+	} satisfies SapDestination;
+}
+
+function resolveSapApi(options: Record<string, unknown>) {
+	const api = options.api;
+	if (api === "orchestration" || api === "foundation-models") {
+		return api;
+	}
+	if (options.useOrchestrationMode === false) {
+		return "foundation-models";
+	}
+	return "orchestration";
+}
+
+async function importSapAiProvider(): Promise<SapAiProviderModule> {
+	const specifier: string = SAP_AI_PROVIDER_PACKAGE;
+	return import(specifier) as Promise<SapAiProviderModule>;
+}
+
+export async function createSapAiCoreProviderModule(
+	config: GatewayResolvedProviderConfig,
+): Promise<ProviderFactoryResult> {
+	const options = readOptions(config);
+	const destination = buildSapDestination(config, options);
+
+	const { createSAPAIProvider } = await importSapAiProvider();
+	const deploymentId = readStringOption(options, "deploymentId");
+	const provider = createSAPAIProvider({
+		name: config.providerId,
+		...(deploymentId
+			? { deploymentId }
+			: { resourceGroup: readStringOption(options, "resourceGroup") }),
+		api: resolveSapApi(options),
+		...(destination ? { destination } : {}),
+		...(typeof options.defaultSettings === "object" &&
+		options.defaultSettings !== null &&
+		!Array.isArray(options.defaultSettings)
+			? { defaultSettings: options.defaultSettings }
+			: {}),
+	});
+	return {
+		model: (modelId) => provider(modelId),
 	};
 }
