@@ -18,9 +18,9 @@ Active product hardening — last updated 2026-05-28.
 ## Current State
 
 - Active phase: AI-Hydro Map product refinement and global delineation integration.
-- Last notable feature work: global MERIT delineation v1, map layer/raster handling, map export composer, and Research Gallery planning.
-- Open question: how much of the public Gallery catalog should ship as official seed content versus community contribution.
-- Next step: finish the Research Gallery ribbon/catalog integration and bootstrap `AI-Hydro/Gallery`.
+- Last notable feature work: global MERIT delineation v1, map layer/raster handling, map export composer, and Research Gallery integration.
+- Open question: which community contribution review rules should become automated CI checks in `AI-Hydro/Gallery`.
+- Next step: harden Gallery item imports and keep adding official hydrology examples as reusable research artifacts.
 
 ## Non-Goals
 

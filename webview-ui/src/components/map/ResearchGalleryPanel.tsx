@@ -56,6 +56,8 @@ const TRUST_COLORS: Record<TrustLevel, string> = {
 	local: "#c4b5fd",
 }
 
+const GALLERY_CONTRIBUTION_URL = "https://github.com/AI-Hydro/Gallery/issues/new?template=new_gallery_item.md"
+
 function uiRequestId(prefix: string): string {
 	return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -345,6 +347,27 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 			</div>
 			<div style={{ borderTop: `1px solid ${border}`, paddingTop: 8, fontSize: 10, color: subtle, lineHeight: 1.35 }}>
 				Catalog: {catalog.sourceUrl ?? "built-in fallback"} · Community repo: AI-Hydro/Gallery
+			</div>
+			<div
+				style={{
+					border: `1px dashed ${border}`,
+					borderRadius: 6,
+					padding: 10,
+					background: bg,
+					display: "grid",
+					gap: 6,
+				}}>
+				<div style={{ fontWeight: 700, fontSize: 12 }}>Contribute a Gallery item?</div>
+				<div style={{ color: subtle, fontSize: 11, lineHeight: 1.45 }}>
+					Share a reusable map scene, style, dataset connector, case study, or plate template with the AI-Hydro
+					community.
+				</div>
+				<button
+					onClick={() => PLATFORM_CONFIG.postMessage({ type: "openExternal", url: GALLERY_CONTRIBUTION_URL })}
+					style={{ justifySelf: "start" }}
+					type="button">
+					Open contribution template on GitHub ↗
+				</button>
 			</div>
 			{message && (
 				<div style={{ fontSize: 11, color: message.toLowerCase().includes("fail") ? "#f87171" : "#86efac" }}>
