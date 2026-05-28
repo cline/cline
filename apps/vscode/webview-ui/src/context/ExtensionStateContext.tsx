@@ -13,10 +13,6 @@ import { fromProtobufModels } from "@shared/proto-conversions/models/typeConvers
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
-	basetenDefaultModelId,
-	basetenModels,
-	groqDefaultModelId,
-	groqModels,
 	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
@@ -326,13 +322,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
-	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
-		[groqDefaultModelId]: groqModels[groqDefaultModelId],
-	})
-	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
-		...basetenModels,
-		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-	})
+	// Groq and Baseten model lists start empty. The pickers populate them
+	// from two sources: the SDK catalog over gRPC (`useProviderModels`)
+	// for the curated set, and the host-side refresh RPCs
+	// (`ModelsServiceClient.refreshGroqModelsRpc`,
+	// `ModelsServiceClient.refreshBasetenModels`) for any models the
+	// live API exposes on top of the SDK catalog.
+	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({})
+	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [providerModelsByProvider, setProviderModelsByProvider] = useState<Partial<Record<ProviderId, ProviderModelsState>>>({})
 	const [latestModelRequestIdByProvider, setLatestModelRequestIdByProvider] = useState<Partial<Record<ProviderId, string>>>({})
@@ -798,10 +795,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	const refreshBasetenModels = useCallback(() => {
 		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
-				setBasetenModels({
-					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-					...fromProtobufModels(response.models),
-				})
+				// Live-fetched Baseten models. The SDK-curated catalog is
+				// pulled separately by BasetenModelPicker via
+				// `useProviderModels("baseten")` and merged on top of this
+				// dynamic slice at render time.
+				setBasetenModels(fromProtobufModels(response.models))
 			})
 			.catch((err) => console.error("Failed to refresh Baseten models:", err))
 	}, [])

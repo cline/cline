@@ -68,6 +68,7 @@ export function toProviderListingProto(listing: ProviderListing): ProviderListin
 		authDescription: listing.authDescription,
 		baseUrlDescription: listing.baseUrlDescription,
 		allowsCustomModelIds: listing.allowsCustomModelIds,
+		usageCostDisplay: listing.usageCostDisplay,
 	})
 }
 

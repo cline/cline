@@ -1,12 +1,5 @@
-import {
-	internationalZAiDefaultModelId,
-	internationalZAiModelId,
-	internationalZAiModels,
-	ModelInfo,
-	mainlandZAiDefaultModelId,
-	mainlandZAiModelId,
-	mainlandZAiModels,
-} from "@shared/api"
+import type { internationalZAiModelId, ModelInfo, mainlandZAiModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -58,20 +51,10 @@ export class ZAiHandler implements ApiHandler {
 	}
 
 	getModel(): { id: mainlandZAiModelId | internationalZAiModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (this.useChinaApi()) {
-			const id = modelId && modelId in mainlandZAiModels ? (modelId as mainlandZAiModelId) : mainlandZAiDefaultModelId
-			return {
-				id,
-				info: mainlandZAiModels[id],
-			}
-		}
-		const id =
-			modelId && modelId in internationalZAiModels ? (modelId as internationalZAiModelId) : internationalZAiDefaultModelId
-		return {
-			id,
-			info: internationalZAiModels[id],
-		}
+		// SDK exposes a single `zai` catalog. Mainland vs international is
+		// a base-URL switch only (see `ensureClient` above), not a
+		// model-catalog split.
+		return getProviderModelFromSdk<mainlandZAiModelId | internationalZAiModelId>("zai", this.options.apiModelId)
 	}
 
 	@withRetry()

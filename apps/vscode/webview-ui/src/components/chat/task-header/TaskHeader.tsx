@@ -5,6 +5,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
+import { useProviderUsageCostDisplay } from "@/hooks/useProviderUsageCostDisplay"
 import { cn } from "@/lib/utils"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
@@ -88,6 +89,14 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 	const modeFields = getModeSpecificFields(apiConfiguration, mode)
 
+	// Local providers report no cost; the openai-compatible provider can
+	// report cost only when the user has supplied both prices. For every
+	// other provider, the SDK is the source of truth for whether to render
+	// per-task cost: providers with `metadata.usageCostDisplay = "hide"`
+	// (e.g. ChatGPT Plus/Pro subscription) are filtered out here. This
+	// mirrors the CLI's `shouldShowCliUsageCost` consumer and removes the
+	// previous extension-side hard-coded "openai-codex" check.
+	const usageCostDisplay = useProviderUsageCostDisplay(modeFields.apiProvider)
 	const isCostAvailable =
 		(totalCost &&
 			modeFields.apiProvider === "openai" &&
@@ -96,7 +105,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		(modeFields.apiProvider !== "vscode-lm" &&
 			modeFields.apiProvider !== "ollama" &&
 			modeFields.apiProvider !== "lmstudio" &&
-			modeFields.apiProvider !== "openai-codex") // Subscription-based, no per-token costs
+			usageCostDisplay !== "hide")
 
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])

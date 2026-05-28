@@ -1,4 +1,5 @@
-import { ModelInfo, NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
+import type { ModelInfo, NousResearchModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
@@ -82,12 +83,6 @@ export class NousResearchHandler implements ApiHandler {
 	}
 
 	getModel(): { id: NousResearchModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-
-		if (modelId && modelId in nousResearchModels) {
-			const id = modelId as NousResearchModelId
-			return { id, info: nousResearchModels[id] }
-		}
-		return { id: nousResearchDefaultModelId, info: nousResearchModels[nousResearchDefaultModelId] }
+		return getProviderModelFromSdk<NousResearchModelId>("nousResearch", this.options.apiModelId)
 	}
 }

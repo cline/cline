@@ -1,19 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import type {
-	MessageCreateParamsStreaming as BetaMessageCreateParamsStreaming,
-	BetaRawMessageStreamEvent,
-} from "@anthropic-ai/sdk/resources/beta/messages/messages"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import type { MessageCreateParamsStreaming as AnthropicMessageCreateParamsStreaming } from "@anthropic-ai/sdk/resources/messages/messages"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import {
-	ANTHROPIC_FAST_MODE_SUFFIX,
-	AnthropicModelId,
-	anthropicDefaultModelId,
-	anthropicModels,
-	CLAUDE_SONNET_1M_SUFFIX,
-	ModelInfo,
-} from "@shared/api"
+import type { AnthropicModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -23,7 +13,26 @@ import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
 
-export const ANTHROPIC_FAST_MODE_BETA = "fast-mode-2026-02-01"
+/**
+ * Strips any trailing `:fast` and/or `:1m` from a stored Anthropic
+ * model id. Both suffixes were retired from the picker UI; this is a
+ * compatibility shim for users whose `ApiConfiguration` still carries
+ * an id written by an older extension version. New ids are written as
+ * base SDK ids and pass through this helper unchanged.
+ */
+function stripAnthropicLegacySuffixes(modelId: string | undefined): string | undefined {
+	if (!modelId) {
+		return modelId
+	}
+	let id = modelId
+	if (id.endsWith(":fast")) {
+		id = id.slice(0, -":fast".length)
+	}
+	if (id.endsWith(":1m")) {
+		id = id.slice(0, -":1m".length)
+	}
+	return id
+}
 
 interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
@@ -65,30 +74,8 @@ export class AnthropicHandler implements ApiHandler {
 		const client = this.ensureClient()
 
 		const model = this.getModel()
-		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent> | AsyncIterable<BetaRawMessageStreamEvent>
-
-		const useFastMode = model.id.endsWith(ANTHROPIC_FAST_MODE_SUFFIX)
-		const baseModelId = useFastMode ? model.id.slice(0, -ANTHROPIC_FAST_MODE_SUFFIX.length) : model.id
-		const modelId = baseModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-			? baseModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-			: baseModelId
-		const enable1mContextWindow = baseModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-		const fastModeBetas = enable1mContextWindow
-			? [ANTHROPIC_FAST_MODE_BETA, "context-1m-2025-08-07"]
-			: [ANTHROPIC_FAST_MODE_BETA]
-		const createFastModeMessage = (
-			body: AnthropicMessageCreateParamsStreaming,
-		): Promise<AsyncIterable<BetaRawMessageStreamEvent>> => {
-			return (
-				client.beta.messages.create as unknown as (
-					params: BetaMessageCreateParamsStreaming & { speed: "fast" },
-				) => Promise<AsyncIterable<BetaRawMessageStreamEvent>>
-			)({
-				...body,
-				betas: fastModeBetas,
-				speed: "fast",
-			})
-		}
+		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
+		const modelId = model.id
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 
@@ -143,22 +130,7 @@ export class AnthropicHandler implements ApiHandler {
 				requestBody.output_config = outputConfig
 			}
 
-			stream = useFastMode
-				? await createFastModeMessage(requestBody)
-				: await client.messages.create(
-						requestBody,
-						(() => {
-							// 1m context window beta header
-							if (enable1mContextWindow) {
-								return {
-									headers: {
-										"anthropic-beta": "context-1m-2025-08-07",
-									},
-								}
-							}
-							return undefined
-						})(),
-					)
+			stream = await client.messages.create(requestBody)
 		} else {
 			const requestBody: AnthropicMessageCreateParamsStreaming & Record<string, unknown> = {
 				model: modelId,
@@ -175,7 +147,7 @@ export class AnthropicHandler implements ApiHandler {
 				requestBody.output_config = outputConfig
 			}
 
-			stream = useFastMode ? await createFastModeMessage(requestBody) : await client.messages.create(requestBody)
+			stream = await client.messages.create(requestBody)
 		}
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
@@ -303,14 +275,10 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	getModel(): { id: AnthropicModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in anthropicModels) {
-			const id = modelId as AnthropicModelId
-			return { id, info: anthropicModels[id] }
-		}
-		return {
-			id: anthropicDefaultModelId,
-			info: anthropicModels[anthropicDefaultModelId],
-		}
+		// Resolve against the SDK catalog. `stripAnthropicLegacySuffixes`
+		// is a compatibility shim for `:fast` / `:1m` ids written by
+		// older extension versions; new ids round-trip unchanged.
+		const baseId = stripAnthropicLegacySuffixes(this.options.apiModelId)
+		return getProviderModelFromSdk<AnthropicModelId>("anthropic", baseId)
 	}
 }

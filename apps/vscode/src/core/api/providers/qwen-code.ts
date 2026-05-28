@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs"
-import { ModelInfo, QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } from "@shared/api"
+import type { ModelInfo, QwenCodeModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import * as os from "os"
@@ -175,9 +176,8 @@ export class QwenCodeHandler implements ApiHandler {
 				client.apiKey = this.credentials.access_token
 				client.baseURL = this.getBaseUrl(this.credentials)
 				return await apiCall()
-			} else {
-				throw error
 			}
+			throw error
 		}
 	}
 
@@ -273,14 +273,6 @@ export class QwenCodeHandler implements ApiHandler {
 	}
 
 	getModel(): { id: QwenCodeModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in qwenCodeModels) {
-			const id = modelId as QwenCodeModelId
-			return { id, info: qwenCodeModels[id] }
-		}
-		return {
-			id: qwenCodeDefaultModelId,
-			info: qwenCodeModels[qwenCodeDefaultModelId],
-		}
+		return getProviderModelFromSdk<QwenCodeModelId>("qwen-code", this.options.apiModelId)
 	}
 }

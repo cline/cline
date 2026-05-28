@@ -1,4 +1,5 @@
-import { huggingFaceModels } from "@shared/api"
+import { getProviderCollectionSync } from "@cline/llms"
+import type { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -6,9 +7,30 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { ensureCacheDirectoryExists } from "@/core/storage/disk"
+import { adaptSdkModelInfo } from "@/sdk/model-catalog/shape-adapter"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
+
+/**
+ * Hugging Face's curated catalog from the SDK. Used to supply pricing
+ * and capability defaults for live models that match an SDK-known id,
+ * and as the offline fallback when neither the live fetch nor the disk
+ * cache yields anything.
+ */
+function getHuggingFaceSdkModels(): Record<string, ModelInfo> {
+	const collection = getProviderCollectionSync("huggingface")
+	if (!collection) {
+		return {}
+	}
+	const result: Record<string, ModelInfo> = {}
+	for (const [modelId, sdkInfo] of Object.entries(collection.models)) {
+		result[modelId] = adaptSdkModelInfo(sdkInfo)
+	}
+	return result
+}
+
+const huggingFaceModels = getHuggingFaceSdkModels()
 
 /**
  * Refreshes the Hugging Face models and returns the updated model list
@@ -91,9 +113,9 @@ export async function refreshHuggingFaceModels(
 					supportsPromptCache: modelInfo.supportsPromptCache,
 					inputPrice: modelInfo.inputPrice,
 					outputPrice: modelInfo.outputPrice,
-					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
-					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: modelInfo.description || "",
+					cacheWritesPrice: modelInfo.cacheWritesPrice ?? 0,
+					cacheReadsPrice: modelInfo.cacheReadsPrice ?? 0,
+					description: modelInfo.description ?? "",
 				})
 			}
 		}

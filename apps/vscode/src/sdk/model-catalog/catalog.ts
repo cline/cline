@@ -1,5 +1,5 @@
 import { type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
-import { getAllProviders, type ProviderConfig, type ProviderInfo } from "@cline/llms"
+import { getAllProviders, type ProviderConfig, type ProviderInfo, resolveProviderUsageCostDisplay } from "@cline/llms"
 import type {
 	CatalogError,
 	Disposable,
@@ -12,8 +12,10 @@ import type {
 	ProviderListing,
 	ProviderModelsEvent,
 	ProviderModelsResult,
+	UsageCostDisplay,
 } from "./contracts"
 import { computeConfigFingerprint } from "./fingerprint"
+import { applyHostModelInfoOverrides } from "./host-overrides"
 import { parseProviderId } from "./provider-id"
 import { adaptSdkModelInfo, CatalogShapeError } from "./shape-adapter"
 
@@ -42,6 +44,16 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 }
 
 const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["ollama", "lmstudio", "litellm"])
+
+/**
+ * Normalize the SDK's usage-cost-display answer (string union) into the
+ * extension's {@link UsageCostDisplay} type. The SDK function takes a
+ * provider id (not metadata) and consults its own registry; we forward
+ * the id and trust the answer rather than re-parsing the metadata bag.
+ */
+function readUsageCostDisplay(providerId: string): UsageCostDisplay {
+	return resolveProviderUsageCostDisplay(providerId) === "hide" ? "hide" : "show"
+}
 
 function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {
 	return `${providerId}:${fingerprint}`
@@ -120,6 +132,7 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 		set,
 		invalidateProviderExcept,
 		resolve,
+		peek: get,
 		_inFlightSize: () => inFlight.size,
 		_cacheSize: () => records.size,
 	}
@@ -162,7 +175,13 @@ function toProviderListing(provider: ProviderInfo): ProviderListing {
 		// Reuse the lightweight description slot until the RPC-facing picker
 		// contract decides whether it needs a generic provider description field.
 		authDescription: optionalNonEmpty(provider.description),
+		// The SDK has the right signal for this on each provider (e.g.
+		// `modelsSourceUrl` for ollama/lmstudio, or the `openai-compatible`
+		// family with no curated catalog), but does not yet expose it
+		// through a public helper. Until then this set is the host-side
+		// fallback; remove it as soon as upstream exposes the signal.
 		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(provider.id),
+		usageCostDisplay: readUsageCostDisplay(provider.id),
 	}
 }
 
@@ -179,7 +198,12 @@ async function resolveSdkModels(
 ): Promise<ProviderModelsRecord> {
 	const resolved = await resolveProviderConfig(providerId, DEFAULT_MODEL_CATALOG_CONFIG, toSdkProviderConfig(config, selection))
 	const sdkModels = resolved?.knownModels ?? {}
-	const models = new Map(Object.entries(sdkModels).map(([modelId, sdkInfo]) => [modelId, adaptSdkModelInfo(sdkInfo)]))
+	const models = new Map(
+		Object.entries(sdkModels).map(([modelId, sdkInfo]) => [
+			modelId,
+			applyHostModelInfoOverrides(providerId, modelId, adaptSdkModelInfo(sdkInfo)),
+		]),
+	)
 	return {
 		ok: true,
 		providerId,
@@ -290,6 +314,12 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			}
 			notifyModelListeners(providerId, result)
 			return result
+		},
+
+		peekModels(providerId: ProviderId): ProviderModelsResult | undefined {
+			const config = reader.read(providerId)
+			const fingerprint = computeConfigFingerprint(providerId, config)
+			return cache.peek(providerId, fingerprint)
 		},
 
 		subscribe(providerId: ProviderId, listener: (event: ProviderModelsEvent) => void): Disposable {

@@ -1,10 +1,5 @@
-import {
-	ModelInfo,
-	OpenAiCompatibleModelInfo,
-	OpenAiNativeModelId,
-	openAiNativeDefaultModelId,
-	openAiNativeModels,
-} from "@shared/api"
+import type { ModelInfo, OpenAiCompatibleModelInfo, OpenAiNativeModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
@@ -688,15 +683,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	getModel(): { id: OpenAiNativeModelId; info: OpenAiCompatibleModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in openAiNativeModels) {
-			const id = modelId as OpenAiNativeModelId
-			const info = openAiNativeModels[id]
-			return { id, info: { ...info } }
-		}
-		return {
-			id: openAiNativeDefaultModelId,
-			info: { ...openAiNativeModels[openAiNativeDefaultModelId] },
-		}
+		const resolved = getProviderModelFromSdk<OpenAiNativeModelId>("openai-native", this.options.apiModelId)
+		// OpenAiCompatibleModelInfo extends ModelInfo with optional fields
+		// (temperature, isR1FormatRequired, systemRole, …). The SDK adapter
+		// returns plain ModelInfo; the cast is sound because the extra
+		// fields are all optional.
+		return { id: resolved.id, info: resolved.info as OpenAiCompatibleModelInfo }
 	}
 }

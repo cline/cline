@@ -1,4 +1,5 @@
-import { GroqModelId, groqDefaultModelId, groqModels, ModelInfo } from "@shared/api"
+import type { GroqModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -283,31 +284,16 @@ export class GroqHandler implements ApiHandler {
 	 * Gets model information with enhanced family detection
 	 */
 	getModel(): { id: string; info: ModelInfo } {
-		// First priority: groqModelId and groqModelInfo (like Requesty does)
-		const groqModelId = this.options.groqModelId
-		const groqModelInfo = this.options.groqModelInfo
-		if (groqModelId && groqModelInfo) {
-			return { id: groqModelId, info: groqModelInfo }
-		}
-
-		// Second priority: groqModelId with static model info
-		if (groqModelId && groqModelId in groqModels) {
-			const id = groqModelId as GroqModelId
-			return { id, info: groqModels[id] }
-		}
-
-		// Third priority: apiModelId (for backward compatibility)
-		const apiModelId = this.options.apiModelId
-		if (apiModelId && apiModelId in groqModels) {
-			const id = apiModelId as GroqModelId
-			return { id, info: groqModels[id] }
-		}
-
-		// Default fallback
-		return {
-			id: groqDefaultModelId,
-			info: groqModels[groqDefaultModelId],
-		}
+		// First priority: a committed (groqModelId + groqModelInfo) tuple
+		// lets users pick a model the SDK does not yet ship.
+		// Second priority: groqModelId looked up in the SDK catalog.
+		// Third priority: apiModelId for backward compatibility.
+		// Falls through to the SDK-declared default if none match.
+		return getProviderModelFromSdk<GroqModelId>(
+			"groq",
+			this.options.groqModelId ?? this.options.apiModelId,
+			this.options.groqModelId && this.options.groqModelInfo ? this.options.groqModelInfo : undefined,
+		)
 	}
 
 	/**

@@ -1,10 +1,9 @@
-import { nousResearchModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -23,8 +22,14 @@ export const NousResearchProvider = ({ showModelOptions, isPopup, currentMode }:
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const savedNousResearchModelId =
+		currentMode === "plan" ? apiConfiguration?.planModeNousResearchModelId : apiConfiguration?.actModeNousResearchModelId
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"nousResearch",
+		apiConfiguration,
+		currentMode,
+		{ savedModelId: savedNousResearchModelId },
+	)
 
 	return (
 		<div>
@@ -38,7 +43,7 @@ export const NousResearchProvider = ({ showModelOptions, isPopup, currentMode }:
 				<>
 					<ModelSelector
 						label="Model"
-						models={nousResearchModels}
+						models={models}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeNousResearchModelId", act: "actModeNousResearchModelId" },
@@ -49,7 +54,12 @@ export const NousResearchProvider = ({ showModelOptions, isPopup, currentMode }:
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 
 					<p
 						style={{
