@@ -688,7 +688,13 @@ export async function handleConnectorUserTurn<
 		input.baseStartRequest,
 		effectiveCurrentState,
 	);
-	const activeTurn = input.activeTurns?.get(turnKey);
+	const activeTurn =
+		input.activeTurns?.get(turnKey) ??
+		(input.activeTurns && currentState.sessionId?.trim()
+			? Array.from(input.activeTurns.values()).find(
+					(turn) => turn.sessionId === currentState.sessionId?.trim(),
+				)
+			: undefined);
 	if (activeTurn?.sessionId?.trim()) {
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
 			runtimeInput,
