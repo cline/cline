@@ -52,6 +52,7 @@ import {
 	findBindingForParticipantKey,
 	findBindingForThread,
 	loadThreadState,
+	mergeThreadState,
 	persistMergedThreadState,
 	readBindings,
 } from "../thread-bindings";
@@ -68,13 +69,41 @@ import {
 
 const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 	"Discord",
-	"You can respond in Discord threads, channels, and DMs, and you can use tools according to the user's requests and your capabilities.",
+	[
+		"You can respond in Discord threads, channels, and DMs, and you can use tools according to the user's requests and your capabilities.",
+		"When asked to mention a Discord user or bot by name, write the mention as @display-name or @username. The connector resolves unique guild names to Discord mention IDs before sending. Do not ask the user for a Discord ID unless the name cannot be resolved.",
+	].join("\n"),
 );
 
 const DISCORD_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 const DISCORD_GATEWAY_DURATION_MS = 1_800_000_000;
 
 type DiscordThreadState = ConnectorThreadState;
+type DiscordParticipant = { key: string; label?: string };
+type DiscordMessageIdentity = { author?: unknown; raw?: unknown };
+type DiscordThreadIdParts = {
+	guildId?: string;
+	channelId?: string;
+	threadId?: string;
+};
+type DiscordForwardedGatewayEvent = {
+	type?: string;
+	data?: unknown;
+};
+type DiscordGuildMemberResponse = {
+	roles?: unknown;
+};
+type DiscordGuildMember = {
+	nick?: string;
+	user?: {
+		id?: string;
+		username?: string;
+		global_name?: string | null;
+		bot?: boolean;
+	};
+};
+
+const botGuildRoleCache = new Map<string, Promise<Set<string>>>();
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
@@ -146,57 +175,440 @@ function readIdentifier(value: unknown): string | undefined {
 	return undefined;
 }
 
-function resolveDiscordParticipant(
-	rawMessage: unknown,
-): { key: string; label?: string } | undefined {
-	const raw = asRecord(rawMessage);
-	const data = asRecord(raw?.data) ?? raw;
-	const member = asRecord(data?.member);
-	const author =
-		asRecord(data?.author) ?? asRecord(member?.user) ?? asRecord(data?.user);
-	const userId = readIdentifier(author?.id);
-	const username = readString(author?.username);
-	const globalName =
-		readString(author?.global_name) || readString(author?.displayName);
-	const label = globalName || username || userId;
+function readStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string")
+		: [];
+}
+
+function normalizeDiscordLookupName(value: string | undefined): string {
+	return (value ?? "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+function resolveDiscordParticipantFromAuthor(
+	author: unknown,
+): DiscordParticipant | undefined {
+	const record = asRecord(author);
+	const userId =
+		readIdentifier(record?.userId) ||
+		readIdentifier(record?.id) ||
+		readIdentifier(record?.user_id);
+	const username =
+		readString(record?.userName) ||
+		readString(record?.username) ||
+		readString(record?.name);
+	const label =
+		readString(record?.fullName) ||
+		readString(record?.global_name) ||
+		readString(record?.displayName) ||
+		readString(record?.display_name) ||
+		username ||
+		userId;
 	if (!userId) {
 		return undefined;
 	}
 	return { key: `discord:user:${userId}`, label };
 }
 
+function resolveDiscordParticipant(
+	rawMessage: unknown,
+	messageAuthor?: unknown,
+): DiscordParticipant | undefined {
+	const normalized = resolveDiscordParticipantFromAuthor(messageAuthor);
+	if (normalized) {
+		return normalized;
+	}
+	const raw = asRecord(rawMessage);
+	const data = asRecord(raw?.data) ?? raw;
+	const candidates = [
+		asRecord(raw?.author),
+		asRecord(asRecord(raw?.member)?.user),
+		asRecord(raw?.user),
+		asRecord(data?.author),
+		asRecord(asRecord(data?.member)?.user),
+		asRecord(data?.user),
+		asRecord(asRecord(raw?.message)?.author),
+		asRecord(asRecord(data?.message)?.author),
+	];
+	for (const candidate of candidates) {
+		const participant = resolveDiscordParticipantFromAuthor(candidate);
+		if (participant) {
+			return participant;
+		}
+	}
+	return undefined;
+}
+
+function formatDiscordRuntimeText(
+	text: string,
+	participant: DiscordParticipant | undefined,
+	options?: { ownerUserId?: string },
+): string {
+	if (!participant) {
+		return text;
+	}
+	const authorId = participant.key.replace(/^discord:user:/, "");
+	return [
+		"<discord_message_context>",
+		`authorId: ${authorId}`,
+		...(participant.label ? [`authorLabel: ${participant.label}`] : []),
+		`participantKey: ${participant.key}`,
+		...(options?.ownerUserId && options.ownerUserId === authorId
+			? ["isOwner: true"]
+			: []),
+		"</discord_message_context>",
+		"",
+		text,
+	].join("\n");
+}
+
+function decodeDiscordThreadId(threadId: string): DiscordThreadIdParts {
+	const parts = threadId.split(":");
+	if (parts.length < 3 || parts[0] !== "discord") {
+		return {};
+	}
+	return {
+		guildId: parts[1],
+		channelId: parts[2],
+		threadId: parts[3],
+	};
+}
+
+async function readDiscordBotGuildRoleIds(input: {
+	botToken: string;
+	guildId: string;
+	applicationId: string;
+}): Promise<Set<string>> {
+	const cacheKey = `${input.guildId}:${input.applicationId}`;
+	const cached = botGuildRoleCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+	const pending = fetchDiscordJson({
+		botToken: input.botToken,
+		path: `/guilds/${encodeURIComponent(input.guildId)}/members/${encodeURIComponent(input.applicationId)}`,
+	})
+		.then((value) => {
+			const member = value as DiscordGuildMemberResponse;
+			return new Set(readStringArray(member.roles));
+		})
+		.catch(() => new Set<string>());
+	botGuildRoleCache.set(cacheKey, pending);
+	return pending;
+}
+
+async function normalizeDiscordForwardedGatewayRequest(input: {
+	request: Request;
+	botToken: string;
+	applicationId: string;
+}): Promise<Request> {
+	let event: DiscordForwardedGatewayEvent | undefined;
+	try {
+		event = (await input.request
+			.clone()
+			.json()) as DiscordForwardedGatewayEvent;
+	} catch {
+		return input.request;
+	}
+	if (event?.type !== "GATEWAY_MESSAGE_CREATE") {
+		return input.request;
+	}
+	const data = asRecord(event.data);
+	const guildId = readIdentifier(data?.guild_id);
+	const mentionRoleIds = readStringArray(data?.mention_roles);
+	if (!guildId || mentionRoleIds.length === 0 || data?.is_mention === true) {
+		return input.request;
+	}
+	const botRoleIds = await readDiscordBotGuildRoleIds({
+		botToken: input.botToken,
+		guildId,
+		applicationId: input.applicationId,
+	});
+	const mentionsBotRole = mentionRoleIds.some((roleId) =>
+		botRoleIds.has(roleId),
+	);
+	if (!mentionsBotRole) {
+		return input.request;
+	}
+	const headers = new Headers(input.request.headers);
+	headers.set("Content-Type", "application/json");
+	return new Request(input.request.url, {
+		method: input.request.method,
+		headers,
+		body: JSON.stringify({
+			...event,
+			data: {
+				...data,
+				is_mention: true,
+			},
+		}),
+	});
+}
+
+async function logDiscordForwardedGatewayMessage(input: {
+	request: Request;
+	logger: ConsoleLogger;
+	applicationId: string;
+}): Promise<void> {
+	let event: DiscordForwardedGatewayEvent | undefined;
+	try {
+		event = (await input.request
+			.clone()
+			.json()) as DiscordForwardedGatewayEvent;
+	} catch {
+		return;
+	}
+	if (event?.type !== "GATEWAY_MESSAGE_CREATE") {
+		return;
+	}
+	const data = asRecord(event.data);
+	const author = asRecord(data?.author);
+	const mentions = Array.isArray(data?.mentions)
+		? data.mentions
+				.map((mention) => readIdentifier(asRecord(mention)?.id))
+				.filter(Boolean)
+		: [];
+	const mentionRoleIds = readStringArray(data?.mention_roles);
+	input.logger.info("Discord forwarded Gateway message received", {
+		channelId: readIdentifier(data?.channel_id),
+		guildId: readIdentifier(data?.guild_id) ?? null,
+		authorId: readIdentifier(author?.id),
+		authorName: readString(author?.username),
+		authorIsBot: author?.bot === true,
+		isMe: readIdentifier(author?.id) === input.applicationId,
+		isMentioned: mentions.includes(input.applicationId),
+		isRoleMentioned: data?.is_mention === true,
+		mentionIds: mentions,
+		mentionRoleIds,
+		content: readString(data?.content)?.slice(0, 100) ?? "",
+	});
+}
+
+async function fetchDiscordJson(input: {
+	botToken: string;
+	path: string;
+	method?: "GET" | "POST";
+	body?: unknown;
+}): Promise<unknown> {
+	const response = await fetch(`https://discord.com/api/v10${input.path}`, {
+		method: input.method ?? "GET",
+		headers: {
+			Authorization: `Bot ${input.botToken}`,
+			...(input.body ? { "Content-Type": "application/json" } : {}),
+			"User-Agent": "Cline Discord Connector",
+		},
+		...(input.body ? { body: JSON.stringify(input.body) } : {}),
+	});
+	if (!response.ok) {
+		throw new Error(`Discord API ${response.status}: ${await response.text()}`);
+	}
+	return response.json();
+}
+
+async function searchDiscordGuildMembers(input: {
+	botToken: string;
+	guildId: string;
+	query: string;
+}): Promise<DiscordGuildMember[]> {
+	const query = normalizeDiscordLookupName(input.query);
+	if (!query || input.guildId === "@me") {
+		return [];
+	}
+	const parsed = await fetchDiscordJson({
+		botToken: input.botToken,
+		path: `/guilds/${encodeURIComponent(input.guildId)}/members/search?query=${encodeURIComponent(query)}&limit=10`,
+	});
+	return Array.isArray(parsed) ? (parsed as DiscordGuildMember[]) : [];
+}
+
+function pickDiscordMemberByName(
+	members: DiscordGuildMember[],
+	query: string,
+): DiscordGuildMember | undefined {
+	const normalizedQuery = normalizeDiscordLookupName(query);
+	const exact = members.filter((member) => {
+		const user = member.user;
+		return [member.nick, user?.username, user?.global_name ?? undefined].some(
+			(name) => normalizeDiscordLookupName(name) === normalizedQuery,
+		);
+	});
+	if (exact.length === 1) {
+		return exact[0];
+	}
+	if (members.length === 1) {
+		return members[0];
+	}
+	return undefined;
+}
+
+async function resolveDiscordMentionName(input: {
+	botToken: string;
+	guildId: string | undefined;
+	name: string;
+}): Promise<string | undefined> {
+	if (!input.guildId || input.guildId === "@me") {
+		return undefined;
+	}
+	const members = await searchDiscordGuildMembers({
+		botToken: input.botToken,
+		guildId: input.guildId,
+		query: input.name,
+	}).catch(() => []);
+	const match = pickDiscordMemberByName(members, input.name);
+	const id = readIdentifier(match?.user?.id);
+	return id ? `<@${id}>` : undefined;
+}
+
+async function resolveDiscordOutboundMentions(input: {
+	botToken: string;
+	threadId: string;
+	text: string;
+}): Promise<string> {
+	const { guildId } = decodeDiscordThreadId(input.threadId);
+	if (!guildId || guildId === "@me" || !input.text.includes("@")) {
+		return input.text;
+	}
+	const mentionPattern =
+		/(^|[\s([{])(?:@([A-Za-z0-9_.-]{2,64})|<@([A-Za-z0-9_]{2,64})>((?:-[A-Za-z0-9_.]+)+))(?=$|[\s,.;:!?}\])])/g;
+	const replacements = new Map<string, string>();
+	for (const match of input.text.matchAll(mentionPattern)) {
+		const name = match[2] ?? `${match[3] ?? ""}${match[4] ?? ""}`;
+		if (!name || /^\d{15,25}$/.test(name) || replacements.has(name)) {
+			continue;
+		}
+		const mention = await resolveDiscordMentionName({
+			botToken: input.botToken,
+			guildId,
+			name,
+		});
+		if (mention) {
+			replacements.set(name, mention);
+		}
+	}
+	if (replacements.size === 0) {
+		return input.text.replace(
+			mentionPattern,
+			(full, prefix, rawName, base, suffix) => {
+				const name = rawName ?? `${base ?? ""}${suffix ?? ""}`;
+				return name ? `${prefix}@${name}` : full;
+			},
+		);
+	}
+	return input.text.replace(
+		mentionPattern,
+		(_full, prefix, rawName, base, suffix) => {
+			const name = rawName ?? `${base ?? ""}${suffix ?? ""}`;
+			const replacement = replacements.get(name);
+			return replacement ? `${prefix}${replacement}` : `${prefix}@${name}`;
+		},
+	);
+}
+
+async function postDiscordResolvedText(input: {
+	botToken: string;
+	thread: Thread<DiscordThreadState>;
+	text: string;
+}): Promise<void> {
+	const resolvedText = await resolveDiscordOutboundMentions({
+		botToken: input.botToken,
+		threadId: input.thread.id,
+		text: input.text,
+	});
+	const { channelId, threadId } = decodeDiscordThreadId(input.thread.id);
+	const targetChannelId = threadId || channelId;
+	if (!targetChannelId) {
+		await input.thread.post(resolvedText);
+		return;
+	}
+	await fetchDiscordJson({
+		botToken: input.botToken,
+		path: `/channels/${encodeURIComponent(targetChannelId)}/messages`,
+		method: "POST",
+		body: {
+			content: resolvedText.slice(0, 2000),
+			allowed_mentions: { parse: ["users"] },
+		},
+	});
+}
+
+function resolveParticipantState(input: {
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	participant: DiscordParticipant;
+}): DiscordThreadState {
+	const existing = findBindingForParticipantKey(
+		readBindings<DiscordThreadState>(input.bindingsPath),
+		input.participant.key,
+	)?.binding.state;
+	return {
+		...mergeThreadState<DiscordThreadState>(
+			undefined,
+			existing,
+			input.baseStartRequest,
+		),
+		participantKey: input.participant.key,
+		participantLabel: input.participant.label,
+	};
+}
+
+function resolveCurrentStateWithParticipant(input: {
+	currentState: DiscordThreadState;
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	participant: DiscordParticipant;
+}): DiscordThreadState {
+	if (input.currentState.participantKey === input.participant.key) {
+		return {
+			...input.currentState,
+			participantLabel: input.participant.label,
+		};
+	}
+	return resolveParticipantState({
+		bindingsPath: input.bindingsPath,
+		baseStartRequest: input.baseStartRequest,
+		participant: input.participant,
+	});
+}
+
 async function persistDiscordThreadContext(input: {
 	thread: Thread<DiscordThreadState>;
 	bindingsPath: string;
 	baseStartRequest: ChatStartSessionRequest;
-	rawMessage: unknown;
+	message: DiscordMessageIdentity;
 	errorLabel: string;
-}): Promise<void> {
-	const participant = resolveDiscordParticipant(input.rawMessage);
+}): Promise<DiscordParticipant | undefined> {
+	const participant = resolveDiscordParticipant(
+		input.message.raw,
+		input.message.author,
+	);
 	if (!participant) {
-		return;
+		return undefined;
 	}
 	const currentState = await loadThreadState(
 		input.thread,
 		input.bindingsPath,
 		input.baseStartRequest,
 	);
+	const nextState = resolveCurrentStateWithParticipant({
+		currentState,
+		bindingsPath: input.bindingsPath,
+		baseStartRequest: input.baseStartRequest,
+		participant,
+	});
 	if (
-		currentState.participantKey === participant.key &&
-		currentState.participantLabel === participant.label
+		currentState.participantKey === nextState.participantKey &&
+		currentState.participantLabel === nextState.participantLabel &&
+		currentState.sessionId === nextState.sessionId
 	) {
-		return;
+		return participant;
 	}
 	await persistMergedThreadState(
 		input.thread,
 		input.bindingsPath,
-		{
-			...currentState,
-			participantKey: participant.key,
-			participantLabel: participant.label,
-		},
+		nextState,
 		input.errorLabel,
 	);
+	return participant;
 }
 
 async function deliverScheduledResult(input: {
@@ -324,6 +736,11 @@ class DiscordConnector extends ConnectorBase<
 			.option("--token <token>", "Alias for --bot-token")
 			.option("--public-key <key>", "Discord application public key")
 			.option(
+				"--owner-user-id <id>",
+				"Discord user id that should be marked as connector owner",
+			)
+			.option("--ignore-bot-authors", "Ignore messages from other Discord bots")
+			.option(
 				"--mention-role-ids <ids>",
 				"Comma-separated role IDs that should trigger mention handlers",
 			)
@@ -358,6 +775,8 @@ class DiscordConnector extends ConnectorBase<
 					"  DISCORD_APPLICATION_ID      Discord application id",
 					"  DISCORD_BOT_TOKEN           Discord bot token",
 					"  DISCORD_PUBLIC_KEY          Discord application public key",
+					"  DISCORD_OWNER_USER_ID       Optional connector owner user id",
+					"  DISCORD_IGNORE_BOT_AUTHORS  Set to 1 to ignore messages from other bots",
 					"  DISCORD_MENTION_ROLE_IDS    Optional comma-separated role ids",
 				].join("\n"),
 			);
@@ -371,6 +790,8 @@ class DiscordConnector extends ConnectorBase<
 			botToken?: string;
 			token?: string;
 			publicKey?: string;
+			ownerUserId?: string;
+			ignoreBotAuthors?: boolean;
 			mentionRoleIds?: string;
 			cwd?: string;
 			model?: string;
@@ -415,6 +836,15 @@ class DiscordConnector extends ConnectorBase<
 				"",
 			publicKey:
 				opts.publicKey?.trim() || process.env.DISCORD_PUBLIC_KEY?.trim() || "",
+			ownerUserId:
+				opts.ownerUserId?.trim() ||
+				process.env.DISCORD_OWNER_USER_ID?.trim() ||
+				undefined,
+			allowBotAuthors:
+				!opts.ignoreBotAuthors &&
+				!/^(1|true|yes)$/i.test(
+					process.env.DISCORD_IGNORE_BOT_AUTHORS?.trim() ?? "",
+				),
 			mentionRoleIds: mentionRoleIds.length > 0 ? mentionRoleIds : undefined,
 			cwd: opts.cwd || process.cwd(),
 			model: opts.model,
@@ -652,6 +1082,7 @@ class DiscordConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<DiscordThreadState>,
 			text: string,
+			participant?: DiscordParticipant,
 		) => {
 			const queueKey =
 				(await loadThreadState(thread, bindingsPath, startRequest))
@@ -661,6 +1092,9 @@ class DiscordConnector extends ConnectorBase<
 					await handleConnectorUserTurn({
 						thread,
 						text,
+						runtimeText: formatDiscordRuntimeText(text, participant, {
+							ownerUserId: options.ownerUserId,
+						}),
 						client,
 						pendingApprovals,
 						baseStartRequest: startRequest,
@@ -686,6 +1120,9 @@ class DiscordConnector extends ConnectorBase<
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
 							applicationId: options.applicationId,
+							...(options.ownerUserId
+								? { discordOwnerUserId: options.ownerUserId }
+								: {}),
 							discordThreadId: currentThread.id,
 							discordChannelId: currentThread.channelId,
 							...(currentState.participantKey
@@ -697,6 +1134,16 @@ class DiscordConnector extends ConnectorBase<
 						}),
 						reusedLogMessage: "Discord thread reusing RPC session",
 						startedLogMessage: "Discord thread started RPC session",
+						postFinalReply: async ({
+							thread: replyThread,
+							text: replyText,
+						}) => {
+							await postDiscordResolvedText({
+								botToken: options.botToken,
+								thread: replyThread,
+								text: replyText,
+							});
+						},
 						onMessageReceived: async (details) => {
 							await dispatchConnectorHook(
 								options.hookCommand,
@@ -764,12 +1211,22 @@ class DiscordConnector extends ConnectorBase<
 		};
 
 		bot.onNewMention(async (thread, message) => {
+			loggerAdapter.core.log("Discord mention handler invoked", {
+				transport: "discord",
+				threadId: thread.id,
+				channelId: thread.channelId,
+				authorId: message.author.userId,
+				authorName: message.author.userName,
+				authorIsBot: message.author.isBot,
+				isMention: message.isMention,
+				textPreview: truncateText(message.text),
+			});
 			await thread.subscribe();
-			await persistDiscordThreadContext({
+			const participant = await persistDiscordThreadContext({
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
-				rawMessage: message.raw,
+				message,
 				errorLabel: "Discord",
 			});
 			if (
@@ -784,15 +1241,25 @@ class DiscordConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(thread, message.text, participant);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
-			await persistDiscordThreadContext({
+			loggerAdapter.core.log("Discord subscribed message handler invoked", {
+				transport: "discord",
+				threadId: thread.id,
+				channelId: thread.channelId,
+				authorId: message.author.userId,
+				authorName: message.author.userName,
+				authorIsBot: message.author.isBot,
+				isMention: message.isMention,
+				textPreview: truncateText(message.text),
+			});
+			const participant = await persistDiscordThreadContext({
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
-				rawMessage: message.raw,
+				message,
 				errorLabel: "Discord",
 			});
 			if (
@@ -807,7 +1274,7 @@ class DiscordConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(thread, message.text, participant);
 		});
 
 		bot.onSlashCommand(async (event) => {
@@ -827,14 +1294,17 @@ class DiscordConnector extends ConnectorBase<
 				isSubscribedContext: true,
 			});
 			await thread.subscribe();
-			await persistDiscordThreadContext({
+			const participant = await persistDiscordThreadContext({
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
-				rawMessage: event.raw,
+				message: {
+					raw: event.raw,
+					author: event.user,
+				},
 				errorLabel: "Discord",
 			});
-			await handleTurn(thread, commandText);
+			await handleTurn(thread, commandText, participant);
 		});
 
 		await bot.initialize();
@@ -853,6 +1323,37 @@ class DiscordConnector extends ConnectorBase<
 				transport: "discord",
 			});
 
+		const webhookUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/discord`;
+		const server = await startConnectorWebhookServer({
+			host: options.host,
+			port: options.port,
+			routes: {
+				"/api/webhooks/discord": async (request) => {
+					const normalizedRequest =
+						await normalizeDiscordForwardedGatewayRequest({
+							request,
+							botToken: options.botToken,
+							applicationId: options.applicationId,
+						});
+					await logDiscordForwardedGatewayMessage({
+						request: normalizedRequest,
+						logger: consoleLogger,
+						applicationId: options.applicationId,
+					});
+					return discord.handleWebhook(normalizedRequest);
+				},
+				"/health": () => new Response("ok"),
+				"/": () =>
+					new Response(
+						[
+							"Discord connector is running.",
+							`Interactions endpoint: ${webhookUrl}`,
+							`Gateway mode: ${options.allowBotAuthors ? "forwarded WebSocket listener" : "direct WebSocket listener"}`,
+						].join("\n"),
+					),
+			},
+		});
+
 		let gatewayTask: Promise<unknown> | undefined;
 		const gatewayAbortController = new AbortController();
 		const gatewayStartResponse = await discord.startGatewayListener(
@@ -869,8 +1370,10 @@ class DiscordConnector extends ConnectorBase<
 			},
 			DISCORD_GATEWAY_DURATION_MS,
 			gatewayAbortController.signal,
+			options.allowBotAuthors ? webhookUrl : undefined,
 		);
 		if (!gatewayStartResponse.ok) {
+			await server.close();
 			stopTaskUpdateStream();
 			userInstructionService.stop();
 			client.close();
@@ -880,25 +1383,6 @@ class DiscordConnector extends ConnectorBase<
 			);
 			return 1;
 		}
-
-		const webhookUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/discord`;
-		const server = await startConnectorWebhookServer({
-			host: options.host,
-			port: options.port,
-			routes: {
-				"/api/webhooks/discord": async (request) =>
-					discord.handleWebhook(request),
-				"/health": () => new Response("ok"),
-				"/": () =>
-					new Response(
-						[
-							"Discord connector is running.",
-							`Interactions endpoint: ${webhookUrl}`,
-							"Gateway mode: direct WebSocket listener",
-						].join("\n"),
-					),
-			},
-		});
 
 		const stopEventStream = client.streamEvents(
 			{ clientId: `${clientId}-server-events` },
@@ -958,7 +1442,7 @@ class DiscordConnector extends ConnectorBase<
 			`[discord] configure Discord interactions endpoint: ${webhookUrl}`,
 		);
 		io.writeln(
-			"[discord] gateway listener started for mentions, replies, reactions, and DMs",
+			`[discord] gateway listener started for mentions, replies, reactions, and DMs${options.allowBotAuthors ? " (bot authors allowed)" : ""}`,
 		);
 		if (restoredSubscriptionCount > 0) {
 			io.writeln(
@@ -984,11 +1468,16 @@ export const discordConnector: ConnectCommandDefinition =
 
 export const __test__ = {
 	createDiscordEmptyRuntimeReplyResolver,
+	formatDiscordRuntimeText,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<DiscordThreadState>,
 		thread: Pick<Thread<DiscordThreadState>, "id" | "channelId" | "isDM"> & {
 			participantKey?: string;
 		},
 	) => findBindingForThread(bindings, thread),
+	persistDiscordThreadContext,
+	normalizeDiscordForwardedGatewayRequest,
+	resolveDiscordOutboundMentions,
+	resolveDiscordParticipant,
 	restoreDiscordThreadSubscriptions,
 };
