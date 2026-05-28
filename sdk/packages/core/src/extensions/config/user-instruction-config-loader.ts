@@ -1,7 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import {
+	AGENTS_RULES_FILE_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
+	resolveGlobalAgentsRulesPath,
 	resolveRulesConfigSearchPaths as resolveRulesConfigSearchPathsFromShared,
 	resolveSkillsConfigSearchPaths as resolveSkillsConfigSearchPathsFromShared,
 	resolveWorkflowsConfigSearchPaths as resolveWorkflowsConfigSearchPathsFromShared,
@@ -12,6 +14,7 @@ import YAML from "yaml";
 import {
 	type UnifiedConfigDefinition,
 	type UnifiedConfigFileCandidate,
+	type UnifiedConfigFileContext,
 	UnifiedConfigFileWatcher,
 	type UnifiedConfigWatcherEvent,
 } from "./unified-config-file-watcher";
@@ -206,6 +209,29 @@ function parseBooleanField(
 		throw new Error(`Frontmatter field '${fieldName}' must be a boolean.`);
 	}
 	return value;
+}
+
+function resolveRuleFallbackName(
+	context: UnifiedConfigFileContext<"rule">,
+	workspacePath?: string,
+): string {
+	const fileName = basename(context.filePath);
+	if (fileName.toLowerCase() !== AGENTS_RULES_FILE_NAME.toLowerCase()) {
+		return basename(context.filePath, extname(context.filePath));
+	}
+
+	if (
+		workspacePath &&
+		resolve(context.filePath) === resolve(workspacePath, AGENTS_RULES_FILE_NAME)
+	) {
+		return "Workspace AGENTS.md";
+	}
+
+	if (resolve(context.filePath) === resolve(resolveGlobalAgentsRulesPath())) {
+		return "Global AGENTS.md";
+	}
+
+	return basename(context.filePath, extname(context.filePath));
 }
 
 export function parseSkillConfigFromMarkdown(
@@ -483,7 +509,7 @@ export function createRulesConfigDefinition(
 		parseFile: (context) =>
 			parseRuleConfigFromMarkdown(
 				context.content,
-				basename(context.filePath, extname(context.filePath)),
+				resolveRuleFallbackName(context, options?.workspacePath),
 			),
 		resolveId: (rule) => normalizeName(rule.name),
 	};

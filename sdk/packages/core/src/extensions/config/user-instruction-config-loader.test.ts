@@ -1,6 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+	resolveGlobalAgentsRulesPath,
+	setHomeDir,
+} from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	createRulesConfigDefinition,
@@ -61,6 +65,11 @@ describe("user instruction config loader", () => {
 				join(workspacePath, ".cline", "rules"),
 			]),
 		);
+		expect(
+			resolveRulesConfigSearchPaths(workspacePath).some((path) =>
+				path.endsWith(join(".agents", "AGENTS.md")),
+			),
+		).toBe(true);
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 		expect(paths).toContain(join(workspacePath, ".clinerules", "workflows"));
 		expect(paths).toContain(join(workspacePath, ".cline", "workflows"));
@@ -183,6 +192,56 @@ Escalation runbook`,
 		} finally {
 			unsubscribe();
 			watcher.stop();
+		}
+	});
+
+	it("loads global and workspace AGENTS.md rules without clobbering either source", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-agents-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const originalHomeDir = process.env.HOME?.trim() || homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const globalAgentsPath = resolveGlobalAgentsRulesPath();
+		const fallbackAgentsDir = join(tempRoot, "other", ".agents");
+		const workspaceRoot = join(tempRoot, "workspace");
+		await mkdir(join(tempRoot, "home", ".agents"), { recursive: true });
+		await mkdir(fallbackAgentsDir, { recursive: true });
+		await mkdir(workspaceRoot, { recursive: true });
+		const fallbackAgentsPath = join(fallbackAgentsDir, "AGENTS.md");
+		const workspaceAgentsPath = join(workspaceRoot, "AGENTS.md");
+		await writeFile(globalAgentsPath, "Use global AGENTS rules.");
+		await writeFile(fallbackAgentsPath, "Use fallback AGENTS rules.");
+		await writeFile(workspaceAgentsPath, "Use workspace AGENTS rules.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: {
+				directories: [
+					globalAgentsPath,
+					workspaceAgentsPath,
+					fallbackAgentsPath,
+				],
+				workspacePath: workspaceRoot,
+			},
+		});
+
+		try {
+			await watcher.start();
+			const rules = watcher.getSnapshot("rule");
+
+			expect(rules.get("global agents.md")?.item.instructions).toBe(
+				"Use global AGENTS rules.",
+			);
+			expect(rules.get("workspace agents.md")?.item.instructions).toBe(
+				"Use workspace AGENTS rules.",
+			);
+			expect(rules.get("agents")?.item.instructions).toBe(
+				"Use fallback AGENTS rules.",
+			);
+		} finally {
+			watcher.stop();
+			setHomeDir(originalHomeDir);
 		}
 	});
 
