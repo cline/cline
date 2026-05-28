@@ -98,6 +98,39 @@ function isControlBinding(
 	);
 }
 
+function clearSerializedThreadSessionId(
+	serializedThread: string | undefined,
+): { serializedThread: string | undefined; updated: boolean } {
+	if (!serializedThread?.trim()) {
+		return { serializedThread, updated: false };
+	}
+	try {
+		const parsed = JSON.parse(serializedThread) as unknown;
+		if (!parsed || typeof parsed !== "object") {
+			return { serializedThread, updated: false };
+		}
+		const record = parsed as Record<string, unknown>;
+		let updated = false;
+		if ("sessionId" in record) {
+			delete record.sessionId;
+			updated = true;
+		}
+		if (record.state && typeof record.state === "object") {
+			const state = record.state as Record<string, unknown>;
+			if ("sessionId" in state) {
+				delete state.sessionId;
+				updated = true;
+			}
+		}
+		return {
+			serializedThread: updated ? JSON.stringify(parsed) : serializedThread,
+			updated,
+		};
+	} catch {
+		return { serializedThread, updated: false };
+	}
+}
+
 export function resolveThreadBindingKey(
 	thread: ConnectorBindingThreadIdentity,
 	state?: ConnectorThreadState | null,
@@ -515,10 +548,19 @@ export function clearBindingSessionIds<TState extends ConnectorThreadState>(
 	const bindings = readBindings<TState>(path);
 	let updated = false;
 	for (const binding of Object.values(bindings)) {
-		if (binding.sessionId || binding.state?.sessionId) {
-			binding.sessionId = undefined;
+		if ("sessionId" in binding) {
+			delete binding.sessionId;
+			updated = true;
+		}
+		if (binding.state && "sessionId" in binding.state) {
+			delete binding.state.sessionId;
+			updated = true;
+		}
+		const serialized = clearSerializedThreadSessionId(binding.serializedThread);
+		if (serialized.updated) {
+			binding.serializedThread = serialized.serializedThread ?? "";
 			if (binding.state) {
-				binding.state.sessionId = undefined;
+				delete binding.state.sessionId;
 			}
 			updated = true;
 		}
