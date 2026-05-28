@@ -1,5 +1,6 @@
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
-import { CerebrasModelId, cerebrasDefaultModelId, cerebrasModels, ModelInfo } from "@shared/api"
+import type { CerebrasModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -219,20 +220,18 @@ export class CerebrasHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		const originalModelId = this.options.apiModelId
-		let apiModelId = originalModelId
+		// `qwen-3-coder-480b-free` is a Cerebras UX alias: the SDK only
+		// knows the paid model id `qwen-3-coder-480b`, but the user may
+		// have picked the free variant. We resolve the free id against
+		// the SDK to get the right `ModelInfo`, then surface the paid
+		// id as what we send to Cerebras. (The paid info IS what the
+		// SDK ships for the free variant; this matches historical
+		// behavior.)
 		if (originalModelId === "qwen-3-coder-480b-free") {
-			apiModelId = "qwen-3-coder-480b"
-			return { id: apiModelId, info: cerebrasModels[originalModelId as CerebrasModelId] }
+			const resolved = getProviderModelFromSdk<CerebrasModelId>("cerebras", "qwen-3-coder-480b-free")
+			return { id: "qwen-3-coder-480b", info: resolved.info }
 		}
-
-		if (originalModelId && originalModelId in cerebrasModels) {
-			const id = originalModelId as CerebrasModelId
-			return { id, info: cerebrasModels[id] }
-		}
-		return {
-			id: cerebrasDefaultModelId,
-			info: cerebrasModels[cerebrasDefaultModelId],
-		}
+		return getProviderModelFromSdk<CerebrasModelId>("cerebras", originalModelId)
 	}
 
 	/**

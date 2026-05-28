@@ -4,6 +4,7 @@ package cline;
 
 import "cline/common.proto";
 
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
 option java_package = "bot.cline.proto";
 

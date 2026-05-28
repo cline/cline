@@ -1,4 +1,5 @@
-import { ModelInfo, OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
+import type { ModelInfo, OpenAiCodexModelId } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
@@ -721,12 +722,6 @@ export class OpenAiCodexHandler implements ApiHandler {
 	}
 
 	getModel(): { id: OpenAiCodexModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-
-		const id = modelId && modelId in openAiCodexModels ? (modelId as OpenAiCodexModelId) : openAiCodexDefaultModelId
-
-		const info: ModelInfo = openAiCodexModels[id]
-
-		return { id, info }
+		return getProviderModelFromSdk<OpenAiCodexModelId>("openai-codex", this.options.apiModelId)
 	}
 }

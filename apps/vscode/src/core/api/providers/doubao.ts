@@ -1,4 +1,5 @@
-import { DoubaoModelId, doubaoDefaultModelId, doubaoModels, ModelInfo } from "@shared/api"
+import type { DoubaoModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
@@ -37,15 +38,7 @@ export class DoubaoHandler implements ApiHandler {
 	}
 
 	getModel(): { id: DoubaoModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		if (modelId && modelId in doubaoModels) {
-			const id = modelId as DoubaoModelId
-			return { id, info: doubaoModels[id] }
-		}
-		return {
-			id: doubaoDefaultModelId,
-			info: doubaoModels[doubaoDefaultModelId],
-		}
+		return getProviderModelFromSdk<DoubaoModelId>("doubao", this.options.apiModelId)
 	}
 
 	@withRetry()

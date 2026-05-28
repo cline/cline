@@ -1,4 +1,3 @@
-import { CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -11,20 +10,15 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
-import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import {
-	filterOpenRouterModelIds,
-	getModeSpecificFields,
-	normalizeApiConfiguration,
-	supportsReasoningEffortForModelId,
-} from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields, supportsReasoningEffortForModelId } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -216,8 +210,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		)
 	}
 
+	const baseSelection = useDynamicProviderSelection("cline", apiConfiguration, currentMode)
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
+		const selected = {
+			selectedProvider: "cline" as const,
+			selectedModelId: baseSelection.selectedModelId,
+			selectedModelInfo: baseSelection.selectedModelInfo,
+		}
 		const selectedWithCatalogDefault = currentClineModelId
 			? {
 					...selected,
@@ -525,54 +524,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						</DropdownList>
 					)}
 				</DropdownWrapper>
-
-				{/* Context window switcher for Claude Opus 4.8 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.8"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.7 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.7"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.5 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.5"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
 			</div>
 
 			{hasInfo ? (

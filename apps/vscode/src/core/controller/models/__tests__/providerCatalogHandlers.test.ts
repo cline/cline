@@ -23,6 +23,7 @@ function makeCatalog(): ProviderCatalog {
 	return {
 		listProviders: vi.fn(async () => []),
 		resolveModels: vi.fn(),
+		peekModels: vi.fn(),
 		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
 	}
 }
@@ -57,6 +58,7 @@ describe("provider model catalog handlers", () => {
 				protocol: "openai-chat",
 				authDescription: "DeepSeek models",
 				allowsCustomModelIds: false,
+				usageCostDisplay: "show",
 			},
 		])
 		const controller = makeController(store, catalog)
@@ -73,6 +75,7 @@ describe("provider model catalog handlers", () => {
 				authDescription: "DeepSeek models",
 				baseUrlDescription: undefined,
 				allowsCustomModelIds: false,
+				usageCostDisplay: "show",
 			},
 		])
 		expect(catalog.listProviders).toHaveBeenCalledTimes(1)

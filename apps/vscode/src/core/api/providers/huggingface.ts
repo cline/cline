@@ -1,4 +1,5 @@
-import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, ModelInfo } from "@shared/api"
+import type { HuggingFaceModelId, ModelInfo } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -117,32 +118,17 @@ export class HuggingFaceHandler implements ApiHandler {
 	}
 
 	getModel(): { id: HuggingFaceModelId; info: ModelInfo } {
-		// Return cached model if available
 		if (this.cachedModel) {
 			return this.cachedModel
 		}
-
-		const modelId = this.options.huggingFaceModelId
-
-		// List all available models for debugging
-		const _availableModels = Object.keys(huggingFaceModels)
-		let result: { id: HuggingFaceModelId; info: ModelInfo }
-
-		if (modelId && modelId in huggingFaceModels) {
-			const id = modelId as HuggingFaceModelId
-			const modelInfo = huggingFaceModels[id]
-			result = { id, info: modelInfo }
-		} else {
-			const defaultInfo = huggingFaceModels[huggingFaceDefaultModelId]
-			result = {
-				id: huggingFaceDefaultModelId,
-				info: defaultInfo,
-			}
-		}
-
-		// Cache the result for future calls
-		this.cachedModel = result
-
-		return result
+		// Honors a committed `huggingFaceModelInfo` when present so the
+		// user can pick a model that is not in the SDK builtin list (the
+		// HuggingFace picker dynamically fetches additional models).
+		this.cachedModel = getProviderModelFromSdk<HuggingFaceModelId>(
+			"huggingface",
+			this.options.huggingFaceModelId,
+			this.options.huggingFaceModelInfo,
+		)
+		return this.cachedModel
 	}
 }

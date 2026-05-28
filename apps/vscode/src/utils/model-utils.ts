@@ -1,5 +1,6 @@
+import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
-import { AnthropicModelId, anthropicModels } from "@/shared/api"
+import type { AnthropicModelId } from "@/shared/api"
 
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
@@ -50,7 +51,11 @@ export function shouldSkipReasoningForModel(modelId?: string): boolean {
 
 export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {
 	const CLAUDE_MODELS = ["sonnet", "opus", "haiku"]
-	return modelId in anthropicModels || CLAUDE_MODELS.some((substring) => modelId.includes(substring))
+	const anthropicCollection = MODEL_COLLECTIONS_BY_PROVIDER_ID["anthropic"]
+	return (
+		(anthropicCollection ? modelId in anthropicCollection.models : false) ||
+		CLAUDE_MODELS.some((substring) => modelId.includes(substring))
+	)
 }
 
 export function isClaude4PlusModelFamily(id: string): boolean {

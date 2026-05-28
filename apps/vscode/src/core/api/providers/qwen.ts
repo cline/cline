@@ -1,13 +1,6 @@
-import {
-	InternationalQwenModelId,
-	internationalQwenDefaultModelId,
-	internationalQwenModels,
-	MainlandQwenModelId,
-	ModelInfo,
-	mainlandQwenDefaultModelId,
-	mainlandQwenModels,
-	QwenApiRegions,
-} from "@shared/api"
+import type { InternationalQwenModelId, MainlandQwenModelId, ModelInfo } from "@shared/api"
+import { QwenApiRegions } from "@shared/api"
+import { getProviderModelFromSdk } from "@shared/sdk-handler-models"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -63,23 +56,12 @@ export class QwenHandler implements ApiHandler {
 	}
 
 	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
-		const modelId = this.options.apiModelId
-		// Branch based on API line to let poor typescript know what to do
-		if (this.useChinaApi()) {
-			const id = modelId && modelId in mainlandQwenModels ? (modelId as MainlandQwenModelId) : mainlandQwenDefaultModelId
-			return {
-				id,
-				info: mainlandQwenModels[id],
-			}
-		}
-		const id =
-			modelId && modelId in internationalQwenModels
-				? (modelId as InternationalQwenModelId)
-				: internationalQwenDefaultModelId
-		return {
-			id,
-			info: internationalQwenModels[id],
-		}
+		// SDK exposes a single `qwen` catalog. Mainland vs international
+		// is a base-URL switch only (see `ensureClient` above), not a
+		// model-catalog split. Resolve the requested id against the SDK
+		// and surface it under the union type the rest of the handler
+		// expects.
+		return getProviderModelFromSdk<MainlandQwenModelId | InternationalQwenModelId>("qwen", this.options.apiModelId)
 	}
 
 	@withRetry()
