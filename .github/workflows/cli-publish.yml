@@ -33,7 +33,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: sdk
+    working-directory: .
 
 jobs:
   publish-main:
@@ -102,7 +102,7 @@ jobs:
           fi
 
           VERSION="${TAG#cli-v}"
-          PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+          PACKAGE_VERSION=$(node -p "require('./sdk/apps/cli/package.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
             echo "sdk/apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
@@ -349,7 +349,7 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+          BASE_VERSION=$(node -p "require('./sdk/apps/cli/package.json').version")
           TIMESTAMP=$(date +%s)
           VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
 

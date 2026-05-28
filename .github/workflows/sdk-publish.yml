@@ -26,7 +26,7 @@ on:
 
 defaults:
   run:
-    working-directory: sdk
+    working-directory: .
 
 jobs:
   test:
@@ -148,7 +148,7 @@ jobs:
         env:
           CHANNEL: ${{ steps.channel.outputs.channel }}
         run: |
-          BASE_VERSION=$(node -p "require('./packages/llms/package.json').version")
+          BASE_VERSION=$(node -p "require('./sdk/packages/llms/package.json').version")
 
           if [ "$CHANNEL" = "nightly" ]; then
             TIMESTAMP=$(date +%s)
@@ -166,11 +166,11 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: bun scripts/version.ts "$VERSION"
+        run: bun sdk/scripts/version.ts "$VERSION"
 
       - name: Verify publishability
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun scripts/check-publish.ts
+        run: bun sdk/scripts/check-publish.ts
 
       - name: Prepare package tarball directory
         if: steps.check_commits.outputs.skip != 'true'
