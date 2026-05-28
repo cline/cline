@@ -111,6 +111,9 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	if (!text.trim()) {
 		text = (await resolveFallbackText?.())?.trim() || "";
 	}
+	if (isConnectorIdleReply(text)) {
+		return;
+	}
 	if (resolveFallbackText && !text.trim()) {
 		throw new Error("Runtime completed without assistant reply text.");
 	}
@@ -133,6 +136,10 @@ function applyForcedToolDisable<TState extends ConnectorThreadState>(
 		enableTools: false,
 		autoApproveTools: false,
 	};
+}
+
+export function isConnectorIdleReply(text: string): boolean {
+	return text.trim().toLowerCase() === "/idle";
 }
 
 export async function handleConnectorUserTurn<

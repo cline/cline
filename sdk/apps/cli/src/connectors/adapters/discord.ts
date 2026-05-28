@@ -72,6 +72,7 @@ const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 	[
 		"You can respond in Discord threads, channels, and DMs, and you can use tools according to the user's requests and your capabilities.",
 		"When asked to mention a Discord user or bot by name, write the mention as @display-name or @username. The connector resolves unique guild names to Discord mention IDs before sending. Do not ask the user for a Discord ID unless the name cannot be resolved.",
+		"Discord subscribed thread messages may arrive even when they are not addressed to you. Check <discord_message_context>: when isDirectMention is false and the message is part of another user or bot conversation that does not require your action, reply exactly /idle and nothing else. The connector treats /idle as a private no-op and will not post it to Discord.",
 	].join("\n"),
 );
 
@@ -242,7 +243,11 @@ function resolveDiscordParticipant(
 function formatDiscordRuntimeText(
 	text: string,
 	participant: DiscordParticipant | undefined,
-	options?: { ownerUserId?: string },
+	options?: {
+		ownerUserId?: string;
+		isDirectMention?: boolean;
+		isSubscribedThreadMessage?: boolean;
+	},
 ): string {
 	if (!participant) {
 		return text;
@@ -253,6 +258,14 @@ function formatDiscordRuntimeText(
 		`authorId: ${authorId}`,
 		...(participant.label ? [`authorLabel: ${participant.label}`] : []),
 		`participantKey: ${participant.key}`,
+		...(options?.isDirectMention === undefined
+			? []
+			: [`isDirectMention: ${options.isDirectMention ? "true" : "false"}`]),
+		...(options?.isSubscribedThreadMessage === undefined
+			? []
+			: [
+					`isSubscribedThreadMessage: ${options.isSubscribedThreadMessage ? "true" : "false"}`,
+				]),
 		...(options?.ownerUserId && options.ownerUserId === authorId
 			? ["isOwner: true"]
 			: []),
@@ -1083,7 +1096,11 @@ class DiscordConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<DiscordThreadState>,
 			text: string,
-			participant?: DiscordParticipant,
+			context?: {
+				participant?: DiscordParticipant;
+				isDirectMention?: boolean;
+				isSubscribedThreadMessage?: boolean;
+			},
 		) => {
 			const queueKey =
 				(await loadThreadState(thread, bindingsPath, startRequest))
@@ -1093,8 +1110,10 @@ class DiscordConnector extends ConnectorBase<
 					await handleConnectorUserTurn({
 						thread,
 						text,
-						runtimeText: formatDiscordRuntimeText(text, participant, {
+						runtimeText: formatDiscordRuntimeText(text, context?.participant, {
 							ownerUserId: options.ownerUserId,
+							isDirectMention: context?.isDirectMention,
+							isSubscribedThreadMessage: context?.isSubscribedThreadMessage,
 						}),
 						client,
 						pendingApprovals,
@@ -1242,7 +1261,11 @@ class DiscordConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text, participant);
+			await handleTurn(thread, message.text, {
+				participant,
+				isDirectMention: message.isMention,
+				isSubscribedThreadMessage: false,
+			});
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -1275,7 +1298,11 @@ class DiscordConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text, participant);
+			await handleTurn(thread, message.text, {
+				participant,
+				isDirectMention: message.isMention,
+				isSubscribedThreadMessage: true,
+			});
 		});
 
 		bot.onSlashCommand(async (event) => {
@@ -1305,7 +1332,11 @@ class DiscordConnector extends ConnectorBase<
 				},
 				errorLabel: "Discord",
 			});
-			await handleTurn(thread, commandText, participant);
+			await handleTurn(thread, commandText, {
+				participant,
+				isDirectMention: true,
+				isSubscribedThreadMessage: false,
+			});
 		});
 
 		await bot.initialize();
@@ -1468,6 +1499,7 @@ export const discordConnector: ConnectCommandDefinition =
 	new DiscordConnector();
 
 export const __test__ = {
+	DISCORD_SYSTEM_RULES,
 	createDiscordEmptyRuntimeReplyResolver,
 	formatDiscordRuntimeText,
 	findBindingForThread: (

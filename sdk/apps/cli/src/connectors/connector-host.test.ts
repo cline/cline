@@ -631,6 +631,46 @@ describe("handleConnectorUserTurn", () => {
 		expect(posts).not.toContainEqual({ raw: "**Formatted** reply" });
 	});
 
+	it("suppresses connector /idle control replies", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const runtime = createRuntimeClient(" /idle\n");
+		const postFinalReply = vi.fn(async () => undefined);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "other bot replied in the thread",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			postFinalReply,
+		});
+
+		expect(postFinalReply).not.toHaveBeenCalled();
+		expect(posts).toEqual([]);
+	});
+
 	it("posts adapter fallback replies when the runtime stream is empty", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
