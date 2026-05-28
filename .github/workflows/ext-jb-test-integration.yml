@@ -15,9 +15,11 @@ jobs:
   trigger-integration-test:
     name: Run Tests
     runs-on: ubuntu-latest
-    # Run on PR open/reopen, or when someone comments /test-jetbrains on a PR
+    # Auto-run only for trusted PR authors. Anyone else needs a maintainer
+    # to opt their PR in by commenting /test-jetbrains.
     if: |
-      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'pull_request_target' &&
+       contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.pull_request.author_association)) ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        contains(github.event.comment.body, '/test-jetbrains') &&
