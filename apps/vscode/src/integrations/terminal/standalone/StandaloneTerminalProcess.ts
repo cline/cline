@@ -11,6 +11,7 @@
 import { telemetryService } from "@services/telemetry"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { Logger } from "@/shared/services/Logger"
 import { terminateProcessTree } from "@/utils/process-termination"
 
 import {
@@ -87,6 +88,8 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		// Prepare command for execution
 		const shellArgs = this.getShellArgs(shell, command)
 
+		Logger.info(`[StandaloneTerminalProcess] run() entered: shell=${shell} cwd=${cwd} args=${JSON.stringify(shellArgs)}`)
+
 		try {
 			// Create shell options
 			const shellOptions: {
@@ -127,6 +130,8 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				})
 			}
 
+			Logger.info(`[StandaloneTerminalProcess] spawned pid=${this.childProcess.pid ?? "<none>"} for shell=${shell}`)
+
 			// Track process state
 			let didEmitEmptyLine = false
 
@@ -152,6 +157,9 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle process completion
 			this.childProcess.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+				Logger.info(
+					`[StandaloneTerminalProcess] close: code=${code} signal=${signal} fullOutputLen=${this.fullOutput.length}`,
+				)
 				this.exitCode = code
 				this.signal = signal
 				this.isCompleted = true
@@ -173,6 +181,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle process errors (spawn failures)
 			this.childProcess.on("error", (error: Error) => {
+				Logger.error(`[StandaloneTerminalProcess] child error: ${error?.message ?? error}`)
 				// Track terminal execution error telemetry
 				// method: "child_process_error" already indicates spawn failure
 				telemetryService.captureTerminalExecution(false, "standalone", "child_process_error")
@@ -183,6 +192,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			;(terminal as any)._process = this.childProcess
 			;(terminal as any)._processId = this.childProcess.pid
 		} catch (error) {
+			Logger.error(`[StandaloneTerminalProcess] spawn threw synchronously: ${(error as Error)?.message ?? String(error)}`)
 			this.emit("error", error)
 		}
 	}

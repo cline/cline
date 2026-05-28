@@ -441,6 +441,9 @@ export async function orchestrateCommandExecution(
 	}, COMPLETION_TIMEOUT_MS)
 
 	process.once("completed", async (details?: TerminalCompletionDetails) => {
+		Logger.info(
+			`[CommandOrchestrator] completed event: exitCode=${details?.exitCode} signal=${details?.signal} terminalType=${terminalType}`,
+		)
 		completed = true
 		completionDetails = details
 		// If command completed while command_output ask was pending, release it.
@@ -644,6 +647,10 @@ export async function orchestrateCommandExecution(
 				? `Command terminated by signal ${signal}.`
 				: "Command executed."
 
+		Logger.info(
+			`[CommandOrchestrator] resolved completed: exitCode=${exitCode} signal=${signal} lineCount=${totalLineCount} bytes=${totalOutputBytes} terminalType=${terminalType}`,
+		)
+
 		return {
 			userRejected: false,
 			result: `${statusMessage}${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
@@ -655,6 +662,9 @@ export async function orchestrateCommandExecution(
 		}
 	}
 	const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+	Logger.warn(
+		`[CommandOrchestrator] resolved without completion event: lineCount=${totalLineCount} bytes=${totalOutputBytes} terminalType=${terminalType}`,
+	)
 	return {
 		userRejected: false,
 		result: `Command is still running in the user's terminal.${
