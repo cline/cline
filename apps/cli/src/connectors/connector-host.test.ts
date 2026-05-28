@@ -1489,6 +1489,103 @@ describe("handleConnectorUserTurn", () => {
 		expect(getState().sessionId).toBe("fresh-session");
 	});
 
+	it("uses the replacement session for empty-runtime fallback after stale-session recovery", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "stale-session",
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "discord:user:U123",
+			participantLabel: "alice",
+		});
+		const startRuntimeSession = vi.fn(async () => ({
+			sessionId: "fresh-session",
+		}));
+		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
+			if (sessionId === "stale-session") {
+				throw Object.assign(new Error("session not found: stale-session"), {
+					code: RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+				});
+			}
+			return {
+				result: {
+					text: "",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+		const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
+		const deleteSession = vi.fn(async () => ({ deleted: true }));
+		const createEmptyRuntimeReplyResolver = vi.fn(
+			async ({ sessionId }: { sessionId: string }) =>
+				async () =>
+					sessionId === "fresh-session" ? "fresh fallback reply" : undefined,
+		);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: {
+				startRuntimeSession,
+				updateSession: vi.fn(async () => undefined),
+				sendRuntimeSession,
+				stopRuntimeSession,
+				deleteSession,
+				streamEvents: vi.fn(() => () => undefined),
+			} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: true,
+				autoApproveTools: true,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			createEmptyRuntimeReplyResolver: createEmptyRuntimeReplyResolver as never,
+		});
+
+		expect(createEmptyRuntimeReplyResolver).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ sessionId: "stale-session" }),
+		);
+		expect(createEmptyRuntimeReplyResolver).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ sessionId: "fresh-session" }),
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			1,
+			"stale-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			2,
+			"fresh-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(stopRuntimeSession).toHaveBeenCalledWith("stale-session");
+		expect(deleteSession).toHaveBeenCalledWith("stale-session", true);
+		expect(posts.at(-1)).toBe("fresh fallback reply");
+		expect(getState().sessionId).toBe("fresh-session");
+	});
+
 	it("steers active Telegram turns without the hub command timeout", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);

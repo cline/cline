@@ -982,10 +982,6 @@ export async function handleConnectorUserTurn<
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
-	const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
-		client: input.client,
-		sessionId,
-	});
 
 	let activeSessionId = sessionId;
 	input.activeTurns?.set(turnKey, {
@@ -1004,6 +1000,10 @@ export async function handleConnectorUserTurn<
 		targetSessionId: string,
 		targetRequest: ChatRunTurnRequest,
 	) => {
+		const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
+			client: input.client,
+			sessionId: targetSessionId,
+		});
 		await postConnectorRuntimeReply(
 			input.thread,
 			input.transport,
