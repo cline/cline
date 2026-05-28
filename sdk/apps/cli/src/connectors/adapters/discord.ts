@@ -1115,6 +1115,11 @@ class DiscordConnector extends ConnectorBase<
 			resolveStop?.();
 		};
 
+
+		const errorTracker = new Map<string, { count: number; lastSeen: number }>();
+		const MAX_REPEATED_ERRORS = 3;
+		const ERROR_WINDOW_MS = 60_000; // 1 minute
+
 		const handleTurn = async (
 			thread: Thread<DiscordThreadState>,
 			text: string,
@@ -1244,7 +1249,40 @@ class DiscordConnector extends ConnectorBase<
 				} catch (error) {
 					const message =
 						error instanceof Error ? error.message : String(error);
-					await thread.post(`Discord bridge error: ${message}`);
+					
+					// Track repeated errors
+					const now = Date.now();
+					const errorKey = message.slice(0, 200); // Use truncated message as key
+					const tracked = errorTracker.get(errorKey);
+					
+					if (!tracked || now - tracked.lastSeen > ERROR_WINDOW_MS) {
+						// First occurrence or outside error window, reset counter
+						errorTracker.set(errorKey, { count: 1, lastSeen: now });
+						await thread.post(`Discord bridge error: ${message}`);
+					} else {
+						// Within error window, increment counter
+						tracked.count++;
+						tracked.lastSeen = now;
+						
+						if (tracked.count >= MAX_REPEATED_ERRORS) {
+							// Too many repeated errors, kill the connector
+							loggerAdapter.core.error?.(
+								"Discord connector stopping due to repeated errors",
+								{
+									transport: "discord",
+									errorMessage: message,
+									count: tracked.count,
+								},
+							);
+							await thread.post(
+								`Discord bridge error (repeated ${tracked.count} times): ${message}\n\nConnector shutting down due to repeated errors.`,
+							);
+							requestStop("repeated_discord_errors");
+						} else {
+							// Still within threshold, post error
+							await thread.post(`Discord bridge error: ${message}`);
+						}
+					}
 				}
 			};
 			if (activeTurns.has(queueKey)) {
