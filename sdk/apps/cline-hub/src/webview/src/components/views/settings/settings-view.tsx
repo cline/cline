@@ -32,7 +32,7 @@ import { toSettingsPatch } from "./settings-patch";
 const navCategories = [
 	"General",
 	"Providers",
-	"Extensions",
+	"Customizations",
 	"MCP",
 	"Channels",
 	"Schedules",
@@ -492,7 +492,7 @@ export function SettingsView({
 						<ChannelsContent />
 					) : activeNav === "Schedules" ? (
 						<RoutineSchedulesContent />
-					) : activeNav === "Extensions" ? (
+					) : activeNav === "Customizations" ? (
 						<RulesView />
 					) : activeNav === "Account" ? (
 						<AccountView />

@@ -628,7 +628,9 @@ export function RulesView() {
 		<ScrollArea className="h-full">
 			<div className="mx-auto max-w-3xl px-8 py-6">
 				<div className="mb-4 flex items-center justify-between">
-					<h2 className="text-lg font-semibold text-foreground">Extensions</h2>
+					<h2 className="text-lg font-semibold text-foreground">
+						Customizations
+					</h2>
 					<Button
 						variant="outline"
 						size="sm"
