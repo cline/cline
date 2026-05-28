@@ -326,7 +326,23 @@ async function discoverSkillFiles(
 		const entries = await readdir(directoryPath, { withFileTypes: true });
 		const candidates: UnifiedConfigFileCandidate[] = [];
 		for (const entry of entries) {
-			if (entry.isFile() && entry.name === SKILL_FILE_NAME) {
+			let isFile = entry.isFile();
+			let isDirectory = entry.isDirectory();
+			// readdir({ withFileTypes }) does not follow symlinks, so
+			// Dirent.isDirectory()/isFile() are false for a symlink. Resolve the
+			// link target with stat() so skills materialized as a directory
+			// symlink (or a symlinked SKILL.md) are still discovered. A broken
+			// symlink throws in stat(), in which case we skip the entry.
+			if (entry.isSymbolicLink()) {
+				try {
+					const target = await stat(join(directoryPath, entry.name));
+					isFile = target.isFile();
+					isDirectory = target.isDirectory();
+				} catch {
+					continue;
+				}
+			}
+			if (isFile && entry.name === SKILL_FILE_NAME) {
 				candidates.push({
 					directoryPath,
 					fileName: entry.name,
@@ -334,7 +350,7 @@ async function discoverSkillFiles(
 				});
 				continue;
 			}
-			if (entry.isDirectory()) {
+			if (isDirectory) {
 				candidates.push({
 					directoryPath: join(directoryPath, entry.name),
 					fileName: SKILL_FILE_NAME,

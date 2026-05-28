@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -250,6 +250,48 @@ Use the security review checklist.`,
 					skill.item.instructions.includes("security review checklist"),
 				),
 			).toBe(true);
+		} finally {
+			watcher.stop();
+		}
+	});
+
+	it("discovers a skill materialized as a directory symlink", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-skill-symlink-"),
+		);
+		tempRoots.push(tempRoot);
+
+		// Real skill source, outside the directory the discovery scans.
+		const sourceSkillDir = join(tempRoot, "source", "my-skill");
+		await mkdir(sourceSkillDir, { recursive: true });
+		await writeFile(
+			join(sourceSkillDir, "SKILL.md"),
+			`---
+name: my-skill
+description: Skill materialized via a directory symlink
+---
+Instructions for my-skill.`,
+		);
+
+		// The directory the discovery scans contains only a directory symlink
+		// pointing at the real source. Since Dirent.isDirectory() is false for a
+		// symlink, the entry is only discovered because the loader resolves it
+		// with stat().
+		const skillsDir = join(tempRoot, "skills");
+		await mkdir(skillsDir, { recursive: true });
+		await symlink(sourceSkillDir, join(skillsDir, "my-skill"));
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+		});
+
+		try {
+			await watcher.start();
+			const skills = watcher.getSnapshot("skill");
+			const skill = skills.get("my-skill");
+
+			expect(skill?.item.instructions).toBe("Instructions for my-skill.");
+			expect(skill?.filePath).toBe(join(skillsDir, "my-skill", "SKILL.md"));
 		} finally {
 			watcher.stop();
 		}
