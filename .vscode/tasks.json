@@ -309,7 +309,7 @@
 				"$tsc"
 			],
 			"options": {
-				"cwd": "${workspaceFolder}/sdk"
+				"cwd": "${workspaceFolder}"
 			}
 		}
 	],

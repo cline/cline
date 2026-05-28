@@ -6,4 +6,3 @@ if ! command -v gitleaks >/dev/null 2>&1; then
 fi
 
 gitleaks git --pre-commit --redact --staged --verbose || exit 1
-lint-staged

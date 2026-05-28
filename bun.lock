@@ -19,7 +19,7 @@
     },
     "sdk/apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.11",
+      "version": "3.0.14",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -271,7 +271,7 @@
       },
     },
     "sdk/examples": {
-      "name": "sdk/examples",
+      "name": "examples",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
@@ -1952,7 +1952,7 @@
 
     "eventsource-parser": ["eventsource-parser@3.0.8", "", {}, "sha512-70QWGkr4snxr0OXLRWsFLeRBIRPuQOvt4s8QYjmUlmlkyTZkRqS7EDVRZtzU3TiyDbXSzaOeF0XUKy8PchzukQ=="],
 
-    "sdk/examples": ["examples@workspace:sdk/examples"],
+    "examples": ["examples@workspace:sdk/examples"],
 
     "execa": ["execa@9.6.1", "", { "dependencies": { "@sindresorhus/merge-streams": "^4.0.0", "cross-spawn": "^7.0.6", "figures": "^6.1.0", "get-stream": "^9.0.0", "human-signals": "^8.0.1", "is-plain-obj": "^4.1.0", "is-stream": "^4.0.1", "npm-run-path": "^6.0.0", "pretty-ms": "^9.2.0", "signal-exit": "^4.1.0", "strip-final-newline": "^4.0.0", "yoctocolors": "^2.1.1" } }, "sha512-9Be3ZoN4LmYR90tUoVu2te2BsbzHfhJyfEiAVfz7N5/zv+jduIfLrV2xdQXOHbaD6KgpGdO9PRPM1Y4Q9QkPkA=="],
 
