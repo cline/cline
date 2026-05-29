@@ -25,6 +25,22 @@ export interface ResearchGalleryItem {
 	isInstalled?: boolean
 	downloadCount?: number
 	githubReactions?: number
+	githubStars?: number
+	contributors?: Array<{
+		github?: string
+		name: string
+		orcid?: string
+		affiliation?: string
+		roles?: string[]
+	}>
+	badges?: string[]
+	metrics?: {
+		installs?: number
+		downloads?: number
+		githubStars?: number
+		githubForks?: number
+		reactions?: number
+	}
 	discussionUrl?: string
 	source?: "remote" | "built_in" | "local"
 	importWarnings?: string[]
@@ -77,6 +93,18 @@ function trustText(value: TrustLevel): string {
 
 function typeText(value: ResearchGalleryItemType): string {
 	return TYPE_LABELS[value] ?? value
+}
+
+function formatCount(value: number | undefined): string {
+	const count = Number(value ?? 0)
+	if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
+	if (count >= 1_000) return `${(count / 1_000).toFixed(1)}k`
+	return count.toString()
+}
+
+function contributorText(item: ResearchGalleryItem): string {
+	const names = item.contributors?.map((contributor) => contributor.name || contributor.github).filter(Boolean) ?? []
+	return names.length > 0 ? names.join(", ") : item.author
 }
 
 export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapStyle, onOpenExport }) => {
@@ -277,7 +305,18 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 							<div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 10, color: subtle }}>
 								<span>{typeText(item.type)}</span>
 								<span style={{ color: TRUST_COLORS[item.trustLevel] }}>{trustText(item.trustLevel)}</span>
-								<span>{item.license}</span>
+								<span>by {contributorText(item)}</span>
+							</div>
+							<div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 10, color: subtle, marginTop: 5 }}>
+								<span title="AI-Hydro imports/installs">
+									⬇ {formatCount(item.metrics?.installs ?? item.downloadCount)}
+								</span>
+								<span title="GitHub repository stars">
+									★ {formatCount(item.metrics?.githubStars ?? item.githubStars)}
+								</span>
+								<span title="GitHub community reactions">
+									♥ {formatCount(item.metrics?.reactions ?? item.githubReactions)}
+								</span>
 							</div>
 						</button>
 					))}
@@ -285,6 +324,23 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 				{selected && (
 					<div style={{ border: `1px solid ${border}`, borderRadius: 6, padding: 10, background: bg }}>
 						<div style={{ fontWeight: 700, marginBottom: 4 }}>{selected.title}</div>
+						{selected.badges?.length ? (
+							<div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 7 }}>
+								{selected.badges.map((badge) => (
+									<span
+										key={badge}
+										style={{
+											border: `1px solid ${border}`,
+											borderRadius: 999,
+											color: "#bae6fd",
+											fontSize: 9,
+											padding: "2px 6px",
+										}}>
+										{badge}
+									</span>
+								))}
+							</div>
+						) : null}
 						<div style={{ color: subtle, fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
 							{selected.description}
 						</div>
@@ -300,7 +356,22 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 								<strong>Author:</strong> {selected.author}
 							</div>
 							<div>
+								<strong>Contributors:</strong> {contributorText(selected)}
+							</div>
+							<div>
 								<strong>License:</strong> {selected.license}
+							</div>
+							<div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+								<span title="AI-Hydro imports/installs">
+									<strong>Imports:</strong> {formatCount(selected.metrics?.installs ?? selected.downloadCount)}
+								</span>
+								<span title="GitHub repository stars">
+									<strong>Stars:</strong> {formatCount(selected.metrics?.githubStars ?? selected.githubStars)}
+								</span>
+								<span title="GitHub issue, pull request, or discussion reactions">
+									<strong>Community:</strong>{" "}
+									{formatCount(selected.metrics?.reactions ?? selected.githubReactions)}
+								</span>
 							</div>
 							{selected.citation && (
 								<div>

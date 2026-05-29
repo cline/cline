@@ -77,10 +77,9 @@ It should not appear as a default button in the compact layer add row.
 
 ## Immediate implementation state
 
-The current built-in entries are official seed fixtures used to exercise the
-import path while the public `AI-Hydro/Gallery` catalog is being populated.
-The map UI should load the remote catalog when available and fall back to those
-seed items when offline or when GitHub Pages has not yet published `gallery.json`.
+The public `AI-Hydro/Gallery` catalog now contains official hydrology examples.
+The map UI should load the remote catalog when available and fall back to
+built-in seed items only when offline or when GitHub Pages has not published.
 
 ## Gallery repository structure
 
@@ -96,9 +95,31 @@ items/
     artifact files or source references
 api/
   gallery.json
+  contributors.json
+  reputation.json
 .github/workflows/
   build-api.yml
 ```
 
 The GitHub Action scans `items/**/manifest.json`, validates required fields,
 fills stable defaults, and writes `api/gallery.json` for GitHub Pages.
+
+## GitHub-native recognition
+
+The Research Gallery uses credible academic/open-source recognition, not a
+points economy. Manifests credit contributors directly and the Gallery build
+workflow publishes:
+
+- `api/gallery.json` — item catalog with badges and GitHub-native metrics.
+- `api/contributors.json` — contributor profile summaries aggregated from item manifests.
+- `api/reputation.json` — machine-readable item/contributor recognition evidence.
+
+Supported GitHub-native signals:
+
+- repository stars and forks from the item `githubUrl`;
+- release asset downloads from optional `releaseAssetUrl`;
+- issue or pull-request reactions from optional `discussionUrl`;
+- contributor roles, ORCID, and affiliation from manifest metadata.
+
+AI-Hydro-native import/install counts remain `0` until a separate opt-in usage
+counter is implemented. The UI must not present placeholder counts as real use.
