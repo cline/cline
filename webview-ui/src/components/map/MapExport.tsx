@@ -24,6 +24,8 @@ type ExportFormat = "png" | "pdf"
 type ExportDpi = 150 | 300 | 600
 type ExtentStrategy = "preserve-visible-extent" | "preserve-center-scale"
 type ExportQuality = "verified" | "with-warnings" | "blocked"
+/** Coordinate graticule rendering mode. */
+type GraticuleMode = "none" | "grid" | "ticks"
 
 interface MapExportProps {
 	mapStyle?: "dark" | "light"
@@ -39,6 +41,7 @@ interface MapPlateSpec {
 	formats: ExportFormat[]
 	dpi: ExportDpi
 	extentStrategy: ExtentStrategy
+	graticule: GraticuleMode
 	text: {
 		title: string
 		subtitle: string
@@ -83,6 +86,8 @@ interface MapSceneSnapshot {
 		id: string
 		label: string
 		kind: string
+		geom: "polygon" | "line" | "point" | "raster"
+		color?: string
 		visible: boolean
 		opacity?: number
 		exportSupport: "verified" | "capture-only" | "unsupported"
@@ -121,7 +126,7 @@ interface PageSpec {
 
 type TemplateCategory = "Publication" | "Report" | "Presentation" | "Poster" | "Web" | "Minimal"
 type TitleStyle = "banner" | "plain" | "none"
-type LegendPlacement = "side" | "inset-tr" | "inset-bl" | "none"
+type LegendPlacement = "side" | "inset-tl" | "inset-tr" | "inset-bl" | "none"
 
 interface TemplateConfig {
 	label: string
@@ -154,13 +159,13 @@ const TEMPLATE_CONFIGS: Record<ExportTemplate, TemplateConfig> = {
 	manuscript: {
 		label: "Manuscript Figure — double column",
 		category: "Publication",
-		description: "Two-column journal figure (7.2 × 4.8 in). Inset legend, long caption band.",
+		description: "Two-column journal figure (7.2 × 4.8 in). Inset legend top-left, long caption band.",
 		page: { label: "Double-column figure", widthIn: 7.2, heightIn: 4.8 },
 		marginFrac: 0.035,
 		titleBandFrac: 0.055,
 		footerBandFrac: 0.14,
 		legendWidthFrac: 0,
-		legendPlacement: "inset-tr",
+		legendPlacement: "inset-tl",
 		titleStyle: "plain",
 		titleWeight: 600,
 		titleSizeFrac: 0.012,
@@ -179,7 +184,7 @@ const TEMPLATE_CONFIGS: Record<ExportTemplate, TemplateConfig> = {
 		titleBandFrac: 0.075,
 		footerBandFrac: 0.17,
 		legendWidthFrac: 0,
-		legendPlacement: "inset-tr",
+		legendPlacement: "inset-tl",
 		titleStyle: "plain",
 		titleWeight: 600,
 		titleSizeFrac: 0.026,
@@ -192,13 +197,13 @@ const TEMPLATE_CONFIGS: Record<ExportTemplate, TemplateConfig> = {
 	thesis: {
 		label: "Thesis Plate — full page portrait",
 		category: "Publication",
-		description: "Full-page portrait plate (6.5 × 9 in). Map over caption, inset legend.",
+		description: "Full-page portrait plate (6.5 × 9 in). Map over caption, inset legend top-left.",
 		page: { label: "Full-page portrait plate", widthIn: 6.5, heightIn: 9 },
 		marginFrac: 0.045,
 		titleBandFrac: 0.07,
 		footerBandFrac: 0.1,
 		legendWidthFrac: 0,
-		legendPlacement: "inset-tr",
+		legendPlacement: "inset-tl",
 		titleStyle: "plain",
 		titleWeight: 700,
 		titleSizeFrac: 0.026,
@@ -250,13 +255,13 @@ const TEMPLATE_CONFIGS: Record<ExportTemplate, TemplateConfig> = {
 	"report-portrait": {
 		label: "Report Plate — Letter portrait",
 		category: "Report",
-		description: "US Letter portrait (8.5 × 11 in). Inset legend, tall map area.",
+		description: "US Letter portrait (8.5 × 11 in). Inset legend top-left, tall map area.",
 		page: { label: "Letter portrait", widthIn: 8.5, heightIn: 11 },
 		marginFrac: 0.05,
 		titleBandFrac: 0.085,
 		footerBandFrac: 0.07,
 		legendWidthFrac: 0,
-		legendPlacement: "inset-tr",
+		legendPlacement: "inset-tl",
 		titleStyle: "plain",
 		titleWeight: 700,
 		titleSizeFrac: 0.02,
@@ -329,13 +334,13 @@ const TEMPLATE_CONFIGS: Record<ExportTemplate, TemplateConfig> = {
 	"social-square": {
 		label: "Social / Web — square",
 		category: "Web",
-		description: "Square 1:1 tile (8 × 8 in) for web and social. Banner title, inset legend.",
+		description: "Square 1:1 tile (8 × 8 in) for web and social. Banner title, inset legend top-left.",
 		page: { label: "Square tile", widthIn: 8, heightIn: 8 },
 		marginFrac: 0.035,
 		titleBandFrac: 0.1,
 		footerBandFrac: 0.05,
 		legendWidthFrac: 0,
-		legendPlacement: "inset-tr",
+		legendPlacement: "inset-tl",
 		titleStyle: "banner",
 		titleWeight: 800,
 		titleSizeFrac: 0.028,
@@ -442,6 +447,58 @@ function layerKind(layer: MapLayer): string {
 	return type || "vector"
 }
 
+/** Infer the geometry class of a layer for legend swatch rendering. */
+function layerGeom(layer: MapLayer): "polygon" | "line" | "point" | "raster" {
+	const kind = layerKind(layer)
+	if (kind === "raster" || kind === "gee") return "raster"
+	const name = layer.name.toLowerCase()
+	const type = (layer.layerType || "").toLowerCase()
+	// Area features win first — basin/watershed names also contain "pour point" etc.
+	if (
+		name.includes("watershed") ||
+		name.includes("basin") ||
+		name.includes("catchment") ||
+		name.includes("subbasin") ||
+		name.includes("boundary") ||
+		name.includes("polygon") ||
+		type.includes("polygon") ||
+		type.includes("fill")
+	) {
+		return "polygon"
+	}
+	if (
+		name.includes("river") ||
+		name.includes("stream") ||
+		name.includes("flowline") ||
+		name.includes("reach") ||
+		name.includes("network") ||
+		kind === "hydrography" ||
+		type.includes("line") ||
+		type.includes("path")
+	) {
+		return "line"
+	}
+	if (
+		name.includes("gauge") ||
+		name.includes("station") ||
+		name.includes("outlet") ||
+		name.includes("pour point") ||
+		type.includes("point") ||
+		type.includes("circle") ||
+		type.includes("marker")
+	) {
+		return "point"
+	}
+	return "polygon"
+}
+
+/** Pull the real styled colour off a layer so the legend matches the rendered map. */
+function layerColor(layer: MapLayer): string | undefined {
+	const style = layer.style
+	if (!style) return undefined
+	return style.fillColor || style.color || style.strokeColor || undefined
+}
+
 function layerSupport(layer: MapLayer): "verified" | "capture-only" | "unsupported" {
 	const kind = layerKind(layer)
 	if (kind === "gee" || kind === "raster") return "capture-only"
@@ -508,6 +565,8 @@ function buildSnapshot(spec: MapPlateSpec, props: MapExportProps): MapSceneSnaps
 			id: layer.id,
 			label: layer.name || layer.id,
 			kind: layerKind(layer),
+			geom: layerGeom(layer),
+			color: layerColor(layer),
 			visible: true,
 			opacity: layer.style?.opacity ?? layer.style?.fillOpacity,
 			exportSupport: layerSupport(layer),
@@ -619,46 +678,203 @@ function drawText(
 	return cursorY
 }
 
-function drawLegend(ctx: CanvasRenderingContext2D, snapshot: MapSceneSnapshot, x: number, y: number, width: number): number {
-	ctx.save()
-	ctx.fillStyle = "rgba(255,255,255,0.92)"
-	ctx.strokeStyle = "rgba(34,45,55,0.28)"
-	ctx.lineWidth = 1
-	const lineHeight = 18
-	const rows = Math.max(1, Math.min(8, snapshot.layers.length))
-	const height = 34 + rows * lineHeight
-	ctx.fillRect(x, y, width, height)
-	ctx.strokeRect(x, y, width, height)
-	ctx.fillStyle = "#1f2933"
-	ctx.font = "700 13px system-ui, sans-serif"
-	ctx.fillText("Legend", x + 12, y + 20)
-	ctx.font = "12px system-ui, sans-serif"
-	let cursorY = y + 42
-	for (const layer of snapshot.layers.slice(0, 8)) {
-		const color = layer.label.toLowerCase().includes("river")
-			? "#0ea5e9"
-			: layer.label.toLowerCase().includes("catchment")
-				? "#0f766e"
-				: "#d97706"
-		ctx.strokeStyle = color
-		ctx.fillStyle =
-			layer.kind === "hydrography" && layer.label.toLowerCase().includes("catchment") ? "rgba(20,184,166,0.25)" : color
-		if (layer.label.toLowerCase().includes("catchment") || layer.kind.includes("polygon")) {
-			ctx.fillRect(x + 12, cursorY - 10, 18, 10)
-			ctx.strokeRect(x + 12, cursorY - 10, 18, 10)
-		} else {
-			ctx.lineWidth = layer.label.toLowerCase().includes("river") ? 4 : 2
-			ctx.beginPath()
-			ctx.moveTo(x + 12, cursorY - 5)
-			ctx.lineTo(x + 31, cursorY - 5)
-			ctx.stroke()
-		}
-		ctx.fillStyle = "#1f2933"
-		ctx.fillText(layer.label.slice(0, 34), x + 40, cursorY - 1)
-		cursorY += lineHeight
+/** Truncate text to fit within maxPx pixels, appending "…" if needed. */
+function truncateLabel(ctx: CanvasRenderingContext2D, text: string, maxPx: number): string {
+	if (ctx.measureText(text).width <= maxPx) return text
+	let lo = 0
+	let hi = text.length
+	while (lo < hi - 1) {
+		const mid = Math.floor((lo + hi) / 2)
+		ctx.measureText(text.slice(0, mid) + "…").width <= maxPx ? (lo = mid) : (hi = mid)
 	}
+	return text.slice(0, lo) + "…"
+}
+
+/** Derive a semantically appropriate legend swatch colour from layer metadata (fallback only). */
+function legendSwatchColor(layer: { label: string; kind: string }): string {
+	const lbl = layer.label.toLowerCase()
+	const knd = layer.kind.toLowerCase()
+	if (lbl.includes("river") || lbl.includes("stream") || lbl.includes("flow")) return "#0ea5e9"
+	if (lbl.includes("watershed") || lbl.includes("catchment") || lbl.includes("basin") || lbl.includes("boundary"))
+		return "#0d9488"
+	if (lbl.includes("ndwi") || lbl.includes("ndvi") || lbl.includes("ndbi") || lbl.includes("nbr")) return "#16a34a"
+	if (lbl.includes("dem") || lbl.includes("elevation") || lbl.includes("terrain")) return "#b45309"
+	if (lbl.includes("flood")) return "#2563eb"
+	if (lbl.includes("urban") || lbl.includes("built") || lbl.includes("impervious")) return "#6b21a8"
+	if (knd === "raster" || knd === "gee") return "#7c3aed"
+	if (knd === "hydrography") return "#0ea5e9"
+	return "#64748b" // neutral slate for unrecognised layers
+}
+
+/** Trace a rounded-rect path (with a manual fallback for runtimes lacking roundRect). */
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+	ctx.beginPath()
+	if (typeof ctx.roundRect === "function") {
+		ctx.roundRect(x, y, w, h, r)
+		return
+	}
+	ctx.moveTo(x + r, y)
+	ctx.lineTo(x + w - r, y)
+	ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+	ctx.lineTo(x + w, y + h - r)
+	ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+	ctx.lineTo(x + r, y + h)
+	ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+	ctx.lineTo(x, y + r)
+	ctx.quadraticCurveTo(x, y, x + r, y)
+	ctx.closePath()
+}
+
+/**
+ * Draw `img` into the destination rect preserving the source aspect ratio
+ * (object-fit: cover, centre-cropped). This is the single most important fix
+ * for plate fidelity — the map is never horizontally/vertically stretched to
+ * match a template's frame shape; instead it is scaled uniformly and cropped.
+ */
+function drawImageCover(
+	ctx: CanvasRenderingContext2D,
+	img: HTMLCanvasElement,
+	dx: number,
+	dy: number,
+	dw: number,
+	dh: number,
+): void {
+	const sw = img.width
+	const sh = img.height
+	if (!sw || !sh || dw <= 0 || dh <= 0) return
+	const scale = Math.max(dw / sw, dh / sh)
+	const cw = dw / scale
+	const ch = dh / scale
+	const sx = (sw - cw) / 2
+	const sy = (sh - ch) / 2
+	ctx.save()
+	ctx.beginPath()
+	ctx.rect(dx, dy, dw, dh)
+	ctx.clip()
+	ctx.drawImage(img, sx, sy, cw, ch, dx, dy, dw, dh)
 	ctx.restore()
-	return y + height
+}
+
+type LegendAnchor = "tl" | "tr" | "bl" | "br"
+
+/**
+ * Draw an auto-sized legend card anchored at one corner of (ax, ay). Every
+ * dimension scales from `fs` (base font px) so the card looks identical across
+ * DPIs and template sizes, and the box is sized to its content so labels never
+ * overflow. Swatches use the layer's *real* styled colour and geometry class.
+ */
+function drawLegend(
+	ctx: CanvasRenderingContext2D,
+	snapshot: MapSceneSnapshot,
+	ax: number,
+	ay: number,
+	maxWidth: number,
+	fs: number,
+	anchor: LegendAnchor = "tl",
+): number {
+	const layers = snapshot.layers.slice(0, 8)
+	if (!layers.length) return ay
+
+	const pad = Math.round(fs * 0.85)
+	const gap = Math.round(fs * 0.6)
+	const lineH = Math.round(fs * 1.7)
+	const swatchW = Math.round(fs * 1.5)
+	const swatchH = Math.round(fs * 1.0)
+	const headFs = Math.max(11, Math.round(fs * 1.08))
+	const headFont = `700 ${headFs}px system-ui, sans-serif`
+	const labelFont = `${fs}px system-ui, sans-serif`
+
+	// ── Measure pass: truncate labels and size the card to its content. ──
+	const labelMaxPx = Math.max(fs * 4, maxWidth - pad * 2 - swatchW - gap)
+	ctx.font = labelFont
+	const items = layers.map((layer) => {
+		const text = truncateLabel(ctx, layer.label, labelMaxPx)
+		return { layer, text, w: ctx.measureText(text).width }
+	})
+	ctx.font = headFont
+	const headW = ctx.measureText("Legend").width
+	const widestRow = items.reduce((m, it) => Math.max(m, swatchW + gap + it.w), 0)
+	const contentW = Math.max(headW, widestRow)
+	const boxW = Math.min(maxWidth, Math.ceil(contentW + pad * 2))
+	const headH = Math.round(headFs * 1.7)
+	const boxH = headH + items.length * lineH + pad
+
+	// Resolve top-left origin from the requested anchor corner.
+	const x = anchor === "tr" || anchor === "br" ? ax - boxW : ax
+	const y = anchor === "bl" || anchor === "br" ? ay - boxH : ay
+
+	ctx.save()
+	// Card background with soft shadow.
+	ctx.shadowColor = "rgba(0,0,0,0.20)"
+	ctx.shadowBlur = Math.round(fs * 0.6)
+	ctx.shadowOffsetX = 1
+	ctx.shadowOffsetY = 2
+	ctx.fillStyle = "rgba(255,255,255,0.96)"
+	roundRectPath(ctx, x, y, boxW, boxH, Math.round(fs * 0.45))
+	ctx.fill()
+	// Border (shadow off so it stays crisp).
+	ctx.shadowColor = "transparent"
+	ctx.shadowBlur = 0
+	ctx.shadowOffsetX = 0
+	ctx.shadowOffsetY = 0
+	ctx.strokeStyle = "rgba(30,41,59,0.22)"
+	ctx.lineWidth = Math.max(1, Math.round(fs * 0.07))
+	roundRectPath(ctx, x, y, boxW, boxH, Math.round(fs * 0.45))
+	ctx.stroke()
+
+	// Heading.
+	ctx.fillStyle = "#0f172a"
+	ctx.font = headFont
+	ctx.textBaseline = "alphabetic"
+	ctx.fillText("Legend", x + pad, y + headFs + Math.round(pad * 0.4))
+
+	// Rows.
+	ctx.font = labelFont
+	let rowTop = y + headH
+	for (const { layer, text } of items) {
+		const swX = x + pad
+		const swY = rowTop + Math.round((lineH - swatchH) / 2)
+		const midY = swY + swatchH / 2
+		const color = layer.color || legendSwatchColor(layer)
+
+		if (layer.geom === "line") {
+			ctx.strokeStyle = color
+			ctx.lineWidth = Math.max(2, Math.round(fs * 0.22))
+			ctx.beginPath()
+			ctx.moveTo(swX, midY)
+			ctx.lineTo(swX + swatchW, midY)
+			ctx.stroke()
+		} else if (layer.geom === "point") {
+			ctx.fillStyle = color
+			ctx.beginPath()
+			ctx.arc(swX + swatchW / 2, midY, swatchH / 2, 0, Math.PI * 2)
+			ctx.fill()
+			ctx.strokeStyle = "#ffffff"
+			ctx.lineWidth = Math.max(1, Math.round(fs * 0.1))
+			ctx.stroke()
+		} else if (layer.geom === "raster") {
+			ctx.globalAlpha = 0.85
+			ctx.fillStyle = color
+			ctx.fillRect(swX, swY, swatchW, swatchH)
+			ctx.globalAlpha = 1
+		} else {
+			// Polygon — translucent fill + solid outline (matches map rendering).
+			ctx.globalAlpha = 0.3
+			ctx.fillStyle = color
+			ctx.fillRect(swX, swY, swatchW, swatchH)
+			ctx.globalAlpha = 1
+			ctx.strokeStyle = color
+			ctx.lineWidth = Math.max(1, Math.round(fs * 0.13))
+			ctx.strokeRect(swX, swY, swatchW, swatchH)
+		}
+
+		ctx.fillStyle = "#1e293b"
+		ctx.fillText(text, swX + swatchW + gap, rowTop + Math.round(lineH * 0.5) + Math.round(fs * 0.34))
+		rowTop += lineH
+	}
+
+	ctx.restore()
+	return y + boxH
 }
 
 function drawScaleBar(
@@ -667,41 +883,245 @@ function drawScaleBar(
 	x: number,
 	y: number,
 	mapFrameWidthPx: number,
+	fs: number,
 ): void {
 	const kmPerScreenPx = (156543.03392 * Math.cos((view.latitude * Math.PI) / 180)) / 1000 / 2 ** view.zoom
-	const targetPx = Math.min(180, mapFrameWidthPx * 0.22)
+	const targetPx = mapFrameWidthPx * 0.24
 	const km = niceScaleKm(targetPx * kmPerScreenPx)
-	const px = Math.max(40, km / kmPerScreenPx)
+	const px = Math.max(fs * 3, km / kmPerScreenPx)
+	const label = `${km >= 1 ? km.toLocaleString(undefined, { maximumFractionDigits: 0 }) : km.toFixed(1)} km`
+	const tick = Math.round(fs * 0.5)
 	ctx.save()
+	ctx.font = `600 ${Math.round(fs * 0.92)}px system-ui, sans-serif`
+	const labelW = ctx.measureText(label).width
+	// Legibility backing pill.
+	ctx.fillStyle = "rgba(255,255,255,0.82)"
+	roundRectPath(ctx, x - fs * 0.5, y - tick - fs * 0.45, px + labelW + fs * 1.6, tick * 2 + fs * 0.9, Math.round(fs * 0.3))
+	ctx.fill()
+	// Bar + end ticks.
 	ctx.strokeStyle = "#1f2933"
 	ctx.fillStyle = "#1f2933"
-	ctx.lineWidth = 3
+	ctx.lineWidth = Math.max(2, Math.round(fs * 0.18))
 	ctx.beginPath()
 	ctx.moveTo(x, y)
 	ctx.lineTo(x + px, y)
-	ctx.moveTo(x, y - 7)
-	ctx.lineTo(x, y + 7)
-	ctx.moveTo(x + px, y - 7)
-	ctx.lineTo(x + px, y + 7)
+	ctx.moveTo(x, y - tick)
+	ctx.lineTo(x, y + tick)
+	ctx.moveTo(x + px, y - tick)
+	ctx.lineTo(x + px, y + tick)
 	ctx.stroke()
-	ctx.font = "12px system-ui, sans-serif"
-	ctx.fillText(`${km >= 1 ? km.toLocaleString(undefined, { maximumFractionDigits: 0 }) : km.toFixed(1)} km`, x + px + 10, y + 4)
+	ctx.fillText(label, x + px + Math.round(fs * 0.6), y + Math.round(fs * 0.34))
 	ctx.restore()
 }
 
-function drawNorthArrow(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+// ── Web-Mercator projection helpers (512-px tile convention, matches deck.gl) ──
+const MERCATOR_TILE = 512
+
+function lonToWorldX(lon: number, worldSize: number): number {
+	return ((lon + 180) / 360) * worldSize
+}
+function latToWorldY(lat: number, worldSize: number): number {
+	const clamped = Math.max(-85.05112878, Math.min(85.05112878, lat))
+	const s = Math.sin((clamped * Math.PI) / 180)
+	return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * worldSize
+}
+function worldXToLon(x: number, worldSize: number): number {
+	return (x / worldSize) * 360 - 180
+}
+function worldYToLat(y: number, worldSize: number): number {
+	const n = Math.PI - (2 * Math.PI * y) / worldSize
+	return (180 / Math.PI) * Math.atan(Math.sinh(n))
+}
+
+/** Pick a clean graticule interval (degrees) giving ~targetLines divisions. */
+function niceDegreeStep(spanDeg: number, targetLines: number): number {
+	const raw = spanDeg / Math.max(1, targetLines)
+	const steps = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 15, 20, 30, 45]
+	for (const s of steps) {
+		if (s >= raw) return s
+	}
+	return 60
+}
+
+function decimalsForStep(step: number): number {
+	if (step < 0.02) return 3
+	if (step < 0.2) return 2
+	if (step < 2) return 1
+	return 0
+}
+
+function formatCoord(value: number, isLat: boolean, decimals: number): string {
+	const hemisphere = isLat ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W"
+	return `${Math.abs(value).toFixed(decimals)}°${hemisphere}`
+}
+
+/** Draw a coordinate label with a white halo so it reads on any basemap. */
+function drawHaloLabel(
+	ctx: CanvasRenderingContext2D,
+	text: string,
+	x: number,
+	y: number,
+	align: CanvasTextAlign,
+	fs: number,
+): void {
 	ctx.save()
-	ctx.fillStyle = "#1f2933"
-	ctx.strokeStyle = "#1f2933"
+	ctx.textAlign = align
+	ctx.textBaseline = "middle"
+	ctx.lineJoin = "round"
+	ctx.strokeStyle = "rgba(255,255,255,0.92)"
+	ctx.lineWidth = Math.max(2, Math.round(fs * 0.3))
+	ctx.strokeText(text, x, y)
+	ctx.fillStyle = "#0f172a"
+	ctx.fillText(text, x, y)
+	ctx.restore()
+}
+
+/**
+ * Render a latitude/longitude graticule over the composited map frame.
+ *  - "grid"  → full hairlines across the map + edge coordinate labels
+ *  - "ticks" → neat-line edge ticks only + coordinate labels (no lines over data)
+ *
+ * Geography is derived from the view (centre lon/lat + zoom) and the cover-crop
+ * scale used by drawImageCover, so labels are projection-accurate. Skipped when
+ * the map is rotated/tilted (a graticule would be misleading there).
+ */
+function drawGraticule(
+	ctx: CanvasRenderingContext2D,
+	view: MapSceneSnapshot["view"],
+	mapX: number,
+	mapY: number,
+	mapW: number,
+	mapH: number,
+	sourceW: number,
+	sourceH: number,
+	mode: GraticuleMode,
+	fs: number,
+): void {
+	if (mode === "none" || !sourceW || !sourceH || mapW <= 0 || mapH <= 0) return
+	if (Math.abs(view.bearing) > 0.1 || Math.abs(view.pitch) > 0.1) return
+
+	const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1
+	const worldSize = MERCATOR_TILE * 2 ** view.zoom
+	const coverScale = Math.max(mapW / sourceW, mapH / sourceH)
+	const f = dpr * coverScale // destination px per CSS world-pixel
+	if (!isFinite(f) || f <= 0) return
+
+	const cwx = lonToWorldX(view.longitude, worldSize)
+	const cwy = latToWorldY(view.latitude, worldSize)
+	const cx = mapX + mapW / 2
+	const cy = mapY + mapH / 2
+
+	const lonToX = (lon: number) => cx + (lonToWorldX(lon, worldSize) - cwx) * f
+	const latToY = (lat: number) => cy + (latToWorldY(lat, worldSize) - cwy) * f
+	const xToLon = (px: number) => worldXToLon(cwx + (px - cx) / f, worldSize)
+	const yToLat = (px: number) => worldYToLat(cwy + (px - cy) / f, worldSize)
+
+	const lonWest = xToLon(mapX)
+	const lonEast = xToLon(mapX + mapW)
+	const latNorth = yToLat(mapY)
+	const latSouth = yToLat(mapY + mapH)
+	const lonSpan = Math.abs(lonEast - lonWest)
+	const latSpan = Math.abs(latNorth - latSouth)
+	if (!isFinite(lonSpan) || !isFinite(latSpan) || lonSpan <= 0 || latSpan <= 0) return
+
+	const stepLon = niceDegreeStep(lonSpan, 5)
+	const stepLat = niceDegreeStep(latSpan, 5)
+	const decLon = decimalsForStep(stepLon)
+	const decLat = decimalsForStep(stepLat)
+	const tick = Math.round(fs * 0.65)
+
+	ctx.save()
 	ctx.beginPath()
-	ctx.moveTo(x, y - 28)
-	ctx.lineTo(x - 10, y + 6)
-	ctx.lineTo(x, y)
-	ctx.lineTo(x + 10, y + 6)
+	ctx.rect(mapX, mapY, mapW, mapH)
+	ctx.clip()
+	ctx.font = `600 ${Math.round(fs * 0.82)}px system-ui, sans-serif`
+	ctx.lineWidth = Math.max(1, Math.round(fs * 0.07))
+
+	// Longitudes (vertical lines / ticks), labelled along the bottom edge.
+	const lonStart = Math.ceil(Math.min(lonWest, lonEast) / stepLon) * stepLon
+	for (let lon = lonStart; lon <= Math.max(lonWest, lonEast) + 1e-9; lon += stepLon) {
+		const x = lonToX(lon)
+		if (x < mapX - 1 || x > mapX + mapW + 1) continue
+		if (mode === "grid") {
+			ctx.strokeStyle = "rgba(15,23,42,0.26)"
+			ctx.beginPath()
+			ctx.moveTo(x, mapY)
+			ctx.lineTo(x, mapY + mapH)
+			ctx.stroke()
+		} else {
+			ctx.strokeStyle = "rgba(15,23,42,0.85)"
+			ctx.beginPath()
+			ctx.moveTo(x, mapY)
+			ctx.lineTo(x, mapY + tick)
+			ctx.moveTo(x, mapY + mapH)
+			ctx.lineTo(x, mapY + mapH - tick)
+			ctx.stroke()
+		}
+		drawHaloLabel(ctx, formatCoord(lon, false, decLon), x, mapY + mapH - Math.round(fs * 0.7), "center", fs)
+	}
+
+	// Latitudes (horizontal lines / ticks), labelled along the left edge.
+	const latStart = Math.ceil(Math.min(latNorth, latSouth) / stepLat) * stepLat
+	for (let lat = latStart; lat <= Math.max(latNorth, latSouth) + 1e-9; lat += stepLat) {
+		const y = latToY(lat)
+		if (y < mapY - 1 || y > mapY + mapH + 1) continue
+		if (mode === "grid") {
+			ctx.strokeStyle = "rgba(15,23,42,0.26)"
+			ctx.beginPath()
+			ctx.moveTo(mapX, y)
+			ctx.lineTo(mapX + mapW, y)
+			ctx.stroke()
+		} else {
+			ctx.strokeStyle = "rgba(15,23,42,0.85)"
+			ctx.beginPath()
+			ctx.moveTo(mapX, y)
+			ctx.lineTo(mapX + tick, y)
+			ctx.moveTo(mapX + mapW, y)
+			ctx.lineTo(mapX + mapW - tick, y)
+			ctx.stroke()
+		}
+		drawHaloLabel(ctx, formatCoord(lat, true, decLat), mapX + Math.round(fs * 0.6), y, "left", fs)
+	}
+
+	ctx.restore()
+}
+
+/**
+ * Draw a scaled north arrow centred at (cx, cy) with the given half-size in pixels.
+ * A translucent white backing disc is drawn first so the arrow reads on both
+ * light and dark basemaps.
+ */
+function drawNorthArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+	ctx.save()
+	const hw = Math.round(size * 0.4)
+	// Soft backing disc for contrast on any basemap.
+	ctx.fillStyle = "rgba(255,255,255,0.82)"
+	ctx.beginPath()
+	ctx.arc(cx, cy - Math.round(size * 0.25), Math.round(size * 0.88), 0, Math.PI * 2)
+	ctx.fill()
+	ctx.strokeStyle = "rgba(30,41,59,0.18)"
+	ctx.lineWidth = 1
+	ctx.stroke()
+	// Arrow — filled triangle pointing north.
+	ctx.fillStyle = "#1f2933"
+	ctx.beginPath()
+	ctx.moveTo(cx, cy - size)
+	ctx.lineTo(cx - hw, cy + Math.round(size * 0.35))
+	ctx.lineTo(cx, cy)
+	ctx.lineTo(cx + hw, cy + Math.round(size * 0.35))
 	ctx.closePath()
 	ctx.fill()
-	ctx.font = "700 13px system-ui, sans-serif"
-	ctx.fillText("N", x - 5, y - 36)
+	// White stroke for crispness on dark maps.
+	ctx.strokeStyle = "rgba(255,255,255,0.55)"
+	ctx.lineWidth = Math.max(1, Math.round(size * 0.08))
+	ctx.stroke()
+	// "N" label centred above the arrow tip.
+	const fs = Math.max(10, Math.round(size * 0.85))
+	ctx.font = `700 ${fs}px system-ui, sans-serif`
+	ctx.fillStyle = "#1f2933"
+	ctx.textAlign = "center"
+	ctx.fillText("N", cx, cy - size - Math.round(size * 0.22))
+	ctx.textAlign = "left"
 	ctx.restore()
 }
 
@@ -767,30 +1187,51 @@ async function composePlate(
 		ctx.stroke()
 	}
 
-	ctx.drawImage(mapCanvas, mapX, mapY, mapW, mapH)
+	// Aspect-preserving draw: the map is centre-cropped to fill the frame, never
+	// stretched — so the same geometry looks identical across every template.
+	drawImageCover(ctx, mapCanvas, mapX, mapY, mapW, mapH)
+
+	// ── Map chrome (graticule / legend / scale bar / north arrow) ──────────────
+	// A single base font size keeps every overlay proportional across DPIs and
+	// template sizes. For mapAtTop+banner templates the title band overlays the
+	// top of the map, so top-anchored overlays must clear it.
+	const chromeFs = Math.max(11, Math.round(dims.width * 0.011))
+
+	// Graticule sits beneath the neat-line and the rest of the chrome.
+	drawGraticule(ctx, snapshot.view, mapX, mapY, mapW, mapH, mapCanvas.width, mapCanvas.height, spec.graticule, chromeFs)
+
 	if (cfg.frame) {
 		ctx.strokeStyle = "#111827"
-		ctx.lineWidth = 2
+		ctx.lineWidth = Math.max(2, Math.round(dims.width * 0.0014))
 		ctx.strokeRect(mapX, mapY, mapW, mapH)
 	}
 
-	// ── Legend ───────────────────────────────────────────────────────────────
+	const inset = Math.round(chromeFs * 1.1)
+	const bannerH = cfg.mapAtTop && cfg.titleStyle === "banner" ? Math.round(titleBand * 0.9) : 0
+	const topClear = mapY + (bannerH > 0 ? bannerH + inset : inset)
+
 	if (spec.elements.legend) {
 		if (cfg.legendPlacement === "side" && legendWidth) {
-			drawLegend(ctx, snapshot, mapX + mapW + legendGutter, mapY, legendWidth)
+			drawLegend(ctx, snapshot, mapX + mapW + legendGutter, mapY, legendWidth, chromeFs, "tl")
+		} else if (cfg.legendPlacement === "inset-tl") {
+			drawLegend(ctx, snapshot, mapX + inset, topClear, Math.round(mapW * 0.42), chromeFs, "tl")
 		} else if (cfg.legendPlacement === "inset-tr") {
-			const w = Math.round(dims.width * 0.24)
-			drawLegend(ctx, snapshot, mapX + mapW - w - 12, mapY + 12, w)
+			drawLegend(ctx, snapshot, mapX + mapW - inset, topClear, Math.round(mapW * 0.42), chromeFs, "tr")
 		} else if (cfg.legendPlacement === "inset-bl") {
-			const w = Math.round(dims.width * 0.26)
-			drawLegend(ctx, snapshot, mapX + 18, mapY + mapH - Math.round(dims.height * 0.2), w)
+			drawLegend(ctx, snapshot, mapX + inset, mapY + mapH - inset, Math.round(mapW * 0.42), chromeFs, "bl")
 		}
 	}
-	if (spec.elements.scaleBar) {
-		drawScaleBar(ctx, snapshot.view, mapX + 24, mapY + mapH - 30, mapW)
-	}
 	if (spec.elements.northArrow) {
-		drawNorthArrow(ctx, mapX + mapW - 34, mapY + 54)
+		// Proportional arrow at the top-right of the map frame, clear of the banner.
+		const arrowSize = Math.max(chromeFs * 1.4, Math.round(Math.min(mapW, mapH) * 0.028))
+		const arrowCx = mapX + mapW - inset - Math.round(arrowSize * 0.5)
+		const arrowCy = topClear + arrowSize
+		drawNorthArrow(ctx, arrowCx, arrowCy, arrowSize)
+	}
+	if (spec.elements.scaleBar) {
+		// Bottom-left, but shifted right when the legend already occupies that corner.
+		const sbX = mapX + inset + (cfg.legendPlacement === "inset-bl" ? Math.round(mapW * 0.34) : 0)
+		drawScaleBar(ctx, snapshot.view, sbX, mapY + mapH - Math.round(chromeFs * 1.6), mapW, chromeFs)
 	}
 
 	let footerY = mapY + mapH + Math.round(footerBand * 0.35)
@@ -874,6 +1315,7 @@ function buildManifest(
 			template: spec.template,
 			formats: spec.formats,
 			dpi: spec.dpi,
+			graticule: spec.graticule,
 			extentStrategy: spec.extentStrategy,
 			normalizeOrientation: TEMPLATE_CONFIGS[spec.template].normalizeOrientation,
 		},
@@ -939,6 +1381,7 @@ export const MapExport: React.FC<MapExportProps> = ({
 	const [formats, setFormats] = useState<ExportFormat[]>(["png"])
 	const [dpi, setDpi] = useState<ExportDpi>(300)
 	const [extentStrategy, setExtentStrategy] = useState<ExtentStrategy>("preserve-visible-extent")
+	const [graticule, setGraticule] = useState<GraticuleMode>("none")
 	const [title, setTitle] = useState("AI-Hydro Map Plate")
 	const [subtitle, setSubtitle] = useState("")
 	const [caption, setCaption] = useState("")
@@ -983,10 +1426,11 @@ export const MapExport: React.FC<MapExportProps> = ({
 			formats,
 			dpi,
 			extentStrategy,
+			graticule,
 			text: { title, subtitle, caption, authorProject, notes },
 			elements,
 		}),
-		[template, formats, dpi, extentStrategy, title, subtitle, caption, authorProject, notes, elements],
+		[template, formats, dpi, extentStrategy, graticule, title, subtitle, caption, authorProject, notes, elements],
 	)
 	const mapCanvas = () => document.querySelector("canvas.deckgl-overlay, canvas") as HTMLCanvasElement | null
 	const snapshot = useMemo(
@@ -1349,6 +1793,17 @@ export const MapExport: React.FC<MapExportProps> = ({
 								value={extentStrategy}>
 								<option value="preserve-visible-extent">Preserve visible extent</option>
 								<option value="preserve-center-scale">Preserve center and scale</option>
+							</select>
+						</label>
+						<label>
+							Graticule
+							<select
+								onChange={(event) => setGraticule(event.target.value as GraticuleMode)}
+								style={inputStyle}
+								value={graticule}>
+								<option value="none">None</option>
+								<option value="grid">Grid lines + labels</option>
+								<option value="ticks">Edge ticks + labels</option>
 							</select>
 						</label>
 					</div>
