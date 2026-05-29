@@ -1092,12 +1092,25 @@ function drawGraticule(
  * light and dark basemaps.
  */
 function drawNorthArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+	// (cx, cy) is the geometric CENTRE of the whole glyph (disc + arrow + "N"),
+	// so callers can position it predictably without it poking outside the frame.
 	ctx.save()
 	const hw = Math.round(size * 0.4)
-	// Soft backing disc for contrast on any basemap.
-	ctx.fillStyle = "rgba(255,255,255,0.82)"
+	const fs = Math.max(10, Math.round(size * 0.62))
+	// Vertical layout, measured from the composition centre:
+	//   "N" label · gap · arrow tip ········ arrow base
+	const labelGap = Math.round(size * 0.12)
+	const arrowTipY = cy - Math.round(size * 0.55)
+	const arrowBaseY = arrowTipY + size
+	const labelBaselineY = arrowTipY - labelGap
+	const labelTopY = labelBaselineY - fs
+	// Backing disc large enough to contain the label and the full arrow.
+	const discCx = cx
+	const discCy = (labelTopY + arrowBaseY) / 2
+	const discR = (arrowBaseY - labelTopY) / 2 + Math.round(size * 0.18)
+	ctx.fillStyle = "rgba(255,255,255,0.86)"
 	ctx.beginPath()
-	ctx.arc(cx, cy - Math.round(size * 0.25), Math.round(size * 0.88), 0, Math.PI * 2)
+	ctx.arc(discCx, discCy, discR, 0, Math.PI * 2)
 	ctx.fill()
 	ctx.strokeStyle = "rgba(30,41,59,0.18)"
 	ctx.lineWidth = 1
@@ -1105,10 +1118,10 @@ function drawNorthArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, s
 	// Arrow — filled triangle pointing north.
 	ctx.fillStyle = "#1f2933"
 	ctx.beginPath()
-	ctx.moveTo(cx, cy - size)
-	ctx.lineTo(cx - hw, cy + Math.round(size * 0.35))
-	ctx.lineTo(cx, cy)
-	ctx.lineTo(cx + hw, cy + Math.round(size * 0.35))
+	ctx.moveTo(cx, arrowTipY)
+	ctx.lineTo(cx - hw, arrowBaseY)
+	ctx.lineTo(cx, arrowBaseY - Math.round(size * 0.32))
+	ctx.lineTo(cx + hw, arrowBaseY)
 	ctx.closePath()
 	ctx.fill()
 	// White stroke for crispness on dark maps.
@@ -1116,11 +1129,11 @@ function drawNorthArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, s
 	ctx.lineWidth = Math.max(1, Math.round(size * 0.08))
 	ctx.stroke()
 	// "N" label centred above the arrow tip.
-	const fs = Math.max(10, Math.round(size * 0.85))
 	ctx.font = `700 ${fs}px system-ui, sans-serif`
 	ctx.fillStyle = "#1f2933"
 	ctx.textAlign = "center"
-	ctx.fillText("N", cx, cy - size - Math.round(size * 0.22))
+	ctx.textBaseline = "alphabetic"
+	ctx.fillText("N", cx, labelBaselineY)
 	ctx.textAlign = "left"
 	ctx.restore()
 }
@@ -1151,24 +1164,36 @@ async function composePlate(
 			: 0
 	const legendGutter = legendWidth ? Math.round(margin * 0.55) : 0
 
+	// Banner templates render a full-width accent band across the very top; the
+	// map then begins immediately below it (no overlay → no "weird background"
+	// strip of map hidden under the banner).
+	const titleBandH = cfg.titleStyle === "banner" ? (cfg.mapAtTop ? Math.round(titleBand * 0.9) : titleBand) : titleBand
+
 	const mapX = margin
-	const mapY = cfg.mapAtTop ? margin : margin + titleBand
+	const mapY =
+		cfg.titleStyle === "banner" ? titleBandH + (cfg.mapAtTop ? 0 : margin) : cfg.mapAtTop ? margin : margin + titleBand
 	const mapW = dims.width - margin * 2 - legendWidth - legendGutter
 	const mapH = dims.height - mapY - footerBand - margin
 
 	// ── Title ────────────────────────────────────────────────────────────────
 	if (cfg.titleStyle === "banner") {
-		const bannerH = cfg.mapAtTop ? Math.round(titleBand * 0.9) : titleBand
+		const bannerH = titleBandH
 		ctx.fillStyle = cfg.accent
 		ctx.fillRect(0, 0, dims.width, bannerH)
+		// Vertically centre the title (and subtitle) within the band.
+		const titleFs = Math.max(22, Math.round(dims.width * cfg.titleSizeFrac))
 		ctx.fillStyle = "#f8fafc"
-		ctx.font = `${cfg.titleWeight} ${Math.max(22, Math.round(dims.width * cfg.titleSizeFrac))}px system-ui, sans-serif`
-		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(bannerH * 0.42))
+		ctx.textBaseline = "middle"
+		ctx.font = `${cfg.titleWeight} ${titleFs}px system-ui, sans-serif`
 		if (spec.text.subtitle) {
+			ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(bannerH * 0.4))
 			ctx.font = `500 ${Math.max(13, Math.round(dims.width * cfg.titleSizeFrac * 0.5))}px system-ui, sans-serif`
 			ctx.fillStyle = "#cbd5e1"
-			ctx.fillText(spec.text.subtitle, margin, Math.round(bannerH * 0.74))
+			ctx.fillText(spec.text.subtitle, margin, Math.round(bannerH * 0.72))
+		} else {
+			ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(bannerH * 0.5))
 		}
+		ctx.textBaseline = "alphabetic"
 	} else if (cfg.titleStyle === "plain") {
 		ctx.fillStyle = cfg.accent
 		ctx.font = `${cfg.titleWeight} ${Math.max(15, Math.round(dims.width * cfg.titleSizeFrac))}px system-ui, sans-serif`
@@ -1193,8 +1218,7 @@ async function composePlate(
 
 	// ── Map chrome (graticule / legend / scale bar / north arrow) ──────────────
 	// A single base font size keeps every overlay proportional across DPIs and
-	// template sizes. For mapAtTop+banner templates the title band overlays the
-	// top of the map, so top-anchored overlays must clear it.
+	// template sizes.
 	const chromeFs = Math.max(11, Math.round(dims.width * 0.011))
 
 	// Graticule sits beneath the neat-line and the rest of the chrome.
@@ -1206,9 +1230,10 @@ async function composePlate(
 		ctx.strokeRect(mapX, mapY, mapW, mapH)
 	}
 
+	// The map no longer sits beneath the banner, so top-anchored chrome only
+	// needs to clear the neat-line inset.
 	const inset = Math.round(chromeFs * 1.1)
-	const bannerH = cfg.mapAtTop && cfg.titleStyle === "banner" ? Math.round(titleBand * 0.9) : 0
-	const topClear = mapY + (bannerH > 0 ? bannerH + inset : inset)
+	const topClear = mapY + inset
 
 	if (spec.elements.legend) {
 		if (cfg.legendPlacement === "side" && legendWidth) {
@@ -1225,7 +1250,9 @@ async function composePlate(
 		// Proportional arrow at the top-right of the map frame, clear of the banner.
 		const arrowSize = Math.max(chromeFs * 1.4, Math.round(Math.min(mapW, mapH) * 0.028))
 		const arrowCx = mapX + mapW - inset - Math.round(arrowSize * 0.5)
-		const arrowCy = topClear + arrowSize
+		// (cx, cy) is the glyph centre; its disc rises ~1.47·size above centre, so
+		// offset down by that much to seat the whole arrow just below the neat-line.
+		const arrowCy = topClear + Math.round(arrowSize * 1.5)
 		drawNorthArrow(ctx, arrowCx, arrowCy, arrowSize)
 	}
 	if (spec.elements.scaleBar) {
