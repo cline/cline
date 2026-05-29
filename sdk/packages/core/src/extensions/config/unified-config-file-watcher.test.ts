@@ -84,7 +84,7 @@ describe("UnifiedConfigFileWatcher", () => {
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			await waitForEvent(
 				events,
 				(event) => event.kind === "upsert" && event.record.id === "reviewer",
@@ -170,7 +170,7 @@ Escalation playbook`,
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			await waitForEvent(
 				events,
 				(event) =>

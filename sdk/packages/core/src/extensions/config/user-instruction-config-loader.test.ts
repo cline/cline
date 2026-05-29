@@ -176,7 +176,7 @@ Escalation runbook`,
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			await waitForEvent(
 				events,
 				(event) => event.kind === "upsert" && event.record.type === "skill",
@@ -227,7 +227,7 @@ Escalation runbook`,
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			const rules = watcher.getSnapshot("rule");
 
 			expect(rules.get("global agents.md")?.item.instructions).toBe(
@@ -289,7 +289,7 @@ Use the security review checklist.`,
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			const rules = watcher.getSnapshot("rule");
 			const workflows = watcher.getSnapshot("workflow");
 			const skills = watcher.getSnapshot("skill");
@@ -344,7 +344,7 @@ New release workflow.`,
 		});
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			const workflows = watcher.getSnapshot("workflow");
 			const release = workflows.get("release");
 
