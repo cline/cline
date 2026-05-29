@@ -350,6 +350,7 @@ export function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
 export class OpenAiCodexOAuthManager {
 	private credentials: OpenAiCodexCredentials | null = null
 	private refreshPromise: Promise<OpenAiCodexCredentials | null> | null = null
+	private refreshPromiseForce = false
 	private readonly getStateManager: () => OpenAiCodexStateManager
 	private pendingAuth: {
 		codeVerifier: string
@@ -432,12 +433,21 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	private async refreshCredentials(force: boolean): Promise<OpenAiCodexCredentials | null> {
-		if (!this.refreshPromise) {
-			this.refreshPromise = this.refreshCredentialsUnderLock(force).finally(() => {
-				this.refreshPromise = null
-			})
+		if (this.refreshPromise) {
+			const refreshPromise = this.refreshPromise
+			const refreshPromiseForce = this.refreshPromiseForce
+			const credentials = await refreshPromise
+			return force && !refreshPromiseForce ? this.refreshCredentials(true) : credentials
 		}
-		return this.refreshPromise
+		this.refreshPromiseForce = force
+		const refreshPromise = this.refreshCredentialsUnderLock(force).finally(() => {
+			if (this.refreshPromise === refreshPromise) {
+				this.refreshPromise = null
+				this.refreshPromiseForce = false
+			}
+		})
+		this.refreshPromise = refreshPromise
+		return refreshPromise
 	}
 
 	private async refreshCredentialsUnderLock(force: boolean): Promise<OpenAiCodexCredentials | null> {

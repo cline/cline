@@ -690,9 +690,12 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		this.storage.secrets.reloadFromDisk()
-		const value = this.storage.secrets.get<string>(key)
-		this.secretsCache[key] = value
-		return value
+		for (const secretKey of SecretKeys) {
+			if (secretKey === key || !this.pendingSecrets.has(secretKey)) {
+				this.secretsCache[secretKey] = this.storage.secrets.get<string>(secretKey)
+			}
+		}
+		return this.secretsCache[key]
 	}
 
 	/**

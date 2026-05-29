@@ -241,6 +241,27 @@ describe("OpenAiCodexOAuthManager refresh transaction", () => {
 		)
 	})
 
+	it("queues a forced refresh behind an in-process non-forced winner adoption", async () => {
+		seed(credentials("rt0", "at0"))
+		const stateManager = new TestStateManager(tempDir)
+		const manager = new OpenAiCodexOAuthManager(() => stateManager)
+		const submissions: string[] = []
+		await manager.loadCredentials()
+		seed(credentials("rt1", "at1", false))
+
+		await mockFetchForTesting(
+			async (_input, init) => {
+				submissions.push(new URLSearchParams(init?.body?.toString()).get("refresh_token") ?? "")
+				return successResponse("rt2", "at2")
+			},
+			async () => {
+				assert.deepEqual(await Promise.all([manager.getAccessToken(), manager.forceRefreshAccessToken()]), ["at1", "at2"])
+			},
+		)
+
+		assert.deepEqual(submissions, ["rt1"])
+	})
+
 	it("preserves a newer stored token when a stale refresh receives invalid_grant", async () => {
 		seed(credentials("rt0", "at0"))
 		const stateManager = new TestStateManager(tempDir)
