@@ -163,6 +163,7 @@ function readActiveConnectorRecord(
 
 export function listActiveConnectors(): ActiveConnectorRecord[] {
 	const connectorTypes: ActiveConnectorRecord["type"][] = [
+		"discord",
 		"telegram",
 		"gchat",
 		"linear",
