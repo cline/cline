@@ -39,6 +39,21 @@ const mockExtensionState = (apiConfiguration: Partial<ApiConfiguration>) => {
 		setApiConfiguration: vi.fn(),
 		requestyModels: {},
 		planActSeparateModelsSetting: false,
+		// Provider model-list context read by useProviderModels. Static-list
+		// providers render their model <select> from this map, so seed the
+		// providers exercised here with the model id each test expects.
+		providerModelsByProvider: {
+			fireworks: {
+				models: { "accounts/fireworks/models/kimi-k2p5": { supportsPromptCache: false } },
+				defaultModelId: "accounts/fireworks/models/kimi-k2p5",
+			},
+			nebius: {
+				models: { "Qwen/Qwen2.5-32B-Instruct-fast": { supportsPromptCache: false } },
+				defaultModelId: "Qwen/Qwen2.5-32B-Instruct-fast",
+			},
+		},
+		startProviderModelsRequest: vi.fn(),
+		applyProviderModelsResponse: vi.fn(),
 	} as any)
 }
 

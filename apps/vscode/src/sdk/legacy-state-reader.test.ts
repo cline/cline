@@ -63,7 +63,9 @@ describe("resolveDataDir", () => {
 		delete process.env.CLINE_DATA_DIR
 		process.env.CLINE_DIR = "/cline"
 		try {
-			expect(resolveDataDir()).toBe("/cline/data")
+			// path.join keeps the platform separator (\ on Windows), so compare
+			// against a joined path rather than a hardcoded POSIX string.
+			expect(resolveDataDir()).toBe(path.join("/cline", "data"))
 		} finally {
 			process.env.CLINE_DATA_DIR = originalData
 			process.env.CLINE_DIR = originalDir
