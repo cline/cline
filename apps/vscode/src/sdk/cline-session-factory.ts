@@ -630,8 +630,6 @@ export function getHistoryItemById(taskId: string, dataDir?: string): HistoryIte
  * Returns the updated history array.
  */
 export function updateHistoryItem(item: HistoryItem, dataDir?: string): HistoryItem[] {
-	// This will be properly implemented when we wire up the gRPC handlers
-	// in Step 5. For now, we read the history, update the item, and return it.
 	const history = readTaskHistory(dataDir)
 	const index = history.findIndex((h) => h.id === item.id)
 	if (index >= 0) {

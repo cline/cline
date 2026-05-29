@@ -103,10 +103,28 @@ interface ProviderSettingsState {
 	lastUsedProvider?: string
 }
 
-export class ProviderSettingsManager {
-	private state: ProviderSettingsState = { providers: {} }
+// State is keyed by dataDir so that — like the real file-backed manager —
+// two managers constructed for the same directory observe the same providers.
+// (Tests isolate by using a unique dataDir per test.)
+const providerSettingsStores = new Map<string, ProviderSettingsState>()
 
-	constructor(_options?: { filePath?: string; dataDir?: string }) {}
+export class ProviderSettingsManager {
+	private readonly filePath: string
+	private readonly state: ProviderSettingsState
+
+	constructor(options?: { filePath?: string; dataDir?: string }) {
+		this.filePath = options?.filePath ?? options?.dataDir ?? "<default>"
+		let store = providerSettingsStores.get(this.filePath)
+		if (!store) {
+			store = { providers: {} }
+			providerSettingsStores.set(this.filePath, store)
+		}
+		this.state = store
+	}
+
+	getFilePath(): string {
+		return this.filePath
+	}
 
 	read(): ProviderSettingsState {
 		return { providers: { ...this.state.providers }, lastUsedProvider: this.state.lastUsedProvider }

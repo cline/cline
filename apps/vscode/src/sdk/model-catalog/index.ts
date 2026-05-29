@@ -1,4 +1,3 @@
-// Phase 0 stub barrel. Public surface grows as later phases add behavior.
 /**
  * Public surface of the SDK-backed model catalog.
  *

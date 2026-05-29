@@ -75,23 +75,16 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async showTaskWithId(taskId: string, options: { skipHistoryLookup?: boolean } = {}): Promise<void> {
-		const startedAt = Date.now()
 		try {
 			if (!options.skipHistoryLookup) {
-				const lookupStartedAt = Date.now()
 				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
-				Logger.log(
-					`[HistoryPerf] SdkTaskControlCoordinator.showTaskWithId taskId=${taskId} historyLookup=${Date.now() - lookupStartedAt}ms`,
-				)
 				if (!historyItem) {
 					Logger.error(`[SdkController] Task not found in history: ${taskId}`)
 					return
 				}
 			}
 
-			const teardownStartedAt = Date.now()
 			await this.options.sessions.endActiveSession("showTaskWithId")
-			const teardownElapsed = Date.now() - teardownStartedAt
 
 			const currentTask = this.options.getTask()
 			if (currentTask) {
@@ -102,13 +95,9 @@ export class SdkTaskControlCoordinator {
 
 			// Load messages before installing the new task proxy so any concurrent
 			// postStateToWebview() caller never sees the new id with empty messages.
-			const loadMessagesStartedAt = Date.now()
 			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
-			const loadMessagesElapsed = Date.now() - loadMessagesStartedAt
-			const finalizeStartedAt = Date.now()
 			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
 			const cleanedMessages = messages.length > 0 ? this.appendFreshResumeMessage(messages) : []
-			const finalizeElapsed = Date.now() - finalizeStartedAt
 
 			const task = createTaskProxy(
 				taskId,
@@ -129,12 +118,7 @@ export class SdkTaskControlCoordinator {
 			// The final state update below includes the loaded clineMessages. Avoid pushing
 			// each historical message through the partial-message stream one-by-one; for
 			// long tasks that serial loop can dominate history-open latency.
-			const postStateStartedAt = Date.now()
 			await this.options.postStateToWebview()
-			const postStateElapsed = Date.now() - postStateStartedAt
-			Logger.log(
-				`[HistoryPerf] SdkTaskControlCoordinator.showTaskWithId taskId=${taskId} rawMessages=${rawMessages.length} cleanedMessages=${cleanedMessages.length} teardown=${teardownElapsed}ms loadMessages=${loadMessagesElapsed}ms finalize=${finalizeElapsed}ms push=skipped postState=${postStateElapsed}ms total=${Date.now() - startedAt}ms`,
-			)
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
 		} catch (error) {
 			Logger.error("[SdkController] Failed to show task:", error)

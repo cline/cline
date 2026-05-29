@@ -82,6 +82,9 @@ describe("SdkTaskHistory", () => {
 			{ type: "say", say: "task", text: "Build the feature", partial: false },
 			{ type: "say", say: "text", text: "Done", partial: false },
 			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
+			// A trailing ask:"completion_result" is appended so a reopened task
+			// shows the completion/resume affordance instead of a stuck spinner.
+			{ type: "ask", ask: "completion_result", partial: false },
 		])
 	})
 
@@ -147,6 +150,7 @@ describe("SdkTaskHistory", () => {
 			{ type: "say", say: "task", text: "add a joke", partial: false },
 			{ type: "say", say: "tool", partial: false },
 			{ type: "say", say: "text", text: "Done!", partial: false },
+			{ type: "ask", ask: "completion_result", partial: false },
 		])
 		expect(result.map((message) => message.text).join("\n")).not.toContain(rawToolResult)
 		expect(JSON.parse(result[1].text ?? "{}")).toMatchObject({

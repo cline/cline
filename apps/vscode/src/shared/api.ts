@@ -283,7 +283,7 @@ export type OpenAiNativeModelId = string
 // SDK; the re-export here lets callers continue importing them from
 // `@shared/api` without duplicating model parameters in the extension.
 // Edit `openai-codex-models.ts` to change adapter behavior.
-export { type OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "./openai-codex-models"
+export { getOpenAiCodexDefaultModelId, type OpenAiCodexModelId, openAiCodexModels } from "./openai-codex-models"
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation

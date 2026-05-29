@@ -80,17 +80,19 @@ describe("normalizeProviderSwitchModel", () => {
 		expect(store.readSelection).not.toHaveBeenCalled()
 	})
 
-	it("does not change model id for non-migrated provider switches", () => {
-		const providerId = parseProviderId("anthropic")
+	it("does not change model id when switching to a provider the SDK does not know", () => {
+		// A custom/unregistered provider has no SDK catalog to resolve against, so
+		// the generic model-id slot is left untouched.
+		const providerId = parseProviderId("my-custom-provider")
 		const store = makeStore({ providerId })
 
 		const normalized = normalizeProviderSwitchModel(
 			store,
 			{ actModeApiProvider: "deepseek", actModeApiModelId: "deepseek-v4-flash" },
-			{ actModeApiProvider: "anthropic" },
+			{ actModeApiProvider: "my-custom-provider" as never },
 		)
 
-		expect(normalized).toEqual({ actModeApiProvider: "anthropic" })
+		expect(normalized).toEqual({ actModeApiProvider: "my-custom-provider" })
 		expect(store.readSelection).not.toHaveBeenCalled()
 	})
 
