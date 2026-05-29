@@ -345,9 +345,14 @@ describe("discordConnector", () => {
 	it("instructs Discord agents to use /idle for unrelated subscribed thread messages", () => {
 		expect(__test__.DISCORD_SYSTEM_RULES).toContain("reply exactly /idle");
 		expect(__test__.DISCORD_SYSTEM_RULES).toContain("isDirectMention is false");
-		expect(__test__.DISCORD_SYSTEM_RULES).toContain("send /mute");
-		expect(__test__.DISCORD_SYSTEM_RULES).toContain("send /unmute");
-		expect(__test__.DISCORD_SYSTEM_RULES).toContain("/mute @user-or-bot");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("send /mute@BotName");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain("send /unmute@BotName");
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain(
+			"/mute@BotName @user-or-bot",
+		);
+		expect(__test__.DISCORD_SYSTEM_RULES).toContain(
+			"/unmute@BotName @user-or-bot",
+		);
 	});
 
 	it("resolves Discord mute targets from user mentions and ids", () => {
