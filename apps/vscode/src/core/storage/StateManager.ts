@@ -855,7 +855,7 @@ export class StateManager {
 
 		// Batch write all regular keys in a single disk operation
 		if (Object.keys(regularEntries).length > 0) {
-			this.storage.globalStateBackingStore.setBatch(regularEntries)
+			await this.storage.globalStateBackingStore.setBatch(regularEntries)
 		}
 	}
 
@@ -894,7 +894,7 @@ export class StateManager {
 			const value = this.secretsCache[key]
 			entries[key] = value || undefined // Convert empty strings to undefined (delete)
 		}
-		this.storage.secrets.setBatch(entries)
+		await this.storage.secrets.setBatch(entries)
 	}
 
 	/**
@@ -906,7 +906,7 @@ export class StateManager {
 		for (const key of keys) {
 			entries[key] = this.workspaceStateCache[key]
 		}
-		this.storage.workspaceState.setBatch(entries)
+		await this.storage.workspaceState.setBatch(entries)
 	}
 
 	/**

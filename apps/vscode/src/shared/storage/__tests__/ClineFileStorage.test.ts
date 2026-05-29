@@ -16,11 +16,17 @@ describe("ClineFileStorage", () => {
 		fs.rmSync(tempDir, { recursive: true, force: true })
 	})
 
-	it("surfaces batch write failures", () => {
+	it("surfaces batch write failures through promise rejection", async () => {
 		const storagePath = path.join(tempDir, "secrets.json")
 		const storage = new ClineFileStorage<string>(storagePath, "TestStorage")
 		fs.mkdirSync(storagePath)
 
-		assert.throws(() => storage.setBatch({ key: "value" }))
+		let batchWrite: PromiseLike<void> | undefined
+		assert.doesNotThrow(() => {
+			batchWrite = storage.setBatch({ key: "value" })
+		})
+		assert.ok(batchWrite)
+		await assert.rejects(Promise.resolve(batchWrite))
+		assert.equal(storage.get("key"), undefined)
 	})
 })
