@@ -23,6 +23,7 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "../constants"
 import type { ITerminal, ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "../types"
+import { getShellArgs } from "./shellArgs"
 
 /**
  * Manages the execution of a command in a standalone terminal environment.
@@ -86,7 +87,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		const cwd = (terminal as any)._cwd || process.cwd()
 
 		// Prepare command for execution
-		const shellArgs = this.getShellArgs(shell, command)
+		const shellArgs = getShellArgs(shell, command)
 
 		Logger.debug(`[StandaloneTerminalProcess] spawning ${shell} in ${cwd}`)
 
@@ -330,37 +331,6 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			return process.env.COMSPEC || "cmd.exe"
 		}
 		return process.env.SHELL || "/bin/bash"
-	}
-
-	/**
-	 * Get shell arguments for executing a command.
-	 * @param shell The shell path
-	 * @param command The command to execute
-	 * @returns Array of shell arguments
-	 */
-	private getShellArgs(shell: string, command: string): string[] {
-		if (process.platform === "win32") {
-			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
-				// -NoProfile silences user $PROFILE side effects that otherwise
-				// leak into the captured output; -NonInteractive avoids prompts.
-				return ["-NoProfile", "-NonInteractive", "-Command", StandaloneTerminalProcess.unwrapPowerShell(command)]
-			}
-			return ["/d", "/s", "/c", command]
-		}
-		return ["-c", command]
-	}
-
-	/**
-	 * Strip a redundant outer `powershell|pwsh [.exe] -Command|-c "…"` wrapper
-	 * that LLMs sometimes emit. Without this we'd spawn powershell.exe with
-	 * another powershell.exe as its -Command argument and the inner shell would
-	 * receive quote-shredded args (issue #10948).
-	 */
-	private static unwrapPowerShell(command: string): string {
-		const match = command.match(
-			/^\s*(?:powershell|pwsh)(?:\.exe)?\s+-(?:Command|c)\s+(['"])([\s\S]*)\1\s*$/i,
-		)
-		return match ? match[2] : command
 	}
 
 	/**
