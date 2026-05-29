@@ -17,40 +17,6 @@ const createDeployments = (modelNames: string[]): SapAiCoreModelDeployment[] => 
 	}))
 }
 
-// Mock the shared API models
-vi.mock("@shared/api", async (importOriginal) => {
-	const actual = (await importOriginal()) as Record<string, any>
-	return {
-		...actual,
-		sapAiCoreModels: {
-			"anthropic--claude-3.5-sonnet": {
-				maxTokens: 8192,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: false,
-			},
-			"anthropic--claude-3-haiku": {
-				maxTokens: 4096,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: false,
-			},
-			"gpt-4o": {
-				maxTokens: 4096,
-				contextWindow: 200_000,
-				supportsImages: true,
-				supportsPromptCache: false,
-			},
-			"gemini-2.5-pro": {
-				maxTokens: 65536,
-				contextWindow: 1_048_576,
-				supportsImages: true,
-				supportsPromptCache: true,
-			},
-		},
-	}
-})
-
 // Mock the ExtensionStateContext
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
@@ -62,6 +28,21 @@ vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 				sapAiCoreModelId: "anthropic--claude-3.5-sonnet",
 			},
 			setApiConfiguration: vi.fn(),
+			// Provider model-list context read by useProviderModels. The picker
+			// sources its supported-model list from the "sapaicore" entry here.
+			providerModelsByProvider: {
+				sapaicore: {
+					models: {
+						"anthropic--claude-3.5-sonnet": { maxTokens: 8192, contextWindow: 200_000, supportsPromptCache: false },
+						"anthropic--claude-3-haiku": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+						"gpt-4o": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+						"gemini-2.5-pro": { maxTokens: 65536, contextWindow: 1_048_576, supportsPromptCache: true },
+					},
+					defaultModelId: "anthropic--claude-3.5-sonnet",
+				},
+			},
+			startProviderModelsRequest: vi.fn(),
+			applyProviderModelsResponse: vi.fn(),
 		})),
 	}
 })

@@ -18,7 +18,7 @@ function createRequestId(): string {
  */
 export function useProviderModels(providerId: ProviderId) {
 	const { providerModelsByProvider, startProviderModelsRequest, applyProviderModelsResponse } = useExtensionState()
-	const state = providerModelsByProvider[providerId]
+	const state = providerModelsByProvider?.[providerId]
 
 	const refresh = useCallback(async () => {
 		const requestId = createRequestId()
