@@ -1,4 +1,4 @@
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -97,7 +97,7 @@ export class TogetherHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.togetherModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			info: openAiModelInfoSafeDefaults,
 		}
 	}
 }

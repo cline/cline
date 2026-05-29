@@ -1,4 +1,4 @@
-import { hicapModelInfoSaneDefaults, ModelInfo } from "@shared/api"
+import { hicapModelInfoSafeDefaults, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -98,7 +98,7 @@ export class HicapHandler implements ApiHandler {
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.hicapModelId ?? "",
-			info: hicapModelInfoSaneDefaults,
+			info: hicapModelInfoSafeDefaults,
 		}
 	}
 }

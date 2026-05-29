@@ -4,7 +4,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
+import { ButtonActionType, getButtonConfigForMessages } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
@@ -43,8 +43,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	// Memoize button configuration to avoid recalculation on every render
 	const buttonConfig = useMemo(() => {
-		return lastMessage ? getButtonConfig(lastMessage, mode) : { sendingDisabled: false, enableButtons: false }
-	}, [lastMessage, mode])
+		return getButtonConfigForMessages(messages, mode)
+	}, [messages, mode])
 
 	// Single effect to handle all configuration updates
 	useEffect(() => {
@@ -105,8 +105,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const isStreaming = task.partial === true
 	const canInteract = enableButtons && !isProcessing
 
-	// Early return for scroll button to avoid unnecessary computation
-	if (showScrollToBottom || !hasButtons) {
+	// Early return for scroll button to avoid unnecessary computation.
+	// Action buttons must take priority over the scroll button; otherwise an
+	// approval ask can be visible while the footer only shows “scroll to bottom”.
+	if (!hasButtons) {
 		const handleScrollToBottom = () => {
 			scrollToBottomSmooth()
 			disableAutoScrollRef.current = false

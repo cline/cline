@@ -1,5 +1,5 @@
 import { Anthropic, APIError as AnthropicAPIError } from "@anthropic-ai/sdk"
-import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, ModelInfo } from "@shared/api"
+import { liteLlmDefaultModelId, liteLlmModelInfoSafeDefaults, ModelInfo } from "@shared/api"
 import OpenAI, { APIError as OpenAIAPIError, OpenAIError } from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
@@ -467,7 +467,7 @@ export class OcaHandler implements ApiHandler {
 	getModel() {
 		return {
 			id: this.options.ocaModelId || liteLlmDefaultModelId,
-			info: this.options.ocaModelInfo || liteLlmModelInfoSaneDefaults,
+			info: this.options.ocaModelInfo || liteLlmModelInfoSafeDefaults,
 		}
 	}
 }

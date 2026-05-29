@@ -55,6 +55,18 @@ service ModelsService {
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Vercel AI Gateway models
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Lists providers available from the unified SDK-backed catalog
+  rpc listProviders(Empty) returns (ProviderListingsResponse);
+  // Resolves model metadata for a provider through the unified SDK-backed catalog
+  rpc resolveProviderModels(ResolveProviderModelsRequest) returns (ProviderModelsResponse);
+  // Resolves model metadata for a provider/model without refreshing model lists
+  rpc resolveModelInfo(ResolveModelInfoRequest) returns (ResolveModelInfoResponse);
+  // Reads redacted effective provider configuration
+  rpc readProviderConfig(StringRequest) returns (ProviderConfigResponse);
+  // Writes provider configuration fields and returns redacted effective configuration
+  rpc writeProviderConfig(WriteProviderConfigRequest) returns (ProviderConfigResponse);
+  // Commits a mode-specific model selection atomically with its model metadata
+  rpc commitModelSelection(CommitModelSelectionRequest) returns (Empty);
 }
 
 // List of VS Code LM models
@@ -115,6 +127,103 @@ message OpenRouterModelInfo {
 // Shared response message for model information
 message OpenRouterCompatibleModelInfo {
   map<string, OpenRouterModelInfo> models = 1;
+}
+
+// Lightweight provider entry for the top-level model/provider picker.
+// Does not include the full model list; use resolveProviderModels for models.
+message ProviderListing {
+  string id = 1;
+  string name = 2;
+  optional string default_model_id = 3;
+  optional string family = 4;
+  optional string protocol = 5;
+  optional string auth_description = 6;
+  optional string base_url_description = 7;
+  bool allows_custom_model_ids = 8;
+}
+
+message ProviderListingsResponse {
+  repeated ProviderListing providers = 1;
+}
+
+message ResolveProviderModelsRequest {
+  string provider_id = 1;
+  bool force_refresh = 2;
+  optional string request_id = 3;
+}
+
+message CatalogErrorInfo {
+  string kind = 1;
+  string message = 2;
+  optional string code = 3;
+  optional bool retryable = 4;
+}
+
+message ProviderModelsResponse {
+  string provider_id = 1;
+  string request_id = 2;
+  string config_fingerprint = 3;
+  int64 fetched_at = 4;
+  bool ok = 5;
+  map<string, OpenRouterModelInfo> models = 6;
+  optional string default_model_id = 7;
+  optional string source = 8;
+  optional CatalogErrorInfo error = 9;
+}
+
+message ResolveModelInfoRequest {
+  string provider_id = 1;
+  optional string model_id = 2;
+}
+
+message ResolveModelInfoResponse {
+  string provider_id = 1;
+  string model_id = 2;
+  optional OpenRouterModelInfo model_info = 3;
+  string source = 4;
+}
+
+message ProviderConfigResponse {
+  string provider_id = 1;
+  optional string base_url = 2;
+  optional string api_line = 3;
+  map<string, string> headers = 4;
+  optional string region = 5;
+  int64 api_key_length = 6;
+  bool has_access_token = 7;
+  bool has_refresh_token = 8;
+  optional string account_id = 9;
+  optional CommittedModelSelection plan_selection = 10;
+  optional CommittedModelSelection act_selection = 11;
+}
+
+message CommittedModelSelection {
+  string provider_id = 1;
+  string model_id = 2;
+  OpenRouterModelInfo model_info = 3;
+}
+
+message WriteProviderConfigPatch {
+  optional string api_key = 1;
+  optional string base_url = 2;
+  map<string, string> headers = 3;
+  optional string region = 4;
+  optional string api_line = 5;
+  optional string access_token = 6;
+  optional string refresh_token = 7;
+  optional string account_id = 8;
+}
+
+message WriteProviderConfigRequest {
+  string provider_id = 1;
+  WriteProviderConfigPatch patch = 2;
+}
+
+message CommitModelSelectionRequest {
+  string provider_id = 1;
+  string mode = 2;
+  string model_id = 3;
+  OpenRouterModelInfo model_info = 4;
 }
 
 message ClineRecommendedModel {
