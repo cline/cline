@@ -1,14 +1,12 @@
 import type { ApiProvider } from "@shared/api"
 
 /**
- * SDK-side provider ids are lower-cased by `parseProviderId` at the
- * catalog boundary, but the legacy `ApiConfiguration` keys still use
- * the camel-cased `ApiProvider` literal in a couple of places (notably
- * `nousResearch`). Keep the casing fixes centralized here instead of
- * spreading inline shims across controller handlers and storage
- * adapters.
+ * Convert SDK/catalog provider ids to the legacy `ApiProvider` spelling used
+ * by `ApiConfiguration` keys. Most ids are identical; this helper remains as
+ * the central boundary for any future spelling aliases.
  */
 const SDK_PROVIDER_ID_TO_LEGACY_API_PROVIDER: Partial<Record<string, ApiProvider>> = {
+	nousResearch: "nousResearch",
 	nousresearch: "nousResearch",
 } satisfies Partial<Record<string, ApiProvider>>
 
