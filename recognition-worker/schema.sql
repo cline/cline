@@ -25,3 +25,14 @@ CREATE TABLE IF NOT EXISTS item_counts (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   PRIMARY KEY (marketplace, item_id, event_type)
 );
+
+CREATE TABLE IF NOT EXISTS item_stars (
+  marketplace TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  client_id_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (marketplace, item_id, client_id_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_stars_marketplace_item
+  ON item_stars (marketplace, item_id);

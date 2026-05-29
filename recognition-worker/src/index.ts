@@ -5,6 +5,15 @@ export interface Env {
 const MARKETPLACES = new Set(["gallery", "skills", "modules", "mcp", "connectors"])
 const EVENT_TYPES = new Set(["import", "install", "open_source", "copy_citation", "template_open", "uninstall"])
 
+interface CountSummary {
+	marketplace: string
+	itemId: string
+	events: Record<string, number>
+	total: number
+	updatedAt: string
+	starredByClient?: boolean
+}
+
 function json(data: unknown, init: ResponseInit = {}): Response {
 	return new Response(JSON.stringify(data), {
 		...init,
@@ -22,6 +31,10 @@ function cleanText(value: unknown, maxLength = 120): string {
 	return String(value ?? "")
 		.trim()
 		.slice(0, maxLength)
+}
+
+function validateClientHash(clientIdHash: string): boolean {
+	return /^[a-f0-9]{32,128}$/i.test(clientIdHash)
 }
 
 async function recordEvent(request: Request, env: Env): Promise<Response> {
@@ -44,7 +57,7 @@ async function recordEvent(request: Request, env: Env): Promise<Response> {
 	if (!EVENT_TYPES.has(eventType)) {
 		return json({ error: "Invalid eventType." }, { status: 400 })
 	}
-	if (!/^[a-f0-9]{32,128}$/i.test(clientIdHash)) {
+	if (!validateClientHash(clientIdHash)) {
 		return json({ error: "Invalid anonymous client hash." }, { status: 400 })
 	}
 
@@ -73,10 +86,68 @@ async function recordEvent(request: Request, env: Env): Promise<Response> {
 	return json({ ok: true })
 }
 
+async function setStar(request: Request, env: Env): Promise<Response> {
+	const body = (await request.json().catch(() => undefined)) as Record<string, unknown> | undefined
+	if (!body) {
+		return json({ error: "Invalid JSON body." }, { status: 400 })
+	}
+
+	const marketplace = cleanText(body.marketplace, 32)
+	const itemId = cleanText(body.itemId ?? body.item_id, 180)
+	const clientIdHash = cleanText(body.clientIdHash ?? body.client_id_hash, 128)
+	const starred = Boolean(body.starred)
+
+	if (!MARKETPLACES.has(marketplace)) {
+		return json({ error: "Invalid marketplace." }, { status: 400 })
+	}
+	if (!itemId) {
+		return json({ error: "Missing itemId." }, { status: 400 })
+	}
+	if (!validateClientHash(clientIdHash)) {
+		return json({ error: "Invalid anonymous client hash." }, { status: 400 })
+	}
+
+	if (starred) {
+		await env.DB.prepare(
+			`INSERT OR IGNORE INTO item_stars (marketplace, item_id, client_id_hash)
+			 VALUES (?, ?, ?)`,
+		)
+			.bind(marketplace, itemId, clientIdHash)
+			.run()
+	} else {
+		await env.DB.prepare(
+			`DELETE FROM item_stars
+			 WHERE marketplace = ? AND item_id = ? AND client_id_hash = ?`,
+		)
+			.bind(marketplace, itemId, clientIdHash)
+			.run()
+	}
+
+	const countResult = await env.DB.prepare(
+		`SELECT COUNT(*) AS count
+		 FROM item_stars
+		 WHERE marketplace = ? AND item_id = ?`,
+	)
+		.bind(marketplace, itemId)
+		.first<{ count: number }>()
+
+	return json({
+		ok: true,
+		marketplace,
+		itemId,
+		starred,
+		stars: Number(countResult?.count ?? 0),
+	})
+}
+
 async function getCounts(url: URL, env: Env): Promise<Response> {
 	const marketplace = cleanText(url.searchParams.get("marketplace"), 32)
+	const clientIdHash = cleanText(url.searchParams.get("clientIdHash") ?? url.searchParams.get("client_id_hash"), 128)
 	if (marketplace && !MARKETPLACES.has(marketplace)) {
 		return json({ error: "Invalid marketplace." }, { status: 400 })
+	}
+	if (clientIdHash && !validateClientHash(clientIdHash)) {
+		return json({ error: "Invalid anonymous client hash." }, { status: 400 })
 	}
 
 	const query = marketplace
@@ -100,25 +171,82 @@ async function getCounts(url: URL, env: Env): Promise<Response> {
 		updated_at: string
 	}>()
 
-	const byItem = new Map<
-		string,
-		{ marketplace: string; itemId: string; events: Record<string, number>; total: number; updatedAt: string }
-	>()
+	const byItem = new Map<string, CountSummary>()
 	for (const row of result.results ?? []) {
 		const key = `${row.marketplace}:${row.item_id}`
-		const current =
-			byItem.get(key) ??
-			({
-				marketplace: row.marketplace,
-				itemId: row.item_id,
-				events: {},
-				total: 0,
-				updatedAt: row.updated_at,
-			} as const)
+		const current = byItem.get(key) ?? {
+			marketplace: row.marketplace,
+			itemId: row.item_id,
+			events: {},
+			total: 0,
+			updatedAt: row.updated_at,
+		}
 		current.events[row.event_type] = Number(row.count)
 		current.total += Number(row.count)
 		current.updatedAt = row.updated_at > current.updatedAt ? row.updated_at : current.updatedAt
 		byItem.set(key, current)
+	}
+
+	const starsQuery = marketplace
+		? env.DB.prepare(
+				`SELECT marketplace, item_id, COUNT(*) AS stars, MAX(created_at) AS updated_at
+				 FROM item_stars
+				 WHERE marketplace = ?
+				 GROUP BY marketplace, item_id
+				 ORDER BY marketplace, item_id`,
+			).bind(marketplace)
+		: env.DB.prepare(
+				`SELECT marketplace, item_id, COUNT(*) AS stars, MAX(created_at) AS updated_at
+				 FROM item_stars
+				 GROUP BY marketplace, item_id
+				 ORDER BY marketplace, item_id`,
+			)
+	const starsResult = await starsQuery.all<{
+		marketplace: string
+		item_id: string
+		stars: number
+		updated_at: string
+	}>()
+	for (const row of starsResult.results ?? []) {
+		const key = `${row.marketplace}:${row.item_id}`
+		const current = byItem.get(key) ?? {
+			marketplace: row.marketplace,
+			itemId: row.item_id,
+			events: {},
+			total: 0,
+			updatedAt: row.updated_at,
+		}
+		current.events.star = Number(row.stars)
+		current.total += Number(row.stars)
+		current.updatedAt = row.updated_at > current.updatedAt ? row.updated_at : current.updatedAt
+		byItem.set(key, current)
+	}
+
+	if (clientIdHash) {
+		const starredQuery = marketplace
+			? env.DB.prepare(
+					`SELECT marketplace, item_id
+					 FROM item_stars
+					 WHERE marketplace = ? AND client_id_hash = ?`,
+				).bind(marketplace, clientIdHash)
+			: env.DB.prepare(
+					`SELECT marketplace, item_id
+					 FROM item_stars
+					 WHERE client_id_hash = ?`,
+				).bind(clientIdHash)
+		const starredResult = await starredQuery.all<{ marketplace: string; item_id: string }>()
+		for (const row of starredResult.results ?? []) {
+			const key = `${row.marketplace}:${row.item_id}`
+			const current = byItem.get(key) ?? {
+				marketplace: row.marketplace,
+				itemId: row.item_id,
+				events: {},
+				total: 0,
+				updatedAt: "",
+			}
+			current.starredByClient = true
+			byItem.set(key, current)
+		}
 	}
 
 	return json({ items: Array.from(byItem.values()) })
@@ -130,6 +258,7 @@ export default {
 		if (request.method === "OPTIONS") return json({ ok: true })
 		if (request.method === "GET" && url.pathname === "/v1/health") return json({ ok: true })
 		if (request.method === "POST" && url.pathname === "/v1/events") return recordEvent(request, env)
+		if (request.method === "POST" && url.pathname === "/v1/stars") return setStar(request, env)
 		if (request.method === "GET" && url.pathname === "/v1/counts") return getCounts(url, env)
 		return json({ error: "Not found." }, { status: 404 })
 	},

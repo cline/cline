@@ -43,13 +43,13 @@ describe("AI-Hydro Research Gallery placement", () => {
 		source.should.containEql("Open contribution template on GitHub")
 	})
 
-	it("surfaces GitHub-native recognition fields in the Gallery panel", async () => {
+	it("surfaces AI-Hydro-native recognition fields in the Gallery panel", async () => {
 		const source = await readFile(galleryPanelPath, "utf8")
 
 		source.should.containEql("contributors?")
 		source.should.containEql("badges?")
 		source.should.containEql("metrics?")
-		source.should.containEql("GitHub repository stars")
-		source.should.containEql("GitHub community reactions")
+		source.should.containEql("AI-Hydro stars")
+		source.should.containEql("aihydro-research-gallery-star")
 	})
 })

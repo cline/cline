@@ -39,6 +39,11 @@ The extension records only minimal anonymous events:
 It does not send prompts, file paths, map content, raw data, user names, or
 workspace names.
 
+AI-Hydro stars are stored separately from GitHub stars. They are native
+in-app appreciation signals keyed by marketplace item and anonymous client
+hash, so one AI-Hydro installation can star or unstar an item without inflating
+the count through repeated clicks.
+
 ## Configuration
 
 Production and staging default to the hosted AI-Hydro recognition worker:
@@ -67,6 +72,7 @@ simply do not update.
 
 - Research Gallery import: `marketplace=gallery`, `eventType=import`
 - Research Gallery map plate template open: `marketplace=gallery`, `eventType=template_open`
+- Research Gallery AI-Hydro star/unstar: `POST /v1/stars`
 - Skills marketplace install: `marketplace=skills`, `eventType=install`
 - Modules marketplace install: `marketplace=modules`, `eventType=install`
 

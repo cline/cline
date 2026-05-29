@@ -20,7 +20,16 @@ export interface MarketplaceRecognitionCounts {
 	itemId: string
 	events: Record<string, number>
 	total: number
+	aiHydroStars: number
+	starredByClient: boolean
 	updatedAt?: string
+}
+
+export interface MarketplaceStarResult {
+	marketplace: RecognitionMarketplace
+	itemId: string
+	starred: boolean
+	aiHydroStars: number
 }
 
 function apiBaseUrl(): string {
@@ -73,7 +82,7 @@ export class MarketplaceRecognitionService {
 		if (!baseUrl) return new Map()
 		try {
 			const response = await axios.get(`${baseUrl}/counts`, {
-				params: { marketplace },
+				params: { marketplace, clientIdHash: anonymousClientHash() },
 				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
 				timeout: 5_000,
 			})
@@ -91,6 +100,8 @@ export class MarketplaceRecognitionService {
 					itemId,
 					events: row.events && typeof row.events === "object" ? row.events : {},
 					total: Number(row.total ?? 0),
+					aiHydroStars: Number(row.events?.star ?? row.aiHydroStars ?? row.ai_hydro_stars ?? 0),
+					starredByClient: Boolean(row.starredByClient ?? row.starred_by_client ?? false),
 					updatedAt: row.updatedAt ?? row.updated_at,
 				})
 			}
@@ -98,6 +109,37 @@ export class MarketplaceRecognitionService {
 		} catch (error) {
 			console.warn("AI-Hydro recognition counts unavailable:", error instanceof Error ? error.message : error)
 			return new Map()
+		}
+	}
+
+	static async setStar(marketplace: RecognitionMarketplace, itemId: string, starred: boolean): Promise<MarketplaceStarResult> {
+		const baseUrl = apiBaseUrl()
+		if (!baseUrl || !itemId) {
+			return { marketplace, itemId, starred: false, aiHydroStars: 0 }
+		}
+		try {
+			const response = await axios.post(
+				`${baseUrl}/stars`,
+				{
+					marketplace,
+					itemId,
+					starred,
+					clientIdHash: anonymousClientHash(),
+				},
+				{
+					headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+					timeout: 5_000,
+				},
+			)
+			return {
+				marketplace,
+				itemId,
+				starred: Boolean(response.data?.starred ?? starred),
+				aiHydroStars: Number(response.data?.stars ?? response.data?.aiHydroStars ?? 0),
+			}
+		} catch (error) {
+			console.warn("AI-Hydro star was not updated:", error instanceof Error ? error.message : error)
+			throw error
 		}
 	}
 }

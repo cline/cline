@@ -12,6 +12,7 @@ addresses in the database.
 ```text
 GET  /v1/health
 POST /v1/events
+POST /v1/stars
 GET  /v1/counts?marketplace=gallery
 ```
 
@@ -27,6 +28,17 @@ Event payload:
   "itemType": "dataset_connector",
   "itemVersion": "0.1.0",
   "source": "ui"
+}
+```
+
+Star payload:
+
+```json
+{
+  "marketplace": "gallery",
+  "itemId": "wabash-nldi-basin-03335500",
+  "starred": true,
+  "clientIdHash": "sha256..."
 }
 ```
 

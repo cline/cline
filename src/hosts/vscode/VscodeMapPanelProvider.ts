@@ -79,8 +79,8 @@ interface ResearchGalleryItem {
 	isFeatured?: boolean
 	isInstalled?: boolean
 	downloadCount?: number
-	githubReactions?: number
-	githubStars?: number
+	aiHydroStars?: number
+	starredByClient?: boolean
 	contributors?: Array<Record<string, unknown>>
 	badges?: string[]
 	metrics?: Record<string, unknown>
@@ -472,10 +472,8 @@ export class VscodeMapPanelProvider {
 			isFeatured: Boolean(item.isFeatured ?? item.is_featured ?? false),
 			isInstalled: Boolean(item.isInstalled ?? item.is_installed ?? false),
 			downloadCount: Number(item.downloadCount ?? item.download_count ?? 0),
-			githubReactions: Number(item.githubReactions ?? item.github_reactions ?? 0),
-			githubStars: Number(
-				item.githubStars ?? item.github_stars ?? item.metrics?.githubStars ?? item.metrics?.github_stars ?? 0,
-			),
+			aiHydroStars: Number(item.aiHydroStars ?? item.ai_hydro_stars ?? item.metrics?.aiHydroStars ?? 0),
+			starredByClient: Boolean(item.starredByClient ?? item.starred_by_client ?? false),
 			contributors: Array.isArray(item.contributors) ? item.contributors : [],
 			badges: Array.isArray(item.badges) ? item.badges.map(String) : [],
 			metrics: item.metrics && typeof item.metrics === "object" ? item.metrics : {},
@@ -517,13 +515,17 @@ export class VscodeMapPanelProvider {
 						if (!counts) continue
 						const imports = Number(counts.events.import ?? 0)
 						const templateOpens = Number(counts.events.template_open ?? 0)
+						const aiHydroStars = Number(counts.aiHydroStars ?? counts.events.star ?? 0)
 						item.metrics = {
 							...(item.metrics ?? {}),
 							installs: imports + templateOpens,
 							imports,
 							templateOpens,
+							aiHydroStars,
 						}
 						item.downloadCount = imports + templateOpens
+						item.aiHydroStars = aiHydroStars
+						item.starredByClient = counts.starredByClient
 					}
 					const builtinIds = new Set(remoteItems.map((item) => item.id))
 					const fallbackItems = builtInResearchGalleryItems.filter((item) => !builtinIds.has(item.id))
@@ -546,6 +548,28 @@ export class VscodeMapPanelProvider {
 				sourceUrl: configuredUrl,
 				warning: `Remote catalog unavailable; showing built-in official seed items. ${err instanceof Error ? err.message : String(err)}`,
 			}
+		}
+	}
+
+	private static async setResearchGalleryStar(panel: vscode.WebviewPanel, requestId: string, itemId: string, starred: boolean) {
+		try {
+			const result = await MarketplaceRecognitionService.setStar("gallery", itemId, starred)
+			await panel.webview.postMessage({
+				type: "aihydro-research-gallery-star-result",
+				requestId,
+				ok: true,
+				itemId: result.itemId,
+				starred: result.starred,
+				aiHydroStars: result.aiHydroStars,
+			})
+		} catch (err) {
+			await panel.webview.postMessage({
+				type: "aihydro-research-gallery-star-result",
+				requestId,
+				ok: false,
+				itemId,
+				error: err instanceof Error ? err.message : String(err),
+			})
 		}
 	}
 
@@ -899,6 +923,15 @@ export class VscodeMapPanelProvider {
 							panel,
 							String(message.requestId ?? ""),
 							message.item as ResearchGalleryItem,
+						)
+						break
+					}
+					case "aihydro-research-gallery-star": {
+						await VscodeMapPanelProvider.setResearchGalleryStar(
+							panel,
+							String(message.requestId ?? ""),
+							String(message.itemId ?? ""),
+							Boolean(message.starred),
 						)
 						break
 					}

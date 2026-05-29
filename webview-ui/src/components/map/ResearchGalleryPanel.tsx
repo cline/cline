@@ -24,8 +24,8 @@ export interface ResearchGalleryItem {
 	isFeatured?: boolean
 	isInstalled?: boolean
 	downloadCount?: number
-	githubReactions?: number
-	githubStars?: number
+	aiHydroStars?: number
+	starredByClient?: boolean
 	contributors?: Array<{
 		github?: string
 		name: string
@@ -37,9 +37,7 @@ export interface ResearchGalleryItem {
 	metrics?: {
 		installs?: number
 		downloads?: number
-		githubStars?: number
-		githubForks?: number
-		reactions?: number
+		aiHydroStars?: number
 	}
 	discussionUrl?: string
 	source?: "remote" | "built_in" | "local"
@@ -114,6 +112,7 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 	const [trustFilter, setTrustFilter] = useState<TrustLevel | "all">("all")
 	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [importingId, setImportingId] = useState<string | null>(null)
+	const [starringId, setStarringId] = useState<string | null>(null)
 	const [message, setMessage] = useState<string | null>(null)
 
 	const requestCatalog = () => {
@@ -164,6 +163,39 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 		return () => window.removeEventListener("message", onMessage)
 	}, [onOpenExport])
 
+	useEffect(() => {
+		const onMessage = (event: MessageEvent) => {
+			const data = event.data
+			if (!data || data.type !== "aihydro-research-gallery-star-result") {
+				return
+			}
+			setStarringId(null)
+			if (!data.ok) {
+				setMessage(data.error ?? "Star update failed.")
+				window.setTimeout(() => setMessage(null), 6000)
+				return
+			}
+			setCatalog((current) => {
+				if (current.status !== "ready") return current
+				return {
+					...current,
+					items: current.items.map((item) => {
+						if (item.id !== data.itemId) return item
+						const aiHydroStars = Number(data.aiHydroStars ?? 0)
+						return {
+							...item,
+							aiHydroStars,
+							starredByClient: Boolean(data.starred),
+							metrics: { ...(item.metrics ?? {}), aiHydroStars },
+						}
+					}),
+				}
+			})
+		}
+		window.addEventListener("message", onMessage)
+		return () => window.removeEventListener("message", onMessage)
+	}, [])
+
 	const items = catalog.status === "ready" ? catalog.items : []
 	const filtered = useMemo(() => {
 		const q = query.trim().toLowerCase()
@@ -195,6 +227,17 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 		setImportingId(item.id)
 		setMessage(null)
 		PLATFORM_CONFIG.postMessage({ type: "aihydro-research-gallery-import", requestId: uiRequestId("gallery-import"), item })
+	}
+
+	const toggleStar = (item: ResearchGalleryItem) => {
+		setStarringId(item.id)
+		setMessage(null)
+		PLATFORM_CONFIG.postMessage({
+			type: "aihydro-research-gallery-star",
+			requestId: uiRequestId("gallery-star"),
+			itemId: item.id,
+			starred: !item.starredByClient,
+		})
 	}
 
 	const bg = mapStyle === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"
@@ -285,9 +328,16 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 				<div style={{ display: "grid", gap: 8, alignContent: "start" }}>
 					{filtered.length === 0 && <div style={{ color: subtle, fontSize: 12 }}>No matching gallery items.</div>}
 					{filtered.map((item) => (
-						<button
+						<div
 							key={item.id}
 							onClick={() => setSelectedId(item.id)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" || event.key === " ") {
+									event.preventDefault()
+									setSelectedId(item.id)
+								}
+							}}
+							role="button"
 							style={{
 								textAlign: "left",
 								padding: 9,
@@ -297,10 +347,34 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 								borderRadius: 5,
 								cursor: "pointer",
 							}}
-							type="button">
+							tabIndex={0}>
 							<div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-								<span style={{ fontWeight: 650, fontSize: 12 }}>{item.title}</span>
+								<span style={{ fontWeight: 650, fontSize: 12, flex: 1 }}>{item.title}</span>
 								{item.isFeatured && <span style={{ color: "#facc15", fontSize: 10 }}>Featured</span>}
+								<span
+									aria-label={item.starredByClient ? "Unstar Gallery item" : "Star Gallery item"}
+									onClick={(event) => {
+										event.stopPropagation()
+										toggleStar(item)
+									}}
+									onKeyDown={(event) => {
+										if (event.key === "Enter" || event.key === " ") {
+											event.preventDefault()
+											event.stopPropagation()
+											toggleStar(item)
+										}
+									}}
+									role="button"
+									style={{
+										color: item.starredByClient ? "#facc15" : subtle,
+										cursor: starringId === item.id ? "wait" : "pointer",
+										fontSize: 13,
+										lineHeight: 1,
+									}}
+									tabIndex={0}
+									title={item.starredByClient ? "Remove your AI-Hydro star" : "Star this item in AI-Hydro"}>
+									{item.starredByClient ? "★" : "☆"}
+								</span>
 							</div>
 							<div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 10, color: subtle }}>
 								<span>{typeText(item.type)}</span>
@@ -311,19 +385,33 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 								<span title="AI-Hydro imports/installs">
 									⬇ {formatCount(item.metrics?.installs ?? item.downloadCount)}
 								</span>
-								<span title="GitHub repository stars">
-									★ {formatCount(item.metrics?.githubStars ?? item.githubStars)}
-								</span>
-								<span title="GitHub community reactions">
-									♥ {formatCount(item.metrics?.reactions ?? item.githubReactions)}
+								<span title="AI-Hydro user stars">
+									★ {formatCount(item.metrics?.aiHydroStars ?? item.aiHydroStars)}
 								</span>
 							</div>
-						</button>
+						</div>
 					))}
 				</div>
 				{selected && (
 					<div style={{ border: `1px solid ${border}`, borderRadius: 6, padding: 10, background: bg }}>
-						<div style={{ fontWeight: 700, marginBottom: 4 }}>{selected.title}</div>
+						<div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+							<div style={{ fontWeight: 700, flex: 1 }}>{selected.title}</div>
+							<button
+								disabled={starringId === selected.id}
+								onClick={() => toggleStar(selected)}
+								style={{
+									border: `1px solid ${border}`,
+									borderRadius: 4,
+									background: selected.starredByClient ? "rgba(250, 204, 21, 0.16)" : "transparent",
+									color: selected.starredByClient ? "#facc15" : "inherit",
+									cursor: starringId === selected.id ? "wait" : "pointer",
+									padding: "4px 7px",
+								}}
+								title={selected.starredByClient ? "Remove your AI-Hydro star" : "Star this item in AI-Hydro"}
+								type="button">
+								{selected.starredByClient ? "★ Starred" : "☆ Star"}
+							</button>
+						</div>
 						{selected.badges?.length ? (
 							<div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 7 }}>
 								{selected.badges.map((badge) => (
@@ -365,12 +453,9 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 								<span title="AI-Hydro imports/installs">
 									<strong>Imports:</strong> {formatCount(selected.metrics?.installs ?? selected.downloadCount)}
 								</span>
-								<span title="GitHub repository stars">
-									<strong>Stars:</strong> {formatCount(selected.metrics?.githubStars ?? selected.githubStars)}
-								</span>
-								<span title="GitHub issue, pull request, or discussion reactions">
-									<strong>Community:</strong>{" "}
-									{formatCount(selected.metrics?.reactions ?? selected.githubReactions)}
+								<span title="AI-Hydro user stars">
+									<strong>AI-Hydro stars:</strong>{" "}
+									{formatCount(selected.metrics?.aiHydroStars ?? selected.aiHydroStars)}
 								</span>
 							</div>
 							{selected.citation && (
