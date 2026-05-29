@@ -87,4 +87,11 @@ describe("unwrapPowerShell", () => {
 			`echo powershell -Command "x"`,
 		);
 	});
+
+	it("does not unwrap when intermediate flags sit between binary and -Command", () => {
+		// Wrappers like "powershell -NoProfile -Command ..." are not stripped;
+		// they are returned verbatim to avoid incorrect rewrites.
+		const input = `powershell -NoProfile -Command "dir"`;
+		expect(unwrapPowerShell(input)).toBe(input);
+	});
 });

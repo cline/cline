@@ -18,9 +18,11 @@ export function getDefaultShell(platform: string): string {
  * powershell invocation as its -Command argument, and the inner shell would
  * receive quote-shredded args.
  *
- * Only unwraps when the entire string is exactly one quoted token whose body
- * does not itself contain the delimiter; anything else is returned verbatim so
- * the worst case is "no change" rather than an incorrect rewrite.
+ * Deliberately conservative: only unwraps when the binary is immediately
+ * followed by -Command/-c and the rest is exactly one quoted token whose body
+ * does not contain the delimiter. Anything else (e.g. an intermediate
+ * -NoProfile flag) is returned verbatim, so the worst case is "no change"
+ * rather than an incorrect rewrite.
  */
 export function unwrapPowerShell(command: string): string {
 	const match = command.match(
