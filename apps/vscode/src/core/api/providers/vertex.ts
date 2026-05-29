@@ -65,9 +65,7 @@ export class VertexHandler implements ApiHandler {
 					projectId: this.options.vertexProjectId,
 					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 					region: this.options.vertexRegion,
-					...(this.options.vertexRegion === "global"
-						? { baseURL: "https://aiplatform.googleapis.com/v1" }
-						: {}),
+					...(this.options.vertexRegion === "global" ? { baseURL: "https://aiplatform.googleapis.com/v1" } : {}),
 					defaultHeaders: externalHeaders,
 				})
 			} catch (error: any) {

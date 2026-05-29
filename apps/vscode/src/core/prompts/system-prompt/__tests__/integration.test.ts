@@ -25,6 +25,7 @@ import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
 import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
+import { mockProviderInfo } from "./prompt-test-fixtures"
 
 // ============================================================================
 // Configuration
@@ -110,12 +111,6 @@ async function assertSnapshot(name: string, content: string): Promise<void> {
 // ============================================================================
 // Test Context Helpers
 // ============================================================================
-
-export const mockProviderInfo = {
-	providerId: "test",
-	model: { id: "fast", info: { supportsPromptCache: false } },
-	mode: "act" as const,
-}
 
 const makeProviderInfo = (modelId: string, providerId = "test") => ({
 	providerId: modelId.includes("ollama") ? "ollama" : providerId,

@@ -1,6 +1,6 @@
 import { LiteLlmHandler, type LiteLlmModelInfoResponse } from "@core/api/providers/litellm"
 import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
-import { liteLlmModelInfoSaneDefaults } from "@shared/api" // used in getModel tests
+import { liteLlmModelInfoSafeDefaults } from "@shared/api" // used in getModel tests
 import { expect } from "chai"
 import sinon from "sinon"
 import { StateManager } from "@/core/storage/StateManager" // used in getModel tests
@@ -269,7 +269,7 @@ describe("LiteLlmHandler", () => {
 			})
 			const model = h.getModel()
 			expect(model.id).to.equal("some-model")
-			expect(model.info.contextWindow).to.equal(liteLlmModelInfoSaneDefaults.contextWindow)
+			expect(model.info.contextWindow).to.equal(liteLlmModelInfoSafeDefaults.contextWindow)
 		})
 
 		it("returns user-configured model info when liteLlmModelInfo is provided and no cache exists", () => {

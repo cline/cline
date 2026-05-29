@@ -1,0 +1,280 @@
+import type { CoreSessionEvent, ITelemetryService, PreparedRemoteConfigCoreIntegration, StartSessionResult } from "@cline/core"
+import { StateManager } from "@/core/storage/StateManager"
+import { ITerminalManager } from "@/integrations/terminal"
+import { McpHub } from "@/services/mcp/McpHub"
+import { Logger } from "@/shared/services/Logger"
+import type { ActiveSession } from "./cline-session-factory"
+import { buildToolPolicies } from "./sdk-tool-policies"
+import type { SdkSessionHost } from "./session-host"
+import { VscodeSessionHost } from "./vscode-session-host"
+
+export type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
+export type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
+
+export interface SdkSessionLifecycleOptions {
+	mcpHub: McpHub
+	requestToolApproval: RequestToolApprovalHandler
+	askQuestion: AskQuestionHandler
+	onSessionEvent: (event: CoreSessionEvent) => void
+	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
+	getTerminalManager?: () => ITerminalManager
+	/** Returns the latest prepared remote-config integration, if remote config is active. */
+	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
+	/** Shared SDK telemetry service owned by SdkController. */
+	telemetry?: ITelemetryService
+	onSendComplete: (sessionId: string) => Promise<void> | void
+	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
+}
+
+export class SdkSessionLifecycle {
+	private activeSession: ActiveSession | undefined
+	private sharedHost: SdkSessionHost | undefined
+	private sharedHostPromise: Promise<SdkSessionHost> | undefined
+
+	constructor(private readonly options: SdkSessionLifecycleOptions) {}
+
+	getActiveSession(): ActiveSession | undefined {
+		return this.activeSession
+	}
+
+	setRunning(isRunning: boolean): void {
+		if (this.activeSession) {
+			this.activeSession.isRunning = isRunning
+		}
+	}
+
+	private clearActiveSessionReference(): ActiveSession | undefined {
+		const activeSession = this.activeSession
+		this.activeSession = undefined
+		return activeSession
+	}
+
+	async endActiveSession(
+		reason: string,
+		options: { awaitStop?: boolean; timeoutMs?: number } = {},
+	): Promise<ActiveSession | undefined> {
+		const activeSession = this.clearActiveSessionReference()
+		if (!activeSession) {
+			return undefined
+		}
+
+		this.safeUnsubscribe(activeSession, reason)
+		const stopPromise = this.stopSessionWithTimeout(activeSession.sdkHost, activeSession.sessionId, reason, options.timeoutMs)
+		if (options.awaitStop) {
+			await stopPromise
+		} else {
+			void stopPromise
+		}
+		return activeSession
+	}
+
+	async updateActiveSessionModel(modelId: string): Promise<boolean> {
+		const activeSession = this.activeSession
+		if (!activeSession?.sdkHost.updateSessionModel) {
+			return false
+		}
+
+		await activeSession.sdkHost.updateSessionModel(activeSession.sessionId, modelId)
+		return true
+	}
+
+	async startNewSession(
+		startInput: Parameters<VscodeSessionHost["start"]>[0],
+	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
+		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
+		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+
+		const sdkHost = await this.getOrCreateSharedHost()
+		const unsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "pending-start")
+
+		let startResult: StartSessionResult
+		try {
+			startResult = await sdkHost.start({
+				...startInput,
+				...(toolPolicies ? { toolPolicies } : {}),
+			})
+		} catch (error) {
+			unsubscribe()
+			throw error
+		}
+		this.activeSession = {
+			sessionId: startResult.sessionId,
+			sdkHost,
+			unsubscribe,
+			startResult,
+			isRunning: true,
+		}
+
+		return { startResult, sdkHost }
+	}
+
+	async replaceActiveSession(options: {
+		startInput: Parameters<VscodeSessionHost["start"]>[0]
+		initialMessages?: Parameters<VscodeSessionHost["start"]>[0]["initialMessages"]
+		disposeReason: string
+	}): Promise<
+		| {
+				oldSessionId: string
+				startResult: StartSessionResult
+				sdkHost: SdkSessionHost
+		  }
+		| undefined
+	> {
+		const oldSession = this.activeSession
+		if (!oldSession) {
+			return undefined
+		}
+
+		const { sessionId: oldSessionId } = oldSession
+
+		await this.endActiveSession(options.disposeReason)
+
+		const { startResult, sdkHost } = await this.startNewSession({
+			...options.startInput,
+			...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
+		})
+		this.setRunning(false)
+
+		return { oldSessionId, startResult, sdkHost }
+	}
+
+	async dispose(reason = "SdkSessionLifecycle.dispose"): Promise<void> {
+		await this.endActiveSession(reason, { awaitStop: true })
+
+		const sharedHost = this.sharedHost ?? (await this.sharedHostPromise?.catch(() => undefined))
+		this.sharedHost = undefined
+		this.sharedHostPromise = undefined
+		await sharedHost?.dispose(reason)
+	}
+
+	private createSafeUnsubscribe(unsubscribe: () => void, label: string): () => void {
+		let unsubscribed = false
+		return () => {
+			if (unsubscribed) {
+				return
+			}
+			unsubscribed = true
+			try {
+				unsubscribe()
+			} catch (error) {
+				Logger.warn(`[SdkController] Failed to unsubscribe SDK session listener (${label}):`, error)
+			}
+		}
+	}
+
+	private safeUnsubscribe(activeSession: ActiveSession, reason: string): void {
+		activeSession.unsubscribe()
+		Logger.debug(`[SdkController] Unsubscribed SDK session listener: ${activeSession.sessionId} (${reason})`)
+	}
+
+	private async stopSessionWithTimeout(
+		sdkHost: SdkSessionHost,
+		sessionId: string,
+		reason: string,
+		timeoutMs = 3000,
+	): Promise<void> {
+		const startedAt = Date.now()
+		const stopResult = sdkHost.stop(sessionId).then(
+			() => ({ ok: true as const }),
+			(error) => ({ ok: false as const, error }),
+		)
+		const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs))
+		const result = await Promise.race([stopResult, timeout])
+
+		if (result === "timeout") {
+			Logger.warn(`[SdkController] Timed out stopping SDK session ${sessionId} after ${timeoutMs}ms (${reason})`)
+			stopResult.then((finalResult) => {
+				if (finalResult.ok) {
+					Logger.log(
+						`[SdkController] SDK session ${sessionId} eventually stopped after ${Date.now() - startedAt}ms (${reason})`,
+					)
+				} else {
+					Logger.warn(
+						`[SdkController] SDK session ${sessionId} stop failed after timeout (${reason}):`,
+						finalResult.error,
+					)
+				}
+			})
+			return
+		}
+
+		const elapsed = Date.now() - startedAt
+		if (result.ok) {
+			if (elapsed > 250) {
+				Logger.log(`[SdkController] SDK session ${sessionId} stopped in ${elapsed}ms (${reason})`)
+			}
+			return
+		}
+
+		Logger.warn(`[SdkController] Failed to stop SDK session ${sessionId} (${reason}):`, result.error)
+	}
+
+	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
+		if (this.sharedHost) {
+			return this.sharedHost
+		}
+		if (!this.sharedHostPromise) {
+			// Host-lifetime dependencies only. Anything task/session-specific must be
+			// supplied to sdkHost.start(...), otherwise it can leak across reused sessions.
+			this.sharedHostPromise = VscodeSessionHost.create({
+				mcpHub: this.options.mcpHub,
+				requestToolApproval: this.options.requestToolApproval,
+				askQuestion: this.options.askQuestion,
+				getTerminalManager: this.options.getTerminalManager,
+				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
+				telemetry: this.options.telemetry,
+			})
+				.then((sdkHost) => {
+					this.sharedHost = sdkHost
+					return sdkHost
+				})
+				.finally(() => {
+					this.sharedHostPromise = undefined
+				})
+		}
+		return this.sharedHostPromise
+	}
+
+	fireAndForgetSend(
+		sdkHost: SdkSessionHost,
+		sessionId: string,
+		prompt: string,
+		images?: string[],
+		files?: string[],
+		delivery?: "queue" | "steer",
+	): void {
+		sdkHost
+			.send({
+				sessionId,
+				prompt,
+				userImages: images,
+				userFiles: files,
+				delivery,
+			})
+			.then(async () => {
+				if (delivery === "queue" || delivery === "steer") {
+					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
+					return
+				}
+				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
+				this.setRunning(false)
+				await this.options.onSendComplete(sessionId)
+			})
+			.catch(async (error: unknown) => {
+				if (isAbortError(error)) {
+					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					return
+				}
+				Logger.error("[SdkController] Agent turn failed:", error)
+				this.setRunning(false)
+				await this.options.onSendError(error, sessionId)
+			})
+	}
+}
+
+export function isAbortError(error: unknown): boolean {
+	if (error instanceof Error) {
+		return error.name === "AbortError" || error.message.toLowerCase().includes("aborted")
+	}
+	return false
+}

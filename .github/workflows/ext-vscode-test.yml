@@ -93,13 +93,13 @@ jobs:
 
             - name: Install extension dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode ci
+              run: npm --prefix apps/vscode ci --include=optional
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui ci
+              run: npm --prefix apps/vscode/webview-ui ci --include=optional
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -134,13 +134,13 @@ jobs:
 
             - name: Install extension dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode ci
+              run: npm --prefix apps/vscode ci --include=optional
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui ci
+              run: npm --prefix apps/vscode/webview-ui ci --include=optional
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -236,13 +236,13 @@ jobs:
 
             - name: Install extension dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode ci
+              run: npm --prefix apps/vscode ci --include=optional
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui ci
+              run: npm --prefix apps/vscode/webview-ui ci --include=optional
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
@@ -252,7 +252,7 @@ jobs:
 
             - name: Install testing platform dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/testing-platform ci
+              run: npm --prefix apps/vscode/testing-platform ci --include=optional
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7

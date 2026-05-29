@@ -82,12 +82,14 @@ message GetTaskHistoryRequest {
   string search_query = 3;
   string sort_by = 4;
   bool current_workspace_only = 5;
+  int32 limit = 6;
+  int32 offset = 7;
 }
 
 // Response for task history
 message TaskHistoryArray {
   repeated TaskItem tasks = 1;
-  int32 total_count = 2;
+  bool has_more = 2;
 }
 
 // Task item details for history list

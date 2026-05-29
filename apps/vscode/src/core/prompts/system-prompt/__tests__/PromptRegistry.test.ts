@@ -3,7 +3,7 @@ import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
 import { PromptRegistry } from "../registry/PromptRegistry"
 import type { SystemPromptContext } from "../types"
-import { mockProviderInfo } from "./integration.test"
+import { mockProviderInfo } from "./prompt-test-fixtures"
 
 describe("PromptRegistry", () => {
 	let registry: PromptRegistry
