@@ -659,9 +659,6 @@ export async function orchestrateCommandExecution(
 		}
 	}
 	const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
-	Logger.warn(
-		`[CommandOrchestrator] resolved without completion event: lineCount=${totalLineCount} bytes=${totalOutputBytes} terminalType=${terminalType}`,
-	)
 	return {
 		userRejected: false,
 		result: `Command is still running in the user's terminal.${
