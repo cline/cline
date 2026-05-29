@@ -68,6 +68,10 @@ function spawnAndCollect(
 			env: { ...process.env, ...config.env },
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
+			// Without windowsHide, a console-less parent (e.g. an IDE-launched
+			// host) makes Windows allocate a new console for the child and route
+			// its stdio there instead of our pipes. No-op on non-Windows.
+			windowsHide: true,
 		});
 		const childPid = child.pid;
 
