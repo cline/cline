@@ -73,10 +73,9 @@ export class SdkModeCoordinator {
 
 		if (this.options.sessions.getActiveSession()) {
 			// Switching plan -> act on an active session resumes the LLM with a
-			// continuation prompt; the classic controller used
-			// task.handleWebviewAskResponse(...) with a "PLAN_MODE_TOGGLE_RESPONSE"
-			// fallback to do the same. If the caller provided chatContent.message
-			// (e.g. from the textarea), prefer that over the canned prompt.
+			// continuation prompt. When the caller supplies chatContent.message
+			// (e.g. from the textarea), use it; otherwise fall back to the canned
+			// ACT_MODE_CONTINUATION_PROMPT.
 			const switchingToAct = modeToSwitchTo === "act"
 			const userPrompt = chatContent?.message?.trim()
 			await this.rebuildSessionForMode(modeToSwitchTo, {

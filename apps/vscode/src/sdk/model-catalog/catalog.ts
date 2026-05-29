@@ -253,9 +253,9 @@ export const _testing = {
 /**
  * Create a {@link ProviderCatalog}.
  *
- * Accepts a read-only {@link ProviderConfigReader} (not the full store).
- * Enforces invariant C1 by type: the catalog cannot write to the store,
- * and has no `write`/`commitSelection` access by construction.
+ * Accepts a read-only {@link ProviderConfigReader} (not the full store), so
+ * the catalog cannot write to the store: it has no `write`/`commitSelection`
+ * access by construction.
  */
 export function createProviderCatalog(reader: ProviderConfigReader): ProviderCatalog {
 	const now = () => Date.now()
@@ -298,8 +298,8 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			const config = reader.read(providerId)
 			const fingerprint = computeConfigFingerprint(providerId, config)
 			// Selection is not part of model-list identity; it is only a hint for
-			// SDK config surfaces that require a model id. Phase 3 catalog caching
-			// remains keyed solely by provider + effective config fingerprint.
+			// SDK config surfaces that require a model id. The cache stays keyed
+			// solely by provider + effective config fingerprint.
 			const selection = reader.readSelection(providerId, "act")
 			let result: ProviderModelsResult
 			try {

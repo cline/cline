@@ -752,8 +752,8 @@ export class AuthService {
 	 * Handle MCP OAuth callback.
 	 */
 	async handleMcpOAuthCallback(_serverHash: string, _code: string, _state: string | null): Promise<void> {
-		// Will be implemented in Step 7 (MCP Integration)
-		Logger.warn("[SdkAuthService] handleMcpOAuthCallback not yet implemented (Step 7)")
+		// MCP OAuth callbacks are not yet handled by the SDK adapter.
+		Logger.warn("[SdkAuthService] handleMcpOAuthCallback not yet implemented")
 	}
 
 	// ---- Restore auth on startup ----

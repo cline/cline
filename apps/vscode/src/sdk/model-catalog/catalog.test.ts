@@ -513,6 +513,7 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 			protocol: "openai-chat",
 			authDescription: "OpenRouter AI platform",
 			allowsCustomModelIds: false,
+			usageCostDisplay: "show",
 		})
 		expect(listings[0]).not.toHaveProperty("models")
 		expect(mocks.getAllProviders).toHaveBeenCalledTimes(1)

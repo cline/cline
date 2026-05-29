@@ -91,15 +91,10 @@ export class SdkSessionLifecycle {
 
 		const sdkHost = await this.getOrCreateSharedHost()
 
-		let startResult: StartSessionResult
-		try {
-			startResult = await sdkHost.start({
-				...startInput,
-				...(toolPolicies ? { toolPolicies } : {}),
-			})
-		} catch (error) {
-			throw error
-		}
+		const startResult = await sdkHost.start({
+			...startInput,
+			...(toolPolicies ? { toolPolicies } : {}),
+		})
 		this.activeSession = {
 			sessionId: startResult.sessionId,
 			sdkHost,

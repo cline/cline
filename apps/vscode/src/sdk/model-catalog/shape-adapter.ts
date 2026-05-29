@@ -4,7 +4,7 @@
  * NOT import any SDK runtime (no `@cline/core` imports). It validates
  * unknown input and maps documented SDK fields onto `ModelInfo` fields.
  *
- * SDK shape captured by the Phase 2.1 spike (see `tmp/sdk-spike-findings.md`):
+ * The SDK model-metadata shape this adapter reads from:
  *
  * ```ts
  * {

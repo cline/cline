@@ -1,8 +1,8 @@
 // Replaces classic src/core/storage/disk.ts reads (see origin/main)
 //
-// Reads all existing on-disk state from the Cline data directory.
-// This module is used by the SDK adapter layer to bootstrap state
-// from the classic storage format during migration.
+// Reads on-disk state written in the pre-SDK storage format from the Cline
+// data directory, so the SDK adapter can surface tasks and settings created
+// before the SDK migration.
 //
 // All reads are non-throwing — missing or corrupt files return defaults.
 

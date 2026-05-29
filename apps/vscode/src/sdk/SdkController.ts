@@ -1,10 +1,9 @@
 // Replaces classic src/core/controller/index.ts (see origin/main)
 //
-// This is the SDK-backed Controller. It provides the same interface as the
-// classic Controller but delegates to the Cline SDK (@cline/core).
-//
-// Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
-// Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
+// The SDK-backed Controller. It provides the same interface as the classic
+// Controller but delegates session lifecycle (initTask, askResponse,
+// cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
+// the webview's gRPC streams.
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -118,7 +117,7 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 // ---------------------------------------------------------------------------
 
 export class Controller {
-	// SDK session state (Step 4)
+	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
@@ -138,20 +137,17 @@ export class Controller {
 	private readonly providerConfigStoreSubscription: Disposable
 	private providerConfigStatePostScheduled = false
 
-	// gRPC bridge (Step 5) — bridges SDK events to webview streams
+	// Bridges SDK events to the webview's gRPC streams.
 	private grpcBridge: WebviewGrpcBridge
 
-	// Task proxy (Step 5) — provides classic Task interface for gRPC handlers
+	// Presents the Task interface that gRPC handlers expect, delegating to the
+	// active SDK session.
 	task?: TaskProxy
 
-	// MCP hub — classic McpHub wired in Step 7; will be replaced by SDK's
-	// InMemoryMcpManager in Step 10 (Cleanup)
 	mcpHub: McpHub
-	// SDK-backed account service (Step 6)
 	accountService: ClineAccountService
-	// SDK-backed auth service (Step 6)
 	authService: AuthService
-	// OCA auth uses the same AuthService (Step 6)
+	// OCA auth shares the same AuthService instance.
 	ocaAuthService: AuthService
 	readonly stateManager: StateManager
 
@@ -188,8 +184,6 @@ export class Controller {
 			this.handleProviderConfigChange(event)
 		})
 
-		// MCP hub — using classic McpHub for now (Step 7).
-		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
 		// IMPORTANT: Use ~/.cline/data/settings/ for the settings directory,
 		// NOT ensureSettingsDirectoryExists() which returns the VSCode extension
 		// storage path (HostProvider.globalStorageFsPath/settings/). The MCP
@@ -207,7 +201,7 @@ export class Controller {
 			telemetryService,
 		)
 
-		// Initialize SDK-backed auth and account services (Step 6)
+		// Initialize SDK-backed auth and account services.
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = this.authService
 		this.accountService = ClineAccountService.getInstance()
@@ -473,11 +467,9 @@ export class Controller {
 	}
 
 	/**
-	 * Starts the periodic remote config fetching timer.
-	 * Fetches immediately and then every hour. Mirrors the classic
-	 * Controller.startRemoteConfigTimer() behavior for enterprise
-	 * policy enforcement (provider lockdown, MCP server management,
-	 * OpenTelemetry, etc.).
+	 * Starts the periodic remote config fetching timer. Fetches immediately
+	 * and then every hour, to enforce enterprise policy (provider lockdown,
+	 * MCP server management, OpenTelemetry, etc.).
 	 */
 	private startRemoteConfigTimer(): void {
 		// Initial fetch
@@ -529,16 +521,12 @@ export class Controller {
 	/**
 	 * Resolve `@` context mentions in user text before sending to the SDK.
 	 *
-	 * The classic extension's Task class called `parseMentions()` to inline
-	 * file content (`@/path`), URL content (`@https://...`), diagnostics
-	 * (`@problems`), git state (`@git-changes`), and commit info (`@hash`)
-	 * into the prompt text. The SDK's own mention enricher only handles
-	 * simple `@path` file mentions and doesn't support the webview's
-	 * `@/path` format or special mentions.
-	 *
-	 * This method bridges the gap by calling the classic `parseMentions()`
-	 * before the text is sent to the SDK, ensuring all context mentions
-	 * are resolved into inline content that the LLM can see.
+	 * `parseMentions()` inlines file content (`@/path`), URL content
+	 * (`@https://...`), diagnostics (`@problems`), git state (`@git-changes`),
+	 * and commit info (`@hash`) into the prompt text. We do this here because
+	 * the SDK's own mention enricher only handles simple `@path` file mentions
+	 * and does not understand the webview's `@/path` format or special
+	 * mentions, so the LLM would otherwise never see the referenced content.
 	 */
 	private async resolveContextMentions(text: string): Promise<string> {
 		// Quick check: skip if there are no @ mentions
@@ -623,8 +611,8 @@ export class Controller {
 
 	/**
 	 * Emit a proper auth error for the 'cline' provider when the user is not
-	 * logged in. This produces the same message sequence the classic extension
-	 * emits, so the webview renders the "Sign in to Cline" button via ErrorRow.
+	 * logged in. The message sequence drives ErrorRow to render the
+	 * "Sign in to Cline" button.
 	 *
 	 * Message sequence:
 	 *   1. say:'task'           – the user's message text
@@ -741,7 +729,7 @@ export class Controller {
 		this.postStateToWebview().catch(() => {})
 	}
 
-	// ---- Task lifecycle (Step 4) ----
+	// ---- Task lifecycle ----
 
 	async initTask(
 		prompt?: string,
@@ -816,26 +804,16 @@ export class Controller {
 	 * 3. Only then push state to the webview
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const startedAt = Date.now()
-		const lookupStartedAt = Date.now()
 		const historyItem = await this.taskHistory.findHistoryItem(taskId)
-		const lookupElapsed = Date.now() - lookupStartedAt
 		if (!historyItem) {
-			Logger.log(
-				`[HistoryPerf] SdkController.showTaskWithId taskId=${taskId} found=false targetedLookup=${lookupElapsed}ms total=${Date.now() - startedAt}ms`,
-			)
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
 
-		const controlStartedAt = Date.now()
 		await this.taskControl.showTaskWithId(taskId, { skipHistoryLookup: true })
-		Logger.log(
-			`[HistoryPerf] SdkController.showTaskWithId taskId=${taskId} targetedLookup=${lookupElapsed}ms control=${Date.now() - controlStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return historyItemToTaskResponse(historyItem)
 	}
 
-	// ---- Mode switching (Step 8) ----
+	// ---- Mode switching ----
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		return this.mode.toggleActModeForYoloMode()
@@ -852,7 +830,7 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	// ---- Auth callbacks (Step 6) ----
+	// ---- Auth callbacks ----
 
 	async handleSignOut(): Promise<void> {
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
@@ -889,7 +867,7 @@ export class Controller {
 		}
 	}
 
-	// ---- MCP marketplace (Step 7) ----
+	// ---- MCP marketplace ----
 
 	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
 		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
@@ -936,7 +914,7 @@ export class Controller {
 		}
 	}
 
-	// ---- Provider auth callbacks (Step 6) ----
+	// ---- Provider auth callbacks ----
 
 	async handleOpenRouterCallback(code: string): Promise<void> {
 		await this.authService.handleOpenRouterCallback(code)
@@ -959,17 +937,11 @@ export class Controller {
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
-		const startedAt = Date.now()
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
-		const workspaceStartedAt = Date.now()
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const workspaceElapsed = Date.now() - workspaceStartedAt
-		const listStartedAt = Date.now()
 		const sessionHistory = await this.taskHistory.listHistory({ hydrate: false, limit: limit + 1, offset })
-		const listElapsed = Date.now() - listStartedAt
-		const transformStartedAt = Date.now()
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -1032,7 +1004,6 @@ export class Controller {
 		})
 
 		const hasMore = sessionHistory.length > limit
-		const mapStartedAt = Date.now()
 		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
@@ -1050,9 +1021,6 @@ export class Controller {
 			}
 		})
 
-		Logger.log(
-			`[HistoryPerf] SdkController.getTaskHistory offset=${offset} limit=${limit} raw=${sessionHistory.length} filtered=${filteredTasks.length} tasks=${tasks.length} hasMore=${hasMore} workspace=${workspaceElapsed}ms list=${listElapsed}ms filterSortMap=${Date.now() - transformStartedAt}ms map=${Date.now() - mapStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return TaskHistoryArray.create({ tasks, hasMore })
 	}
 
@@ -1164,47 +1132,34 @@ export class Controller {
 	// ---- State management ----
 
 	async postStateToWebview(): Promise<void> {
-		const startedAt = Date.now()
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
-		const stateStartedAt = Date.now()
 		const state = await this.getStateToPostToWebview()
-		const stateElapsed = Date.now() - stateStartedAt
-		const sendStartedAt = Date.now()
 		await sendStateUpdate(state)
-		Logger.log(
-			`[HistoryPerf] SdkController.postStateToWebview state=${stateElapsed}ms send=${Date.now() - sendStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
-		// Delegate to the classic implementation which reads from StateManager.
-		// This will be gradually replaced with SDK-sourced state in later Steps
-		// For now, we import the classic getStateToPostToWebview logic.
+		// Build the base ExtensionState from StateManager, then layer the SDK's
+		// task history on top.
 		try {
-			const { getStateToPostToWebview: classicGetState } = await import("@core/controller/state/getStateToPostToWebview")
-			const state = await classicGetState({
+			const { getStateToPostToWebview: buildBaseState } = await import("@core/controller/state/getStateToPostToWebview")
+			const state = await buildBaseState({
 				task: this.task,
 				stateManager: this.stateManager,
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			const historyStartedAt = Date.now()
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
 				.filter((item) => item.ts && item.task)
 				.sort((a, b) => b.ts - a.ts)
-			const historyElapsed = Date.now() - historyStartedAt
-			if (historyElapsed > 250) {
-				Logger.warn(`[SdkController] fast listSdkTaskHistory during state build took ${historyElapsed}ms`)
-			}
-			const classicTaskHistory = state.taskHistory ?? []
+			const legacyTaskHistory = state.taskHistory ?? []
 			const mergedTaskHistoryById = new Map<string, HistoryItem>()
 
 			// Keep the SDK records authoritative for migrated/new tasks, but append
-			// classic persisted history so pre-migration tasks still appear in the UI.
-			for (const item of classicTaskHistory) {
+			// legacy persisted history so pre-migration tasks still appear in the UI.
+			for (const item of legacyTaskHistory) {
 				mergedTaskHistoryById.set(item.id, item)
 			}
 			for (const item of sdkTaskHistory) {
