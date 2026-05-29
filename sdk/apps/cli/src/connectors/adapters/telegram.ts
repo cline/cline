@@ -609,11 +609,14 @@ class TelegramConnector extends ConnectorBase<
 			: [...rawArgs, "--bot-username", resolvedBotUsername];
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<TelegramThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs: backgroundArgs,
@@ -1058,6 +1061,7 @@ class TelegramConnector extends ConnectorBase<
 		process.on("SIGTERM", shutdown);
 
 		await stopPromise;
+		clearBindingSessionIds<TelegramThreadState>(bindingsPath);
 
 		stopTaskUpdateStream();
 		stopEventStream();
