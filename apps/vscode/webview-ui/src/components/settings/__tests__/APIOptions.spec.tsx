@@ -2,7 +2,16 @@ import { ApiConfiguration } from "@shared/api"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider, useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderListings } from "@/hooks/useProviderListings"
 import ApiOptions from "../ApiOptions"
+
+vi.mock("@/hooks/useProviderListings", () => ({
+	useProviderListings: vi.fn(() => ({ providers: [], isLoading: false, error: undefined, refresh: vi.fn() })),
+}))
+
+vi.mock("../providers/GenericProviderSettings", () => ({
+	GenericProviderSettings: vi.fn((props) => <div data-testid="generic-provider-settings">{props.providerName}</div>),
+}))
 
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
@@ -40,6 +49,7 @@ describe("ApiOptions Component", () => {
 	beforeEach(() => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage }
+		vi.mocked(useProviderListings).mockReturnValue({ providers: [], isLoading: false, error: undefined, refresh: vi.fn() })
 		mockExtensionState({
 			planModeApiProvider: "requesty",
 			actModeApiProvider: "requesty",
@@ -65,6 +75,34 @@ describe("ApiOptions Component", () => {
 		const modelIdInput = screen.getByPlaceholderText("Search and select a model...")
 		expect(modelIdInput).toBeInTheDocument()
 	})
+
+	it("renders the generic provider fallback for simple SDK-listed providers without a custom override", () => {
+		vi.mocked(useProviderListings).mockReturnValue({
+			providers: [
+				{
+					allowsCustomModelIds: true,
+					id: "future-simple-provider",
+					name: "Future Simple Provider",
+					protocol: "openai-chat",
+				},
+			],
+			isLoading: false,
+			error: undefined,
+			refresh: vi.fn(),
+		})
+		mockExtensionState({
+			planModeApiProvider: "future-simple-provider" as any,
+			actModeApiProvider: "future-simple-provider" as any,
+		})
+
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+
+		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("Future Simple Provider")
+	})
 })
 
 describe("ApiOptions Component", () => {
@@ -80,24 +118,14 @@ describe("ApiOptions Component", () => {
 		})
 	})
 
-	it("renders Together API Key input", () => {
+	it("renders Together generic provider settings", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
-		expect(apiKeyInput).toBeInTheDocument()
-	})
 
-	it("renders Together Model ID input", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</ExtensionStateContextProvider>,
-		)
-		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
-		expect(modelIdInput).toBeInTheDocument()
+		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("Together")
 	})
 })
 

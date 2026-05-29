@@ -24,20 +24,17 @@ const createReasoningMessage = (ts: number, text: string): ClineMessage => ({
 })
 
 describe("groupLowStakesTools", () => {
-	it("ignores text that arrives after a low-stakes tool group has started", () => {
+	it("keeps text that arrives after a low-stakes tool group by finalizing the group first", () => {
 		const grouped = groupLowStakesTools([
 			createTextMessage(1, "Initial text"),
 			createToolMessage(2, "readFile"),
-			createTextMessage(3, "Late text that should be ignored"),
+			createTextMessage(3, "Post-tool summary text"),
 		])
 
-		expect(grouped).toHaveLength(2)
+		expect(grouped).toHaveLength(3)
 		expect(grouped[0]).toMatchObject({ type: "say", say: "text", text: "Initial text" })
 		expect(isToolGroup(grouped[1])).toBe(true)
-
-		if (isToolGroup(grouped[1])) {
-			expect(grouped[1].every((message) => message.say !== "text")).toBe(true)
-		}
+		expect(grouped[2]).toMatchObject({ type: "say", say: "text", text: "Post-tool summary text" })
 	})
 
 	it("keeps text when no low-stakes tool group is active", () => {

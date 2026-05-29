@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSafeDefaults } from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import OpenAI from "openai"
 import { StateManager } from "@/core/storage/StateManager"
@@ -393,7 +393,7 @@ export class LiteLlmHandler implements ApiHandler {
 		const cachedModelInfo = StateManager.get().getModelInfo("liteLlm", modelId)
 
 		// Fall back to provided model info or defaults if not in cache
-		const modelInfo = cachedModelInfo || this.options.liteLlmModelInfo || liteLlmModelInfoSaneDefaults
+		const modelInfo = cachedModelInfo || this.options.liteLlmModelInfo || liteLlmModelInfoSafeDefaults
 
 		return {
 			id: modelId,
