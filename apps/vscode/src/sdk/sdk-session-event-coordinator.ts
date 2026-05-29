@@ -69,9 +69,8 @@ export class SdkSessionEventCoordinator {
 			)
 		}
 
-		// Track consecutive tool errors and emit mistake_limit_reached when threshold is met.
-		// This mirrors the classic Task.recursivelyMakeClineRequests() behavior where
-		// consecutiveMistakeCount is checked against maxConsecutiveMistakes.
+		// Track consecutive tool errors and emit mistake_limit_reached once the
+		// count reaches the user's maxConsecutiveMistakes setting.
 		this.trackToolErrors(result)
 
 		if (result.messages.length > 0) {
@@ -131,7 +130,7 @@ export class SdkSessionEventCoordinator {
 					`[SdkController] Consecutive tool error count (${this.consecutiveToolErrorCount}) reached limit (${maxConsecutiveMistakes}), emitting mistake_limit_reached`,
 				)
 
-				// Determine the model-specific guidance message (mirrors classic Task behavior)
+				// Model-specific guidance message shown alongside the limit notice.
 				const modelId = this.getCurrentClineModelId() ?? ""
 				const guidanceMessage = modelId.includes("claude")
 					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
@@ -148,12 +147,10 @@ export class SdkSessionEventCoordinator {
 
 				result.messages.push(mistakeLimitMessage)
 
-				// Mark the turn as complete so handleSessionEvent stops the session.
-				// In the classic Task path, ask("mistake_limit_reached") blocks the
-				// execution loop — the agent WAITS for user input. In the SDK path,
-				// the agent would otherwise continue running and append more messages,
-				// causing mistake_limit_reached to no longer be the last message (so
-				// the webview never shows the correct buttons).
+				// Mark the turn complete so handleSessionEvent stops the session and
+				// the agent waits for user input. Otherwise it keeps running and
+				// appends more messages, pushing mistake_limit_reached out of the
+				// last-message slot so the webview never shows the correct buttons.
 				result.turnComplete = true
 
 				// Abort the SDK session so the agent actually stops producing events.

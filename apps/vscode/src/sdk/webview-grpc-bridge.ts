@@ -3,10 +3,8 @@
 // Bridges SDK session events to the webview's gRPC streaming subscriptions.
 // When the SDK emits session events (text chunks, tool calls, etc.), this
 // module translates them to proto ClineMessages and pushes them through
-// the existing subscribeToPartialMessage and subscribeToState streams.
-//
-// This is the "thunking layer" — the webview continues to receive gRPC-shaped
-// messages, but the source is now the SDK instead of the classic Task.
+// the subscribeToPartialMessage and subscribeToState streams the webview
+// already listens on.
 
 import type { CoreSessionEvent } from "@cline/core"
 import { sendStateUpdate } from "@core/controller/state/subscribeToState"

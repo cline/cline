@@ -253,7 +253,7 @@ function assignIfDefined<T extends ConfigKey>(target: Partial<ConfigParts>, key:
  * task/session/remote-config overlays for legacy fields, so those values win.
  *
  * Mode-dependent model selection is intentionally excluded; callers use
- * `ProviderConfigStore.readSelection(providerId, mode)` for that in Phase 1.4.
+ * `ProviderConfigStore.readSelection(providerId, mode)` for that.
  */
 export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveProviderConfig {
 	const providerSettings = readProviderSettings(providerId)

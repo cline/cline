@@ -47,20 +47,42 @@ function buildCodexCatalog(): {
 	return { models, defaultModelId: collection.provider.defaultModelId }
 }
 
-const { models: CODEX_MODELS, defaultModelId: CODEX_DEFAULT_MODEL_ID } = buildCodexCatalog()
+// Memoized so the SDK catalog is built at most once, on first access, rather
+// than at module-evaluation time. Building eagerly here would run during the
+// `@shared/api` ↔ `shape-adapter` import cycle and touch `shape-adapter`
+// module constants before they finish initializing (a temporal-dead-zone
+// crash).
+let codexCatalog: { models: Record<string, ModelInfo>; defaultModelId: string } | undefined
+
+function getCodexCatalog(): { models: Record<string, ModelInfo>; defaultModelId: string } {
+	if (!codexCatalog) {
+		codexCatalog = buildCodexCatalog()
+	}
+	return codexCatalog
+}
 
 /**
  * Canonical OpenAI Codex model catalog, derived from the `@cline/llms` SDK.
  *
  * Keys are SDK model ids (e.g. `"gpt-5.4"`, `"gpt-5.3-codex"`). The set of
  * keys is determined by {@link filterOpenAICodexModels} in the SDK.
+ *
+ * Lazily built on first access (see {@link getCodexCatalog}).
  */
-export const openAiCodexModels: Record<string, ModelInfo> = CODEX_MODELS
+export const openAiCodexModels: Record<string, ModelInfo> = new Proxy({} as Record<string, ModelInfo>, {
+	get: (_target, prop: string) => getCodexCatalog().models[prop],
+	has: (_target, prop: string) => prop in getCodexCatalog().models,
+	ownKeys: () => Reflect.ownKeys(getCodexCatalog().models),
+	getOwnPropertyDescriptor: (_target, prop: string) => Object.getOwnPropertyDescriptor(getCodexCatalog().models, prop),
+})
 
 /**
  * Default Codex model id, sourced from the SDK's builtin provider metadata.
+ * Lazily resolved on first access.
  */
-export const openAiCodexDefaultModelId: string = CODEX_DEFAULT_MODEL_ID
+export function getOpenAiCodexDefaultModelId(): string {
+	return getCodexCatalog().defaultModelId
+}
 
 /**
  * OpenAI Codex model id. Plain `string` because the SDK provides Codex

@@ -254,12 +254,10 @@ export class SdkTaskHistory {
 			return this.cachedHistoryHostPromise
 		}
 
-		const startedAt = Date.now()
 		this.cachedHistoryHostPromise = (async () => {
 			const { VscodeSessionHost } = await import("./vscode-session-host")
 			const historyHost = await VscodeSessionHost.create({ mcpHub: this.options.mcpHub })
 			this.cachedHistoryHost = historyHost
-			Logger.log(`[HistoryPerf] SdkTaskHistory created cached history host in ${Date.now() - startedAt}ms`)
 			return historyHost
 		})()
 
@@ -300,11 +298,9 @@ export class SdkTaskHistory {
 			return
 		}
 
-		const startedAt = Date.now()
 		await historyHost.dispose(`taskHistory:${reason}`).catch((error) => {
 			Logger.warn("[SdkTaskHistory] Failed to dispose cached history host:", error)
 		})
-		Logger.log(`[HistoryPerf] SdkTaskHistory disposed cached history host reason=${reason} took ${Date.now() - startedAt}ms`)
 	}
 
 	async dispose(): Promise<void> {
@@ -341,7 +337,6 @@ export class SdkTaskHistory {
 	}
 
 	async listHistory(options: SdkTaskHistoryListOptions = {}): Promise<SessionHistoryRecord[]> {
-		const startedAt = Date.now()
 		const offset = Math.max(0, Math.floor(options.offset ?? 0))
 		const limit = Math.max(0, Math.floor(options.limit ?? 10_000))
 		const hostLimit = offset + limit
@@ -350,21 +345,15 @@ export class SdkTaskHistory {
 		const cached = useCache ? this.metadataHistoryCache : undefined
 		if (cached && cached.hostLimit >= hostLimit && now - cached.createdAt < this.metadataHistoryCacheTtlMs) {
 			const result = cached.records.slice(offset, offset + limit)
-			Logger.log(
-				`[HistoryPerf] SdkTaskHistory.listHistory cacheHit=true offset=${offset} limit=${limit} cachedHostLimit=${cached.hostLimit} result=${result.length} total=${Date.now() - startedAt}ms`,
-			)
 			return result
 		}
 
 		const hostOptions: ClineCoreListHistoryOptions = { ...options }
 		delete (hostOptions as { offset?: number }).offset
 
-		const hostStartedAt = Date.now()
 		const sdkHistory = await this.withHistoryHost((host) =>
 			host.listHistory({ ...hostOptions, limit: hostLimit || 10_000, includeManifestFallback: true }),
 		)
-		const hostElapsed = Date.now() - hostStartedAt
-		const mergeStartedAt = Date.now()
 		const visibleSdkHistory = sdkHistory.filter((item) => item.isSubagent !== true)
 		const sdkIds = new Set(visibleSdkHistory.map((item) => item.sessionId))
 		const legacyHistory = readTaskHistory()
@@ -381,68 +370,39 @@ export class SdkTaskHistory {
 		}
 
 		const result = mergedHistory.slice(offset, offset + limit)
-		Logger.log(
-			`[HistoryPerf] SdkTaskHistory.listHistory cacheHit=false offset=${offset} limit=${limit} hydrate=${options.hydrate !== false} sdk=${sdkHistory.length} visibleSdk=${visibleSdkHistory.length} legacy=${legacyHistory.length} result=${result.length} host=${hostElapsed}ms mergeSort=${Date.now() - mergeStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return result
 	}
 
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
-		const startedAt = Date.now()
-		const migrateStartedAt = Date.now()
-		const migrated = await this.migrateLegacyTaskIfNeeded(taskId)
-		const migrateElapsed = Date.now() - migrateStartedAt
-		const readStartedAt = Date.now()
+		await this.migrateLegacyTaskIfNeeded(taskId)
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
-		const readElapsed = Date.now() - readStartedAt
-		const translateStartedAt = Date.now()
 		const clineMessages = sdkMessagesToClineMessages(sanitizeSdkUserMessagesForDisplay(sdkMessages))
-		Logger.log(
-			`[HistoryPerf] SdkTaskHistory.getClineMessages taskId=${taskId} migrated=${migrated} sdkMessages=${sdkMessages.length} clineMessages=${clineMessages.length} migrate=${migrateElapsed}ms read=${readElapsed}ms translate=${Date.now() - translateStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return clineMessages
 	}
 
 	private async migrateLegacyTaskIfNeeded(taskId: string): Promise<boolean> {
-		const startedAt = Date.now()
 		return this.withHistoryHost(async (host) => {
 			try {
 				const existing = await host.get(taskId)
 				if (existing) {
-					Logger.log(
-						`[HistoryPerf] SdkTaskHistory.migrateLegacyTaskIfNeeded taskId=${taskId} existingSdk=true total=${Date.now() - startedAt}ms`,
-					)
 					return false
 				}
 			} catch (error) {
 				Logger.warn(`[SdkTaskHistory] Failed to check SDK session before legacy migration: ${taskId}`, error)
 			}
 
-			const legacyLookupStartedAt = Date.now()
 			const historyItem = readTaskHistory().find((item) => item.id === taskId)
 			if (!historyItem) {
-				Logger.log(
-					`[HistoryPerf] SdkTaskHistory.migrateLegacyTaskIfNeeded taskId=${taskId} legacyFound=false legacyLookup=${Date.now() - legacyLookupStartedAt}ms total=${Date.now() - startedAt}ms`,
-				)
 				return false
 			}
 
-			const legacyReadStartedAt = Date.now()
 			const legacyApiHistory = readApiConversationHistory(taskId)
 			if (legacyApiHistory.length === 0) {
-				Logger.log(
-					`[HistoryPerf] SdkTaskHistory.migrateLegacyTaskIfNeeded taskId=${taskId} legacyMessages=0 legacyRead=${Date.now() - legacyReadStartedAt}ms total=${Date.now() - startedAt}ms`,
-				)
 				return false
 			}
 
-			const translateStartedAt = Date.now()
 			const initialMessages = legacyApiHistoryToSdkMessages(legacyApiHistory, historyItem)
-			const translateElapsed = Date.now() - translateStartedAt
 			if (initialMessages.length === 0) {
-				Logger.log(
-					`[HistoryPerf] SdkTaskHistory.migrateLegacyTaskIfNeeded taskId=${taskId} translatedMessages=0 legacyMessages=${legacyApiHistory.length} translate=${translateElapsed}ms total=${Date.now() - startedAt}ms`,
-				)
 				return false
 			}
 
@@ -450,7 +410,6 @@ export class SdkTaskHistory {
 			const config = await buildSessionConfig({ cwd, workspaceRoot: cwd, mode: "act" })
 			config.sessionId = taskId
 
-			const startStartedAt = Date.now()
 			await host.start({
 				config,
 				prompt: undefined,
@@ -472,9 +431,6 @@ export class SdkTaskHistory {
 
 			this.invalidateMetadataHistoryCache()
 			Logger.log(`[SdkTaskHistory] Migrated legacy task to SDK session: ${taskId}`)
-			Logger.log(
-				`[HistoryPerf] SdkTaskHistory.migrateLegacyTaskIfNeeded taskId=${taskId} legacyMessages=${legacyApiHistory.length} initialMessages=${initialMessages.length} translate=${translateElapsed}ms start=${Date.now() - startStartedAt}ms total=${Date.now() - startedAt}ms`,
-			)
 			return true
 		})
 	}
@@ -511,22 +467,12 @@ export class SdkTaskHistory {
 	}
 
 	async findHistoryItem(taskId: string): Promise<HistoryItem | undefined> {
-		const startedAt = Date.now()
-		const sdkLookupStartedAt = Date.now()
 		const sdkRecord = await this.withHistoryHost((host) => host.get(taskId))
-		const sdkLookupElapsed = Date.now() - sdkLookupStartedAt
 		if (sdkRecord && sdkRecord.isSubagent !== true) {
-			Logger.log(
-				`[HistoryPerf] SdkTaskHistory.findHistoryItem taskId=${taskId} source=sdk sdkLookup=${sdkLookupElapsed}ms total=${Date.now() - startedAt}ms`,
-			)
 			return sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
 		}
 
-		const legacyLookupStartedAt = Date.now()
 		const legacyItem = readTaskHistory().find((item) => item.id === taskId)
-		Logger.log(
-			`[HistoryPerf] SdkTaskHistory.findHistoryItem taskId=${taskId} source=${legacyItem ? "legacy" : "missing"} sdkLookup=${sdkLookupElapsed}ms legacyLookup=${Date.now() - legacyLookupStartedAt}ms total=${Date.now() - startedAt}ms`,
-		)
 		return legacyItem
 	}
 
