@@ -206,6 +206,45 @@ describe("resolveModelInfo", () => {
 		expect(catalog.resolveModels).toHaveBeenCalledTimes(1)
 	})
 
+	it("does not coerce a custom OpenAI Compatible model id to the catalog default", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const store = makeStore({ providerId: parseProviderId("openai") })
+		const catalog = makeCatalog()
+		// The openai-compatible catalog only knows gpt-4o. A user-entered custom
+		// model id must NOT be replaced with that default — the requested id is
+		// authoritative for custom-model-id providers.
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult("openai", [["gpt-4o", { name: "GPT-4o", supportsPromptCache: false, contextWindow: 128_000 }]], "gpt-4o"),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "openai",
+			modelId: "my-custom-model-xyz",
+		})
+
+		expect(response.modelId).toBe("my-custom-model-xyz")
+		expect(response.source).toBe("unknown")
+		expect(response.modelInfo).toBeUndefined()
+	})
+
+	it("still honors a custom-provider model id that does match the catalog", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const store = makeStore({ providerId: parseProviderId("openai") })
+		const catalog = makeCatalog()
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult("openai", [["gpt-4o", { name: "GPT-4o", supportsPromptCache: false, contextWindow: 128_000 }]], "gpt-4o"),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "openai",
+			modelId: "gpt-4o",
+		})
+
+		expect(response.source).toBe("sdk-known-models")
+		expect(response.modelId).toBe("gpt-4o")
+		expect(response.modelInfo?.contextWindow).toBe(128_000)
+	})
+
 	it("returns unknown for an unknown provider without throwing", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const store = makeStore({ providerId: parseProviderId("not-real-provider") })

@@ -116,6 +116,10 @@ function anthropicContentBlockToSdkBlock(block: unknown): ContentBlock | undefin
 				? {
 						type: "tool_result",
 						tool_use_id: record.tool_use_id,
+						// SDK tool_result blocks carry the tool name, but Anthropic-format
+						// transcripts identify the tool only by tool_use_id. Use the name
+						// when present and otherwise leave it empty.
+						name: typeof record.name === "string" ? record.name : "",
 						content: typeof record.content === "string" ? record.content : JSON.stringify(record.content ?? ""),
 						is_error: typeof record.is_error === "boolean" ? record.is_error : undefined,
 					}

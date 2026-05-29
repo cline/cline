@@ -45,7 +45,7 @@ describe("normalizeProviderSwitchModel", () => {
 		// the generated model catalog. Provider-switch normalization must match the
 		// model picker/catalog default instead of writing the invalid manifest value.
 		expect(MODEL_COLLECTIONS_BY_PROVIDER_ID.gemini.provider.defaultModelId).toBe("gemma-4-26b")
-		expect(normalized.actModeApiModelId).toBe("gemini-3.1-flash-lite")
+		expect(normalized.actModeApiModelId).toBe("gemini-3.5-flash")
 	})
 
 	it("restores a previously committed DeepSeek selection before falling back to SDK default", () => {

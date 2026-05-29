@@ -44,7 +44,25 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 	cacheTtlMs: 0,
 }
 
-const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["ollama", "lmstudio", "litellm"])
+// Providers whose model id is user-supplied free text rather than a fixed
+// catalog selection. The SDK catalog for these either has no curated model
+// list (openai-compatible: bring-your-own base URL + model) or a host-fetched
+// list that the user can also bypass (ollama/lmstudio/litellm). For these,
+// the picker must allow arbitrary model ids and model resolution must honor
+// the requested id instead of coercing to the catalog default.
+const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm"])
+
+/**
+ * Whether a provider id accepts a user-supplied (custom) model id. Exported so
+ * model-resolution code paths (e.g. `resolveModelInfo`) can honor a custom id
+ * for these providers rather than falling back to the SDK catalog default.
+ *
+ * Accepts either the extension or SDK provider id spelling (the extension's
+ * `openai` maps to the SDK's `openai-compatible`).
+ */
+export function providerAllowsCustomModelIds(providerId: string): boolean {
+	return CUSTOM_MODEL_ID_PROVIDER_IDS.has(toSdkProviderId(providerId))
+}
 
 /**
  * Normalize the SDK's usage-cost-display answer (string union) into the
