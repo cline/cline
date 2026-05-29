@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createChatCommandHost, maybeHandleChatCommand } from "./chat-commands";
+import {
+	createChatCommandHost,
+	isCommandAddressedToBot,
+	maybeHandleChatCommand,
+} from "./chat-commands";
 
 describe("chat commands", () => {
 	it("shows connector help for /help and /start", async () => {
@@ -62,6 +66,39 @@ describe("chat commands", () => {
 
 		expect(handled).toBe(false);
 		expect(reply).not.toHaveBeenCalled();
+	});
+
+	it("requires a bot suffix when requested", async () => {
+		const reply = vi.fn(async () => undefined);
+		const context = {
+			enabled: true,
+			botUserName: "clinebot",
+			requireBotMention: true,
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		};
+
+		expect(await maybeHandleChatCommand("/help", context)).toBe(false);
+		expect(reply).not.toHaveBeenCalled();
+
+		expect(await maybeHandleChatCommand("/help@clinebot", context)).toBe(true);
+		expect(reply).toHaveBeenCalledWith(
+			expect.stringContaining("Cline connector commands:"),
+		);
+	});
+
+	it("detects commands addressed to the configured bot", () => {
+		expect(isCommandAddressedToBot("/new@clinebot", "clinebot")).toBe(true);
+		expect(isCommandAddressedToBot("/new@cline_bot", "@cline_bot")).toBe(true);
+		expect(isCommandAddressedToBot("/new", "clinebot")).toBe(false);
+		expect(isCommandAddressedToBot("/new@otherbot", "clinebot")).toBe(false);
+		expect(isCommandAddressedToBot("/new@clinebot", undefined)).toBe(false);
 	});
 
 	it("leaves bot-suffixed commands unmatched without a known bot username", async () => {
