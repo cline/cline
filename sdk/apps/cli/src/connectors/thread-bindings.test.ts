@@ -5,8 +5,12 @@ import type { Thread } from "chat";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	type ConnectorThreadState,
+	isParticipantMuted,
+	isThreadMuted,
 	readBindingForThread,
 	readBindings,
+	setParticipantMuted,
+	setThreadMuted,
 	writeBindings,
 } from "./thread-bindings";
 
@@ -118,5 +122,90 @@ describe("thread binding refresh", () => {
 		expect(
 			readBindings<TestState>(path)[participantKey]?.serializedThread,
 		).toContain("new_thread_id");
+	});
+
+	it("stores mute state at thread scope instead of participant scope", () => {
+		const path = createBindingsPath();
+		const thread = createThread({
+			id: "thread-1",
+			channelId: "discord:guild:channel",
+			isDM: false,
+			participantKey: "discord:user:alice",
+		});
+
+		setThreadMuted(path, thread, true, "Discord");
+
+		expect(
+			isThreadMuted(
+				path,
+				createThread({
+					id: "thread-1",
+					channelId: "discord:guild:channel",
+					isDM: false,
+					participantKey: "discord:user:bob",
+				}),
+			),
+		).toBe(true);
+
+		const binding = readBindingForThread<TestState>(
+			path,
+			thread,
+			"Discord",
+			"discord:user:alice",
+		);
+		expect(binding).toBeUndefined();
+
+		setThreadMuted(path, thread, false, "Discord");
+
+		expect(isThreadMuted(path, thread)).toBe(false);
+	});
+
+	it("stores participant mute state scoped to the current thread", () => {
+		const path = createBindingsPath();
+		const thread = createThread({
+			id: "thread-1",
+			channelId: "discord:guild:channel",
+			isDM: false,
+		});
+		const otherThread = createThread({
+			id: "thread-2",
+			channelId: "discord:guild:channel",
+			isDM: false,
+		});
+
+		setParticipantMuted(
+			path,
+			thread,
+			{
+				participantKey: "discord:user:bob",
+				participantLabel: "Bob",
+			},
+			true,
+			"Discord",
+		);
+
+		expect(isParticipantMuted(path, thread, "discord:user:bob")).toBe(true);
+		expect(isParticipantMuted(path, thread, "discord:user:alice")).toBe(false);
+		expect(isParticipantMuted(path, otherThread, "discord:user:bob")).toBe(
+			false,
+		);
+		expect(
+			readBindingForThread<TestState>(
+				path,
+				thread,
+				"Discord",
+				"discord:user:bob",
+			),
+		).toBeUndefined();
+
+		setParticipantMuted(
+			path,
+			thread,
+			{ participantKey: "discord:user:bob" },
+			false,
+			"Discord",
+		);
+
+		expect(isParticipantMuted(path, thread, "discord:user:bob")).toBe(false);
 	});
 });

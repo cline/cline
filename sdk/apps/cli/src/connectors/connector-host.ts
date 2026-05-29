@@ -12,6 +12,8 @@ import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
 import {
 	type ChatCommandHost,
 	type ChatCommandState,
+	isCommandAddressedToBot,
+	type MuteCommandInput,
 	maybeHandleChatCommand,
 	normalizeCommandName,
 } from "../utils/chat-commands";
@@ -29,15 +31,24 @@ import {
 	getOrCreateSessionId,
 } from "./session-runtime";
 import {
+	type ConnectorMuteTarget,
 	type ConnectorThreadState,
+	findMutedParticipantsForThread,
+	isParticipantMutedInBindings,
+	isThreadMutedInBindings,
 	loadThreadState,
 	persistMergedThreadState,
 	persistThreadBinding,
+	readBindings,
 	resolveThreadBindingKey,
+	setParticipantMuted,
+	setThreadMuted,
 } from "./thread-bindings";
 
 export type ActiveConnectorTurn = {
 	sessionId: string;
+	threadId?: string;
+	participantKey?: string;
 };
 
 type EmptyRuntimeReplyResolver = () => Promise<string | undefined>;
@@ -142,6 +153,53 @@ export function isConnectorIdleReply(text: string): boolean {
 	return text.trim().toLowerCase() === "/idle";
 }
 
+function resolveConnectorCommandName(
+	text: string,
+	botUserName: string | undefined,
+): string | undefined {
+	const [commandToken = ""] = text.trim().split(/\s+/);
+	if (!commandToken.startsWith("/")) {
+		return undefined;
+	}
+	return normalizeCommandName(commandToken.toLowerCase(), botUserName);
+}
+
+function getConnectorCommandToken(text: string): string | undefined {
+	const [commandToken = ""] = text.trim().split(/\s+/);
+	return commandToken.startsWith("/") ? commandToken : undefined;
+}
+
+function isConnectorCommandAddressedToThisBot(
+	text: string,
+	botUserName: string | undefined,
+): boolean {
+	const commandToken = getConnectorCommandToken(text);
+	return commandToken
+		? isCommandAddressedToBot(commandToken, botUserName)
+		: false;
+}
+
+function participantMatchesOwner(
+	participantKey: string | undefined,
+	ownerParticipantKeys: readonly string[] | undefined,
+): boolean {
+	const normalizedParticipantKey = participantKey?.trim().toLowerCase();
+	if (!normalizedParticipantKey) {
+		return false;
+	}
+	return (ownerParticipantKeys ?? []).some(
+		(key) => key.trim().toLowerCase() === normalizedParticipantKey,
+	);
+}
+
+function formatMuteTargetLabel(target: ConnectorMuteTarget): string {
+	return target.participantLabel?.trim() || target.participantKey;
+}
+
+function formatMuteTargetList(targets: ConnectorMuteTarget[]): string {
+	return targets.map(formatMuteTargetLabel).join(", ");
+}
+
 export async function handleConnectorUserTurn<
 	TState extends ConnectorThreadState,
 >(input: {
@@ -156,6 +214,7 @@ export async function handleConnectorUserTurn<
 	logger: CliLoggerAdapter;
 	transport: string;
 	botUserName?: string;
+	ownerParticipantKeys?: string[];
 	requestStop: (reason: string) => void;
 	bindingsPath: string;
 	hookCommand?: string;
@@ -174,6 +233,14 @@ export async function handleConnectorUserTurn<
 	userInstructionService?: UserInstructionConfigService;
 	activeTurns?: Map<string, ActiveConnectorTurn>;
 	turnKey?: string;
+	resolveMuteTarget?: (input: {
+		target: string;
+		thread: Thread<TState>;
+		currentState: TState;
+	}) =>
+		| Promise<ConnectorMuteTarget | undefined>
+		| ConnectorMuteTarget
+		| undefined;
 	forceDisableTools?: boolean;
 	reusedLogMessage: string;
 	startedLogMessage?: string;
@@ -291,6 +358,70 @@ export async function handleConnectorUserTurn<
 		);
 		return;
 	}
+	const commandName = resolveConnectorCommandName(
+		resolvedInput,
+		input.botUserName,
+	);
+	const isConnectorCommand = commandName !== undefined;
+	if (
+		isConnectorCommand &&
+		!input.thread.isDM &&
+		!isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName)
+	) {
+		input.logger.core.log("Unaddressed connector chat command ignored", {
+			transport: input.transport,
+			threadId: input.thread.id,
+			channelId: input.thread.channelId,
+			participantKey: initialState.participantKey,
+			textPreview: truncateConnectorText(resolvedInput),
+		});
+		return;
+	}
+	if (
+		isConnectorCommand &&
+		input.ownerParticipantKeys?.length &&
+		!participantMatchesOwner(
+			initialState.participantKey,
+			input.ownerParticipantKeys,
+		)
+	) {
+		await postConnectorText(
+			input.thread,
+			input.transport,
+			"Only the connector owner can use slash commands.",
+		);
+		input.logger.core.log("Non-owner connector chat command denied", {
+			transport: input.transport,
+			threadId: input.thread.id,
+			channelId: input.thread.channelId,
+			participantKey: initialState.participantKey,
+			ownerParticipantKeys: input.ownerParticipantKeys,
+			textPreview: truncateConnectorText(resolvedInput),
+		});
+		return;
+	}
+	const turnBindings = readBindings<TState>(input.bindingsPath);
+	const threadMuted = isThreadMutedInBindings(turnBindings, input.thread);
+	const participantMuted = isParticipantMutedInBindings(
+		turnBindings,
+		input.thread,
+		initialState.participantKey,
+	);
+	if (
+		(threadMuted || participantMuted) &&
+		commandName !== "/unmute" &&
+		commandName !== "/mute"
+	) {
+		input.logger.core.log("Muted connector thread message ignored", {
+			transport: input.transport,
+			threadId: input.thread.id,
+			channelId: input.thread.channelId,
+			participantKey: initialState.participantKey,
+			muteScope: threadMuted ? "thread" : "participant",
+			textPreview: truncateConnectorText(resolvedInput),
+		});
+		return;
+	}
 	const turnKey =
 		input.turnKey ||
 		resolveThreadBindingKey(
@@ -348,11 +479,7 @@ export async function handleConnectorUserTurn<
 	}
 	await input.onMessageReceived?.(receivedDetails);
 
-	const [commandToken = ""] = resolvedInput.trim().split(/\s+/);
-	const toolLockCommand = normalizeCommandName(
-		commandToken.toLowerCase(),
-		input.botUserName,
-	).match(/^\/(tools|yolo)$/i);
+	const toolLockCommand = commandName?.match(/^\/(tools|yolo)$/i);
 	if (input.forceDisableTools && toolLockCommand) {
 		const settingName = toolLockCommand[1]?.toLowerCase();
 		await postConnectorText(
@@ -367,6 +494,7 @@ export async function handleConnectorUserTurn<
 		await maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
 			botUserName: input.botUserName,
+			requireBotMention: !input.thread.isDM,
 			host: input.chatCommandHost,
 			getState: async () => {
 				const current = await loadThreadState(
@@ -392,6 +520,7 @@ export async function handleConnectorUserTurn<
 						effectiveCurrent.workspaceRoot ||
 						input.baseStartRequest.workspaceRoot,
 					toolsLocked: input.forceDisableTools,
+					threadMuted: isThreadMutedInBindings(turnBindings, input.thread),
 				};
 			},
 			setState: async (next: ChatCommandState) => {
@@ -497,6 +626,90 @@ export async function handleConnectorUserTurn<
 					"Aborting current task.",
 				);
 			},
+			mute: async (commandInput: MuteCommandInput) => {
+				const target = commandInput.target?.trim()
+					? await input.resolveMuteTarget?.({
+							target: commandInput.target,
+							thread: input.thread,
+							currentState: initialState,
+						})
+					: undefined;
+				if (commandInput.target?.trim() && !target) {
+					return `Could not resolve mute target: ${commandInput.target.trim()}`;
+				}
+				const activeTurns = input.activeTurns
+					? Array.from(input.activeTurns.entries()).filter(([key, turn]) =>
+							target
+								? key === target.participantKey ||
+									turn.participantKey === target.participantKey
+								: key === turnKey ||
+									turn.threadId === input.thread.id ||
+									(initialState.sessionId?.trim() &&
+										turn.sessionId === initialState.sessionId.trim()),
+						)
+					: [];
+				await Promise.allSettled(
+					activeTurns.map(([, turn]) =>
+						input.client.abortRuntimeSession(turn.sessionId),
+					),
+				);
+				if (target) {
+					setParticipantMuted(
+						input.bindingsPath,
+						input.thread,
+						target,
+						true,
+						input.errorLabel,
+					);
+					return `Muted ${formatMuteTargetLabel(target)} in this thread. I will ignore their messages until /unmute ${formatMuteTargetLabel(target)}.`;
+				}
+				setThreadMuted(
+					input.bindingsPath,
+					input.thread,
+					true,
+					input.errorLabel,
+				);
+				return undefined;
+			},
+			unmute: async (commandInput: MuteCommandInput) => {
+				const target = commandInput.target?.trim()
+					? await input.resolveMuteTarget?.({
+							target: commandInput.target,
+							thread: input.thread,
+							currentState: initialState,
+						})
+					: undefined;
+				if (commandInput.target?.trim() && !target) {
+					return `Could not resolve unmute target: ${commandInput.target.trim()}`;
+				}
+				if (target) {
+					setParticipantMuted(
+						input.bindingsPath,
+						input.thread,
+						target,
+						false,
+						input.errorLabel,
+					);
+					return `Unmuted ${formatMuteTargetLabel(target)} in this thread.`;
+				}
+				if (!threadMuted) {
+					const mutedParticipants = findMutedParticipantsForThread(
+						turnBindings,
+						input.thread,
+					);
+					if (mutedParticipants.length > 0) {
+						return `No thread-level mute is active. Participant-specific mutes are still active for ${formatMuteTargetList(mutedParticipants)}. Use /unmute <target> to clear one.`;
+					}
+					return "Thread is not muted.";
+				}
+				setThreadMuted(
+					input.bindingsPath,
+					input.thread,
+					false,
+					input.errorLabel,
+				);
+				return undefined;
+			},
 			stop: async () => {
 				await clearSession({
 					thread: input.thread,
@@ -552,6 +765,7 @@ export async function handleConnectorUserTurn<
 					`isDM=${input.thread.isDM ? "true" : "false"}`,
 					`tools=${effectiveCurrent.enableTools ? "on" : "off"}`,
 					`yolo=${effectiveCurrent.autoApproveTools ? "on" : "off"}`,
+					`muted=${threadMuted ? "true" : "false"}`,
 					`cwd=${effectiveCurrent.cwd || input.baseStartRequest.cwd}`,
 					`workspaceRoot=${effectiveCurrent.workspaceRoot || input.baseStartRequest.workspaceRoot}`,
 				].join("\n");
@@ -757,7 +971,11 @@ export async function handleConnectorUserTurn<
 		sessionId,
 	});
 
-	input.activeTurns?.set(turnKey, { sessionId });
+	input.activeTurns?.set(turnKey, {
+		sessionId,
+		threadId: input.thread.id,
+		participantKey: currentState.participantKey,
+	});
 	await input.thread.startTyping();
 	let toolStatusMessage: SentMessage | undefined;
 	const postFinalReply = input.postFinalReply
