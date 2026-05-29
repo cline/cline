@@ -288,6 +288,13 @@ export function isThreadMuted<TState extends ConnectorThreadState>(
 	thread: ConnectorBindingThreadIdentity,
 ): boolean {
 	const bindings = readBindings<TState>(path);
+	return isThreadMutedInBindings(bindings, thread);
+}
+
+export function isThreadMutedInBindings<TState extends ConnectorThreadState>(
+	bindings: ConnectorBindingStore<TState>,
+	thread: ConnectorBindingThreadIdentity,
+): boolean {
 	const binding = bindings[resolveThreadControlKey(thread)];
 	return Boolean(binding?.threadMutedAt);
 }
@@ -302,8 +309,45 @@ export function isParticipantMuted<TState extends ConnectorThreadState>(
 		return false;
 	}
 	const bindings = readBindings<TState>(path);
+	return isParticipantMutedInBindings(bindings, thread, participantKey);
+}
+
+export function isParticipantMutedInBindings<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	thread: ConnectorBindingThreadIdentity,
+	participantKey: string | undefined,
+): boolean {
+	const key = resolveParticipantMuteControlKey(thread, participantKey);
+	if (!key) {
+		return false;
+	}
 	const binding = bindings[key];
 	return Boolean(binding?.participantMutedAt);
+}
+
+export function findMutedParticipantsForThread<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	thread: ConnectorBindingThreadIdentity,
+): ConnectorMuteTarget[] {
+	const prefix = `thread:${thread.id}:participant:`;
+	return Object.entries(bindings)
+		.filter(
+			([key, binding]) =>
+				key.startsWith(prefix) &&
+				binding.kind === "thread-participant-mute" &&
+				Boolean(binding.participantMutedAt) &&
+				Boolean(normalizeParticipantKey(binding.mutedParticipantKey)),
+		)
+		.map(([, binding]) => ({
+			participantKey:
+				normalizeParticipantKey(binding.mutedParticipantKey) ?? "",
+			participantLabel: binding.mutedParticipantLabel,
+		}))
+		.filter((target) => target.participantKey.length > 0);
 }
 
 export function setThreadMuted<TState extends ConnectorThreadState>(

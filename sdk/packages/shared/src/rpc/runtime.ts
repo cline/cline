@@ -149,6 +149,33 @@ export interface ProviderModel {
 	supportsReasoning?: boolean;
 }
 
+export type ProviderConfigFieldType =
+	| "text"
+	| "password"
+	| "url"
+	| "number"
+	| "select"
+	| "boolean";
+
+export type ProviderConfigFieldPrimitive = string | number | boolean | null;
+
+export interface ProviderConfigFieldOption {
+	label: string;
+	value: Exclude<ProviderConfigFieldPrimitive, null>;
+}
+
+export interface ProviderConfigField {
+	path: string;
+	label: string;
+	type: ProviderConfigFieldType;
+	description?: string;
+	placeholder?: string;
+	required?: boolean;
+	secret?: boolean;
+	options?: ProviderConfigFieldOption[];
+	defaultValue?: ProviderConfigFieldPrimitive;
+}
+
 export interface ProviderListItem {
 	id: string;
 	name: string;
@@ -165,6 +192,8 @@ export interface ProviderListItem {
 	capabilities?: ProviderCapability[];
 	authDescription: string;
 	baseUrlDescription: string;
+	configFields?: ProviderConfigField[];
+	configValues?: Record<string, ProviderConfigFieldPrimitive>;
 	modelList?: ProviderModel[];
 	family?: string;
 }

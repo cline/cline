@@ -785,6 +785,23 @@ describe("saveLocalProviderSettings", () => {
 		expect(auth?.refreshToken).toBe("ref1");
 	});
 
+	it("merges and clears nested provider config fields", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "test-provider",
+			enabled: true,
+			gcp: { projectId: "project-a", region: "us-central1" },
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "test-provider",
+			enabled: true,
+			gcp: { projectId: "" },
+		});
+
+		const settings = manager.getProviderSettings("test-provider");
+		expect(settings?.gcp?.projectId).toBeUndefined();
+		expect(settings?.gcp?.region).toBe("us-central1");
+	});
+
 	it("passes through scalar fields like maxTokens and timeout", () => {
 		saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
@@ -1133,6 +1150,31 @@ describe("listLocalProviders", () => {
 		expect(
 			openai?.modelList?.some((model) => model.id === "gpt-5.3-codex"),
 		).toBe(true);
+	});
+
+	it("exposes provider-specific config fields for Vertex", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "vertex",
+				gcp: { projectId: "gcp-project", region: "us-west1" },
+				model: "claude-sonnet-4-6@default",
+			},
+			{ setLastUsed: false },
+		);
+
+		const { providers } = await listLocalProviders(manager);
+		const vertex = providers.find((provider) => provider.id === "vertex");
+
+		expect(vertex?.configFields?.map((field) => field.path)).toEqual([
+			"gcp.projectId",
+			"gcp.region",
+			"apiKey",
+		]);
+		expect(vertex?.configValues?.["gcp.projectId"]).toBe("gcp-project");
+		expect(vertex?.configValues?.["gcp.region"]).toBe("us-west1");
+		expect(
+			vertex?.configFields?.some((field) => field.path === "baseUrl"),
+		).toBe(false);
 	});
 
 	it("uses the same built-in model list for cline as openrouter", async () => {

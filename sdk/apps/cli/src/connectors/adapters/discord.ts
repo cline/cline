@@ -74,8 +74,8 @@ const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 		"You can respond in Discord threads, channels, and DMs, and you can use tools according to the user's requests and your capabilities.",
 		"When asked to mention a Discord user or bot by name, write the mention as @display-name or @username. The connector resolves unique guild names to Discord mention IDs before sending. Do not ask the user for a Discord ID unless the name cannot be resolved.",
 		"Discord subscribed thread messages may arrive even when they are not addressed to you. Check <discord_message_context>: when isDirectMention is false and the message is part of another user or bot conversation that does not require your action, reply exactly /idle and nothing else. The connector treats /idle as a private no-op and will not post it to Discord.",
-		"If this Discord thread is caught in a bot loop or the user wants the connector to stop processing this thread, tell them to send /mute. Tell them to send /unmute when they want this connector to resume processing the thread.",
-		"If the user wants to mute only one Discord user or bot in the current thread, tell them to send /mute @user-or-bot, or /unmute @user-or-bot to resume processing that participant.",
+		"If this Discord thread is caught in a bot loop or the user wants the connector to stop processing this thread, tell them to send /mute@BotName in shared channels or /mute in DMs. Tell them to send /unmute@BotName in shared channels or /unmute in DMs when they want this connector to resume processing the thread.",
+		"If the user wants to mute only one Discord user or bot in the current thread, tell them to send /mute@BotName @user-or-bot in shared channels or /mute @user-or-bot in DMs. Tell them to send /unmute@BotName @user-or-bot in shared channels or /unmute @user-or-bot in DMs to resume processing that participant.",
 	].join("\n"),
 );
 

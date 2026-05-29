@@ -1078,6 +1078,89 @@ describe("handleConnectorUserTurn", () => {
 		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(2);
 	});
 
+	it("does not report thread unmuted when only participant-specific mutes are active", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const alice = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:alice",
+				participantLabel: "Alice",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const bob = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:bob",
+				participantLabel: "Bob",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("runtime reply");
+		const commonInput = {
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			resolveMuteTarget: ({ target }: { target: string }) =>
+				target === "<@bob>"
+					? {
+							participantKey: "discord:user:bob",
+							participantLabel: "<@bob>",
+						}
+					: undefined,
+		};
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "/mute@ClineAdapterBot <@bob>",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "/unmute@ClineAdapterBot",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: bob.thread as never,
+			text: "bob is still muted",
+			postFinalReply: async ({ text }: { text: string }) => {
+				bob.posts.push(text);
+			},
+		});
+
+		expect(alice.posts).toEqual([
+			"Muted <@bob> in this thread. I will ignore their messages until /unmute <@bob>.",
+			"No thread-level mute is active. Participant-specific mutes are still active for <@bob>. Use /unmute <target> to clear one.",
+		]);
+		expect(bob.posts).toEqual([]);
+		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
+	});
+
 	it("aborts active turns for a participant-specific mute", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
