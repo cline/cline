@@ -16,6 +16,7 @@ import type {
 	ProviderId,
 } from "./contracts"
 import { buildEffectiveProviderConfig } from "./effective-config"
+import { toSdkProviderId } from "./sdk-provider-id"
 
 type ProviderSettingsRecord = Record<string, unknown>
 type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras"
@@ -145,8 +146,9 @@ function isModelInfo(value: unknown): value is ModelInfo {
 }
 
 function isKnownModelIdForProvider(providerId: ProviderId, modelId: string): boolean {
+	const sdkProviderId = toSdkProviderId(providerId)
 	return Boolean(
-		getGeneratedModelsForProvider(providerId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models[modelId],
+		getGeneratedModelsForProvider(sdkProviderId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId],
 	)
 }
 

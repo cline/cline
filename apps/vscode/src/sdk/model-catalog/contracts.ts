@@ -33,7 +33,8 @@ declare const FingerprintBrand: unique symbol
  * `string` without going through `parseProviderId`.
  *
  * Invariant: every `ProviderId` was at some point produced by
- * `parseProviderId`. The string is trimmed and lowercased.
+ * `parseProviderId`. The string is trimmed and lowercased for
+ * config/storage portability.
  */
 export type ProviderId = string & { readonly [ProviderIdBrand]: void }
 
@@ -394,4 +395,4 @@ export interface ProviderCatalog {
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export type { ModelInfo, Mode }
+export type { Mode, ModelInfo }

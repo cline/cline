@@ -2,6 +2,8 @@
 
 import { getProviderCollectionSync } from "@cline/llms"
 import { Secrets, SettingsKey } from "@shared/storage/state-keys"
+import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { type ApiProvider, liteLlmDefaultModelId, openRouterDefaultModelId, requestyDefaultModelId } from "../api"
 
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
@@ -96,8 +98,9 @@ const NON_SDK_PROVIDER_DEFAULTS: Partial<Record<ApiProvider, string>> = {
  * Get the provider-specific model ID key for a given provider and mode.
  * Different providers store their model IDs in different state keys.
  */
-export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan"): SettingsKey {
-	const keySuffix = ProviderKeyMap[provider]
+export function getProviderModelIdKey(provider: ApiProvider | string, mode: "act" | "plan"): SettingsKey {
+	const legacyProvider = toLegacyApiProvider(provider)
+	const keySuffix = ProviderKeyMap[legacyProvider]
 	if (keySuffix) {
 		// E.g. actModeOpenAiModelId, planModeOpenAiModelId, etc.
 		return `${mode}Mode${keySuffix}` as SettingsKey
@@ -117,11 +120,12 @@ export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan
  *    `getProviderCollectionSync(provider).provider.defaultModelId`.
  * 3. Empty string when the SDK has no entry for `provider`.
  */
-export function getProviderDefaultModelId(provider: ApiProvider): string | null {
-	const override = NON_SDK_PROVIDER_DEFAULTS[provider]
+export function getProviderDefaultModelId(provider: ApiProvider | string): string | null {
+	const legacyProvider = toLegacyApiProvider(provider)
+	const override = NON_SDK_PROVIDER_DEFAULTS[legacyProvider]
 	if (override !== undefined) {
 		return override
 	}
-	const collection = getProviderCollectionSync(provider)
+	const collection = getProviderCollectionSync(toSdkProviderId(provider))
 	return collection?.provider.defaultModelId ?? ""
 }

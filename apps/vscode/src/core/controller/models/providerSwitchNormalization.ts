@@ -1,6 +1,7 @@
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import type { Mode, ProviderConfigStore, ProviderId } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import type { ApiConfiguration, ApiProvider } from "@/shared/api"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
 
@@ -30,8 +31,9 @@ function resolveProviderSwitchModelId(
 	mode: Mode,
 	currentModelId: string | undefined,
 ): string {
-	const generatedModels = getGeneratedModelsForProvider(providerId)
-	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
+	const sdkProviderId = toSdkProviderId(providerId)
+	const generatedModels = getGeneratedModelsForProvider(sdkProviderId)
+	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]
 	const collectionModels = collection?.models ?? {}
 	if (currentModelId && (generatedModels[currentModelId] || collectionModels[currentModelId])) {
 		return currentModelId
@@ -88,7 +90,7 @@ export function normalizeProviderSwitchModel<T extends ProviderSwitchConfig>(
 		// Only normalize providers the SDK actually knows about. For
 		// custom/unregistered providers there is no catalog to resolve
 		// against and no useful default to write here.
-		if (!MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]) {
+		if (!MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]) {
 			continue
 		}
 
