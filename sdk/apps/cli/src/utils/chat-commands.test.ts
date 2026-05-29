@@ -3,6 +3,7 @@ import {
 	createChatCommandHost,
 	isCommandAddressedToBot,
 	maybeHandleChatCommand,
+	normalizeCommandName,
 } from "./chat-commands";
 
 describe("chat commands", () => {
@@ -96,9 +97,16 @@ describe("chat commands", () => {
 	it("detects commands addressed to the configured bot", () => {
 		expect(isCommandAddressedToBot("/new@clinebot", "clinebot")).toBe(true);
 		expect(isCommandAddressedToBot("/new@cline_bot", "@cline_bot")).toBe(true);
+		expect(isCommandAddressedToBot("/new@cline.bot", "cline.bot")).toBe(true);
+		expect(isCommandAddressedToBot("/new@cline-bot", "cline-bot")).toBe(true);
 		expect(isCommandAddressedToBot("/new", "clinebot")).toBe(false);
 		expect(isCommandAddressedToBot("/new@otherbot", "clinebot")).toBe(false);
 		expect(isCommandAddressedToBot("/new@clinebot", undefined)).toBe(false);
+	});
+
+	it("normalizes commands addressed to dotted and hyphenated bot names", () => {
+		expect(normalizeCommandName("/new@cline.bot", "cline.bot")).toBe("/new");
+		expect(normalizeCommandName("/new@cline-bot", "cline-bot")).toBe("/new");
 	});
 
 	it("leaves bot-suffixed commands unmatched without a known bot username", async () => {

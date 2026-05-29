@@ -140,7 +140,7 @@ export function normalizeCommandName(
 	command: string,
 	botUserName?: string,
 ): string {
-	const botMention = command.match(/^(\/[^@\s]+)@[a-z0-9_]+$/i);
+	const botMention = command.match(/^(\/[^@\s]+)@[a-z0-9_.\-]+$/i);
 	if (!botMention) {
 		return command;
 	}
