@@ -101,7 +101,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * @returns A promise-like object that emits events and resolves on completion
 	 */
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
-		Logger.info(`[StandaloneTerminalManager] runCommand terminalId=${terminalInfo.id}: ${command}`)
+		Logger.debug(`[StandaloneTerminalManager] runCommand terminalId=${terminalInfo.id}`)
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 

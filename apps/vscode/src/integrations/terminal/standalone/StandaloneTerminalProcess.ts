@@ -88,7 +88,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		// Prepare command for execution
 		const shellArgs = this.getShellArgs(shell, command)
 
-		Logger.info(`[StandaloneTerminalProcess] run() entered: shell=${shell} cwd=${cwd} args=${JSON.stringify(shellArgs)}`)
+		Logger.debug(`[StandaloneTerminalProcess] spawning ${shell} in ${cwd}`)
 
 		try {
 			// Create shell options
@@ -134,7 +134,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				})
 			}
 
-			Logger.info(`[StandaloneTerminalProcess] spawned pid=${this.childProcess.pid ?? "<none>"} for shell=${shell}`)
+			Logger.debug(`[StandaloneTerminalProcess] spawned pid=${this.childProcess.pid ?? "<none>"}`)
 
 			// Track process state
 			let didEmitEmptyLine = false

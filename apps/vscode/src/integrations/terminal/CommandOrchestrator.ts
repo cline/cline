@@ -441,9 +441,6 @@ export async function orchestrateCommandExecution(
 	}, COMPLETION_TIMEOUT_MS)
 
 	process.once("completed", async (details?: TerminalCompletionDetails) => {
-		Logger.info(
-			`[CommandOrchestrator] completed event: exitCode=${details?.exitCode} signal=${details?.signal} terminalType=${terminalType}`,
-		)
 		completed = true
 		completionDetails = details
 		// If command completed while command_output ask was pending, release it.
@@ -647,7 +644,7 @@ export async function orchestrateCommandExecution(
 				? `Command terminated by signal ${signal}.`
 				: "Command executed."
 
-		Logger.info(
+		Logger.debug(
 			`[CommandOrchestrator] resolved completed: exitCode=${exitCode} signal=${signal} lineCount=${totalLineCount} bytes=${totalOutputBytes} terminalType=${terminalType}`,
 		)
 
