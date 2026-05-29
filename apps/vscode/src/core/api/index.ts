@@ -36,6 +36,7 @@ import { OpenRouterHandler } from "./providers/openrouter"
 import { QwenHandler } from "./providers/qwen"
 import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
+import { RodiumaiHandler } from "./providers/rodiumai"
 import { SambanovaHandler } from "./providers/sambanova"
 import { SapAiCoreHandler } from "./providers/sapaicore"
 import { TogetherHandler } from "./providers/together"
@@ -210,6 +211,14 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				requestyModelId: mode === "plan" ? options.planModeRequestyModelId : options.actModeRequestyModelId,
 				requestyModelInfo: mode === "plan" ? options.planModeRequestyModelInfo : options.actModeRequestyModelInfo,
+			})
+		case "rodiumai":
+			return new RodiumaiHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				rodiumaiApiKey: options.rodiumaiApiKey,
+				rodiumaiBaseUrl: options.rodiumaiBaseUrl,
+				rodiumaiModelId: mode === "plan" ? options.planModeRodiumaiModelId : options.actModeRodiumaiModelId,
+				rodiumaiModelInfo: mode === "plan" ? options.planModeRodiumaiModelInfo : options.actModeRodiumaiModelInfo,
 			})
 		case "fireworks":
 			return new FireworksHandler({

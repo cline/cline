@@ -1,4 +1,4 @@
-import { moonshotDefaultModelId } from "@shared/api"
+import { moonshotDefaultModelId, rodiumaiDefaultModelId } from "@shared/api"
 import { expect } from "chai"
 import { describe, it } from "mocha"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "../provider-keys"
@@ -21,5 +21,11 @@ describe("Provider key mapping", () => {
 	it("uses provider-specific model key behavior for Cline", () => {
 		expect(getProviderModelIdKey("cline", "act")).to.equal("actModeClineModelId")
 		expect(getProviderModelIdKey("cline", "plan")).to.equal("planModeClineModelId")
+	})
+
+	it("uses provider-specific model key behavior for RodiumAI", () => {
+		expect(getProviderDefaultModelId("rodiumai")).to.equal(rodiumaiDefaultModelId)
+		expect(getProviderModelIdKey("rodiumai", "act")).to.equal("actModeRodiumaiModelId")
+		expect(getProviderModelIdKey("rodiumai", "plan")).to.equal("planModeRodiumaiModelId")
 	})
 })

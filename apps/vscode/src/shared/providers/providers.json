@@ -89,6 +89,10 @@
 			"label": "Requesty"
 		},
 		{
+			"value": "rodiumai",
+			"label": "RodiumAI"
+		},
+		{
 			"value": "fireworks",
 			"label": "Fireworks AI"
 		},

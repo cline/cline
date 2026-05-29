@@ -8,11 +8,16 @@ const ctx: AgentToolContext = {
 	iteration: 1,
 };
 
-function shellQuote(value: string): string {
-	if (process.platform === "win32") {
-		return `'${value.replaceAll("'", "''")}'`;
-	}
-	return `'${value.replaceAll("'", `'\\''`)}'`;
+/** Run Node inline script without shell parsing (works on Windows PowerShell too). */
+function runNodeScript(
+	executor: ReturnType<typeof createBashExecutor>,
+	script: string,
+) {
+	return executor(
+		{ command: process.execPath, args: ["-e", script] },
+		process.cwd(),
+		ctx,
+	);
 }
 
 describe("createBashExecutor", () => {
@@ -29,8 +34,10 @@ describe("createBashExecutor", () => {
 
 	it("includes stderr in combined output on success", async () => {
 		const bash = createBashExecutor({ combineOutput: true });
-		const cmd = `${shellQuote(process.execPath)} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
-		const output = await bash(cmd, process.cwd(), ctx);
+		const output = await runNodeScript(
+			bash,
+			"process.stdout.write('ok'); process.stderr.write('warn')",
+		);
 		expect(output).toContain("ok");
 		expect(output).toContain("[stderr]");
 		expect(output).toContain("warn");
@@ -38,8 +45,10 @@ describe("createBashExecutor", () => {
 
 	it("excludes stderr when combineOutput is false", async () => {
 		const bash = createBashExecutor({ combineOutput: false });
-		const cmd = `${shellQuote(process.execPath)} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
-		const output = await bash(cmd, process.cwd(), ctx);
+		const output = await runNodeScript(
+			bash,
+			"process.stdout.write('ok'); process.stderr.write('warn')",
+		);
 		expect(output.trim()).toBe("ok");
 	});
 
@@ -52,10 +61,9 @@ describe("createBashExecutor", () => {
 
 	it("truncates output exceeding maxOutputBytes", async () => {
 		const bash = createBashExecutor({ maxOutputBytes: 10 });
-		const output = await bash(
-			`${shellQuote(process.execPath)} -e "process.stdout.write('a'.repeat(100))"`,
-			process.cwd(),
-			ctx,
+		const output = await runNodeScript(
+			bash,
+			"process.stdout.write('a'.repeat(100))",
 		);
 		expect(output).toContain("[Output truncated:");
 	});

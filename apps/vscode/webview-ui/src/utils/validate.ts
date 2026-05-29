@@ -7,6 +7,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 		const {
 			apiProvider,
 			openAiModelId,
+			rodiumaiModelId,
 			requestyModelId,
 			togetherModelId,
 			ollamaModelId,
@@ -87,6 +88,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "requesty":
 				if (!apiConfiguration.requestyApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "rodiumai":
+				if (!apiConfiguration.rodiumaiApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break

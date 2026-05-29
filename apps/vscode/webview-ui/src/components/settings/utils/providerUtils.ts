@@ -57,6 +57,9 @@ import {
 	openRouterDefaultModelInfo,
 	qwenCodeDefaultModelId,
 	qwenCodeModels,
+	rodiumaiDefaultModelId,
+	rodiumaiDefaultModelInfo,
+	rodiumaiModels,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 	sambanovaDefaultModelId,
@@ -144,6 +147,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "rodiumai":
+			return rodiumaiModels
 		case "litellm":
 			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
@@ -272,6 +277,19 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: requestyModelId || requestyDefaultModelId,
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
+			}
+		case "rodiumai":
+			const rodiumaiModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeRodiumaiModelId : apiConfiguration?.actModeRodiumaiModelId
+			const rodiumaiModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeRodiumaiModelInfo : apiConfiguration?.actModeRodiumaiModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: rodiumaiModelId || rodiumaiDefaultModelId,
+				selectedModelInfo:
+					rodiumaiModelInfo ||
+					(rodiumaiModelId ? rodiumaiModels[rodiumaiModelId as keyof typeof rodiumaiModels] : undefined) ||
+					rodiumaiDefaultModelInfo,
 			}
 		case "cline":
 			const fallbackOpenRouterModelId =
@@ -529,6 +547,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			ollamaModelId: undefined,
 			liteLlmModelId: undefined,
 			requestyModelId: undefined,
+			rodiumaiModelId: undefined,
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
 			clineModelId: undefined,
@@ -547,6 +566,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openRouterModelInfo: undefined,
 			clineModelInfo: undefined,
 			requestyModelInfo: undefined,
+			rodiumaiModelInfo: undefined,
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
 			huggingFaceModelInfo: undefined,
@@ -590,6 +610,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		ollamaModelId: mode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
 		liteLlmModelId: mode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
 		requestyModelId: mode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
+		rodiumaiModelId:
+			mode === "plan" ? apiConfiguration.planModeRodiumaiModelId : apiConfiguration.actModeRodiumaiModelId,
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId,
 		clineModelId,
@@ -614,6 +636,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		clineModelInfo,
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
+		rodiumaiModelInfo:
+			mode === "plan" ? apiConfiguration.planModeRodiumaiModelInfo : apiConfiguration.actModeRodiumaiModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
 		basetenModelInfo: mode === "plan" ? apiConfiguration.planModeBasetenModelInfo : apiConfiguration.actModeBasetenModelInfo,
 		huggingFaceModelInfo:
@@ -705,6 +729,12 @@ export async function syncModeConfigurations(
 			updates.actModeRequestyModelId = sourceFields.requestyModelId
 			updates.planModeRequestyModelInfo = sourceFields.requestyModelInfo
 			updates.actModeRequestyModelInfo = sourceFields.requestyModelInfo
+			break
+		case "rodiumai":
+			updates.planModeRodiumaiModelId = sourceFields.rodiumaiModelId
+			updates.actModeRodiumaiModelId = sourceFields.rodiumaiModelId
+			updates.planModeRodiumaiModelInfo = sourceFields.rodiumaiModelInfo
+			updates.actModeRodiumaiModelInfo = sourceFields.rodiumaiModelInfo
 			break
 
 		case "openai":
@@ -905,6 +935,15 @@ export const getProviderInfo = (
 					effectiveMode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
 				baseUrl: apiConfiguration.requestyBaseUrl,
 				helpText: "Add your Requesty API key in settings",
+			}
+		case "rodiumai":
+			return {
+				modelId:
+					effectiveMode === "plan"
+						? apiConfiguration.planModeRodiumaiModelId
+						: apiConfiguration.actModeRodiumaiModelId,
+				baseUrl: undefined,
+				helpText: "Add your RodiumAI API key in settings",
 			}
 		case "together":
 			return {
