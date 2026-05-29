@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -191,7 +191,6 @@ Escalation runbook`,
 			);
 		} finally {
 			unsubscribe();
-			watcher.stop();
 		}
 	});
 
@@ -240,10 +239,84 @@ Escalation runbook`,
 				"Use fallback AGENTS rules.",
 			);
 		} finally {
-			watcher.stop();
 			setHomeDir(originalHomeDir);
 		}
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"discovers skill directories through symlinks",
+		async () => {
+			const tempRoot = await mkdtemp(
+				join(tmpdir(), "core-user-instructions-symlink-skill-"),
+			);
+			tempRoots.push(tempRoot);
+			const skillsDir = join(tempRoot, ".cline", "skills");
+			const externalSkillsDir = join(tempRoot, "external-skills");
+			const targetSkillDir = join(externalSkillsDir, "data-agent-skill");
+			const linkedSkillDir = join(skillsDir, "data-agent-skill");
+			await mkdir(targetSkillDir, { recursive: true });
+			await mkdir(skillsDir, { recursive: true });
+			await writeFile(
+				join(targetSkillDir, "SKILL.md"),
+				`---
+name: data-agent-skill
+description: Analyze data
+---
+Use the data agent skill.`,
+			);
+			await symlink(targetSkillDir, linkedSkillDir, "dir");
+
+			const watcher = createUserInstructionConfigWatcher({
+				skills: { directories: [skillsDir] },
+			});
+
+			await watcher.refreshAll();
+
+			expect(
+				watcher.getSnapshot("skill").get("data-agent-skill"),
+			).toMatchObject({
+				item: {
+					name: "data-agent-skill",
+					description: "Analyze data",
+				},
+			});
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"ignores circular symlinks while discovering skill directories",
+		async () => {
+			const tempRoot = await mkdtemp(
+				join(tmpdir(), "core-user-instructions-circular-symlink-skill-"),
+			);
+			tempRoots.push(tempRoot);
+			const skillsDir = join(tempRoot, ".cline", "skills");
+			const skillDir = join(skillsDir, "commit");
+			const circularLink = join(skillsDir, "loop");
+			await mkdir(skillDir, { recursive: true });
+			await writeFile(
+				join(skillDir, "SKILL.md"),
+				`---
+name: commit
+---
+Use conventional commits.`,
+			);
+			await symlink(circularLink, circularLink, "dir");
+
+			const watcher = createUserInstructionConfigWatcher({
+				skills: { directories: [skillsDir] },
+			});
+
+			await watcher.refreshAll();
+
+			expect(watcher.getSnapshot("skill").get("commit")).toMatchObject({
+				item: {
+					name: "commit",
+					instructions: "Use conventional commits.",
+				},
+			});
+		},
+	);
 
 	it("loads enterprise-style managed rules, workflows, and skills through the default workspace watcher", async () => {
 		const tempRoot = await mkdtemp(
@@ -288,30 +361,26 @@ Use the security review checklist.`,
 			workflows: { workspacePath: tempRoot },
 		});
 
-		try {
-			await watcher.refreshAll();
-			const rules = watcher.getSnapshot("rule");
-			const workflows = watcher.getSnapshot("workflow");
-			const skills = watcher.getSnapshot("skill");
+		await watcher.refreshAll();
+		const rules = watcher.getSnapshot("rule");
+		const workflows = watcher.getSnapshot("workflow");
+		const skills = watcher.getSnapshot("skill");
 
-			expect(
-				[...rules.values()].some((rule) =>
-					rule.item.instructions.includes("enterprise policy"),
-				),
-			).toBe(true);
-			expect(
-				[...workflows.values()].some((workflow) =>
-					workflow.item.instructions.includes("triage workflow"),
-				),
-			).toBe(true);
-			expect(
-				[...skills.values()].some((skill) =>
-					skill.item.instructions.includes("security review checklist"),
-				),
-			).toBe(true);
-		} finally {
-			watcher.stop();
-		}
+		expect(
+			[...rules.values()].some((rule) =>
+				rule.item.instructions.includes("enterprise policy"),
+			),
+		).toBe(true);
+		expect(
+			[...workflows.values()].some((workflow) =>
+				workflow.item.instructions.includes("triage workflow"),
+			),
+		).toBe(true);
+		expect(
+			[...skills.values()].some((skill) =>
+				skill.item.instructions.includes("security review checklist"),
+			),
+		).toBe(true);
 	});
 
 	it("lets workspace .cline workflows override legacy .clinerules workflows with the same name", async () => {
@@ -343,17 +412,13 @@ New release workflow.`,
 			workflows: { workspacePath: tempRoot },
 		});
 
-		try {
-			await watcher.refreshAll();
-			const workflows = watcher.getSnapshot("workflow");
-			const release = workflows.get("release");
+		await watcher.refreshAll();
+		const workflows = watcher.getSnapshot("workflow");
+		const release = workflows.get("release");
 
-			expect(release?.item.instructions).toBe("New release workflow.");
-			expect(release?.filePath).toBe(
-				join(tempRoot, ".cline", "workflows", "release.md"),
-			);
-		} finally {
-			watcher.stop();
-		}
+		expect(release?.item.instructions).toBe("New release workflow.");
+		expect(release?.filePath).toBe(
+			join(tempRoot, ".cline", "workflows", "release.md"),
+		);
 	});
 });

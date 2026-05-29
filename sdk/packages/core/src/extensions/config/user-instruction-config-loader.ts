@@ -103,7 +103,8 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	return (
 		nodeError?.code === "ENOENT" ||
 		nodeError?.code === "EACCES" ||
-		nodeError?.code === "EPERM"
+		nodeError?.code === "EPERM" ||
+		nodeError?.code === "ELOOP"
 	);
 }
 
@@ -360,11 +361,23 @@ async function discoverSkillFiles(
 				});
 				continue;
 			}
-			if (entry.isDirectory()) {
+			const entryPath = join(directoryPath, entry.name);
+			const isDirectory =
+				entry.isDirectory() ||
+				(entry.isSymbolicLink() &&
+					(await stat(entryPath)
+						.then((entryStat) => entryStat.isDirectory())
+						.catch((error) => {
+							if (isIgnorableDirectoryError(error)) {
+								return false;
+							}
+							throw error;
+						})));
+			if (isDirectory) {
 				candidates.push({
-					directoryPath: join(directoryPath, entry.name),
+					directoryPath: entryPath,
 					fileName: SKILL_FILE_NAME,
-					filePath: join(directoryPath, entry.name, SKILL_FILE_NAME),
+					filePath: join(entryPath, SKILL_FILE_NAME),
 				});
 			}
 		}

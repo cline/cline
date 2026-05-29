@@ -110,7 +110,6 @@ describe("UnifiedConfigFileWatcher", () => {
 			);
 		} finally {
 			unsubscribe();
-			watcher.stop();
 		}
 	}, 15_000);
 
@@ -189,7 +188,6 @@ Escalation playbook`,
 			).toBe(true);
 		} finally {
 			unsubscribe();
-			watcher.stop();
 		}
 	});
 });
