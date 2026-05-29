@@ -147,7 +147,7 @@ export {
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
-export { getDefaultShell, getShellArgs } from "./parse/shell";
+export { getDefaultShell, getShellArgs, unwrapPowerShell } from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,

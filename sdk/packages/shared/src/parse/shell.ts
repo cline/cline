@@ -12,6 +12,23 @@ export function getDefaultShell(platform: string): string {
 	return platform === "win32" ? "powershell" : "/bin/bash";
 }
 
+/**
+ * Strip a redundant outer `powershell|pwsh [.exe] -Command|-c "…"` wrapper that
+ * callers sometimes emit. Without this we'd spawn powershell with another
+ * powershell invocation as its -Command argument, and the inner shell would
+ * receive quote-shredded args.
+ *
+ * Only unwraps when the entire string is exactly one quoted token whose body
+ * does not itself contain the delimiter; anything else is returned verbatim so
+ * the worst case is "no change" rather than an incorrect rewrite.
+ */
+export function unwrapPowerShell(command: string): string {
+	const match = command.match(
+		/^\s*(?:powershell|pwsh)(?:\.exe)?\s+-(?:Command|c)\s+(["'])((?:(?!\1).)*)\1\s*$/i,
+	);
+	return match ? match[2] : command;
+}
+
 export function getShellArgs(shell: string, command: string): string[] {
 	const shellName = normalizeShellName(shell);
 
@@ -21,7 +38,12 @@ export function getShellArgs(shell: string, command: string): string[] {
 		shellName === "pwsh" ||
 		shellName === "pwsh.exe"
 	) {
-		return ["-NoProfile", "-NonInteractive", "-Command", command];
+		return [
+			"-NoProfile",
+			"-NonInteractive",
+			"-Command",
+			unwrapPowerShell(command),
+		];
 	}
 
 	if (shellName === "cmd" || shellName === "cmd.exe") {
