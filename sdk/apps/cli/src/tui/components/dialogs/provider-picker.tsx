@@ -769,7 +769,7 @@ export function OAuthLoginContent(
 						</text>
 						<text fg="gray">Visit this URL and enter the code above:</text>
 						<text fg="cyan" selectable>
-							{deviceVerifyUrl}
+							<a href={deviceVerifyUrl}>{deviceVerifyUrl}</a>
 						</text>
 					</box>
 				)}
@@ -793,7 +793,7 @@ export function OAuthLoginContent(
 
 			{authUrl && (
 				<text fg="gray" selectable>
-					{authUrl}
+					<a href={authUrl}>{authUrl}</a>
 				</text>
 			)}
 

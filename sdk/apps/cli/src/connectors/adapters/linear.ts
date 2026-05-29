@@ -484,11 +484,14 @@ class LinearConnector extends ConnectorBase<
 	): Promise<number> {
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<LinearThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs,
@@ -853,6 +856,7 @@ class LinearConnector extends ConnectorBase<
 		io.writeln(`[linear] configure Linear webhook URL: ${webhookUrl}`);
 
 		await stopPromise;
+		clearBindingSessionIds<LinearThreadState>(bindingsPath);
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();
