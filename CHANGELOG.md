@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.86.0]
+
+### Added
+
+- Add Claude Opus 4.8 provider support, including 1M-context variants where available.
+- Add Moonshot Kimi K2.6 model support.
+
+### Fixed
+
+- Show prompt-cache support for Qwen 3.7 Max in the Cline provider.
+- Fix the VS Code nightly publish workflow startup permissions.
+
+### Changed
+
+- Move the VS Code extension project into `apps/vscode`.
+
+## [3.85.0]
+
+### Added
+
+- Add GPT-5.5 support to SAP AI Core.
+- Add DeepSeek V4 Flash and Pro models.
+- Add Gemini 3.5 Flash to Gemini and Vertex providers.
+- Add `/lg-task` URI webhook integration for LG dashboard flows.
+
+### Fixed
+
+- Fix Vertex AI global endpoint handling for Claude models.
+- Route Poolside Laguna models through next-gen prompts and native tool calling.
+
+### Changed
+
+- Update `diff` and `protobufjs` dependencies.
+
 ## [3.84.0]
 
 ### Added

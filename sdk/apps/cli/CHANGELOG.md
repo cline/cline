@@ -1,5 +1,14 @@
 # Cline CLI Changelog
 
+## 3.0.14
+
+- Fix OTEL telemetry variable bundling so telemetry is correctly enabled in compiled CLI builds: guard against environments where `process.env` is undefined and remove optional chaining so bundlers can inline the values at build time.
+
+## 3.0.13
+
+- Show a loading dialog while resuming a session from history so the TUI no longer appears frozen during the load.
+- Speed up the `/clear` command by deferring new session creation until you send the next prompt, so clearing no longer blocks on spinning up an empty session.
+
 ## 3.0.12
 
 - Show a loading dialog while the config screen switches provider or model so the transition no longer looks frozen.

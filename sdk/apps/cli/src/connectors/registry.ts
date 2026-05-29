@@ -13,6 +13,15 @@ const connectorDescriptions = new Map(
 
 const registry = new Map<string, ConnectorRegistryEntry>([
 	[
+		"discord",
+		{
+			name: "discord",
+			description:
+				"Discord interactions and gateway bridge backed by RPC runtime sessions",
+			load: async () => (await import("./adapters/discord")).discordConnector,
+		},
+	],
+	[
 		"gchat",
 		{
 			name: "gchat",
