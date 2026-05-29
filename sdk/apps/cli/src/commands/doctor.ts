@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
@@ -14,6 +14,10 @@ import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
 import { isProcessRunning } from "../connectors/common";
+import {
+	type ActiveConnectorRecord,
+	listActiveConnectors,
+} from "../connectors/status";
 import { getCliBuildInfo } from "../utils/common";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
@@ -32,19 +36,6 @@ type StartupArtifact = {
 	pid?: number;
 	acquiredAt?: string;
 	stale: boolean;
-};
-
-type ActiveConnectorRecord = {
-	type: string;
-	pid: number;
-	hubUrl: string;
-	startedAt?: string;
-	applicationId?: string;
-	botUsername?: string;
-	userName?: string;
-	phoneNumberId?: string;
-	port?: number;
-	baseUrl?: string;
 };
 
 type SpawnedProcessRecord = {
@@ -285,142 +276,6 @@ async function clearHubStartupArtifacts(
 		startupLocks: clearedStartupLocks,
 		discovery: clearedDiscovery,
 	};
-}
-
-function listConnectorStatePaths(
-	type: ActiveConnectorRecord["type"],
-): string[] {
-	const dir = join(resolveClineDataDir(), "connectors", type);
-	if (!existsSync(dir)) {
-		return [];
-	}
-	return readdirSync(dir)
-		.filter((name) => name.endsWith(".json") && !name.endsWith(".threads.json"))
-		.map((name) => join(dir, name));
-}
-
-function readJsonRecord(path: string): Record<string, unknown> | undefined {
-	if (!existsSync(path)) {
-		return undefined;
-	}
-	try {
-		const raw = readFileSync(path, "utf8");
-		const parsed = JSON.parse(raw) as unknown;
-		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-			return parsed as Record<string, unknown>;
-		}
-	} catch {
-		// Ignore malformed connector state.
-	}
-	return undefined;
-}
-
-type ConnectorFieldKey = keyof Omit<
-	ActiveConnectorRecord,
-	"type" | "pid" | "hubUrl"
->;
-
-const connectorFieldExtractors: Record<
-	ConnectorFieldKey,
-	(p: Record<string, unknown>) => string | number | undefined
-> = {
-	startedAt: (p) => (typeof p.startedAt === "string" ? p.startedAt : undefined),
-	port: (p) => (typeof p.port === "number" ? p.port : undefined),
-	baseUrl: (p) => (typeof p.baseUrl === "string" ? p.baseUrl : undefined),
-	userName: (p) => (typeof p.userName === "string" ? p.userName : undefined),
-	botUsername: (p) =>
-		typeof p.botUsername === "string" ? p.botUsername : undefined,
-	applicationId: (p) =>
-		typeof p.applicationId === "string" ? p.applicationId : undefined,
-	phoneNumberId: (p) =>
-		typeof p.phoneNumberId === "string" ? p.phoneNumberId : undefined,
-};
-
-const connectorConfigs: Record<
-	string,
-	{ required: ConnectorFieldKey[]; optional: ConnectorFieldKey[] }
-> = {
-	discord: {
-		required: ["userName", "applicationId"],
-		optional: ["startedAt", "port", "baseUrl"],
-	},
-	telegram: { required: ["botUsername"], optional: ["startedAt"] },
-	gchat: { required: ["userName"], optional: ["startedAt", "port", "baseUrl"] },
-	linear: {
-		required: ["userName"],
-		optional: ["startedAt", "port", "baseUrl"],
-	},
-	whatsapp: {
-		required: ["userName"],
-		optional: ["startedAt", "phoneNumberId", "port", "baseUrl"],
-	},
-};
-
-function readActiveConnectorRecord(
-	type: ActiveConnectorRecord["type"],
-	statePath: string,
-): ActiveConnectorRecord | undefined {
-	const parsed = readJsonRecord(statePath);
-	if (!parsed) {
-		return undefined;
-	}
-	const pid = typeof parsed.pid === "number" ? parsed.pid : undefined;
-	const hubUrl =
-		typeof parsed.hubUrl === "string"
-			? parsed.hubUrl
-			: typeof parsed.rpcAddress === "string"
-				? parsed.rpcAddress
-				: undefined;
-	if (!pid || !hubUrl || !isProcessRunning(pid)) {
-		return undefined;
-	}
-	const config = connectorConfigs[type];
-	if (!config) {
-		return undefined;
-	}
-	const fields: Partial<
-		Omit<ActiveConnectorRecord, "type" | "pid" | "hubUrl">
-	> = {};
-	for (const key of config.required) {
-		const value = connectorFieldExtractors[key](parsed);
-		if (!value || (typeof value === "string" && !value.trim())) {
-			return undefined;
-		}
-		(fields as Record<string, unknown>)[key] = value;
-	}
-	for (const key of config.optional) {
-		const value = connectorFieldExtractors[key](parsed);
-		if (value !== undefined) {
-			(fields as Record<string, unknown>)[key] = value;
-		}
-	}
-	return { type, pid, hubUrl, ...fields } as ActiveConnectorRecord;
-}
-
-function listActiveConnectors(): ActiveConnectorRecord[] {
-	const connectorTypes: ActiveConnectorRecord["type"][] = [
-		"telegram",
-		"gchat",
-		"linear",
-		"whatsapp",
-	];
-	const records: ActiveConnectorRecord[] = [];
-	for (const type of connectorTypes) {
-		for (const statePath of listConnectorStatePaths(type)) {
-			const record = readActiveConnectorRecord(type, statePath);
-			if (record) {
-				records.push(record);
-			}
-		}
-	}
-	return records.sort((left, right) => {
-		if (left.type !== right.type) {
-			return left.type.localeCompare(right.type);
-		}
-		const leftName = left.botUsername ?? left.userName ?? "";
-		const rightName = right.botUsername ?? right.userName ?? "";
-		return leftName.localeCompare(rightName);
-	});
 }
 
 function formatHubUptimeFromStartedAt(

@@ -13,6 +13,7 @@ import type {
 	ProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
+	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
 	addLocalProvider,
@@ -66,6 +67,16 @@ import type {
 	JsonRecord,
 	SidecarContext,
 } from "./types";
+
+function readProviderSettingsUpdate(
+	args: Record<string, unknown> | undefined,
+): Partial<Omit<SaveProviderSettingsActionRequest, "action" | "providerId">> {
+	return args?.settings && typeof args.settings === "object"
+		? (args.settings as Partial<
+				Omit<SaveProviderSettingsActionRequest, "action" | "providerId">
+			>)
+		: {};
+}
 
 // ---------------------------------------------------------------------------
 // MCP settings helpers
@@ -953,6 +964,7 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		return saveLocalProviderSettings(manager, {
+			...readProviderSettingsUpdate(args),
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,

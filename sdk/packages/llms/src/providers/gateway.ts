@@ -1,4 +1,3 @@
-import { estimateTokens } from "@cline/shared";
 import type {
 	AgentMessage,
 	AgentModel,
@@ -13,6 +12,7 @@ import type {
 	GatewayStreamRequest,
 	ITelemetryService,
 } from "@cline/shared";
+import { estimateTokens } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { GatewayRegistry } from "./registry";

@@ -5,6 +5,8 @@ import {
 	type ITelemetryService,
 	type OAuthProviderId,
 	type ProviderCapability,
+	type ProviderConfigField,
+	type ProviderConfigFieldPrimitive,
 	type ProviderListItem,
 	type ProviderModel,
 	type SaveProviderSettingsActionRequest,
@@ -161,6 +163,111 @@ function getPopularRank(metadata: Record<string, unknown> | undefined): number {
 	return typeof value === "number" && Number.isFinite(value)
 		? value
 		: Number.MAX_SAFE_INTEGER;
+}
+
+function isProviderConfigField(input: unknown): input is ProviderConfigField {
+	if (!input || typeof input !== "object") return false;
+	const field = input as Record<string, unknown>;
+	return (
+		typeof field.path === "string" &&
+		field.path.trim().length > 0 &&
+		typeof field.label === "string" &&
+		field.label.trim().length > 0 &&
+		["text", "password", "url", "number", "select", "boolean"].includes(
+			String(field.type),
+		)
+	);
+}
+
+function readProviderConfigFields(
+	metadata: Record<string, unknown> | undefined,
+): ProviderConfigField[] | undefined {
+	const fields = metadata?.configFields;
+	if (!Array.isArray(fields)) {
+		return undefined;
+	}
+	return fields.filter(isProviderConfigField);
+}
+
+const API_KEY_CONFIG_FIELD: ProviderConfigField = {
+	path: "apiKey",
+	label: "API Key",
+	type: "password",
+	placeholder: "Enter API key...",
+	description: "API key issued by the provider.",
+	secret: true,
+};
+
+const BASE_URL_CONFIG_FIELD: ProviderConfigField = {
+	path: "baseUrl",
+	label: "Base URL",
+	type: "url",
+	placeholder: "https://...",
+	description: "Base endpoint used for provider requests.",
+};
+
+function fallbackProviderConfigFields(
+	info: Awaited<ReturnType<typeof LlmsModels.getProvider>>,
+): ProviderConfigField[] {
+	if (!info) {
+		return [API_KEY_CONFIG_FIELD];
+	}
+	if (info.source !== "system") {
+		return info.baseUrl
+			? [API_KEY_CONFIG_FIELD, BASE_URL_CONFIG_FIELD]
+			: [API_KEY_CONFIG_FIELD];
+	}
+	const fields: ProviderConfigField[] = [];
+	if (info.env?.length) {
+		fields.push(API_KEY_CONFIG_FIELD);
+	}
+	if (info.baseUrl) {
+		fields.push(BASE_URL_CONFIG_FIELD);
+	}
+	return fields;
+}
+
+function getPathValue(input: unknown, path: string): unknown {
+	return path.split(".").reduce<unknown>((current, segment) => {
+		if (!current || typeof current !== "object") return undefined;
+		return (current as Record<string, unknown>)[segment];
+	}, input);
+}
+
+function toConfigPrimitive(
+	value: unknown,
+): ProviderConfigFieldPrimitive | undefined {
+	if (
+		typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean" ||
+		value === null
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+function resolveConfigValues(
+	fields: readonly ProviderConfigField[] | undefined,
+	settings: ProviderSettings | undefined,
+	info: { baseUrl?: string } | undefined,
+): Record<string, ProviderConfigFieldPrimitive> | undefined {
+	if (!fields?.length) return undefined;
+
+	const values: Record<string, ProviderConfigFieldPrimitive> = {};
+	for (const field of fields) {
+		const persistedValue = toConfigPrimitive(
+			field.path === "baseUrl" && settings?.baseUrl === undefined
+				? info?.baseUrl
+				: getPathValue(settings, field.path),
+		);
+		const value = persistedValue ?? field.defaultValue;
+		if (value !== undefined) {
+			values[field.path] = value;
+		}
+	}
+	return values;
 }
 
 function normalizeHeaders(
@@ -549,6 +656,9 @@ export async function listLocalProviders(
 					info?.capabilities,
 					persistedSettings?.capabilities,
 				);
+				const configFields =
+					readProviderConfigFields(info?.metadata) ??
+					fallbackProviderConfigFields(info);
 				return {
 					provider: {
 						id,
@@ -571,6 +681,12 @@ export async function listLocalProviders(
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",
+						configFields,
+						configValues: resolveConfigValues(
+							configFields,
+							persistedSettings,
+							info,
+						),
 						modelList,
 					},
 					rank: getPopularRank(info?.metadata),
@@ -598,6 +714,39 @@ export async function getLocalProviderModels(
 	const modelMap = await resolveProviderModelMap(id, config);
 	const models = toSortedProviderModels(modelMap);
 	return { providerId: id, models };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function applySettingsObjectPatch(
+	current: unknown,
+	patch: unknown,
+): Record<string, unknown> | undefined {
+	if (!isPlainObject(patch)) {
+		return isPlainObject(current) ? { ...current } : undefined;
+	}
+
+	const next = isPlainObject(current) ? { ...current } : {};
+	for (const [key, value] of Object.entries(patch)) {
+		if (value == null || value === "") {
+			delete next[key];
+			continue;
+		}
+		if (isPlainObject(value)) {
+			const merged = applySettingsObjectPatch(next[key], value);
+			if (merged && Object.keys(merged).length > 0) {
+				next[key] = merged;
+			} else {
+				delete next[key];
+			}
+			continue;
+		}
+		next[key] = value;
+	}
+
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function saveLocalProviderSettings(
@@ -655,12 +804,9 @@ export function saveLocalProviderSettings(
 		"oca",
 	] as const) {
 		if (Object.hasOwn(request, key) && request[key] != null) {
-			next[key] = {
-				...(typeof next[key] === "object" && next[key] != null
-					? (next[key] as object)
-					: {}),
-				...(request[key] as object),
-			};
+			const merged = applySettingsObjectPatch(next[key], request[key]);
+			if (merged) next[key] = merged;
+			else delete next[key];
 		}
 	}
 
