@@ -59,11 +59,18 @@ describe("getDefaultModelIdForProvider", () => {
 	})
 
 	it("falls back to the first generated model when the SDK manifest default is not in the model catalog", () => {
-		expect(getDefaultModelIdForProvider("gemini")).toBe("gemini-3.1-flash-lite")
+		expect(getDefaultModelIdForProvider("gemini")).toBe("gemini-3.5-flash")
 	})
 
 	it("returns undefined for unknown providers", () => {
 		expect(getDefaultModelIdForProvider("unknown-provider")).toBeUndefined()
+	})
+
+	it("resolves the OpenAI Compatible default through the extension's openai alias", () => {
+		// The extension stores the OpenAI Compatible provider as "openai" while
+		// the SDK catalog keys it as "openai-compatible". toSdkProviderId bridges
+		// the two so the catalog default-model lookup resolves.
+		expect(getDefaultModelIdForProvider("openai")).toBe("gpt-4o")
 	})
 })
 

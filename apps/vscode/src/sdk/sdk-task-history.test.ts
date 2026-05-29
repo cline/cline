@@ -141,7 +141,7 @@ describe("SdkTaskHistory", () => {
 			},
 			{
 				role: "user",
-				content: [{ type: "tool_result", tool_use_id: "toolu_1", content: rawToolResult }],
+				content: [{ type: "tool_result", tool_use_id: "toolu_1", name: "editor", content: rawToolResult }],
 			},
 			{ role: "assistant", content: [{ type: "text", text: "Done!" }] },
 		])
