@@ -120,8 +120,9 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			if (shell.toLowerCase().includes("cmd")) {
 				shellOptions.shell = true
 
-				// Spawn the process with special handling for "cmd.exe"
-				this.childProcess = spawn("cmd.exe", shellArgs, shellOptions)
+				// windowsHide keeps a console-less parent from popping a window for
+				// the child (see the non-cmd branch); no-op on non-Windows.
+				this.childProcess = spawn("cmd.exe", shellArgs, { ...shellOptions, windowsHide: true })
 			} else {
 				// On Windows, detached:true without windowsHide:true allocates a new
 				// console for the child when the parent (cline-core launched by the

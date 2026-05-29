@@ -123,12 +123,15 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		})
 
 		// Run the command immediately (no shell integration wait needed).
-		// process.run is async but intentionally not awaited; surface unhandled
-		// rejections via Logger so they don't disappear silently.
+		// process.run is async but intentionally not awaited. run() emits "error"
+		// for failures it catches itself; this guard handles any rejection that
+		// escapes without an "error" event, re-emitting it so the outer promise
+		// rejects instead of hanging forever.
 		process.run(terminalInfo.terminal, command).catch((error) => {
 			Logger.error(
 				`[StandaloneTerminalManager] process.run rejected for terminal ${terminalInfo.id}: ${(error as Error)?.message ?? String(error)}`,
 			)
+			process.emit("error", error instanceof Error ? error : new Error(String(error)))
 		})
 
 		// Return merged promise/process object

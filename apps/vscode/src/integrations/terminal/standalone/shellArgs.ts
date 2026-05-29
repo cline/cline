@@ -37,5 +37,8 @@ export function getShellArgs(shell: string, command: string, platform: NodeJS.Pl
 		}
 		return ["/d", "/s", "/c", command]
 	}
+	// Non-login shell (`-c`, no `-l`): the child inherits the parent's PATH via
+	// process.env, so login dotfiles are normally redundant. A GUI-launched IDE
+	// without a login PATH is the edge case to watch if a tool goes missing.
 	return ["-c", command]
 }
