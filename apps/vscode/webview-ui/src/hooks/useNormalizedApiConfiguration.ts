@@ -43,6 +43,8 @@ function getActiveProviderAndModelId(apiConfiguration: ReturnType<typeof useExte
 		requesty: modeFields.requestyModelId,
 		litellm: modeFields.liteLlmModelId,
 		"vercel-ai-gateway": modeFields.vercelAiGatewayModelId,
+		ollama: modeFields.ollamaModelId,
+		lmstudio: modeFields.lmStudioModelId,
 		groq: modeFields.groqModelId,
 		baseten: modeFields.basetenModelId,
 		huggingface: modeFields.huggingFaceModelId,
@@ -53,6 +55,10 @@ function getActiveProviderAndModelId(apiConfiguration: ReturnType<typeof useExte
 		"huawei-cloud-maas": modeFields.huaweiCloudMaasModelId,
 		together: modeFields.togetherModelId,
 		fireworks: modeFields.fireworksModelId,
+		sapaicore: modeFields.apiModelId,
+		"vscode-lm": modeFields.vsCodeLmModelSelector
+			? `${modeFields.vsCodeLmModelSelector.vendor}/${modeFields.vsCodeLmModelSelector.family}`
+			: undefined,
 	}
 
 	return {

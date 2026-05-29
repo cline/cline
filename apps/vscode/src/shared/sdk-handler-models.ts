@@ -25,6 +25,7 @@
 import { getProviderCollectionSync } from "@cline/llms"
 import { applyHostModelInfoOverrides } from "@/sdk/model-catalog/host-overrides"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import { adaptSdkModelInfo } from "@/sdk/model-catalog/shape-adapter"
 import type { ModelInfo } from "./api"
 
@@ -61,7 +62,7 @@ export function getProviderModelFromSdk<TId extends string = string>(
 	if (requested && committedInfo) {
 		return { id: requested as TId, info: committedInfo }
 	}
-	const collection = getProviderCollectionSync(providerId)
+	const collection = getProviderCollectionSync(toSdkProviderId(providerId))
 	if (!collection) {
 		throw new Error(
 			`SDK provider catalog has no entry for "${providerId}". This is a missing provider registration in @cline/llms.`,

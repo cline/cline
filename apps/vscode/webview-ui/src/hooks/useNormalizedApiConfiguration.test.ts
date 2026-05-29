@@ -114,15 +114,48 @@ describe("useNormalizedApiConfiguration", () => {
 		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "cline", modelId: undefined })
 	})
 
-	it("falls back to legacy normalization for non-migrated providers", () => {
+	it("resolves static SDK-backed providers through the model-info RPC", async () => {
 		setApiConfiguration({ actModeApiProvider: "anthropic", actModeApiModelId: "claude-sonnet-4-5-20250929" })
+		mockResolveModelInfo.mockResolvedValue(modelInfoResponse("anthropic", "claude-sonnet-4-5-20250929", 200_000))
 
 		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
 
+		await waitFor(() => expect(result.current.selectedModelInfo.contextWindow).toBe(200_000))
 		expect(result.current.selectedProvider).toBe("anthropic")
 		expect(result.current.selectedModelId).toBe("claude-sonnet-4-5-20250929")
-		expect(mockResolveModelInfo).not.toHaveBeenCalled()
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-5-20250929",
+		})
 		expect(mockResolveProviderModels).not.toHaveBeenCalled()
+	})
+
+	it("uses local provider-specific model fields instead of a stale generic id", async () => {
+		setApiConfiguration({
+			actModeApiProvider: "ollama",
+			actModeApiModelId: "stale-generic-model",
+			actModeOllamaModelId: "llama3.1:8b",
+		})
+		mockResolveModelInfo.mockResolvedValue(modelInfoResponse("ollama", "llama3.1:8b", 32_768))
+
+		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
+
+		await waitFor(() => expect(result.current.selectedModelId).toBe("llama3.1:8b"))
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "ollama", modelId: "llama3.1:8b" })
+	})
+
+	it("uses VS Code LM selector as the active model id", async () => {
+		setApiConfiguration({
+			actModeApiProvider: "vscode-lm",
+			actModeApiModelId: "stale-generic-model",
+			actModeVsCodeLmModelSelector: { vendor: "copilot", family: "claude-sonnet" },
+		})
+		mockResolveModelInfo.mockResolvedValue(modelInfoResponse("vscode-lm", "copilot/claude-sonnet", 128_000))
+
+		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
+
+		await waitFor(() => expect(result.current.selectedModelId).toBe("copilot/claude-sonnet"))
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "vscode-lm", modelId: "copilot/claude-sonnet" })
 	})
 
 	it("ignores stale DeepSeek responses after provider/model changes", async () => {
