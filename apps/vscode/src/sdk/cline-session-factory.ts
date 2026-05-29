@@ -529,8 +529,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const stateManager = StateManager.get()
 	const globalSubagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
 
+	// Core resolves providers against the SDK registry, which uses the SDK's
+	// own provider id spelling (e.g. "openai-compatible" rather than the
+	// extension's "openai"). Convert before handing the id to core.
+	const sdkProviderId = toSdkProviderId(providerId)
+
 	const config: CoreSessionConfig = {
-		providerId,
+		providerId: sdkProviderId,
 		modelId,
 		apiKey,
 		baseUrl,
