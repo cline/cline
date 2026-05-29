@@ -103,14 +103,12 @@ const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
 	"vercel-ai-gateway": { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
 }
 
-// Transitional Phase 1.4 compatibility path for providers that only have a
-// mode-specific model id key today (for example DeepSeek/Gemini/generic
-// SDK-backed providers). The architecture requires `ModelInfo` to be part of
-// the selection envelope, but the legacy StateManager schema does not yet
-// provide durable `*ModelInfo` keys for every provider. Keep the full selection
-// keyed by provider+mode so switching between providers that share
-// `*ModeApiModelId` does not combine another provider's current model id with
-// this provider's in-memory model info.
+// In-memory selection envelope for providers that have a mode-specific model
+// id key but no durable `*ModelInfo` key in the StateManager schema (for
+// example DeepSeek/Gemini/generic SDK-backed providers). Keyed by
+// provider+mode so that switching between providers that share the same
+// `*ModeApiModelId` key does not combine one provider's model id with
+// another provider's model info.
 const selectionMemory = new Map<string, ModelSelection>()
 
 function providerKey(providerId: ProviderId): string {

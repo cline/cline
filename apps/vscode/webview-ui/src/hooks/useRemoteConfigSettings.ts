@@ -11,9 +11,11 @@ export interface RemoteConfigSetting {
 }
 
 function toggleRemoteConfigSetting(settingName: string) {
-	RemoteConfigServiceClient.toggleRemoteConfigSetting({ value: settingName }).then((_toggleResult) => {
-		// TODO: Handle toggle result if needed, e.g., show a success message or update the UI state
-	})
+	// TODO(ENG): The backend handler is not implemented yet and currently
+	// rejects. Handle the result (e.g. update UI state) once toggling is wired
+	// up; for now swallow the rejection so it doesn't surface as an unhandled
+	// promise rejection.
+	RemoteConfigServiceClient.toggleRemoteConfigSetting({ value: settingName }).catch(() => {})
 }
 
 export default function useRemoteConfigSettings(isVisible: boolean): RemoteConfigSetting[] {

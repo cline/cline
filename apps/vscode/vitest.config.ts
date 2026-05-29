@@ -1,6 +1,9 @@
 import path from "node:path"
 import { defineConfig } from "vitest/config"
 
+// Vitest config for the VSCode extension's SDK-adapter and model-catalog
+// unit tests. (The bulk of the extension's unit tests still run under mocha
+// via `test:unit`; these suites are vitest-native.)
 export default defineConfig({
 	test: {
 		include: [
@@ -13,6 +16,10 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 		],
 		environment: "node",
+		// Some matched files are intentionally-empty placeholders that point to
+		// where the real suite lives (e.g. sdk-control-plane.test.ts), so an
+		// empty file should not fail the run.
+		passWithNoTests: true,
 	},
 	resolve: {
 		alias: {

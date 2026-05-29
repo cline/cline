@@ -1,15 +1,9 @@
 /**
  * SDK-backed Model Catalog — Contracts
  *
- * Companion to:
- *  - tmp/sdk-model-catalog-architecture.md (the *what shape*)
- *  - tmp/sdk-model-catalog-implementation-plan.md (the *what to do*)
- *  - tmp/sdk-model-catalog-design.md (the *why*)
- *
  * This file is the type-level contract for the model catalog system. Every
- * load-bearing invariant from the architecture doc that can be expressed in
- * the type system lives here. Behavior is implemented elsewhere; this file
- * has no runtime side effects.
+ * load-bearing invariant that can be expressed in the type system lives here.
+ * Behavior is implemented elsewhere; this file has no runtime side effects.
  *
  * If you are about to write a value cast like `x as ProviderId` or
  * `x as Fingerprint` outside the parse/compute boundary functions, stop and
@@ -286,8 +280,7 @@ export interface ProviderModelsEvent {
 
 /**
  * Read-only view of `ProviderConfigStore`. Held by `ProviderCatalog` so the
- * catalog cannot write. Enforces invariant C1 (catalog is read-only with
- * respect to the store) by type.
+ * catalog is read-only with respect to the store by type — it can never write.
  *
  * If a future need arises to grant a non-store consumer write access,
  * pass it the full `ProviderConfigStore` interface explicitly; do not

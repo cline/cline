@@ -8,7 +8,7 @@
 // - Streaming subscription management
 // - workos: prefix handling
 
-import type { OAuthCredentials } from "@cline/core"
+import { getValidClineCredentials, type OAuthCredentials } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 
@@ -116,10 +116,17 @@ vi.mock("@cline/core", () => ({
 	getValidClineCredentials: vi.fn(),
 }))
 
+// Stateful in-memory provider-settings store. Cline credentials are persisted
+// to providers.json (via the SDK's ProviderSettingsManager), not to secrets, so
+// the credential round-trip tests exercise this store.
+const mockProviderSettings = new Map<string, Record<string, unknown>>()
 vi.mock("./provider-migration", () => ({
 	getProviderSettingsManager: () => ({
-		getProviderSettings: vi.fn(),
-		saveProviderSettings: vi.fn(),
+		getProviderSettings: (provider: string) => mockProviderSettings.get(provider),
+		saveProviderSettings: (settings: Record<string, unknown>) => {
+			const provider = settings.provider as string
+			mockProviderSettings.set(provider, { ...settings })
+		},
 	}),
 }))
 
@@ -133,9 +140,6 @@ interface AuthServiceTestAccess {
 	_authenticated: boolean
 	_activeAuthStatusUpdateHandlers: Map<string, unknown>
 	instance: AuthService | null
-	readAuthInfoFromSecrets(): ClineAuthInfo | null
-	writeAuthInfoToSecrets(info: ClineAuthInfo): void
-	clearAuthInfoFromSecrets(): void
 }
 
 function testAccess(service: AuthService): AuthServiceTestAccess {
@@ -199,6 +203,7 @@ describe("AuthService", () => {
 		resetSingleton()
 		authService = AuthService.getInstance()
 		mockSecrets.clear()
+		mockProviderSettings.clear()
 		vi.clearAllMocks()
 	})
 
@@ -213,7 +218,8 @@ describe("AuthService", () => {
 	describe("getInfo() — auth state for webview", () => {
 		it("returns unauthenticated state when not logged in", () => {
 			const info = authService.getInfo()
-			expect(info.user).toBeNull()
+			// Unset proto message fields are `undefined`, not `null`.
+			expect(info.user).toBeUndefined()
 		})
 
 		it("returns authenticated state with user info when logged in", () => {
@@ -234,7 +240,7 @@ describe("AuthService", () => {
 			testAccess(authService)._authenticated = false
 
 			const info = authService.getInfo()
-			expect(info.user).toBeNull()
+			expect(info.user).toBeUndefined()
 		})
 	})
 
@@ -351,77 +357,94 @@ describe("AuthService", () => {
 			testAccess(authService)._clineAuthInfo = authInfo
 			testAccess(authService)._authenticated = true
 
-			// Store something in secrets
-			mockSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
+			// Seed persisted Cline credentials in providers.json.
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:test-access-token", refreshToken: "test-refresh-token", accountId: "user-123" },
+			})
 
 			await authService.handleDeauth(LogoutReason.USER_INITIATED)
 
-			// Auth state should be cleared
+			// In-memory auth state should be cleared.
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
 			expect(testAccess(authService)._authenticated).toBe(false)
 
-			// Secrets should be cleared
-			expect(mockSecrets.has("cline:clineAccountId")).toBe(false)
-			expect(mockSecrets.has("clineAccountId")).toBe(false)
+			// Persisted credentials should be cleared from providers.json.
+			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
 		})
 	})
 
-	describe("token persistence", () => {
-		it("reads auth info from secrets", () => {
-			const authInfo = createTestAuthInfo()
-			mockSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
+	describe("token persistence (providers.json)", () => {
+		// Cline OAuth credentials are persisted to providers.json via the SDK's
+		// ProviderSettingsManager, not to VSCode secrets. These tests exercise
+		// the round-trip through the public restore/logout surface.
 
-			const result = testAccess(authService).readAuthInfoFromSecrets()
-			expect(result).not.toBeNull()
-			expect(result?.idToken).toBe("test-access-token")
-			expect(result?.userInfo.id).toBe("user-123")
-		})
-
-		it("returns null when no secrets exist", () => {
-			const result = testAccess(authService).readAuthInfoFromSecrets()
-			expect(result).toBeNull()
-		})
-
-		it("returns null for corrupt JSON", () => {
-			mockSecrets.set("cline:clineAccountId", "not-valid-json")
-			const result = testAccess(authService).readAuthInfoFromSecrets()
-			expect(result).toBeNull()
-		})
-
-		it("writes auth info to secrets", () => {
-			const authInfo = createTestAuthInfo()
-			testAccess(authService).writeAuthInfoToSecrets(authInfo)
-
-			const stored = mockSecrets.get("cline:clineAccountId")
-			expect(stored).toBeDefined()
-			const parsed = JSON.parse(stored ?? "{}")
-			expect(parsed.idToken).toBe("test-access-token")
-		})
-
-		it("clears auth info from secrets", () => {
-			mockSecrets.set("cline:clineAccountId", "some-value")
-			mockSecrets.set("clineAccountId", "legacy-value")
-
-			testAccess(authService).clearAuthInfoFromSecrets()
-
-			expect(mockSecrets.has("cline:clineAccountId")).toBe(false)
-			expect(mockSecrets.has("clineAccountId")).toBe(false)
-		})
-	})
-
-	describe("restoreRefreshTokenAndRetrieveAuthInfo()", () => {
-		it("restores auth state from secrets on startup", async () => {
-			const authInfo = createTestAuthInfo()
-			mockSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
+		it("restores credentials persisted in providers.json", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:persisted-access-token",
+					refreshToken: "persisted-refresh-token",
+					accountId: "user-123",
+				},
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				access: "persisted-access-token",
+				refresh: "persisted-refresh-token",
+				expires: Date.now() + 3600 * 1000,
+				accountId: "user-123",
+				email: "test@example.com",
+			})
 
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 			expect(testAccess(authService)._authenticated).toBe(true)
-			expect(testAccess(authService)._clineAuthInfo).not.toBeNull()
-			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("test-access-token")
+			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("persisted-access-token")
 		})
 
-		it("sets unauthenticated state when no secrets exist", async () => {
+		it("sets unauthenticated state when providers.json has no Cline auth", async () => {
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(testAccess(authService)._clineAuthInfo).toBeNull()
+		})
+
+		it("clears persisted credentials when stored tokens are no longer valid", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
+			})
+			// getValidClineCredentials returning null models an unrecoverable token.
+			vi.mocked(getValidClineCredentials).mockResolvedValue(null)
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(testAccess(authService)._clineAuthInfo).toBeNull()
+			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+		})
+	})
+
+	describe("restoreRefreshTokenAndRetrieveAuthInfo()", () => {
+		it("strips the workos: prefix from the persisted access token", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:raw-access-token", refreshToken: "r", accountId: "user-123" },
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				access: "raw-access-token",
+				refresh: "r",
+				expires: Date.now() + 3600 * 1000,
+				accountId: "user-123",
+				email: "test@example.com",
+			})
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._clineAuthInfo?.idToken).toBe("raw-access-token")
+		})
+
+		it("sets unauthenticated state when no credentials exist", async () => {
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 			expect(testAccess(authService)._authenticated).toBe(false)
@@ -468,7 +491,7 @@ describe("AuthService", () => {
 			expect(mockResponseStream).toHaveBeenCalled()
 			const [authState] = mockResponseStream.mock.calls[0]
 			expect(authState).toBeDefined()
-			expect(authState.user).toBeNull() // Not authenticated in this test
+			expect(authState.user).toBeUndefined() // Not authenticated in this test
 		})
 
 		it("polls feature flags with the authenticated user before posting state", async () => {

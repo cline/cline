@@ -10,8 +10,6 @@
  *
  *   - **Background (backgroundExec):** Delegates to the SDK's createBashExecutor()
  *     for headless child_process.spawn execution with a configurable timeout.
- *
- * See sdk-migration/FOREGROUND-TERMINAL-DESIGN.md for the full design rationale.
  */
 
 import { createDefaultExecutors } from "@cline/core"

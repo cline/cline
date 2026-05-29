@@ -472,8 +472,8 @@ export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineS
 
 		case "fetch_web_content":
 		case "web_fetch": {
-			// The SDK's fetch_web_content uses { requests: [{ url, prompt }] }
-			// while the classic web_fetch uses { url, prompt } directly.
+			// fetch_web_content carries { requests: [{ url, prompt }] };
+			// web_fetch carries { url, prompt } directly.
 			let url = getStringField(parsedInput, "url") ?? ""
 			if (!url && parsedInput) {
 				const requests = parsedInput.requests
@@ -500,8 +500,8 @@ export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineS
 
 		case "skills":
 		case "use_skill": {
-			// The SDK's skills tool uses { skill: "name", args?: "..." }
-			// while the classic use_skill uses { skill_name: "name" }.
+			// skills carries { skill: "name", args?: "..." };
+			// use_skill carries { skill_name: "name" }.
 			const skillName =
 				getStringField(parsedInput, "skill_name") ??
 				getStringField(parsedInput, "skill") ??
@@ -695,10 +695,10 @@ function extractCommandText(input: unknown): string {
 }
 
 /**
- * Build the classic Cline approval ask message for an SDK tool approval request.
- * This keeps approval prompts aligned with the SDK event translator so the
- * webview can render specialized rows (MCP, commands, subagents) instead of a
- * generic tool approval with missing context.
+ * Build the Cline approval ask message for an SDK tool approval request.
+ * Keeps approval prompts aligned with the SDK event translator so the webview
+ * can render specialized rows (MCP, commands, subagents) instead of a generic
+ * tool approval with missing context.
  */
 export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number): ClineMessage {
 	const mcpInfo = parseMcpToolName(toolName)
@@ -797,11 +797,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// (content_end doesn't carry the input)
 					state.setStreamingToolContext(toolName, input)
 
-					// attempt_completion is handled specially — it triggers
-					// the green "Task Completed" rectangle in the webview.
-					// In the classic extension, this was the ONLY way to show
-					// the completion UI. We emit say:"completion_result" here
-					// (partial) and ask:"completion_result" at content_end.
+					// attempt_completion is handled specially — it drives the
+					// green "Task Completed" rectangle in the webview. We emit
+					// say:"completion_result" here (partial) and
+					// ask:"completion_result" at content_end.
 					if (toolName === "attempt_completion") {
 						state.setAttemptCompletionSeen()
 						const parsedInput = parseToolInput(input)
@@ -1174,9 +1173,8 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// New iteration — reset streaming state for the new turn
 			state.reset()
 
-			// Emit an api_req_started message for the webview's API request
-			// spinner and cost display. The classic Task emits this before
-			// each API request.
+			// Emit an api_req_started message before each API request so the
+			// webview shows its request spinner and cost display.
 			messages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -1207,10 +1205,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "usage": {
-			// Usage events carry token counts. In the classic system,
-			// these are embedded in the api_req_started message's
-			// ClineApiReqInfo. We emit a separate api_req_started update
-			// with the usage data so the webview can display costs.
+			// Usage events carry token counts. The webview reads them from an
+			// api_req_started message's ClineApiReqInfo, so emit a follow-up
+			// api_req_started update carrying the usage data for cost display.
 			const usageEvent = normalizeUsageEvent(event)
 			const apiReqInfo: ClineApiReqInfo = {
 				tokensIn: usageEvent.tokensIn,
@@ -1671,7 +1668,6 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): C
 				continue
 			}
 
-			;``
 			pendingToolUses.delete(block.tool_use_id)
 			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
 		}
