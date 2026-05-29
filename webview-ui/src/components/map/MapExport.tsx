@@ -1037,7 +1037,14 @@ function drawGraticule(
 	ctx.font = `600 ${Math.round(fs * 0.82)}px system-ui, sans-serif`
 	ctx.lineWidth = Math.max(1, Math.round(fs * 0.07))
 
-	// Longitudes (vertical lines / ticks), labelled along the bottom edge.
+	// Corner keep-out: don't print a label so close to a perpendicular edge that
+	// it collides with that edge's labels (cartographic neat-line convention).
+	const cornerPad = Math.round(fs * 1.6)
+	const lonLabelTopY = mapY + Math.round(fs * 0.9)
+	const lonLabelBottomY = mapY + mapH - Math.round(fs * 0.9)
+	const latLabelInsetX = Math.round(fs * 0.6)
+
+	// Longitudes (vertical lines / ticks), labelled along the top AND bottom edges.
 	const lonStart = Math.ceil(Math.min(lonWest, lonEast) / stepLon) * stepLon
 	for (let lon = lonStart; lon <= Math.max(lonWest, lonEast) + 1e-9; lon += stepLon) {
 		const x = lonToX(lon)
@@ -1057,10 +1064,14 @@ function drawGraticule(
 			ctx.lineTo(x, mapY + mapH - tick)
 			ctx.stroke()
 		}
-		drawHaloLabel(ctx, formatCoord(lon, false, decLon), x, mapY + mapH - Math.round(fs * 0.7), "center", fs)
+		if (x > mapX + cornerPad && x < mapX + mapW - cornerPad) {
+			const label = formatCoord(lon, false, decLon)
+			drawHaloLabel(ctx, label, x, lonLabelTopY, "center", fs)
+			drawHaloLabel(ctx, label, x, lonLabelBottomY, "center", fs)
+		}
 	}
 
-	// Latitudes (horizontal lines / ticks), labelled along the left edge.
+	// Latitudes (horizontal lines / ticks), labelled along the left AND right edges.
 	const latStart = Math.ceil(Math.min(latNorth, latSouth) / stepLat) * stepLat
 	for (let lat = latStart; lat <= Math.max(latNorth, latSouth) + 1e-9; lat += stepLat) {
 		const y = latToY(lat)
@@ -1080,7 +1091,11 @@ function drawGraticule(
 			ctx.lineTo(mapX + mapW - tick, y)
 			ctx.stroke()
 		}
-		drawHaloLabel(ctx, formatCoord(lat, true, decLat), mapX + Math.round(fs * 0.6), y, "left", fs)
+		if (y > mapY + cornerPad && y < mapY + mapH - cornerPad) {
+			const label = formatCoord(lat, true, decLat)
+			drawHaloLabel(ctx, label, mapX + latLabelInsetX, y, "left", fs)
+			drawHaloLabel(ctx, label, mapX + mapW - latLabelInsetX, y, "right", fs)
+		}
 	}
 
 	ctx.restore()
