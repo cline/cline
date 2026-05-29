@@ -160,7 +160,7 @@ export function isCommandAddressedToBot(
 	if (!expectedBotName) {
 		return false;
 	}
-	const match = command.match(/^\/[^@\s]+@([a-z0-9_]+)$/i);
+	const match = command.match(/^\/[^@\s]+@([a-z0-9_.\-]+)$/i);
 	return match?.[1]?.toLowerCase() === expectedBotName;
 }
 
