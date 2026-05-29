@@ -653,6 +653,10 @@ export class McpHub {
 				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
+			// Capture server-level instructions advertised in the initialize response (MCP spec).
+			// Servers may expose an optional `instructions` field describing how to use them; surface it to the model.
+			connection.server.instructions = connection.client.getInstructions()
+
 			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)

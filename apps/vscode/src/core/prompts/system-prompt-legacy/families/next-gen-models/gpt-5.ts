@@ -613,11 +613,14 @@ ${
 
 					const config = JSON.parse(server.config)
 
+					const instructions = server.instructions?.trim()
+
 					return (
 						`## ${server.name}` +
 						(config.command
 							? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)`
 							: "") +
+						(instructions ? `\n\n### Instructions\n${instructions}` : "") +
 						(tools ? `\n\n### Available Tools\n${tools}` : "") +
 						(templates ? `\n\n### Resource Templates\n${templates}` : "") +
 						(resources ? `\n\n### Direct Resources\n${resources}` : "")
