@@ -5,6 +5,11 @@ export type ConnectorCatalogEntry = {
 
 export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
 	{
+		name: "discord",
+		description:
+			"Discord interactions and gateway bridge backed by RPC runtime sessions",
+	},
+	{
 		name: "gchat",
 		description: "Google Chat webhook bridge backed by RPC runtime sessions",
 	},
