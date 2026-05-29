@@ -6,7 +6,7 @@ AI-Hydro is an agent-native hydrology research platform built around a VS Code e
 
 ## Status
 
-Active product hardening — last updated 2026-05-28.
+Active product hardening — last updated 2026-05-29.
 
 ## Where To Read Next
 
@@ -17,10 +17,10 @@ Active product hardening — last updated 2026-05-28.
 
 ## Current State
 
-- Active phase: AI-Hydro Map product refinement and global delineation integration.
-- Last notable feature work: global MERIT delineation v1, map layer/raster handling, map export composer, and Research Gallery integration.
+- Active phase: AI-Hydro Map product refinement, Research Gallery, and contributor recognition.
+- Last notable feature work: Cloudflare Workers + D1 recognition API deployed for Gallery/Skills/Modules usage counts.
 - Open question: which community contribution review rules should become automated CI checks in `AI-Hydro/Gallery`.
-- Next step: harden Gallery item imports and keep adding official hydrology examples as reusable research artifacts.
+- Next step: verify live recognition counts from the installed extension UI and extend the same usage-count display to Skills/Modules surfaces.
 
 ## Non-Goals
 

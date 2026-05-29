@@ -80,6 +80,7 @@ testing-platform/
 tests/
 scripts/
 proto/
+recognition-worker/**
 
 # Include specific file needed for Background Exec mode
 !standalone/runtime-files/vscode/enhanced-terminal.js

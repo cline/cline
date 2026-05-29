@@ -84,7 +84,10 @@ class AiHydroEndpoint {
 						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Gallery/api",
 					),
-					recognitionApiBaseUrl: getEnvOrDefault("AI_HYDRO_RECOGNITION_API_BASE_URL_STAGING", ""),
+					recognitionApiBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_RECOGNITION_API_BASE_URL_STAGING",
+						"https://aihydro-recognition.aihydro-mgalib.workers.dev/v1",
+					),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Connectors/api",
@@ -133,7 +136,10 @@ class AiHydroEndpoint {
 						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL",
 						"https://ai-hydro.github.io/Gallery/api",
 					),
-					recognitionApiBaseUrl: getEnvOrDefault("AI_HYDRO_RECOGNITION_API_BASE_URL", ""),
+					recognitionApiBaseUrl: getEnvOrDefault(
+						"AI_HYDRO_RECOGNITION_API_BASE_URL",
+						"https://aihydro-recognition.aihydro-mgalib.workers.dev/v1",
+					),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL",
 						"https://ai-hydro.github.io/Connectors/api",

@@ -41,10 +41,17 @@ npx wrangler d1 execute aihydro_recognition --file=./schema.sql --remote
 npx wrangler deploy
 ```
 
+If Wrangler reports that `@cloudflare/workerd-darwin-arm64` is missing on
+Apple Silicon, repair the local optional dependency install with:
+
+```bash
+npm i -D @cloudflare/workerd-darwin-arm64@1.20260526.1
+```
+
 Then configure the extension:
 
 ```bash
-export AI_HYDRO_RECOGNITION_API_BASE_URL="https://<worker-subdomain>.workers.dev/v1"
+export AI_HYDRO_RECOGNITION_API_BASE_URL="https://aihydro-recognition.aihydro-mgalib.workers.dev/v1"
 ```
 
 When a custom domain is ready, use:

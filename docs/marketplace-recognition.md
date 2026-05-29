@@ -41,7 +41,13 @@ workspace names.
 
 ## Configuration
 
-Recognition recording is disabled unless the API base URL is configured:
+Production and staging default to the hosted AI-Hydro recognition worker:
+
+```text
+https://aihydro-recognition.aihydro-mgalib.workers.dev/v1
+```
+
+Override it with:
 
 ```bash
 export AI_HYDRO_RECOGNITION_API_BASE_URL="https://recognition.ai-hydro.org/v1"
@@ -53,8 +59,9 @@ Environment-specific overrides:
 - `AI_HYDRO_RECOGNITION_API_BASE_URL_STAGING`
 - `AI_HYDRO_RECOGNITION_API_BASE_URL_LOCAL`
 
-When the URL is unset or the API is unavailable, marketplace imports and installs
-continue normally and counts simply do not update.
+Local development remains opt-in by default. When the URL is unset or the API is
+unavailable, marketplace imports and installs continue normally and counts
+simply do not update.
 
 ## Current event hooks
 

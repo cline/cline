@@ -1,8 +1,10 @@
 name = "aihydro-recognition"
 main = "src/index.ts"
 compatibility_date = "2026-05-29"
+workers_dev = true
+preview_urls = false
 
 [[d1_databases]]
 binding = "DB"
 database_name = "aihydro_recognition"
-database_id = "replace-with-cloudflare-d1-database-id"
+database_id = "0f043f39-f1e8-4d86-9ef3-eb6578898d47"
