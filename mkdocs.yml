@@ -150,9 +150,15 @@ nav:
     - Quickstart: getting-started/quickstart.md
     - First Analysis: getting-started/first-analysis.md
 
+  - Tutorials:
+    - Water-Body Change from Satellite: tutorials/water-body-change.md
+
   - User Guide:
     - VS Code Extension: guide/vscode-extension.md
     - Map Panel: guide/map.md
+    - Data Fetch: guide/data-fetch.md
+    - Spectral Indices: guide/spectral-indices.md
+    - Tool Discovery: guide/tool-discovery.md
     - HTML Preview: guide/html-preview.md
     - Skills: guide/skills.md
     - Connectors: guide/connectors.md
@@ -164,6 +170,7 @@ nav:
 
   - Tool Reference:
     - Overview: tools/index.md
+    - Complete Reference (all tools): tools/reference.md
     - Analysis Tools: tools/analysis.md
     - Modelling Tools: tools/modelling.md
     - Project & Literature: tools/project.md

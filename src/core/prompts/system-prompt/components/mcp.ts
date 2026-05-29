@@ -31,72 +31,50 @@ async function getMcpServers(servers: McpServer[], variant: PromptVariant, conte
 	})
 }
 
-// ── Wave 1.5: tier-based tool filtering ─────────────────────────────────────
+// ── Progressive tool disclosure (server-driven) ─────────────────────────────
 //
-// When an MCP server exposes many tools, putting every full schema in the
-// system prompt every turn is wasteful. Servers can tag each tool with
-// `_meta.tier` (1 = scientific output, 2 = workflow, 3 = infrastructure /
-// discovery) and `_meta.domain`. When a server's total tool schema size
-// exceeds TIER_FILTER_CHAR_THRESHOLD, we surface only tier 3 + a small set
-// of always-helpful discovery tools, and append a note pointing the agent
-// at the discovery tool to expand on demand.
+// Dumping every tool's full JSON schema into the system prompt every turn does
+// not scale past a few dozen tools. Instead we use two levels of detail, keyed
+// off server-attached `_meta`:
 //
-// Hidden tools remain fully callable via use_mcp_tool — they're just not
-// listed in the system prompt. The agent uses `aihydro_describe_capability`
-// (or any list_*/get_*/describe_* tool) to surface a focused subset on demand.
+//   • HOT tools  (`_meta.hot === true`): the small, high-frequency set the
+//     agent uses constantly (all Tier-1 scientific tools + a curated allowlist
+//     of entry points + the discovery tools themselves). Their FULL inputSchema
+//     is injected inline so they're zero-round-trip to call correctly.
 //
-// Backward compatibility: servers that don't set `_meta.tier` (every existing
-// non-AI-Hydro MCP server) are surfaced fully — no behaviour change.
+//   • Everything else: injected as a single summary line —
+//     `- name — one-line summary (domain)` — grouped by domain. The parameter
+//     schema is NOT shown; the agent fetches it on demand via `describe_tool`.
+//
+// Nothing is ever fully hidden: every tool name + purpose is always visible,
+// so the agent can always discover and (after describe_tool) call any tool.
+// This is the opposite of the old approach, which hid the very Tier-1/Tier-2
+// scientific tools the agent needed.
+//
+// Backward compatibility: servers that set no `_meta.hot` on any tool (every
+// non-AI-Hydro MCP server) get full schemas for all tools — no behaviour change.
 
-/** Char threshold above which a server's tool list gets tier-filtered. */
-const TIER_FILTER_CHAR_THRESHOLD = 8_000
-
-/** Tool names matching these prefixes are always shown (discovery helpers). */
-const ALWAYS_SHOW_PREFIXES = ["list_", "get_", "describe_", "find_", "aihydro_"]
-
-function estimateServerToolChars(server: McpServer): number {
-	if (!server.tools) return 0
-	let total = 0
-	for (const tool of server.tools) {
-		total += (tool.name?.length ?? 0) + (tool.description?.length ?? 0)
-		if (tool.inputSchema) {
-			total += JSON.stringify(tool.inputSchema).length
-		}
-	}
-	return total
+function isHotTool(tool: McpTool): boolean {
+	return (tool._meta as any)?.hot === true
 }
 
-function shouldAlwaysShow(tool: McpTool): boolean {
-	if (ALWAYS_SHOW_PREFIXES.some((p) => tool.name.startsWith(p))) return true
-	const tier = (tool._meta as any)?.tier
-	return tier === 3
+function toolDomain(tool: McpTool): string {
+	return (tool._meta as any)?.domain || "general"
 }
 
-interface FilterResult {
-	visible: McpTool[]
-	hiddenByDomain: Map<string, number>
+/** First non-empty line of a description, used for the summary listing. */
+function summaryLine(tool: McpTool): string {
+	const desc = (tool.description ?? "").trim()
+	const first = desc.split("\n").find((l) => l.trim().length > 0) ?? ""
+	return first.trim()
 }
 
-function applyTierFilter(tools: McpTool[]): FilterResult {
-	// Only filter if at least one tool actually carries tier metadata —
-	// otherwise we'd be silently hiding tools on third-party servers that
-	// don't opt in.
-	const hasTierMeta = tools.some((t) => (t._meta as any)?.tier !== undefined)
-	if (!hasTierMeta) {
-		return { visible: tools, hiddenByDomain: new Map() }
-	}
-
-	const visible: McpTool[] = []
-	const hiddenByDomain = new Map<string, number>()
-	for (const tool of tools) {
-		if (shouldAlwaysShow(tool)) {
-			visible.push(tool)
-			continue
-		}
-		const domain = (tool._meta as any)?.domain || "general"
-		hiddenByDomain.set(domain, (hiddenByDomain.get(domain) ?? 0) + 1)
-	}
-	return { visible, hiddenByDomain }
+function renderFullTool(tool: McpTool): string {
+	const schemaStr = tool.inputSchema
+		? `    Input Schema:
+    ${JSON.stringify(tool.inputSchema, null, 2).split("\n").join("\n    ")}`
+		: ""
+	return `- ${tool.name}: ${tool.description}\n${schemaStr}`
 }
 
 function formatMcpServersList(servers: McpServer[]): string {
@@ -104,34 +82,41 @@ function formatMcpServersList(servers: McpServer[]): string {
 		.filter((server) => server.status === "connected")
 		.map((server) => {
 			const allTools = server.tools ?? []
-			const serverChars = estimateServerToolChars(server)
-			const filterActive = serverChars > TIER_FILTER_CHAR_THRESHOLD
 
-			const { visible, hiddenByDomain } = filterActive
-				? applyTierFilter(allTools)
-				: { visible: allTools, hiddenByDomain: new Map<string, number>() }
+			// Disclosure is active only when the server opts in by marking at
+			// least one tool hot. Otherwise render every tool fully (legacy).
+			const disclosureActive = allTools.some((t) => isHotTool(t))
 
-			const tools = visible
-				.map((tool) => {
-					const schemaStr = tool.inputSchema
-						? `    Input Schema:
-    ${JSON.stringify(tool.inputSchema, null, 2).split("\n").join("\n    ")}`
-						: ""
+			const hotTools = disclosureActive ? allTools.filter((t) => isHotTool(t)) : allTools
+			const summaryTools = disclosureActive ? allTools.filter((t) => !isHotTool(t)) : []
 
-					return `- ${tool.name}: ${tool.description}\n${schemaStr}`
+			// Full schemas for the hot set.
+			const fullBlock = hotTools.map(renderFullTool).join("\n\n")
+
+			// Summary lines for everything else, grouped by domain.
+			const byDomain = new Map<string, McpTool[]>()
+			for (const tool of summaryTools) {
+				const d = toolDomain(tool)
+				if (!byDomain.has(d)) byDomain.set(d, [])
+				byDomain.get(d)!.push(tool)
+			}
+			const summaryBlock = Array.from(byDomain.entries())
+				.sort((a, b) => a[0].localeCompare(b[0]))
+				.map(([domain, toolsInDomain]) => {
+					const lines = toolsInDomain
+						.sort((a, b) => a.name.localeCompare(b.name))
+						.map((t) => `- ${t.name} — ${summaryLine(t)}`)
+						.join("\n")
+					return `**${domain}**\n${lines}`
 				})
 				.join("\n\n")
 
-			// Hidden-tools advisory (only when filtering took effect)
-			const totalHidden = Array.from(hiddenByDomain.values()).reduce((a, b) => a + b, 0)
-			const domainSummary = Array.from(hiddenByDomain.entries())
-				.sort((a, b) => b[1] - a[1])
-				.map(([d, n]) => `${d} (${n})`)
-				.join(", ")
-			const hiddenAdvisory =
-				totalHidden > 0
-					? `\n\n_${totalHidden} additional tools are registered on this server but hidden from this list to keep context tight (domains: ${domainSummary}). Call a discovery tool such as \`aihydro_describe_capability\` with a domain name to surface them. All hidden tools remain fully callable via \`use_mcp_tool\`._`
+			const summaryAdvisory =
+				summaryTools.length > 0
+					? `\n\n#### More Tools (names only)\nThe tools below are listed by name and summary only. Before calling one for the first time, call \`describe_tool(name)\` to get its exact parameters and a worked example — do NOT guess parameter names. Use \`aihydro_describe_capability(domain)\` to browse a domain.\n\n${summaryBlock}`
 					: ""
+
+			const tools = `${fullBlock}${summaryAdvisory}`
 
 			const templates = server.resourceTemplates
 				?.map((template) => `- ${template.uriTemplate} (${template.name}): ${template.description}`)
@@ -148,7 +133,7 @@ function formatMcpServersList(servers: McpServer[]): string {
 				(config.command
 					? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)`
 					: "") +
-				(tools ? `\n\n### Available Tools\n${tools}${hiddenAdvisory}` : "") +
+				(tools ? `\n\n### Available Tools\n${tools}` : "") +
 				(templates ? `\n\n### Resource Templates\n${templates}` : "") +
 				(resources ? `\n\n### Direct Resources\n${resources}` : "")
 			)

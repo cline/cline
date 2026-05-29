@@ -380,7 +380,7 @@ ALWAYS consider your audience. And your audience is devs who don't want their ti
 
 1. Internalize these guidelines. I mean it. 
 
-2. Read `docs/docs.json` and get an understanding of the structure of the docs. This will come in handly at the end when you're doing a final pass so you can cross link to docs where relevant.
+2. Read `mkdocs.yml` (the `nav:` section) and get an understanding of the structure of the docs. This will come in handy at the end when you're doing a final pass so you can cross link to docs where relevant.
 
 3. Read some good examples that I personally wrote and am proud of:
 

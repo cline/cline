@@ -8,7 +8,18 @@ import { MapServiceClient } from "../../services/grpc-client"
 import { BASE_MAP_STYLES } from "./BaseMapSelector"
 import { reportMapEvent } from "./mapSessionBridge"
 
-type ExportTemplate = "manuscript" | "report" | "clean" | "presentation"
+type ExportTemplate =
+	| "manuscript"
+	| "single-column"
+	| "thesis"
+	| "report"
+	| "report-a4"
+	| "report-portrait"
+	| "presentation"
+	| "presentation-43"
+	| "poster"
+	| "social-square"
+	| "clean"
 type ExportFormat = "png" | "pdf"
 type ExportDpi = 150 | 300 | 600
 type ExtentStrategy = "preserve-visible-extent" | "preserve-center-scale"
@@ -108,19 +119,273 @@ interface PageSpec {
 	heightIn: number
 }
 
-const TEMPLATE_PAGES: Record<ExportTemplate, PageSpec> = {
-	manuscript: { label: "Double-column figure", widthIn: 7.2, heightIn: 4.8 },
-	report: { label: "Letter landscape", widthIn: 11, heightIn: 8.5 },
-	clean: { label: "Clean map", widthIn: 10, heightIn: 7 },
-	presentation: { label: "16:9 slide", widthIn: 13.333, heightIn: 7.5 },
+type TemplateCategory = "Publication" | "Report" | "Presentation" | "Poster" | "Web" | "Minimal"
+type TitleStyle = "banner" | "plain" | "none"
+type LegendPlacement = "side" | "inset-tr" | "inset-bl" | "none"
+
+interface TemplateConfig {
+	label: string
+	category: TemplateCategory
+	description: string
+	page: PageSpec
+	/** Layout fractions (of page width/height) — drive all chrome positioning. */
+	marginFrac: number
+	titleBandFrac: number
+	footerBandFrac: number
+	/** Width of the dedicated side legend column (0 = no side column). */
+	legendWidthFrac: number
+	legendPlacement: LegendPlacement
+	titleStyle: TitleStyle
+	titleWeight: number
+	titleSizeFrac: number
+	/** Banner overlays the top of the map (true) vs. sits in its own band above it (false). */
+	mapAtTop: boolean
+	showCaption: boolean
+	/** When true the export forces a north-up, zero-pitch view (research/print fidelity). */
+	normalizeOrientation: boolean
+	frame: boolean
+	accent: string
 }
 
-const TEMPLATE_LABELS: Record<ExportTemplate, string> = {
-	manuscript: "Manuscript Figure",
-	report: "Report Plate",
-	clean: "Clean Map",
-	presentation: "Presentation Slide",
+// Single source of truth for every export template. Adding a new plate is now
+// purely declarative — no branching inside composePlate().
+const TEMPLATE_CONFIGS: Record<ExportTemplate, TemplateConfig> = {
+	// ── Publication grade ────────────────────────────────────────────────────
+	manuscript: {
+		label: "Manuscript Figure — double column",
+		category: "Publication",
+		description: "Two-column journal figure (7.2 × 4.8 in). Inset legend, long caption band.",
+		page: { label: "Double-column figure", widthIn: 7.2, heightIn: 4.8 },
+		marginFrac: 0.035,
+		titleBandFrac: 0.055,
+		footerBandFrac: 0.14,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-tr",
+		titleStyle: "plain",
+		titleWeight: 600,
+		titleSizeFrac: 0.012,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#111827",
+	},
+	"single-column": {
+		label: "Manuscript Figure — single column",
+		category: "Publication",
+		description: "Narrow single-column journal figure (3.5 × 3.4 in). Compact, larger relative type.",
+		page: { label: "Single-column figure", widthIn: 3.5, heightIn: 3.4 },
+		marginFrac: 0.04,
+		titleBandFrac: 0.075,
+		footerBandFrac: 0.17,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-tr",
+		titleStyle: "plain",
+		titleWeight: 600,
+		titleSizeFrac: 0.026,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#111827",
+	},
+	thesis: {
+		label: "Thesis Plate — full page portrait",
+		category: "Publication",
+		description: "Full-page portrait plate (6.5 × 9 in). Map over caption, inset legend.",
+		page: { label: "Full-page portrait plate", widthIn: 6.5, heightIn: 9 },
+		marginFrac: 0.045,
+		titleBandFrac: 0.07,
+		footerBandFrac: 0.1,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-tr",
+		titleStyle: "plain",
+		titleWeight: 700,
+		titleSizeFrac: 0.026,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#111827",
+	},
+	// ── Report / production ──────────────────────────────────────────────────
+	report: {
+		label: "Report Plate — Letter landscape",
+		category: "Report",
+		description: "US Letter landscape (11 × 8.5 in). Side legend column, full provenance footer.",
+		page: { label: "Letter landscape", widthIn: 11, heightIn: 8.5 },
+		marginFrac: 0.045,
+		titleBandFrac: 0.1,
+		footerBandFrac: 0.075,
+		legendWidthFrac: 0.24,
+		legendPlacement: "side",
+		titleStyle: "plain",
+		titleWeight: 700,
+		titleSizeFrac: 0.016,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#111827",
+	},
+	"report-a4": {
+		label: "Report Plate — A4 landscape",
+		category: "Report",
+		description: "ISO A4 landscape (11.69 × 8.27 in). Side legend column — international standard.",
+		page: { label: "A4 landscape", widthIn: 11.69, heightIn: 8.27 },
+		marginFrac: 0.045,
+		titleBandFrac: 0.1,
+		footerBandFrac: 0.075,
+		legendWidthFrac: 0.24,
+		legendPlacement: "side",
+		titleStyle: "plain",
+		titleWeight: 700,
+		titleSizeFrac: 0.016,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#111827",
+	},
+	"report-portrait": {
+		label: "Report Plate — Letter portrait",
+		category: "Report",
+		description: "US Letter portrait (8.5 × 11 in). Inset legend, tall map area.",
+		page: { label: "Letter portrait", widthIn: 8.5, heightIn: 11 },
+		marginFrac: 0.05,
+		titleBandFrac: 0.085,
+		footerBandFrac: 0.07,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-tr",
+		titleStyle: "plain",
+		titleWeight: 700,
+		titleSizeFrac: 0.02,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#111827",
+	},
+	// ── Presentation ─────────────────────────────────────────────────────────
+	presentation: {
+		label: "Presentation Slide — 16:9",
+		category: "Presentation",
+		description: "Widescreen 16:9 slide (13.33 × 7.5 in). Dark title banner, inset legend.",
+		page: { label: "16:9 slide", widthIn: 13.333, heightIn: 7.5 },
+		marginFrac: 0.022,
+		titleBandFrac: 0.15,
+		footerBandFrac: 0.035,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-bl",
+		titleStyle: "banner",
+		titleWeight: 800,
+		titleSizeFrac: 0.024,
+		mapAtTop: true,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#0f172a",
+	},
+	"presentation-43": {
+		label: "Presentation Slide — 4:3",
+		category: "Presentation",
+		description: "Classic 4:3 slide (10 × 7.5 in). Dark title banner, inset legend.",
+		page: { label: "4:3 slide", widthIn: 10, heightIn: 7.5 },
+		marginFrac: 0.025,
+		titleBandFrac: 0.15,
+		footerBandFrac: 0.035,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-bl",
+		titleStyle: "banner",
+		titleWeight: 800,
+		titleSizeFrac: 0.026,
+		mapAtTop: true,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#0f172a",
+	},
+	// ── Poster ───────────────────────────────────────────────────────────────
+	poster: {
+		label: "Poster Panel — large format",
+		category: "Poster",
+		description: "Large-format poster panel (20 × 16 in). Banner title, wide side legend.",
+		page: { label: "Poster panel", widthIn: 20, heightIn: 16 },
+		marginFrac: 0.03,
+		titleBandFrac: 0.11,
+		footerBandFrac: 0.05,
+		legendWidthFrac: 0.22,
+		legendPlacement: "side",
+		titleStyle: "banner",
+		titleWeight: 800,
+		titleSizeFrac: 0.02,
+		mapAtTop: false,
+		showCaption: true,
+		normalizeOrientation: true,
+		frame: true,
+		accent: "#0f172a",
+	},
+	// ── Web / social ─────────────────────────────────────────────────────────
+	"social-square": {
+		label: "Social / Web — square",
+		category: "Web",
+		description: "Square 1:1 tile (8 × 8 in) for web and social. Banner title, inset legend.",
+		page: { label: "Square tile", widthIn: 8, heightIn: 8 },
+		marginFrac: 0.035,
+		titleBandFrac: 0.1,
+		footerBandFrac: 0.05,
+		legendWidthFrac: 0,
+		legendPlacement: "inset-tr",
+		titleStyle: "banner",
+		titleWeight: 800,
+		titleSizeFrac: 0.028,
+		mapAtTop: true,
+		showCaption: false,
+		normalizeOrientation: false,
+		frame: true,
+		accent: "#0f172a",
+	},
+	// ── Minimal ──────────────────────────────────────────────────────────────
+	clean: {
+		label: "Clean Map — no chrome",
+		category: "Minimal",
+		description: "Bare map (10 × 7 in). No title, no legend; preserves bearing/pitch.",
+		page: { label: "Clean map", widthIn: 10, heightIn: 7 },
+		marginFrac: 0.02,
+		titleBandFrac: 0,
+		footerBandFrac: 0.035,
+		legendWidthFrac: 0,
+		legendPlacement: "none",
+		titleStyle: "none",
+		titleWeight: 400,
+		titleSizeFrac: 0.012,
+		mapAtTop: true,
+		showCaption: false,
+		normalizeOrientation: false,
+		frame: true,
+		accent: "#111827",
+	},
 }
+
+const TEMPLATE_PAGES: Record<ExportTemplate, PageSpec> = Object.fromEntries(
+	Object.entries(TEMPLATE_CONFIGS).map(([key, cfg]) => [key, cfg.page]),
+) as Record<ExportTemplate, PageSpec>
+
+const TEMPLATE_LABELS: Record<ExportTemplate, string> = Object.fromEntries(
+	Object.entries(TEMPLATE_CONFIGS).map(([key, cfg]) => [key, cfg.label]),
+) as Record<ExportTemplate, string>
+
+// Templates grouped by category, preserving declaration order — drives the
+// grouped <optgroup> dropdown.
+const TEMPLATE_GROUPS: Array<{ category: TemplateCategory; templates: ExportTemplate[] }> = (() => {
+	const order: TemplateCategory[] = ["Publication", "Report", "Presentation", "Poster", "Web", "Minimal"]
+	return order.map((category) => ({
+		category,
+		templates: (Object.keys(TEMPLATE_CONFIGS) as ExportTemplate[]).filter(
+			(key) => TEMPLATE_CONFIGS[key].category === category,
+		),
+	}))
+})()
 
 const MAX_EXPORT_PIXELS = 36_000_000
 const WARN_EXPORT_PIXELS = 20_000_000
@@ -291,7 +556,10 @@ function evaluateReadiness(
 	if (snapshot.basemap.requiresVisibleAttribution && !spec.elements.attribution) {
 		blockingReasons.push("Mandatory basemap attribution cannot be disabled.")
 	}
-	if ((Math.abs(snapshot.view.bearing) > 0.1 || Math.abs(snapshot.view.pitch) > 0.1) && spec.template !== "clean") {
+	if (
+		(Math.abs(snapshot.view.bearing) > 0.1 || Math.abs(snapshot.view.pitch) > 0.1) &&
+		TEMPLATE_CONFIGS[spec.template].normalizeOrientation
+	) {
 		blockingReasons.push("Research plate export requires north-up, zero-pitch map view in V1.")
 	}
 	if (canvas && dims.width > canvas.width * 1.25) {
@@ -450,60 +718,73 @@ async function composePlate(
 	const ctx = canvas.getContext("2d")
 	if (!ctx) throw new Error("Unable to create export canvas")
 
+	const cfg = TEMPLATE_CONFIGS[spec.template]
 	ctx.fillStyle = "#ffffff"
 	ctx.fillRect(0, 0, dims.width, dims.height)
-	let margin = spec.template === "clean" ? Math.round(dims.width * 0.02) : Math.round(dims.width * 0.045)
-	let titleBand = spec.template === "clean" ? 0 : Math.round(dims.height * 0.1)
-	let footerBand = spec.template === "clean" ? Math.round(dims.height * 0.035) : Math.round(dims.height * 0.075)
-	let legendWidth = spec.elements.legend && spec.template !== "clean" ? Math.round(dims.width * 0.24) : 0
-	if (spec.template === "manuscript") {
-		margin = Math.round(dims.width * 0.035)
-		titleBand = Math.round(dims.height * 0.055)
-		footerBand = Math.round(dims.height * 0.14)
-		legendWidth = 0
-	}
-	if (spec.template === "presentation") {
-		margin = Math.round(dims.width * 0.022)
-		titleBand = Math.round(dims.height * 0.15)
-		footerBand = Math.round(dims.height * 0.035)
-		legendWidth = 0
-	}
+
+	const margin = Math.round(dims.width * cfg.marginFrac)
+	const titleBand = Math.round(dims.height * cfg.titleBandFrac)
+	const footerBand = Math.round(dims.height * cfg.footerBandFrac)
+	const legendWidth =
+		spec.elements.legend && cfg.legendPlacement === "side" && cfg.legendWidthFrac > 0
+			? Math.round(dims.width * cfg.legendWidthFrac)
+			: 0
+	const legendGutter = legendWidth ? Math.round(margin * 0.55) : 0
+
 	const mapX = margin
-	const mapY = spec.template === "presentation" ? margin : margin + titleBand
-	const mapW = dims.width - margin * 2 - legendWidth - (legendWidth ? Math.round(margin * 0.55) : 0)
+	const mapY = cfg.mapAtTop ? margin : margin + titleBand
+	const mapW = dims.width - margin * 2 - legendWidth - legendGutter
 	const mapH = dims.height - mapY - footerBand - margin
 
-	if (spec.template === "presentation") {
-		ctx.fillStyle = "#0f172a"
-		ctx.fillRect(0, 0, dims.width, Math.round(titleBand * 0.9))
+	// ── Title ────────────────────────────────────────────────────────────────
+	if (cfg.titleStyle === "banner") {
+		const bannerH = cfg.mapAtTop ? Math.round(titleBand * 0.9) : titleBand
+		ctx.fillStyle = cfg.accent
+		ctx.fillRect(0, 0, dims.width, bannerH)
 		ctx.fillStyle = "#f8fafc"
-		ctx.font = `800 ${Math.max(26, Math.round(dims.width * 0.024))}px system-ui, sans-serif`
-		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(titleBand * 0.38))
-		ctx.font = `500 ${Math.max(15, Math.round(dims.width * 0.011))}px system-ui, sans-serif`
-		ctx.fillStyle = "#cbd5e1"
-		if (spec.text.subtitle) ctx.fillText(spec.text.subtitle, margin, Math.round(titleBand * 0.64))
-	} else if (spec.template !== "clean") {
-		ctx.fillStyle = "#111827"
-		ctx.font = `${spec.template === "manuscript" ? "600" : "700"} ${Math.max(16, Math.round(dims.width * (spec.template === "manuscript" ? 0.012 : 0.016)))}px system-ui, sans-serif`
-		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, margin + Math.round(titleBand * 0.38))
-		ctx.font = `${Math.max(12, Math.round(dims.width * 0.009))}px system-ui, sans-serif`
-		ctx.fillStyle = "#4b5563"
+		ctx.font = `${cfg.titleWeight} ${Math.max(22, Math.round(dims.width * cfg.titleSizeFrac))}px system-ui, sans-serif`
+		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(bannerH * 0.42))
 		if (spec.text.subtitle) {
-			ctx.fillText(spec.text.subtitle, margin, margin + Math.round(titleBand * 0.65))
+			ctx.font = `500 ${Math.max(13, Math.round(dims.width * cfg.titleSizeFrac * 0.5))}px system-ui, sans-serif`
+			ctx.fillStyle = "#cbd5e1"
+			ctx.fillText(spec.text.subtitle, margin, Math.round(bannerH * 0.74))
 		}
+	} else if (cfg.titleStyle === "plain") {
+		ctx.fillStyle = cfg.accent
+		ctx.font = `${cfg.titleWeight} ${Math.max(15, Math.round(dims.width * cfg.titleSizeFrac))}px system-ui, sans-serif`
+		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, margin + Math.round(titleBand * 0.4))
+		if (spec.text.subtitle) {
+			ctx.font = `${Math.max(11, Math.round(dims.width * cfg.titleSizeFrac * 0.72))}px system-ui, sans-serif`
+			ctx.fillStyle = "#4b5563"
+			ctx.fillText(spec.text.subtitle, margin, margin + Math.round(titleBand * 0.72))
+		}
+		// Thin accent rule under the title band.
+		ctx.strokeStyle = "#d1d5db"
+		ctx.lineWidth = 1
+		ctx.beginPath()
+		ctx.moveTo(margin, margin + titleBand - Math.round(titleBand * 0.08))
+		ctx.lineTo(dims.width - margin, margin + titleBand - Math.round(titleBand * 0.08))
+		ctx.stroke()
 	}
 
 	ctx.drawImage(mapCanvas, mapX, mapY, mapW, mapH)
-	ctx.strokeStyle = "#111827"
-	ctx.lineWidth = 2
-	ctx.strokeRect(mapX, mapY, mapW, mapH)
+	if (cfg.frame) {
+		ctx.strokeStyle = "#111827"
+		ctx.lineWidth = 2
+		ctx.strokeRect(mapX, mapY, mapW, mapH)
+	}
 
-	if (spec.elements.legend && legendWidth) {
-		drawLegend(ctx, snapshot, mapX + mapW + Math.round(margin * 0.55), mapY, legendWidth)
-	} else if (spec.elements.legend && spec.template === "manuscript") {
-		drawLegend(ctx, snapshot, mapX + mapW - Math.round(dims.width * 0.24), mapY + 12, Math.round(dims.width * 0.22))
-	} else if (spec.elements.legend && spec.template === "presentation") {
-		drawLegend(ctx, snapshot, mapX + 18, mapY + mapH - Math.round(dims.height * 0.2), Math.round(dims.width * 0.26))
+	// ── Legend ───────────────────────────────────────────────────────────────
+	if (spec.elements.legend) {
+		if (cfg.legendPlacement === "side" && legendWidth) {
+			drawLegend(ctx, snapshot, mapX + mapW + legendGutter, mapY, legendWidth)
+		} else if (cfg.legendPlacement === "inset-tr") {
+			const w = Math.round(dims.width * 0.24)
+			drawLegend(ctx, snapshot, mapX + mapW - w - 12, mapY + 12, w)
+		} else if (cfg.legendPlacement === "inset-bl") {
+			const w = Math.round(dims.width * 0.26)
+			drawLegend(ctx, snapshot, mapX + 18, mapY + mapH - Math.round(dims.height * 0.2), w)
+		}
 	}
 	if (spec.elements.scaleBar) {
 		drawScaleBar(ctx, snapshot.view, mapX + 24, mapY + mapH - 30, mapW)
@@ -535,7 +816,7 @@ async function composePlate(
 		dims.width - margin * 2,
 		Math.max(14, Math.round(dims.width * 0.008)),
 	)
-	if (spec.text.caption && spec.template !== "clean") {
+	if (spec.text.caption && cfg.showCaption) {
 		ctx.fillStyle = "#111827"
 		ctx.font = `${Math.max(10, Math.round(dims.width * 0.007))}px system-ui, sans-serif`
 		drawText(
@@ -594,7 +875,7 @@ function buildManifest(
 			formats: spec.formats,
 			dpi: spec.dpi,
 			extentStrategy: spec.extentStrategy,
-			normalizeOrientation: spec.template !== "clean",
+			normalizeOrientation: TEMPLATE_CONFIGS[spec.template].normalizeOrientation,
 		},
 		rendered: {
 			qualityStatus: readiness.qualityStatus === "blocked" ? "blocked" : readiness.qualityStatus,
@@ -1028,13 +1309,26 @@ export const MapExport: React.FC<MapExportProps> = ({
 							onChange={(event) => setTemplate(event.target.value as ExportTemplate)}
 							style={inputStyle}
 							value={template}>
-							{Object.entries(TEMPLATE_LABELS).map(([key, label]) => (
-								<option key={key} value={key}>
-									{label}
-								</option>
+							{TEMPLATE_GROUPS.map((group) => (
+								<optgroup key={group.category} label={group.category}>
+									{group.templates.map((key) => (
+										<option key={key} value={key}>
+											{TEMPLATE_CONFIGS[key].label}
+										</option>
+									))}
+								</optgroup>
 							))}
 						</select>
 					</label>
+					<div
+						style={{
+							fontSize: 11,
+							lineHeight: 1.35,
+							color: "var(--vscode-descriptionForeground, #999)",
+							margin: "-2px 0 8px",
+						}}>
+						{TEMPLATE_CONFIGS[template].description}
+					</div>
 					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
 						<label>
 							DPI

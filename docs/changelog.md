@@ -12,6 +12,12 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ## [Unreleased]
 
+### Tooling & Documentation
+- **Tool surface grew to 113 MCP tools** (16 Tier-1 core, 36 Tier-2 extended, 61 Tier-3 specialist) across watershed, streamflow, forcing, data-fetch, modelling, map, session, claims/provenance, skills, and knowledge domains.
+- **Tiered context injection** — only the 26 *hot* tools carry their full schema in-context; the rest are fetched on demand via `describe_tool(name)`, keeping the prompt lean without hiding any tool.
+- **Auto-generated Complete Tool Reference** — `docs/tools/reference.md` is now generated directly from the live MCP registry (`ai_hydro.mcp.tools_docs.generate_tool_reference`), so the published reference can never drift from the actual tool surface.
+- **Unified smart GEE raster I/O** — one download path that auto-coarsens resolution to stay under Earth Engine's size cap, or tiles + mosaics at native resolution on request; raster results are now correctly clipped to the watershed polygon (no more rectangular bbox fills).
+
 ---
 
 ## [0.1.8] — 2026-05-09
