@@ -127,7 +127,7 @@ export function OnboardingOAuthPendingScreen(props: {
 					>
 						<text fg="gray">If the browser didn't open:</text>
 						<text fg={palette.act} marginTop={1} selectable>
-							{props.authUrl}
+							<a href={props.authUrl}>{props.authUrl}</a>
 						</text>
 					</box>
 				)}
@@ -194,7 +194,7 @@ export function OnboardingDeviceCodeScreen(props: {
 							Visit this URL and enter the code above:
 						</text>
 						<text fg={palette.act} selectable>
-							{props.deviceVerifyUrl}
+							<a href={props.deviceVerifyUrl}>{props.deviceVerifyUrl}</a>
 						</text>
 					</box>
 				)}
