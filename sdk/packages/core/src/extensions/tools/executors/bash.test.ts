@@ -8,6 +8,13 @@ const ctx: AgentToolContext = {
 	iteration: 1,
 };
 
+function shellQuote(value: string): string {
+	if (process.platform === "win32") {
+		return `'${value.replaceAll("'", "''")}'`;
+	}
+	return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
 describe("createBashExecutor", () => {
 	it("runs a simple command and returns stdout", async () => {
 		const bash = createBashExecutor();
@@ -22,7 +29,7 @@ describe("createBashExecutor", () => {
 
 	it("includes stderr in combined output on success", async () => {
 		const bash = createBashExecutor({ combineOutput: true });
-		const cmd = `${process.execPath} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
+		const cmd = `${shellQuote(process.execPath)} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
 		const output = await bash(cmd, process.cwd(), ctx);
 		expect(output).toContain("ok");
 		expect(output).toContain("[stderr]");
@@ -31,7 +38,7 @@ describe("createBashExecutor", () => {
 
 	it("excludes stderr when combineOutput is false", async () => {
 		const bash = createBashExecutor({ combineOutput: false });
-		const cmd = `${process.execPath} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
+		const cmd = `${shellQuote(process.execPath)} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
 		const output = await bash(cmd, process.cwd(), ctx);
 		expect(output.trim()).toBe("ok");
 	});
@@ -46,7 +53,7 @@ describe("createBashExecutor", () => {
 	it("truncates output exceeding maxOutputBytes", async () => {
 		const bash = createBashExecutor({ maxOutputBytes: 10 });
 		const output = await bash(
-			`${process.execPath} -e "process.stdout.write('a'.repeat(100))"`,
+			`${shellQuote(process.execPath)} -e "process.stdout.write('a'.repeat(100))"`,
 			process.cwd(),
 			ctx,
 		);

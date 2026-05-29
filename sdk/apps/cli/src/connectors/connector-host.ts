@@ -111,6 +111,9 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	if (!text.trim()) {
 		text = (await resolveFallbackText?.())?.trim() || "";
 	}
+	if (isConnectorIdleReply(text)) {
+		return;
+	}
 	if (resolveFallbackText && !text.trim()) {
 		throw new Error("Runtime completed without assistant reply text.");
 	}
@@ -135,11 +138,16 @@ function applyForcedToolDisable<TState extends ConnectorThreadState>(
 	};
 }
 
+export function isConnectorIdleReply(text: string): boolean {
+	return text.trim().toLowerCase() === "/idle";
+}
+
 export async function handleConnectorUserTurn<
 	TState extends ConnectorThreadState,
 >(input: {
 	thread: Thread<TState>;
 	text: string;
+	runtimeText?: string;
 	client: HubSessionClient;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
 	baseStartRequest: ChatStartSessionRequest;
@@ -206,6 +214,7 @@ export async function handleConnectorUserTurn<
 	if (!resolvedInput) {
 		return;
 	}
+	const runtimeInput = input.runtimeText?.trim() || resolvedInput;
 
 	const initialState = await loadThreadState(
 		input.thread,
@@ -686,10 +695,16 @@ export async function handleConnectorUserTurn<
 		input.baseStartRequest,
 		effectiveCurrentState,
 	);
-	const activeTurn = input.activeTurns?.get(turnKey);
+	const activeTurn =
+		input.activeTurns?.get(turnKey) ??
+		(input.activeTurns && currentState.sessionId?.trim()
+			? Array.from(input.activeTurns.values()).find(
+					(turn) => turn.sessionId === currentState.sessionId?.trim(),
+				)
+			: undefined);
 	if (activeTurn?.sessionId?.trim()) {
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
-			resolvedInput,
+			runtimeInput,
 			input.userInstructionService,
 		);
 		await input.client.sendRuntimeSession(
@@ -729,7 +744,7 @@ export async function handleConnectorUserTurn<
 		startedLogMessage: input.startedLogMessage,
 	});
 	const { prompt, userImages, userFiles } = await buildUserInputMessage(
-		resolvedInput,
+		runtimeInput,
 		input.userInstructionService,
 	);
 	const request: ChatRunTurnRequest = {
