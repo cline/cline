@@ -1,4 +1,4 @@
-import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -96,7 +96,7 @@ export class LmStudioHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const info = { ...openAiModelInfoSaneDefaults }
+		const info = { ...openAiModelInfoSafeDefaults }
 		const maxTokens = Number(this.options.lmStudioMaxTokens)
 		if (!Number.isNaN(maxTokens)) {
 			info.contextWindow = maxTokens

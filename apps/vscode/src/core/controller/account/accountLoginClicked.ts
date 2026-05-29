@@ -1,11 +1,11 @@
 import { EmptyRequest, String } from "@shared/proto/cline/common"
-import { AuthService } from "@/services/auth/AuthService"
+import { AuthService } from "@/sdk/auth-service"
 import { Controller } from "../index"
 
 /**
  * Handles the user clicking the login link in the UI.
- * Generates a secure nonce for state validation, stores it in secrets,
- * and opens the authentication URL in the external browser.
+ * Uses the SDK-backed AuthService to initiate the Cline OAuth flow.
+ * The SDK spawns a local callback server and opens the browser.
  *
  * @param controller The controller instance.
  * @returns The login URL as a string.

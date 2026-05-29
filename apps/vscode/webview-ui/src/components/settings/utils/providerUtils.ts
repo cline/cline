@@ -13,8 +13,6 @@ import {
 	cerebrasModels,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
-	deepSeekDefaultModelId,
-	deepSeekModels,
 	doubaoDefaultModelId,
 	doubaoModels,
 	fireworksDefaultModelId,
@@ -23,7 +21,7 @@ import {
 	geminiModels,
 	groqDefaultModelId,
 	groqModels,
-	hicapModelInfoSaneDefaults,
+	hicapModelInfoSafeDefaults,
 	huaweiCloudMaasDefaultModelId,
 	huaweiCloudMaasModels,
 	huggingFaceDefaultModelId,
@@ -32,7 +30,7 @@ import {
 	internationalQwenModels,
 	internationalZAiDefaultModelId,
 	internationalZAiModels,
-	liteLlmModelInfoSaneDefaults,
+	liteLlmModelInfoSafeDefaults,
 	ModelInfo,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
@@ -50,7 +48,7 @@ import {
 	nousResearchModels,
 	openAiCodexDefaultModelId,
 	openAiCodexModels,
-	openAiModelInfoSaneDefaults,
+	openAiModelInfoSafeDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	openRouterDefaultModelId,
@@ -102,8 +100,6 @@ export function getModelsForProvider(
 			return openAiNativeModels
 		case "openai-codex":
 			return openAiCodexModels
-		case "deepseek":
-			return deepSeekModels
 		case "qwen":
 			return apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 		case "qwen-code":
@@ -237,7 +233,11 @@ export function normalizeApiConfiguration(
 		case "openai-codex":
 			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId)
 		case "deepseek":
-			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+			return {
+				selectedProvider: provider,
+				selectedModelId: modelId || "",
+				selectedModelInfo: openAiModelInfoSafeDefaults,
+			}
 		case "qwen":
 			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
 			const qwenDefaultId =
@@ -274,24 +274,14 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
-			const fallbackOpenRouterModelId =
-				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
-			const fallbackOpenRouterModelInfo =
-				currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo
 			const clineModelId =
-				(currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId) ||
-				fallbackOpenRouterModelId ||
-				openRouterDefaultModelId
+				currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId
 			const clineModelInfo =
-				(currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo) ||
-				fallbackOpenRouterModelInfo ||
-				openRouterDefaultModelInfo
+				currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: clineModelId,
-				selectedModelInfo: clineModelInfo,
+				selectedModelId: clineModelId || "",
+				selectedModelInfo: clineModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -301,7 +291,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: openAiModelId || "",
-				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
+				selectedModelInfo: openAiModelInfo || openAiModelInfoSafeDefaults,
 			}
 		case "hicap":
 			const hicapModelId =
@@ -309,7 +299,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: hicapModelId || "",
-				selectedModelInfo: hicapModelInfoSaneDefaults,
+				selectedModelInfo: hicapModelInfoSafeDefaults,
 			}
 		case "ollama":
 			const ollamaModelId =
@@ -318,7 +308,7 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: ollamaModelId || "",
 				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
+					...openAiModelInfoSafeDefaults,
 					contextWindow: Number(apiConfiguration?.ollamaApiOptionsCtxNum ?? 32768),
 				},
 			}
@@ -329,7 +319,7 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: lmStudioModelId || "",
 				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
+					...openAiModelInfoSafeDefaults,
 					contextWindow: Number(apiConfiguration?.lmStudioMaxTokens ?? 32768),
 				},
 			}
@@ -342,7 +332,7 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: vsCodeLmModelSelector ? `${vsCodeLmModelSelector.vendor}/${vsCodeLmModelSelector.family}` : "",
 				selectedModelInfo: {
-					...openAiModelInfoSaneDefaults,
+					...openAiModelInfoSafeDefaults,
 					supportsImages: false, // VSCode LM API currently doesn't support images
 				},
 			}
@@ -354,7 +344,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: liteLlmModelId || "",
-				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: liteLlmModelInfo || liteLlmModelInfoSafeDefaults,
 			}
 		}
 		case "xai":
@@ -477,7 +467,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: ocaModelId || "",
-				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
+				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSafeDefaults,
 			}
 		case "aihubmix":
 			const aihubmixModelId =
@@ -487,7 +477,7 @@ export function normalizeApiConfiguration(
 			return {
 				selectedProvider: provider,
 				selectedModelId: aihubmixModelId || "",
-				selectedModelInfo: aihubmixModelInfo || openAiModelInfoSaneDefaults,
+				selectedModelInfo: aihubmixModelInfo || openAiModelInfoSafeDefaults,
 			}
 		case "minimax":
 			return getProviderData(minimaxModels, minimaxDefaultModelId)
@@ -571,12 +561,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 	const openRouterModelInfo =
 		mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo
 
-	// Backward compatibility: Cline previously stored model selection in OpenRouter keys.
-	const clineModelId =
-		(mode === "plan" ? apiConfiguration.planModeClineModelId : apiConfiguration.actModeClineModelId) || openRouterModelId
-	const clineModelInfo =
-		(mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo) ||
-		openRouterModelInfo
+	const clineModelId = mode === "plan" ? apiConfiguration.planModeClineModelId : apiConfiguration.actModeClineModelId
+	const clineModelInfo = mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo
 
 	return {
 		// Core fields
