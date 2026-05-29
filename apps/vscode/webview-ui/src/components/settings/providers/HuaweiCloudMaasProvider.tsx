@@ -15,10 +15,15 @@ interface HuaweiCloudMaasProviderProps {
 export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode }: HuaweiCloudMaasProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const savedHuaweiCloudMaasModelId =
+		currentMode === "plan"
+			? apiConfiguration?.planModeHuaweiCloudMaasModelId
+			: apiConfiguration?.actModeHuaweiCloudMaasModelId
 	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
 		"huawei-cloud-maas",
 		apiConfiguration,
 		currentMode,
+		{ savedModelId: savedHuaweiCloudMaasModelId },
 	)
 
 	return (

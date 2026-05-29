@@ -39,4 +39,11 @@ describe("Provider key mapping", () => {
 		expect(getProviderModelIdKey("cline", "act")).to.equal("actModeClineModelId")
 		expect(getProviderModelIdKey("cline", "plan")).to.equal("planModeClineModelId")
 	})
+
+	it("uses the SDK-declared default for Nous Research through SDK-boundary casing", () => {
+		const expectedDefault = getProviderCollectionSync("nousResearch")?.provider.defaultModelId ?? ""
+		expect(getProviderDefaultModelId("nousResearch")).to.equal(expectedDefault)
+		expect(getProviderDefaultModelId("nousresearch")).to.equal(expectedDefault)
+		expect(expectedDefault).not.to.equal("")
+	})
 })
