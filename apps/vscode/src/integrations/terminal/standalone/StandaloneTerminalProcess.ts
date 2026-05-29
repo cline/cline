@@ -128,6 +128,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				// IDE) has none, routing the child's stdio to that console instead
 				// of our pipes. Drop detached on win32 (tree-kill handles cleanup)
 				// and force windowsHide so the child stays attached to our pipes.
+				// windowsHide is a no-op on non-Windows platforms.
 				this.childProcess = spawn(shell, shellArgs, {
 					...shellOptions,
 					detached: process.platform !== "win32",

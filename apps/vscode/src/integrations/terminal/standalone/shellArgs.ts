@@ -3,15 +3,14 @@
  *
  * Extracted into a pure module so the quoting/flag logic is unit-testable
  * without spawning a process. Mirrors the shape of the canonical helper in
- * `@cline/shared` (sdk/packages/shared/src/parse/shell.ts); see the follow-up
- * note in the #10948 investigation about consolidating onto it.
+ * `@cline/shared` (sdk/packages/shared/src/parse/shell.ts).
  */
 
 /**
  * Strip a redundant outer `powershell|pwsh [.exe] -Command|-c "…"` wrapper that
  * LLMs sometimes emit. Without this we'd spawn powershell.exe with another
  * powershell.exe as its -Command argument and the inner shell would receive
- * quote-shredded args (issue #10948).
+ * quote-shredded args.
  *
  * Only unwraps when the entire string is exactly one quoted token whose body
  * does not itself contain the delimiter; anything else is returned verbatim so

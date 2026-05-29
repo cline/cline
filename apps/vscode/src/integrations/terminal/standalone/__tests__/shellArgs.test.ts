@@ -15,7 +15,7 @@ describe("unwrapPowerShell", () => {
 		assert.equal(unwrapPowerShell(`powershell.exe -c "dir"`), "dir")
 	})
 
-	it("handles the issue #10948 nested-quote repro without shredding inner quotes", () => {
+	it("handles a nested-quote command without shredding inner quotes", () => {
 		const inner = `if (Test-Path 'CHANGELOG.md') { Remove-Item 'CHANGELOG.md' -Force }`
 		assert.equal(unwrapPowerShell(`powershell -Command "${inner}"`), inner)
 	})
