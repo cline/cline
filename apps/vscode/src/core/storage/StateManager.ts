@@ -682,6 +682,30 @@ export class StateManager {
 	}
 
 	/**
+	 * Reload a secret from disk and update this process's cache.
+	 * Use this only inside a caller-owned cross-process transaction.
+	 */
+	reloadSecretKey<K extends keyof Secrets>(key: K): Secrets[K] {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		this.storage.secrets.reloadFromDisk()
+		const value = this.storage.secrets.get<string>(key)
+		this.secretsCache[key] = value
+		return value
+	}
+
+	/**
+	 * Return the shared data directory used by file-backed state.
+	 */
+	getDataDir(): string {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return this.storage.dataDir
+	}
+
+	/**
 	 * Get method for workspace state keys - reads from in-memory cache
 	 */
 	getWorkspaceStateKey<K extends keyof LocalState>(key: K): LocalState[K] {

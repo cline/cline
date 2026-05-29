@@ -70,6 +70,14 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 		return Promise.resolve()
 	}
 
+	/**
+	 * Reload values written by another process without notifying subscribers.
+	 * Callers that need cross-process coordination must hold their own lock.
+	 */
+	public reloadFromDisk(): void {
+		this.data = this.readFromDisk()
+	}
+
 	protected _keys(): readonly string[] {
 		return Object.keys(this.data)
 	}
@@ -92,6 +100,7 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 			atomicWriteFileSync(this.fsPath, JSON.stringify(this.data, null, 2), this.fileMode)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to write to ${this.fsPath}:`, error)
+			throw error
 		}
 	}
 }
