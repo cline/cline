@@ -84,7 +84,7 @@ describe("UnifiedConfigFileWatcher", () => {
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			await waitForEvent(
 				events,
 				(event) => event.kind === "upsert" && event.record.id === "reviewer",
@@ -110,7 +110,6 @@ describe("UnifiedConfigFileWatcher", () => {
 			);
 		} finally {
 			unsubscribe();
-			watcher.stop();
 		}
 	}, 15_000);
 
@@ -170,7 +169,7 @@ Escalation playbook`,
 		const unsubscribe = watcher.subscribe((event) => events.push(event));
 
 		try {
-			await watcher.start();
+			await watcher.refreshAll();
 			await waitForEvent(
 				events,
 				(event) =>
@@ -189,7 +188,6 @@ Escalation playbook`,
 			).toBe(true);
 		} finally {
 			unsubscribe();
-			watcher.stop();
 		}
 	});
 });

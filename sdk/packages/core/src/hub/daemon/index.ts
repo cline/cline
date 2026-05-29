@@ -59,13 +59,23 @@ function isCompatibleHubRecord(record: HubServerDiscoveryRecord): boolean {
 	return !!recordBuildId && recordBuildId === resolveHubBuildId();
 }
 
+async function safeProbeHubServer(
+	url: string,
+): Promise<HubServerDiscoveryRecord | undefined> {
+	try {
+		return await probeHubServer(url);
+	} catch {
+		return undefined;
+	}
+}
+
 async function waitForHubToRetire(
 	url: string,
 	timeoutMs: number,
 ): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const healthy = await probeHubServer(url).catch(() => undefined);
+		const healthy = await safeProbeHubServer(url);
 		if (!healthy?.url) {
 			return true;
 		}
@@ -207,7 +217,7 @@ export function prewarmDetachedHubServer(
 	void readHubDiscovery(owner.discoveryPath)
 		.then(async (discovered) => {
 			if (discovered?.url) {
-				const healthy = await probeHubServer(discovered.url);
+				const healthy = await safeProbeHubServer(discovered.url);
 				if (
 					healthy?.url &&
 					isCompatibleHubRecord(healthy) &&
@@ -226,7 +236,7 @@ export function prewarmDetachedHubServer(
 					await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 				}
 			}
-			const expected = await probeHubServer(expectedUrl);
+			const expected = await safeProbeHubServer(expectedUrl);
 			if (expected?.url) {
 				await retireIncompatibleHub(expected, owner.discoveryPath);
 			}
@@ -276,7 +286,7 @@ export async function ensureDetachedHubServer(
 	};
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	if (discovered?.url) {
-		const healthy = await probeHubServer(discovered.url);
+		const healthy = await safeProbeHubServer(discovered.url);
 		if (
 			healthy?.url &&
 			isCompatibleHubRecord(healthy) &&
@@ -298,7 +308,7 @@ export async function ensureDetachedHubServer(
 			await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 		}
 	}
-	const expected = await probeHubServer(expectedUrl);
+	const expected = await safeProbeHubServer(expectedUrl);
 	if (expected?.url) {
 		await retireIncompatibleHub(expected, owner.discoveryPath);
 	}
@@ -311,7 +321,7 @@ export async function ensureDetachedHubServer(
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url) {
-			const healthy = await probeHubServer(nextDiscovery.url);
+			const healthy = await safeProbeHubServer(nextDiscovery.url);
 			if (
 				healthy?.url &&
 				isCompatibleHubRecord(healthy) &&
@@ -325,7 +335,7 @@ export async function ensureDetachedHubServer(
 				});
 			}
 		}
-		const nextExpected = await probeHubServer(expectedUrl);
+		const nextExpected = await safeProbeHubServer(expectedUrl);
 		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
 			await retireIncompatibleHub(nextExpected, owner.discoveryPath);
 		}

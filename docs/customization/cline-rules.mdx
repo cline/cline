@@ -26,7 +26,7 @@ Cline recognizes rules from multiple sources, so you can use existing rule files
 | Cline Rules | `.clinerules/` | Primary rule format |
 | Cursor Rules | `.cursorrules` | Automatically detected |
 | Windsurf Rules | `.windsurfrules` | Automatically detected |
-| AGENTS.md | `AGENTS.md` | [Standard format](https://agents.md/) for cross-tool compatibility |
+| AGENTS.md | `AGENTS.md`, `~/.agents/AGENTS.md` | [Standard format](https://agents.md/) for cross-tool compatibility |
 
 All detected rule types appear in the Rules panel, where you can toggle them individually.
 
@@ -37,7 +37,7 @@ Rules can be stored in two locations: your project workspace or globally on your
 
 **Workspace rules** go in `.clinerules/` at your project root. Use these for team standards, project-specific constraints, and anything you want to share with collaborators via version control.
 
-**Global rules** go in your system's Cline Rules directory. Use these for personal preferences that apply across all projects.
+**Global rules** go in your system's Cline Rules directory. Use these for personal preferences that apply across all projects. Cline also reads cross-tool global AGENTS instructions from `~/.agents/AGENTS.md`.
 
 ```text
 your-project/
