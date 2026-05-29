@@ -17,6 +17,7 @@ import type {
 import { computeConfigFingerprint } from "./fingerprint"
 import { applyHostModelInfoOverrides } from "./host-overrides"
 import { parseProviderId } from "./provider-id"
+import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo, CatalogShapeError } from "./shape-adapter"
 
 type ProviderModelsRecord = Extract<ProviderModelsResult, { ok: true }>
@@ -140,7 +141,7 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
 	return {
-		providerId: config.providerId,
+		providerId: toSdkProviderId(config.providerId),
 		modelId: selection?.modelId ?? "",
 		apiKey: config.apiKey,
 		baseUrl: config.baseUrl,
@@ -180,7 +181,7 @@ function toProviderListing(provider: ProviderInfo): ProviderListing {
 		// family with no curated catalog), but does not yet expose it
 		// through a public helper. Until then this set is the host-side
 		// fallback; remove it as soon as upstream exposes the signal.
-		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(provider.id),
+		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(parseProviderId(provider.id)),
 		usageCostDisplay: readUsageCostDisplay(provider.id),
 	}
 }
@@ -196,7 +197,12 @@ async function resolveSdkModels(
 	selection: ModelSelection | undefined,
 	now: () => number,
 ): Promise<ProviderModelsRecord> {
-	const resolved = await resolveProviderConfig(providerId, DEFAULT_MODEL_CATALOG_CONFIG, toSdkProviderConfig(config, selection))
+	const sdkProviderId = toSdkProviderId(providerId)
+	const resolved = await resolveProviderConfig(
+		sdkProviderId,
+		DEFAULT_MODEL_CATALOG_CONFIG,
+		toSdkProviderConfig(config, selection),
+	)
 	const sdkModels = resolved?.knownModels ?? {}
 	const models = new Map(
 		Object.entries(sdkModels).map(([modelId, sdkInfo]) => [

@@ -22,6 +22,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 import type { SdkSessionHost } from "./session-host"
 
@@ -260,12 +261,13 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 const DEFAULT_PROVIDER_ID = "cline"
 
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
-	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]
+	const sdkProviderId = toSdkProviderId(providerId)
+	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]
 	if (!collection) {
 		return undefined
 	}
 
-	const generatedModels = getGeneratedModelsForProvider(providerId)
+	const generatedModels = getGeneratedModelsForProvider(sdkProviderId)
 	const defaultModelId = collection.provider.defaultModelId?.trim()
 	if (defaultModelId && (generatedModels[defaultModelId] || collection.models?.[defaultModelId])) {
 		return defaultModelId
@@ -355,7 +357,7 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 		return undefined
 	}
 
-	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.baseUrl
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.baseUrl
 	if (!providerDefaultBaseUrl) {
 		return trimmed
 	}

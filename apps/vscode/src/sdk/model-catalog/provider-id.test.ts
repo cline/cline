@@ -25,6 +25,7 @@ describe("parseProviderId", () => {
 
 	it("normalizes the legacy camel-case nousResearch id", () => {
 		expect(parseProviderId("nousResearch")).toBe("nousresearch")
+		expect(parseProviderId("NOUSRESEARCH")).toBe("nousresearch")
 	})
 
 	it("warns once per non-empty unknown provider id", () => {

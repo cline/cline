@@ -3,6 +3,7 @@ import { toLegacyApiProvider } from "./provider-helpers"
 
 describe("toLegacyApiProvider", () => {
 	it("up-cases the nousResearch id to its legacy ApiConfiguration spelling", () => {
+		expect(toLegacyApiProvider("nousResearch")).toBe("nousResearch")
 		expect(toLegacyApiProvider("nousresearch")).toBe("nousResearch")
 	})
 
