@@ -1,4 +1,4 @@
-import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
@@ -147,7 +147,7 @@ export class OllamaHandler implements ApiHandler {
 		return {
 			id: this.options.ollamaModelId || "",
 			info: {
-				...openAiModelInfoSaneDefaults,
+				...openAiModelInfoSafeDefaults,
 				contextWindow: Number(this.options.ollamaApiOptionsCtxNum),
 			},
 		}
