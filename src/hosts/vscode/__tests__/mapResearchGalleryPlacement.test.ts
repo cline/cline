@@ -47,9 +47,19 @@ describe("AI-Hydro Research Gallery placement", () => {
 		const source = await readFile(galleryPanelPath, "utf8")
 
 		source.should.containEql("contributors?")
+		source.should.containEql("profileUrl?")
+		source.should.containEql("citationUrl?")
 		source.should.containEql("badges?")
 		source.should.containEql("metrics?")
 		source.should.containEql("AI-Hydro stars")
 		source.should.containEql("aihydro-research-gallery-star")
+	})
+
+	it("keeps Gallery cards marketplace-like without repeated featured text clutter", async () => {
+		const source = await readFile(galleryPanelPath, "utf8")
+
+		source.should.containEql("Most imports")
+		source.should.containEql("Most AI-Hydro stars")
+		source.should.not.containEql(">Featured<")
 	})
 })

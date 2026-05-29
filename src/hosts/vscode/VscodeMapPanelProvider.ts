@@ -74,6 +74,8 @@ interface ResearchGalleryItem {
 	githubUrl?: string
 	artifactUrl?: string
 	citation: string
+	citationUrl?: string
+	authorUrl?: string
 	createdAt?: string
 	updatedAt?: string
 	isFeatured?: boolean
@@ -175,11 +177,13 @@ const builtInResearchGalleryItems: ResearchGalleryItem[] = [
 		description: "Small basin polygon for testing layer load, fit, style, export, and scene save.",
 		version: "0.1.0",
 		author: "AI-Hydro Team",
+		authorUrl: "https://github.com/AI-Hydro",
 		license: "AI-Hydro example data",
 		trustLevel: "official",
 		tags: ["watershed", "scene", "geojson", "example"],
 		artifactUrl: "aihydro-gallery://official-small-watershed-scene",
 		citation: "AI-Hydro Research Gallery official example.",
+		citationUrl: "https://github.com/AI-Hydro/Gallery",
 		isFeatured: true,
 		source: "built_in",
 	},
@@ -190,11 +194,13 @@ const builtInResearchGalleryItems: ResearchGalleryItem[] = [
 		description: "Stream reaches with order/upstream-area attributes for symbology and legend testing.",
 		version: "0.1.0",
 		author: "AI-Hydro Team",
+		authorUrl: "https://github.com/AI-Hydro",
 		license: "AI-Hydro example data",
 		trustLevel: "official",
 		tags: ["streams", "symbology", "style", "geojson", "example"],
 		artifactUrl: "aihydro-gallery://official-stream-order-style-fixture",
 		citation: "AI-Hydro Research Gallery official example.",
+		citationUrl: "https://github.com/AI-Hydro/Gallery",
 		isFeatured: true,
 		source: "built_in",
 		importWarnings: ["This seed imports sample stream features; full style-preset application is handled by layer styling."],
@@ -206,11 +212,13 @@ const builtInResearchGalleryItems: ResearchGalleryItem[] = [
 		description: "Lat/lon station points for CSV detection and point-layer testing.",
 		version: "0.1.0",
 		author: "AI-Hydro Team",
+		authorUrl: "https://github.com/AI-Hydro",
 		license: "AI-Hydro example data",
 		trustLevel: "official",
 		tags: ["csv", "stations", "points", "example"],
 		artifactUrl: "aihydro-gallery://official-station-dataset-connector-fixture",
 		citation: "AI-Hydro Research Gallery official example.",
+		citationUrl: "https://github.com/AI-Hydro/Gallery",
 		isFeatured: true,
 		source: "built_in",
 	},
@@ -467,6 +475,12 @@ export class VscodeMapPanelProvider {
 			githubUrl: item.githubUrl || item.github_url || "",
 			artifactUrl: item.artifactUrl || item.artifact_url || item.downloadUrl || item.download_url || "",
 			citation: typeof item.citation === "string" ? item.citation : item.citation?.text || "",
+			citationUrl:
+				item.citationUrl ||
+				item.citation_url ||
+				item.citation?.url ||
+				(item.citation?.doi ? `https://doi.org/${String(item.citation.doi).replace(/^https?:\/\/doi\.org\//, "")}` : ""),
+			authorUrl: item.authorUrl || item.author_url || item.authorProfileUrl || item.author_profile_url || "",
 			createdAt: item.createdAt || item.created_at || "",
 			updatedAt: item.updatedAt || item.updated_at || "",
 			isFeatured: Boolean(item.isFeatured ?? item.is_featured ?? false),

@@ -19,6 +19,8 @@ export interface ResearchGalleryItem {
 	githubUrl?: string
 	artifactUrl?: string
 	citation?: string
+	citationUrl?: string
+	authorUrl?: string
 	createdAt?: string
 	updatedAt?: string
 	isFeatured?: boolean
@@ -31,6 +33,12 @@ export interface ResearchGalleryItem {
 		name: string
 		orcid?: string
 		affiliation?: string
+		profileUrl?: string
+		url?: string
+		website?: string
+		linkedin?: string
+		googleScholar?: string
+		citationUrl?: string
 		roles?: string[]
 	}>
 	badges?: string[]
@@ -105,11 +113,37 @@ function contributorText(item: ResearchGalleryItem): string {
 	return names.length > 0 ? names.join(", ") : item.author
 }
 
+function githubProfileUrl(github?: string): string {
+	const handle = String(github ?? "")
+		.trim()
+		.replace(/^@/, "")
+	return handle ? `https://github.com/${handle}` : ""
+}
+
+function orcidProfileUrl(orcid?: string): string {
+	const value = String(orcid ?? "").trim()
+	if (!value) return ""
+	return value.startsWith("http") ? value : `https://orcid.org/${value}`
+}
+
+function contributorProfileUrl(contributor: NonNullable<ResearchGalleryItem["contributors"]>[number]): string {
+	return (
+		contributor.profileUrl ||
+		contributor.url ||
+		contributor.website ||
+		contributor.linkedin ||
+		contributor.googleScholar ||
+		githubProfileUrl(contributor.github) ||
+		orcidProfileUrl(contributor.orcid)
+	)
+}
+
 export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapStyle, onOpenExport }) => {
 	const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" })
 	const [query, setQuery] = useState("")
 	const [typeFilter, setTypeFilter] = useState<ResearchGalleryItemType | "all">("all")
 	const [trustFilter, setTrustFilter] = useState<TrustLevel | "all">("all")
+	const [sortBy, setSortBy] = useState<"recommended" | "imports" | "stars" | "newest" | "name">("recommended")
 	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [importingId, setImportingId] = useState<string | null>(null)
 	const [starringId, setStarringId] = useState<string | null>(null)
@@ -212,14 +246,22 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 				)
 			})
 			.sort((a, b) => {
+				const importsA = Number(a.metrics?.installs ?? a.downloadCount ?? 0)
+				const importsB = Number(b.metrics?.installs ?? b.downloadCount ?? 0)
+				const starsA = Number(a.metrics?.aiHydroStars ?? a.aiHydroStars ?? 0)
+				const starsB = Number(b.metrics?.aiHydroStars ?? b.aiHydroStars ?? 0)
+				if (sortBy === "imports") return importsB - importsA || a.title.localeCompare(b.title)
+				if (sortBy === "stars") return starsB - starsA || a.title.localeCompare(b.title)
+				if (sortBy === "newest") return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))
+				if (sortBy === "name") return a.title.localeCompare(b.title)
 				if (!!a.isFeatured !== !!b.isFeatured) return a.isFeatured ? -1 : 1
 				if (a.trustLevel !== b.trustLevel) {
 					const order: Record<TrustLevel, number> = { official: 0, reviewed: 1, community: 2, local: 3 }
 					return order[a.trustLevel] - order[b.trustLevel]
 				}
-				return a.title.localeCompare(b.title)
+				return starsB - starsA || importsB - importsA || a.title.localeCompare(b.title)
 			})
-	}, [items, query, typeFilter, trustFilter])
+	}, [items, query, typeFilter, trustFilter, sortBy])
 
 	const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0]
 
@@ -243,6 +285,39 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 	const bg = mapStyle === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"
 	const border = mapStyle === "dark" ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.13)"
 	const subtle = "var(--vscode-descriptionForeground, #9ca3af)"
+	const openUrl = (url?: string) => {
+		if (url) {
+			PLATFORM_CONFIG.postMessage({ type: "openExternal", url })
+		}
+	}
+	const linkedText = (label: string, url?: string) =>
+		url ? (
+			<button
+				onClick={() => openUrl(url)}
+				style={{
+					background: "transparent",
+					border: "none",
+					color: "var(--vscode-textLink-foreground, #4fc1ff)",
+					cursor: "pointer",
+					font: "inherit",
+					padding: 0,
+					textAlign: "left",
+				}}
+				type="button">
+				{label}
+			</button>
+		) : (
+			<span>{label}</span>
+		)
+	const contributorLinks = (item: ResearchGalleryItem) => {
+		const contributors = item.contributors?.length ? item.contributors : [{ name: item.author, profileUrl: item.authorUrl }]
+		return contributors.map((contributor, index) => (
+			<React.Fragment key={`${contributor.name || contributor.github || "contributor"}-${index}`}>
+				{index > 0 ? ", " : ""}
+				{linkedText(contributor.name || contributor.github || "Unknown contributor", contributorProfileUrl(contributor))}
+			</React.Fragment>
+		))
+	}
 
 	if (catalog.status === "loading") {
 		return (
@@ -302,7 +377,7 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 					}}
 					value={query}
 				/>
-				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
 					<select onChange={(e) => setTypeFilter(e.target.value as any)} value={typeFilter}>
 						{Object.entries(TYPE_LABELS).map(([value, label]) => (
 							<option key={value} value={value}>
@@ -316,6 +391,13 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 						<option value="reviewed">Reviewed</option>
 						<option value="community">Community</option>
 						<option value="local">Local</option>
+					</select>
+					<select onChange={(e) => setSortBy(e.target.value as any)} value={sortBy}>
+						<option value="recommended">Recommended</option>
+						<option value="imports">Most imports</option>
+						<option value="stars">Most AI-Hydro stars</option>
+						<option value="newest">Newest</option>
+						<option value="name">Name</option>
 					</select>
 				</div>
 			</div>
@@ -350,7 +432,6 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 							tabIndex={0}>
 							<div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
 								<span style={{ fontWeight: 650, fontSize: 12, flex: 1 }}>{item.title}</span>
-								{item.isFeatured && <span style={{ color: "#facc15", fontSize: 10 }}>Featured</span>}
 								<span
 									aria-label={item.starredByClient ? "Unstar Gallery item" : "Star Gallery item"}
 									onClick={(event) => {
@@ -441,10 +522,10 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 								<span style={{ color: TRUST_COLORS[selected.trustLevel] }}>{trustText(selected.trustLevel)}</span>
 							</div>
 							<div>
-								<strong>Author:</strong> {selected.author}
+								<strong>Author:</strong> {linkedText(selected.author, selected.authorUrl)}
 							</div>
 							<div>
-								<strong>Contributors:</strong> {contributorText(selected)}
+								<strong>Contributors:</strong> {contributorLinks(selected)}
 							</div>
 							<div>
 								<strong>License:</strong> {selected.license}
@@ -460,7 +541,8 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 							</div>
 							{selected.citation && (
 								<div>
-									<strong>Citation:</strong> {selected.citation}
+									<strong>Citation:</strong> {selected.citation}{" "}
+									{selected.citationUrl ? linkedText("Citation link ↗", selected.citationUrl) : null}
 								</div>
 							)}
 						</div>
@@ -491,9 +573,7 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 											: "Import to map"}
 							</button>
 							{selected.githubUrl && (
-								<button
-									onClick={() => PLATFORM_CONFIG.postMessage({ type: "openExternal", url: selected.githubUrl })}
-									type="button">
+								<button onClick={() => openUrl(selected.githubUrl)} type="button">
 									View source
 								</button>
 							)}
@@ -518,10 +598,7 @@ export const ResearchGalleryPanel: React.FC<ResearchGalleryPanelProps> = ({ mapS
 					Share a reusable map scene, style, dataset connector, case study, or plate template with the AI-Hydro
 					community.
 				</div>
-				<button
-					onClick={() => PLATFORM_CONFIG.postMessage({ type: "openExternal", url: GALLERY_CONTRIBUTION_URL })}
-					style={{ justifySelf: "start" }}
-					type="button">
+				<button onClick={() => openUrl(GALLERY_CONTRIBUTION_URL)} style={{ justifySelf: "start" }} type="button">
 					Open contribution template on GitHub ↗
 				</button>
 			</div>
