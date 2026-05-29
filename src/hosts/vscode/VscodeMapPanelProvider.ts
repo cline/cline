@@ -92,7 +92,7 @@ interface ResearchGalleryItem {
 }
 
 const builtInResearchGalleryArtifacts: Record<string, { fileName: string; content: string }> = {
-	"official-small-watershed-scene": {
+	"fallback-watershed-scene": {
 		fileName: "aihydro_gallery_sample_watershed.geojson",
 		content: JSON.stringify({
 			type: "FeatureCollection",
@@ -118,108 +118,23 @@ const builtInResearchGalleryArtifacts: Record<string, { fileName: string; conten
 			],
 		}),
 	},
-	"official-stream-order-style-fixture": {
-		fileName: "aihydro_gallery_sample_streams.geojson",
-		content: JSON.stringify({
-			type: "FeatureCollection",
-			features: [
-				{
-					type: "Feature",
-					properties: { name: "minor drainage", strmOrder: 1, uparea: 12 },
-					geometry: {
-						type: "LineString",
-						coordinates: [
-							[-86.98, 39.72],
-							[-86.86, 39.62],
-							[-86.72, 39.57],
-						],
-					},
-				},
-				{
-					type: "Feature",
-					properties: { name: "medium river", strmOrder: 3, uparea: 220 },
-					geometry: {
-						type: "LineString",
-						coordinates: [
-							[-86.72, 39.57],
-							[-86.62, 39.54],
-							[-86.54, 39.49],
-						],
-					},
-				},
-				{
-					type: "Feature",
-					properties: { name: "major river", strmOrder: 5, uparea: 2100 },
-					geometry: {
-						type: "LineString",
-						coordinates: [
-							[-86.9, 39.46],
-							[-86.72, 39.57],
-							[-86.53, 39.68],
-						],
-					},
-				},
-			],
-		}),
-	},
-	"official-station-dataset-connector-fixture": {
-		fileName: "aihydro_gallery_sample_stations.csv",
-		content:
-			"name,lat,lon,drainage_area_km2\nStation A,39.62,-86.82,42\nStation B,39.55,-86.65,118\nStation C,39.70,-86.58,377\n",
-	},
 }
 
 const builtInResearchGalleryItems: ResearchGalleryItem[] = [
 	{
-		id: "official-small-watershed-scene",
+		id: "fallback-watershed-scene",
 		type: "map_scene",
-		title: "Official small watershed scene",
-		description: "Small basin polygon for testing layer load, fit, style, export, and scene save.",
+		title: "Offline fallback watershed scene",
+		description: "A tiny built-in watershed polygon shown only when the remote AI-Hydro Research Gallery cannot be reached.",
 		version: "0.1.0",
 		author: "AI-Hydro Team",
 		authorUrl: "https://github.com/AI-Hydro",
 		license: "AI-Hydro example data",
 		trustLevel: "official",
 		tags: ["watershed", "scene", "geojson", "example"],
-		artifactUrl: "aihydro-gallery://official-small-watershed-scene",
+		artifactUrl: "aihydro-gallery://fallback-watershed-scene",
 		citation: "AI-Hydro Research Gallery official example.",
 		citationUrl: "https://github.com/AI-Hydro/Gallery",
-		isFeatured: true,
-		source: "built_in",
-	},
-	{
-		id: "official-stream-order-style-fixture",
-		type: "style_preset",
-		title: "Official stream-order style fixture",
-		description: "Stream reaches with order/upstream-area attributes for symbology and legend testing.",
-		version: "0.1.0",
-		author: "AI-Hydro Team",
-		authorUrl: "https://github.com/AI-Hydro",
-		license: "AI-Hydro example data",
-		trustLevel: "official",
-		tags: ["streams", "symbology", "style", "geojson", "example"],
-		artifactUrl: "aihydro-gallery://official-stream-order-style-fixture",
-		citation: "AI-Hydro Research Gallery official example.",
-		citationUrl: "https://github.com/AI-Hydro/Gallery",
-		isFeatured: true,
-		source: "built_in",
-		importWarnings: ["This seed imports sample stream features; full style-preset application is handled by layer styling."],
-	},
-	{
-		id: "official-station-dataset-connector-fixture",
-		type: "dataset_connector",
-		title: "Official station connector fixture",
-		description: "Lat/lon station points for CSV detection and point-layer testing.",
-		version: "0.1.0",
-		author: "AI-Hydro Team",
-		authorUrl: "https://github.com/AI-Hydro",
-		license: "AI-Hydro example data",
-		trustLevel: "official",
-		tags: ["csv", "stations", "points", "example"],
-		artifactUrl: "aihydro-gallery://official-station-dataset-connector-fixture",
-		citation: "AI-Hydro Research Gallery official example.",
-		citationUrl: "https://github.com/AI-Hydro/Gallery",
-		isFeatured: true,
 		source: "built_in",
 	},
 ]
@@ -541,10 +456,8 @@ export class VscodeMapPanelProvider {
 						item.aiHydroStars = aiHydroStars
 						item.starredByClient = counts.starredByClient
 					}
-					const builtinIds = new Set(remoteItems.map((item) => item.id))
-					const fallbackItems = builtInResearchGalleryItems.filter((item) => !builtinIds.has(item.id))
 					return {
-						items: [...remoteItems, ...fallbackItems],
+						items: remoteItems,
 						sourceUrl,
 						warning:
 							sourceUrl !== configuredUrl
