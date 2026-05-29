@@ -12,6 +12,7 @@ import { buildGeeMapLayer } from "@/services/gee/mapMessageHandler"
 import { geeCommandSchema, geePreviewChirpsPayloadSchema, geeStatusPayloadSchema } from "@/services/gee/schemas"
 import type { GeeProjectInfo, GeeStatusResult } from "@/services/gee/types"
 import { handleHydroMapCommand } from "@/services/hydrology/handleHydroMapCommand"
+import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 
 function expandHomePath(filePath: string): string {
 	if (filePath === "~") {
@@ -79,6 +80,10 @@ interface ResearchGalleryItem {
 	isInstalled?: boolean
 	downloadCount?: number
 	githubReactions?: number
+	githubStars?: number
+	contributors?: Array<Record<string, unknown>>
+	badges?: string[]
+	metrics?: Record<string, unknown>
 	discussionUrl?: string
 	source?: "remote" | "built_in" | "local"
 	importWarnings?: string[]
@@ -468,6 +473,12 @@ export class VscodeMapPanelProvider {
 			isInstalled: Boolean(item.isInstalled ?? item.is_installed ?? false),
 			downloadCount: Number(item.downloadCount ?? item.download_count ?? 0),
 			githubReactions: Number(item.githubReactions ?? item.github_reactions ?? 0),
+			githubStars: Number(
+				item.githubStars ?? item.github_stars ?? item.metrics?.githubStars ?? item.metrics?.github_stars ?? 0,
+			),
+			contributors: Array.isArray(item.contributors) ? item.contributors : [],
+			badges: Array.isArray(item.badges) ? item.badges.map(String) : [],
+			metrics: item.metrics && typeof item.metrics === "object" ? item.metrics : {},
 			discussionUrl: item.discussionUrl || item.discussion_url || "",
 			source,
 			importWarnings: Array.isArray(item.importWarnings ?? item.import_warnings)
@@ -500,6 +511,20 @@ export class VscodeMapPanelProvider {
 					const remoteItems = rawItems
 						.map((item) => VscodeMapPanelProvider.normalizeResearchGalleryItem(item, "remote"))
 						.filter((item) => item.id && item.title)
+					const recognitionCounts = await MarketplaceRecognitionService.getCounts("gallery")
+					for (const item of remoteItems) {
+						const counts = recognitionCounts.get(item.id)
+						if (!counts) continue
+						const imports = Number(counts.events.import ?? 0)
+						const templateOpens = Number(counts.events.template_open ?? 0)
+						item.metrics = {
+							...(item.metrics ?? {}),
+							installs: imports + templateOpens,
+							imports,
+							templateOpens,
+						}
+						item.downloadCount = imports + templateOpens
+					}
 					const builtinIds = new Set(remoteItems.map((item) => item.id))
 					const fallbackItems = builtInResearchGalleryItems.filter((item) => !builtinIds.has(item.id))
 					return {
@@ -530,6 +555,14 @@ export class VscodeMapPanelProvider {
 				throw new Error("AI-Hydro Map is not ready yet.")
 			}
 			if (item.type === "map_plate_template") {
+				void MarketplaceRecognitionService.recordEvent({
+					marketplace: "gallery",
+					itemId: item.id,
+					eventType: "template_open",
+					itemType: item.type,
+					itemVersion: item.version,
+					source: "ui",
+				})
 				await panel.webview.postMessage({
 					type: "aihydro-open-export-panel",
 				})
@@ -594,6 +627,14 @@ export class VscodeMapPanelProvider {
 				itemId: item.id,
 				path: target.fsPath,
 				sha256: checksum(bytes),
+			})
+			void MarketplaceRecognitionService.recordEvent({
+				marketplace: "gallery",
+				itemId: item.id,
+				eventType: "import",
+				itemType: item.type,
+				itemVersion: item.version,
+				source: "ui",
 			})
 		} catch (err) {
 			await panel.webview.postMessage({

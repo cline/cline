@@ -4,6 +4,7 @@ import axios from "axios"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import type { Controller } from "../index"
 
 export async function installSkill(_controller: Controller, request: InstallSkillRequest): Promise<InstallSkillResponse> {
@@ -17,6 +18,12 @@ export async function installSkill(_controller: Controller, request: InstallSkil
 		await fs.writeFile(localPath, response.data, "utf-8")
 
 		await updateInstalledRegistry(skillId, name, localPath, SkillSource.MARKETPLACE)
+		void MarketplaceRecognitionService.recordEvent({
+			marketplace: "skills",
+			itemId: skillId,
+			eventType: "install",
+			source: "ui",
+		})
 
 		return InstallSkillResponse.create({ skillId, localPath, success: true })
 	} catch (error) {

@@ -11,6 +11,7 @@ export interface EnvironmentConfig {
 	mcpBaseUrl: string
 	modulesBaseUrl: string
 	researchGalleryBaseUrl: string
+	recognitionApiBaseUrl: string
 	connectorsBaseUrl: string
 	skillsBaseUrl: string
 	firebase: {
@@ -83,6 +84,7 @@ class AiHydroEndpoint {
 						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Gallery/api",
 					),
+					recognitionApiBaseUrl: getEnvOrDefault("AI_HYDRO_RECOGNITION_API_BASE_URL_STAGING", ""),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL_STAGING",
 						"https://ai-hydro.github.io/Connectors/api",
@@ -108,6 +110,7 @@ class AiHydroEndpoint {
 						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL_LOCAL",
 						"https://ai-hydro.github.io/Gallery/api",
 					),
+					recognitionApiBaseUrl: getEnvOrDefault("AI_HYDRO_RECOGNITION_API_BASE_URL_LOCAL", ""),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL_LOCAL",
 						"https://ai-hydro.github.io/Connectors/api",
@@ -130,6 +133,7 @@ class AiHydroEndpoint {
 						"AI_HYDRO_RESEARCH_GALLERY_BASE_URL",
 						"https://ai-hydro.github.io/Gallery/api",
 					),
+					recognitionApiBaseUrl: getEnvOrDefault("AI_HYDRO_RECOGNITION_API_BASE_URL", ""),
 					connectorsBaseUrl: getEnvOrDefault(
 						"AI_HYDRO_CONNECTORS_BASE_URL",
 						"https://ai-hydro.github.io/Connectors/api",

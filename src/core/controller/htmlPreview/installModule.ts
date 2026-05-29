@@ -4,6 +4,7 @@ import axios from "axios"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import type { Controller } from "../index"
 
 export async function installModule(controller: Controller, request: InstallModuleRequest): Promise<InstallModuleResponse> {
@@ -31,6 +32,12 @@ export async function installModule(controller: Controller, request: InstallModu
 		const { PreviewHtmlRequest } = await import("@shared/proto/cline/html_preview")
 		const { previewHtml } = await import("@core/controller/htmlPreview/previewHtml")
 		await previewHtml(controller, PreviewHtmlRequest.create({ htmlContent: "", title, filePath: localPath }))
+		void MarketplaceRecognitionService.recordEvent({
+			marketplace: "modules",
+			itemId: moduleId,
+			eventType: "install",
+			source: "ui",
+		})
 
 		return InstallModuleResponseProto.create({ moduleId, localPath, success: true })
 	} catch (error) {
