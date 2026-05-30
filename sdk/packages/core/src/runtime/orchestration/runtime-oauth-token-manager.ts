@@ -172,10 +172,10 @@ export class RuntimeOAuthTokenManager {
 			providerId,
 			forceRefresh,
 		).finally(() => {
-				if (this.refreshInFlight.get(providerId)?.promise === pending) {
-					this.refreshInFlight.delete(providerId);
-				}
-			});
+			if (this.refreshInFlight.get(providerId)?.promise === pending) {
+				this.refreshInFlight.delete(providerId);
+			}
+		});
 		this.refreshInFlight.set(providerId, {
 			forceRefresh,
 			promise: pending,
@@ -292,14 +292,40 @@ export class RuntimeOAuthTokenManager {
 			settings.auth,
 			nextSettings.auth,
 		);
+		let persistedCredentials = nextCredentials;
 		if (wasRefreshed) {
-			this.providerSettingsManager.saveProviderSettings(nextSettings, {
-				setLastUsed: false,
-				tokenSource: "oauth",
-			});
+			const persistedState = this.providerSettingsManager.saveProviderSettings(
+				nextSettings,
+				{
+					setLastUsed: false,
+					tokenSource: "oauth",
+					expectedOpenAICodexAuth:
+						providerId === "openai-codex" ? settings.auth : undefined,
+				},
+			);
+			if (providerId === "openai-codex") {
+				const persistedSettings =
+					persistedState.providers[providerId]?.settings;
+				if (
+					persistedSettings &&
+					!openAICodexAuthSettingsEqual(
+						persistedSettings.auth,
+						nextSettings.auth,
+					)
+				) {
+					const winnerCredentials = toCredentials(
+						providerId,
+						persistedSettings,
+					);
+					if (!winnerCredentials) {
+						throw new OAuthReauthRequiredError(providerId);
+					}
+					persistedCredentials = winnerCredentials;
+				}
+			}
 		}
 
-		return this.toResolution(providerId, nextCredentials, wasRefreshed);
+		return this.toResolution(providerId, persistedCredentials, wasRefreshed);
 	}
 
 	private clearAuthIfUnchanged(

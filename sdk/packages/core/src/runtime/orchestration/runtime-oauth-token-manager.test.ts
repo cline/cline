@@ -29,6 +29,14 @@ vi.mock("../../auth/oca", () => ({
 	getValidOcaCredentials,
 }));
 
+function createPersistingSaveProviderSettings() {
+	return vi.fn((settings: unknown) => ({
+		providers: {
+			"openai-codex": { settings },
+		},
+	}));
+}
+
 describe("RuntimeOAuthTokenManager", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -45,7 +53,7 @@ describe("RuntimeOAuthTokenManager", () => {
 				accountId: "acct-old",
 			},
 		});
-		const saveProviderSettings = vi.fn();
+		const saveProviderSettings = createPersistingSaveProviderSettings();
 
 		getValidOpenAICodexCredentials.mockResolvedValueOnce({
 			access: "access-new",
@@ -84,7 +92,16 @@ describe("RuntimeOAuthTokenManager", () => {
 					expiresAt: 4_000_000_000_000,
 				}),
 			}),
-			{ setLastUsed: false, tokenSource: "oauth" },
+			{
+				setLastUsed: false,
+				tokenSource: "oauth",
+				expectedOpenAICodexAuth: {
+					accessToken: "access-old",
+					refreshToken: "refresh-old",
+					expiresAt: expect.any(Number),
+					accountId: "acct-old",
+				},
+			},
 		);
 	});
 
@@ -100,7 +117,7 @@ describe("RuntimeOAuthTokenManager", () => {
 						expiresAt: Date.now() - 1_000,
 					},
 				}),
-				saveProviderSettings: vi.fn(),
+				saveProviderSettings: createPersistingSaveProviderSettings(),
 				withProviderRefreshLock: vi.fn(
 					async (_providerId: string, callback: () => Promise<unknown>) =>
 						callback(),
@@ -133,7 +150,7 @@ describe("RuntimeOAuthTokenManager", () => {
 						expiresAt: Date.now() - 1_000,
 					},
 				}),
-				saveProviderSettings: vi.fn(),
+				saveProviderSettings: createPersistingSaveProviderSettings(),
 				withProviderRefreshLock: vi.fn(
 					async (_providerId: string, callback: () => Promise<unknown>) =>
 						callback(),
@@ -181,7 +198,7 @@ describe("RuntimeOAuthTokenManager", () => {
 		const manager = new RuntimeOAuthTokenManager({
 			providerSettingsManager: {
 				getProviderSettings: vi.fn().mockReturnValue(stored),
-				saveProviderSettings: vi.fn(),
+				saveProviderSettings: createPersistingSaveProviderSettings(),
 				withProviderRefreshLock: vi.fn(
 					async (_providerId: string, callback: () => Promise<unknown>) =>
 						callback(),
