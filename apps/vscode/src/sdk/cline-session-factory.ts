@@ -286,7 +286,7 @@ export function getDefaultModelIdForProvider(providerId: string): string | undef
  * For the "cline" provider, reads the OAuth token from providers.json
  * via ProviderSettingsManager (the single source of truth for credentials).
  */
-function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
+export function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
 	// For "cline" provider — read from providers.json
 	if (providerId === "cline") {
 		// First check if clineApiKey is set directly (e.g. from env var)
@@ -326,7 +326,7 @@ function resolveApiKey(providerId: string, config: ApiConfiguration): string | u
  * Resolve the model ID for a given provider and mode from the ApiConfiguration.
  * Uses mode-specific model ID fields when available, falls back to generic fields.
  */
-function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+export function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
 	// Check provider-specific mode model ID fields.
 	// If the provider has a dedicated field, do not fall back to generic
 	// *ModeApiModelId. Those generic slots may contain a stale model from a
@@ -379,7 +379,7 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 	return trimmed
 }
 
-function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
+export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",

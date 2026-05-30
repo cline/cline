@@ -1,8 +1,8 @@
-import { buildApiHandler } from "@core/api"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { buildApiHandler } from "@/sdk/sdk-api-handler"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
@@ -211,8 +211,11 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		const apiConfiguration = controller.stateManager.getApiConfiguration()
 		const currentMode = "act"
 
-		// Build the API handler
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+		// Build the API handler. Commit message generation is a fast one-shot
+		// transform that doesn't need extended thinking; disabling reasoning also
+		// avoids sending both reasoning.effort and reasoning.max_tokens, which
+		// some providers (e.g. OpenRouter) reject.
+		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
 
 		// Create a system prompt
 		const systemPrompt = PROMPT.system
@@ -224,16 +227,26 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		const stream = apiHandler.createMessage(systemPrompt, messages)
 
 		let response = ""
+		let streamError: string | undefined
 		for await (const chunk of stream) {
 			commitGenerationAbortController.signal.throwIfAborted()
 			if (chunk.type === "text") {
 				response += chunk.text
 				inputBox.value = extractCommitMessage(response)
+			} else if (chunk.type === "done" && chunk.success === false) {
+				// The SDK stream finished with a provider/auth error. Capture it so
+				// we can surface the real reason instead of a generic empty response.
+				streamError = chunk.error
 			}
 		}
 
 		if (!inputBox.value) {
-			throw new Error("empty API response")
+			if (streamError) {
+				throw new Error(streamError)
+			}
+			throw new Error(
+				"The model returned an empty response. Check that the selected provider and model are configured correctly.",
+			)
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
