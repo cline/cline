@@ -1,5 +1,4 @@
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDocumentsPath } from "@/core/storage/disk"
