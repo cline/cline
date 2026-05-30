@@ -210,4 +210,54 @@ describe("RuntimeOAuthTokenManager", () => {
 			forceRefresh: true,
 		});
 	});
+
+	it("does not replay an ambiguous failed refresh for a forced waiter", async () => {
+		let releaseRefresh!: () => void;
+		const refreshBarrier = new Promise<void>((resolve) => {
+			releaseRefresh = resolve;
+		});
+		getValidOpenAICodexCredentials.mockImplementationOnce(async () => {
+			await refreshBarrier;
+			return null;
+		});
+		const manager = new RuntimeOAuthTokenManager({
+			providerSettingsManager: {
+				getProviderSettings: vi.fn().mockReturnValue({
+					provider: "openai-codex",
+					auth: {
+						accessToken: "access-old",
+						refreshToken: "refresh-old",
+						expiresAt: Date.now() - 1_000,
+					},
+				}),
+				saveProviderSettings: vi.fn(),
+				withProviderRefreshLock: vi.fn(
+					async (_providerId: string, callback: () => Promise<unknown>) =>
+						callback(),
+				),
+			} as never,
+		});
+
+		const ordinary = manager.resolveProviderApiKey({
+			providerId: "openai-codex",
+		});
+		await vi.waitFor(() => {
+			expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(1);
+		});
+		const forced = manager.resolveProviderApiKey({
+			providerId: "openai-codex",
+			forceRefresh: true,
+		});
+		const ordinaryRejection = expect(ordinary).rejects.toBeInstanceOf(
+			OAuthReauthRequiredError,
+		);
+		const forcedRejection = expect(forced).rejects.toBeInstanceOf(
+			OAuthReauthRequiredError,
+		);
+		releaseRefresh();
+
+		await ordinaryRejection;
+		await forcedRejection;
+		expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(1);
+	});
 });

@@ -185,11 +185,10 @@ export class RuntimeOAuthTokenManager {
 				? this.resolveWithSingleFlight(providerId, true)
 				: resolution;
 		}
-		const pending = this.resolveProviderApiKeyInternal(providerId, forceRefresh)
-			.catch((error) => {
-				throw error;
-			})
-			.finally(() => {
+		const pending = this.resolveProviderApiKeyInternal(
+			providerId,
+			forceRefresh,
+		).finally(() => {
 				if (this.refreshInFlight.get(providerId)?.promise === pending) {
 					this.refreshInFlight.delete(providerId);
 				}

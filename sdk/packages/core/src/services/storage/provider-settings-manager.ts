@@ -32,6 +32,8 @@ import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migrat
 const SETTINGS_WRITE_LOCK_STALE_MS = 10_000;
 const SETTINGS_WRITE_LOCK_TIMEOUT_MS = 12_000;
 const SETTINGS_WRITE_LOCK_RETRY_MS = 10;
+const PROVIDER_REFRESH_LOCK_MIN_STALE_MS =
+	SETTINGS_WRITE_LOCK_TIMEOUT_MS * 2 + SETTINGS_WRITE_LOCK_RETRY_MS;
 const WINDOWS_FILE_REPLACE_TIMEOUT_MS = 1_000;
 const syncWaitBuffer = new Int32Array(new SharedArrayBuffer(4));
 const invalidStoredProviderSettings = Symbol("invalidStoredProviderSettings");
@@ -332,9 +334,14 @@ export class ProviderSettingsManager {
 		if (!existsSync(dir)) {
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
 		}
+		// A synchronous settings-write wait can delay the async lock heartbeat.
+		const stale = Math.max(
+			options.staleMs ?? 60_000,
+			PROVIDER_REFRESH_LOCK_MIN_STALE_MS,
+		);
 		const release = await lockfile.lock(lockTarget, {
-			stale: options.staleMs ?? 60_000,
-			update: options.updateMs ?? 10_000,
+			stale,
+			update: Math.min(options.updateMs ?? 10_000, stale / 2),
 			realpath: false,
 			retries: {
 				retries: options.retries ?? 60,
