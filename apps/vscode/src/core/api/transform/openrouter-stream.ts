@@ -105,7 +105,7 @@ export async function createOpenRouterStream(
 		temperature = 1.0
 	}
 
-	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
+	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id) || model.info?.supportsReasoning === true
 
 	// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
@@ -117,37 +117,13 @@ export async function createOpenRouterStream(
 		topP = undefined
 	}
 
+	// Reasoning is controlled via the effort-based payload below (line: reasoningPayload).
+	// For legacy callers that still pass thinkingBudgetTokens, honour the explicit
+	// token budget so existing OpenRouter provider behaviour is preserved.
 	let reasoning: Record<string, unknown> | undefined
-	if (!isAdaptiveThinkingModel) {
-		switch (model.id) {
-			case "anthropic/claude-haiku-4.5":
-			case "anthropic/claude-4.5-haiku":
-			case "anthropic/claude-sonnet-4.6":
-			case "anthropic/claude-4.6-sonnet":
-			case "anthropic/claude-sonnet-4.5":
-			case "anthropic/claude-4.5-sonnet":
-			case "anthropic/claude-sonnet-4":
-			case "anthropic/claude-opus-4.1":
-			case "anthropic/claude-opus-4":
-			case "anthropic/claude-3.7-sonnet":
-			case "anthropic/claude-3.7-sonnet:beta":
-			case "anthropic/claude-3.7-sonnet:thinking":
-			case "anthropic/claude-3-7-sonnet":
-			case "anthropic/claude-3-7-sonnet:beta":
-				const budget_tokens = thinkingBudgetTokens || 0
-				const reasoningOn = budget_tokens !== 0
-				if (reasoningOn) {
-					temperature = undefined // extended thinking does not support non-1 temperature
-					reasoning = { max_tokens: budget_tokens }
-				}
-				break
-			default:
-				if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0 && !supportsReasoningEffort) {
-					temperature = undefined // extended thinking does not support non-1 temperature
-					reasoning = { max_tokens: thinkingBudgetTokens }
-					break
-				}
-		}
+	if (!isAdaptiveThinkingModel && thinkingBudgetTokens && thinkingBudgetTokens > 0) {
+		temperature = undefined // extended thinking does not support non-1 temperature
+		reasoning = { max_tokens: thinkingBudgetTokens }
 	}
 
 	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]

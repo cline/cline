@@ -21,8 +21,6 @@ service ModelsService {
   rpc refreshOpenRouterModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns recommended and free Cline models
   rpc refreshClineRecommendedModelsRpc(EmptyRequest) returns (ClineRecommendedModelsResponse);
-  // Refreshes and returns Cline provider models
-  rpc refreshClineModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
@@ -209,6 +207,12 @@ message CommittedModelSelection {
   OpenRouterModelInfo model_info = 3;
 }
 
+message ProviderReasoningPatch {
+  optional bool enabled = 1;
+  optional string effort = 2;   // "none" | "low" | "medium" | "high" | "xhigh"
+  optional int32 budget_tokens = 3;
+}
+
 message WriteProviderConfigPatch {
   optional string api_key = 1;
   optional string base_url = 2;
@@ -218,6 +222,7 @@ message WriteProviderConfigPatch {
   optional string access_token = 6;
   optional string refresh_token = 7;
   optional string account_id = 8;
+  optional ProviderReasoningPatch reasoning = 9;
 }
 
 message WriteProviderConfigRequest {
