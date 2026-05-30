@@ -1,6 +1,7 @@
 import { ClineDefaultTool, getToolUseNames } from "@shared/tools"
 import { nanoid } from "nanoid"
 import { AssistantMessageContent, TextStreamContent, ToolParamName, ToolUse, toolParamNames } from "." // Assuming types are defined in index.ts or a similar file
+import { mergeJsonToolUsesFallback } from "./parse-json-tool-use"
 
 // parseAssistantmessageV1 removed in https://github.com/cline/cline/pull/5425
 
@@ -24,8 +25,21 @@ import { AssistantMessageContent, TextStreamContent, ToolParamName, ToolUse, too
  * @param assistantMessage The raw string output from the assistant.
  * @returns An array of `AssistantMessageContent` objects, which can be `TextContent` or `ToolUse`.
  *          Blocks that were not fully closed by the end of the input string will have their `partial` flag set to `true`.
+ *
+ * When no XML `tool_use` blocks are found, a JSON fallback pass scans for OpenAI/Qwen-style tool
+ * payloads (`{"name":"write_to_file",...}`) in the raw message so local models are not stuck in
+ * the no-tools-used retry loop.
  */
 export function parseAssistantMessageV2(assistantMessage: string): AssistantMessageContent[] {
+	const xmlBlocks = parseAssistantMessageXml(assistantMessage)
+	return mergeJsonToolUsesFallback(assistantMessage, xmlBlocks)
+}
+
+/**
+ * XML-only pass used by {@link parseAssistantMessageV2}. Kept separate so JSON fallback runs only
+ * when this pass produces no completed or partial `tool_use` blocks.
+ */
+function parseAssistantMessageXml(assistantMessage: string): AssistantMessageContent[] {
 	const contentBlocks: AssistantMessageContent[] = []
 	let currentTextContentStart = 0 // Index where the current text block started
 	let currentTextContent: TextStreamContent | undefined
