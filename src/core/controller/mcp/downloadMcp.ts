@@ -3,6 +3,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
 import { AiHydroEnv } from "@/config"
+import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -69,6 +70,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		// Initialize task and show chat view
 		await controller.initTask(task)
 		await sendChatButtonClickedEvent()
+		void MarketplaceRecognitionService.recordEvent({
+			marketplace: "mcp",
+			itemId: mcpId,
+			eventType: "install",
+			source: "ui",
+		})
 
 		// Return the download details directly
 		return McpDownloadResponse.create({
