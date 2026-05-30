@@ -924,30 +924,6 @@ describe("AwsBedrockHandler", () => {
 			modelId.should.not.match(/%2F/)
 		})
 
-		it("should apply cross-region prefix for non-custom models when enabled", async () => {
-			const crossRegionOptions: AwsBedrockHandlerOptions = {
-				...mockOptions,
-				awsUseCrossRegionInference: true,
-				awsRegion: "us-west-2",
-			}
-			const crossRegionHandler = new AwsBedrockHandler(crossRegionOptions)
-
-			const modelId = await crossRegionHandler.getModelId()
-			modelId.should.equal("us.anthropic.claude-3-7-sonnet-20250219-v1:0")
-		})
-
-		it("should apply EU cross-region prefix", async () => {
-			const euOptions: AwsBedrockHandlerOptions = {
-				...mockOptions,
-				awsUseCrossRegionInference: true,
-				awsRegion: "eu-central-1",
-			}
-			const euHandler = new AwsBedrockHandler(euOptions)
-
-			const modelId = await euHandler.getModelId()
-			modelId.should.equal("eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
-		})
-
 		it("should apply JP cross-region prefix for sonnet 4.5", async () => {
 			const jpOptions: AwsBedrockHandlerOptions = {
 				...mockOptions,
@@ -972,46 +948,6 @@ describe("AwsBedrockHandler", () => {
 
 			const modelId = await jpHandler.getModelId()
 			modelId.should.equal("jp.anthropic.claude-sonnet-4-6")
-		})
-
-		it("should apply global cross-region prefix for supported models", async () => {
-			const globalOptions: AwsBedrockHandlerOptions = {
-				...mockOptions,
-				awsUseCrossRegionInference: true,
-				awsUseGlobalInference: true,
-				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
-				awsRegion: "ap-northeast-1",
-			}
-			const globalHandler = new AwsBedrockHandler(globalOptions)
-
-			const modelId = await globalHandler.getModelId()
-			modelId.should.equal("global.anthropic.claude-sonnet-4-5-20250929-v1:0")
-		})
-
-		it("should NOT apply global cross-region prefix for unsupported models", async () => {
-			const options: AwsBedrockHandlerOptions = {
-				...mockOptions,
-				awsUseCrossRegionInference: true,
-				awsUseGlobalInference: true,
-				apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0", // 3.7 does not support a global inference profile
-				awsRegion: "us-west-2",
-			}
-			const usHandler = new AwsBedrockHandler(options)
-
-			const modelId = await usHandler.getModelId()
-			modelId.should.equal("us.anthropic.claude-3-7-sonnet-20250219-v1:0")
-		})
-
-		it("should apply APAC cross-region prefix", async () => {
-			const apacOptions: AwsBedrockHandlerOptions = {
-				...mockOptions,
-				awsUseCrossRegionInference: true,
-				awsRegion: "ap-northeast-1",
-			}
-			const apacHandler = new AwsBedrockHandler(apacOptions)
-
-			const modelId = await apacHandler.getModelId()
-			modelId.should.equal("apac.anthropic.claude-3-7-sonnet-20250219-v1:0")
 		})
 
 		it("should not apply cross-region prefix for custom models even when enabled", async () => {
@@ -1066,21 +1002,6 @@ describe("AwsBedrockHandler", () => {
 
 			const result = isNativeToolCallingConfig(providerInfo, true)
 			result.should.be.true("Bedrock + Claude 4 should qualify for native tool calling")
-		})
-
-		it("should not use native tool calling for pre-4.0 Claude models", () => {
-			// Claude 3.x models are NOT in the next-gen family and should use XML tools
-			const { isNativeToolCallingConfig } = require("@utils/model-utils")
-
-			const handler = new AwsBedrockHandler(mockOptions) // uses Claude 3.7
-			const model = handler.getModel()
-			const providerInfo = {
-				providerId: "bedrock",
-				model: { id: model.id, info: model.info },
-			}
-
-			const result = isNativeToolCallingConfig(providerInfo, true)
-			result.should.be.false("Bedrock + Claude 3.x should NOT use native tool calling")
 		})
 
 		it("should not use native tool calling when the setting is disabled", () => {

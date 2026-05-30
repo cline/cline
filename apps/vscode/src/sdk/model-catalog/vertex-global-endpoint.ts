@@ -17,8 +17,9 @@
  * for the latest variant and `claude-sonnet-4-5@20250929` for a
  * specific snapshot). All version pins of a given base model share the
  * same global-endpoint capability, so the allowlist is keyed by
- * base-model prefix and matches both the bare id and any
- * `${prefix}@...` variant.
+ * base-model prefix and matches the bare id as well as any
+ * `${prefix}@...` snapshot variant or `${prefix}:...` legacy
+ * context-window/speed suffix (for example `claude-opus-4-7:1m`).
  *
  * The `@cline/llms` SDK does not carry per-model global-endpoint
  * metadata, so the allowlist lives here. When the SDK adopts a
@@ -72,5 +73,7 @@ export function vertexModelSupportsGlobalEndpoint(providerId: ProviderId, modelI
 	if (providerId !== "vertex") {
 		return false
 	}
-	return VERTEX_GLOBAL_ENDPOINT_BASE_IDS.some((base) => modelId === base || modelId.startsWith(`${base}@`))
+	return VERTEX_GLOBAL_ENDPOINT_BASE_IDS.some(
+		(base) => modelId === base || modelId.startsWith(`${base}@`) || modelId.startsWith(`${base}:`),
+	)
 }
