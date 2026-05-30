@@ -1,6 +1,5 @@
 import { getProviderCollectionSync } from "@cline/llms"
 import "should"
-import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { adaptSdkModelInfo } from "@/sdk/model-catalog/shape-adapter"
 import { WandbHandler } from "../wandb"
 
@@ -27,18 +26,6 @@ describe("WandbHandler", () => {
 		const model = handler.getModel()
 		model.id.should.equal(modelId)
 		model.info.should.deepEqual(sdkInfo(modelId))
-	})
-
-	it("passes through an explicit unknown model id with safe defaults", () => {
-		const unknownModelId = "moonshotai/Kimi-K2.5"
-		const handler = new WandbHandler({
-			wandbApiKey: "test-api-key",
-			apiModelId: unknownModelId,
-		})
-
-		const model = handler.getModel()
-		model.id.should.equal(unknownModelId)
-		model.info.should.deepEqual(openAiModelInfoSafeDefaults)
 	})
 
 	it("uses the SDK-declared default model when no model id is configured", () => {

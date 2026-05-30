@@ -220,17 +220,17 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 					modelInfo.maxTokens = 8_192
 					modelInfo.contextWindow = 272_000
 					break
-				default:
-					// Check for cache pricing from the API response
-					if (rawModel.id.startsWith("openai/") || rawModel.id.startsWith("google/")) {
-						const cacheReadPrice = parsePrice(rawModel.pricing?.input_cache_read)
+				default: {
+					// Derive prompt-cache support from the pricing the Cline endpoint
+					// reports: a model that prices cache reads supports prompt caching.
+					const cacheReadPrice = parsePrice(rawModel.pricing?.input_cache_read)
+					if (cacheReadPrice !== undefined) {
+						modelInfo.supportsPromptCache = true
 						modelInfo.cacheReadsPrice = cacheReadPrice
-						if (cacheReadPrice !== undefined) {
-							modelInfo.supportsPromptCache = true
-							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
-						}
+						modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 					}
 					break
+				}
 			}
 
 			if (isGeminiFlashModel(rawModel.id)) {
