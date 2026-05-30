@@ -200,7 +200,7 @@ function withSettingsWriteLock<T>(filePath: string, callback: () => T): T {
 	}
 }
 
-export function openAICodexAuthSettingsEqual(
+export function oauthAuthSettingsEqual(
 	a: ProviderSettings["auth"] | undefined,
 	b: ProviderSettings["auth"] | undefined,
 ): boolean {
@@ -226,7 +226,7 @@ function preserveDurableOpenAICodexEntry(
 	const durableEntry = durableState.providers["openai-codex"];
 	const conditionalReplacementMismatch =
 		options.expectedOpenAICodexAuth !== undefined &&
-		!openAICodexAuthSettingsEqual(
+		!oauthAuthSettingsEqual(
 			durableEntry?.settings.auth,
 			options.expectedOpenAICodexAuth,
 		);
@@ -295,6 +295,8 @@ export class ProviderSettingsManager {
 	}
 
 	read(): StoredProviderSettings {
+		// Retry once because Windows backup-and-replace can advance between probes:
+		// primary may be absent before promotion, then backup removed after promotion.
 		for (let attempt = 0; attempt < 2; attempt += 1) {
 			const primaryState = readStoredProviderSettings(this.filePath);
 			if (primaryState === invalidStoredProviderSettings) {

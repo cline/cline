@@ -15,7 +15,7 @@ import {
 import { getValidOcaCredentials } from "../../auth/oca";
 import { decodeJwtPayload } from "../../auth/utils";
 import {
-	openAICodexAuthSettingsEqual,
+	oauthAuthSettingsEqual,
 	ProviderSettingsManager,
 	type ProviderSettingsRefreshLockOptions,
 } from "../../services/storage/provider-settings-manager";
@@ -214,7 +214,7 @@ export class RuntimeOAuthTokenManager {
 					if (!storedCredentials) {
 						return null;
 					}
-					const storedAuthChanged = !openAICodexAuthSettingsEqual(
+					const storedAuthChanged = !oauthAuthSettingsEqual(
 						settings.auth,
 						storedSettings.auth,
 					);
@@ -264,7 +264,7 @@ export class RuntimeOAuthTokenManager {
 			this.providerSettingsManager.getProviderSettings(providerId);
 		if (
 			latestSettings &&
-			!openAICodexAuthSettingsEqual(settings.auth, latestSettings.auth)
+			!oauthAuthSettingsEqual(settings.auth, latestSettings.auth)
 		) {
 			const latestCredentials = toCredentials(providerId, latestSettings);
 			if (!latestCredentials) {
@@ -288,7 +288,7 @@ export class RuntimeOAuthTokenManager {
 			...(latestSettings ?? settings),
 			auth: nextAuth,
 		};
-		const wasRefreshed = !openAICodexAuthSettingsEqual(
+		const wasRefreshed = !oauthAuthSettingsEqual(
 			settings.auth,
 			nextSettings.auth,
 		);
@@ -308,10 +308,7 @@ export class RuntimeOAuthTokenManager {
 					persistedState.providers[providerId]?.settings;
 				if (
 					persistedSettings &&
-					!openAICodexAuthSettingsEqual(
-						persistedSettings.auth,
-						nextSettings.auth,
-					)
+					!oauthAuthSettingsEqual(persistedSettings.auth, nextSettings.auth)
 				) {
 					const winnerCredentials = toCredentials(
 						providerId,
@@ -336,7 +333,7 @@ export class RuntimeOAuthTokenManager {
 			this.providerSettingsManager.getProviderSettings(providerId);
 		if (
 			!latestSettings ||
-			!openAICodexAuthSettingsEqual(latestSettings.auth, failedAuth)
+			!oauthAuthSettingsEqual(latestSettings.auth, failedAuth)
 		) {
 			return;
 		}
