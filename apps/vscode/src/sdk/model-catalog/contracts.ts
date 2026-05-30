@@ -106,6 +106,12 @@ export interface EffectiveProviderConfig {
  * Empty patches are allowed and are no-ops. A field present with value
  * `null` means "clear this field"; an absent field means "leave unchanged."
  */
+export interface ProviderReasoningPatch {
+	readonly enabled?: boolean
+	readonly effort?: string // "none" | "low" | "medium" | "high" | "xhigh"
+	readonly budgetTokens?: number
+}
+
 export interface ProviderConfigPatch {
 	readonly apiKey?: string | null
 	readonly baseUrl?: string | null
@@ -117,6 +123,7 @@ export interface ProviderConfigPatch {
 		readonly refreshToken?: string
 		readonly accountId?: string
 	} | null
+	readonly reasoning?: ProviderReasoningPatch | null
 	readonly extras?: Readonly<Record<string, unknown>> | null
 }
 

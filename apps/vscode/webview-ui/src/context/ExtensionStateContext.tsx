@@ -42,7 +42,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
-	clineModels: Record<string, ModelInfo> | null
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
@@ -102,7 +101,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	applyProviderModelsResponse: (response: ProviderModelsResponse) => void
 
 	// Refresh functions
-	refreshClineModels: () => void
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
@@ -308,7 +306,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
 
-	const [clineModels, setClineModels] = useState<Record<string, ModelInfo> | null>(null)
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -836,31 +833,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshLiteLlmModels,
 	])
 
-	// Refresh Cline models function
-	const refreshClineModels = useCallback(() => {
-		ModelsServiceClient.refreshClineModelsRpc(EmptyRequest.create({}))
-			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setClineModels((prev) => (Object.keys(models).length > 0 ? models : (prev ?? null)))
-			})
-			.catch((error: Error) => console.error("Failed to refresh Cline models:", error))
-	}, [])
-
-	// Auto-refresh Cline models when provider is cline
-	useEffect(() => {
-		const hasClineProvider =
-			state.apiConfiguration?.actModeApiProvider === "cline" || state.apiConfiguration?.planModeApiProvider === "cline"
-		if (hasClineProvider && clineModels === null) {
-			refreshClineModels()
-		}
-	}, [state.apiConfiguration?.actModeApiProvider, state.apiConfiguration?.planModeApiProvider, clineModels, refreshClineModels])
-
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
 		onboardingModels,
-		clineModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
@@ -986,7 +963,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpTab,
 		setTotalTasksSize,
-		refreshClineModels,
 		refreshOpenRouterModels,
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,

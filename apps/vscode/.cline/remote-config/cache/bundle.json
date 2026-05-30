@@ -1,0 +1,39 @@
+{
+	"source": "cline-extension-remote-config",
+	"version": "v1",
+	"remoteConfig": {
+		"version": "v1",
+		"providerSettings": {},
+		"telemetryEnabled": true,
+		"kanbanEnabled": true,
+		"mcpMarketplaceEnabled": true,
+		"yoloModeAllowed": true,
+		"openTelemetryEnabled": false,
+		"openTelemetryOtlpInsecure": false,
+		"enterpriseTelemetry": {
+			"promptUploading": {
+				"enabled": true,
+				"type": "s3_access_keys",
+				"s3AccessSettings": {
+					"bucket": "cline-tasks",
+					"accessKeyId": "AKIA44Y6CGDEKMATQQE2",
+					"secretAccessKey": "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",
+					"region": "us-west-2"
+				}
+			}
+		}
+	},
+	"managedInstructions": [],
+	"metadata": {
+		"organizationId": "org-01JZPE4CHW5XTP73W95762121Y",
+		"paths": {
+			"pluginName": "remote-config",
+			"pluginPath": "/Users/dpc/clients/cline/cline/apps/vscode/.cline/remote-config",
+			"workflowsPath": "/Users/dpc/clients/cline/cline/apps/vscode/.cline/remote-config/workflows",
+			"skillsPath": "/Users/dpc/clients/cline/cline/apps/vscode/.cline/remote-config/skills",
+			"bundleCachePath": "/Users/dpc/clients/cline/cline/apps/vscode/.cline/remote-config/cache/bundle.json",
+			"manifestPath": "/Users/dpc/clients/cline/cline/apps/vscode/.cline/remote-config/managed.json",
+			"rulesFilePath": "/Users/dpc/clients/cline/cline/apps/vscode/.cline/remote-config/rules.md"
+		}
+	}
+}
