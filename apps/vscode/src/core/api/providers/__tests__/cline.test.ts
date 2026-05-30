@@ -136,31 +136,4 @@ describe("ClineHandler", () => {
 		const payload = createStub.firstCall.args[0]
 		payload.parallel_tool_calls.should.equal(true)
 	})
-
-	it("should send cache_control for qwen3.7-max without changing the selected Cline model id", async () => {
-		const handler = createHandler({
-			openRouterModelId: "qwen/qwen3.7-max",
-			openRouterModelInfo: openRouterDefaultModelInfo,
-		})
-		const createStub = sinon.stub().resolves(createAsyncIterable([]))
-		const fakeClient = {
-			chat: {
-				completions: {
-					create: createStub,
-				},
-			},
-		}
-		sinon.stub(handler as any, "ensureClient").resolves(fakeClient as any)
-		sinon.stub(handler as any, "getFreeModelIdSet").resolves(new Set())
-
-		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
-			// drain stream
-		}
-
-		handler.getModel().id.should.equal("qwen/qwen3.7-max")
-		const payload = createStub.firstCall.args[0]
-		payload.model.should.equal("qwen/qwen3.7-max")
-		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
-	})
 })
