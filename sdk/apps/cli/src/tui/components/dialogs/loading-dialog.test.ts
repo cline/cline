@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { DialogActions, DialogId } from "@opentui-ui/dialog/react";
+import { describe, expect, it } from "vitest";
 import { withShownDialog } from "./loading-dialog-lifecycle";
 
 type LoadingDialogCall =

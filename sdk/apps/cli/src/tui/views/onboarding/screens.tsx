@@ -127,7 +127,7 @@ export function OnboardingOAuthPendingScreen(props: {
 					>
 						<text fg="gray">If the browser didn't open:</text>
 						<text fg={palette.act} marginTop={1} selectable>
-							{props.authUrl}
+							<a href={props.authUrl}>{props.authUrl}</a>
 						</text>
 					</box>
 				)}
@@ -194,7 +194,7 @@ export function OnboardingDeviceCodeScreen(props: {
 							Visit this URL and enter the code above:
 						</text>
 						<text fg={palette.act} selectable>
-							{props.deviceVerifyUrl}
+							<a href={props.deviceVerifyUrl}>{props.deviceVerifyUrl}</a>
 						</text>
 					</box>
 				)}
@@ -224,6 +224,11 @@ const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	baseUrl: "Base URL",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
+	sapClientId: "Client ID",
+	sapClientSecret: "Client Secret",
+	sapTokenUrl: "Token URL",
+	sapResourceGroup: "Resource Group",
+	sapDeploymentId: "Deployment ID",
 };
 
 const DEFAULT_FIELD_PLACEHOLDERS: Partial<
@@ -233,6 +238,11 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	baseUrl: "",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
+	sapClientId: "sb-...|xsuaa_std!b...",
+	sapClientSecret: "SAP AI Core client secret",
+	sapTokenUrl: "https://<subdomain>.authentication.sap.hana.ondemand.com",
+	sapResourceGroup: "default",
+	sapDeploymentId: "",
 };
 
 export function OnboardingProviderConfigScreen(props: {

@@ -8,6 +8,7 @@ export type ChatCommandState = {
 	cwd: string;
 	workspaceRoot: string;
 	toolsLocked?: boolean;
+	threadMuted?: boolean;
 };
 
 export type ForkSessionResult = {
@@ -15,9 +16,14 @@ export type ForkSessionResult = {
 	newSessionId: string;
 };
 
+export type MuteCommandInput = {
+	target?: string;
+};
+
 export type ChatCommandContext = {
 	enabled: boolean;
 	botUserName?: string;
+	requireBotMention?: boolean;
 	host?: ChatCommandHost;
 	getState: () => Promise<ChatCommandState> | ChatCommandState;
 	setState: (next: ChatCommandState) => Promise<void> | void;
@@ -25,6 +31,12 @@ export type ChatCommandContext = {
 	reset?: () => Promise<void> | void;
 	abort?: () => Promise<void> | void;
 	stop?: () => Promise<void> | void;
+	mute?: (
+		input: MuteCommandInput,
+	) => Promise<string | undefined> | string | undefined;
+	unmute?: (
+		input: MuteCommandInput,
+	) => Promise<string | undefined> | string | undefined;
 	describe?: () => Promise<string> | string;
 	fork?: () =>
 		| Promise<ForkSessionResult | undefined>
@@ -93,6 +105,12 @@ export class ChatCommandHost {
 		}
 
 		const [commandRaw, ...args] = trimmed.split(/\s+/);
+		if (
+			context.requireBotMention &&
+			!isCommandAddressedToBot(commandRaw, context.botUserName)
+		) {
+			return false;
+		}
 		const command = normalizeCommandName(
 			commandRaw.toLowerCase(),
 			context.botUserName,
@@ -122,7 +140,7 @@ export function normalizeCommandName(
 	command: string,
 	botUserName?: string,
 ): string {
-	const botMention = command.match(/^(\/[^@\s]+)@[a-z0-9_]+$/i);
+	const botMention = command.match(/^(\/[^@\s]+)@[a-z0-9_.\-]+$/i);
 	if (!botMention) {
 		return command;
 	}
@@ -132,6 +150,18 @@ export function normalizeCommandName(
 	}
 	const suffix = command.slice(botMention[1].length + 1).toLowerCase();
 	return suffix === expectedBotName ? botMention[1] : command;
+}
+
+export function isCommandAddressedToBot(
+	command: string,
+	botUserName?: string,
+): boolean {
+	const expectedBotName = botUserName?.replace(/^@+/, "").trim().toLowerCase();
+	if (!expectedBotName) {
+		return false;
+	}
+	const match = command.match(/^\/[^@\s]+@([a-z0-9_.\-]+)$/i);
+	return match?.[1]?.toLowerCase() === expectedBotName;
 }
 
 function tokenizeArgs(input: string): string[] {
@@ -245,9 +275,11 @@ function formatHelp(state: ChatCommandState): string {
 		"/cwd <path> - change working directory",
 		"/schedule create/list/trigger/delete - manage scheduled workflows",
 		"/abort - stop the current task",
+		"/mute [target] - ignore this thread or target until /unmute",
+		"/unmute [target] - resume processing this thread or target",
 		"/exit - stop this connector",
 		"",
-		`Current state: tools=${state.enableTools ? "on" : "off"}, yolo=${state.autoApproveTools ? "on" : "off"}`,
+		`Current state: tools=${state.enableTools ? "on" : "off"}, yolo=${state.autoApproveTools ? "on" : "off"}, muted=${state.threadMuted ? "true" : "false"}`,
 		state.toolsLocked
 			? "Tool controls are locked because this connector was started with --no-tools."
 			: undefined,
@@ -283,6 +315,26 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 			isAvailable: (context) => typeof context.abort === "function",
 			run: async (_parsed, context) => {
 				await context.abort?.();
+			},
+		})
+		.register("command", {
+			names: ["/mute"],
+			isAvailable: (context) => typeof context.mute === "function",
+			run: async ({ args }, context) => {
+				const target = args.join(" ").trim() || undefined;
+				const reply = await context.mute?.({ target });
+				await context.reply(
+					reply ?? "Thread muted. I will ignore messages here until /unmute.",
+				);
+			},
+		})
+		.register("command", {
+			names: ["/unmute"],
+			isAvailable: (context) => typeof context.unmute === "function",
+			run: async ({ args }, context) => {
+				const target = args.join(" ").trim() || undefined;
+				const reply = await context.unmute?.({ target });
+				await context.reply(reply ?? "Thread unmuted.");
 			},
 		})
 		.register("command", {

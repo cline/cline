@@ -857,6 +857,12 @@ async function createProviderModule(
 			const { createDifyProviderModule } = await import("./vendors/community");
 			return createDifyProviderModule(config);
 		}
+		case "sapaicore": {
+			const { createSapAiCoreProviderModule } = await import(
+				"./vendors/community"
+			);
+			return createSapAiCoreProviderModule(config);
+		}
 	}
 }
 
@@ -994,3 +1000,4 @@ export const createClaudeCodeProvider = createAiSdkProvider("claude-code");
 export const createOpenAICodexProvider = createAiSdkProvider("openai-codex");
 export const createOpenCodeProvider = createAiSdkProvider("opencode");
 export const createDifyProvider = createAiSdkProvider("dify");
+export const createSapAiCoreProvider = createAiSdkProvider("sapaicore");

@@ -258,6 +258,7 @@ describe("plugin install command", () => {
 					},
 					peerDependencies: {
 						"@cline/shared": "*",
+						bun: ">=1.0.0",
 					},
 					peerDependenciesMeta: {
 						"@cline/shared": {
@@ -304,12 +305,12 @@ describe("plugin install command", () => {
 			peerDependenciesMeta?: Record<string, unknown>;
 		};
 		expect(packageManifest.dependencies).toEqual({ yaml: "^2.8.1" });
-		expect(packageManifest.peerDependencies).toBeUndefined();
+		expect(packageManifest.peerDependencies).toEqual({ bun: ">=1.0.0" });
 		expect(packageManifest.peerDependenciesMeta).toBeUndefined();
 		const npmLog = readFileSync(npmLogPath, "utf8");
 		expect(npmLog).toContain(`${join(".tmp")}/`);
 		expect(npmLog).toContain(
-			"package install --omit=dev --no-audit --no-fund --package-lock=false",
+			"package install --omit=dev --omit=peer --legacy-peer-deps --no-audit --no-fund --package-lock=false",
 		);
 		expect(existsSync(join(result.installPath, "package", ".git"))).toBe(false);
 		expect(
@@ -356,6 +357,7 @@ describe("plugin install command", () => {
 		const npmLog = readFileSync(npmLogPath, "utf8");
 		expect(npmLog).toContain("install published-plugin@1.0.0");
 		expect(npmLog).toContain("--omit=peer");
+		expect(npmLog).toContain("--legacy-peer-deps");
 		expect(
 			existsSync(
 				join(result.installPath, "package", "node_modules", "@cline", "core"),

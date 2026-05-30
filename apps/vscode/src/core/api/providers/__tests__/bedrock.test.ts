@@ -210,11 +210,23 @@ describe("AwsBedrockHandler", () => {
 			bedrockModels["anthropic.claude-opus-4-7:1m"].supportsGlobalEndpoint.should.equal(true)
 		})
 
+		it("should mark Bedrock Opus 4.8 variants as global-endpoint capable", () => {
+			bedrockModels["anthropic.claude-opus-4-8"].supportsGlobalEndpoint.should.equal(true)
+			bedrockModels["anthropic.claude-opus-4-8:1m"].supportsGlobalEndpoint.should.equal(true)
+		})
+
 		it("should include Vertex Opus 4.7 variants in the derived global model list", () => {
 			vertexModels["claude-opus-4-7"].supportsGlobalEndpoint.should.equal(true)
 			vertexModels["claude-opus-4-7:1m"].supportsGlobalEndpoint.should.equal(true)
 			vertexGlobalModels.should.have.property("claude-opus-4-7")
 			vertexGlobalModels.should.have.property("claude-opus-4-7:1m")
+		})
+
+		it("should include Vertex Opus 4.8 variants in the derived global model list", () => {
+			vertexModels["claude-opus-4-8"].supportsGlobalEndpoint.should.equal(true)
+			vertexModels["claude-opus-4-8:1m"].supportsGlobalEndpoint.should.equal(true)
+			vertexGlobalModels.should.have.property("claude-opus-4-8")
+			vertexGlobalModels.should.have.property("claude-opus-4-8:1m")
 		})
 	})
 

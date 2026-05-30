@@ -5,7 +5,12 @@ export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
 	| "awsRegion"
-	| "awsProfile";
+	| "awsProfile"
+	| "sapClientId"
+	| "sapClientSecret"
+	| "sapTokenUrl"
+	| "sapResourceGroup"
+	| "sapDeploymentId";
 
 export interface ProviderConfigFieldRequirement {
 	defaultValue?: string;
@@ -30,6 +35,11 @@ const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"baseUrl",
 	"awsRegion",
 	"awsProfile",
+	"sapClientId",
+	"sapClientSecret",
+	"sapTokenUrl",
+	"sapResourceGroup",
+	"sapDeploymentId",
 ];
 
 interface ProviderConfigFieldMetadata {
@@ -68,6 +78,39 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 		fields: {
 			apiKey: {
 				note: "Keep empty if no API key for local inference.",
+			},
+		},
+	},
+	sapaicore: {
+		mode: "replace",
+		description:
+			"SAP AI Core uses OAuth client credentials and an AI Core API URL, not a generic API key.",
+		fields: {
+			baseUrl: {
+				label: "AI Core Base URL",
+				placeholder: "https://api.ai.<region>.aws.ml.hana.ondemand.com",
+			},
+			sapClientId: {
+				label: "Client ID",
+				placeholder: "sb-...|xsuaa_std!b...",
+			},
+			sapClientSecret: {
+				label: "Client Secret",
+				placeholder: "SAP AI Core client secret",
+			},
+			sapTokenUrl: {
+				label: "Token URL",
+				placeholder: "https://<subdomain>.authentication.sap.hana.ondemand.com",
+			},
+			sapResourceGroup: {
+				label: "Resource Group",
+				placeholder: "default",
+				optional: true,
+			},
+			sapDeploymentId: {
+				label: "Deployment ID",
+				placeholder: "SAP AI Core deployment id",
+				optional: true,
 			},
 		},
 	},

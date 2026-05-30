@@ -28,13 +28,14 @@ import {
 	useSearchableList,
 } from "../../components/searchable-list";
 import { palette } from "../../palette";
-import { getProviderSection } from "../../utils/provider-sections";
 import {
 	getDefaultAwsRegion,
-	resolveProviderConfigAwsRegion,
-	updateProviderConfigValue,
 	type ProviderConfigValues,
+	resolveProviderConfigAwsRegion,
+	resolveProviderConfigSap,
+	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
+import { getProviderSection } from "../../utils/provider-sections";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,
@@ -392,6 +393,24 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (config.fields.awsProfile) {
 				initialValues.awsProfile = existing?.aws?.profile?.trim() ?? "";
 			}
+			if (config.fields.sapClientId) {
+				initialValues.sapClientId = existing?.sap?.clientId?.trim() ?? "";
+			}
+			if (config.fields.sapClientSecret) {
+				initialValues.sapClientSecret =
+					existing?.sap?.clientSecret?.trim() ?? "";
+			}
+			if (config.fields.sapTokenUrl) {
+				initialValues.sapTokenUrl = existing?.sap?.tokenUrl?.trim() ?? "";
+			}
+			if (config.fields.sapResourceGroup) {
+				initialValues.sapResourceGroup =
+					existing?.sap?.resourceGroup?.trim() ?? "default";
+			}
+			if (config.fields.sapDeploymentId) {
+				initialValues.sapDeploymentId =
+					existing?.sap?.deploymentId?.trim() ?? "";
+			}
 			setByoValues(initialValues);
 
 			// Focus the first visible field
@@ -426,6 +445,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		const apiKey = byoValues.apiKey?.trim();
 		const awsProfile = byoValues.awsProfile?.trim();
 		const hasAwsFields = byoFields.awsRegion || byoFields.awsProfile;
+		const hasSapFields =
+			byoFields.sapClientId ||
+			byoFields.sapClientSecret ||
+			byoFields.sapTokenUrl ||
+			byoFields.sapResourceGroup ||
+			byoFields.sapDeploymentId;
 
 		saveLocalProviderSettings(providerSettingsManager, {
 			providerId: activeProviderId,
@@ -438,6 +463,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						profile: apiKey ? undefined : awsProfile || undefined,
 					}
 				: undefined,
+			sap: hasSapFields ? resolveProviderConfigSap(byoValues) : undefined,
 		});
 		// Emit a single `user.provider_configured` event mirroring the
 		// `{ provider }` payload shape used by the auth funnel. The save above

@@ -460,7 +460,6 @@ function buildLegacyProviderSettings(
 		aihubmix: legacySecrets.aihubmixApiKey,
 		nousResearch: legacySecrets.nousResearchApiKey,
 		oca: legacySecrets.ocaApiKey,
-		sapaicore: legacySecrets.sapAiCoreClientId,
 	};
 
 	const providerSpecific: Partial<ProviderSettings> = {};
@@ -674,6 +673,16 @@ function collectCandidateProviderIds(
 	}
 	if (trimNonEmpty(legacySecrets.clineApiKey)) candidates.add("cline");
 	if (trimNonEmpty(legacySecrets.ocaApiKey)) candidates.add("oca");
+	if (
+		trimNonEmpty(legacySecrets.sapAiCoreClientId) ||
+		trimNonEmpty(legacySecrets.sapAiCoreClientSecret) ||
+		trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl) ||
+		trimNonEmpty(legacyGlobalState.sapAiCoreBaseUrl) ||
+		trimNonEmpty(legacyGlobalState.sapAiResourceGroup) ||
+		legacyGlobalState.sapAiCoreUseOrchestrationMode !== undefined
+	) {
+		candidates.add("sapaicore");
+	}
 	return candidates;
 }
 
