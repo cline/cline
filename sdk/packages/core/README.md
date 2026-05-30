@@ -60,16 +60,6 @@ session starts, then apply watcher/extensions/telemetry inputs through
 explicit `localRuntime` bootstrap fields without widening the shared host
 contract.
 
-## Telemetry Event Catalog
-
-Structured core event names are defined in
-`packages/core/src/services/telemetry/core-events.ts`. Add new SDK telemetry
-events there with a typed `capture*` helper, then document the event here.
-
-| Event | Helper | Required Properties | Purpose |
-|---|---|---|---|
-| `sdk.tool_timeout` | `captureRunCommandsTimeout` | `tool_name`, `effective_timeout_ms`, `timeout_source`, `command_count`, `duration_ms` | Emitted when the SDK `run_commands` shell executor exceeds its effective timeout and kills the command. |
-
 ## Main APIs
 
 ### Runtime and Sessions
