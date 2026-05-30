@@ -36,7 +36,7 @@ event names. It exports:
 
 1. Add the constant to `CORE_TELEMETRY_EVENTS`
 2. Add a typed `capture*()` helper alongside it (with a typed `properties` parameter)
-3. Update the Event Catalog section in `DOC.md`
+3. Update the Telemetry Event Catalog section in `packages/core/README.md`
 4. Add a unit test in `core-events.test.ts` asserting the event is dropped when telemetry is opted out
 
 ## The Activation Funnel
