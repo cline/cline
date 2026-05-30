@@ -7,18 +7,17 @@ import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { filterOpenRouterModelIds, getModeSpecificFields, supportsReasoningEffortForModelId } from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -89,10 +88,11 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, clineModels: legacyClineModels, refreshClineModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
+	const { write: writeProviderConfig } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const effectiveClineModels = Object.keys(catalogClineModels).length > 0 ? catalogClineModels : legacyClineModels
+	const effectiveClineModels = catalogClineModels
 	const currentClineModelId = modeFields.clineModelId || clineDefaultModelId || Object.keys(effectiveClineModels ?? {})[0] || ""
 	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
 	const searchTermEditedByUserRef = useRef(false)
@@ -240,10 +240,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		return selectedWithCatalogDefault
 	}, [apiConfiguration, currentMode, currentClineModelId, effectiveClineModels, freeClineModelIdSet, modeFields.clineModelInfo])
 
-	useMount(() => {
-		refreshClineModels()
-	})
-
 	useEffect(() => {
 		void fetchClineRecommendedModels()
 	}, [fetchClineRecommendedModels])
@@ -359,37 +355,17 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		}
 	}, [selectedIndex])
 
-	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
 	const adaptiveThinkingDefaultEffort = useMemo(
 		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
+	// Show reasoning effort selector for all models that support reasoning,
+	// using the SDK catalog's supportsReasoning capability flag.
 	const showReasoningEffort = useMemo(
-		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
-		[selectedModelId, showAdaptiveThinkingEffort],
+		() => showAdaptiveThinkingEffort || selectedModelInfo?.supportsReasoning === true,
+		[selectedModelId, showAdaptiveThinkingEffort, selectedModelInfo?.supportsReasoning],
 	)
-
-	const showBudgetSlider = useMemo(() => {
-		if (showReasoningEffort) {
-			return false
-		}
-		return (
-			Object.entries(effectiveClineModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.6") ||
-			selectedModelIdLower.includes("claude-sonnet-4-6") ||
-			selectedModelIdLower.includes("claude-4.6-sonnet") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
-			selectedModelIdLower.includes("claude-sonnet-4") ||
-			selectedModelIdLower.includes("claude-opus-4.1") ||
-			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-3-7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
-		)
-	}, [effectiveClineModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -528,7 +504,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 					{showReasoningEffort && (
 						<ReasoningEffortSelector
 							allowedEfforts={
@@ -542,6 +517,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 									: undefined
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							onEffortChange={(effort) => {
+								writeProviderConfig({
+									reasoning: {
+										enabled: effort !== "none",
+										effort: effort !== "none" ? effort : undefined,
+									},
+								})
+							}}
 						/>
 					)}
 
