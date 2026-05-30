@@ -8,10 +8,16 @@ import {
 	type ClineOAuthCredentials,
 	getValidClineCredentials,
 } from "../../auth/cline";
-import { getValidOpenAICodexCredentials } from "../../auth/codex";
+import {
+	getValidOpenAICodexCredentials,
+	isOpenAICodexTokenExpired,
+} from "../../auth/codex";
 import { getValidOcaCredentials } from "../../auth/oca";
 import { decodeJwtPayload } from "../../auth/utils";
-import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import {
+	ProviderSettingsManager,
+	type ProviderSettingsRefreshLockOptions,
+} from "../../services/storage/provider-settings-manager";
 import type { ProviderSettings } from "../../types/provider-settings";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
@@ -140,16 +146,22 @@ export class RuntimeOAuthTokenManager {
 	private readonly telemetry?: ITelemetryService;
 	private readonly refreshInFlight = new Map<
 		ManagedOAuthProviderId,
-		Promise<RuntimeOAuthResolution | null>
+		{
+			forceRefresh: boolean;
+			promise: Promise<RuntimeOAuthResolution | null>;
+		}
 	>();
+	private readonly refreshLockOptions?: ProviderSettingsRefreshLockOptions;
 
 	constructor(options?: {
 		providerSettingsManager?: ProviderSettingsManager;
 		telemetry?: ITelemetryService;
+		refreshLockOptions?: ProviderSettingsRefreshLockOptions;
 	}) {
 		this.providerSettingsManager =
 			options?.providerSettingsManager ?? new ProviderSettingsManager();
 		this.telemetry = options?.telemetry;
+		this.refreshLockOptions = options?.refreshLockOptions;
 	}
 
 	public async resolveProviderApiKey(input: {
@@ -168,16 +180,24 @@ export class RuntimeOAuthTokenManager {
 	): Promise<RuntimeOAuthResolution | null> {
 		const currentInFlight = this.refreshInFlight.get(providerId);
 		if (currentInFlight) {
-			return currentInFlight;
+			const resolution = await currentInFlight.promise;
+			return forceRefresh && !currentInFlight.forceRefresh
+				? this.resolveWithSingleFlight(providerId, true)
+				: resolution;
 		}
 		const pending = this.resolveProviderApiKeyInternal(providerId, forceRefresh)
 			.catch((error) => {
 				throw error;
 			})
 			.finally(() => {
-				this.refreshInFlight.delete(providerId);
+				if (this.refreshInFlight.get(providerId)?.promise === pending) {
+					this.refreshInFlight.delete(providerId);
+				}
 			});
-		this.refreshInFlight.set(providerId, pending);
+		this.refreshInFlight.set(providerId, {
+			forceRefresh,
+			promise: pending,
+		});
 		return pending;
 	}
 
@@ -196,14 +216,79 @@ export class RuntimeOAuthTokenManager {
 			return null;
 		}
 
-		const nextCredentials = await this.resolveCredentials(
+		if (
+			providerId === "openai-codex" &&
+			(forceRefresh || isOpenAICodexTokenExpired(currentCredentials))
+		) {
+			return this.providerSettingsManager.withProviderRefreshLock(
+				providerId,
+				async () => {
+					const storedSettings =
+						this.providerSettingsManager.getProviderSettings(providerId);
+					if (!storedSettings) {
+						return null;
+					}
+					const storedCredentials = toCredentials(providerId, storedSettings);
+					if (!storedCredentials) {
+						return null;
+					}
+					const storedAuthChanged = !authSettingsEqual(
+						settings.auth,
+						storedSettings.auth,
+					);
+					return this.resolveAndPersistCredentials(
+						providerId,
+						storedSettings,
+						storedCredentials,
+						forceRefresh && !storedAuthChanged,
+					);
+				},
+				this.refreshLockOptions,
+			);
+		}
+
+		return this.resolveAndPersistCredentials(
 			providerId,
 			settings,
 			currentCredentials,
 			forceRefresh,
 		);
+	}
+
+	private async resolveAndPersistCredentials(
+		providerId: ManagedOAuthProviderId,
+		settings: ProviderSettings,
+		currentCredentials: ClineOAuthCredentials,
+		forceRefresh: boolean,
+	): Promise<RuntimeOAuthResolution> {
+		let invalidGrant = false;
+		const nextCredentials = await this.resolveCredentials(
+			providerId,
+			settings,
+			currentCredentials,
+			forceRefresh,
+			() => {
+				invalidGrant = true;
+			},
+		);
 		if (!nextCredentials) {
+			if (providerId === "openai-codex" && invalidGrant) {
+				this.clearAuthIfUnchanged(providerId, settings.auth);
+			}
 			throw new OAuthReauthRequiredError(providerId);
+		}
+
+		const latestSettings =
+			this.providerSettingsManager.getProviderSettings(providerId);
+		if (
+			latestSettings &&
+			!authSettingsEqual(settings.auth, latestSettings.auth)
+		) {
+			const latestCredentials = toCredentials(providerId, latestSettings);
+			if (!latestCredentials) {
+				throw new OAuthReauthRequiredError(providerId);
+			}
+			return this.toResolution(providerId, latestCredentials, true);
 		}
 
 		const persistedAccessToken = toStoredAccessToken(
@@ -218,7 +303,7 @@ export class RuntimeOAuthTokenManager {
 		} as ProviderSettings["auth"] & { expiresAt?: number };
 		nextAuth.expiresAt = nextCredentials.expires;
 		const nextSettings: ProviderSettings = {
-			...settings,
+			...(latestSettings ?? settings),
 			auth: nextAuth,
 		};
 		const wasRefreshed = !authSettingsEqual(settings.auth, nextSettings.auth);
@@ -229,11 +314,38 @@ export class RuntimeOAuthTokenManager {
 			});
 		}
 
+		return this.toResolution(providerId, nextCredentials, wasRefreshed);
+	}
+
+	private clearAuthIfUnchanged(
+		providerId: ManagedOAuthProviderId,
+		failedAuth: ProviderSettings["auth"],
+	): void {
+		const latestSettings =
+			this.providerSettingsManager.getProviderSettings(providerId);
+		if (
+			!latestSettings ||
+			!authSettingsEqual(latestSettings.auth, failedAuth)
+		) {
+			return;
+		}
+		const { auth: _auth, ...settingsWithoutAuth } = latestSettings;
+		this.providerSettingsManager.saveProviderSettings(settingsWithoutAuth, {
+			setLastUsed: false,
+			tokenSource: "oauth",
+		});
+	}
+
+	private toResolution(
+		providerId: ManagedOAuthProviderId,
+		credentials: ClineOAuthCredentials,
+		refreshed: boolean,
+	): RuntimeOAuthResolution {
 		return {
 			providerId,
-			apiKey: persistedAccessToken,
-			accountId: nextCredentials.accountId,
-			refreshed: wasRefreshed,
+			apiKey: toStoredAccessToken(providerId, credentials.access),
+			accountId: credentials.accountId,
+			refreshed,
 		};
 	}
 
@@ -242,6 +354,7 @@ export class RuntimeOAuthTokenManager {
 		settings: ProviderSettings,
 		currentCredentials: ClineOAuthCredentials,
 		forceRefresh: boolean,
+		onInvalidGrant: () => void,
 	): Promise<ClineOAuthCredentials | null> {
 		if (providerId === "cline") {
 			return getValidClineCredentials(
@@ -263,6 +376,7 @@ export class RuntimeOAuthTokenManager {
 		}
 		return getValidOpenAICodexCredentials(currentCredentials, {
 			forceRefresh,
+			onInvalidGrant,
 			telemetry: this.telemetry,
 		});
 	}

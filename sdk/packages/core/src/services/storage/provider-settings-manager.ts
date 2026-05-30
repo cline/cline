@@ -1,12 +1,16 @@
+import { randomUUID } from "node:crypto";
 import {
 	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
+	renameSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
+import lockfile from "proper-lockfile";
 import { getLiveModelsCatalog } from "../..";
 import {
 	emptyStoredProviderSettings,
@@ -25,6 +29,11 @@ import {
 } from "../providers/local-provider-registry";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
+const SETTINGS_WRITE_LOCK_STALE_MS = 10_000;
+const SETTINGS_WRITE_LOCK_TIMEOUT_MS = 12_000;
+const SETTINGS_WRITE_LOCK_RETRY_MS = 10;
+const syncWaitBuffer = new Int32Array(new SharedArrayBuffer(4));
+
 function nowIso(): string {
 	return new Date().toISOString();
 }
@@ -39,6 +48,16 @@ export interface SaveProviderSettingsOptions {
 	tokenSource?: ProviderTokenSource;
 }
 
+export interface WriteProviderSettingsOptions {
+	allowOpenAICodexAuthReplacement?: boolean;
+}
+
+export interface ProviderSettingsRefreshLockOptions {
+	staleMs?: number;
+	updateMs?: number;
+	retries?: number;
+}
+
 function inferLegacyDataDir(filePath: string): string | undefined {
 	if (basename(filePath) !== "providers.json") {
 		return undefined;
@@ -48,6 +67,80 @@ function inferLegacyDataDir(filePath: string): string | undefined {
 		return undefined;
 	}
 	return dirname(settingsDir);
+}
+
+function isLockHeldError(error: unknown): boolean {
+	return error instanceof Error && "code" in error && error.code === "ELOCKED";
+}
+
+function withSettingsWriteLock<T>(filePath: string, callback: () => T): T {
+	const lockTarget = `${filePath}.write`;
+	const dir = dirname(lockTarget);
+	if (!existsSync(dir)) {
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+	}
+	const startedAt = Date.now();
+	let release: (() => void) | undefined;
+	while (!release) {
+		try {
+			release = lockfile.lockSync(lockTarget, {
+				stale: SETTINGS_WRITE_LOCK_STALE_MS,
+				realpath: false,
+			});
+		} catch (error) {
+			if (
+				!isLockHeldError(error) ||
+				Date.now() - startedAt >= SETTINGS_WRITE_LOCK_TIMEOUT_MS
+			) {
+				throw error;
+			}
+			Atomics.wait(syncWaitBuffer, 0, 0, SETTINGS_WRITE_LOCK_RETRY_MS);
+		}
+	}
+	try {
+		return callback();
+	} finally {
+		release();
+	}
+}
+
+function preserveDurableOpenAICodexEntry(
+	state: StoredProviderSettings,
+	durableState: StoredProviderSettings,
+	options: WriteProviderSettingsOptions,
+): StoredProviderSettings {
+	const durableEntry = durableState.providers["openai-codex"];
+	if (
+		options.allowOpenAICodexAuthReplacement ||
+		durableEntry?.tokenSource !== "oauth" ||
+		!durableEntry.settings.auth
+	) {
+		return state;
+	}
+	const nextEntry = state.providers["openai-codex"];
+	if (!nextEntry) {
+		return {
+			...state,
+			providers: {
+				...state.providers,
+				"openai-codex": durableEntry,
+			},
+		};
+	}
+	return {
+		...state,
+		providers: {
+			...state.providers,
+			"openai-codex": {
+				...nextEntry,
+				settings: {
+					...nextEntry.settings,
+					auth: durableEntry.settings.auth,
+				},
+				tokenSource: durableEntry.tokenSource,
+			},
+		},
+	};
 }
 
 export class ProviderSettingsManager {
@@ -100,24 +193,65 @@ export class ProviderSettingsManager {
 		return emptyStoredProviderSettings();
 	}
 
-	write(state: StoredProviderSettings): void {
-		const normalized = StoredProviderSettingsSchema.parse(state);
-		const dir = dirname(this.filePath);
+	write(
+		state: StoredProviderSettings,
+		options: WriteProviderSettingsOptions = {},
+	): StoredProviderSettings {
+		const parsed = StoredProviderSettingsSchema.parse(state);
+		return withSettingsWriteLock(this.filePath, () => {
+			const normalized = preserveDurableOpenAICodexEntry(
+				parsed,
+				this.read(),
+				options,
+			);
+			const tempPath = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
+			try {
+				writeFileSync(tempPath, `${JSON.stringify(normalized, null, 2)}\n`, {
+					encoding: "utf8",
+					mode: 0o600,
+				});
+				// Restrict file to owner-only read/write (best-effort; no-op on Windows).
+				try {
+					chmodSync(tempPath, 0o600);
+				} catch {
+					// Ignore — Windows does not support POSIX chmod.
+				}
+				renameSync(tempPath, this.filePath);
+			} finally {
+				rmSync(tempPath, { force: true });
+			}
+			registerConfiguredProvidersFromSettings(normalized);
+			return normalized;
+		});
+	}
+
+	async withProviderRefreshLock<T>(
+		providerId: string,
+		callback: () => Promise<T>,
+		options: ProviderSettingsRefreshLockOptions = {},
+	): Promise<T> {
+		const lockTarget = `${this.filePath}.${providerId.replace(/[^a-zA-Z0-9_.-]+/g, "_")}.refresh`;
+		const dir = dirname(lockTarget);
 		if (!existsSync(dir)) {
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
 		}
-		writeFileSync(
-			this.filePath,
-			`${JSON.stringify(normalized, null, 2)}\n`,
-			"utf8",
-		);
-		// Restrict file to owner-only read/write (best-effort; no-op on Windows).
+		const release = await lockfile.lock(lockTarget, {
+			stale: options.staleMs ?? 60_000,
+			update: options.updateMs ?? 10_000,
+			realpath: false,
+			retries: {
+				retries: options.retries ?? 60,
+				factor: 1.2,
+				minTimeout: 100,
+				maxTimeout: 1_000,
+				randomize: true,
+			},
+		});
 		try {
-			chmodSync(this.filePath, 0o600);
-		} catch {
-			// Ignore — Windows does not support POSIX chmod.
+			return await callback();
+		} finally {
+			await release();
 		}
-		registerConfiguredProvidersFromSettings(normalized);
 	}
 
 	saveProviderSettings(
@@ -145,8 +279,9 @@ export class ProviderSettingsManager {
 				? providerId
 				: previous.lastUsedProvider,
 		};
-		this.write(next);
-		return next;
+		return this.write(next, {
+			allowOpenAICodexAuthReplacement: options.tokenSource === "oauth",
+		});
 	}
 
 	getProviderSettings(providerId: string): ProviderSettings | undefined {

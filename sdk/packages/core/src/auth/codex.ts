@@ -7,6 +7,7 @@
 
 import type { ITelemetryService } from "@cline/shared";
 import { nanoid } from "nanoid";
+import corePackage from "../../package.json";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
@@ -42,6 +43,7 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 	retryableTokenGraceMs: 30 * 1000,
 	httpTimeoutMs: 30 * 1000,
 } as const;
+const OPENAI_CODEX_USER_AGENT = `cline-sdk/${corePackage.version}`;
 
 type CodexTokenSuccess = {
 	type: "success";
@@ -55,6 +57,7 @@ type CodexTokenFailure = { type: "failed" };
 type CodexTokenResult = CodexTokenSuccess | CodexTokenFailure;
 export type RefreshTokenResolution = {
 	forceRefresh?: boolean;
+	onInvalidGrant?: () => void;
 	refreshBufferMs?: number;
 	retryableTokenGraceMs?: number;
 };
@@ -97,7 +100,10 @@ async function exchangeAuthorizationCode(
 ): Promise<CodexTokenResult> {
 	const response = await fetch(OPENAI_CODEX_OAUTH_CONFIG.tokenEndpoint, {
 		method: "POST",
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		headers: {
+			"Content-Type": "application/x-www-form-urlencoded",
+			"User-Agent": OPENAI_CODEX_USER_AGENT,
+		},
 		body: new URLSearchParams({
 			grant_type: "authorization_code",
 			client_id: OPENAI_CODEX_OAUTH_CONFIG.clientId,
@@ -144,7 +150,10 @@ async function refreshAccessToken(
 	try {
 		const response = await fetch(OPENAI_CODEX_OAUTH_CONFIG.tokenEndpoint, {
 			method: "POST",
-			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"User-Agent": OPENAI_CODEX_USER_AGENT,
+			},
 			body: new URLSearchParams({
 				grant_type: "refresh_token",
 				refresh_token: refreshToken,
@@ -433,6 +442,7 @@ export async function getValidOpenAICodexCredentials(
 			error instanceof OpenAICodexOAuthTokenError &&
 			error.isLikelyInvalidGrant()
 		) {
+			options?.onInvalidGrant?.();
 			captureAuthLoggedOut(options?.telemetry, "openai-codex", "invalid_grant");
 			return null;
 		}

@@ -62,12 +62,14 @@
 		"jiti": "^2.7.0",
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
+		"proper-lockfile": "^4.1.2",
 		"simple-git": "3.36.0",
 		"ws": "^8.20.0",
 		"yaml": "^2.8.2",
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@types/proper-lockfile": "^4.1.4",
 		"@types/ws": "^8.18.1"
 	},
 	"engines": {
