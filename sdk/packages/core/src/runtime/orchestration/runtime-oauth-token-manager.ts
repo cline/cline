@@ -307,13 +307,12 @@ export class RuntimeOAuthTokenManager {
 				const persistedSettings =
 					persistedState.providers[providerId]?.settings;
 				if (
-					persistedSettings &&
+					!persistedSettings ||
 					!oauthAuthSettingsEqual(persistedSettings.auth, nextSettings.auth)
 				) {
-					const winnerCredentials = toCredentials(
-						providerId,
-						persistedSettings,
-					);
+					const winnerCredentials = persistedSettings
+						? toCredentials(providerId, persistedSettings)
+						: null;
 					if (!winnerCredentials) {
 						throw new OAuthReauthRequiredError(providerId);
 					}

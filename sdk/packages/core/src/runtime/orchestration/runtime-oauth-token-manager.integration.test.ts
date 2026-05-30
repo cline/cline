@@ -469,6 +469,44 @@ describe("RuntimeOAuthTokenManager Codex refresh transaction", () => {
 		});
 	});
 
+	it("does not restore a provider removed while refreshed auth is being saved", async () => {
+		const filePath = createFilePath();
+		const storedManager = seedSettings(filePath);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => createTokenResponse()),
+		);
+		const providerSettingsManager = new ProviderSettingsManager({ filePath });
+		const write = providerSettingsManager.write.bind(providerSettingsManager);
+		let injectedRemoval = false;
+		vi.spyOn(providerSettingsManager, "write").mockImplementation(
+			(state, options) => {
+				const codexSettings = state.providers["openai-codex"]?.settings;
+				if (
+					!injectedRemoval &&
+					options?.allowOpenAICodexAuthReplacement &&
+					codexSettings?.auth?.accessToken === "access-new"
+				) {
+					injectedRemoval = true;
+					const storedState = storedManager.read();
+					delete storedState.providers["openai-codex"];
+					storedState.lastUsedProvider = undefined;
+					storedManager.write(storedState, {
+						allowOpenAICodexAuthReplacement: true,
+					});
+				}
+				return write(state, options);
+			},
+		);
+		const manager = new RuntimeOAuthTokenManager({ providerSettingsManager });
+
+		await expect(
+			manager.resolveProviderApiKey({ providerId: "openai-codex" }),
+		).rejects.toBeInstanceOf(OAuthReauthRequiredError);
+		expect(injectedRemoval).toBe(true);
+		expect(storedManager.getProviderSettings("openai-codex")).toBeUndefined();
+	});
+
 	it("preserves stored auth after a transient refresh failure", async () => {
 		const filePath = createFilePath();
 		const storedManager = seedSettings(filePath);

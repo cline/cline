@@ -230,9 +230,21 @@ function preserveDurableOpenAICodexEntry(
 			durableEntry?.settings.auth,
 			options.expectedOpenAICodexAuth,
 		);
+	if (conditionalReplacementMismatch) {
+		const providers = { ...state.providers };
+		if (durableEntry) {
+			providers["openai-codex"] = durableEntry;
+		} else {
+			delete providers["openai-codex"];
+		}
+		return {
+			...state,
+			providers,
+			lastUsedProvider: durableState.lastUsedProvider,
+		};
+	}
 	if (
-		(options.allowOpenAICodexAuthReplacement &&
-			!conditionalReplacementMismatch) ||
+		options.allowOpenAICodexAuthReplacement ||
 		durableEntry?.tokenSource !== "oauth" ||
 		!durableEntry.settings.auth
 	) {
