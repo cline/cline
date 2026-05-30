@@ -5,6 +5,7 @@ import type { ClineRecommendedModel } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 import { useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
 export type OnboardingModelsStatus = "loading" | "success" | "empty"
@@ -52,7 +53,8 @@ interface RecommendedModelsData {
 type FetchState = { status: "loading" } | { status: "success"; data: RecommendedModelsData } | { status: "empty" }
 
 export function useOnboardingModels(): UseOnboardingModelsResult {
-	const { openRouterModels, clineModels, refreshClineModels } = useExtensionState()
+	const { openRouterModels } = useExtensionState()
+	const { models: clineModels } = useProviderModels("cline")
 	const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" })
 
 	useEffect(() => {
@@ -83,10 +85,6 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 			cancelled = true
 		}
 	}, [])
-
-	useEffect(() => {
-		refreshClineModels()
-	}, [refreshClineModels])
 
 	// Merge openRouter and cline models into a single catalog for lookups
 	const modelCatalog = useMemo<Record<string, ModelInfo>>(() => {

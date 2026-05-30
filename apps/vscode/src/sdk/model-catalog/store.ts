@@ -203,6 +203,31 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 		}
 	}
 
+	// Handle reasoning patch separately — maps to ProviderSettings.reasoning
+	if ("reasoning" in patch) {
+		const reasoningPatch = patch.reasoning
+		if (reasoningPatch === null || reasoningPatch === undefined) {
+			delete next.reasoning
+		} else {
+			const existingReasoning = (next as Record<string, unknown>).reasoning as Record<string, unknown> | undefined
+			const merged: Record<string, unknown> = { ...(existingReasoning ?? {}) }
+			if (reasoningPatch.enabled !== undefined) {
+				merged.enabled = reasoningPatch.enabled
+			}
+			if (reasoningPatch.effort !== undefined) {
+				merged.effort = reasoningPatch.effort === "none" ? undefined : reasoningPatch.effort
+				// When effort is "none", disable reasoning
+				if (reasoningPatch.effort === "none") {
+					merged.enabled = false
+				}
+			}
+			if (reasoningPatch.budgetTokens !== undefined) {
+				merged.budgetTokens = reasoningPatch.budgetTokens
+			}
+			;(next as Record<string, unknown>).reasoning = merged
+		}
+	}
+
 	saveProviderSettings(providerId, next)
 }
 

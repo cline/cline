@@ -72,7 +72,6 @@ export class StateManager {
 	// In-memory model info cache (not persisted to disk)
 	// These are for dynamic providers that fetch models from APIs
 	private modelInfoCache: {
-		clineModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		openRouterModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		groqModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		basetenModels: { data: Record<string, ModelInfo>; timestamp: number } | null
@@ -84,7 +83,6 @@ export class StateManager {
 		liteLlmModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		vercelModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 	} = {
-		clineModels: null,
 		openRouterModels: null,
 		groqModels: null,
 		basetenModels: null,
@@ -446,7 +444,6 @@ export class StateManager {
 	 */
 	setModelsCache(
 		provider:
-			| "cline"
 			| "openRouter"
 			| "groq"
 			| "baseten"
@@ -465,7 +462,6 @@ export class StateManager {
 
 	getModelsCache(
 		provider:
-			| "cline"
 			| "openRouter"
 			| "groq"
 			| "baseten"
