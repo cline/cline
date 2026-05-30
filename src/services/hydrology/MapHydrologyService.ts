@@ -386,12 +386,11 @@ export class MapHydrologyService {
 			"--workspace-dir",
 			workspaceDir,
 		]
-		// Wave 3 Axis 3: omit --session-id entirely when not provided so the
-		// Python CLI generates a coordinate-based slug (e.g. basin_26p9_78p1)
-		// rather than hardcoding the legacy "map" placeholder that collides
-		// across chats.
+		// Omit --session-id when not provided so the Python CLI generates a
+		// coordinate-based slug (e.g. basin_26p9_78p1) rather than using a
+		// hardcoded placeholder that collides across chats.
 		if (params.sessionId) {
-			args.splice(2, 0, "--session-id", params.sessionId)
+			args.push("--session-id", params.sessionId)
 		}
 		if (params.expectedAreaKm2 !== undefined) {
 			args.push("--expected-area-km2", String(params.expectedAreaKm2))

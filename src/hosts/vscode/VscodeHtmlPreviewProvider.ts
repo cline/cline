@@ -11,6 +11,7 @@ import {
 	resetProgress as resetCourseProgress,
 	setCurrentModule as setCourseCurrentModule,
 } from "@/services/htmlPreview/courseProgressStore"
+import { loadModuleState, resetModuleState, saveModuleState } from "@/services/htmlPreview/moduleStateStore"
 
 /**
  * Owns the single AI-Hydro HTML Preview webview panel.
@@ -361,6 +362,49 @@ export class VscodeHtmlPreviewProvider {
 							await fs.rename(tmp, file)
 						} catch (err) {
 							console.warn("[VscodeHtmlPreviewProvider] active-course write failed:", err)
+						}
+						break
+					}
+					case "aihydro-module-state": {
+						// Phase 1c: persist interactive control state (bindParam values)
+						// per module so reopening a panel restores the learner's last
+						// configuration. Action-dispatched; always replies with the
+						// current snapshot so the webview stays a view over disk state.
+						const requestId = String(message.requestId ?? "")
+						const moduleKey = String(message.moduleKey ?? "")
+						const action = String(message.action ?? "get")
+						try {
+							let state
+							switch (action) {
+								case "set": {
+									const values =
+										message.values && typeof message.values === "object"
+											? (message.values as Record<string, string>)
+											: {}
+									state = await saveModuleState(moduleKey, values)
+									break
+								}
+								case "reset":
+									state = await resetModuleState(moduleKey)
+									break
+								case "get":
+								default:
+									state = await loadModuleState(moduleKey)
+							}
+							panel.webview.postMessage({
+								type: "aihydro-module-state-result",
+								requestId,
+								moduleKey,
+								state,
+							})
+						} catch (err) {
+							panel.webview.postMessage({
+								type: "aihydro-module-state-result",
+								requestId,
+								moduleKey,
+								state: null,
+								error: err instanceof Error ? err.message : String(err),
+							})
 						}
 						break
 					}

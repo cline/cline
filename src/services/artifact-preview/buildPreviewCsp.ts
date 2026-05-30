@@ -89,6 +89,9 @@ export function buildPreviewCsp(options: BuildPreviewCspOptions): string {
 		`style-src ${cspSource} 'unsafe-inline' ${cdnScripts}`,
 		`font-src ${cspSource} data: ${cdnScripts}`,
 		`img-src ${cspSource} https: data: blob: ${tileSources}`,
+		// Manim video-render cells emit inline `<video src="data:video/mp4;…">`;
+		// without an explicit media-src these are blocked under default-src 'none'.
+		`media-src ${cspSource} data: blob:`,
 		// Artifacts (Plotly, Leaflet) frequently make XHR/fetch requests for
 		// tile data and asset bundles; we allow https: broadly here because
 		// the iframe document context is the security boundary.

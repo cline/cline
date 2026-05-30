@@ -213,6 +213,12 @@ message LearningModuleItem {
   int32 github_reactions = 18;
   bool is_featured = 19;
   string discussion_url = 20;
+  string author_url = 21;
+  string citation = 22;
+  string citation_url = 23;
+  int32 ai_hydro_installs = 24;
+  int32 ai_hydro_stars = 25;
+  bool starred_by_client = 26;
 }
 
 message LearningModuleCatalog {

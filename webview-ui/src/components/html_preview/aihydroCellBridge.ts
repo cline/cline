@@ -271,6 +271,41 @@ body.aihydro-module, .aihydro-module {
 .aihydro-cell[data-aihydro-focused="1"] {
   outline: 1px solid var(--aihydro-cyan);
 }
+/* Run-state accent stripe so a slow or failed cell reads at a glance. */
+.aihydro-cell[data-aihydro-cell-status="warming"],
+.aihydro-cell[data-aihydro-cell-status="running"] {
+  box-shadow: inset 3px 0 0 var(--aihydro-cyan);
+}
+.aihydro-cell[data-aihydro-cell-status="done"] {
+  box-shadow: inset 3px 0 0 rgba(74,222,128,0.85);
+}
+.aihydro-cell[data-aihydro-cell-status="error"] {
+  box-shadow: inset 3px 0 0 rgba(248,113,113,0.9);
+}
+/* Status pill appended to the cell header, label driven by the attribute. */
+.aihydro-cell[data-aihydro-cell-status] .aihydro-cell-header::after {
+  font-family: var(--aihydro-font-ui);
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; margin-left: auto;
+}
+.aihydro-cell[data-aihydro-cell-status="warming"] .aihydro-cell-header::after {
+  content: "Warming"; color: var(--aihydro-cyan); background: rgba(0,221,255,0.12);
+  animation: aihydroPulse 1.2s ease-in-out infinite;
+}
+.aihydro-cell[data-aihydro-cell-status="running"] .aihydro-cell-header::after {
+  content: "Running"; color: var(--aihydro-cyan); background: rgba(0,221,255,0.12);
+  animation: aihydroPulse 1.2s ease-in-out infinite;
+}
+.aihydro-cell[data-aihydro-cell-status="done"] .aihydro-cell-header::after {
+  content: "Done"; color: rgba(74,222,128,0.95); background: rgba(74,222,128,0.12);
+}
+.aihydro-cell[data-aihydro-cell-status="error"] .aihydro-cell-header::after {
+  content: "Error"; color: rgba(248,113,113,0.95); background: rgba(248,113,113,0.12);
+}
+@keyframes aihydroPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) {
+  .aihydro-cell[data-aihydro-cell-status] .aihydro-cell-header::after { animation: none; }
+}
 .aihydro-cell .aihydro-cell-header {
   display: flex; align-items: center; gap: 10px;
   font-family: var(--aihydro-font-ui);
@@ -397,6 +432,8 @@ body.aihydro-module, .aihydro-module {
 .aihydro-error  { color: #f87171; }
 .aihydro-output-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .aihydro-output-images img { max-width: 100%; height: auto; border-radius: 4px; }
+.aihydro-output-video { margin-top: 8px; }
+.aihydro-output-video video { max-width: 100%; height: auto; border-radius: 6px; background: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
 .aihydro-truncated { font-size: 11px; opacity: 0.75; margin-top: 6px; }
 
 /* ---- Standalone-mode pill (replaces run buttons outside the preview) */
@@ -555,6 +592,39 @@ body.aihydro-module, .aihydro-module {
 }
 .aihydro-quiz-submit:hover { background: rgba(0,221,255,0.10); }
 #quizScore { font-size: 14px; color: var(--aihydro-text-accent); margin-left: 14px; }
+
+/* ── Interactivity primitives (timeline / compare / sim) ─────────────── */
+.aihydro-timeline {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 0; padding: 6px 8px;
+  border: 1px solid var(--aihydro-border); border-radius: 8px;
+  background: var(--aihydro-bg-mid);
+}
+.aihydro-tl-btn {
+  width: 28px; height: 28px; flex-shrink: 0;
+  border: 1px solid var(--aihydro-border); border-radius: 6px;
+  background: rgba(0,221,255,0.08); color: var(--aihydro-cyan);
+  cursor: pointer; font-size: 13px; line-height: 1;
+}
+.aihydro-tl-btn:hover { background: rgba(0,221,255,0.16); }
+.aihydro-tl-scrub { flex: 1; accent-color: var(--aihydro-cyan); }
+.aihydro-compare { overflow: hidden; border-radius: 8px; }
+.aihydro-compare > * { display: block; max-width: 100%; }
+.aihydro-compare-handle {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: var(--aihydro-cyan); transform: translateX(-1px);
+  pointer-events: none; box-shadow: 0 0 8px rgba(0,221,255,0.5);
+}
+.aihydro-compare-range {
+  position: absolute; left: 0; right: 0; bottom: 8px; width: 100%;
+  margin: 0; accent-color: var(--aihydro-cyan); cursor: ew-resize;
+}
+canvas[data-aihydro-sim], canvas[data-aihydro-scene3d] {
+  display: block; max-width: 100%; border-radius: 8px;
+  border: 1px solid var(--aihydro-border); background: var(--aihydro-bg-deep);
+}
+canvas[data-aihydro-scene3d] { width: 100%; min-height: 320px; cursor: grab; }
+canvas[data-aihydro-scene3d]:active { cursor: grabbing; }
 </style>`
 
 export const CELL_BRIDGE_SCRIPT = `<script>(function(){
@@ -565,6 +635,37 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
   var isStandalone = (function(){
     try { return window.parent === window; } catch(_) { return true; }
   })();
+
+  // ── Module-state persistence (Phase 1c) ──────────────────────────────
+  // Tracks every bindParam-bound input so its value can be saved to the host
+  // (debounced) and restored on reload. Keyed by "<cellId>::<paramName>".
+  var boundInputs = [];           // [{ input, cellId, name, key, defaultValue }]
+  var moduleStateBag = {};        // key -> current value
+  var pendingRestore = null;      // key -> value, applied as inputs bind
+  var statePersistTimer = null;
+  function stateKey(cellId, name) { return cellId + "::" + name; }
+  function persistModuleState() {
+    clearTimeout(statePersistTimer);
+    statePersistTimer = setTimeout(function() {
+      postToParent(artifactPayload({ type: "artifact/stateChanged", state: moduleStateBag }));
+    }, 300);
+  }
+  function applyRestoredState(state) {
+    pendingRestore = state || {};
+    boundInputs.forEach(function(b) {
+      if (Object.prototype.hasOwnProperty.call(pendingRestore, b.key)) {
+        b.input.value = pendingRestore[b.key];
+        if (typeof b.sync === "function") b.sync();
+      }
+    });
+  }
+  function resetModuleStateToDefaults() {
+    boundInputs.forEach(function(b) {
+      b.input.value = b.defaultValue;
+      if (typeof b.sync === "function") b.sync();
+    });
+    moduleStateBag = {};
+  }
 
   function postToParent(payload) {
     if (isStandalone) return;
@@ -669,6 +770,8 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
         container.appendChild(er);
       } else if (o.type === "image/png" && o.data) {
         renderImages(container, [o.data]);
+      } else if (o.type === "video/mp4" && o.data) {
+        renderVideo(container, o.data);
       }
     });
     if (msg.truncated) {
@@ -677,6 +780,17 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
       t.textContent = "Output truncated.";
       container.appendChild(t);
     }
+  }
+
+  function renderVideo(container, b64) {
+    var wrap = document.createElement("div");
+    wrap.className = "aihydro-output-video";
+    var video = document.createElement("video");
+    video.controls = true;
+    video.setAttribute("playsinline", "1");
+    video.src = "data:video/mp4;base64," + b64;
+    wrap.appendChild(video);
+    container.appendChild(wrap);
   }
 
   function renderImages(container, images) {
@@ -700,7 +814,7 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
   function pythonCells() {
     return Array.from(document.querySelectorAll(".aihydro-cell")).filter(function(c) {
       var lang = (c.getAttribute("data-language") || "python").toLowerCase();
-      return lang === "python" || lang === "py";
+      return lang === "python" || lang === "py" || lang === "manim";
     });
   }
 
@@ -743,12 +857,26 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
     var sourceEl = cell.querySelector(".aihydro-source");
     var code = sourceEl ? (sourceEl.textContent || "") : "";
     var cid = cellId(cell);
+    // Video-render cells (Manim) are flagged so the kernel captures an MP4.
+    var renderMode = (cell.getAttribute("data-aihydro-render") || "").toLowerCase();
+    var lang0 = (cell.getAttribute("data-language") || "python").toLowerCase();
+    var isVideoCell = renderMode === "video" || lang0 === "manim";
+    if (isVideoCell && code.indexOf("# __aihydro_render_video__") === -1) {
+      code = "# __aihydro_render_video__\\n" + code;
+    }
     if (isStandalone) {
       if (output) output.textContent = "↗ Open this module inside AI-Hydro to run Python cells.";
       return cid;
     }
+    // First run in this session pays kernel spawn + numpy/matplotlib import
+    // cost; tell the learner that's what the wait is rather than dead air.
+    var warming = !window.__aihydroKernelWarmed;
+    cell.setAttribute("data-aihydro-cell-status", warming ? "warming" : "running");
+    setRunButtonBusy(cell, true);
     if (output) {
-      output.textContent = "Running Python…";
+      output.textContent = isVideoCell
+        ? "Rendering animation… (this can take a moment)"
+        : (warming ? "Warming up the Python kernel…" : "Running Python…");
       output.dataset.aihydroAwaiting = "1";
     }
     postToParent(artifactPayload({
@@ -758,6 +886,20 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
       cellId: cid
     }));
     return cid;
+  }
+
+  // Reflect run state on the cell's Run button so a slow cell doesn't look dead.
+  function setRunButtonBusy(cell, busy) {
+    var btn = cell.querySelector(".aihydro-run");
+    if (!btn) return;
+    if (busy) {
+      if (!btn.dataset.aihydroLabel) btn.dataset.aihydroLabel = btn.textContent || "Run";
+      btn.textContent = "Running…";
+      btn.setAttribute("disabled", "1");
+    } else {
+      if (btn.dataset.aihydroLabel) btn.textContent = btn.dataset.aihydroLabel;
+      btn.removeAttribute("disabled");
+    }
   }
 
   function runCellById(id) {
@@ -779,6 +921,10 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
       o.dataset.aihydroAwaiting = "";
     });
     document.querySelectorAll(".aihydro-output-images").forEach(function(w) { w.remove(); });
+    document.querySelectorAll(".aihydro-cell").forEach(function(cell) {
+      cell.removeAttribute("data-aihydro-cell-status");
+      setRunButtonBusy(cell, false);
+    });
     var legacy = document.getElementById("pythonOutput");
     if (legacy) legacy.textContent = "";
   }
@@ -904,7 +1050,11 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
     var msg = event.data;
     if (!msg) return;
     if (msg.type === "artifact/runCodeResult") {
+      // A returned result proves the kernel is up; later runs skip the warming hint.
+      window.__aihydroKernelWarmed = true;
       var targetId = msg.cellId || "";
+      var failed = msg.status === "error" || !!msg.error ||
+        (msg.outputs || []).some(function(o) { return o.type === "error"; });
       document.querySelectorAll(".aihydro-cell").forEach(function(cell) {
         var cid = cellId(cell);
         if (targetId && cid !== targetId) return;
@@ -913,6 +1063,8 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
           if (!targetId) return;
         }
         output.dataset.aihydroAwaiting = "";
+        cell.setAttribute("data-aihydro-cell-status", failed ? "error" : "done");
+        setRunButtonBusy(cell, false);
         renderOutputs(output, msg);
       });
       var legacyOut = document.getElementById("pythonOutput");
@@ -923,11 +1075,22 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
       if (runAllQueue) runAllQueue.onResult(msg);
       return;
     }
+    if (msg.type === "artifact/stateRestore") {
+      applyRestoredState(msg.state || {});
+      return;
+    }
     if (msg.type !== "artifact/command") return;
     if (msg.command === "runCell") runCellById(msg.cellId || focusedCellId);
     if (msg.command === "runAll") startRunAll();
     if (msg.command === "clearOutputs") clearAllOutputs();
     if (msg.command === "rescan") scanCells();
+    if (msg.command === "resetState") {
+      resetModuleStateToDefaults();
+      persistModuleState();
+    }
+    if (msg.command === "copyState") {
+      try { navigator.clipboard.writeText(JSON.stringify(moduleStateBag, null, 2)); } catch(_){}
+    }
   });
 
   function startRunAll() {
@@ -975,8 +1138,11 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
       var cell = document.querySelector('[data-aihydro-cell-id="' + opts.cellId + '"]');
       if (!input || !cell) return;
       cell.__aihydroParams = cell.__aihydroParams || {};
+      var key = stateKey(opts.cellId, opts.name);
+      var binding = { input: input, cellId: opts.cellId, name: opts.name, key: key, defaultValue: input.value, sync: null };
       var sync = function() {
         cell.__aihydroParams[opts.name] = input.value;
+        moduleStateBag[key] = input.value;
         applyParamsToCell(cell);
         // live-update any <span data-aihydro-mirror="name"> labels
         document.querySelectorAll('[data-aihydro-mirror="' + opts.name + '"]').forEach(function(el){
@@ -988,8 +1154,14 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
           cell.__aihydroAutorun = setTimeout(function() { runCellById(opts.cellId); }, 250);
         }
       };
-      input.addEventListener("input", sync);
-      input.addEventListener("change", sync);
+      binding.sync = sync;
+      boundInputs.push(binding);
+      input.addEventListener("input", function() { sync(); persistModuleState(); });
+      input.addEventListener("change", function() { sync(); persistModuleState(); });
+      // Restore a persisted value if the host already sent one for this key.
+      if (pendingRestore && Object.prototype.hasOwnProperty.call(pendingRestore, key)) {
+        input.value = pendingRestore[key];
+      }
       sync();
     },
 
@@ -1017,6 +1189,14 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
                 ? (btn.getAttribute("data-aihydro-success") || "Correct.")
                 : (btn.getAttribute("data-aihydro-explain") || "Not quite — try again.");
             }
+            // Report checkpoint result to the host so course progress can advance.
+            postToParent(artifactPayload({
+              type: "artifact/quizComplete",
+              quizId: root.id || "",
+              passed: correct,
+              score: correct ? 1 : 0,
+              total: 1
+            }));
           });
         });
       });
@@ -1057,6 +1237,234 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
         });
       }, { threshold: 0.55 });
       steps.forEach(function(s) { obs.observe(s); });
+    },
+
+    /**
+     * Animation timeline: play / pause / step / scrub over N frames.
+     *   aihydro.timeline({ mount: '#tl', steps: 60, autoplay: true, fps: 12,
+     *     onTick: function(i, t){ ... },          // t in [0,1]
+     *     cellId: 'sim-cell', param: 'frame' });   // optional: drive a bindParam slot
+     * Returns { play, pause, toggle, seek, destroy }. Respects reduced-motion
+     * (no autoplay; user steps manually).
+     */
+    timeline: function(opts) {
+      opts = opts || {};
+      var mount = typeof opts.mount === "string" ? document.querySelector(opts.mount) : opts.mount;
+      if (!mount) return null;
+      var steps = Math.max(1, parseInt(opts.steps, 10) || 60);
+      var fps = Math.max(1, parseInt(opts.fps, 10) || 12);
+      var loop = opts.loop !== false;
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var i = 0, timer = null;
+      var bar = document.createElement("div");
+      bar.className = "aihydro-timeline";
+      var playBtn = document.createElement("button");
+      playBtn.type = "button"; playBtn.className = "aihydro-tl-btn"; playBtn.textContent = "\\u25b6";
+      var stepBtn = document.createElement("button");
+      stepBtn.type = "button"; stepBtn.className = "aihydro-tl-btn"; stepBtn.textContent = "\\u29d0";
+      var scrub = document.createElement("input");
+      scrub.type = "range"; scrub.min = "0"; scrub.max = String(steps - 1); scrub.value = "0";
+      scrub.className = "aihydro-tl-scrub";
+      bar.appendChild(playBtn); bar.appendChild(stepBtn); bar.appendChild(scrub);
+      mount.appendChild(bar);
+      function tick(idx) {
+        i = ((idx % steps) + steps) % steps;
+        scrub.value = String(i);
+        var t = steps > 1 ? i / (steps - 1) : 0;
+        if (opts.cellId && opts.param) {
+          var cell = document.querySelector('[data-aihydro-cell-id="' + opts.cellId + '"]');
+          if (cell) {
+            cell.__aihydroParams = cell.__aihydroParams || {};
+            cell.__aihydroParams[opts.param] = String(i);
+            applyParamsToCell(cell);
+            clearTimeout(cell.__aihydroAutorun);
+            cell.__aihydroAutorun = setTimeout(function(){ runCellById(opts.cellId); }, 80);
+          }
+        }
+        if (opts.onTick) try { opts.onTick(i, t); } catch(_){}
+      }
+      function pause() { if (timer) { clearInterval(timer); timer = null; } playBtn.textContent = "\\u25b6"; }
+      function play() {
+        if (timer) return;
+        playBtn.textContent = "\\u275a\\u275a";
+        timer = setInterval(function() {
+          if (i + 1 >= steps && !loop) { tick(i); pause(); return; }
+          tick(i + 1);
+        }, Math.round(1000 / fps));
+      }
+      playBtn.addEventListener("click", function(){ timer ? pause() : play(); });
+      stepBtn.addEventListener("click", function(){ pause(); tick(i + 1); });
+      scrub.addEventListener("input", function(){ pause(); tick(parseInt(scrub.value, 10) || 0); });
+      tick(0);
+      if (opts.autoplay && !reduce) play();
+      return {
+        play: play, pause: pause, toggle: function(){ timer ? pause() : play(); },
+        seek: function(n){ pause(); tick(n); }, destroy: function(){ pause(); bar.remove(); }
+      };
+    },
+
+    /**
+     * Before/after wipe slider over an .aihydro-compare block with two children
+     * (figures, canvases or images). The first child is "before", second "after".
+     *   <div class="aihydro-compare"><img ...><img ...></div>
+     *   aihydro.compare('.aihydro-compare');
+     */
+    compare: function(selector) {
+      var roots = document.querySelectorAll(selector || ".aihydro-compare");
+      roots.forEach(function(root) {
+        if (root.dataset.aihydroWired === "1") return;
+        var kids = root.children;
+        if (kids.length < 2) return;
+        root.dataset.aihydroWired = "1";
+        root.style.position = "relative";
+        var after = kids[1];
+        after.style.position = "absolute";
+        after.style.top = "0"; after.style.left = "0"; after.style.width = "100%"; after.style.height = "100%";
+        after.style.clipPath = "inset(0 0 0 50%)";
+        var handle = document.createElement("div");
+        handle.className = "aihydro-compare-handle";
+        var range = document.createElement("input");
+        range.type = "range"; range.min = "0"; range.max = "100"; range.value = "50";
+        range.className = "aihydro-compare-range";
+        function apply() {
+          var v = parseInt(range.value, 10) || 0;
+          after.style.clipPath = "inset(0 0 0 " + v + "%)";
+          handle.style.left = v + "%";
+        }
+        range.addEventListener("input", apply);
+        root.appendChild(handle); root.appendChild(range);
+        apply();
+      });
+    },
+
+    /**
+     * requestAnimationFrame simulation loop over a <canvas data-aihydro-sim>.
+     *   aihydro.sim({ canvas: '#c', step: function(ctx, t, p){ ... },
+     *     params: function(){ return { rain: +rainSlider.value }; }, autoplay: true });
+     * step receives (ctx, elapsedSeconds, params). Reduced-motion → no autoplay
+     * but a one-shot render still runs so the canvas isn't blank.
+     */
+    sim: function(opts) {
+      opts = opts || {};
+      var canvas = typeof opts.canvas === "string" ? document.querySelector(opts.canvas) : opts.canvas;
+      if (!canvas || !canvas.getContext) return null;
+      var ctx = canvas.getContext("2d");
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var raf = null, start = 0;
+      function frame(now) {
+        if (!start) start = now;
+        var t = (now - start) / 1000;
+        var p = opts.params ? (typeof opts.params === "function" ? opts.params() : opts.params) : {};
+        if (opts.step) try { opts.step(ctx, t, p); } catch(_){}
+        raf = requestAnimationFrame(frame);
+      }
+      function play() { if (!raf) { start = 0; raf = requestAnimationFrame(frame); } }
+      function stop() { if (raf) { cancelAnimationFrame(raf); raf = null; } }
+      if (opts.autoplay && !reduce) { play(); } else if (opts.step) {
+        var p0 = opts.params ? (typeof opts.params === "function" ? opts.params() : opts.params) : {};
+        try { opts.step(ctx, 0, p0); } catch(_){}
+      }
+      return { play: play, stop: stop, toggle: function(){ raf ? stop() : play(); } };
+    },
+
+    /**
+     * Branded Plotly wrapper. Lazy-loads Plotly from the CSP-whitelisted CDN.
+     *   aihydro.plot({ mount: '#chart', data: [...], layout: {...} });
+     * Applies the AI-Hydro dark palette unless overridden in layout.
+     */
+    plot: function(spec) {
+      spec = spec || {};
+      var mount = typeof spec.mount === "string" ? document.querySelector(spec.mount) : spec.mount;
+      if (!mount) return;
+      var brandLayout = {
+        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+        font: { color: "#cfe8ff", family: "Nunito, system-ui, sans-serif" },
+        colorway: ["#00DDFF", "#00A3FF", "#7DD3FC", "#34d399", "#a78bfa"],
+        margin: { t: 36, r: 16, b: 40, l: 48 }
+      };
+      var layout = Object.assign({}, brandLayout, spec.layout || {});
+      var config = Object.assign({ displayModeBar: false, responsive: true }, spec.config || {});
+      function draw() { window.Plotly.newPlot(mount, spec.data || [], layout, config); }
+      if (window.Plotly) { draw(); return; }
+      if (!window.__aihydroPlotlyLoading) {
+        window.__aihydroPlotlyLoading = [];
+        var s = document.createElement("script");
+        s.src = "https://cdn.plot.ly/plotly-2.35.2.min.js";
+        s.onload = function() { (window.__aihydroPlotlyLoading || []).forEach(function(fn){ fn(); }); window.__aihydroPlotlyLoading = null; };
+        document.head.appendChild(s);
+      }
+      window.__aihydroPlotlyLoading.push(draw);
+    },
+
+    /**
+     * 3D / manipulable scene over a <canvas data-aihydro-scene3d>. Lazy-loads
+     * three.js from the CSP-whitelisted jsdelivr CDN and hands the author a
+     * branded scene/camera/renderer with OrbitControls so terrain, DEM/TWI
+     * surfaces and watershed flythroughs are draggable.
+     *
+     *   aihydro.scene3d({ canvas: '#terrain', dem: grid2d, setup: function(ctx){ ... } });
+     *
+     * ctx = { THREE, scene, camera, renderer, controls, canvas, dem }.
+     * Returns a promise resolving to that ctx (or null if no canvas).
+     */
+    scene3d: function(opts) {
+      opts = opts || {};
+      var canvas = typeof opts.canvas === "string"
+        ? document.querySelector(opts.canvas)
+        : (opts.canvas || document.querySelector("canvas[data-aihydro-scene3d]"));
+      if (!canvas) return Promise.resolve(null);
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      // r128 is the last three.js release that ships the legacy UMD
+      // examples/js/controls/OrbitControls.js alongside build/three.min.js.
+      // Later releases moved OrbitControls to ESM-only (examples/jsm/).
+      var THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js";
+      var ORBIT_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js";
+      function loadScript(src) {
+        return new Promise(function(resolve, reject) {
+          var s = document.createElement("script");
+          s.src = src; s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      function ensureThree() {
+        if (window.THREE && window.THREE.OrbitControls) return Promise.resolve();
+        var p = window.THREE ? Promise.resolve() : loadScript(THREE_URL);
+        return p.then(function() {
+          // OrbitControls is optional — if it fails, the scene still renders
+          // without drag-orbit rather than failing entirely.
+          if (window.THREE.OrbitControls) return Promise.resolve();
+          return loadScript(ORBIT_URL).catch(function() {});
+        });
+      }
+      return ensureThree().then(function() {
+        var THREE = window.THREE;
+        var w = canvas.clientWidth || 480, h = canvas.clientHeight || 320;
+        var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio || 1);
+        renderer.setSize(w, h, false);
+        var scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a1622);
+        var camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 1000);
+        camera.position.set(3, 3, 5);
+        scene.add(new THREE.AmbientLight(0x88bbff, 0.6));
+        var key = new THREE.DirectionalLight(0x00ddff, 0.8);
+        key.position.set(5, 10, 7);
+        scene.add(key);
+        var controls = window.THREE.OrbitControls ? new THREE.OrbitControls(camera, renderer.domElement) : null;
+        if (controls) { controls.enableDamping = true; controls.dampingFactor = 0.08; }
+        var ctx = { THREE: THREE, scene: scene, camera: camera, renderer: renderer, controls: controls, canvas: canvas, dem: opts.dem };
+        if (opts.setup) try { opts.setup(ctx); } catch(_){}
+        var raf = null;
+        function loop() {
+          if (controls) controls.update();
+          if (opts.onFrame) try { opts.onFrame(ctx); } catch(_){}
+          renderer.render(scene, camera);
+          raf = requestAnimationFrame(loop);
+        }
+        if (reduce) { renderer.render(scene, camera); } else { raf = requestAnimationFrame(loop); }
+        ctx.stop = function(){ if (raf) { cancelAnimationFrame(raf); raf = null; } };
+        return ctx;
+      }).catch(function(){ return null; });
     },
 
     /**
@@ -1114,6 +1522,15 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
         var scoreEl = btn.parentElement && btn.parentElement.querySelector("#quizScore, [id$='Score']");
         if (!scoreEl) scoreEl = document.getElementById("quizScore");
         if (scoreEl) scoreEl.textContent = correct + " / " + questions.length + " correct";
+        // Report checkpoint result to the host so course progress can advance.
+        var passed = questions.length > 0 && correct === questions.length;
+        postToParent(artifactPayload({
+          type: "artifact/quizComplete",
+          quizId: quizRoot.id || "",
+          passed: passed,
+          score: correct,
+          total: questions.length
+        }));
       });
     });
   }
@@ -1124,7 +1541,11 @@ export const CELL_BRIDGE_SCRIPT = `<script>(function(){
     wireCells();
     api.quiz();
     api.reveal();
+    api.compare();
     wireRadioQuiz();
+    // Ask the host for any persisted control state; the reply re-applies it to
+    // bound inputs (works whether it arrives before or after bindParam runs).
+    postToParent(artifactPayload({ type: "artifact/stateRequest" }));
   }
 
   if (document.readyState === "loading") {

@@ -47,6 +47,7 @@ import { PreviewCommandWatcher } from "@/services/htmlPreview/PreviewCommandWatc
 import { PreviewSessionService } from "@/services/htmlPreview/PreviewSessionService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { MapSessionService } from "@/services/map/MapSessionService"
+import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
@@ -654,13 +655,26 @@ export class Controller {
 				throw new Error("Invalid response from MCP marketplace API")
 			}
 
+			const recognitionCounts = await MarketplaceRecognitionService.getCounts("mcp")
 			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
+				items: (response.data || []).map((item: any) => {
+					const mcpId = item.mcpId || item.mcp_id || ""
+					const counts = recognitionCounts.get(mcpId)
+					const aiHydroInstalls = Number(counts?.events.install ?? 0)
+					return {
+						...item,
+						mcpId,
+						githubStars: item.githubStars ?? 0,
+						downloadCount: item.downloadCount ?? 0,
+						authorUrl: item.authorUrl || item.author_url || "",
+						citation: item.citation || "",
+						citationUrl: item.citationUrl || item.citation_url || "",
+						aiHydroInstalls,
+						aiHydroStars: Number(counts?.aiHydroStars ?? counts?.events.star ?? 0),
+						starredByClient: Boolean(counts?.starredByClient ?? false),
+						tags: item.tags ?? [],
+					}
+				}),
 			}
 
 			// Store in cache file
@@ -692,13 +706,26 @@ export class Controller {
 				throw new Error("Invalid response from MCP marketplace API")
 			}
 
+			const recognitionCounts = await MarketplaceRecognitionService.getCounts("mcp")
 			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
+				items: (response.data || []).map((item: any) => {
+					const mcpId = item.mcpId || item.mcp_id || ""
+					const counts = recognitionCounts.get(mcpId)
+					const aiHydroInstalls = Number(counts?.events.install ?? 0)
+					return {
+						...item,
+						mcpId,
+						githubStars: item.githubStars ?? 0,
+						downloadCount: item.downloadCount ?? 0,
+						authorUrl: item.authorUrl || item.author_url || "",
+						citation: item.citation || "",
+						citationUrl: item.citationUrl || item.citation_url || "",
+						aiHydroInstalls,
+						aiHydroStars: Number(counts?.aiHydroStars ?? counts?.events.star ?? 0),
+						starredByClient: Boolean(counts?.starredByClient ?? false),
+						tags: item.tags ?? [],
+					}
+				}),
 			}
 
 			// Store in cache file
@@ -745,29 +772,40 @@ export class Controller {
 				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
 			})
 			if (!response.data) throw new Error("Invalid response from Modules marketplace API")
+			const recognitionCounts = await MarketplaceRecognitionService.getCounts("modules")
 			const catalog: LearningModuleCatalog = {
-				items: (Array.isArray(response.data) ? response.data : []).map((item: any) => ({
-					moduleId: item.moduleId || item.id || "",
-					title: item.title || "",
-					description: item.description || "",
-					version: item.version || "0.1.0",
-					author: item.author || "",
-					license: item.license || "CC-BY-4.0",
-					topic: item.topic || "",
-					level: item.level || "intro",
-					estimatedMinutes: item.estimatedMinutes || item.estimated_minutes || 0,
-					tags: item.tags || [],
-					thumbnailUrl: item.thumbnailUrl || item.thumbnail_url || "",
-					downloadUrl: item.downloadUrl || item.download_url || "",
-					githubUrl: item.githubUrl || item.github_url || "",
-					isInstalled: false,
-					createdAt: item.createdAt || item.created_at || "",
-					updatedAt: item.updatedAt || item.updated_at || "",
-					downloadCount: item.downloadCount || item.download_count || 0,
-					githubReactions: item.githubReactions || item.github_reactions || 0,
-					isFeatured: item.isFeatured || item.is_featured || false,
-					discussionUrl: item.discussionUrl || item.discussion_url || "",
-				})),
+				items: (Array.isArray(response.data) ? response.data : []).map((item: any) => {
+					const moduleId = item.moduleId || item.id || ""
+					const counts = recognitionCounts.get(moduleId)
+					return {
+						moduleId,
+						title: item.title || "",
+						description: item.description || "",
+						version: item.version || "0.1.0",
+						author: item.author || "",
+						license: item.license || "CC-BY-4.0",
+						topic: item.topic || "",
+						level: item.level || "intro",
+						estimatedMinutes: item.estimatedMinutes || item.estimated_minutes || 0,
+						tags: item.tags || [],
+						thumbnailUrl: item.thumbnailUrl || item.thumbnail_url || "",
+						downloadUrl: item.downloadUrl || item.download_url || "",
+						githubUrl: item.githubUrl || item.github_url || "",
+						authorUrl: item.authorUrl || item.author_url || "",
+						citation: item.citation || "",
+						citationUrl: item.citationUrl || item.citation_url || "",
+						isInstalled: false,
+						createdAt: item.createdAt || item.created_at || "",
+						updatedAt: item.updatedAt || item.updated_at || "",
+						downloadCount: item.downloadCount || item.download_count || 0,
+						aiHydroInstalls: Number(counts?.events.install ?? 0),
+						aiHydroStars: Number(counts?.aiHydroStars ?? counts?.events.star ?? 0),
+						starredByClient: Boolean(counts?.starredByClient ?? false),
+						githubReactions: item.githubReactions || item.github_reactions || 0,
+						isFeatured: item.isFeatured || item.is_featured || false,
+						discussionUrl: item.discussionUrl || item.discussion_url || "",
+					}
+				}),
 			}
 			return catalog
 		} catch (error) {
@@ -798,6 +836,7 @@ export class Controller {
 			})
 			if (!response.data) throw new Error("Invalid response from Skills marketplace API")
 			const { SkillCatalog, SkillItem, SkillSource } = await import("@shared/proto/cline/skills")
+			const recognitionCounts = await MarketplaceRecognitionService.getCounts("skills")
 			const items = (Array.isArray(response.data) ? response.data : []).map((item: any) =>
 				SkillItem.create({
 					skillId: item.skillId || item.id || "",
@@ -813,9 +852,19 @@ export class Controller {
 					whenToUse: item.whenToUse || item.when_to_use || "",
 					githubUrl: item.githubUrl || item.github_url || "",
 					skillUrl: item.skillUrl || item.skill_url || "",
+					authorUrl: item.authorUrl || item.author_url || "",
+					citation: item.citation || "",
+					citationUrl: item.citationUrl || item.citation_url || "",
 					isRecommended: item.isRecommended || item.is_recommended || false,
 					githubStars: item.githubStars || item.github_stars || 0,
 					downloadCount: item.downloadCount || item.download_count || 0,
+					aiHydroInstalls: Number(recognitionCounts.get(item.skillId || item.id || "")?.events.install ?? 0),
+					aiHydroStars: Number(
+						recognitionCounts.get(item.skillId || item.id || "")?.aiHydroStars ??
+							recognitionCounts.get(item.skillId || item.id || "")?.events.star ??
+							0,
+					),
+					starredByClient: Boolean(recognitionCounts.get(item.skillId || item.id || "")?.starredByClient ?? false),
 					isInstalled: false,
 					createdAt: item.createdAt || item.created_at || "",
 					updatedAt: item.updatedAt || item.updated_at || "",

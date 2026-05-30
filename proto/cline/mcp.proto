@@ -114,6 +114,12 @@ message McpMarketplaceItem {
   string created_at = 16;
   string updated_at = 17;
   string last_github_sync = 18;
+  string author_url = 19;
+  string citation = 20;
+  string citation_url = 21;
+  int32 ai_hydro_installs = 22;
+  int32 ai_hydro_stars = 23;
+  bool starred_by_client = 24;
 }
 
 message McpMarketplaceCatalog {

@@ -57,6 +57,17 @@ export const HtmlPreviewPanel: React.FC = () => {
 		[course, courseRoot, loadWorkspaceFile, courseProgress],
 	)
 
+	// Close the quiz → progress loop: a passed checkpoint marks the current
+	// course module complete. No-op outside a course or on a failed attempt.
+	const handleQuizComplete = useCallback(
+		(info: { passed: boolean }) => {
+			if (!info.passed || !course || !currentModuleId) return
+			if (courseProgress.isCompleted(currentModuleId)) return
+			void courseProgress.markComplete(currentModuleId)
+		},
+		[course, currentModuleId, courseProgress],
+	)
+
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [isDragOver, setIsDragOver] = useState(false)
 	const [loadStatus, setLoadStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
@@ -668,6 +679,7 @@ export const HtmlPreviewPanel: React.FC = () => {
 					) : (
 						<HtmlPreviewView
 							item={activeItem}
+							onQuizComplete={handleQuizComplete}
 							onToggleSidePanel={() => setSidebarCollapsed((v) => !v)}
 							sidePanelOpen={!sidebarCollapsed}
 						/>

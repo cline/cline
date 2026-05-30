@@ -18,6 +18,7 @@ describe("runArtifactCode", () => {
 			error: "",
 			resultRepr: "",
 			imagesPngBase64: [],
+			videosMp4Base64: [],
 			truncated: false,
 		})
 		allowStub = sinon.stub(approval, "ensurePythonExecutionAllowed").resolves(true)

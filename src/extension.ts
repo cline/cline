@@ -252,6 +252,34 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register "AI-Hydro: Validate Module" — deterministic lint over the active
+	// HTML module against the interactive-module-builder checklist. Advisory.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ValidateModule, async () => {
+			const editor = vscode.window.activeTextEditor
+			const doc = editor?.document
+			if (!doc || (doc.languageId !== "html" && !doc.fileName.toLowerCase().endsWith(".html"))) {
+				vscode.window.showWarningMessage("AI-Hydro: open an HTML module in the active editor to validate it.")
+				return
+			}
+			const { validateModule, formatValidationReport } = await import("./services/artifact-preview/validateModule")
+			const result = validateModule(doc.getText())
+			const channel = vscode.window.createOutputChannel("AI-Hydro Module Validation")
+			channel.clear()
+			channel.appendLine(formatValidationReport(result, doc.fileName.split(/[/\\]/).pop()))
+			channel.show(true)
+			if (result.ok) {
+				vscode.window.showInformationMessage(
+					`AI-Hydro module validation passed (${result.warnCount} warning${result.warnCount === 1 ? "" : "s"}).`,
+				)
+			} else {
+				vscode.window.showWarningMessage(
+					`AI-Hydro module validation: ${result.errorCount} error${result.errorCount === 1 ? "" : "s"}, ${result.warnCount} warning${result.warnCount === 1 ? "" : "s"} — see output.`,
+				)
+			}
+		}),
+	)
+
 	// Register AI-Hydro: Skills command
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.SkillsButton, () => {

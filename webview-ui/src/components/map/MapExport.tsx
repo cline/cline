@@ -36,18 +36,38 @@ interface MapExportProps {
 	currentBasemap?: string
 }
 
+type TextAlign = "left" | "center" | "right"
+
+const FONT_OPTIONS: Array<{ label: string; value: string }> = [
+	{ label: "System default", value: "system-ui, sans-serif" },
+	{ label: "Arial / Helvetica", value: "Arial, Helvetica, sans-serif" },
+	{ label: "Times New Roman", value: "'Times New Roman', Times, serif" },
+	{ label: "Georgia", value: "Georgia, serif" },
+	{ label: "Palatino", value: "'Palatino Linotype', Palatino, serif" },
+	{ label: "Courier New", value: "'Courier New', Courier, monospace" },
+]
+
 interface MapPlateSpec {
 	template: ExportTemplate
 	formats: ExportFormat[]
 	dpi: ExportDpi
 	extentStrategy: ExtentStrategy
 	graticule: GraticuleMode
+	fontFamily: string
 	text: {
 		title: string
 		subtitle: string
 		caption: string
 		authorProject: string
 		notes: string
+	}
+	textAlign: {
+		title: TextAlign
+		subtitle: TextAlign
+		caption: TextAlign
+		author: TextAlign
+		notes: TextAlign
+		footer: TextAlign
 	}
 	elements: {
 		legend: boolean
@@ -56,6 +76,8 @@ interface MapPlateSpec {
 		attribution: boolean
 		bounds: boolean
 		provenanceFooter: boolean
+		colorRampLegend: boolean
+		watermark: boolean
 	}
 }
 
@@ -92,6 +114,8 @@ interface MapSceneSnapshot {
 		opacity?: number
 		exportSupport: "verified" | "capture-only" | "unsupported"
 		sourceRef?: string
+		/** Raw layer.metadata forwarded from the proto for ramp/legend extraction. */
+		metadata?: Record<string, string>
 	}>
 	citations: Array<{ id: string; label: string; text: string }>
 	renderWarnings: ExportWarning[]
@@ -657,14 +681,18 @@ function drawText(
 	y: number,
 	maxWidth: number,
 	lineHeight: number,
+	align: TextAlign = "left",
 ): number {
 	const words = text.split(/\s+/).filter(Boolean)
 	let line = ""
 	let cursorY = y
+	const anchorX = align === "center" ? x + maxWidth / 2 : align === "right" ? x + maxWidth : x
+	ctx.save()
+	ctx.textAlign = align === "center" ? "center" : align === "right" ? "right" : "left"
 	for (const word of words) {
 		const next = line ? `${line} ${word}` : word
 		if (ctx.measureText(next).width > maxWidth && line) {
-			ctx.fillText(line, x, cursorY)
+			ctx.fillText(line, anchorX, cursorY)
 			cursorY += lineHeight
 			line = word
 		} else {
@@ -672,9 +700,10 @@ function drawText(
 		}
 	}
 	if (line) {
-		ctx.fillText(line, x, cursorY)
+		ctx.fillText(line, anchorX, cursorY)
 		cursorY += lineHeight
 	}
+	ctx.restore()
 	return cursorY
 }
 
@@ -763,6 +792,346 @@ type LegendAnchor = "tl" | "tr" | "bl" | "br"
  * DPIs and template sizes, and the box is sized to its content so labels never
  * overflow. Swatches use the layer's *real* styled colour and geometry class.
  */
+/** Infer a color ramp for a raster/GEE layer. Returns null if no ramp can be determined. */
+/** Strip common file extensions and underscores to get a clean display label. */
+function cleanLabel(raw: string): string {
+	return raw
+		.replace(/\.(geojson|json|tif|tiff|nc|csv|shp)$/i, "")
+		.replace(/[_-]+/g, " ")
+		.trim()
+}
+
+/** Colour stops keyed by the colormap name used in layer.metadata.raster_colormap */
+const COLORMAP_STOPS: Record<string, string[]> = {
+	viridis: ["#440154", "#31688e", "#35b779", "#fde725"],
+	viridis_r: ["#fde725", "#35b779", "#31688e", "#440154"],
+	plasma: ["#0d0887", "#cc4778", "#f0f921"],
+	magma: ["#000004", "#b73779", "#fcfdbf"],
+	cividis: ["#00224e", "#7c7b78", "#fde737"],
+	YlOrRd: ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"],
+	Blues: ["#f7fbff", "#6baed6", "#2171b5", "#084594"],
+	RdYlGn: ["#d73027", "#fee08b", "#1a9850"],
+	chirps: ["#081d58", "#225ea8", "#41b6c4", "#a1dab4", "#ffffcc"],
+	inferno: ["#000004", "#bc3754", "#f98e09", "#fcffa4"],
+	coolwarm: ["#3b4cc0", "#dddddd", "#b40426"],
+	BrBG: ["#543005", "#f5f5f5", "#003c30"],
+	PiYG: ["#8e0152", "#f7f7f7", "#276419"],
+	spectral: ["#9e0142", "#fee08b", "#3288bd"],
+	jet: ["#00007f", "#0000ff", "#00ffff", "#ffff00", "#ff0000", "#7f0000"],
+	gray: ["#000000", "#ffffff"],
+	gray_r: ["#ffffff", "#000000"],
+	terrain: ["#3d6b35", "#8fbc6b", "#f5deb3", "#c8a46e", "#ffffff"],
+	RdBu: ["#67001f", "#f7f7f7", "#053061"],
+}
+
+function inferColorRamp(layer: MapSceneSnapshot["layers"][number]): {
+	stops: string[]
+	label: string
+	min?: number
+	max?: number
+	units?: string
+} | null {
+	const meta = layer.metadata ?? {}
+	const lbl = layer.label.toLowerCase()
+	// Use the layer name exactly as the user named it in the map panel
+	const displayLabel = layer.label
+
+	// ── 1. Try metadata.legend (JSON LegendSpec) ─────────────────────────────
+	if (meta.legend) {
+		try {
+			const spec = JSON.parse(meta.legend) as {
+				type?: string
+				min?: number
+				max?: number
+				units?: string
+				colormap?: string
+				stops?: Array<[number, string]>
+			}
+			if (spec.type === "continuous") {
+				const colormapStops = spec.colormap ? COLORMAP_STOPS[spec.colormap] : undefined
+				const gradStops = spec.stops?.map(([, c]) => c) ?? colormapStops ?? ["#f7f7f7", "#7c3aed", "#4c1d95"]
+				return {
+					stops: gradStops,
+					label: spec.units ? `${displayLabel} (${spec.units})` : displayLabel,
+					min: spec.min,
+					max: spec.max,
+					units: spec.units,
+				}
+			}
+		} catch {
+			/* fall through */
+		}
+	}
+
+	// ── 2. metadata.raster_colormap + metadata.min/max ───────────────────────
+	if (meta.raster_colormap || meta.min || meta.max) {
+		const colormapKey = meta.raster_colormap ?? ""
+		const stops = COLORMAP_STOPS[colormapKey] ?? ["#f7f7f7", "#7c3aed", "#4c1d95"]
+		const minV = meta.min ? parseFloat(meta.min) : undefined
+		const maxV = meta.max ? parseFloat(meta.max) : undefined
+		const units = meta.units
+		return {
+			stops,
+			label: units ? `${displayLabel} (${units})` : displayLabel,
+			min: Number.isFinite(minV) ? minV : undefined,
+			max: Number.isFinite(maxV) ? maxV : undefined,
+			units,
+		}
+	}
+
+	// ── 3. Name-based palette heuristics ───────────────────────────────────
+	if (lbl.includes("ndvi"))
+		return {
+			stops: ["#a50026", "#d73027", "#f46d43", "#fdae61", "#fee08b", "#a6d96a", "#1a9850"],
+			label: displayLabel,
+			min: -1,
+			max: 1,
+		}
+	if (lbl.includes("ndwi") || (lbl.includes("water") && !lbl.includes("watershed")))
+		return { stops: ["#fff7fb", "#ece7f2", "#9ecae1", "#4292c6", "#08519c", "#08306b"], label: displayLabel, min: -1, max: 1 }
+	if (lbl.includes("ndbi") || lbl.includes("built") || lbl.includes("urban"))
+		return { stops: ["#f7fbff", "#c6dbef", "#9ecae1", "#6baed6", "#2171b5", "#08306b"], label: displayLabel }
+	if (lbl.includes("nbr") || lbl.includes("burn"))
+		return { stops: ["#1a9850", "#fee08b", "#a50026"], label: displayLabel, min: -1, max: 1 }
+	if (lbl.includes("dem") || lbl.includes("elevation") || lbl.includes("terrain") || lbl.includes("srtm"))
+		return { stops: ["#3d6b35", "#8fbc6b", "#f5deb3", "#c8a46e", "#9b6e3d", "#ffffff"], label: displayLabel }
+	if (lbl.includes("flood") || lbl.includes("inundation"))
+		return { stops: ["#ffffff", "#c6e2ff", "#4292c6", "#08306b"], label: displayLabel }
+	if (lbl.includes("twi") || lbl.includes("wetness")) return { stops: ["#d73027", "#fee090", "#4575b4"], label: displayLabel }
+	if (lbl.includes("slope")) return { stops: ["#ffffcc", "#a1dab4", "#41b6c4", "#2c7fb8", "#253494"], label: displayLabel }
+	if (lbl.includes("rainfall") || lbl.includes("precip") || lbl.includes("chirps"))
+		return { stops: ["#ffffff", "#c6e9f7", "#41b6c4", "#1d91c0", "#225ea8", "#0c2c84"], label: displayLabel }
+	if (lbl.includes("temperature") || lbl.includes("lst") || lbl.includes("heat"))
+		return { stops: ["#313695", "#74add1", "#fee090", "#f46d43", "#a50026"], label: displayLabel }
+	// Generic raster — purple ramp
+	if (layer.kind === "raster" || layer.kind === "gee")
+		return { stops: ["#f7f7f7", "#d9d9d9", "#bababa", "#7c3aed", "#4c1d95"], label: displayLabel }
+	return null
+}
+
+/**
+ * Draw a horizontal graduated color ramp card anchored at the bottom-right of
+ * the map frame. Each raster layer with a detectable palette gets one card,
+ * stacked upward. Returns the topmost Y used.
+ */
+function drawColorRampLegend(
+	ctx: CanvasRenderingContext2D,
+	snapshot: MapSceneSnapshot,
+	mapX: number,
+	mapY: number,
+	mapW: number,
+	mapH: number,
+	fs: number,
+	fontFamily: string,
+): number {
+	const rasterLayers = snapshot.layers.filter((l) => l.geom === "raster").slice(0, 4)
+	if (!rasterLayers.length) return mapY + mapH
+
+	const ramps = rasterLayers.map((l) => ({ layer: l, ramp: inferColorRamp(l) })).filter((r) => r.ramp !== null)
+	if (!ramps.length) return mapY + mapH
+
+	const barW = Math.min(Math.round(mapW * 0.28), 200)
+	const barH = Math.max(10, Math.round(fs * 0.9))
+	const pad = Math.round(fs * 0.7)
+	const labelH = Math.round(fs * 1.25)
+	const cardH = pad + labelH + barH + labelH + pad
+	const cardW = barW + pad * 2
+	const inset = Math.round(fs * 1.1)
+
+	let bottomY = mapY + mapH - inset
+
+	for (const { layer, ramp } of ramps.reverse()) {
+		if (!ramp) continue
+
+		// Auto-read min/max from metadata (set by Python when raster is loaded)
+		const minLabel = ramp.min != null ? fmtRampValue(ramp.min) : "Min"
+		const maxLabel = ramp.max != null ? fmtRampValue(ramp.max) : "Max"
+
+		const cardX = mapX + mapW - inset - cardW
+		const cardY = bottomY - cardH
+		// Card background
+		ctx.save()
+		ctx.shadowColor = "rgba(0,0,0,0.18)"
+		ctx.shadowBlur = Math.round(fs * 0.55)
+		ctx.shadowOffsetY = 2
+		ctx.fillStyle = "rgba(255,255,255,0.97)"
+		roundRectPath(ctx, cardX, cardY, cardW, cardH, Math.round(fs * 0.4))
+		ctx.fill()
+		ctx.shadowColor = "transparent"
+		ctx.shadowBlur = 0
+		ctx.shadowOffsetY = 0
+		ctx.strokeStyle = "rgba(30,41,59,0.18)"
+		ctx.lineWidth = Math.max(1, Math.round(fs * 0.06))
+		roundRectPath(ctx, cardX, cardY, cardW, cardH, Math.round(fs * 0.4))
+		ctx.stroke()
+
+		// Layer name label (cleaned & truncated)
+		const nameLabelFont = `600 ${Math.max(8, Math.round(fs * 0.82))}px ${fontFamily}`
+		ctx.font = nameLabelFont
+		ctx.fillStyle = "#0f172a"
+		ctx.textBaseline = "alphabetic"
+		ctx.textAlign = "left"
+		const truncName = truncateLabel(ctx, ramp.label, barW)
+		ctx.fillText(truncName, cardX + pad, cardY + pad + Math.round(fs * 0.85))
+
+		// Gradient bar
+		const barX = cardX + pad
+		const barY = cardY + pad + labelH
+		const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0)
+		const stops = ramp.stops
+		stops.forEach((color, i) => grad.addColorStop(i / (stops.length - 1), color))
+		ctx.fillStyle = grad
+		const barRadius = Math.round(barH * 0.3)
+		roundRectPath(ctx, barX, barY, barW, barH, barRadius)
+		ctx.fill()
+		// Bar border
+		ctx.strokeStyle = "rgba(30,41,59,0.15)"
+		ctx.lineWidth = 1
+		roundRectPath(ctx, barX, barY, barW, barH, barRadius)
+		ctx.stroke()
+
+		// Min / Max value labels — auto-populated from layer metadata
+		const minMaxFont = `500 ${Math.max(7, Math.round(fs * 0.75))}px ${fontFamily}`
+		ctx.font = minMaxFont
+		const minMaxY = barY + barH + Math.round(fs * 0.88)
+		ctx.fillStyle = "#1e293b"
+		ctx.textAlign = "left"
+		ctx.fillText(minLabel, barX, minMaxY)
+		ctx.textAlign = "right"
+		ctx.fillText(maxLabel, barX + barW, minMaxY)
+		ctx.textAlign = "left"
+
+		ctx.restore()
+		bottomY = cardY - Math.round(fs * 0.5)
+	}
+	return bottomY
+}
+
+/** Format a ramp value compactly: integers as integers, floats to 3 sig figs. */
+function fmtRampValue(v: number): string {
+	if (!Number.isFinite(v)) return ""
+	if (Number.isInteger(v) || Math.abs(v) >= 1000) return v.toFixed(0)
+	if (Math.abs(v) >= 10) return v.toFixed(2)
+	if (Math.abs(v) >= 1) return v.toFixed(3)
+	return v.toPrecision(3)
+}
+
+/**
+ * Draw a clean white frosted-glass AI-Hydro attribution badge on the map frame.
+ * Styled like professional map attribution (Mapbox / Esri style) — light, subtle,
+ * sits at the bottom-left above the scale bar.
+ */
+function drawWatermark(
+	ctx: CanvasRenderingContext2D,
+	mapX: number,
+	mapY: number,
+	mapH: number,
+	fs: number,
+	fontFamily: string,
+): void {
+	const text = "AI-Hydro"
+	const mainFs = Math.max(8, Math.round(fs * 0.85))
+	const pad = Math.round(fs * 0.55)
+	const inset = Math.round(fs * 1.1)
+
+	ctx.save()
+
+	// ── Measure: icon + text ─────────────────────────────────────────────────
+	const iconSize = Math.round(mainFs * 1.35)
+	const iconGap = Math.round(pad * 0.7)
+	ctx.font = `700 ${mainFs}px ${fontFamily}`
+	const textW = ctx.measureText(text).width
+	const badgeH = Math.round(iconSize + pad)
+	const badgeW = Math.round(pad * 0.8 + iconSize + iconGap + textW + pad * 0.8)
+	const cornerR = Math.round(badgeH * 0.35)
+
+	// Position: bottom-left of map frame, above scale bar
+	const bx = mapX + inset
+	const by = mapY + mapH - inset - badgeH - Math.round(fs * 2.2)
+
+	// ── White frosted-glass pill ──────────────────────────────────────────────
+	ctx.shadowColor = "rgba(0,0,0,0.14)"
+	ctx.shadowBlur = Math.round(fs * 0.7)
+	ctx.shadowOffsetY = Math.round(fs * 0.15)
+	ctx.fillStyle = "rgba(255,255,255,0.93)"
+	roundRectPath(ctx, bx, by, badgeW, badgeH, cornerR)
+	ctx.fill()
+	ctx.shadowColor = "transparent"
+	ctx.shadowBlur = 0
+	ctx.shadowOffsetY = 0
+	ctx.strokeStyle = "rgba(30,41,59,0.12)"
+	ctx.lineWidth = Math.max(1, Math.round(fs * 0.05))
+	roundRectPath(ctx, bx, by, badgeW, badgeH, cornerR)
+	ctx.stroke()
+
+	// ── Icon (water-droplet face from icon.svg) ───────────────────────────────
+	const ix = bx + Math.round(pad * 0.8)
+	const iy = by + (badgeH - iconSize) / 2
+	const sc = iconSize / 100
+
+	ctx.save()
+	ctx.translate(ix, iy)
+	ctx.scale(sc, sc)
+
+	const g = ctx.createLinearGradient(50, 10, 50, 90)
+	g.addColorStop(0, "#00A3FF")
+	g.addColorStop(1, "#00DDFF")
+
+	// Droplet body
+	ctx.beginPath()
+	ctx.moveTo(50, 10)
+	ctx.bezierCurveTo(50, 10, 25, 35, 25, 55)
+	ctx.bezierCurveTo(25, 70, 35, 85, 50, 85)
+	ctx.bezierCurveTo(65, 85, 75, 70, 75, 55)
+	ctx.bezierCurveTo(75, 35, 50, 10, 50, 10)
+	ctx.closePath()
+	ctx.fillStyle = g
+	ctx.fill()
+
+	// Wing ellipses
+	ctx.fillStyle = g
+	ctx.beginPath()
+	ctx.ellipse(20, 52, 5, 7, 0, 0, Math.PI * 2)
+	ctx.fill()
+	ctx.beginPath()
+	ctx.ellipse(80, 52, 5, 7, 0, 0, Math.PI * 2)
+	ctx.fill()
+	ctx.beginPath()
+	ctx.arc(50, 14, 4, 0, Math.PI * 2)
+	ctx.fill()
+
+	// Eyes
+	ctx.fillStyle = "#1a1a2e"
+	ctx.beginPath()
+	ctx.ellipse(40, 48, 6, 9, 0, 0, Math.PI * 2)
+	ctx.fill()
+	ctx.beginPath()
+	ctx.ellipse(60, 48, 6, 9, 0, 0, Math.PI * 2)
+	ctx.fill()
+
+	// Smile
+	ctx.beginPath()
+	ctx.moveTo(38, 62)
+	ctx.quadraticCurveTo(50, 68, 62, 62)
+	ctx.strokeStyle = "#1a1a2e"
+	ctx.lineWidth = 3
+	ctx.lineCap = "round"
+	ctx.stroke()
+
+	ctx.restore() // end icon transform
+
+	// ── "AI-Hydro" text ───────────────────────────────────────────────────────
+	const tx = ix + iconSize + iconGap
+	const ty = by + badgeH / 2
+	ctx.font = `700 ${mainFs}px ${fontFamily}`
+	ctx.fillStyle = "#0f172a" // dark slate — readable on white pill
+	ctx.textBaseline = "middle"
+	ctx.textAlign = "left"
+	ctx.fillText(text, tx, ty)
+
+	ctx.restore()
+}
+
 function drawLegend(
 	ctx: CanvasRenderingContext2D,
 	snapshot: MapSceneSnapshot,
@@ -771,6 +1140,7 @@ function drawLegend(
 	maxWidth: number,
 	fs: number,
 	anchor: LegendAnchor = "tl",
+	fontFamily = "system-ui, sans-serif",
 ): number {
 	const layers = snapshot.layers.slice(0, 8)
 	if (!layers.length) return ay
@@ -781,8 +1151,8 @@ function drawLegend(
 	const swatchW = Math.round(fs * 1.5)
 	const swatchH = Math.round(fs * 1.0)
 	const headFs = Math.max(11, Math.round(fs * 1.08))
-	const headFont = `700 ${headFs}px system-ui, sans-serif`
-	const labelFont = `${fs}px system-ui, sans-serif`
+	const headFont = `700 ${headFs}px ${fontFamily}`
+	const labelFont = `${fs}px ${fontFamily}`
 
 	// ── Measure pass: truncate labels and size the card to its content. ──
 	const labelMaxPx = Math.max(fs * 4, maxWidth - pad * 2 - swatchW - gap)
@@ -884,6 +1254,7 @@ function drawScaleBar(
 	y: number,
 	mapFrameWidthPx: number,
 	fs: number,
+	fontFamily = "system-ui, sans-serif",
 ): void {
 	const kmPerScreenPx = (156543.03392 * Math.cos((view.latitude * Math.PI) / 180)) / 1000 / 2 ** view.zoom
 	const targetPx = mapFrameWidthPx * 0.24
@@ -892,7 +1263,7 @@ function drawScaleBar(
 	const label = `${km >= 1 ? km.toLocaleString(undefined, { maximumFractionDigits: 0 }) : km.toFixed(1)} km`
 	const tick = Math.round(fs * 0.5)
 	ctx.save()
-	ctx.font = `600 ${Math.round(fs * 0.92)}px system-ui, sans-serif`
+	ctx.font = `600 ${Math.round(fs * 0.92)}px ${fontFamily}`
 	const labelW = ctx.measureText(label).width
 	// Legibility backing pill.
 	ctx.fillStyle = "rgba(255,255,255,0.82)"
@@ -1034,7 +1405,7 @@ function drawGraticule(
 	ctx.beginPath()
 	ctx.rect(mapX, mapY, mapW, mapH)
 	ctx.clip()
-	ctx.font = `600 ${Math.round(fs * 0.82)}px system-ui, sans-serif`
+	ctx.font = `600 ${Math.round(fs * 0.82)}px system-ui, sans-serif` // graticule labels always system-ui for sharpness
 	ctx.lineWidth = Math.max(1, Math.round(fs * 0.07))
 
 	// Corner keep-out: don't print a label so close to a perpendicular edge that
@@ -1144,13 +1515,20 @@ function drawNorthArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, s
 	ctx.lineWidth = Math.max(1, Math.round(size * 0.08))
 	ctx.stroke()
 	// "N" label centred above the arrow tip.
-	ctx.font = `700 ${fs}px system-ui, sans-serif`
+	ctx.font = `700 ${fs}px system-ui, sans-serif` // north arrow 'N' always system-ui
 	ctx.fillStyle = "#1f2933"
 	ctx.textAlign = "center"
 	ctx.textBaseline = "alphabetic"
 	ctx.fillText("N", cx, labelBaselineY)
 	ctx.textAlign = "left"
 	ctx.restore()
+}
+
+/** Resolve canvas x-origin for a given text alignment within the margin-to-margin content width. */
+function alignX(align: TextAlign, marginLeft: number, contentWidth: number): number {
+	if (align === "center") return marginLeft + contentWidth / 2
+	if (align === "right") return marginLeft + contentWidth
+	return marginLeft
 }
 
 async function composePlate(
@@ -1191,33 +1569,49 @@ async function composePlate(
 	const mapH = dims.height - mapY - footerBand - margin
 
 	// ── Title ────────────────────────────────────────────────────────────────
+	const ff = spec.fontFamily || "system-ui, sans-serif"
+	const contentW = dims.width - margin * 2
+
 	if (cfg.titleStyle === "banner") {
 		const bannerH = titleBandH
 		ctx.fillStyle = cfg.accent
 		ctx.fillRect(0, 0, dims.width, bannerH)
 		// Vertically centre the title (and subtitle) within the band.
 		const titleFs = Math.max(22, Math.round(dims.width * cfg.titleSizeFrac))
+		const titleAlignX = alignX(spec.textAlign.title, margin, contentW)
+		ctx.save()
 		ctx.fillStyle = "#f8fafc"
 		ctx.textBaseline = "middle"
-		ctx.font = `${cfg.titleWeight} ${titleFs}px system-ui, sans-serif`
+		ctx.textAlign = spec.textAlign.title === "center" ? "center" : spec.textAlign.title === "right" ? "right" : "left"
+		ctx.font = `${cfg.titleWeight} ${titleFs}px ${ff}`
 		if (spec.text.subtitle) {
-			ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(bannerH * 0.4))
-			ctx.font = `500 ${Math.max(13, Math.round(dims.width * cfg.titleSizeFrac * 0.5))}px system-ui, sans-serif`
+			ctx.fillText(spec.text.title || "AI-Hydro Map Plate", titleAlignX, Math.round(bannerH * 0.4))
+			ctx.font = `500 ${Math.max(13, Math.round(dims.width * cfg.titleSizeFrac * 0.5))}px ${ff}`
 			ctx.fillStyle = "#cbd5e1"
-			ctx.fillText(spec.text.subtitle, margin, Math.round(bannerH * 0.72))
+			ctx.textAlign =
+				spec.textAlign.subtitle === "center" ? "center" : spec.textAlign.subtitle === "right" ? "right" : "left"
+			const subAlignX = alignX(spec.textAlign.subtitle, margin, contentW)
+			ctx.fillText(spec.text.subtitle, subAlignX, Math.round(bannerH * 0.72))
 		} else {
-			ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, Math.round(bannerH * 0.5))
+			ctx.fillText(spec.text.title || "AI-Hydro Map Plate", titleAlignX, Math.round(bannerH * 0.5))
 		}
-		ctx.textBaseline = "alphabetic"
+		ctx.restore()
 	} else if (cfg.titleStyle === "plain") {
+		const titleAlignX = alignX(spec.textAlign.title, margin, contentW)
+		ctx.save()
 		ctx.fillStyle = cfg.accent
-		ctx.font = `${cfg.titleWeight} ${Math.max(15, Math.round(dims.width * cfg.titleSizeFrac))}px system-ui, sans-serif`
-		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", margin, margin + Math.round(titleBand * 0.4))
+		ctx.textAlign = spec.textAlign.title === "center" ? "center" : spec.textAlign.title === "right" ? "right" : "left"
+		ctx.font = `${cfg.titleWeight} ${Math.max(15, Math.round(dims.width * cfg.titleSizeFrac))}px ${ff}`
+		ctx.fillText(spec.text.title || "AI-Hydro Map Plate", titleAlignX, margin + Math.round(titleBand * 0.4))
 		if (spec.text.subtitle) {
-			ctx.font = `${Math.max(11, Math.round(dims.width * cfg.titleSizeFrac * 0.72))}px system-ui, sans-serif`
+			ctx.font = `${Math.max(11, Math.round(dims.width * cfg.titleSizeFrac * 0.72))}px ${ff}`
 			ctx.fillStyle = "#4b5563"
-			ctx.fillText(spec.text.subtitle, margin, margin + Math.round(titleBand * 0.72))
+			ctx.textAlign =
+				spec.textAlign.subtitle === "center" ? "center" : spec.textAlign.subtitle === "right" ? "right" : "left"
+			const subAlignX = alignX(spec.textAlign.subtitle, margin, contentW)
+			ctx.fillText(spec.text.subtitle, subAlignX, margin + Math.round(titleBand * 0.72))
 		}
+		ctx.restore()
 		// Thin accent rule under the title band.
 		ctx.strokeStyle = "#d1d5db"
 		ctx.lineWidth = 1
@@ -1252,33 +1646,67 @@ async function composePlate(
 
 	if (spec.elements.legend) {
 		if (cfg.legendPlacement === "side" && legendWidth) {
-			drawLegend(ctx, snapshot, mapX + mapW + legendGutter, mapY, legendWidth, chromeFs, "tl")
+			drawLegend(ctx, snapshot, mapX + mapW + legendGutter, mapY, legendWidth, chromeFs, "tl", ff)
 		} else if (cfg.legendPlacement === "inset-tl") {
-			drawLegend(ctx, snapshot, mapX + inset, topClear, Math.round(mapW * 0.42), chromeFs, "tl")
+			drawLegend(ctx, snapshot, mapX + inset, topClear, Math.round(mapW * 0.42), chromeFs, "tl", ff)
 		} else if (cfg.legendPlacement === "inset-tr") {
-			drawLegend(ctx, snapshot, mapX + mapW - inset, topClear, Math.round(mapW * 0.42), chromeFs, "tr")
+			drawLegend(ctx, snapshot, mapX + mapW - inset, topClear, Math.round(mapW * 0.42), chromeFs, "tr", ff)
 		} else if (cfg.legendPlacement === "inset-bl") {
-			drawLegend(ctx, snapshot, mapX + inset, mapY + mapH - inset, Math.round(mapW * 0.42), chromeFs, "bl")
+			drawLegend(ctx, snapshot, mapX + inset, mapY + mapH - inset, Math.round(mapW * 0.42), chromeFs, "bl", ff)
 		}
 	}
+	// Color ramp legend — bottom-right, stacked upward for each raster layer.
+	if (spec.elements.colorRampLegend) {
+		drawColorRampLegend(ctx, snapshot, mapX, mapY, mapW, mapH, chromeFs, ff)
+	}
 	if (spec.elements.northArrow) {
-		// Proportional arrow at the top-right of the map frame, clear of the banner.
-		const arrowSize = Math.max(chromeFs * 1.4, Math.round(Math.min(mapW, mapH) * 0.028))
+		// Proportional arrow — slightly larger for better visibility at all DPIs.
+		const arrowSize = Math.max(chromeFs * 1.8, Math.round(Math.min(mapW, mapH) * 0.036))
 		const arrowCx = mapX + mapW - inset - Math.round(arrowSize * 0.5)
-		// (cx, cy) is the glyph centre; its disc rises ~1.47·size above centre, so
-		// offset down by that much to seat the whole arrow just below the neat-line.
 		const arrowCy = topClear + Math.round(arrowSize * 1.5)
 		drawNorthArrow(ctx, arrowCx, arrowCy, arrowSize)
 	}
 	if (spec.elements.scaleBar) {
 		// Bottom-left, but shifted right when the legend already occupies that corner.
 		const sbX = mapX + inset + (cfg.legendPlacement === "inset-bl" ? Math.round(mapW * 0.34) : 0)
-		drawScaleBar(ctx, snapshot.view, sbX, mapY + mapH - Math.round(chromeFs * 1.6), mapW, chromeFs)
+		drawScaleBar(ctx, snapshot.view, sbX, mapY + mapH - Math.round(chromeFs * 1.6), mapW, chromeFs, ff)
+	}
+	// AI-Hydro watermark badge — on the map frame, bottom-left above scale bar.
+	if (spec.elements.watermark) {
+		drawWatermark(ctx, mapX, mapY, mapH, chromeFs, ff)
 	}
 
-	let footerY = mapY + mapH + Math.round(footerBand * 0.35)
+	const footerFs = Math.max(10, Math.round(dims.width * 0.0075))
+	const footerLineH = Math.max(14, Math.round(dims.width * 0.008))
+	let footerY = mapY + mapH + Math.round(footerBand * 0.28)
+
+	// ── Author / project line ────────────────────────────────────────────────
+	if (spec.text.authorProject) {
+		ctx.fillStyle = "#111827"
+		ctx.font = `600 ${Math.max(10, Math.round(dims.width * 0.008))}px ${ff}`
+		footerY = drawText(ctx, spec.text.authorProject, margin, footerY, contentW, footerLineH, spec.textAlign.author)
+		footerY += Math.round(footerLineH * 0.15)
+	}
+
+	// ── Notes line ───────────────────────────────────────────────────────────
+	if (spec.text.notes) {
+		ctx.fillStyle = "#374151"
+		ctx.font = `italic ${Math.max(9, Math.round(dims.width * 0.0068))}px ${ff}`
+		footerY = drawText(
+			ctx,
+			spec.text.notes,
+			margin,
+			footerY,
+			contentW,
+			Math.max(12, Math.round(dims.width * 0.0075)),
+			spec.textAlign.notes,
+		)
+		footerY += Math.round(footerLineH * 0.1)
+	}
+
+	// ── Provenance / attribution footer ─────────────────────────────────────
 	ctx.fillStyle = "#374151"
-	ctx.font = `${Math.max(10, Math.round(dims.width * 0.0075))}px system-ui, sans-serif`
+	ctx.font = `${footerFs}px ${ff}`
 	const footerText: string[] = []
 	if (spec.elements.attribution && snapshot.basemap.attribution.length) {
 		footerText.push(`Basemap: ${snapshot.basemap.attribution.join("; ")}`)
@@ -1291,25 +1719,13 @@ async function composePlate(
 	if (spec.elements.provenanceFooter) {
 		footerText.push(`AI-Hydro export ${snapshot.snapshotId}; ${readiness.qualityStatus}`)
 	}
-	footerY = drawText(
-		ctx,
-		footerText.join(" | "),
-		margin,
-		footerY,
-		dims.width - margin * 2,
-		Math.max(14, Math.round(dims.width * 0.008)),
-	)
+	if (footerText.length) {
+		footerY = drawText(ctx, footerText.join(" | "), margin, footerY, contentW, footerLineH, spec.textAlign.footer)
+	}
 	if (spec.text.caption && cfg.showCaption) {
 		ctx.fillStyle = "#111827"
-		ctx.font = `${Math.max(10, Math.round(dims.width * 0.007))}px system-ui, sans-serif`
-		drawText(
-			ctx,
-			spec.text.caption,
-			margin,
-			footerY + 4,
-			dims.width - margin * 2,
-			Math.max(14, Math.round(dims.width * 0.008)),
-		)
+		ctx.font = `${Math.max(10, Math.round(dims.width * 0.007))}px ${ff}`
+		drawText(ctx, spec.text.caption, margin, footerY + 4, contentW, footerLineH, spec.textAlign.caption)
 	}
 
 	const warnings = [...readiness.warnings]
@@ -1424,11 +1840,20 @@ export const MapExport: React.FC<MapExportProps> = ({
 	const [dpi, setDpi] = useState<ExportDpi>(300)
 	const [extentStrategy, setExtentStrategy] = useState<ExtentStrategy>("preserve-visible-extent")
 	const [graticule, setGraticule] = useState<GraticuleMode>("none")
+	const [fontFamily, setFontFamily] = useState(FONT_OPTIONS[0].value)
 	const [title, setTitle] = useState("AI-Hydro Map Plate")
 	const [subtitle, setSubtitle] = useState("")
 	const [caption, setCaption] = useState("")
 	const [authorProject, setAuthorProject] = useState("")
 	const [notes, setNotes] = useState("")
+	const [textAlign, setTextAlign] = useState<MapPlateSpec["textAlign"]>({
+		title: "left",
+		subtitle: "left",
+		caption: "left",
+		author: "left",
+		notes: "left",
+		footer: "left",
+	})
 	const [elements, setElements] = useState<MapPlateSpec["elements"]>({
 		legend: true,
 		scaleBar: true,
@@ -1436,6 +1861,8 @@ export const MapExport: React.FC<MapExportProps> = ({
 		attribution: true,
 		bounds: true,
 		provenanceFooter: true,
+		colorRampLegend: true,
+		watermark: true,
 	})
 	const [status, setStatus] = useState<{ kind: "idle" | "busy" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
 	const [previewUrl, setPreviewUrl] = useState<string>("")
@@ -1469,10 +1896,26 @@ export const MapExport: React.FC<MapExportProps> = ({
 			dpi,
 			extentStrategy,
 			graticule,
+			fontFamily,
 			text: { title, subtitle, caption, authorProject, notes },
+			textAlign,
 			elements,
 		}),
-		[template, formats, dpi, extentStrategy, graticule, title, subtitle, caption, authorProject, notes, elements],
+		[
+			template,
+			formats,
+			dpi,
+			extentStrategy,
+			graticule,
+			fontFamily,
+			title,
+			subtitle,
+			caption,
+			authorProject,
+			notes,
+			textAlign,
+			elements,
+		],
 	)
 	const mapCanvas = () => document.querySelector("canvas.deckgl-overlay, canvas") as HTMLCanvasElement | null
 	const snapshot = useMemo(
@@ -1848,6 +2291,16 @@ export const MapExport: React.FC<MapExportProps> = ({
 								<option value="ticks">Edge ticks + labels</option>
 							</select>
 						</label>
+						<label>
+							Font
+							<select onChange={(event) => setFontFamily(event.target.value)} style={inputStyle} value={fontFamily}>
+								{FONT_OPTIONS.map((opt) => (
+									<option key={opt.value} value={opt.value}>
+										{opt.label}
+									</option>
+								))}
+							</select>
+						</label>
 					</div>
 					<div style={{ display: "flex", gap: 8, margin: "6px 0 8px", flexWrap: "wrap" }}>
 						{(["png", "pdf"] as ExportFormat[]).map((format) => (
@@ -1857,38 +2310,122 @@ export const MapExport: React.FC<MapExportProps> = ({
 							</label>
 						))}
 					</div>
-					<input
-						onChange={(event) => setTitle(event.target.value)}
-						placeholder="Title"
-						style={{ ...inputStyle, marginBottom: 6 }}
-						value={title}
-					/>
-					<input
-						onChange={(event) => setSubtitle(event.target.value)}
-						placeholder="Subtitle"
-						style={{ ...inputStyle, marginBottom: 6 }}
-						value={subtitle}
-					/>
-					<textarea
-						onChange={(event) => setCaption(event.target.value)}
-						placeholder="Caption"
-						style={{ ...inputStyle, minHeight: 48, marginBottom: 6 }}
-						value={caption}
-					/>
-					<input
-						onChange={(event) => setAuthorProject(event.target.value)}
-						placeholder="Author / project"
-						style={{ ...inputStyle, marginBottom: 6 }}
-						value={authorProject}
-					/>
-					<input
-						onChange={(event) => setNotes(event.target.value)}
-						placeholder="Notes"
-						style={{ ...inputStyle, marginBottom: 8 }}
-						value={notes}
-					/>
 
-					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
+					{/* ── Text fields with per-field alignment toggles ── */}
+					{(
+						[
+							{ field: "title" as const, label: "Title", value: title, setter: setTitle, multiline: false },
+							{
+								field: "subtitle" as const,
+								label: "Subtitle",
+								value: subtitle,
+								setter: setSubtitle,
+								multiline: false,
+							},
+							{ field: "caption" as const, label: "Caption", value: caption, setter: setCaption, multiline: true },
+							{
+								field: "author" as const,
+								label: "Author / project",
+								value: authorProject,
+								setter: setAuthorProject,
+								multiline: false,
+							},
+							{ field: "notes" as const, label: "Notes", value: notes, setter: setNotes, multiline: false },
+						] as Array<{
+							field: keyof MapPlateSpec["textAlign"]
+							label: string
+							value: string
+							setter: (v: string) => void
+							multiline: boolean
+						}>
+					).map(({ field, label, value: fieldValue, setter, multiline }) => (
+						<div key={field} style={{ marginBottom: 6 }}>
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center",
+									marginBottom: 3,
+								}}>
+								<span style={{ fontSize: 10, opacity: 0.72 }}>{label}</span>
+								{/* Alignment toggle */}
+								<div style={{ display: "flex", gap: 2 }}>
+									{(["left", "center", "right"] as TextAlign[]).map((a) => (
+										<button
+											key={a}
+											onClick={() =>
+												setTextAlign((prev) => ({
+													...prev,
+													[field]: a,
+												}))
+											}
+											style={{
+												width: 22,
+												height: 20,
+												padding: 0,
+												fontSize: 11,
+												lineHeight: "20px",
+												textAlign: "center" as React.CSSProperties["textAlign"],
+												border: `1px solid ${border}`,
+												borderRadius: 3,
+												cursor: "pointer",
+												background:
+													textAlign[field] === a ? accent : isDark ? "rgba(255,255,255,0.07)" : "#fff",
+												color: textAlign[field] === a ? "#fff" : fg,
+											}}
+											title={`Align ${a}`}>
+											{a === "left" ? "⬅" : a === "center" ? "≡" : "➡"}
+										</button>
+									))}
+								</div>
+							</div>
+							{multiline ? (
+								<textarea
+									onChange={(event) => setter(event.target.value)}
+									placeholder={label}
+									style={{ ...inputStyle, minHeight: 48 }}
+									value={fieldValue}
+								/>
+							) : (
+								<input
+									onChange={(event) => setter(event.target.value)}
+									placeholder={label}
+									style={inputStyle}
+									value={fieldValue}
+								/>
+							)}
+						</div>
+					))}
+
+					{/* Footer alignment toggle */}
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+						<span style={{ fontSize: 10, opacity: 0.72 }}>Footer text align</span>
+						<div style={{ display: "flex", gap: 2 }}>
+							{(["left", "center", "right"] as TextAlign[]).map((a) => (
+								<button
+									key={a}
+									onClick={() => setTextAlign((prev) => ({ ...prev, footer: a }))}
+									style={{
+										width: 22,
+										height: 20,
+										padding: 0,
+										fontSize: 11,
+										lineHeight: "20px",
+										textAlign: "center" as React.CSSProperties["textAlign"],
+										border: `1px solid ${border}`,
+										borderRadius: 3,
+										cursor: "pointer",
+										background: textAlign.footer === a ? accent : isDark ? "rgba(255,255,255,0.07)" : "#fff",
+										color: textAlign.footer === a ? "#fff" : fg,
+									}}
+									title={`Footer align ${a}`}>
+									{a === "left" ? "⬅" : a === "center" ? "≡" : "➡"}
+								</button>
+							))}
+						</div>
+					</div>
+
+					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
 						{Object.entries(elements).map(([key, value]) => (
 							<label
 								key={key}
@@ -1904,10 +2441,15 @@ export const MapExport: React.FC<MapExportProps> = ({
 									onChange={() => setElements((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
 									type="checkbox"
 								/>
-								{key.replace(/([A-Z])/g, " $1").toLowerCase()}
+								{key === "colorRampLegend"
+									? "color ramp legend"
+									: key === "watermark"
+										? "AI-Hydro watermark"
+										: key.replace(/([A-Z])/g, " $1").toLowerCase()}
 							</label>
 						))}
 					</div>
+
 					<div style={{ fontSize: 10, opacity: 0.72, marginBottom: 8 }}>
 						Output: {dims.width} x {dims.height}px ({Math.round(dims.pixels / 1_000_000)} MP),{" "}
 						{TEMPLATE_PAGES[template].label}

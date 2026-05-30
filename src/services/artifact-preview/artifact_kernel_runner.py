@@ -85,6 +85,70 @@ def _collect_matplotlib_images() -> list[str]:
     return images
 
 
+# Sentinel comment the bridge prepends to a video-render cell so the kernel
+# knows to capture a rendered MP4 instead of (or in addition to) figures.
+_VIDEO_SENTINEL = "# __aihydro_render_video__"
+
+
+def _render_manim_videos(namespace: dict[str, Any]) -> list[str]:
+    """Render every manim Scene subclass defined in the namespace to MP4.
+
+    Returns a list of base64-encoded MP4 strings. Raises if manim is missing
+    or rendering fails, so the caller can surface a graceful note.
+    """
+    import os
+    import tempfile
+
+    from manim import Scene, config, tempconfig  # type: ignore
+
+    scenes = [
+        obj
+        for obj in namespace.values()
+        if isinstance(obj, type) and issubclass(obj, Scene) and obj is not Scene
+    ]
+    if not scenes:
+        raise RuntimeError("No manim Scene subclass was defined in this cell.")
+
+    videos: list[str] = []
+    with tempfile.TemporaryDirectory() as media_dir:
+        overrides = {
+            "media_dir": media_dir,
+            "quality": "low_quality",
+            "disable_caching": True,
+            "verbosity": "ERROR",
+            "progress_bar": "none",
+            "output_file": None,
+        }
+        for scene_cls in scenes:
+            with tempconfig(overrides):
+                scene = scene_cls()
+                scene.render()
+                out_path = scene.renderer.file_writer.movie_file_path
+            with open(out_path, "rb") as handle:
+                videos.append(base64.b64encode(handle.read()).decode("ascii"))
+    # Touch config/os so linters don't flag the imports as unused on some paths.
+    _ = (config, os)
+    return videos
+
+
+def _exec_video_code(namespace: dict[str, Any], code: str) -> dict[str, Any]:
+    result = _exec_code(namespace, code)
+    if result["error"]:
+        return result
+    try:
+        result["videos_mp4_base64"] = _render_manim_videos(namespace)
+    except ImportError:
+        result["stderr"] = (
+            (result["stderr"] or "")
+            + "\nManim is not installed in this kernel environment. "
+            "Add `manim` (and `ffmpeg`) to .aihydro/venv to render video cells."
+        )
+    except Exception:
+        result["error"] = traceback.format_exc()
+        result["status"] = "error"
+    return result
+
+
 def _exec_code(namespace: dict[str, Any], code: str) -> dict[str, Any]:
     stdout_buf = io.StringIO()
     stderr_buf = io.StringIO()
@@ -157,6 +221,18 @@ def main() -> None:
             _write_response({"id": req_id, "status": "ok", "stdout": "pong", "stderr": "", "error": "", "result_repr": ""})
             continue
 
+        if op == "warm":
+            # Pre-import the heavy libs most cells touch so the first real
+            # exec doesn't pay the numpy/matplotlib import cost on screen.
+            try:
+                import numpy  # noqa: F401
+                import matplotlib  # noqa: F401
+                import matplotlib.pyplot  # noqa: F401
+            except Exception:
+                pass
+            _write_response({"id": req_id, "status": "ok", "stdout": "", "stderr": "", "error": "", "result_repr": ""})
+            continue
+
         if op == "restart":
             namespace = {"__name__": "__aihydro_kernel__", "__builtins__": __builtins__}
             _write_response({"id": req_id, "status": "ok", "stdout": "", "stderr": "", "error": "", "result_repr": ""})
@@ -176,7 +252,10 @@ def main() -> None:
                     }
                 )
                 continue
-            result = _exec_code(namespace, code)
+            if code.lstrip().startswith(_VIDEO_SENTINEL):
+                result = _exec_video_code(namespace, code)
+            else:
+                result = _exec_code(namespace, code)
             _write_response({"id": req_id, **result})
             continue
 

@@ -71,6 +71,26 @@ describe("artifact_kernel_runner.py", function () {
 		expect(String(responses[1]?.error)).to.include("SyntaxError")
 	})
 
+	it("degrades gracefully on a video cell when manim is unavailable", async () => {
+		const responses = await runKernel([
+			JSON.stringify({ op: "ping", id: "ping" }),
+			JSON.stringify({
+				op: "exec",
+				id: "v",
+				code: "# __aihydro_render_video__\nprint('built scene')",
+			}),
+		])
+
+		const res = responses[1]
+		// With manim installed this renders MP4s; without it we still succeed
+		// (status ok) and surface a note rather than crashing the cell.
+		expect(res?.status).to.equal("ok")
+		const hasVideos = Array.isArray(res?.videos_mp4_base64) && (res?.videos_mp4_base64 as unknown[]).length > 0
+		if (!hasVideos) {
+			expect(String(res?.stderr)).to.include("Manim is not installed")
+		}
+	})
+
 	it("clears namespace on restart", async () => {
 		const responses = await runKernel([
 			JSON.stringify({ op: "ping", id: "ping" }),

@@ -41,6 +41,9 @@ export interface HtmlPreviewToolbarProps {
 	onProbeEnvironment: () => void
 	onRefreshEnvironments: () => void
 	onClear: () => void
+	// — Module-state persistence (Phase 1c) —
+	onResetModuleState: () => void
+	onCopyModuleState: () => void
 }
 
 // ─── Shared design tokens ────────────────────────────────────────────────────
@@ -235,6 +238,8 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 		onProbeEnvironment,
 		onRefreshEnvironments,
 		onClear,
+		onResetModuleState,
+		onCopyModuleState,
 	} = props
 
 	const [toolbarExpanded, toggleToolbar] = usePersistedExpanded(ARTIFACT_TOOLBAR_EXPANDED_KEY, true)
@@ -278,6 +283,13 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 			onClick: onToggleDiagnostics,
 			active: diagnosticsOpen,
 		},
+		{
+			label: "Reset controls to defaults",
+			icon: "discard",
+			onClick: onResetModuleState,
+			divider: true,
+		},
+		{ label: "Copy control state", icon: "clippy", onClick: onCopyModuleState },
 		{ label: "Probe Python environment", icon: "beaker", onClick: onProbeEnvironment, divider: true },
 		{ label: "Refresh Python environments", icon: "refresh", onClick: onRefreshEnvironments },
 		{ label: "Restart kernel", icon: "debug-restart", onClick: onRestartKernel },

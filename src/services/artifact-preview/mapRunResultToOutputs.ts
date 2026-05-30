@@ -15,5 +15,8 @@ export function mapRunResultToOutputs(result: RunArtifactCodeResult): ArtifactCe
 	for (const b64 of result.imagesPngBase64) {
 		outputs.push(ArtifactCellOutput.create({ type: "image/png", data: b64 }))
 	}
+	for (const b64 of result.videosMp4Base64 ?? []) {
+		outputs.push(ArtifactCellOutput.create({ type: "video/mp4", data: b64 }))
+	}
 	return outputs
 }

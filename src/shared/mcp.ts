@@ -107,6 +107,12 @@ export interface McpMarketplaceItem {
 	createdAt: string
 	updatedAt: string
 	lastGithubSync: string
+	authorUrl?: string
+	citation?: string
+	citationUrl?: string
+	aiHydroInstalls?: number
+	aiHydroStars?: number
+	starredByClient?: boolean
 }
 
 export interface McpMarketplaceCatalog {

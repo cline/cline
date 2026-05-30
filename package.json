@@ -145,6 +145,11 @@
 				"icon": "$(preview)"
 			},
 			{
+				"command": "aihydro.validateModule",
+				"title": "Validate Module",
+				"category": "AI-Hydro"
+			},
+			{
 				"command": "aihydro.historyButtonClicked",
 				"title": "Analysis History",
 				"icon": "$(history)"

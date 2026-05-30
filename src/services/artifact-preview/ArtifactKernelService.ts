@@ -36,6 +36,7 @@ export interface RunArtifactCodeResult {
 	error: string
 	resultRepr: string
 	imagesPngBase64: string[]
+	videosMp4Base64: string[]
 	truncated: boolean
 	provenanceId?: string
 }
@@ -253,6 +254,7 @@ export class ArtifactKernelService {
 				error: "Interrupted by user",
 				resultRepr: "",
 				imagesPngBase64: [],
+				videosMp4Base64: [],
 				truncated: false,
 			})
 			session.pending.delete(id)
@@ -318,6 +320,7 @@ export class ArtifactKernelService {
 					error: `Execution timed out after ${effectiveTimeout / 1000}s`,
 					resultRepr: "",
 					imagesPngBase64: [],
+					videosMp4Base64: [],
 					truncated: false,
 				})
 			}, effectiveTimeout)
@@ -432,6 +435,7 @@ export class ArtifactKernelService {
 					error: session.lastError,
 					resultRepr: "",
 					imagesPngBase64: [],
+					videosMp4Base64: [],
 					truncated: false,
 				})
 			}
@@ -460,6 +464,11 @@ export class ArtifactKernelService {
 			if (pingResult.status !== "ok") {
 				throw new Error(session.lastError || pingResult.error || "Kernel ping failed")
 			}
+			// Pre-import numpy/matplotlib in the background while the kernel is
+			// idle so the learner's first real cell isn't stalled by import cost.
+			this.sendOp(session, { op: "warm", id: "warm" }).catch(() => {
+				/* best-effort; a failed warm-up just means the first cell pays the cost */
+			})
 			return session
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error)
@@ -478,6 +487,7 @@ export class ArtifactKernelService {
 			status?: string
 			result_repr?: string
 			images_png_base64?: string[]
+			videos_mp4_base64?: string[]
 		}
 		try {
 			parsed = JSON.parse(line) as typeof parsed
@@ -507,6 +517,7 @@ export class ArtifactKernelService {
 			error: parsed.error ?? "",
 			resultRepr: parsed.result_repr ?? "",
 			imagesPngBase64: Array.isArray(parsed.images_png_base64) ? parsed.images_png_base64 : [],
+			videosMp4Base64: Array.isArray(parsed.videos_mp4_base64) ? parsed.videos_mp4_base64 : [],
 			truncated: outStdout.truncated || outStderr.truncated,
 		})
 	}

@@ -64,6 +64,8 @@ interface HtmlPreviewViewProps {
 	/** Whether the parent side panel (Files/Modules/Skills/Comments) is open. Optional — defaults to true with a no-op toggle. */
 	sidePanelOpen?: boolean
 	onToggleSidePanel?: () => void
+	/** Fired when a checkpoint quiz inside the artifact is submitted. Lets the panel advance course progress. */
+	onQuizComplete?: (info: { passed: boolean; score?: number; total?: number; quizId?: string }) => void
 }
 
 interface FetchInfo {
@@ -174,7 +176,40 @@ function pickRenderPath(item?: HtmlPreviewItem): RenderPath {
 
 const SANDBOX_ATTR = "allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
 
-const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel }) => {
+// Round-trips interactive control state (bindParam values) through the host's
+// moduleStateStore. Mirrors the request/response pattern in useCourseProgress.
+function sendModuleState(
+	action: "get" | "set" | "reset",
+	moduleKey: string,
+	values?: Record<string, string>,
+): Promise<Record<string, string> | null> {
+	const requestId = `mstate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+	return new Promise((resolve) => {
+		const cleanup = () => {
+			window.clearTimeout(timeout)
+			window.removeEventListener("message", onMessage)
+		}
+		const timeout = window.setTimeout(() => {
+			cleanup()
+			resolve(null)
+		}, 4000)
+		const onMessage = (e: MessageEvent) => {
+			const d = e.data
+			if (!d || d.type !== "aihydro-module-state-result" || d.requestId !== requestId) return
+			cleanup()
+			resolve((d.state?.values as Record<string, string> | undefined) ?? null)
+		}
+		window.addEventListener("message", onMessage)
+		try {
+			PLATFORM_CONFIG.postMessage({ type: "aihydro-module-state", requestId, action, moduleKey, values })
+		} catch {
+			cleanup()
+			resolve(null)
+		}
+	})
+}
+
+const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen = true, onToggleSidePanel, onQuizComplete }) => {
 	const { setManifest, loadWorkspaceFile } = useHtmlPreviewContext()
 	// Phase A: detect a course.json in the active module's parent folder
 	const { course, courseRoot, currentModuleId } = useCourse(item?.filePath)
@@ -626,6 +661,10 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				total?: number
 				artifactId?: string
 				manifest?: AiHydroModuleManifest
+				passed?: boolean
+				score?: number
+				quizId?: string
+				state?: Record<string, string>
 			}
 			if (!data || data.source !== "aihydro-artifact") {
 				return
@@ -686,11 +725,36 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			}
 			if (data.type === "artifact/runCode") {
 				void handleArtifactRunCode(data.code ?? "", data.language ?? "python", data.cellId)
+				return
+			}
+			if (data.type === "artifact/quizComplete") {
+				reportPreviewEvent(
+					"user.interaction",
+					{ ...eventBase, quizId: data.quizId, passed: data.passed, score: data.score, total: data.total },
+					"user",
+				)
+				onQuizComplete?.({ passed: Boolean(data.passed), score: data.score, total: data.total, quizId: data.quizId })
+				return
+			}
+			// Module-state persistence (Phase 1c): the bridge asks for saved state
+			// on load and pushes debounced changes; we round-trip through the host.
+			const moduleKey = item?.filePath || item?.id || ""
+			if (data.type === "artifact/stateRequest") {
+				if (moduleKey) {
+					void sendModuleState("get", moduleKey).then((values) => {
+						postResultToIframe({ type: "artifact/stateRestore", state: values ?? {} })
+					})
+				}
+				return
+			}
+			if (data.type === "artifact/stateChanged") {
+				if (moduleKey) void sendModuleState("set", moduleKey, data.state ?? {})
+				return
 			}
 		}
 		window.addEventListener("message", onMessage)
 		return () => window.removeEventListener("message", onMessage)
-	}, [handleArtifactRunCode, item?.id, refreshKernelInfo, setManifest])
+	}, [handleArtifactRunCode, item?.id, item?.filePath, refreshKernelInfo, setManifest, onQuizComplete, postResultToIframe])
 
 	// ── Bridge event relay (iframe → webview → host) ────────────────────────
 	// The aihydro-bridge core posts `aihydro-preview-event` messages from inside
@@ -1022,6 +1086,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				kernelInfo={kernelInfo}
 				onClear={handleClear}
 				onClearOutputs={() => postCommandToIframe("clearOutputs")}
+				onCopyModuleState={() => postCommandToIframe("copyState")}
 				onCopyPath={handleCopyPath}
 				onOpenInBrowser={handleOpenInBrowser}
 				onOpenInEditor={handleOpenInEditor}
@@ -1029,6 +1094,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				onProfileChange={handleProfileChange}
 				onRefresh={handleRefresh}
 				onRefreshEnvironments={refreshPythonEnvironments}
+				onResetModuleState={() => postCommandToIframe("resetState")}
 				onRestartAndRunAll={handleRestartAndRunAll}
 				onRestartKernel={handleRestartKernel}
 				onRunAll={() => postCommandToIframe("runAll")}

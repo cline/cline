@@ -36,6 +36,12 @@ message SkillItem {
   string updated_at = 19;
   optional string content = 20;
   SkillSource source = 21;
+  string author_url = 22;
+  string citation = 23;
+  string citation_url = 24;
+  int32 ai_hydro_installs = 25;
+  int32 ai_hydro_stars = 26;
+  bool starred_by_client = 27;
 }
 
 message SkillCatalog {

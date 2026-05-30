@@ -2091,7 +2091,6 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						const result = await sendHydroMapCommand("delineatePoint", {
 							lat: pt.lat,
 							lon: pt.lon,
-							sessionId: "map",
 							method: "auto",
 							expectedAreaKm2,
 						})
