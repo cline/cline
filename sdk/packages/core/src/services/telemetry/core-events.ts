@@ -72,8 +72,25 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
+		TOOL_TIMEOUT: "sdk.tool_timeout",
 	},
 } as const;
+
+export interface RunCommandsTimeoutTelemetryProperties {
+	tool_name: "run_commands";
+	effective_timeout_ms: number;
+	timeout_source: "default_setting";
+	command_count: number;
+	duration_ms: number;
+	mode?: string;
+	source?: string;
+	session_id?: string;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
@@ -419,6 +436,13 @@ export function captureProviderApiError(
 		errorMessage: truncateErrorMessage(properties.errorMessage) ?? "unknown",
 		timestamp: new Date().toISOString(),
 	});
+}
+
+export function captureRunCommandsTimeout(
+	telemetry: ITelemetryService | undefined,
+	properties: RunCommandsTimeoutTelemetryProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT, { ...properties });
 }
 
 export function captureMentionUsed(

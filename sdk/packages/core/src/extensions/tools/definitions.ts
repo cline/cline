@@ -6,10 +6,13 @@
 
 import {
 	type AgentTool,
+	type AgentToolContext,
 	createTool,
+	type ITelemetryService,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
+import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import {
 	formatError,
 	formatReadFileQuery,
@@ -18,6 +21,7 @@ import {
 	getReadFileRangeError,
 	normalizeReadFileRequests,
 	normalizeRunCommandsInput,
+	TimeoutError,
 	withTimeout,
 } from "./helpers";
 import {
@@ -63,6 +67,51 @@ import type {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+function getContextTelemetry(
+	context: AgentToolContext,
+): ITelemetryService | undefined {
+	const telemetry = context.metadata?.telemetry;
+	return telemetry &&
+		typeof telemetry === "object" &&
+		"capture" in telemetry &&
+		typeof telemetry.capture === "function"
+		? (telemetry as ITelemetryService)
+		: undefined;
+}
+
+function getStringMetadata(
+	context: AgentToolContext,
+	key: string,
+): string | undefined {
+	const value = context.metadata?.[key];
+	return typeof value === "string" ? value : undefined;
+}
+
+function captureRunCommandsTimeoutFromContext(
+	context: AgentToolContext,
+	properties: {
+		effectiveTimeoutMs: number;
+		commandCount: number;
+		durationMs: number;
+	},
+): void {
+	captureRunCommandsTimeout(getContextTelemetry(context), {
+		tool_name: "run_commands",
+		effective_timeout_ms: properties.effectiveTimeoutMs,
+		timeout_source: "default_setting",
+		command_count: properties.commandCount,
+		duration_ms: properties.durationMs,
+		mode: getStringMetadata(context, "mode"),
+		source: getStringMetadata(context, "source"),
+		session_id: context.sessionId,
+		agent_id: context.agentId,
+		conversation_id: context.conversationId,
+		run_id: context.runId,
+		iteration: context.iteration,
+		tool_call_id: context.toolCallId,
+	});
+}
 
 // =============================================================================
 // AgentTool Factory Functions
@@ -236,6 +285,7 @@ export function createBashTool(
 
 			return Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
+					const startedAt = Date.now();
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -248,6 +298,13 @@ export function createBashTool(
 							success: true,
 						};
 					} catch (error) {
+						if (error instanceof TimeoutError) {
+							captureRunCommandsTimeoutFromContext(context, {
+								effectiveTimeoutMs: error.timeoutMs,
+								commandCount: commands.length,
+								durationMs: Date.now() - startedAt,
+							});
+						}
 						const msg = formatError(error);
 						return {
 							query: command,
@@ -289,6 +346,7 @@ export function createWindowsShellTool(
 
 			return Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
+					const startedAt = Date.now();
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -301,6 +359,13 @@ export function createWindowsShellTool(
 							success: true,
 						};
 					} catch (error) {
+						if (error instanceof TimeoutError) {
+							captureRunCommandsTimeoutFromContext(context, {
+								effectiveTimeoutMs: error.timeoutMs,
+								commandCount: commands.length,
+								durationMs: Date.now() - startedAt,
+							});
+						}
 						const msg = formatError(error);
 						return {
 							query: formatRunCommandQuery(command),
