@@ -1,4 +1,10 @@
-// Mock for @google/genai module to avoid ESM compatibility issues in tests
+// Mock for the `@google/genai` module to avoid ESM-in-CommonJS compatibility
+// issues in the VS Code integration test build (the `out/` tree runs as
+// CommonJS). Loaded by test-setup.js, which intercepts `require("@google/genai")`.
+//
+// Previously colocated as apps/vscode/src/core/api/providers/gemini-mock.test.ts
+// alongside the legacy Gemini provider; kept as a standalone test fixture after
+// the legacy provider handlers were removed.
 
 export class GoogleGenAI {
 	constructor(_options: any) {
