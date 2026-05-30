@@ -529,6 +529,7 @@
 		"@tailwindcss/vite": "^4.1.14",
 		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
+		"@xmldom/xmldom": "^0.8.12",
 		"archiver": "^7.0.1",
 		"aws4fetch": "^1.0.20",
 		"axios": "1.15.2",
