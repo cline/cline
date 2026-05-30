@@ -50,10 +50,12 @@ export interface ProviderSettingsManagerOptions {
 export interface SaveProviderSettingsOptions {
 	setLastUsed?: boolean;
 	tokenSource?: ProviderTokenSource;
+	expectedOpenAICodexAuth?: NonNullable<ProviderSettings["auth"]>;
 }
 
 export interface WriteProviderSettingsOptions {
 	allowOpenAICodexAuthReplacement?: boolean;
+	expectedOpenAICodexAuth?: NonNullable<ProviderSettings["auth"]>;
 }
 
 export interface ProviderSettingsRefreshLockOptions {
@@ -198,14 +200,39 @@ function withSettingsWriteLock<T>(filePath: string, callback: () => T): T {
 	}
 }
 
+export function openAICodexAuthSettingsEqual(
+	a: ProviderSettings["auth"] | undefined,
+	b: ProviderSettings["auth"] | undefined,
+): boolean {
+	const aExpiry = (
+		a as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
+	)?.expiresAt;
+	const bExpiry = (
+		b as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
+	)?.expiresAt;
+	return (
+		a?.accessToken === b?.accessToken &&
+		a?.refreshToken === b?.refreshToken &&
+		a?.accountId === b?.accountId &&
+		aExpiry === bExpiry
+	);
+}
+
 function preserveDurableOpenAICodexEntry(
 	state: StoredProviderSettings,
 	durableState: StoredProviderSettings,
 	options: WriteProviderSettingsOptions,
 ): StoredProviderSettings {
 	const durableEntry = durableState.providers["openai-codex"];
+	const conditionalReplacementMismatch =
+		options.expectedOpenAICodexAuth !== undefined &&
+		!openAICodexAuthSettingsEqual(
+			durableEntry?.settings.auth,
+			options.expectedOpenAICodexAuth,
+		);
 	if (
-		options.allowOpenAICodexAuthReplacement ||
+		(options.allowOpenAICodexAuthReplacement &&
+			!conditionalReplacementMismatch) ||
 		durableEntry?.tokenSource !== "oauth" ||
 		!durableEntry.settings.auth
 	) {
@@ -385,6 +412,7 @@ export class ProviderSettingsManager {
 		};
 		return this.write(next, {
 			allowOpenAICodexAuthReplacement: options.tokenSource === "oauth",
+			expectedOpenAICodexAuth: options.expectedOpenAICodexAuth,
 		});
 	}
 

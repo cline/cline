@@ -379,6 +379,52 @@ describe("RuntimeOAuthTokenManager Codex refresh transaction", () => {
 		).toBeUndefined();
 	});
 
+	it("preserves re-authentication that lands while rejected auth is being cleared", async () => {
+		const filePath = createFilePath();
+		const storedManager = seedSettings(filePath);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => createInvalidGrantResponse()),
+		);
+		const providerSettingsManager = new ProviderSettingsManager({ filePath });
+		const write = providerSettingsManager.write.bind(providerSettingsManager);
+		let injectedReauthentication = false;
+		vi.spyOn(providerSettingsManager, "write").mockImplementation(
+			(state, options) => {
+				const codexSettings =
+					state.providers["openai-codex"]?.settings;
+				if (
+					!injectedReauthentication &&
+					options?.allowOpenAICodexAuthReplacement &&
+					!codexSettings?.auth
+				) {
+					injectedReauthentication = true;
+					storedManager.saveProviderSettings(
+						createSettings(
+							"access-reauth",
+							"refresh-reauth",
+							Date.now() + 3_600_000,
+						),
+						{ tokenSource: "oauth" },
+					);
+				}
+				return write(state, options);
+			},
+		);
+		const manager = new RuntimeOAuthTokenManager({ providerSettingsManager });
+
+		await expect(
+			manager.resolveProviderApiKey({ providerId: "openai-codex" }),
+		).rejects.toBeInstanceOf(OAuthReauthRequiredError);
+		expect(injectedReauthentication).toBe(true);
+		expect(
+			storedManager.getProviderSettings("openai-codex")?.auth,
+		).toMatchObject({
+			accessToken: "access-reauth",
+			refreshToken: "refresh-reauth",
+		});
+	});
+
 	it("preserves stored auth after a transient refresh failure", async () => {
 		const filePath = createFilePath();
 		const storedManager = seedSettings(filePath);

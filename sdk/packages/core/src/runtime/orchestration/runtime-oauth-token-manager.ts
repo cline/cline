@@ -15,6 +15,7 @@ import {
 import { getValidOcaCredentials } from "../../auth/oca";
 import { decodeJwtPayload } from "../../auth/utils";
 import {
+	openAICodexAuthSettingsEqual,
 	ProviderSettingsManager,
 	type ProviderSettingsRefreshLockOptions,
 } from "../../services/storage/provider-settings-manager";
@@ -102,24 +103,6 @@ function toCredentials(
 		expires: deriveCredentialExpiry(settings, access),
 		accountId: settings.auth?.accountId,
 	};
-}
-
-function authSettingsEqual(
-	a: ProviderSettings["auth"] | undefined,
-	b: ProviderSettings["auth"] | undefined,
-): boolean {
-	const aExpiry = (
-		a as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
-	)?.expiresAt;
-	const bExpiry = (
-		b as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
-	)?.expiresAt;
-	return (
-		a?.accessToken === b?.accessToken &&
-		a?.refreshToken === b?.refreshToken &&
-		a?.accountId === b?.accountId &&
-		aExpiry === bExpiry
-	);
 }
 
 export class OAuthReauthRequiredError extends Error {
@@ -231,7 +214,7 @@ export class RuntimeOAuthTokenManager {
 					if (!storedCredentials) {
 						return null;
 					}
-					const storedAuthChanged = !authSettingsEqual(
+					const storedAuthChanged = !openAICodexAuthSettingsEqual(
 						settings.auth,
 						storedSettings.auth,
 					);
@@ -281,7 +264,7 @@ export class RuntimeOAuthTokenManager {
 			this.providerSettingsManager.getProviderSettings(providerId);
 		if (
 			latestSettings &&
-			!authSettingsEqual(settings.auth, latestSettings.auth)
+			!openAICodexAuthSettingsEqual(settings.auth, latestSettings.auth)
 		) {
 			const latestCredentials = toCredentials(providerId, latestSettings);
 			if (!latestCredentials) {
@@ -305,7 +288,10 @@ export class RuntimeOAuthTokenManager {
 			...(latestSettings ?? settings),
 			auth: nextAuth,
 		};
-		const wasRefreshed = !authSettingsEqual(settings.auth, nextSettings.auth);
+		const wasRefreshed = !openAICodexAuthSettingsEqual(
+			settings.auth,
+			nextSettings.auth,
+		);
 		if (wasRefreshed) {
 			this.providerSettingsManager.saveProviderSettings(nextSettings, {
 				setLastUsed: false,
@@ -324,7 +310,7 @@ export class RuntimeOAuthTokenManager {
 			this.providerSettingsManager.getProviderSettings(providerId);
 		if (
 			!latestSettings ||
-			!authSettingsEqual(latestSettings.auth, failedAuth)
+			!openAICodexAuthSettingsEqual(latestSettings.auth, failedAuth)
 		) {
 			return;
 		}
@@ -332,6 +318,7 @@ export class RuntimeOAuthTokenManager {
 		this.providerSettingsManager.saveProviderSettings(settingsWithoutAuth, {
 			setLastUsed: false,
 			tokenSource: "oauth",
+			expectedOpenAICodexAuth: failedAuth,
 		});
 	}
 
