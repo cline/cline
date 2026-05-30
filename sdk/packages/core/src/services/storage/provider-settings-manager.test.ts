@@ -449,6 +449,45 @@ describe("ProviderSettingsManager", () => {
 		});
 	});
 
+	it("recovers a replacement backup when the primary settings file is absent", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		mkdirSync(path.dirname(filePath), { recursive: true });
+		writeFileSync(
+			`${filePath}.backup`,
+			JSON.stringify({
+				version: 1,
+				providers: {
+					anthropic: {
+						settings: {
+							provider: "anthropic",
+							model: "backup-model",
+						},
+						updatedAt: new Date().toISOString(),
+						tokenSource: "manual",
+					},
+				},
+			}),
+		);
+
+		const manager = new ProviderSettingsManager({ filePath });
+		expect(manager.getProviderSettings("anthropic")?.model).toBe(
+			"backup-model",
+		);
+
+		manager.saveProviderSettings({
+			provider: "anthropic",
+			model: "new-model",
+		});
+
+		expect(existsSync(filePath)).toBe(true);
+		expect(existsSync(`${filePath}.backup`)).toBe(false);
+		expect(manager.getProviderSettings("anthropic")?.model).toBe("new-model");
+	});
+
 	it("keeps providers.json parseable during concurrent writes", async () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),

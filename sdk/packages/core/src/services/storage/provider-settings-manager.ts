@@ -32,7 +32,9 @@ import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migrat
 const SETTINGS_WRITE_LOCK_STALE_MS = 10_000;
 const SETTINGS_WRITE_LOCK_TIMEOUT_MS = 12_000;
 const SETTINGS_WRITE_LOCK_RETRY_MS = 10;
+const WINDOWS_FILE_REPLACE_TIMEOUT_MS = 1_000;
 const syncWaitBuffer = new Int32Array(new SharedArrayBuffer(4));
+const invalidStoredProviderSettings = Symbol("invalidStoredProviderSettings");
 
 function nowIso(): string {
 	return new Date().toISOString();
@@ -71,6 +73,96 @@ function inferLegacyDataDir(filePath: string): string | undefined {
 
 function isLockHeldError(error: unknown): boolean {
 	return error instanceof Error && "code" in error && error.code === "ELOCKED";
+}
+
+function getSettingsBackupPath(filePath: string): string {
+	return `${filePath}.backup`;
+}
+
+function readStoredProviderSettings(
+	filePath: string,
+): StoredProviderSettings | typeof invalidStoredProviderSettings | undefined {
+	try {
+		const raw = readFileSync(filePath, "utf8");
+		const parsed = JSON.parse(raw) as unknown;
+		const result = StoredProviderSettingsSchema.safeParse(parsed);
+		return result.success ? result.data : invalidStoredProviderSettings;
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return undefined;
+		}
+		return invalidStoredProviderSettings;
+	}
+}
+
+function isWindowsFileMutationError(error: unknown): boolean {
+	return (
+		process.platform === "win32" &&
+		error instanceof Error &&
+		"code" in error &&
+		(error.code === "EPERM" ||
+			error.code === "EACCES" ||
+			error.code === "EEXIST" ||
+			error.code === "ENOTEMPTY")
+	);
+}
+
+function retryWindowsFileMutation(callback: () => void): void {
+	const startedAt = Date.now();
+	while (true) {
+		try {
+			callback();
+			return;
+		} catch (error) {
+			if (
+				!isWindowsFileMutationError(error) ||
+				Date.now() - startedAt >= WINDOWS_FILE_REPLACE_TIMEOUT_MS
+			) {
+				throw error;
+			}
+			Atomics.wait(syncWaitBuffer, 0, 0, SETTINGS_WRITE_LOCK_RETRY_MS);
+		}
+	}
+}
+
+function removeFileBestEffort(filePath: string): void {
+	try {
+		rmSync(filePath, { force: true });
+	} catch {
+		// A completed replacement remains durable even if backup cleanup fails.
+	}
+}
+
+function replaceSettingsFile(tempPath: string, filePath: string): void {
+	const backupPath = getSettingsBackupPath(filePath);
+	try {
+		renameSync(tempPath, filePath);
+		removeFileBestEffort(backupPath);
+		return;
+	} catch (error) {
+		if (!isWindowsFileMutationError(error) || !existsSync(filePath)) {
+			throw error;
+		}
+	}
+
+	// Bun on Windows cannot replace an existing file with renameSync. Keep a
+	// stable backup so reads and a later process can recover if replacement fails.
+	retryWindowsFileMutation(() => rmSync(backupPath, { force: true }));
+	retryWindowsFileMutation(() => renameSync(filePath, backupPath));
+	try {
+		retryWindowsFileMutation(() => renameSync(tempPath, filePath));
+	} catch (error) {
+		try {
+			retryWindowsFileMutation(() => renameSync(backupPath, filePath));
+		} catch (restoreError) {
+			throw new AggregateError(
+				[error, restoreError],
+				`Failed to replace ${filePath} and restore its backup`,
+			);
+		}
+		throw error;
+	}
+	removeFileBestEffort(backupPath);
 }
 
 function withSettingsWriteLock<T>(filePath: string, callback: () => T): T {
@@ -174,20 +266,25 @@ export class ProviderSettingsManager {
 	}
 
 	read(): StoredProviderSettings {
-		if (!existsSync(this.filePath)) {
-			return emptyStoredProviderSettings();
-		}
-
-		try {
-			const raw = readFileSync(this.filePath, "utf8");
-			const parsed = JSON.parse(raw) as unknown;
-			const result = StoredProviderSettingsSchema.safeParse(parsed);
-			if (result.success) {
-				registerConfiguredProvidersFromSettings(result.data);
-				return result.data;
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			const primaryState = readStoredProviderSettings(this.filePath);
+			if (primaryState === invalidStoredProviderSettings) {
+				return emptyStoredProviderSettings();
 			}
-		} catch {
-			// Invalid content falls back to a clean state.
+			if (primaryState) {
+				registerConfiguredProvidersFromSettings(primaryState);
+				return primaryState;
+			}
+			const backupState = readStoredProviderSettings(
+				getSettingsBackupPath(this.filePath),
+			);
+			if (backupState === invalidStoredProviderSettings) {
+				return emptyStoredProviderSettings();
+			}
+			if (backupState) {
+				registerConfiguredProvidersFromSettings(backupState);
+				return backupState;
+			}
 		}
 
 		return emptyStoredProviderSettings();
@@ -216,7 +313,7 @@ export class ProviderSettingsManager {
 				} catch {
 					// Ignore — Windows does not support POSIX chmod.
 				}
-				renameSync(tempPath, this.filePath);
+				replaceSettingsFile(tempPath, this.filePath);
 			} finally {
 				rmSync(tempPath, { force: true });
 			}
