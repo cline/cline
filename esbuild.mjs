@@ -24,6 +24,7 @@ const aliasResolverPlugin = {
 			"@integrations": path.resolve(__dirname, "src/integrations"),
 			"@services": path.resolve(__dirname, "src/services"),
 			"@shared": path.resolve(__dirname, "src/shared"),
+			"@generated": path.resolve(__dirname, "src/generated"),
 			"@utils": path.resolve(__dirname, "src/utils"),
 			"@packages": path.resolve(__dirname, "src/packages"),
 		}

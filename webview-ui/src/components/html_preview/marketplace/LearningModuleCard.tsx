@@ -24,59 +24,6 @@ function formatCount(n: number): string {
 	return String(n)
 }
 
-function getRatingKey(moduleId: string) {
-	return `aihydro.module.${moduleId}.userRating`
-}
-
-function StarRating({ moduleId, discussionUrl }: { moduleId: string; discussionUrl: string }) {
-	const stored = parseInt(localStorage.getItem(getRatingKey(moduleId)) || "0", 10)
-	const [rating, setRating] = useState(stored)
-	const [hovered, setHovered] = useState(0)
-
-	const handleRate = (star: number) => {
-		setRating(star)
-		localStorage.setItem(getRatingKey(moduleId), String(star))
-		if (discussionUrl) {
-			window.open(discussionUrl, "_blank", "noopener,noreferrer")
-		}
-	}
-
-	const active = hovered || rating
-	const cyan = "#06b6d4"
-
-	return (
-		<div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-			{[1, 2, 3, 4, 5].map((star) => (
-				<span
-					key={star}
-					onClick={(e) => {
-						e.stopPropagation()
-						handleRate(star)
-					}}
-					onMouseEnter={() => setHovered(star)}
-					onMouseLeave={() => setHovered(0)}
-					style={{
-						cursor: "pointer",
-						fontSize: 14,
-						color: star <= active ? "#f0c040" : "var(--vscode-descriptionForeground)",
-						opacity: star <= active ? 1 : 0.4,
-						transition: "color 0.1s, opacity 0.1s",
-						lineHeight: 1,
-					}}>
-					★
-				</span>
-			))}
-			{rating > 0 ? (
-				<span style={{ fontSize: 10, marginLeft: 4, color: cyan }}>Your rating: {rating}/5</span>
-			) : (
-				<span style={{ fontSize: 10, marginLeft: 4, color: "var(--vscode-descriptionForeground)", opacity: 0.6 }}>
-					Rate this
-				</span>
-			)}
-		</div>
-	)
-}
-
 const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 	const [isInstalling, setIsInstalling] = useState(false)
 	const [installed, setInstalled] = useState(item.isInstalled)
@@ -192,7 +139,23 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 						</span>
 					</div>
 					<div style={{ fontSize: 11, color: "var(--vscode-descriptionForeground)", marginTop: 2 }}>
-						{item.author && <span>by {item.author}</span>}
+						{item.author && (
+							<span>
+								by{" "}
+								{item.authorUrl ? (
+									<a
+										href={item.authorUrl}
+										onClick={(e) => e.stopPropagation()}
+										rel="noopener noreferrer"
+										style={{ color: cyan, textDecoration: "none" }}
+										target="_blank">
+										{item.author}
+									</a>
+								) : (
+									item.author
+								)}
+							</span>
+						)}
 						{item.estimatedMinutes > 0 && (
 							<span style={{ marginLeft: item.author ? 8 : 0 }}>· {item.estimatedMinutes} min</span>
 						)}
@@ -228,9 +191,36 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 				</button>
 			</div>
 
-			{/* Stats row: star rating + community reactions + downloads */}
+			{/* Stats row: AI-Hydro recognition + community reactions + downloads */}
 			<div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-				<StarRating discussionUrl={item.discussionUrl} moduleId={item.moduleId} />
+				{item.aiHydroInstalls > 0 && (
+					<span
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 4,
+							fontSize: 11,
+							color: "var(--vscode-descriptionForeground)",
+						}}
+						title="AI-Hydro installs">
+						<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
+						<span>{formatCount(item.aiHydroInstalls)} AI-Hydro installs</span>
+					</span>
+				)}
+				{item.aiHydroStars > 0 && (
+					<span
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 4,
+							fontSize: 11,
+							color: "var(--vscode-descriptionForeground)",
+						}}
+						title="AI-Hydro user stars">
+						<span className="codicon codicon-star-full" style={{ fontSize: 12 }} />
+						<span>{formatCount(item.aiHydroStars)} AI-Hydro stars</span>
+					</span>
+				)}
 				{item.githubReactions > 0 && (
 					<a
 						href={item.discussionUrl || item.githubUrl}
@@ -259,7 +249,7 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 						color: "var(--vscode-descriptionForeground)",
 					}}>
 					<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
-					<span>{item.downloadCount > 0 ? formatCount(item.downloadCount) : "0"} installs</span>
+					<span>{item.downloadCount > 0 ? formatCount(item.downloadCount) : "0"} catalog downloads</span>
 				</span>
 			</div>
 
@@ -317,6 +307,16 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 						style={{ marginLeft: "auto", fontSize: 10, color: cyan, textDecoration: "none" }}
 						target="_blank">
 						GitHub ↗
+					</a>
+				)}
+				{item.citationUrl && (
+					<a
+						href={item.citationUrl}
+						onClick={(e) => e.stopPropagation()}
+						rel="noopener noreferrer"
+						style={{ fontSize: 10, color: cyan, textDecoration: "none" }}
+						target="_blank">
+						Cite ↗
 					</a>
 				)}
 			</div>

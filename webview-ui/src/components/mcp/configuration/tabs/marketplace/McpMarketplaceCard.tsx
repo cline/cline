@@ -25,6 +25,9 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 	}, [onRelinquishControl])
 
 	const githubAuthorUrl = useMemo(() => {
+		if (item.authorUrl) {
+			return item.authorUrl
+		}
 		const url = new URL(item.githubUrl)
 		const pathParts = url.pathname.split("/")
 		if (pathParts.length >= 2) {
@@ -178,6 +181,34 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 									</span>
 								</div>
 							</a>
+							{(item.aiHydroInstalls ?? 0) > 0 && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										minWidth: 0,
+										flexShrink: 0,
+									}}
+									title="AI-Hydro installs">
+									<span className="codicon codicon-cloud-download" />
+									<span style={{ wordBreak: "break-all" }}>{item.aiHydroInstalls?.toLocaleString()}</span>
+								</div>
+							)}
+							{(item.aiHydroStars ?? 0) > 0 && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										minWidth: 0,
+										flexShrink: 0,
+									}}
+									title="AI-Hydro user stars">
+									<span className="codicon codicon-star-full" />
+									<span style={{ wordBreak: "break-all" }}>{item.aiHydroStars?.toLocaleString()}</span>
+								</div>
+							)}
 							<div
 								style={{
 									display: "flex",
@@ -283,6 +314,21 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 						/>
 					</div>
 				</div>
+				{item.citationUrl && (
+					<a
+						href={item.citationUrl}
+						onClick={(e) => e.stopPropagation()}
+						rel="noopener noreferrer"
+						style={{
+							fontSize: "10px",
+							color: "var(--vscode-textLink-foreground, #06b6d4)",
+							textDecoration: "none",
+							width: "fit-content",
+						}}
+						target="_blank">
+						Cite ↗
+					</a>
+				)}
 			</a>
 		</>
 	)

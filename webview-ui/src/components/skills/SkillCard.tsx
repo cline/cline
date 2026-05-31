@@ -149,7 +149,19 @@ const SkillCard = ({ item, setError }: SkillCardProps) => {
 					</div>
 					{item.author && (
 						<div style={{ fontSize: 11, color: "var(--vscode-descriptionForeground)", marginTop: 2 }}>
-							by {item.author}
+							by{" "}
+							{item.authorUrl ? (
+								<a
+									href={item.authorUrl}
+									onClick={(e) => e.stopPropagation()}
+									rel="noopener noreferrer"
+									style={{ color: cyan, textDecoration: "none" }}
+									target="_blank">
+									{item.author}
+								</a>
+							) : (
+								item.author
+							)}
 						</div>
 					)}
 				</div>
@@ -185,6 +197,34 @@ const SkillCard = ({ item, setError }: SkillCardProps) => {
 
 			{/* Stats row */}
 			<div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+				{item.aiHydroInstalls > 0 && (
+					<span
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 4,
+							fontSize: 11,
+							color: "var(--vscode-descriptionForeground)",
+						}}
+						title="AI-Hydro installs">
+						<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
+						<span>{formatCount(item.aiHydroInstalls)} AI-Hydro installs</span>
+					</span>
+				)}
+				{item.aiHydroStars > 0 && (
+					<span
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 4,
+							fontSize: 11,
+							color: "var(--vscode-descriptionForeground)",
+						}}
+						title="AI-Hydro user stars">
+						<span className="codicon codicon-star-full" style={{ fontSize: 12 }} />
+						<span>{formatCount(item.aiHydroStars)} AI-Hydro stars</span>
+					</span>
+				)}
 				{item.githubStars > 0 && (
 					<span
 						style={{
@@ -195,7 +235,7 @@ const SkillCard = ({ item, setError }: SkillCardProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						<span className="codicon codicon-star" style={{ fontSize: 12 }} />
-						<span>{formatCount(item.githubStars)}</span>
+						<span>{formatCount(item.githubStars)} GitHub stars</span>
 					</span>
 				)}
 				<span
@@ -207,7 +247,7 @@ const SkillCard = ({ item, setError }: SkillCardProps) => {
 						color: "var(--vscode-descriptionForeground)",
 					}}>
 					<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
-					<span>{item.downloadCount > 0 ? formatCount(item.downloadCount) : "0"} installs</span>
+					<span>{item.downloadCount > 0 ? formatCount(item.downloadCount) : "0"} catalog downloads</span>
 				</span>
 			</div>
 
@@ -282,6 +322,16 @@ const SkillCard = ({ item, setError }: SkillCardProps) => {
 						style={{ marginLeft: "auto", fontSize: 10, color: cyan, textDecoration: "none" }}
 						target="_blank">
 						GitHub ↗
+					</a>
+				)}
+				{item.citationUrl && (
+					<a
+						href={item.citationUrl}
+						onClick={(e) => e.stopPropagation()}
+						rel="noopener noreferrer"
+						style={{ fontSize: 10, color: cyan, textDecoration: "none" }}
+						target="_blank">
+						Cite ↗
 					</a>
 				)}
 			</div>
