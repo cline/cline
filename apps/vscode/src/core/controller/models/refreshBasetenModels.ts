@@ -37,6 +37,11 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
+// TODO(sdk-consolidation): Live-fetches Baseten's /models endpoint, which the
+// CLI lacks and the SDK does not yet cover. Register `modelsSourceUrl` for
+// Baseten in the SDK (sdk/packages/llms/src/providers/builtins.ts) so all
+// clients share one fetch path via `resolveProviderConfig`/`useProviderModels`,
+// then delete this extension-only handler + its RPC.
 export async function refreshBasetenModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("baseten")

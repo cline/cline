@@ -42,7 +42,7 @@ export async function readDirectoryRecursive(
 export async function synchronizeRuleToggles(
 	rulesDirectoryPath: string,
 	currentToggles: ClineRulesToggles,
-	allowedFileExtension: string = "",
+	allowedFileExtension = "",
 	excludedPaths: string[][] = [],
 ): Promise<ClineRulesToggles> {
 	// Create a copy of toggles to modify
@@ -184,11 +184,6 @@ export const getRuleFilesTotalContentWithMetadata = async (
 ): Promise<RuleLoadResult> => {
 	const evaluationContext = opts?.evaluationContext ?? {}
 	const prefix = RULE_SOURCE_PREFIX[opts?.ruleNamePrefix ?? "global"]
-
-	type RuleLoadPart = {
-		contentPart: string | null
-		activatedRule: ActivatedConditionalRule | null
-	}
 
 	const parts = await Promise.all(
 		rulesFilePaths.map(async (filePath) => {

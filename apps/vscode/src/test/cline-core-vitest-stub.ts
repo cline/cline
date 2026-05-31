@@ -175,6 +175,25 @@ export async function resolveProviderConfig(
 	return { modelId, knownModels }
 }
 
+export interface ClineRecommendedModel {
+	id: string
+	name: string
+	description: string
+	tags: string[]
+}
+
+export interface ClineRecommendedModelsData {
+	recommended: ClineRecommendedModel[]
+	free: ClineRecommendedModel[]
+}
+
+export async function fetchClineRecommendedModels(_options?: {
+	baseUrl?: string
+	fetchImpl?: typeof fetch
+}): Promise<ClineRecommendedModelsData> {
+	return { recommended: [], free: [] }
+}
+
 export function createOAuthClientCallbacks() {
 	return {}
 }
