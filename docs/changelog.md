@@ -12,6 +12,19 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ## [Unreleased]
 
+### Map — Performance overhaul for large files
+
+Five targeted fixes eliminate the pan/zoom lag and freeze when many or large layers are loaded.
+
+#### Interaction latency (pan, zoom, opacity slider)
+- **Parsed GeoJSON cache** — `JSON.parse` now runs once per layer and the result is reused across every render cycle. deck.gl sees a stable `data` reference and skips re-tessellating geometry when unrelated state changes (opacity, visibility, clustering).
+- **`updateTriggers` on vector layers** — color and width accessors only re-evaluate when opacity, graduated symbology, or MERIT styling actually change. Dragging an opacity slider no longer rebuilds geometry.
+- **Zoom bucketing** — pan/zoom frames no longer rebuild any layers. The deck.gl layer memo now depends on an integer bucket (`floor(zoom)`) that is constant while clustering is disabled, and only ticks at integer zoom boundaries when clustering is active.
+
+#### Load-time freeze (opening large files)
+- **Web Worker parsing for GeoJSON and CSV** — the raw file bytes are zero-copy transferred to a self-contained Blob worker (the map panel's CSP already allows `worker-src blob:`). `JSON.parse` and GeoJSON/CSV validation run entirely off the main thread, so the map panel stays responsive while a 50+ MB file is loading. kml/kmz/gpx/shp/tiff formats stay on the main thread (require npm libraries unavailable in a worker).
+- **Automatic coordinate simplification** — after parsing, the worker counts total coordinates. If they exceed **2 million**, a grid-snap pass reduces sub-pixel vertices before returning the GeoJSON (grid size ≈ 1/10 000 of the data extent, minimum 1 × 10⁻⁵°). Point features are never touched. A blue **"simplified"** badge appears in the layer row with a tooltip showing the original → reduced coordinate count.
+
 ### Tooling & Documentation
 - **Tool surface grew to 113 MCP tools** (16 Tier-1 core, 36 Tier-2 extended, 61 Tier-3 specialist) across watershed, streamflow, forcing, data-fetch, modelling, map, session, claims/provenance, skills, and knowledge domains.
 - **Tiered context injection** — only the 26 *hot* tools carry their full schema in-context; the rest are fetched on demand via `describe_tool(name)`, keeping the prompt lean without hiding any tool.

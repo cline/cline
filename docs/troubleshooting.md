@@ -324,6 +324,44 @@ Install `aihydro-tools` inside WSL (not on Windows), using the WSL Python. The e
 
 ---
 
+## Map Panel — Performance & Large Files
+
+### Map feels sluggish when panning or zooming with many layers loaded
+
+**Symptoms:** Noticeable lag when dragging the map or zooming, especially after loading several large GeoJSON or shapefile layers.
+
+**Cause:** Each layer's GeoJSON was previously re-parsed and all deck.gl layers were rebuilt on every pan/zoom frame. This is fixed in the current release — parsed geometry is cached per layer and zoom changes no longer trigger a full rebuild unless point clustering is active.
+
+**If you still see lag:**
+- Check whether any layers are very large (> 100 K features). The layer row's tooltip shows the feature count.
+- Enable **Cluster** on dense point layers (USGS gauge networks, station CSVs) — the cluster toggle is in the layer row.
+- Remove layers you're not actively using (visibility off is good, but removed layers free GPU memory).
+
+---
+
+### Map freezes for several seconds when opening a large GeoJSON or CSV
+
+**Symptom:** The map panel becomes unresponsive for 3–10+ seconds after dropping a large file.
+
+**Cause / Fix:** GeoJSON and CSV parsing now runs in a background Web Worker — the panel stays interactive during load. If you still see a freeze:
+
+- Verify you're on the latest version.
+- For very large files (> 50 MB), expect a short delay while the worker decodes and validates the file. A **loading** toast is shown.
+- For shapefiles, KML, KMZ, and GPX the parser runs on the main thread (requires bundled libraries). Prefer GeoJSON for very large datasets.
+- Reproject rasters to EPSG:4326 before loading — non-WGS84 GeoTIFFs require a pixel-warp pass that takes extra time.
+
+---
+
+### A layer shows a blue "simplified" badge
+
+**What it means:** The loaded file contained more than 2 million coordinates. The extension automatically applied a grid-snap simplification off the main thread to keep the map responsive.
+
+The simplification is **display-only** — your source file is unchanged. Hover the badge to see the original and reduced coordinate counts.
+
+**If the simplified render looks wrong** (e.g., topology gaps in fine polygon detail), your file is at a resolution that exceeds what is useful on a screen map. Consider pre-simplifying with `ogr2ogr -simplify` or QGIS → Simplify Geometries before loading.
+
+---
+
 ## HTML Preview — Manim Video Cells
 
 ### Manim cell shows "Manim is not installed"
