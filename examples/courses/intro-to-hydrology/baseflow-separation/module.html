@@ -2,33 +2,703 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Splitting the Flow — AI-Hydro Interactive Module</title>
+<title>Splitting the Flow: Baseflow Separation — AI-Hydro Interactive Module</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600;700&family=Poppins:wght@400;500;600;700&family=Nunito:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+
 <script type="application/vnd.aihydro.module+json">
 {
-  "id": " Baseflow Separation",
-  "title": "Splitting the Flow",
-  "version": "0.0.1",
+  "id": "baseflow-separation",
+  "title": "Splitting the Flow: Baseflow Separation",
+  "version": "0.1.0",
   "authors": [{ "name": "M. Galib", "affiliation": "Aligarh Muslim University" }],
   "license": "CC-BY-4.0",
-  "topic": "hydrology",
+  "topic": "baseflow-analysis",
   "level": "intro",
   "estimated_minutes": 40,
+  "requires": { "executable": true, "python": ["numpy", "matplotlib"] },
+  "citation": { "text": "Lyne, V. & Hollick, M. (1979). Stochastic time-variable rainfall-runoff modelling. Inst. Eng. Australia Nat. Conf. Publ. 79/10, 89–93." },
   "ai_hydro_preview_min_version": "0.2"
 }
 </script>
+
 <style>
-body { font-family: system-ui, sans-serif; background: #0a0a15; color: #7dd3fc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-.placeholder { text-align: center; padding: 48px; border: 1px dashed rgba(0,221,255,0.3); border-radius: 24px; max-width: 520px; }
-.placeholder h1 { color: #fff; font-size: 24px; margin-bottom: 12px; }
-.placeholder p { color: #94a3b8; font-size: 14px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --blue:#00A3FF; --cyan:#00DDFF; --bright:#00FFFF;
+  --bg:#0a0a15;   --navy:#1a1a2e; --mid:#0f0f1e;
+  --text:#FFFFFF; --sub:#7dd3fc;  --muted:#94a3b8;
+  --border:rgba(125,211,252,0.15);
+  --shadow:0 24px 64px rgba(0,0,0,0.55);
+  --green:#34d399; --violet:#a78bfa;
+}
+body { font-family:'Nunito',system-ui,sans-serif; font-size:16px; line-height:1.65; color:var(--sub);
+  background: radial-gradient(ellipse at 15% 0%, rgba(0,163,255,0.18) 0%, transparent 45%),
+              radial-gradient(ellipse at 85% 100%, rgba(52,211,153,0.10) 0%, transparent 40%),
+              var(--bg); min-height:100vh; }
+main { max-width:1160px; margin:0 auto; padding:32px 24px 80px; }
+h1 { font-family:'Quicksand',sans-serif; font-weight:700; color:var(--text); font-size:clamp(32px,5vw,52px); line-height:1.05; letter-spacing:-0.03em; }
+h2 { font-family:'Poppins',sans-serif; font-weight:600; color:var(--text); font-size:22px; margin-bottom:10px; }
+h3 { font-family:'Poppins',sans-serif; font-weight:500; color:var(--sub); font-size:13px; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px; }
+p  { color:var(--sub); margin-bottom:12px; }
+strong { color:var(--text); }
+code { font-family:'JetBrains Mono',monospace; font-size:0.88em; background:rgba(0,221,255,0.10); padding:2px 7px; border-radius:5px; color:var(--cyan); }
+a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,255,0.3); }
+
+.card { background:rgba(26,26,46,0.82); border:1px solid var(--border); border-radius:24px; padding:26px 28px; box-shadow:var(--shadow); backdrop-filter:blur(4px); }
+.card.glow { box-shadow:var(--shadow),0 0 0 1px rgba(0,221,255,0.18),inset 0 0 40px rgba(0,163,255,0.04); }
+.wide { margin:20px 0; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0; }
+@media(max-width:860px){ .grid2{ grid-template-columns:1fr; } }
+
+/* Hero */
+.hero { border:1px solid rgba(0,221,255,0.25); border-radius:28px; padding:36px 38px; margin-bottom:22px;
+  background:linear-gradient(135deg,rgba(0,163,255,0.09) 0%,rgba(52,211,153,0.04) 100%); position:relative; overflow:hidden; }
+.hero::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 5% 55%,rgba(52,211,153,0.07),transparent 55%); pointer-events:none; }
+.brand-row { display:flex; align-items:center; gap:14px; margin-bottom:16px; position:relative; z-index:1; }
+.brand-logo { width:42px; height:42px; flex-shrink:0; }
+.brand-name { font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; background:linear-gradient(135deg,#00A3FF,#00FFFF); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.brand-tag { font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; padding-left:14px; border-left:1px solid var(--border); }
+.gradient-text { background:linear-gradient(135deg,#34d399,#00FFFF); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero-sub { font-size:17px; color:var(--sub); max-width:640px; margin:12px 0 18px; position:relative; z-index:1; }
+.instruction { display:inline-flex; gap:10px; align-items:flex-start; background:rgba(0,221,255,0.07); border:1px solid rgba(0,221,255,0.20); border-radius:14px; padding:12px 16px; color:var(--muted); font-size:14px; }
+.instruction::before { content:'💡'; flex-shrink:0; }
+
+/* Workflow strip */
+.workflow-strip { display:grid; grid-template-columns:repeat(6,1fr); gap:0; margin:20px 0; position:relative; }
+.workflow-strip::before { content:''; position:absolute; top:28px; left:calc(100%/12); right:calc(100%/12); height:2px; background:linear-gradient(90deg,var(--green),var(--cyan)); z-index:0; }
+.wf-node { display:flex; flex-direction:column; align-items:center; gap:8px; position:relative; z-index:1; padding:0 4px; cursor:pointer; }
+.wf-icon { width:56px; height:56px; border-radius:50%; border:2px solid var(--border); background:var(--navy); display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 0 0 4px rgba(0,163,255,0.08); transition:transform 0.2s,box-shadow 0.2s; }
+.wf-node:hover .wf-icon { transform:scale(1.12); box-shadow:0 0 20px rgba(0,221,255,0.35); }
+.wf-label { font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--sub); text-align:center; }
+@media(max-width:700px){ .workflow-strip{ grid-template-columns:repeat(3,1fr); gap:16px; } .workflow-strip::before{ display:none; } }
+
+/* Callouts */
+.callout { border-left:3px solid var(--cyan); background:rgba(0,221,255,0.06); padding:13px 16px; border-radius:0 12px 12px 0; margin:14px 0; font-size:15px; }
+.callout.tip { border-color:#34d399; background:rgba(52,211,153,0.07); }
+.callout-label { font-family:'Poppins',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; display:block; margin-bottom:5px; color:var(--cyan); }
+.callout.tip .callout-label { color:#34d399; }
+
+/* Compare wipe */
+.aihydro-compare { position:relative; overflow:hidden; border-radius:18px; border:1px solid var(--border); background:var(--mid); user-select:none; cursor:col-resize; }
+.aihydro-compare > * { position:absolute; top:0; left:0; width:100%; height:100%; }
+.aihydro-compare > *:last-child { clip-path: inset(0 0 0 50%); }
+.compare-divider { position:absolute; top:0; bottom:0; width:3px; background:rgba(0,255,255,0.8); left:50%; transform:translateX(-50%); pointer-events:none; z-index:10; }
+.compare-handle { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:36px; height:36px; border-radius:50%; background:rgba(0,255,255,0.9); display:flex; align-items:center; justify-content:center; color:#0a0a15; font-size:14px; font-weight:900; pointer-events:none; z-index:11; box-shadow:0 0 16px rgba(0,255,255,0.6); }
+.compare-label { position:absolute; top:12px; padding:4px 10px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; border-radius:8px; z-index:12; pointer-events:none; }
+.compare-label.left  { left:12px;  background:rgba(0,0,0,0.65); color:var(--muted); }
+.compare-label.right { right:12px; background:rgba(0,163,255,0.25); color:var(--bright); }
+
+/* param panel */
+.param-block { margin:14px 0; }
+.param-block label { display:flex; justify-content:space-between; align-items:baseline; font-family:'Poppins',sans-serif; font-size:12px; font-weight:600; color:var(--sub); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; }
+.param-block label span { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--cyan); font-weight:700; text-transform:none; }
+input[type=range] { width:100%; accent-color:var(--cyan); cursor:pointer; }
+
+/* BFI bar */
+.bfi-bar-wrap { background:rgba(0,0,0,0.35); border:1px solid var(--border); border-radius:12px; padding:16px; margin-top:14px; }
+.bfi-bar-track { height:18px; background:rgba(0,163,255,0.15); border-radius:9px; position:relative; overflow:hidden; margin-top:10px; }
+.bfi-bar-fill { height:100%; border-radius:9px; background:linear-gradient(90deg,#00A3FF,#34d399); transition:width 0.35s; }
+.bfi-labels { display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); margin-top:6px; }
+
+/* Code cells */
+.aihydro-cell { border:1px solid rgba(0,221,255,0.22); border-radius:18px; background:rgba(2,6,23,0.55); padding:18px 20px; margin:16px 0; }
+.cell-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.cell-lang { font-family:'Poppins',sans-serif; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; background:rgba(0,221,255,0.12); color:var(--cyan); padding:3px 10px; border-radius:6px; }
+.cell-desc { font-size:13px; color:var(--muted); flex:1; }
+.run-btn { font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); border:none; border-radius:999px; padding:6px 16px; cursor:pointer; transition:transform 0.1s,box-shadow 0.2s; }
+.run-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(0,221,255,0.35); }
+.aihydro-source { font-family:'JetBrains Mono',monospace; font-size:12.5px; white-space:pre; overflow-x:auto; background:rgba(0,0,0,0.45); border-radius:10px; padding:14px; margin-bottom:12px; color:var(--text); border:1px solid rgba(125,211,252,0.08); max-height:380px; }
+.aihydro-output { font-family:'JetBrains Mono',monospace; font-size:13px; white-space:pre-wrap; min-height:2em; background:rgba(0,0,0,0.30); border-radius:10px; padding:12px; color:var(--sub); overflow:auto; max-height:480px; }
+.aihydro-output:empty::before { content:'(no output yet — run the cell)'; color:var(--muted); font-style:italic; }
+.aihydro-output-images { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.aihydro-output-images img { max-width:100%; border-radius:8px; }
+
+/* rewriteCell indicator */
+.rewrite-pill { display:inline-flex; align-items:center; gap:6px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.3); border-radius:8px; padding:3px 10px; color:var(--green); }
+.rewrite-pill::before { content:'⚡'; }
+
+/* Quiz */
+.aihydro-quiz { margin:0; }
+.aihydro-quiz-question { margin-bottom:22px; padding-bottom:22px; border-bottom:1px dashed var(--border); }
+.aihydro-quiz-question:last-of-type { border-bottom:none; }
+.q-text { font-family:'Poppins',sans-serif; font-weight:500; color:var(--text); font-size:16px; margin-bottom:14px; }
+.aihydro-quiz-option { display:block; text-align:left; font-size:14px; padding:12px 16px; border-radius:12px; border:1px solid var(--border); background:rgba(15,15,30,0.7); color:var(--sub); cursor:pointer; margin-bottom:8px; transition:border-color 0.15s,background 0.15s; }
+.aihydro-quiz-option:hover { border-color:var(--cyan); color:var(--text); }
+.aihydro-quiz-option.correct   { border-color:#34d399; background:rgba(52,211,153,0.12); color:#d1fae5; }
+.aihydro-quiz-option.incorrect { border-color:#f87171; background:rgba(248,113,113,0.10); color:#fee2e2; }
+.aihydro-quiz-feedback { font-size:13px; color:var(--muted); min-height:1em; padding:6px 0 0; display:none; }
+.aihydro-quiz-feedback.show { display:block; }
+.aihydro-quiz-submit { font-family:'Poppins',sans-serif; font-weight:700; font-size:14px; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); border:none; border-radius:999px; padding:10px 28px; cursor:pointer; margin-top:8px; transition:transform 0.1s,box-shadow 0.2s; }
+.aihydro-quiz-submit:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(0,221,255,0.35); }
+
+/* References */
+.refs ol { counter-reset:r; padding:0; list-style:none; }
+.refs li { counter-increment:r; padding-left:36px; position:relative; margin-bottom:12px; font-size:14px; color:var(--sub); line-height:1.55; }
+.refs li::before { content:counter(r); position:absolute; left:0; top:0; width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,#00A3FF,#00DDFF); color:var(--bg); font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; }
+.refs em { color:var(--text); font-style:italic; }
+.provenance { border-top:1px solid var(--border); margin-top:32px; padding:22px 0 0; display:grid; grid-template-columns:1fr 1fr; gap:16px 32px; }
+.prov-item dt { font-family:'Poppins',sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); margin-bottom:3px; }
+.prov-item dd { font-size:13px; color:var(--sub); }
+@media(max-width:600px){ .provenance{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
-<div class="placeholder">
-  <h1>Splitting the Flow</h1>
-  <p>This module is coming soon. Its design note is next in the build sequence.</p>
-  <p style="margin-top:16px;font-size:12px;font-family:monospace;color:rgba(0,221,255,0.5);">id:  Baseflow Separation</p>
+<main>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="brand-row">
+    <svg class="brand-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-label="AI-Hydro logo">
+      <defs><linearGradient id="lg4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00A3FF"/><stop offset="100%" stop-color="#00FFFF"/></linearGradient></defs>
+      <path d="M20 4 C20 4, 8 18, 8 26 a12 12 0 0 0 24 0 C 32 18, 20 4, 20 4 Z" fill="url(#lg4)" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"/>
+      <path d="M13 24 Q 20 30, 27 24" fill="none" stroke="rgba(10,10,21,0.55)" stroke-width="1.4" stroke-linecap="round"/>
+      <circle cx="20" cy="14" r="1.7" fill="#FFFFFF"/>
+    </svg>
+    <span class="brand-name">AI-Hydro</span>
+    <span class="brand-tag">Interactive Module · Baseflow Analysis</span>
+  </div>
+  <h1>Splitting <span class="gradient-text">the Flow</span><br>Baseflow Separation</h1>
+  <p class="hero-sub">
+    The stream you see is two flows in disguise: quick storm runoff and slow, steady
+    groundwater seeping in. Drag a slider, watch the code rewrite itself, and
+    see the hydrograph split before your eyes.
+  </p>
+  <div class="instruction">
+    Read the concept · Drag α to rewrite the code · Run the kernel · Wipe the compare · Pass the checkpoint
+  </div>
 </div>
+
+<!-- WORKFLOW STRIP -->
+<div class="wide card" style="padding:22px 24px;">
+  <h3 style="margin-bottom:16px;">Your path through this module</h3>
+  <div class="workflow-strip">
+    <div class="wf-node" onclick="scrollToSection('sec-concept')"><div class="wf-icon">💡</div><span class="wf-label">Concept</span></div>
+    <div class="wf-node" onclick="scrollToSection('sec-math')"><div class="wf-icon">📐</div><span class="wf-label">Filter</span></div>
+    <div class="wf-node" onclick="scrollToSection('sec-cell')"><div class="wf-icon">⚡</div><span class="wf-label">Live Code</span></div>
+    <div class="wf-node" onclick="scrollToSection('sec-compare')"><div class="wf-icon">↔️</div><span class="wf-label">Compare</span></div>
+    <div class="wf-node" onclick="scrollToSection('sec-quiz')"><div class="wf-icon">✓</div><span class="wf-label">Check</span></div>
+    <div class="wf-node" onclick="scrollToSection('sec-prov')">
+      <div class="wf-icon" style="border-color:rgba(0,221,255,0.6);box-shadow:0 0 20px rgba(0,221,255,0.25);">📜</div>
+      <span class="wf-label" style="color:var(--cyan);">Sources</span>
+    </div>
+  </div>
+</div>
+
+<!-- §1 CONCEPT -->
+<div id="sec-concept" class="wide card glow" data-aihydro-editable="prose">
+  <h2>1 · Two flows, one stream</h2>
+  <p>
+    When it rains, two very different processes contribute to the stream at the same time:
+  </p>
+  <div class="grid2" style="margin-top:14px;">
+    <div style="background:rgba(0,163,255,0.06);border:1px solid rgba(0,163,255,0.2);border-radius:16px;padding:18px;">
+      <p style="font-size:22px;margin-bottom:8px;">⚡</p>
+      <strong style="color:var(--cyan);font-size:15px;">Quickflow (stormflow)</strong>
+      <p style="font-size:14px;margin-top:8px;">Overland flow and shallow subsurface flow that responds rapidly to rain. Rises fast, peaks in hours to days, then recedes.</p>
+    </div>
+    <div style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.2);border-radius:16px;padding:18px;">
+      <p style="font-size:22px;margin-bottom:8px;">🌱</p>
+      <strong style="color:var(--green);font-size:15px;">Baseflow</strong>
+      <p style="font-size:14px;margin-top:8px;">Groundwater seeping slowly from the saturated zone into the stream. Sustains the stream between storms. Changes on a seasonal timescale.</p>
+    </div>
+  </div>
+  <p style="margin-top:16px;">
+    The <strong>Baseflow Index (BFI)</strong> is the fraction of total streamflow that is baseflow:
+  </p>
+  <div style="text-align:center;margin:16px 0;">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--bright);">BFI = Σ baseflow / Σ total Q</span>
+  </div>
+  <p>
+    A BFI near 1 means the stream is groundwater-dominated (spring-fed rivers in chalk catchments).
+    A BFI near 0 means flashy, ephemeral flow with almost no groundwater contribution.
+    Most temperate rivers have a BFI between 0.4 and 0.8.
+  </p>
+</div>
+
+<!-- §2 LYNE-HOLLICK FILTER -->
+<div id="sec-math" class="wide card" data-aihydro-editable="prose">
+  <h2>2 · The Lyne–Hollick digital filter</h2>
+  <p>
+    Lyne &amp; Hollick (1979) proposed the simplest viable digital filter for automated
+    baseflow separation. For each time step <em>t</em>:
+  </p>
+
+  <!-- Filter equations -->
+  <div style="background:var(--mid);border:1px solid var(--border);border-radius:14px;padding:22px;margin:16px 0;">
+    <p style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--text);margin-bottom:10px;">
+      <span style="color:var(--cyan);">f(t)</span> = α · f(t−1) + (1+α)/2 · [Q(t) − Q(t−1)]
+    </p>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--text);">
+      <span style="color:var(--green);">b(t)</span> = Q(t) − max(0, f(t))
+    </p>
+    <div style="margin-top:14px;font-size:14px;color:var(--muted);">
+      where <code>f(t)</code> = high-frequency (quickflow) component &nbsp;·&nbsp;
+      <code>b(t)</code> = baseflow &nbsp;·&nbsp;
+      <code style="color:var(--cyan);">α</code> = filter parameter (0 &lt; α &lt; 1)
+    </div>
+  </div>
+
+  <p>
+    The filter runs <strong>3 passes</strong>: forward → backward → forward. This removes
+    phase lag and makes the separation symmetric in time.
+    The parameter <strong style="color:var(--cyan);">α</strong> controls the smoothing:
+  </p>
+
+  <div style="display:flex;gap:20px;flex-wrap:wrap;margin:14px 0;">
+    <div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;padding:14px;flex:1;min-width:180px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--cyan);font-weight:700;">α → 1</div>
+      <p style="font-size:13px;margin-top:6px;">More smoothing → baseflow tracks the slow trend only. BFI tends lower.</p>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;padding:14px;flex:1;min-width:180px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--amber);font-weight:700;">α → 0</div>
+      <p style="font-size:13px;margin-top:6px;">Less smoothing → baseflow follows Q more closely. BFI tends higher.</p>
+    </div>
+    <div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;padding:14px;flex:1;min-width:180px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:18px;color:var(--bright);font-weight:700;">α = 0.925</div>
+      <p style="font-size:13px;margin-top:6px;">Nathan &amp; McMahon (1990) recommended value for daily streamflow data.</p>
+    </div>
+  </div>
+
+  <div class="callout tip">
+    <span class="callout-label">Key insight</span>
+    α is a <em>calibration parameter</em>, not a physical constant. The right value varies by catchment and data resolution. In practice 0.90–0.95 is used for daily data; lower values for sub-daily.
+  </div>
+</div>
+
+<!-- §3 LIVE CODE + rewriteCell -->
+<div id="sec-cell" class="wide card glow" data-aihydro-editable="prose">
+  <h2>3 · Drag α — watch the code rewrite itself</h2>
+  <p>
+    Move the slider below. As you drag, the value of <code>alpha</code> in the Python
+    cell updates in real time — this is <strong>live code editing</strong> via
+    <code>aihydro.rewriteCell</code>. Click <strong>Run</strong> to execute with the
+    current α and see the separated hydrograph.
+  </p>
+
+  <!-- α slider (bindParam) -->
+  <div style="background:rgba(0,0,0,0.35);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px;">
+    <div class="param-block" id="bp-alpha">
+      <label>
+        Filter parameter α
+        <span id="alphaDisplay">0.925</span>
+      </label>
+      <input type="range" min="0.800" max="0.980" step="0.005" value="0.925" id="alphaSlider">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+      <span class="rewrite-pill">Code updates live</span>
+      <span style="font-size:13px;color:var(--muted);">The highlighted line in the cell below changes as you drag</span>
+    </div>
+    <!-- BFI live estimate bar -->
+    <div class="bfi-bar-wrap">
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-family:'Poppins',sans-serif;font-size:12px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:0.05em;">Estimated BFI</span>
+        <span id="bfiEstDisplay" style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--bright);font-weight:700;">~0.55</span>
+      </div>
+      <div class="bfi-bar-track"><div class="bfi-bar-fill" id="bfiBar" style="width:55%;"></div></div>
+      <div class="bfi-labels"><span>0 (all quickflow)</span><span>1 (all baseflow)</span></div>
+    </div>
+  </div>
+
+  <!-- Python kernel cell -->
+  <div class="aihydro-cell" data-aihydro-cell-id="lh-filter" data-language="python">
+    <div class="cell-header">
+      <span class="cell-lang">Python</span>
+      <span class="cell-desc">Lyne–Hollick baseflow separation — α is updated by the slider above</span>
+      <button class="run-btn" type="button">▶ Run</button>
+    </div>
+    <pre class="aihydro-source" id="lhSource">import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+
+alpha = 0.925  # ← drag the slider to change this
+
+# ── Synthetic 365-day hydrograph ─────────────────────────
+rng  = np.random.default_rng(42)
+days = np.arange(365)
+b_true   = 2.0 + 1.2 * np.sin(2 * np.pi * (days - 80) / 365)
+storms   = np.zeros(365)
+idx      = rng.choice(365, 15, replace=False)
+storms[idx] = rng.exponential(4.0, 15)
+uh       = np.exp(-np.arange(20) / 4.0); uh /= uh.sum()
+qf       = np.convolve(storms, uh, mode='full')[:365]
+Q        = np.clip(b_true + qf + rng.normal(0, 0.1, 365), 0.05, None)
+
+# ── Lyne–Hollick filter (3-pass) ─────────────────────────
+def lyne_hollick(Q, alpha, passes=3):
+    b = Q.copy()
+    for pi in range(passes):
+        f   = np.zeros_like(Q)
+        fwd = (pi % 2 == 0)
+        if fwd:
+            for i in range(1, len(Q)):
+                f[i] = alpha * f[i-1] + (1+alpha)/2 * (Q[i] - Q[i-1])
+        else:
+            for i in range(len(Q)-2, -1, -1):
+                f[i] = alpha * f[i+1] + (1+alpha)/2 * (Q[i] - Q[i+1])
+        b = np.minimum(b, Q - np.clip(f, 0, None))
+        b = np.clip(b, 0, None)
+    return b
+
+base = lyne_hollick(Q, alpha)
+BFI  = base.sum() / Q.sum()
+
+# ── Plot ─────────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(9, 4.2))
+ax.fill_between(days, 0, base, color='#34d399', alpha=0.55, label='Baseflow')
+ax.fill_between(days, base, Q,  color='#00A3FF', alpha=0.28, label='Quickflow')
+ax.plot(days, Q,    color='#00DDFF', lw=1.6, label='Total Q')
+ax.plot(days, base, color='#34d399', lw=1.1, ls='--')
+ax.set(xlabel='Day of year', ylabel='Q (m³/s)',
+       title=f'Lyne–Hollick separation  ·  α = {alpha:.3f}  ·  BFI = {BFI:.3f}')
+ax.set_facecolor('#0f0f1e'); fig.patch.set_facecolor('#0a0a15')
+ax.tick_params(colors='#7dd3fc'); ax.yaxis.label.set_color('#7dd3fc')
+ax.xaxis.label.set_color('#7dd3fc'); ax.title.set_color('white')
+for sp in ax.spines.values(): sp.set_color('#334466')
+ax.legend(framealpha=0.4, fontsize=9, labelcolor='white')
+plt.tight_layout()
+plt.show()
+
+print(f"α = {alpha:.3f}")
+print(f"BFI = {BFI:.4f}  ({BFI*100:.1f}% of flow is baseflow)")
+print(f"Mean Q = {Q.mean():.2f} m³/s  |  Mean base = {base.mean():.2f} m³/s")</pre>
+    <div class="aihydro-output"></div>
+  </div>
+
+  <div class="callout tip" style="margin-top:14px;">
+    <span class="callout-label">What to try</span>
+    Set α = 0.800 and run → wide, generous baseflow. Set α = 0.975 → tight, conservative baseflow that barely responds to storms. The BFI bar above updates instantly; the chart only updates on Run.
+  </div>
+</div>
+
+<!-- §4 COMPARE WIPE -->
+<div id="sec-compare" class="wide card" data-aihydro-editable="prose">
+  <h2>4 · Before and after — drag to compare</h2>
+  <p>
+    The <strong>wipe control</strong> below shows the same synthetic hydrograph:
+    <em>left</em> = raw total discharge only; <em>right</em> = baseflow separated
+    (green = baseflow; blue = quickflow; teal line = total Q). Drag the divider
+    left and right to compare.
+  </p>
+
+  <!-- aihydro.compare block -->
+  <div class="aihydro-compare" id="hydrographCompare" style="height:280px;margin:16px 0;">
+    <!-- LEFT: total Q only -->
+    <div id="cmpLeft">
+      <svg id="svgLeft" viewBox="0 0 700 280" style="width:100%;height:100%;display:block;" aria-label="Total streamflow — unseparated">
+        <rect x="0" y="0" width="700" height="280" fill="#0f0f1e"/>
+        <path id="pathQLeft" d="" fill="rgba(0,163,255,0.22)" stroke="none"/>
+        <path id="lineQLeft" d="" fill="none" stroke="#00DDFF" stroke-width="2.2"/>
+        <text x="16" y="22" font-family="Poppins,sans-serif" font-size="12" fill="#94a3b8" font-weight="600">Total Q (unseparated)</text>
+        <text x="16" y="270" font-family="Poppins,sans-serif" font-size="11" fill="#334466">Day of year →</text>
+      </svg>
+    </div>
+    <!-- RIGHT: baseflow + quickflow separated -->
+    <div id="cmpRight">
+      <svg id="svgRight" viewBox="0 0 700 280" style="width:100%;height:100%;display:block;" aria-label="Separated baseflow and quickflow">
+        <rect x="0" y="0" width="700" height="280" fill="#0f0f1e"/>
+        <path id="pathBase" d="" fill="rgba(52,211,153,0.50)" stroke="none"/>
+        <path id="pathQuick" d="" fill="rgba(0,163,255,0.28)" stroke="none"/>
+        <path id="lineQRight" d="" fill="none" stroke="#00DDFF" stroke-width="2.2"/>
+        <path id="lineBase" d="" fill="none" stroke="#34d399" stroke-width="1.2" stroke-dasharray="5 3"/>
+        <text x="16" y="22" font-family="Poppins,sans-serif" font-size="12" fill="#34d399" font-weight="600">Separated — Baseflow + Quickflow</text>
+        <text x="16" y="270" font-family="Poppins,sans-serif" font-size="11" fill="#334466">Day of year →</text>
+      </svg>
+    </div>
+    <div class="compare-divider" id="cmpDivider"></div>
+    <div class="compare-handle" id="cmpHandle">↔</div>
+    <div class="compare-label left">Before</div>
+    <div class="compare-label right">After</div>
+  </div>
+
+  <p style="font-size:13px;color:var(--muted);">
+    Synthetic data (α = 0.925, BFI ≈ 0.55). The real split depends on the actual gauge record — Module 5 fetches live USGS data you can run through this filter.
+  </p>
+</div>
+
+<!-- §5 QUIZ -->
+<div id="sec-quiz" class="wide card" data-aihydro-editable="prose">
+  <h2>5 · Checkpoint</h2>
+  <p>Three questions — pass all three to mark this module complete.</p>
+
+  <div class="aihydro-quiz">
+    <div class="aihydro-quiz-question" data-answer="1">
+      <p class="q-text">1 · The Baseflow Index (BFI) is defined as…</p>
+      <label class="aihydro-quiz-option"><input type="radio" name="q1" value="0"> Peak flow divided by mean annual flow</label>
+      <label class="aihydro-quiz-option"><input type="radio" name="q1" value="1"> Total baseflow volume divided by total streamflow volume</label>
+      <label class="aihydro-quiz-option"><input type="radio" name="q1" value="2"> The recession constant of the hydrograph falling limb</label>
+      <div class="aihydro-quiz-feedback" data-fb="0">That's a flood-frequency ratio, not the BFI.</div>
+      <div class="aihydro-quiz-feedback" data-fb="2">The recession constant describes how quickly flow falls, not the fraction that is baseflow.</div>
+    </div>
+
+    <div class="aihydro-quiz-question" data-answer="2">
+      <p class="q-text">2 · In the Lyne–Hollick filter, increasing α closer to 1 will…</p>
+      <label class="aihydro-quiz-option"><input type="radio" name="q2" value="0"> Increase the estimated BFI</label>
+      <label class="aihydro-quiz-option"><input type="radio" name="q2" value="1"> Leave the BFI unchanged</label>
+      <label class="aihydro-quiz-option"><input type="radio" name="q2" value="2"> Decrease the estimated BFI (more conservative baseflow)</label>
+      <div class="aihydro-quiz-feedback" data-fb="0">Higher α means stronger smoothing — baseflow hugs the slow trend and doesn't respond to storms, so the estimate is smaller, not larger.</div>
+      <div class="aihydro-quiz-feedback" data-fb="1">α is the key sensitivity parameter; changing it always changes the BFI estimate.</div>
+    </div>
+
+    <div class="aihydro-quiz-question" data-answer="0">
+      <p class="q-text">3 · Which type of catchment would you expect to have a high BFI (close to 1)?</p>
+      <label class="aihydro-quiz-option"><input type="radio" name="q3" value="0"> A spring-fed chalk stream with a thick, permeable aquifer</label>
+      <label class="aihydro-quiz-option"><input type="radio" name="q3" value="1"> An impervious urban catchment with fast storm drains</label>
+      <label class="aihydro-quiz-option"><input type="radio" name="q3" value="2"> A steep mountain catchment dominated by snowmelt</label>
+      <div class="aihydro-quiz-feedback" data-fb="1">Urban and impervious catchments route almost all rain to the stream rapidly — very low BFI.</div>
+      <div class="aihydro-quiz-feedback" data-fb="2">Snowmelt is a large quickflow pulse — it tends to lower BFI, not raise it.</div>
+    </div>
+
+    <button class="aihydro-quiz-submit" type="button" id="quizSubmit">Check answers</button>
+    <span id="quizScore" style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--muted);margin-left:14px;"></span>
+  </div>
+</div>
+
+<!-- §6 PROVENANCE -->
+<div id="sec-prov" class="wide card refs" data-aihydro-editable="prose">
+  <h2>Sources &amp; Further Reading</h2>
+  <ol>
+    <li><em>Lyne, V. &amp; Hollick, M. (1979).</em> Stochastic time-variable rainfall-runoff modelling. <em>Inst. Eng. Australia Nat. Conf. Publ.</em> 79/10, 89–93. — Original filter formulation.</li>
+    <li><em>Nathan, R. J. &amp; McMahon, T. A. (1990).</em> Evaluation of automated techniques for baseflow and recession analyses. <em>Water Resources Research</em>, 26(7), 1465–1473. — Recommends α = 0.925 for daily data; systematic evaluation of the Lyne–Hollick filter.</li>
+    <li><em>Dingman, S. L. (2015). Physical Hydrology, 3rd ed.</em> Waveland Press. — Baseflow and groundwater–stream exchange, Chapter 6.</li>
+  </ol>
+  <dl class="provenance">
+    <div class="prov-item"><dt>Author</dt><dd>M. Galib · Aligarh Muslim University</dd></div>
+    <div class="prov-item"><dt>License</dt><dd>CC-BY-4.0 — free to reuse with attribution</dd></div>
+    <div class="prov-item"><dt>Module ID</dt><dd><code>baseflow-separation</code> · v0.1.0</dd></div>
+    <div class="prov-item"><dt>Course</dt><dd>Introduction to Hydrology · <code>intro-hydro-2026</code></dd></div>
+    <div class="prov-item"><dt>Data</dt><dd>Synthetic hydrograph (NumPy random seed 42); no real gauge data</dd></div>
+    <div class="prov-item"><dt>Dependencies</dt><dd>numpy, matplotlib (kernel cell); compare wipe is pure DOM</dd></div>
+  </dl>
+</div>
+
+</main>
+<script>
+(function () {
+  'use strict';
+
+  window.scrollToSection = function (id) {
+    var el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  function whenReady (fn) {
+    if (window.aihydro) { fn(); return; }
+    var t = setInterval(function () { if (window.aihydro) { clearInterval(t); fn(); } }, 50);
+  }
+
+  /* ── Synthetic hydrograph (JS, matches Python seed 42 approximately) ── */
+  function makeSyntheticQ () {
+    /* Simple deterministic version matching the Python cell's shape */
+    var Q = [], days = 365;
+    for (var i = 0; i < days; i++) {
+      var b = 2.0 + 1.2 * Math.sin(2 * Math.PI * (i - 80) / 365);
+      /* Storm pulses at approx days from Python rng seed 42 */
+      var storms = [12,34,67,98,124,155,189,220,251,280,305,330,352,18,210];
+      var qf = 0;
+      for (var s = 0; s < storms.length; s++) {
+        var delta = i - storms[s];
+        if (delta >= 0 && delta < 20) qf += (3.5 + s * 0.4) * Math.exp(-delta / 4.0) / 3.5;
+      }
+      Q.push(Math.max(0.05, b + qf + (Math.sin(i * 2.7 + 1.3) * 0.1)));
+    }
+    return Q;
+  }
+
+  function lyneHollick (Q, alpha) {
+    var b = Q.slice();
+    for (var pass = 0; pass < 3; pass++) {
+      var f = new Array(Q.length).fill(0);
+      var fwd = (pass % 2 === 0);
+      if (fwd) {
+        for (var i = 1; i < Q.length; i++)
+          f[i] = alpha * f[i-1] + (1+alpha)/2 * (Q[i] - Q[i-1]);
+      } else {
+        for (var i = Q.length-2; i >= 0; i--)
+          f[i] = alpha * f[i+1] + (1+alpha)/2 * (Q[i] - Q[i+1]);
+      }
+      for (var i = 0; i < Q.length; i++) {
+        b[i] = Math.min(b[i], Q[i] - Math.max(0, f[i]));
+        b[i] = Math.max(0, b[i]);
+      }
+    }
+    return b;
+  }
+
+  var Q = makeSyntheticQ();
+
+  /* ── SVG path helpers ── */
+  function qToSvgPath (Q, base, W, H, pad) {
+    /* Returns path string. base is bottom baseline (0 = x-axis) */
+    var maxQ = Math.max.apply(null, Q) * 1.08;
+    pad = pad || 30;
+    var points = '';
+    for (var i = 0; i < Q.length; i++) {
+      var x = pad + (i / (Q.length-1)) * (W - 2*pad);
+      var y = (H - pad) - ((Q[i] - (base||0)[i]||0) / maxQ) * (H - 2*pad);
+      if (i === 0) points += 'M ' + x + ',' + y; else points += ' L ' + x + ',' + y;
+    }
+    return points;
+  }
+
+  function qToAreaPath (Qtop, Qbot, W, H, pad) {
+    var maxQ = Math.max.apply(null, Qtop) * 1.08;
+    pad = pad || 30;
+    var p = '';
+    for (var i = 0; i < Qtop.length; i++) {
+      var x = pad + (i / (Qtop.length-1)) * (W - 2*pad);
+      var y = (H - pad) - (Qtop[i] / maxQ) * (H - 2*pad);
+      if (i === 0) p += 'M ' + x + ',' + y; else p += ' L ' + x + ',' + y;
+    }
+    /* bottom */
+    for (var i = Qtop.length-1; i >= 0; i--) {
+      var x = pad + (i / (Qtop.length-1)) * (W - 2*pad);
+      var y2 = Qbot ? (H - pad) - (Qbot[i] / maxQ) * (H - 2*pad) : (H - pad);
+      p += ' L ' + x + ',' + y2;
+    }
+    return p + ' Z';
+  }
+
+  function buildCompareSVGs (alpha) {
+    var base = lyneHollick(Q, alpha);
+    var maxQ = Math.max.apply(null, Q) * 1.08;
+    var W = 700, H = 280, pad = 30;
+
+    function xPt (i) { return pad + (i / (Q.length-1)) * (W - 2*pad); }
+    function yPt (v) { return (H - pad) - (v / maxQ) * (H - 2*pad); }
+
+    /* Left: total Q fill + line */
+    var areaL = '', lineL = '';
+    for (var i = 0; i < Q.length; i++) {
+      var x = xPt(i), y = yPt(Q[i]);
+      if (i === 0) { areaL = 'M ' + x + ',' + y; lineL = 'M ' + x + ',' + y; }
+      else { areaL += ' L ' + x + ',' + y; lineL += ' L ' + x + ',' + y; }
+    }
+    for (var i = Q.length-1; i >= 0; i--) areaL += ' L ' + xPt(i) + ',' + yPt(0);
+    areaL += ' Z';
+
+    document.getElementById('pathQLeft').setAttribute('d', areaL);
+    document.getElementById('lineQLeft').setAttribute('d', lineL);
+
+    /* Right: baseflow fill, quickflow fill, total Q line, base dashed */
+    var baseArea = '', quickArea = '', lineR = '', lineB = '';
+    for (var i = 0; i < Q.length; i++) {
+      var x = xPt(i), yQ = yPt(Q[i]), yB = yPt(base[i]);
+      if (i === 0) { baseArea = 'M ' + x + ',' + yB; quickArea = 'M ' + x + ',' + yQ; lineR = 'M ' + x + ',' + yQ; lineB = 'M ' + x + ',' + yB; }
+      else { baseArea += ' L ' + x + ',' + yB; quickArea += ' L ' + x + ',' + yQ; lineR += ' L ' + x + ',' + yQ; lineB += ' L ' + x + ',' + yB; }
+    }
+    /* Close baseflow area to x-axis */
+    for (var i = Q.length-1; i >= 0; i--) baseArea += ' L ' + xPt(i) + ',' + yPt(0);
+    baseArea += ' Z';
+    /* Close quickflow band: from Q down to base */
+    for (var i = Q.length-1; i >= 0; i--) quickArea += ' L ' + xPt(i) + ',' + yPt(base[i]);
+    quickArea += ' Z';
+
+    document.getElementById('pathBase').setAttribute('d', baseArea);
+    document.getElementById('pathQuick').setAttribute('d', quickArea);
+    document.getElementById('lineQRight').setAttribute('d', lineR);
+    document.getElementById('lineBase').setAttribute('d', lineB);
+  }
+
+  buildCompareSVGs(0.925);
+
+  /* ── Compare wipe interaction ── */
+  (function initCompare () {
+    var wrap    = document.getElementById('hydrographCompare');
+    var right   = document.getElementById('cmpRight');
+    var divider = document.getElementById('cmpDivider');
+    var handle  = document.getElementById('cmpHandle');
+    if (!wrap) return;
+
+    var dragging = false;
+
+    function setPos (frac) {
+      frac = Math.max(0.05, Math.min(0.95, frac));
+      var pct = (frac * 100).toFixed(1) + '%';
+      right.style.clipPath = 'inset(0 0 0 ' + pct + ')';
+      divider.style.left = pct;
+      handle.style.left  = pct;
+    }
+
+    setPos(0.5);
+
+    function onMove (cx) {
+      var rect = wrap.getBoundingClientRect();
+      setPos((cx - rect.left) / rect.width);
+    }
+
+    wrap.addEventListener('mousedown', function (e) { dragging = true; onMove(e.clientX); });
+    document.addEventListener('mousemove', function (e) { if (dragging) onMove(e.clientX); });
+    document.addEventListener('mouseup',   function ()  { dragging = false; });
+    wrap.addEventListener('touchstart', function (e) { dragging = true; onMove(e.touches[0].clientX); }, { passive: true });
+    document.addEventListener('touchmove', function (e) { if (dragging) onMove(e.touches[0].clientX); }, { passive: true });
+    document.addEventListener('touchend',  function ()  { dragging = false; });
+
+    /* Wire aihydro.compare if available */
+    whenReady(function () {
+      if (window.aihydro && window.aihydro.compare) {
+        window.aihydro.compare('#hydrographCompare');
+      }
+    });
+  })();
+
+  /* ── Alpha slider + bindParam + rewriteCell ── */
+  (function initAlphaSlider () {
+    var slider  = document.getElementById('alphaSlider');
+    var display = document.getElementById('alphaDisplay');
+    var bfiBar  = document.getElementById('bfiBar');
+    var bfiDisp = document.getElementById('bfiEstDisplay');
+    var srcPre  = document.getElementById('lhSource');
+    if (!slider) return;
+
+    function estimateBFI (alpha) {
+      /* Quick analytical estimate: higher alpha → lower BFI */
+      return Math.max(0.1, Math.min(0.95, 0.90 - (alpha - 0.80) * 1.8));
+    }
+
+    function buildSource (alpha) {
+      return srcPre.textContent.replace(
+        /^alpha = [\d.]+/m,
+        'alpha = ' + alpha.toFixed(3)
+      );
+    }
+
+    function update (alpha) {
+      display.textContent = alpha.toFixed(3);
+      var bfi = estimateBFI(alpha);
+      bfiBar.style.width  = (bfi * 100).toFixed(0) + '%';
+      bfiDisp.textContent = '~' + bfi.toFixed(2);
+      buildCompareSVGs(alpha);
+
+      /* rewriteCell: update alpha line in cell source */
+      whenReady(function () {
+        if (window.aihydro && window.aihydro.rewriteCell) {
+          var a = alpha;
+          window.aihydro.rewriteCell('lh-filter', function () {
+            return srcPre.textContent.replace(/^alpha = [\d.]+/m, 'alpha = ' + a.toFixed(3));
+          }, false /* don't auto-run, user clicks Run */);
+        } else {
+          /* Fallback: update pre directly */
+          srcPre.textContent = buildSource(alpha);
+        }
+      });
+    }
+
+    slider.addEventListener('input', function () { update(parseFloat(slider.value)); });
+
+    whenReady(function () {
+      if (window.aihydro && window.aihydro.bindParam) {
+        window.aihydro.bindParam('alpha', parseFloat(slider.value), function (v) {
+          slider.value = v;
+          update(parseFloat(v));
+        });
+      }
+    });
+  })();
+
+})();
+</script>
 </body>
 </html>
