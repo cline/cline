@@ -84,6 +84,11 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param _controller The controller instance (unused)
  * @returns Record of model ID to ModelInfo (application types)
  */
+// TODO(sdk-consolidation): Live-fetches Vercel AI Gateway's /models endpoint,
+// which the CLI lacks and the SDK does not yet cover. Register `modelsSourceUrl`
+// for vercel-ai-gateway in the SDK (sdk/packages/llms/src/providers/builtins.ts)
+// so all clients share one fetch path via `resolveProviderConfig`/
+// `useProviderModels`, then delete this extension-only handler + its RPC.
 export async function refreshVercelAiGatewayModels(_controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("vercel")
@@ -121,7 +126,7 @@ async function fetchAndCacheModels(): Promise<Record<string, ModelInfo>> {
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
 				if (price) {
-					return parseFloat(price) * 1_000_000
+					return Number.parseFloat(price) * 1_000_000
 				}
 				return undefined
 			}
