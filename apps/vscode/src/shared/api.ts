@@ -381,8 +381,6 @@ export const requestyDefaultModelInfo: ModelInfo = {
 
 // SAP AI Core
 export type SapAiCoreModelId = string
-// Pricing is calculated using Capacity Units, not directly in USD
-const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 
 // Moonshot AI Studio
 // https://platform.moonshot.ai/docs/pricing/chat
