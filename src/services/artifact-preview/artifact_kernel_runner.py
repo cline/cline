@@ -91,57 +91,68 @@ _VIDEO_SENTINEL = "# __aihydro_render_video__"
 
 
 def _render_manim_videos(namespace: dict[str, Any]) -> list[str]:
-    """Render every manim Scene subclass defined in the namespace to MP4.
+    """Render the manim Scene subclasses *defined in this cell* to MP4.
 
-    Returns a list of base64-encoded MP4 strings. Raises if manim is missing
-    or rendering fails, so the caller can surface a graceful note.
+    Only classes authored in the executed code are rendered.  Framework base
+    classes pulled in by ``from manim import *`` (MovingCameraScene, ThreeDScene,
+    VectorScene, ZoomedScene, …) live in the ``manim`` package and have no
+    user ``construct()``, so rendering them produces no video — they are skipped.
+
+    Returns a list of base64-encoded MP4 strings.  Raises if manim is missing or
+    a render yields no video, so the caller can surface a graceful note.
     """
-    import os
     import tempfile
     from pathlib import Path
 
-    from manim import Scene, config, tempconfig  # type: ignore
+    from manim import Scene, tempconfig  # type: ignore
 
+    # exec() stamps user-defined classes with the namespace's __name__; library
+    # classes keep their own dotted module path (manim.scene.*).  Match on that
+    # to render exactly what the author wrote — nothing more.
+    cell_module = namespace.get("__name__", "__aihydro_kernel__")
     scenes = [
         obj
         for obj in namespace.values()
-        if isinstance(obj, type) and issubclass(obj, Scene) and obj is not Scene
+        if isinstance(obj, type)
+        and issubclass(obj, Scene)
+        and obj is not Scene
+        and getattr(obj, "__module__", "") == cell_module
     ]
     if not scenes:
-        raise RuntimeError("No manim Scene subclass was defined in this cell.")
+        raise RuntimeError(
+            "No user-defined manim Scene subclass was found in this cell. "
+            "Define `class MyScene(Scene): def construct(self): ...`."
+        )
 
     videos: list[str] = []
-    with tempfile.TemporaryDirectory() as media_dir:
-        overrides = {
-            "media_dir": media_dir,
-            "quality": "low_quality",
-            "disable_caching": True,
-            "verbosity": "ERROR",
-            "progress_bar": "none",
-            "output_file": None,
-        }
-        for scene_cls in scenes:
+    for scene_cls in scenes:
+        # Fresh media dir per scene so globbing can't pick up a sibling scene's
+        # output and partial-movie files never collide across renders.
+        with tempfile.TemporaryDirectory() as media_dir:
+            overrides = {
+                "media_dir": media_dir,
+                "quality": "low_quality",
+                "disable_caching": True,
+                "verbosity": "ERROR",
+                "progress_bar": "none",
+            }
             with tempconfig(overrides):
-                scene = scene_cls()
-                scene.render()
-                # movie_file_path is unreliable across Manim versions — it can
-                # be a Path set before rendering that doesn't match where the
-                # file actually lands.  Glob the temp dir instead so we always
-                # find the real output regardless of directory nesting.
-                mp4_files = list(Path(media_dir).rglob("*.mp4"))
-                if not mp4_files:
-                    # Last-resort: trust movie_file_path when glob finds nothing
-                    fp = Path(scene.renderer.file_writer.movie_file_path)
-                    mp4_files = [fp] if fp.exists() else []
-                if not mp4_files:
-                    raise RuntimeError(
-                        f"Manim rendered {scene_cls.__name__} but produced no MP4 in {media_dir}."
-                    )
-                out_path = mp4_files[0]
-            with open(out_path, "rb") as handle:
+                scene_cls().render()
+            # Prefer the final concatenated movie over the per-animation chunks
+            # that manim leaves under partial_movie_files/.
+            candidates = [
+                p for p in Path(media_dir).rglob("*.mp4") if "partial_movie_files" not in p.parts
+            ]
+            if not candidates:
+                candidates = list(Path(media_dir).rglob("*.mp4"))
+            if not candidates:
+                raise RuntimeError(
+                    f"Manim rendered {scene_cls.__name__} but produced no MP4. "
+                    "Ensure construct() calls self.play()/self.wait() so there "
+                    "are frames to encode."
+                )
+            with open(candidates[0], "rb") as handle:
                 videos.append(base64.b64encode(handle.read()).decode("ascii"))
-    # Touch config/os so linters don't flag the imports as unused on some paths.
-    _ = (config, os)
     return videos
 
 

@@ -94,6 +94,31 @@ export class PreviewSessionService {
 	private stateSubscribers = new Set<PreviewStateSubscriber>()
 	private nextSeq = 1
 
+	constructor() {
+		// The preview_session / preview_events directories are *ephemeral* live
+		// state — they describe what is open in the HTML Preview right now, which
+		// MCP tools like `preview_list_modules` surface to the agent.  Anything
+		// left on disk from a previous VS Code session is stale by definition (no
+		// panel is open yet), so wipe it on startup.  This also clears any legacy
+		// entries written under VS Code file IDs before module-ID resolution
+		// existed, so the agent never sees orphaned `file_*` sessions again.
+		void PreviewSessionService.purgeDiskState()
+	}
+
+	/** Remove all mirrored session + event files. Best-effort, non-fatal. */
+	private static async purgeDiskState(): Promise<void> {
+		await Promise.all([
+			fs.rm(PREVIEW_SESSION_DIR, { recursive: true, force: true }).catch(() => undefined),
+			fs.rm(PREVIEW_EVENTS_DIR, { recursive: true, force: true }).catch(() => undefined),
+		])
+	}
+
+	/** Drop all in-memory sessions and their mirrored disk state. */
+	clearAll(): void {
+		this.sessions.clear()
+		void PreviewSessionService.purgeDiskState()
+	}
+
 	getSnapshot(moduleId: string): PreviewSessionSnapshot | undefined {
 		const session = this.sessions.get(moduleId)
 		if (!session) {
@@ -186,6 +211,11 @@ export class PreviewSessionService {
 
 	clearModule(moduleId: string): void {
 		this.sessions.delete(moduleId)
+		// Also drop the mirrored disk state so the agent's `preview_list_modules`
+		// stops reporting a module the moment its preview is closed/cleared.
+		const safeId = moduleId.replace(/[^a-zA-Z0-9._-]+/g, "_") || "unknown"
+		void fs.rm(path.join(PREVIEW_SESSION_DIR, `${safeId}.json`), { force: true }).catch(() => undefined)
+		void fs.rm(path.join(PREVIEW_EVENTS_DIR, safeId), { recursive: true, force: true }).catch(() => undefined)
 	}
 
 	private ensureSession(moduleId: string): ModuleSession {

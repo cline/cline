@@ -1416,6 +1416,7 @@ export class Controller {
 			this.artifactKernelService.stopSessionsForArtifact(ref.id)
 		}
 		this.htmlPreviewService.clear()
+		this.previewSessionService.clearAll()
 		this.htmlPreviewVersion++
 		this.htmlPreviewActiveId = null
 		this.notifyHtmlPreviewSubscribers(
