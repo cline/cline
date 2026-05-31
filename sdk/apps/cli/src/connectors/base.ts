@@ -124,11 +124,13 @@ export abstract class ConnectorBase<Options, State>
 		statePath: string,
 		readState: (path: string) => State | undefined,
 		getPid: (state: State) => number,
-	): void {
+	): State | undefined {
 		const state = readState(statePath);
 		if (state && !isProcessRunning(getPid(state))) {
 			this.removeStateFile(statePath);
+			return state;
 		}
+		return undefined;
 	}
 
 	protected async maybeRunInBackground(input: {

@@ -54,6 +54,14 @@ interface IndexResponseMessage {
 
 const CACHE = new Map<string, CacheEntry>();
 
+function canUseFileIndexWorker(): boolean {
+	if (!isMainThread) {
+		return false;
+	}
+
+	return true;
+}
+
 function pruneStaleCacheEntries(now: number): void {
 	if (CACHE.size <= 1) {
 		return;
@@ -276,7 +284,7 @@ startWorkerServer();
 let workerClient: FileIndexWorkerClient | null | undefined;
 
 function getWorkerClient(): FileIndexWorkerClient | null {
-	if (!isMainThread) {
+	if (!canUseFileIndexWorker()) {
 		return null;
 	}
 	if (workerClient === undefined) {

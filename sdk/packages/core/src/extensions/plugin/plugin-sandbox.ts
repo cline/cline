@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
 	Message,
@@ -63,6 +64,13 @@ type SandboxedContributionDescriptor = {
 	metadata?: Record<string, unknown>;
 };
 
+type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
+	id: string;
+	ruleId: string;
+	content?: string;
+	hasContentHandler?: boolean;
+};
+
 type SandboxedAutomationEventTypeDescriptor =
 	AgentExtensionAutomationEventType & {
 		id: string;
@@ -77,6 +85,7 @@ type SandboxedPluginDescriptor = {
 	contributions: {
 		tools: SandboxedContributionDescriptor[];
 		commands: SandboxedContributionDescriptor[];
+		rules: SandboxedRuleDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
@@ -97,6 +106,7 @@ function normalizeDescriptor(
 		contributions: {
 			tools: descriptor.contributions?.tools ?? [],
 			commands: descriptor.contributions?.commands ?? [],
+			rules: descriptor.contributions?.rules ?? [],
 			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
 			providers: descriptor.contributions?.providers ?? [],
 			automationEventTypes:
@@ -288,6 +298,13 @@ export async function loadSandboxedPlugins(
 						contributionTimeoutMs,
 						reinitialize,
 					);
+					registerRules(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
 					registerMessageBuilders(
 						api,
 						sandbox,
@@ -413,6 +430,49 @@ function registerCommands(
 					);
 				}
 			},
+		});
+	}
+}
+
+function registerRules(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const rule of descriptor.contributions?.rules ?? []) {
+		api.registerRule({
+			id: rule.ruleId,
+			source: rule.source,
+			content:
+				rule.hasContentHandler === true
+					? async () => {
+							try {
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							} catch (error) {
+								if (!isUnknownPluginIdError(error)) {
+									throw error;
+								}
+								await reinitialize();
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							}
+						}
+					: (rule.content ?? ""),
 		});
 	}
 }

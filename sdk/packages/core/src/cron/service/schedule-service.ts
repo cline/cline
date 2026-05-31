@@ -300,6 +300,15 @@ export class HubScheduleService {
 		return runToExecution(completed, scheduleId);
 	}
 
+	public triggerScheduleNowDetached(
+		scheduleId: string,
+	): ScheduleExecutionRecord | undefined {
+		const run = this.store.enqueueHubScheduleRun(scheduleId, "manual");
+		if (!run) return undefined;
+		void this.runner.tick().catch(() => undefined);
+		return runToExecution(run, scheduleId);
+	}
+
 	public listScheduleExecutions(
 		options: ListScheduleExecutionsOptions,
 	): ScheduleExecutionRecord[] {
