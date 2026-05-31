@@ -98,6 +98,7 @@ def _render_manim_videos(namespace: dict[str, Any]) -> list[str]:
     """
     import os
     import tempfile
+    from pathlib import Path
 
     from manim import Scene, config, tempconfig  # type: ignore
 
@@ -123,7 +124,20 @@ def _render_manim_videos(namespace: dict[str, Any]) -> list[str]:
             with tempconfig(overrides):
                 scene = scene_cls()
                 scene.render()
-                out_path = scene.renderer.file_writer.movie_file_path
+                # movie_file_path is unreliable across Manim versions — it can
+                # be a Path set before rendering that doesn't match where the
+                # file actually lands.  Glob the temp dir instead so we always
+                # find the real output regardless of directory nesting.
+                mp4_files = list(Path(media_dir).rglob("*.mp4"))
+                if not mp4_files:
+                    # Last-resort: trust movie_file_path when glob finds nothing
+                    fp = Path(scene.renderer.file_writer.movie_file_path)
+                    mp4_files = [fp] if fp.exists() else []
+                if not mp4_files:
+                    raise RuntimeError(
+                        f"Manim rendered {scene_cls.__name__} but produced no MP4 in {media_dir}."
+                    )
+                out_path = mp4_files[0]
             with open(out_path, "rb") as handle:
                 videos.append(base64.b64encode(handle.read()).decode("ascii"))
     # Touch config/os so linters don't flag the imports as unused on some paths.

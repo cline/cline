@@ -43,6 +43,14 @@ export class VscodeHtmlPreviewProvider {
 	private static controller: Controller | undefined
 	private static disposables: vscode.Disposable[] = []
 	private static currentNonce = ""
+	/**
+	 * Maps VS Code internal file/artifact IDs (e.g. "file_0155f6f2094bdd2f") to
+	 * the canonical module ID from the HTML manifest (e.g. "dem-to-twi").
+	 * Populated on the first `manifest.loaded` event for each open file so that
+	 * all subsequent preview-session writes use human-readable module IDs, which
+	 * is what MCP tools like `preview_list_modules` surface to the agent.
+	 */
+	private static fileIdToModuleId = new Map<string, string>()
 
 	public static initialize(context: vscode.ExtensionContext, controller: Controller): void {
 		VscodeHtmlPreviewProvider.context = context
@@ -189,10 +197,23 @@ export class VscodeHtmlPreviewProvider {
 									return {}
 								}
 							})()
+							// The webview sends item.id (a VS Code file ID like
+							// "file_0155f6f2094bdd2f") as moduleId.  On the first
+							// manifest.loaded event the payload also carries the
+							// manifest's canonical id (e.g. "dem-to-twi").  Record
+							// that mapping so every subsequent event for this file
+							// is stored under the human-readable module ID — which
+							// is what `preview_list_modules` surfaces to the agent.
+							const rawId = String(parsed.moduleId ?? parsed.module_id ?? "unknown")
+							const kind = String(message.kind ?? "user.interaction")
+							if (kind === "manifest.loaded" && typeof parsed.id === "string" && parsed.id) {
+								VscodeHtmlPreviewProvider.fileIdToModuleId.set(rawId, parsed.id)
+							}
+							const resolvedModuleId = VscodeHtmlPreviewProvider.fileIdToModuleId.get(rawId) ?? rawId
 							svc.appendEvent({
-								moduleId: String(parsed.moduleId ?? parsed.module_id ?? "unknown"),
+								moduleId: resolvedModuleId,
 								cellId: typeof parsed.cellId === "string" ? parsed.cellId : undefined,
-								kind: String(message.kind ?? "user.interaction"),
+								kind,
 								payloadJson: payload,
 								timestampMs: Number(message.timestampMs) || Date.now(),
 								source: String(message.source ?? "user"),
