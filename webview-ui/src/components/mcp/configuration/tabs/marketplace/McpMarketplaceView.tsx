@@ -21,7 +21,7 @@ const McpMarketplaceView = () => {
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-	const [sortBy, setSortBy] = useState<"newest" | "stars" | "name" | "downloadCount">("newest")
+	const [sortBy, setSortBy] = useState<"newest" | "stars" | "name" | "downloadCount">("downloadCount")
 
 	const items = mcpMarketplaceCatalog?.items || []
 
@@ -44,9 +44,9 @@ const McpMarketplaceView = () => {
 			.sort((a, b) => {
 				switch (sortBy) {
 					case "downloadCount":
-						return b.downloadCount - a.downloadCount
+						return b.aiHydroInstalls - a.aiHydroInstalls
 					case "stars":
-						return b.githubStars - a.githubStars
+						return b.aiHydroStars - a.aiHydroStars
 					case "name":
 						return a.name.localeCompare(b.name)
 					case "newest":
@@ -91,6 +91,16 @@ const McpMarketplaceView = () => {
 					setIsRefreshing(false)
 				})
 		}
+	}
+
+	const updateRecognition = (mcpId: string, starred: boolean, aiHydroStars: number) => {
+		if (!mcpMarketplaceCatalog) return
+		setMcpMarketplaceCatalog({
+			...mcpMarketplaceCatalog,
+			items: mcpMarketplaceCatalog.items.map((item) =>
+				item.mcpId === mcpId ? { ...item, starredByClient: starred, aiHydroStars } : item,
+			),
+		})
 	}
 
 	if (isLoading || isRefreshing) {
@@ -231,9 +241,9 @@ const McpMarketplaceView = () => {
 							marginTop: "-2.5px",
 						}}
 						value={sortBy}>
-						<VSCodeRadio value="downloadCount">Most Installs</VSCodeRadio>
+						<VSCodeRadio value="downloadCount">AI-Hydro Installs</VSCodeRadio>
 						<VSCodeRadio value="newest">Newest</VSCodeRadio>
-						<VSCodeRadio value="stars">GitHub Stars</VSCodeRadio>
+						<VSCodeRadio value="stars">AI-Hydro Stars</VSCodeRadio>
 						<VSCodeRadio value="name">Name</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
@@ -275,7 +285,13 @@ const McpMarketplaceView = () => {
 					</div>
 				) : (
 					filteredItems.map((item) => (
-						<McpMarketplaceCard installedServers={mcpServers} item={item} key={item.mcpId} setError={setError} />
+						<McpMarketplaceCard
+							installedServers={mcpServers}
+							item={item}
+							key={item.mcpId}
+							onRecognitionChange={updateRecognition}
+							setError={setError}
+						/>
 					))
 				)}
 				<McpSubmitCard />

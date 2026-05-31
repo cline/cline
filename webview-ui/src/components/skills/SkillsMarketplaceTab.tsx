@@ -44,11 +44,11 @@ const SkillsMarketplaceTab = () => {
 				switch (sortBy) {
 					case "featured":
 						if (a.isRecommended !== b.isRecommended) return a.isRecommended ? -1 : 1
-						return b.githubStars - a.githubStars
+						return b.aiHydroStars - a.aiHydroStars || b.aiHydroInstalls - a.aiHydroInstalls
 					case "stars":
-						return b.githubStars - a.githubStars
+						return b.aiHydroStars - a.aiHydroStars
 					case "downloads":
-						return b.downloadCount - a.downloadCount
+						return b.aiHydroInstalls - a.aiHydroInstalls
 					case "name":
 						return a.name.localeCompare(b.name)
 					case "newest":
@@ -76,6 +76,18 @@ const SkillsMarketplaceTab = () => {
 				setError("Failed to load skills marketplace")
 				setIsLoading(false)
 			})
+	}
+
+	const updateRecognition = (skillId: string, starred: boolean, aiHydroStars: number) => {
+		setCatalog((current) => {
+			if (!current) return current
+			return {
+				...current,
+				items: current.items.map((item) =>
+					item.skillId === skillId ? { ...item, starredByClient: starred, aiHydroStars } : item,
+				),
+			}
+		})
 	}
 
 	if (isLoading) {
@@ -185,8 +197,8 @@ const SkillsMarketplaceTab = () => {
 						style={{ display: "flex", flexWrap: "wrap", marginTop: "-2.5px" }}
 						value={sortBy}>
 						<VSCodeRadio value="featured">Featured</VSCodeRadio>
-						<VSCodeRadio value="stars">Stars</VSCodeRadio>
-						<VSCodeRadio value="downloads">Downloads</VSCodeRadio>
+						<VSCodeRadio value="stars">AI-Hydro Stars</VSCodeRadio>
+						<VSCodeRadio value="downloads">AI-Hydro Installs</VSCodeRadio>
 						<VSCodeRadio value="newest">Newest</VSCodeRadio>
 						<VSCodeRadio value="name">Name</VSCodeRadio>
 					</VSCodeRadioGroup>
@@ -206,7 +218,9 @@ const SkillsMarketplaceTab = () => {
 						{searchQuery || selectedDomain ? "No matching skills found" : "No skills found in the marketplace"}
 					</div>
 				) : (
-					filteredItems.map((item) => <SkillCard item={item} key={item.skillId} setError={setError} />)
+					filteredItems.map((item) => (
+						<SkillCard item={item} key={item.skillId} onRecognitionChange={updateRecognition} setError={setError} />
+					))
 				)}
 				<SkillSubmitCard />
 			</div>

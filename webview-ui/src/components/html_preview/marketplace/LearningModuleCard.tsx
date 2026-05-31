@@ -1,3 +1,4 @@
+import { MarketplaceStarRequest } from "@shared/proto/cline/common"
 import type { LearningModuleItem } from "@shared/proto/cline/html_preview"
 import { InstallModuleRequest } from "@shared/proto/cline/html_preview"
 import { useState } from "react"
@@ -6,6 +7,7 @@ import { HtmlPreviewServiceClient } from "@/services/grpc-client"
 interface LearningModuleCardProps {
 	item: LearningModuleItem
 	setError: (error: string | null) => void
+	onRecognitionChange?: (moduleId: string, starred: boolean, aiHydroStars: number) => void
 }
 
 const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
@@ -24,9 +26,13 @@ function formatCount(n: number): string {
 	return String(n)
 }
 
-const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
+const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningModuleCardProps) => {
 	const [isInstalling, setIsInstalling] = useState(false)
 	const [installed, setInstalled] = useState(item.isInstalled)
+	const [isStarring, setIsStarring] = useState(false)
+	const [starred, setStarred] = useState(item.starredByClient)
+	const [aiHydroInstalls, setAiHydroInstalls] = useState(item.aiHydroInstalls || 0)
+	const [aiHydroStars, setAiHydroStars] = useState(item.aiHydroStars)
 
 	const handleInstall = async (e: React.MouseEvent) => {
 		e.preventDefault()
@@ -44,6 +50,7 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 			)
 			if (resp.success) {
 				setInstalled(true)
+				setAiHydroInstalls((current) => current + 1)
 			} else {
 				setError(resp.error ?? "Install failed")
 			}
@@ -51,6 +58,35 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 			setError(err instanceof Error ? err.message : "Install failed")
 		} finally {
 			setIsInstalling(false)
+		}
+	}
+
+	const handleStar = async (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		if (isStarring) return
+		const nextStarred = !starred
+		setIsStarring(true)
+		setError(null)
+		try {
+			const resp = await HtmlPreviewServiceClient.starModule(
+				MarketplaceStarRequest.create({
+					marketplace: "modules",
+					itemId: item.moduleId,
+					starred: nextStarred,
+				}),
+			)
+			if (resp.error) {
+				setError(resp.error)
+				return
+			}
+			setStarred(resp.starred)
+			setAiHydroStars(resp.aiHydroStars)
+			onRecognitionChange?.(item.moduleId, resp.starred, resp.aiHydroStars)
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "AI-Hydro star update failed")
+		} finally {
+			setIsStarring(false)
 		}
 	}
 
@@ -162,65 +198,78 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 					</div>
 				</div>
 
-				{/* Install button */}
-				<button
-					disabled={isInstalling || installed}
-					onClick={handleInstall}
-					style={{
-						flexShrink: 0,
-						marginTop: item.isFeatured ? 18 : 0,
-						padding: "5px 12px",
-						fontSize: 11,
-						fontWeight: 600,
-						background: installed
-							? "rgba(40,167,69,0.12)"
-							: isInstalling
-								? "rgba(0,0,0,0.12)"
-								: "var(--vscode-button-background, #0e639c)",
-						color: installed
-							? "#28a745"
-							: isInstalling
-								? "var(--vscode-descriptionForeground)"
-								: "var(--vscode-button-foreground, #fff)",
-						border: installed ? "1px solid rgba(40,167,69,0.4)" : "none",
-						borderRadius: 4,
-						cursor: installed || isInstalling ? "default" : "pointer",
-					}}
-					type="button">
-					{installed ? "✓ Installed" : isInstalling ? "Installing…" : "Install"}
-				</button>
+				<div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
+					<button
+						aria-label={starred ? "Remove your AI-Hydro star" : "Star this module in AI-Hydro"}
+						disabled={isStarring}
+						onClick={handleStar}
+						style={{
+							background: starred ? "rgba(250, 204, 21, 0.16)" : "transparent",
+							border: "1px solid var(--vscode-panel-border, rgba(255,255,255,0.16))",
+							borderRadius: 4,
+							color: starred ? "#facc15" : "var(--vscode-descriptionForeground)",
+							cursor: isStarring ? "wait" : "pointer",
+							fontSize: 13,
+							lineHeight: 1,
+							padding: "4px 7px",
+						}}
+						title={starred ? "Remove your AI-Hydro star" : "Star this module in AI-Hydro"}
+						type="button">
+						{starred ? "★" : "☆"}
+					</button>
+					<button
+						disabled={isInstalling || installed}
+						onClick={handleInstall}
+						style={{
+							padding: "5px 12px",
+							fontSize: 11,
+							fontWeight: 600,
+							background: installed
+								? "rgba(40,167,69,0.12)"
+								: isInstalling
+									? "rgba(0,0,0,0.12)"
+									: "var(--vscode-button-background, #0e639c)",
+							color: installed
+								? "#28a745"
+								: isInstalling
+									? "var(--vscode-descriptionForeground)"
+									: "var(--vscode-button-foreground, #fff)",
+							border: installed ? "1px solid rgba(40,167,69,0.4)" : "none",
+							borderRadius: 4,
+							cursor: installed || isInstalling ? "default" : "pointer",
+						}}
+						type="button">
+						{installed ? "✓ Installed" : isInstalling ? "Installing…" : "Install"}
+					</button>
+				</div>
 			</div>
 
 			{/* Stats row: AI-Hydro recognition + community reactions + downloads */}
 			<div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-				{item.aiHydroInstalls > 0 && (
-					<span
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: 4,
-							fontSize: 11,
-							color: "var(--vscode-descriptionForeground)",
-						}}
-						title="AI-Hydro installs">
-						<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
-						<span>{formatCount(item.aiHydroInstalls)} AI-Hydro installs</span>
-					</span>
-				)}
-				{item.aiHydroStars > 0 && (
-					<span
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: 4,
-							fontSize: 11,
-							color: "var(--vscode-descriptionForeground)",
-						}}
-						title="AI-Hydro user stars">
-						<span className="codicon codicon-star-full" style={{ fontSize: 12 }} />
-						<span>{formatCount(item.aiHydroStars)} AI-Hydro stars</span>
-					</span>
-				)}
+				<span
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 4,
+						fontSize: 11,
+						color: "var(--vscode-descriptionForeground)",
+					}}
+					title="AI-Hydro installs">
+					<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
+					<span>{formatCount(aiHydroInstalls)} AI-Hydro installs</span>
+				</span>
+				<span
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 4,
+						fontSize: 11,
+						color: starred ? "#facc15" : "var(--vscode-descriptionForeground)",
+					}}
+					title="AI-Hydro user stars">
+					<span style={{ fontSize: 12, lineHeight: 1 }}>{starred ? "★" : "☆"}</span>
+					<span>{formatCount(aiHydroStars)} AI-Hydro stars</span>
+				</span>
 				{item.githubReactions > 0 && (
 					<a
 						href={item.discussionUrl || item.githubUrl}
@@ -240,17 +289,20 @@ const LearningModuleCard = ({ item, setError }: LearningModuleCardProps) => {
 						<span>{formatCount(item.githubReactions)} community</span>
 					</a>
 				)}
-				<span
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: 4,
-						fontSize: 11,
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					<span className="codicon codicon-cloud-download" style={{ fontSize: 12 }} />
-					<span>{item.downloadCount > 0 ? formatCount(item.downloadCount) : "0"} catalog downloads</span>
-				</span>
+				{item.downloadCount > 0 && (
+					<span
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 4,
+							fontSize: 11,
+							color: "var(--vscode-descriptionForeground)",
+						}}
+						title="Catalog-maintained download count">
+						<span className="codicon codicon-archive" style={{ fontSize: 12 }} />
+						<span>{formatCount(item.downloadCount)} catalog downloads</span>
+					</span>
+				)}
 			</div>
 
 			{/* Description */}

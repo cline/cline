@@ -1,5 +1,5 @@
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
-import { StringRequest } from "@shared/proto/cline/common"
+import { MarketplaceStarRequest, StringRequest } from "@shared/proto/cline/common"
 import { useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -9,12 +9,17 @@ interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
 	installedServers: McpServer[]
 	setError: (error: string | null) => void
+	onRecognitionChange?: (mcpId: string, starred: boolean, aiHydroStars: number) => void
 }
 
-const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplaceCardProps) => {
+const McpMarketplaceCard = ({ item, installedServers, setError, onRecognitionChange }: McpMarketplaceCardProps) => {
 	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
 	const [isDownloading, setIsDownloading] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
+	const [isStarring, setIsStarring] = useState(false)
+	const [starred, setStarred] = useState(item.starredByClient)
+	const [aiHydroInstalls, setAiHydroInstalls] = useState(item.aiHydroInstalls || 0)
+	const [aiHydroStars, setAiHydroStars] = useState(item.aiHydroStars)
 	const githubLinkRef = useRef<HTMLDivElement>(null)
 	const { onRelinquishControl } = useExtensionState()
 
@@ -35,6 +40,35 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 		}
 		return item.githubUrl
 	}, [item.githubUrl])
+
+	const handleStar = async (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		if (isStarring) return
+		const nextStarred = !starred
+		setIsStarring(true)
+		setError(null)
+		try {
+			const response = await McpServiceClient.starMcp(
+				MarketplaceStarRequest.create({
+					marketplace: "mcp",
+					itemId: item.mcpId,
+					starred: nextStarred,
+				}),
+			)
+			if (response.error) {
+				setError(response.error)
+				return
+			}
+			setStarred(response.starred)
+			setAiHydroStars(response.aiHydroStars)
+			onRecognitionChange?.(item.mcpId, response.starred, response.aiHydroStars)
+		} catch (error) {
+			setError(error instanceof Error ? error.message : "AI-Hydro star update failed")
+		} finally {
+			setIsStarring(false)
+		}
+	}
 
 	return (
 		<>
@@ -96,43 +130,82 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 								alignItems: "center",
 								gap: "16px",
 							}}>
-							<h3
-								style={{
-									margin: 0,
-									fontSize: "13px",
-									fontWeight: 600,
-								}}>
-								{item.name}
-							</h3>
-							<div
-								onClick={async (e) => {
-									e.preventDefault() // Prevent card click when clicking install
-									e.stopPropagation() // Stop event from bubbling up to parent link
-									if (!isInstalled && !isDownloading) {
-										setIsDownloading(true)
-										try {
-											const response = await McpServiceClient.downloadMcp(
-												StringRequest.create({ value: item.mcpId }),
-											)
-											if (response.error) {
-												console.error("MCP download failed:", response.error)
-												setError(response.error)
-											} else {
-												console.log("MCP download successful:", response)
-												// Clear any previous errors on success
-												setError(null)
+							<div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+								<h3
+									style={{
+										margin: 0,
+										fontSize: "13px",
+										fontWeight: 600,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+									}}>
+									{item.name}
+								</h3>
+								{item.isRecommended && (
+									<span
+										style={{
+											fontSize: 10,
+											fontWeight: 700,
+											padding: "2px 7px",
+											borderRadius: 10,
+											background: "linear-gradient(135deg, #00A3FF 0%, #00DDFF 100%)",
+											color: "#0a0a15",
+											flexShrink: 0,
+										}}>
+										Featured
+									</span>
+								)}
+							</div>
+							<div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+								<button
+									aria-label={starred ? "Remove your AI-Hydro star" : "Star this MCP server in AI-Hydro"}
+									disabled={isStarring}
+									onClick={handleStar}
+									style={{
+										background: starred ? "rgba(250, 204, 21, 0.16)" : "transparent",
+										border: "1px solid var(--vscode-panel-border, rgba(255,255,255,0.16))",
+										borderRadius: 4,
+										color: starred ? "#facc15" : "var(--vscode-descriptionForeground)",
+										cursor: isStarring ? "wait" : "pointer",
+										fontSize: 13,
+										lineHeight: 1,
+										padding: "4px 7px",
+									}}
+									title={starred ? "Remove your AI-Hydro star" : "Star this MCP server in AI-Hydro"}
+									type="button">
+									{starred ? "★" : "☆"}
+								</button>
+								<div
+									onClick={async (e) => {
+										e.preventDefault() // Prevent card click when clicking install
+										e.stopPropagation() // Stop event from bubbling up to parent link
+										if (!isInstalled && !isDownloading) {
+											setIsDownloading(true)
+											try {
+												const response = await McpServiceClient.downloadMcp(
+													StringRequest.create({ value: item.mcpId }),
+												)
+												if (response.error) {
+													console.error("MCP download failed:", response.error)
+													setError(response.error)
+												} else {
+													console.log("MCP download successful:", response)
+													// Clear any previous errors on success
+													setError(null)
+													setAiHydroInstalls((current) => current + 1)
+												}
+											} catch (error) {
+												console.error("Failed to download MCP:", error)
+											} finally {
+												setIsDownloading(false)
 											}
-										} catch (error) {
-											console.error("Failed to download MCP:", error)
-										} finally {
-											setIsDownloading(false)
 										}
-									}
-								}}
-								style={{}}>
-								<StyledInstallButton $isInstalled={isInstalled} disabled={isInstalled || isDownloading}>
-									{isInstalled ? "Installed" : isDownloading ? "Installing..." : "Install"}
-								</StyledInstallButton>
+									}}
+									style={{}}>
+									<StyledInstallButton $isInstalled={isInstalled} disabled={isInstalled || isDownloading}>
+										{isInstalled ? "Installed" : isDownloading ? "Installing..." : "Install"}
+									</StyledInstallButton>
+								</div>
 							</div>
 						</div>
 
@@ -181,34 +254,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 									</span>
 								</div>
 							</a>
-							{(item.aiHydroInstalls ?? 0) > 0 && (
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										minWidth: 0,
-										flexShrink: 0,
-									}}
-									title="AI-Hydro installs">
-									<span className="codicon codicon-cloud-download" />
-									<span style={{ wordBreak: "break-all" }}>{item.aiHydroInstalls?.toLocaleString()}</span>
-								</div>
-							)}
-							{(item.aiHydroStars ?? 0) > 0 && (
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										minWidth: 0,
-										flexShrink: 0,
-									}}
-									title="AI-Hydro user stars">
-									<span className="codicon codicon-star-full" />
-									<span style={{ wordBreak: "break-all" }}>{item.aiHydroStars?.toLocaleString()}</span>
-								</div>
-							)}
 							<div
 								style={{
 									display: "flex",
@@ -216,21 +261,58 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 									gap: "4px",
 									minWidth: 0,
 									flexShrink: 0,
-								}}>
-								<span className="codicon codicon-star-full" />
-								<span style={{ wordBreak: "break-all" }}>{item.githubStars?.toLocaleString() ?? 0}</span>
-							</div>
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									gap: "4px",
-									minWidth: 0,
-									flexShrink: 0,
-								}}>
+								}}
+								title="AI-Hydro installs">
 								<span className="codicon codicon-cloud-download" />
-								<span style={{ wordBreak: "break-all" }}>{item.downloadCount?.toLocaleString() ?? 0}</span>
+								<span style={{ wordBreak: "break-all" }}>
+									{aiHydroInstalls.toLocaleString()} AI-Hydro installs
+								</span>
 							</div>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: "4px",
+									minWidth: 0,
+									flexShrink: 0,
+									color: starred ? "#facc15" : "var(--vscode-descriptionForeground)",
+								}}
+								title="AI-Hydro user stars">
+								<span style={{ lineHeight: 1 }}>{starred ? "★" : "☆"}</span>
+								<span style={{ wordBreak: "break-all" }}>{aiHydroStars.toLocaleString()} AI-Hydro stars</span>
+							</div>
+							{item.githubStars > 0 && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										minWidth: 0,
+										flexShrink: 0,
+									}}
+									title="GitHub stars">
+									<span className="codicon codicon-star-full" />
+									<span style={{ wordBreak: "break-all" }}>
+										{item.githubStars.toLocaleString()} GitHub stars
+									</span>
+								</div>
+							)}
+							{item.downloadCount > 0 && (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										minWidth: 0,
+										flexShrink: 0,
+									}}
+									title="Catalog-maintained download count">
+									<span className="codicon codicon-archive" />
+									<span style={{ wordBreak: "break-all" }}>
+										{item.downloadCount.toLocaleString()} catalog downloads
+									</span>
+								</div>
+							)}
 							{item.requiresApiKey && (
 								<span className="codicon codicon-key" style={{ flexShrink: 0 }} title="Requires API key" />
 							)}
@@ -240,22 +322,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 
 				{/* Description and tags */}
 				<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-					{/* {!item.isRecommended && (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "4px",
-								fontSize: "12px",
-								color: "var(--vscode-notificationsWarningIcon-foreground)",
-								marginTop: -3,
-								marginBottom: -3,
-							}}>
-							<span className="codicon codicon-warning" style={{ fontSize: "14px" }} />
-							<span>Community Made (use at your own risk)</span>
-						</div>
-					)} */}
-
 					<p style={{ fontSize: "13px", margin: 0 }}>{item.description}</p>
 					<div
 						onScroll={(e) => {

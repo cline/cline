@@ -50,6 +50,20 @@ message Boolean {
   bool value = 1;
 }
 
+message MarketplaceStarRequest {
+  string marketplace = 1;
+  string item_id = 2;
+  bool starred = 3;
+}
+
+message MarketplaceStarResponse {
+  string marketplace = 1;
+  string item_id = 2;
+  bool starred = 3;
+  int32 ai_hydro_stars = 4;
+  optional string error = 5;
+}
+
 // the same as Boolean, but avoiding name conflicts
 message BooleanResponse {
   bool value = 1;

@@ -284,4 +284,7 @@ service HtmlPreviewService {
 
     // Download and install a learning module locally
     rpc installModule(InstallModuleRequest) returns (InstallModuleResponse);
+
+    // Star or unstar a module in AI-Hydro recognition.
+    rpc starModule(MarketplaceStarRequest) returns (MarketplaceStarResponse);
 }

@@ -45,12 +45,12 @@ const ModulesMarketplaceView = () => {
 				switch (sortBy) {
 					case "featured": {
 						if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1
-						return b.githubReactions - a.githubReactions
+						return b.aiHydroStars - a.aiHydroStars || b.aiHydroInstalls - a.aiHydroInstalls
 					}
 					case "popular":
-						return b.githubReactions - a.githubReactions
+						return b.aiHydroStars - a.aiHydroStars
 					case "downloads":
-						return b.downloadCount - a.downloadCount
+						return b.aiHydroInstalls - a.aiHydroInstalls
 					case "name":
 						return a.title.localeCompare(b.title)
 					case "level": {
@@ -89,6 +89,18 @@ const ModulesMarketplaceView = () => {
 				setIsLoading(false)
 				setIsRefreshing(false)
 			})
+	}
+
+	const updateRecognition = (moduleId: string, starred: boolean, aiHydroStars: number) => {
+		setCatalog((current) => {
+			if (!current) return current
+			return {
+				...current,
+				items: current.items.map((item) =>
+					item.moduleId === moduleId ? { ...item, starredByClient: starred, aiHydroStars } : item,
+				),
+			}
+		})
 	}
 
 	if (isLoading || isRefreshing) {
@@ -219,8 +231,8 @@ const ModulesMarketplaceView = () => {
 						}}
 						value={sortBy}>
 						<VSCodeRadio value="featured">Featured</VSCodeRadio>
-						<VSCodeRadio value="popular">Popular</VSCodeRadio>
-						<VSCodeRadio value="downloads">Downloads</VSCodeRadio>
+						<VSCodeRadio value="popular">AI-Hydro Stars</VSCodeRadio>
+						<VSCodeRadio value="downloads">AI-Hydro Installs</VSCodeRadio>
 						<VSCodeRadio value="newest">Newest</VSCodeRadio>
 						<VSCodeRadio value="name">Name</VSCodeRadio>
 						<VSCodeRadio value="level">Level</VSCodeRadio>
@@ -244,7 +256,14 @@ const ModulesMarketplaceView = () => {
 							: "No learning modules found in the marketplace"}
 					</div>
 				) : (
-					filteredItems.map((item) => <LearningModuleCard item={item} key={item.moduleId} setError={setError} />)
+					filteredItems.map((item) => (
+						<LearningModuleCard
+							item={item}
+							key={item.moduleId}
+							onRecognitionChange={updateRecognition}
+							setError={setError}
+						/>
+					))
 				)}
 				<LearningModuleSubmitCard />
 			</div>

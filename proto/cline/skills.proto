@@ -90,6 +90,7 @@ message DeleteSkillRequest {
 service SkillsService {
   rpc refreshSkillsMarketplace(EmptyRequest) returns (SkillCatalog);
   rpc installSkill(InstallSkillRequest) returns (InstallSkillResponse);
+  rpc starSkill(MarketplaceStarRequest) returns (MarketplaceStarResponse);
   rpc saveSkill(SaveSkillRequest) returns (SaveSkillResponse);
   rpc deleteSkill(DeleteSkillRequest) returns (Empty);
   rpc listInstalledSkills(EmptyRequest) returns (SkillCatalog);
