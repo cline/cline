@@ -37,6 +37,13 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
+// TODO(sdk-consolidation): This handler live-fetches Groq's /models endpoint,
+// a capability the CLI lacks and the SDK does not yet provide (the SDK only
+// live-fetches providers that register a `modelsSourceUrl`, currently just
+// ollama/lmstudio). To share this with the CLI and remove this extension-only
+// handler, register `modelsSourceUrl` for Groq in the SDK
+// (sdk/packages/llms/src/providers/builtins.ts) so `resolveProviderConfig` /
+// `useProviderModels` fetch it for all clients, then delete this file + its RPC.
 export async function refreshGroqModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("groq")
