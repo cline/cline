@@ -1395,6 +1395,17 @@ export class Controller {
 		})
 	}
 
+	/**
+	 * Pluggable resolver so host-specific code (VscodeHtmlPreviewProvider) can
+	 * teach the controller how to map VS Code file IDs → canonical module IDs.
+	 * Registered in VscodeHtmlPreviewProvider.initialize().
+	 */
+	private _moduleIdResolver: ((fileId: string) => string) | null = null
+
+	registerModuleIdResolver(resolver: (fileId: string) => string): void {
+		this._moduleIdResolver = resolver
+	}
+
 	removeHtmlPreview(id: string): void {
 		console.log(`[Controller] Removing HTML preview: ${id}`)
 		this.artifactKernelService.stopSessionsForArtifact(id)
@@ -1407,6 +1418,15 @@ export class Controller {
 		}
 		this.notifyHtmlPreviewSubscribers(HtmlPreviewItem.create({ id, metadata: { __operation: "remove" } }))
 		void this.postStateToWebview()
+		// Clear the preview session so `preview_list_modules` stops reporting a
+		// module once its tab is closed.  Use the pluggable resolver so the host
+		// can translate VS Code file IDs → manifest module IDs without a circular
+		// import between the controller and VscodeHtmlPreviewProvider.
+		const resolvedModuleId = this._moduleIdResolver?.(id) ?? id
+		this.previewSessionService.clearModule(resolvedModuleId)
+		if (resolvedModuleId !== id) {
+			this.previewSessionService.cleanupDiskFiles(id)
+		}
 	}
 
 	clearHtmlPreviews(): void {

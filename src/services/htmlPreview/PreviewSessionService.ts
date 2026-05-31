@@ -213,7 +213,16 @@ export class PreviewSessionService {
 		this.sessions.delete(moduleId)
 		// Also drop the mirrored disk state so the agent's `preview_list_modules`
 		// stops reporting a module the moment its preview is closed/cleared.
-		const safeId = moduleId.replace(/[^a-zA-Z0-9._-]+/g, "_") || "unknown"
+		this.cleanupDiskFiles(moduleId)
+	}
+
+	/**
+	 * Delete the mirrored disk files for `id` without touching the in-memory
+	 * session map.  Used to clean up stale file-ID entries that were written
+	 * before the manifest.loaded event established the canonical module ID.
+	 */
+	cleanupDiskFiles(id: string): void {
+		const safeId = id.replace(/[^a-zA-Z0-9._-]+/g, "_") || "unknown"
 		void fs.rm(path.join(PREVIEW_SESSION_DIR, `${safeId}.json`), { force: true }).catch(() => undefined)
 		void fs.rm(path.join(PREVIEW_EVENTS_DIR, safeId), { recursive: true, force: true }).catch(() => undefined)
 	}

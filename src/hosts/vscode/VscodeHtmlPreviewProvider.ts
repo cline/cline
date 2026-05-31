@@ -52,9 +52,22 @@ export class VscodeHtmlPreviewProvider {
 	 */
 	private static fileIdToModuleId = new Map<string, string>()
 
+	/**
+	 * Resolve a VS Code file/artifact ID to its canonical module ID.
+	 * Returns the raw ID unchanged if no manifest has been loaded yet.
+	 * Used by the controller's removeHtmlPreview to clean up session files.
+	 */
+	public static resolveModuleId(fileId: string): string {
+		return VscodeHtmlPreviewProvider.fileIdToModuleId.get(fileId) ?? fileId
+	}
+
 	public static initialize(context: vscode.ExtensionContext, controller: Controller): void {
 		VscodeHtmlPreviewProvider.context = context
 		VscodeHtmlPreviewProvider.controller = controller
+		// Register our VS Code file-ID → manifest module-ID resolver with the
+		// controller so removeHtmlPreview can clean up the right session files
+		// without a circular import between the controller and this class.
+		controller.registerModuleIdResolver((fileId) => VscodeHtmlPreviewProvider.resolveModuleId(fileId))
 	}
 
 	public static isOpen(): boolean {
@@ -207,7 +220,17 @@ export class VscodeHtmlPreviewProvider {
 							const rawId = String(parsed.moduleId ?? parsed.module_id ?? "unknown")
 							const kind = String(message.kind ?? "user.interaction")
 							if (kind === "manifest.loaded" && typeof parsed.id === "string" && parsed.id) {
+								const wasUnmapped =
+									!VscodeHtmlPreviewProvider.fileIdToModuleId.has(rawId) ||
+									VscodeHtmlPreviewProvider.fileIdToModuleId.get(rawId) !== parsed.id
 								VscodeHtmlPreviewProvider.fileIdToModuleId.set(rawId, parsed.id)
+								if (wasUnmapped && rawId !== parsed.id) {
+									// Some events arrived before this mapping was known and were
+									// written to disk under the raw VS Code file ID.  Retroactively
+									// delete those stale entries — the canonical module-ID file is
+									// the authoritative source from this point on.
+									svc.cleanupDiskFiles(rawId)
+								}
 							}
 							const resolvedModuleId = VscodeHtmlPreviewProvider.fileIdToModuleId.get(rawId) ?? rawId
 							svc.appendEvent({
