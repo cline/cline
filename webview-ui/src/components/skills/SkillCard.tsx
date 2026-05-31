@@ -112,26 +112,6 @@ const SkillCard = ({ item, setError, onRecognitionChange }: SkillCardProps) => {
 				background: "var(--vscode-editor-background)",
 				position: "relative",
 			}}>
-			{/* Recommended badge */}
-			{item.isRecommended && (
-				<span
-					style={{
-						position: "absolute",
-						top: 10,
-						right: 12,
-						fontSize: 10,
-						fontWeight: 700,
-						padding: "2px 8px",
-						borderRadius: 10,
-						background: "linear-gradient(135deg, #00A3FF 0%, #00DDFF 100%)",
-						color: "#0a0a15",
-						letterSpacing: "0.04em",
-						pointerEvents: "none",
-					}}>
-					Featured ⭐
-				</span>
-			)}
-
 			{/* Header row */}
 			<div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
 				{/* Gradient icon box */}
@@ -163,7 +143,7 @@ const SkillCard = ({ item, setError, onRecognitionChange }: SkillCardProps) => {
 								overflow: "hidden",
 								textOverflow: "ellipsis",
 								whiteSpace: "nowrap",
-								maxWidth: item.isRecommended ? 160 : 220,
+								maxWidth: 260,
 							}}>
 							{item.name}
 						</span>
@@ -185,20 +165,24 @@ const SkillCard = ({ item, setError, onRecognitionChange }: SkillCardProps) => {
 					</div>
 					{item.author && (
 						<div style={{ fontSize: 11, color: "var(--vscode-descriptionForeground)", marginTop: 2 }}>
-							by{" "}
-							{item.authorUrl ? (
-								<a
-									href={item.authorUrl}
-									onClick={(e) => e.stopPropagation()}
-									rel="noopener noreferrer"
-									style={{ color: cyan, textDecoration: "none" }}
-									target="_blank">
-									{item.author}
-								</a>
-							) : (
-								item.author
-							)}
+							by {item.author}
 						</div>
+					)}
+					{item.authorUrl && (
+						<a
+							href={item.authorUrl}
+							onClick={(e) => e.stopPropagation()}
+							rel="noopener noreferrer"
+							style={{
+								color: cyan,
+								display: "inline-block",
+								fontSize: 10,
+								marginTop: 2,
+								textDecoration: "none",
+							}}
+							target="_blank">
+							Profile ↗
+						</a>
 					)}
 				</div>
 

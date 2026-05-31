@@ -105,26 +105,6 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningMod
 				background: "var(--vscode-editor-background)",
 				position: "relative",
 			}}>
-			{/* Featured badge */}
-			{item.isFeatured && (
-				<span
-					style={{
-						position: "absolute",
-						top: 10,
-						right: 12,
-						fontSize: 10,
-						fontWeight: 700,
-						padding: "2px 8px",
-						borderRadius: 10,
-						background: "linear-gradient(135deg, #00A3FF 0%, #00DDFF 100%)",
-						color: "#0a0a15",
-						letterSpacing: "0.04em",
-						pointerEvents: "none",
-					}}>
-					Featured ⭐
-				</span>
-			)}
-
 			{/* Header row */}
 			<div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
 				{/* Gradient placeholder */}
@@ -156,7 +136,7 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningMod
 								overflow: "hidden",
 								textOverflow: "ellipsis",
 								whiteSpace: "nowrap",
-								maxWidth: item.isFeatured ? 160 : 220,
+								maxWidth: 260,
 							}}>
 							{item.title}
 						</span>
@@ -175,27 +155,27 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningMod
 						</span>
 					</div>
 					<div style={{ fontSize: 11, color: "var(--vscode-descriptionForeground)", marginTop: 2 }}>
-						{item.author && (
-							<span>
-								by{" "}
-								{item.authorUrl ? (
-									<a
-										href={item.authorUrl}
-										onClick={(e) => e.stopPropagation()}
-										rel="noopener noreferrer"
-										style={{ color: cyan, textDecoration: "none" }}
-										target="_blank">
-										{item.author}
-									</a>
-								) : (
-									item.author
-								)}
-							</span>
-						)}
+						{item.author && <span>by {item.author}</span>}
 						{item.estimatedMinutes > 0 && (
 							<span style={{ marginLeft: item.author ? 8 : 0 }}>· {item.estimatedMinutes} min</span>
 						)}
 					</div>
+					{item.authorUrl && (
+						<a
+							href={item.authorUrl}
+							onClick={(e) => e.stopPropagation()}
+							rel="noopener noreferrer"
+							style={{
+								color: cyan,
+								display: "inline-block",
+								fontSize: 10,
+								marginTop: 2,
+								textDecoration: "none",
+							}}
+							target="_blank">
+							Profile ↗
+						</a>
+					)}
 				</div>
 
 				<div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>

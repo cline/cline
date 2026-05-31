@@ -1,6 +1,6 @@
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
 import { MarketplaceStarRequest, StringRequest } from "@shared/proto/cline/common"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -20,7 +20,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError, onRecognitionCha
 	const [starred, setStarred] = useState(item.starredByClient)
 	const [aiHydroInstalls, setAiHydroInstalls] = useState(item.aiHydroInstalls || 0)
 	const [aiHydroStars, setAiHydroStars] = useState(item.aiHydroStars)
-	const githubLinkRef = useRef<HTMLDivElement>(null)
 	const { onRelinquishControl } = useExtensionState()
 
 	useEffect(() => {
@@ -39,7 +38,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError, onRecognitionCha
 			return `${url.origin}/${pathParts[1]}`
 		}
 		return item.githubUrl
-	}, [item.githubUrl])
+	}, [item.authorUrl, item.githubUrl])
 
 	const handleStar = async (e: React.MouseEvent) => {
 		e.preventDefault()
@@ -141,20 +140,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError, onRecognitionCha
 									}}>
 									{item.name}
 								</h3>
-								{item.isRecommended && (
-									<span
-										style={{
-											fontSize: 10,
-											fontWeight: 700,
-											padding: "2px 7px",
-											borderRadius: 10,
-											background: "linear-gradient(135deg, #00A3FF 0%, #00DDFF 100%)",
-											color: "#0a0a15",
-											flexShrink: 0,
-										}}>
-										Featured
-									</span>
-								)}
 							</div>
 							<div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
 								<button
@@ -221,38 +206,42 @@ const McpMarketplaceCard = ({ item, installedServers, setError, onRecognitionCha
 								minWidth: 0,
 								rowGap: 0,
 							}}>
-							<a
-								className="github-link"
-								href={githubAuthorUrl}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.opacity = "1"
-									e.currentTarget.style.color = "var(--link-active-foreground)"
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.opacity = "0.7"
-									e.currentTarget.style.color = "var(--vscode-foreground)"
-								}}
+							<span
 								style={{
 									display: "flex",
 									alignItems: "center",
 									color: "var(--vscode-foreground)",
+									gap: "4px",
 									minWidth: 0,
 									opacity: 0.7,
-									textDecoration: "none",
-									border: "none !important",
 								}}>
-								<div ref={githubLinkRef} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-									<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
-									<span
-										style={{
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											wordBreak: "break-all",
-											minWidth: 0,
-										}}>
-										{item.author}
-									</span>
-								</div>
+								<span className="codicon codicon-organization" style={{ fontSize: "14px" }} />
+								<span
+									style={{
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										wordBreak: "break-all",
+										minWidth: 0,
+									}}>
+									by {item.author}
+								</span>
+							</span>
+							<a
+								href={githubAuthorUrl}
+								onClick={(e) => {
+									e.preventDefault()
+									e.stopPropagation()
+									window.open(githubAuthorUrl, "_blank", "noopener,noreferrer")
+								}}
+								rel="noopener noreferrer"
+								style={{
+									color: "var(--vscode-textLink-foreground, #06b6d4)",
+									flexShrink: 0,
+									fontSize: "11px",
+									textDecoration: "none",
+								}}
+								target="_blank">
+								Profile ↗
 							</a>
 							<div
 								style={{
