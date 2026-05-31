@@ -21,11 +21,12 @@ interface HicapRawModelInfo {
  * @param request Empty request object
  * @returns Response containing the OpenRouter models
  */
-// TODO(sdk-consolidation): Live-fetches Hicap's /models endpoint, which the CLI
-// lacks and the SDK does not yet cover. Register `modelsSourceUrl` for Hicap in
-// the SDK (sdk/packages/llms/src/providers/builtins.ts) so all clients share one
-// fetch path via `resolveProviderConfig`/`useProviderModels`, then delete this
-// extension-only handler + its RPC.
+// TODO(sdk-consolidation): Live-fetches Hicap's /models endpoint. The SDK's
+// generic models-URL fetcher returns ids-only and (for providers with a
+// registered modelsSourceUrl) REPLACES rather than merges the curated catalog,
+// so a naive migration would regress metadata. See the detailed note in
+// refreshGroqModels.ts; share via the SDK + delete this handler + RPC once the
+// SDK supports rich/merged per-provider live models for all clients (incl. CLI).
 export async function refreshHicapModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.hicapModels)
 
