@@ -12,15 +12,14 @@
 {
   "id": "reading-a-hydrograph",
   "title": "Reading a Hydrograph",
-  "version": "0.1.0",
-  "authors": [{ "name": "Mohammad Galib", "affiliation": "Purdue University" }],
+  "version": "0.2.0",
+  "authors": [{ "name": "M. Galib", "affiliation": "Aligarh Muslim University" }],
   "license": "CC-BY-4.0",
   "topic": "streamflow",
   "level": "intro",
-  "estimated_minutes": 18,
+  "estimated_minutes": 30,
   "requires": { "executable": true, "python": ["numpy", "matplotlib"] },
-  "citation": { "text": "Lyne, V. & Hollick, M. (1979). Stochastic time-variable rainfall-runoff modelling. Inst. Eng. Australia Nat. Conf. Publ. 79/10, 89–93." },
-  "ai_hydro_preview_min_version": "0.1"
+  "ai_hydro_preview_min_version": "0.2"
 }
 </script>
 
@@ -298,7 +297,13 @@ select:focus { outline:1px solid var(--cyan); }
     recession — and pull baseflow apart from quickflow with a slider you control.
   </p>
   <div class="instruction">
-    Scroll the intro to step through limbs · Move sliders for live baseflow & rainfall response · Click workflow nodes to jump
+    Scroll the intro to step through limbs · Move sliders for live baseflow &amp; rainfall response · Click workflow nodes to jump
+  </div>
+  <div class="callout tip" style="margin-top:14px;">
+    <span class="callout-label">Follow the arrow — runoff</span>
+    In <strong>Module 1</strong> you traced a water molecule ending as surface runoff. This module reads what happens next:
+    that runoff arrives at a stream gauge and traces a shape in time — the <em>hydrograph</em>.
+    When you're done here, <strong>Module 4</strong> goes deeper: splitting that shape into baseflow vs quickflow.
   </div>
 </div>
 
@@ -336,7 +341,7 @@ select:focus { outline:1px solid var(--cyan); }
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  1 · SCROLLYTELLING INTRO                                  -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="sec-intro" class="wide card glow">
+<div id="sec-intro" class="wide card glow" data-aihydro-editable="prose">
   <h2>1 · What is a hydrograph?</h2>
   <p>A hydrograph is a time-series of discharge — usually m³/s on the y-axis and hours or days on the x-axis. <strong>Scroll the panel on the right</strong> to walk through the three named regions.</p>
 
@@ -401,7 +406,7 @@ select:focus { outline:1px solid var(--cyan); }
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  2 · ANATOMY PANEL                                         -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="sec-anatomy" class="wide card">
+<div id="sec-anatomy" class="wide card" data-aihydro-editable="prose">
   <h2>2 · Anatomy of a single storm event</h2>
   <p>
     A 96-hour event: a 4-hour pulse drives a gamma-shaped response. Hover for hourly values.
@@ -482,7 +487,7 @@ select:focus { outline:1px solid var(--cyan); }
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  4 · STORM COMPARISON                                      -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="sec-storm" class="wide card">
+<div id="sec-storm" class="wide card" data-aihydro-editable="prose">
   <h2>4 · Doubling rainfall ≠ doubling peak</h2>
   <p>
     Two storms on the same catchment. Drag the number:
@@ -520,62 +525,76 @@ select:focus { outline:1px solid var(--cyan); }
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  5 · CHECKPOINT QUIZ                                       -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="sec-quiz" class="wide card">
+<div id="sec-quiz" class="wide card" data-aihydro-editable="prose">
   <h2>5 · Checkpoint</h2>
+  <p style="color:var(--muted);font-size:14px;margin-bottom:18px;">Answer all three questions correctly to mark this module complete.</p>
 
-  <div class="quiz-block">
-    <div class="quiz-q">A small headwater catchment after a brief storm shows a steep, narrow hydrograph that peaks in 2 hours and is back to baseflow within 6. What does that shape tell you?</div>
-    <div class="quiz-choices">
-      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q1','Larger catchments have damped, broader hydrographs because flow paths are longer and storage is higher.')">
-        The catchment is large and forested
-      </button>
-      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'q1','Exactly — short lag and rapid recession are hallmarks of a flashy, small / impervious / saturated catchment.')">
-        The catchment is small and/or impervious — it's flashy
-      </button>
-      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q1','Shape tells you about storage and routing — not directly about the rainfall amount.')">
-        The storm dropped a huge amount of rain
-      </button>
-    </div>
-    <div class="quiz-feedback" id="q1-fb"></div>
-  </div>
+  <div class="aihydro-quiz" id="m3-quiz" data-module-id="reading-a-hydrograph">
 
-  <div class="quiz-block">
-    <div class="quiz-q">You raise the Lyne–Hollick filter parameter from α = 0.925 to α = 0.985. What happens to the computed BFI?</div>
-    <div class="quiz-choices">
-      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q2','Higher α actually strips MORE quickflow signal out — the filter becomes more selective for slow components.')">
-        BFI goes up — more of the flow is classified as baseflow
-      </button>
-      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'q2','Right — higher α produces a smoother, lower baseflow estimate, so quickflow grabs more of the total volume and BFI drops.')">
-        BFI goes down — the filter strips more quickflow and baseflow becomes a smoother, lower line
-      </button>
-      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q2','α changes the filter shape directly — BFI is sensitive to it.')">
-        BFI is unchanged — it only depends on the discharge series
-      </button>
+    <div class="quiz-question quiz-block" data-answer="1">
+      <p class="quiz-q">A small headwater catchment after a brief storm shows a steep, narrow hydrograph that peaks in 2 hours and is back to baseflow within 6. What does that shape tell you?</p>
+      <div class="quiz-choices" role="radiogroup" aria-label="Question 1 choices">
+        <button class="quiz-btn" type="button" data-index="0"
+          data-feedback="Larger catchments have damped, broader hydrographs because flow paths are longer and storage is higher.">
+          The catchment is large and forested
+        </button>
+        <button class="quiz-btn" type="button" data-index="1"
+          data-feedback="Exactly — short lag and rapid recession are hallmarks of a flashy, small / impervious / saturated catchment.">
+          The catchment is small and/or impervious — it's flashy
+        </button>
+        <button class="quiz-btn" type="button" data-index="2"
+          data-feedback="Shape tells you about storage and routing — not directly about the rainfall amount.">
+          The storm dropped a huge amount of rain
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
     </div>
-    <div class="quiz-feedback" id="q2-fb"></div>
-  </div>
 
-  <div class="quiz-block">
-    <div class="quiz-q">If you double the rainfall on an already-wet catchment, what's the most likely outcome for the peak discharge?</div>
-    <div class="quiz-choices">
-      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q3','That would only be true if runoff response were perfectly linear — but saturated soils make additional rain run off proportionally more.')">
-        Peak exactly doubles — superposition holds
-      </button>
-      <button class="quiz-btn" onclick="window.quizAnswer(this,false,'q3','Quite the opposite — once the catchment saturates, more of each marginal mm of rain becomes runoff.')">
-        Peak is less than double — soil absorbs the extra
-      </button>
-      <button class="quiz-btn" onclick="window.quizAnswer(this,true,'q3','Right — on a saturated catchment the marginal runoff coefficient is higher, so peak grows faster than rainfall.')">
-        Peak more than doubles — saturated soil sends a larger fraction to runoff
-      </button>
+    <div class="quiz-question quiz-block" data-answer="1">
+      <p class="quiz-q">You raise the Lyne–Hollick filter parameter from α = 0.925 to α = 0.985. What happens to the computed BFI?</p>
+      <div class="quiz-choices" role="radiogroup" aria-label="Question 2 choices">
+        <button class="quiz-btn" type="button" data-index="0"
+          data-feedback="Higher α actually strips more quickflow — the filter becomes more aggressive, leaving a lower, smoother baseflow line.">
+          BFI goes up — more of the flow is classified as baseflow
+        </button>
+        <button class="quiz-btn" type="button" data-index="1"
+          data-feedback="Right — higher α produces a smoother, lower baseflow estimate, so quickflow grabs more of the total volume and BFI drops.">
+          BFI goes down — the filter strips more quickflow and baseflow becomes a smoother, lower line
+        </button>
+        <button class="quiz-btn" type="button" data-index="2"
+          data-feedback="α changes the filter shape directly — BFI is highly sensitive to it.">
+          BFI is unchanged — it only depends on the discharge series
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
     </div>
-    <div class="quiz-feedback" id="q3-fb"></div>
-  </div>
+
+    <div class="quiz-question quiz-block" data-answer="2">
+      <p class="quiz-q">If you double the rainfall on an already-wet catchment, what's the most likely outcome for the peak discharge?</p>
+      <div class="quiz-choices" role="radiogroup" aria-label="Question 3 choices">
+        <button class="quiz-btn" type="button" data-index="0"
+          data-feedback="That would only be true if runoff response were perfectly linear — saturated soils make additional rain run off proportionally more.">
+          Peak exactly doubles — superposition holds
+        </button>
+        <button class="quiz-btn" type="button" data-index="1"
+          data-feedback="Quite the opposite — once the catchment saturates, more of each marginal mm of rain becomes runoff, not less.">
+          Peak is less than double — soil absorbs the extra
+        </button>
+        <button class="quiz-btn" type="button" data-index="2"
+          data-feedback="Right — on a saturated catchment the marginal runoff coefficient is higher, so peak grows faster than rainfall.">
+          Peak more than doubles — saturated soil sends a larger fraction to runoff
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+  </div><!-- /.aihydro-quiz -->
 </div>
 
 <!-- ══════════════════════════════════════════════════════════ -->
 <!--  6 · PYTHON CELL — REAL DATA                               -->
 <!-- ══════════════════════════════════════════════════════════ -->
-<div id="sec-python" class="wide card">
+<div id="sec-python" class="wide card" data-aihydro-editable="prose">
   <h2>6 · Pull it together with real-shape data</h2>
   <p>
     Pick a gauge. The cell synthesises a year of daily streamflow shaped to mimic that catchment's character
@@ -646,8 +665,8 @@ select:focus { outline:1px solid var(--cyan); }
 <!--  PROVENANCE                                                -->
 <!-- ══════════════════════════════════════════════════════════ -->
 <div id="sec-prov" class="provenance">
-  <div class="prov-item"><dt>Module</dt><dd>reading-a-hydrograph · v0.1.0 · CC-BY-4.0</dd></div>
-  <div class="prov-item"><dt>Authors</dt><dd>Mohammad Galib, Purdue University</dd></div>
+  <div class="prov-item"><dt>Module</dt><dd>reading-a-hydrograph · v0.2.0 · CC-BY-4.0</dd></div>
+  <div class="prov-item"><dt>Authors</dt><dd>M. Galib, Aligarh Muslim University</dd></div>
   <div class="prov-item"><dt>Synthetic event</dt><dd>96-hour gamma response (shape=4, scale=6) on a 4-hour rainfall pulse, hand-tuned for instruction.</dd></div>
   <div class="prov-item"><dt>Baseflow filter</dt><dd>Lyne–Hollick recursive digital filter (1979); 3 passes; default α = 0.925.</dd></div>
   <div class="prov-item"><dt>Storm comparison model</dt><dd>SCS curve-number runoff fraction convolved with gamma UH.</dd></div>
@@ -660,6 +679,16 @@ select:focus { outline:1px solid var(--cyan); }
 <script>
 (function () {
   'use strict';
+
+  /* ──────────────────────────────────────────────────────────────────
+     whenReady — polls until window.aihydro is injected by the bridge
+     ────────────────────────────────────────────────────────────────── */
+  function whenReady(fn) {
+    if (window.aihydro) { fn(); return; }
+    var t = setInterval(function () {
+      if (window.aihydro) { clearInterval(t); fn(); }
+    }, 50);
+  }
 
   /* ──────────────────────────────────────────────────────────────────
      CORE DATA: 96-hour synthetic event used by Sections 2 & 3
@@ -1368,9 +1397,91 @@ select:focus { outline:1px solid var(--cyan); }
     refresh();
     select.addEventListener('change', function () {
       refresh();
-      if (window.aihydro && window.aihydro.rewriteCell) {
-        window.aihydro.rewriteCell('hydrograph-camels', function () { return src.textContent; }, false);
+      whenReady(function () {
+        if (window.aihydro.rewriteCell) {
+          window.aihydro.rewriteCell('hydrograph-camels', function () { return src.textContent; }, false);
+        }
+      });
+    });
+  })();
+
+  /* ──────────────────────────────────────────────────────────────────
+     bindParam — persist the BFI α slider value across reloads
+     ────────────────────────────────────────────────────────────────── */
+  whenReady(function () {
+    var slider = document.getElementById('alphaSlider');
+    if (!slider) return;
+    window.aihydro.bindParam('m3-bfi-alpha', parseFloat(slider.value), function (v) {
+      slider.value = v;
+      // fire input event so the existing redraw() picks up the restored value
+      slider.dispatchEvent(new Event('input'));
+      // keep tangle in sync
+      tangle.set('t-alpha', v);
+    });
+    // mirror slider changes into bindParam store
+    slider.addEventListener('input', function () {
+      if (window.aihydro && window.aihydro.bindParam) {
+        window.aihydro.bindParam('m3-bfi-alpha', parseFloat(slider.value), null);
       }
+    });
+  });
+
+  /* ──────────────────────────────────────────────────────────────────
+     Canonical .aihydro-quiz wiring — posts quizComplete → CourseNavigator
+     ────────────────────────────────────────────────────────────────── */
+  (function wireQuiz() {
+    var quiz = document.getElementById('m3-quiz');
+    if (!quiz) return;
+    var questions = quiz.querySelectorAll('.quiz-question');
+    var answered = new Array(questions.length).fill(false);
+    var correct  = new Array(questions.length).fill(false);
+
+    function tryComplete() {
+      if (!answered.every(Boolean)) return;
+      var allCorrect = correct.every(Boolean);
+      var score = correct.filter(Boolean).length / correct.length;
+      whenReady(function () {
+        window.aihydro.quiz({
+          moduleId: 'reading-a-hydrograph',
+          passed: allCorrect,
+          score: score
+        });
+      });
+      // belt-and-suspenders: also postMessage for any listener on the host
+      try {
+        window.parent.postMessage({
+          type: 'aihydro-quiz-complete',
+          moduleId: 'reading-a-hydrograph',
+          passed: allCorrect,
+          score: score
+        }, '*');
+      } catch (e) { /* cross-origin guard */ }
+    }
+
+    questions.forEach(function (qEl, qi) {
+      var answer  = parseInt(qEl.dataset.answer, 10);
+      var buttons = qEl.querySelectorAll('.quiz-btn');
+      var fb      = qEl.querySelector('.quiz-feedback');
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (answered[qi]) return;
+          answered[qi] = true;
+          var idx       = parseInt(btn.dataset.index, 10);
+          var isCorrect = (idx === answer);
+          correct[qi]   = isCorrect;
+          buttons.forEach(function (b) { b.disabled = true; b.style.cursor = 'default'; });
+          btn.classList.add(isCorrect ? 'correct' : 'incorrect');
+          if (fb) {
+            fb.textContent = (isCorrect ? '✓ ' : '✗ ') + (btn.dataset.feedback || '');
+            fb.style.color = isCorrect ? '#86efac' : '#fca5a5';
+          }
+          tryComplete();
+        });
+        /* keyboard: Enter / Space */
+        btn.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); btn.click(); }
+        });
+      });
     });
   })();
 
