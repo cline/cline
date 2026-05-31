@@ -84,11 +84,13 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param _controller The controller instance (unused)
  * @returns Record of model ID to ModelInfo (application types)
  */
-// TODO(sdk-consolidation): Live-fetches Vercel AI Gateway's /models endpoint,
-// which the CLI lacks and the SDK does not yet cover. Register `modelsSourceUrl`
-// for vercel-ai-gateway in the SDK (sdk/packages/llms/src/providers/builtins.ts)
-// so all clients share one fetch path via `resolveProviderConfig`/
-// `useProviderModels`, then delete this extension-only handler + its RPC.
+// TODO(sdk-consolidation): Live-fetches Vercel AI Gateway's /models endpoint and
+// parses live pricing/context/thinking config. The SDK's generic models-URL
+// fetcher returns ids-only and (for providers with a registered modelsSourceUrl)
+// REPLACES rather than merges the curated catalog, so a naive migration would
+// regress metadata. See the detailed note in refreshGroqModels.ts; share via the
+// SDK + delete this handler + RPC once the SDK supports rich/merged per-provider
+// live models for all clients (incl. CLI).
 export async function refreshVercelAiGatewayModels(_controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("vercel")
