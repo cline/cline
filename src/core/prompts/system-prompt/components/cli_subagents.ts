@@ -18,6 +18,19 @@ You must use the following command syntax for creating AI-Hydro agents:
 aihydro "your prompt here"
 \`\`\`
 
+To use a named capability profile, add \`--profile <name>\` after the prompt:
+
+\`\`\`bash
+aihydro "your prompt here" --profile explorer
+\`\`\`
+
+**Available profiles:**
+
+- **\`explorer\`** — Read-only research subagent. Write tools (\`write_to_file\`, \`replace_in_file\`, \`execute_command\`, \`browser_action\`, \`new_task\`) are physically blocked — not just discouraged. Use this when you want a safe, read-only research pass over a codebase or file tree.
+- **\`data-runner\`** — (future) Adds data-fetching and MCP tool access to the read-only base.
+
+If no \`--profile\` is given, the subagent runs with the default toolset (same as the parent agent's allowed tools).
+
 ## Structured result
 
 Each subagent is automatically assigned a job ID and a result file path. The subagent writes a JSON result to that path before finishing (summary, files_read, key_findings), and AI-Hydro surfaces it directly in the tool response — you do not need to parse terminal output manually. If the subagent did not write a result file, the raw terminal output is returned instead.
@@ -27,8 +40,11 @@ To cancel a running subagent job, use the cancel_job MCP tool with the job ID sh
 ## Examples of how you might use this tool
 
 \`\`\`bash
-# Find specific patterns
+# Find specific patterns (unrestricted)
 aihydro "find all React components that use the useState hook and list their names"
+
+# Safe read-only research pass (explorer profile — writes are physically blocked)
+aihydro "analyze the authentication flow and summarize how it works" --profile explorer
 
 # Analyze code structure
 aihydro "analyze the authentication flow. Reverse trace through all relevant functions and methods, and provide a summary of how it works. Include file/class references in your summary."
