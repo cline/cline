@@ -130,6 +130,7 @@ Module.prototype.require = function (path: string) {
 			},
 			ProviderSettingsManager,
 			resolveProviderConfig: async () => undefined,
+			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),

@@ -38,6 +38,11 @@ const huggingFaceModels = getHuggingFaceSdkModels()
  * @param request Empty request object
  * @returns Response containing the Hugging Face models
  */
+// TODO(sdk-consolidation): Live-fetches HuggingFace's /models endpoint, which
+// the CLI lacks and the SDK does not yet cover. Register `modelsSourceUrl` for
+// HuggingFace in the SDK (sdk/packages/llms/src/providers/builtins.ts) so all
+// clients share one fetch path via `resolveProviderConfig`/`useProviderModels`,
+// then delete this extension-only handler + its RPC.
 export async function refreshHuggingFaceModels(
 	_controller: Controller,
 	_request: EmptyRequest,
