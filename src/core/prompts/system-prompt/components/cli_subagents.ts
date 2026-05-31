@@ -15,26 +15,32 @@ AI-Hydro agents may be referred to as agents, subagents, or subtasks. Requests m
 You must use the following command syntax for creating AI-Hydro agents:
 
 \`\`\`bash
-cline "your prompt here"
+aihydro "your prompt here"
 \`\`\`
+
+## Structured result
+
+Each subagent is automatically assigned a job ID and a result file path. The subagent writes a JSON result to that path before finishing (summary, files_read, key_findings), and AI-Hydro surfaces it directly in the tool response — you do not need to parse terminal output manually. If the subagent did not write a result file, the raw terminal output is returned instead.
+
+To cancel a running subagent job, use the cancel_job MCP tool with the job ID shown in the tool response.
 
 ## Examples of how you might use this tool
 
 \`\`\`bash
 # Find specific patterns
-cline "find all React components that use the useState hook and list their names"
+aihydro "find all React components that use the useState hook and list their names"
 
 # Analyze code structure
-cline "analyze the authentication flow. Reverse trace through all relevant functions and methods, and provide a summary of how it works. Include file/class references in your summary."
+aihydro "analyze the authentication flow. Reverse trace through all relevant functions and methods, and provide a summary of how it works. Include file/class references in your summary."
 
 # Gather targeted information
-cline "list all API endpoints and their HTTP methods"
+aihydro "list all API endpoints and their HTTP methods"
 
 # Summarize directories
-cline "summarize the purpose of all files in the src/services directory"
+aihydro "summarize the purpose of all files in the src/services directory"
 
 # Research implementations
-cline "find how error handling is implemented across the application"
+aihydro "find how error handling is implemented across the application"
 \`\`\`
 
 ## Tips
@@ -44,7 +50,7 @@ cline "find how error handling is implemented across the application"
 - If files you want to read are large or complicated, use AI-Hydro CLI agents for exploration before instead of reading these files.`
 
 export async function getCliSubagentsSection(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
-	// If this is a CLI subagent, don't include CLI subagent instructions to prevent nesting/allignment concerns
+	// If this is a CLI subagent, don't include CLI subagent instructions to prevent nesting/alignment concerns
 	if (context.isCliSubagent) {
 		return undefined
 	}

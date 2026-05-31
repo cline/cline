@@ -73,6 +73,7 @@ import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
+import * as fs from "fs"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
@@ -80,7 +81,12 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { isSubagentCommand, transformAiHydroCommand } from "@/integrations/cli-subagents/subagent_command"
+import {
+	isSubagentCommand,
+	prepareSubagentCommand,
+	type SubagentJob,
+	transformAiHydroCommand,
+} from "@/integrations/cli-subagents/subagent_command"
 import { AiHydroError, AiHydroErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -1207,11 +1213,17 @@ export class Task {
 	}
 
 	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
-		// For AI-Hydro CLI subagents, we want to parse and process the command to ensure flags are correct
+		// For AI-Hydro CLI subagents: prepare a job (result dir, augmented prompt, flags).
 		const isSubagent = isSubagentCommand(command)
-
-		if (transformAiHydroCommand(command) !== command && isSubagent) {
-			command = transformAiHydroCommand(command)
+		let subagentJob: SubagentJob | null = null
+		if (isSubagent) {
+			subagentJob = prepareSubagentCommand(command)
+			if (subagentJob) {
+				command = subagentJob.command
+			} else {
+				// fallback: just inject flags without job tracking
+				command = transformAiHydroCommand(command)
+			}
 		}
 
 		const subAgentStartTime = isSubagent ? performance.now() : 0
@@ -1250,6 +1262,21 @@ export class Task {
 
 		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
+
+		// Persist shell PID for cancel_job support (Python reads ~/.aihydro/subagents/<jobId>/pid)
+		if (subagentJob) {
+			const _job = subagentJob
+			terminalInfo.terminal.processId.then((pid) => {
+				if (pid) {
+					try {
+						fs.writeFileSync(path.join(_job.resultDir, "pid"), String(pid))
+					} catch {
+						// non-fatal
+					}
+				}
+			})
+		}
+
 		const process = terminalManager.runCommand(terminalInfo, command)
 
 		// Track command execution for both terminal modes
@@ -1540,6 +1567,34 @@ export class Task {
 		}
 
 		if (completed) {
+			// For subagents: try to surface structured result.json written by the subagent.
+			if (isSubagent && subagentJob) {
+				const _job = subagentJob
+				// Mark status complete
+				try {
+					const statusPath = path.join(_job.resultDir, "status.json")
+					const existing = JSON.parse(fs.readFileSync(statusPath, "utf8"))
+					existing.status = "complete"
+					existing.updated_at = new Date().toISOString()
+					fs.writeFileSync(statusPath, JSON.stringify(existing, null, 2))
+				} catch {
+					// non-fatal
+				}
+				// Read structured result if the subagent wrote one
+				try {
+					const structured = JSON.parse(fs.readFileSync(path.join(_job.resultDir, "result.json"), "utf8"))
+					return [
+						false,
+						`Subagent completed (job_id: ${_job.jobId}).\n\nStructured result:\n${JSON.stringify(structured, null, 2)}${result.length > 0 ? `\n\nFull terminal output:\n${result}` : ""}`,
+					]
+				} catch {
+					// result.json not written — fall back to plain output with job_id note
+					return [
+						false,
+						`Subagent completed (job_id: ${_job.jobId}).${result.length > 0 ? `\nOutput:\n${result}` : ""}`,
+					]
+				}
+			}
 			return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
 		} else {
 			return [
