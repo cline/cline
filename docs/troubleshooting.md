@@ -324,6 +324,49 @@ Install `aihydro-tools` inside WSL (not on Windows), using the WSL Python. The e
 
 ---
 
+## HTML Preview — Manim Video Cells
+
+### Manim cell shows "Manim is not installed"
+
+Manim is an optional dependency. Install it in the active kernel environment:
+
+```bash
+pip install manim
+```
+
+Then restart the kernel via the **↻ kernel** button in the toolbar.
+
+### Manim cell errors with "No user-defined manim Scene subclass was found"
+
+Your cell body must define a class that subclasses `Scene`:
+
+```python
+from manim import *
+
+class MyScene(Scene):
+    def construct(self):
+        self.play(Create(Circle()))
+        self.wait(1)
+```
+
+Framework base classes imported via `from manim import *` (`MovingCameraScene`, `ThreeDScene`, etc.) are intentionally skipped — only classes you define in the cell are rendered.
+
+### Manim renders but produces a black or empty video
+
+Ensure `construct()` calls at least one `self.play()` or `self.wait()` so there are frames to encode. A scene with only attribute assignments produces no video.
+
+### Manim render is very slow
+
+Low-quality render (`480p 15fps`) is used by default. Complex scenes with many objects or long wait durations still take time. On first run the kernel is also pre-warming; subsequent runs of the same cell are faster.
+
+---
+
+## HTML Preview — `preview_list_modules` shows unexpected entries
+
+If `preview_list_modules` returns entries the agent doesn't recognise (e.g. `file_xxx` IDs or modules you've already closed), reload VS Code (`Cmd+Shift+P → Reload Window`). The session bridge purges all stale entries on every launch. Alternatively click **Clear all previews** in the preview sidebar — this also wipes the session state immediately.
+
+---
+
 ## Still stuck?
 
 Run `aihydro-mcp --diagnose`, copy the output, and open an issue at [github.com/AI-Hydro/AI-Hydro/issues](https://github.com/AI-Hydro/AI-Hydro/issues) with the `bug` label.

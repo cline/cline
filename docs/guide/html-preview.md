@@ -189,6 +189,106 @@ The manifest is also what the Skills marketplace uses to identify module artifac
 
 ---
 
+## Interactivity Primitives (`window.aihydro`)
+
+Every module gets a `window.aihydro` helper API injected by the cell bridge. All primitives are pure DOM (no kernel dependency) and respect `prefers-reduced-motion`.
+
+> **Important:** the API is injected *after* your module scripts run. Always guard calls with the built-in `whenReady` poll:
+> ```js
+> (function poll() {
+>   if (typeof window.aihydro === "undefined") return setTimeout(poll, 50);
+>   // safe to call aihydro.* here
+> })();
+> ```
+
+| Primitive | Best for |
+|---|---|
+| `aihydro.bindParam(cellId, name, el, opts)` | Sliders / inputs that re-run a cell with new values |
+| `aihydro.timeline({ mount, steps, fps, onTick })` | Step-through or animated explainers |
+| `aihydro.compare(selector)` | Before/after wipe between two figures or maps |
+| `aihydro.sim({ canvas, step, params })` | rAF loop over a `<canvas data-aihydro-sim>` |
+| `aihydro.plot({ mount, data, layout })` | Branded Plotly chart (lazy-loads from CDN) |
+| `aihydro.scene3d({ canvas, dem, setup, onFrame })` | 3D terrain / watershed flythrough via three.js |
+| `aihydro.quiz(opts)` | Programmatic quiz (thin alias for `.aihydro-quiz` markup) |
+| `aihydro.reveal(el)` | Unhide a block (for step-gated reveals) |
+| `aihydro.scrolly(config)` | Scroll-triggered section activation |
+| `aihydro.rewriteCell(cellId, code)` | Replace a cell's source and re-run it |
+
+Full markup contracts and copy-paste recipes are in [Interactive Module Cell Format](../html-preview-cells.md) and the `interactive-module-builder` skill's recipe cookbook.
+
+### three.js / scene3d version note
+
+`aihydro.scene3d` pins **three.js r128** (the last UMD release with a synchronous `examples/js/` module). **Do not** add your own `<script src="…three…">` tag — the bridge handles loading. `examples/jsm/` (ESM-only, r134+) is blocked by the `AI-Hydro: Validate Module` linter.
+
+---
+
+## Manim Video Cells
+
+A cell can produce a 3Blue1Brown-style cinematic animation by setting `data-aihydro-render="video"` (or `data-language="manim"`). Write it like a normal Python cell and define one or more Manim `Scene` subclasses in the body:
+
+```html
+<div class="aihydro-cell"
+     data-aihydro-cell-id="twi-anim"
+     data-language="python"
+     data-aihydro-render="video">
+  <button class="aihydro-run" type="button">Run</button>
+  <pre class="aihydro-source">from manim import *
+
+class TwiScene(Scene):
+    def construct(self):
+        title = Text("TWI = ln(a / tan β)").scale(0.8)
+        self.play(Write(title))
+        self.wait(1)</pre>
+  <div class="aihydro-output" aria-live="polite"></div>
+</div>
+```
+
+On run, the kernel renders each Scene to a low-quality MP4 and returns it as a `video/mp4` output; the bridge plays it inline in a `<video controls>` element. A **"Rendering animation…"** status message shows while it works.
+
+**Requirements:** `manim` in the active Python env. Install it with:
+
+```bash
+pip install manim
+```
+
+If Manim is absent the cell degrades gracefully — a friendly note is shown and the rest of the module continues to work. `ffmpeg` is bundled by Manim's PyAV dependency on most platforms; a separate ffmpeg install is not needed.
+
+> **Tip:** only `Scene` subclasses *defined in your cell* are rendered. Framework base classes imported by `from manim import *` (e.g. `MovingCameraScene`, `ThreeDScene`) are automatically skipped.
+
+---
+
+## Control-State Persistence
+
+Any input wired with `aihydro.bindParam(...)` has its value persisted automatically. When a learner closes the panel and reopens the same module they land on the same slider positions and parameter values instead of the authored defaults.
+
+- State is stored at `~/.aihydro/module_state/<moduleKey>.json`
+- The toolbar kebab menu (⋮) exposes **Reset controls to defaults** and **Copy control state** (copies current values as JSON for sharing)
+- No author action is required — the bridge handles load and save transparently
+
+---
+
+## Module Validator
+
+Run `AI-Hydro: Validate Module` (command palette) on any open HTML module to get an advisory lint report:
+
+| Code | Severity | What it checks |
+|---|---|---|
+| `MANIFEST_MISSING` | error | Module manifest `<script type="application/vnd.aihydro.module+json">` present and parses |
+| `CELL_NO_ID` | error | Every `.aihydro-cell` has a unique `data-aihydro-cell-id` |
+| `CELL_NO_LANG` | error | Every `.aihydro-cell` has `data-language` |
+| `CELL_DUP_ID` | error | No two cells share the same ID |
+| `VIDEO_NO_SCENE` | error | Manim cell defines at least one `Scene` subclass |
+| `PY_PLT_SHOW` | error | No `plt.show()` in Python cells (use figure outputs instead) |
+| `PY_FILE_IO` | error | No `open()` file I/O in Python cells |
+| `THREE_HARDCODED` | warning | No hardcoded `<script src="…three…">` tag |
+| `CDN_JSM_PATH` | error | No `examples/jsm/` CDN paths (ESM-only, breaks in UMD context) |
+| `CDN_FLOATING` | warning | No `@latest` CDN versions |
+| `SIM_NO_CALL` / `SCENE3D_NO_CALL` | warning | `<canvas data-aihydro-sim/scene3d>` has a matching `aihydro.sim/scene3d()` call |
+
+The validator is also integrated into the `interactive-module-builder` skill's pre-publication checklist.
+
+---
+
 ## Diagnostics Panel
 
 Click the ⚙ gear button to toggle the diagnostics panel below the iframe. It shows:
@@ -214,9 +314,36 @@ Shortcuts only fire when focus is inside the preview iframe.
 
 ---
 
+## Preview Session Bridge (for the agent)
+
+The extension mirrors live session state to `~/.aihydro/preview_session/` so the agent can observe what is open without a polling round-trip. The `aihydro-tools` MCP server exposes:
+
+| Tool | What it returns |
+|---|---|
+| `preview_list_modules()` | Module IDs currently open (e.g. `["terrain-to-wetness-twi"]`) |
+| `preview_get_state(module_id?)` | Manifest, cell registry (IDs + last-run status), recent errors |
+| `preview_recent_events(module_id?, since_seq?, kind_filter?)` | Ring-buffered event stream |
+| `preview_focus_cell(module_id, cell_id)` | Scroll and highlight a specific cell |
+| `preview_revise_section(module_id, section_id, new_html)` | Apply a targeted HTML edit |
+
+Session files are ephemeral — they are purged on every VS Code launch and cleaned up when a module is closed, so the agent never sees stale entries from previous sessions.
+
+---
+
 ## Roadmap
 
-- **Cell dependency graph** — `dependsOn` field in cell JSON metadata will allow graph-ordered execution
-- **Variable inspector** — inspect Python variables in the kernel without writing `print()` calls
+### Delivered in v0.2.x
+- ✅ **Interactivity primitives** — `timeline`, `compare`, `sim`, `plot`, `scene3d`, `bindParam`
+- ✅ **Manim video cells** — 3Blue1Brown-style animations rendered to inline MP4
+- ✅ **Control-state persistence** — slider values survive panel close/reopen
+- ✅ **Module validator** — deterministic lint command enforcing the 50-item module checklist
+- ✅ **Quiz → course progress wiring** — quiz completions increment the `CourseNavigator` ring
+- ✅ **Kernel pre-warm** — first cell executes without dead-air delay
+- ✅ **Preview session bridge** — MCP tools give the agent live visibility into the open panel
+- ✅ **Gold-standard exemplar modules** — master-recession-curve, flow-duration-curve, terrain-to-wetness-twi
+
+### Planned
+- **Cell dependency graph** — `dependsOn` field for graph-ordered execution
+- **Variable inspector** — inspect Python namespace without `print()` calls
 - **Multi-band GeoTIFF in cells** — render raster outputs inline in the output area
-- **Shared output store** — pass data between cells in different artifacts
+- **Shared output store** — pass data (arrays, GeoDataFrames) between cells in different artifacts

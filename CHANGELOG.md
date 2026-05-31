@@ -13,6 +13,149 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.2.5] — 2026-05-30
+
+### Fixed — Ghost file-ID session entries
+
+Eliminated the last source of duplicate / stale entries in `preview_list_modules`.
+Events fired before `manifest.loaded` (e.g. cell-status updates on module open) were
+written to disk under the VS Code internal file ID (`file_ef26b9af…`). Once
+`manifest.loaded` fired, a second correctly-named file was also written, leaving
+both on disk. Three-layer permanent fix:
+
+1. **Retroactive cleanup** — when `manifest.loaded` establishes the `fileId → moduleId`
+   mapping, any file-ID disk entry written earlier is immediately deleted.
+2. **Removal-time cleanup** — `removeHtmlPreview(id)` now resolves VS Code file IDs to
+   manifest module IDs via a pluggable `registerModuleIdResolver()` callback (registered
+   by `VscodeHtmlPreviewProvider.initialize()`) and clears both the module-ID session and
+   any leftover file-ID disk files when a tab is closed.
+3. **`cleanupDiskFiles(id)`** extracted from `clearModule()` for reuse in both paths.
+
+---
+
+## [0.2.4] — 2026-05-30
+
+### Fixed — Manim namespace pollution (root cause of "produced no MP4")
+
+`from manim import *` injects 6 framework `Scene` subclasses (`MovingCameraScene`,
+`ThreeDScene`, `VectorScene`, `ZoomedScene`, …) into the cell namespace. The renderer
+was iterating every `Scene` subclass and calling `.render()` on `MovingCameraScene`
+first — it has no `construct()`, emits no frames, and the render finished with an empty
+media directory before the user's scene was ever attempted. Fixed by filtering on
+`obj.__module__ == namespace["__name__"]` — only classes *defined in the executed cell*
+are rendered. Also:
+
+- Each Scene now renders into its own fresh `tempfile.TemporaryDirectory()` to avoid
+  cross-scene glob collisions.
+- Final MP4 is chosen by preferring candidates outside `partial_movie_files/` so the
+  assembled movie, not an intermediate chunk, is returned.
+
+### Fixed — Session-file accumulation (permanent)
+
+`~/.aihydro/preview_session/` and `~/.aihydro/preview_events/` are ephemeral live-state
+directories but were never cleaned, causing unlimited growth and stale cross-session
+entries. Fixed:
+
+- `PreviewSessionService` now purges both directories in its constructor — every VS Code
+  launch starts with a clean slate.
+- `clearAll()` added (called by "Clear all previews") wipes both in-memory and on-disk
+  state instantly.
+- `clearModule()` refactored to call the shared `cleanupDiskFiles()` helper.
+
+---
+
+## [0.2.3] — 2026-05-30
+
+### Fixed — `preview_list_modules` returning VS Code file IDs
+
+`preview_list_modules()` was listing entries like `file_0155f6f2094bdd2f` instead of
+`terrain-to-wetness-twi`. Root cause: the webview reports `item.id` (the VS Code
+artifact registry ID) as `moduleId` for every event. `PreviewSessionService` was writing
+session files under that opaque ID. Fixed with a `fileIdToModuleId: Map<string, string>`
+in `VscodeHtmlPreviewProvider`. The first `manifest.loaded` event carries the manifest's
+canonical `id`; subsequent events for the same panel are resolved through the map before
+`appendEvent` is called.
+
+### Fixed — Manim `FileNotFoundError: movie_file_path`
+
+`scene.renderer.file_writer.movie_file_path` is unreliable across Manim CE versions and
+can point to a path that differs from where the file actually landed. Fixed by globbing
+the temp dir for `*.mp4` after render and falling back to `movie_file_path` only when
+glob finds nothing.
+
+---
+
+## [0.2.2] — 2026-05-30
+
+### Added — Unified Learners' Hub (HTML Preview Phases 1–4)
+
+A comprehensive upgrade to the HTML Preview panel turning it into a polished
+"learners' hub": tighter first-run UX, a reusable interactivity block layer,
+Manim video cells, 3D/manipulable simulations, deterministic module validation,
+and a live agent↔preview session bridge.
+
+#### Phase 1 — Foundations
+
+- **Quiz → course-progress wiring** — `.aihydro-quiz` radio blocks now post
+  `aihydro-quiz-complete` on pass; the host wires this to `courseProgress.markComplete()`.
+  `aihydro.quiz()` is a back-compat alias that normalises legacy `aihydro-question` markup.
+  Completion % now surfaces in `CourseNavigator` and `CourseHeader`.
+- **Kernel pre-warm** — kernel session starts and pre-imports numpy/matplotlib as soon as
+  a module opens, so the first cell executes without a cold-start delay. Per-cell status
+  cycles through `queued → warming → running → done/error` (animated stripe + status pill).
+- **Control-state persistence** — `bindParam` values are persisted to
+  `~/.aihydro/module_state/<key>.json`. Module reloads restore saved state. Toolbar kebab
+  menu adds **Reset controls to defaults** and **Copy control state**.
+- **`AI-Hydro: Validate Module` command** — `validateModule.ts` encodes the
+  `interactive-module-builder` 50-item checklist as code: manifest, cell IDs/languages,
+  Python cell anti-patterns, CDN version pinning, sim/scene3d canvas wiring, Manim Scene
+  subclass presence. Advisory findings listed by error code; integrated into the skill's
+  pre-publication step.
+
+#### Phase 2 — Interactivity primitives
+
+All primitives injected into `window.aihydro` via the cell bridge; pure DOM, no kernel
+dependency, `prefers-reduced-motion` aware:
+
+- **`aihydro.timeline()`** — play/pause/step/scrub control over N animation frames;
+  drives `bindParam` slots or custom `onTick` callbacks.
+- **`aihydro.compare(selector)`** — before/after wipe slider over an `.aihydro-compare`
+  block (first child = before, second = after).
+- **`aihydro.sim({ canvas, step, params })`** — `requestAnimationFrame` loop over a
+  `<canvas data-aihydro-sim>` for real-time hydrology simulations (e.g. rain → hydrograph).
+- **`aihydro.plot({ mount, data, layout })`** — branded Plotly wrapper; lazy-loads
+  Plotly from the CSP-whitelisted CDN and applies the AI-Hydro dark palette.
+
+#### Phase 3 — Manim video cells
+
+- `data-aihydro-render="video"` (or `data-language="manim"`) on a `.aihydro-cell` marks it
+  as a video cell.
+- Kernel renders each user-defined `Scene` to a low-quality MP4, returns it as
+  `video/mp4` base64 output. Bridge plays it inline in `<video controls>`.
+- Graceful degradation when Manim/ffmpeg absent — rest of module still works.
+- `media-src` directive added to CSP (`buildPreviewCsp.ts`).
+
+#### Phase 4 — 3D / manipulable simulations
+
+- **`aihydro.scene3d({ canvas, dem, setup, onFrame })`** — three.js helper for terrain
+  flythroughs, 3D DEM/TWI surfaces, watershed views. Lazy-loads three.js **r128** (pinned
+  UMD release) from the CSP-whitelisted jsdelivr CDN. `setup(ctx)` receives a branded
+  `{ THREE, scene, camera, renderer, controls, canvas, dem }` context; `onFrame(ctx)` runs
+  per animation frame. Reduced-motion renders a single static frame.
+
+#### Skill + exemplars
+
+- `interactive-module-builder` skill bumped to v0.3.0: added INTERACTIVITY PRIMITIVES
+  section (decision matrix, exact API contracts, anti-patterns), MANIM VIDEO CELLS
+  section, pre-publish checklist lines for all new primitives.
+- Recipe cookbook added (`assets/recipes/`): one verified, pinned snippet per primitive.
+- Three gold-standard exemplar modules published:
+  - **master-recession-curve** — timeline + sim + bindParam
+  - **flow-duration-curve** — Plotly + compare + bindParam
+  - **terrain-to-wetness-twi** — scene3d + compare + Manim video
+
+---
+
 ## [0.2.0] — 2026-05-25
 
 A focused release on the HTML Preview panel: full course-mode (multi-module

@@ -1,43 +1,53 @@
 ---
-description: AI-Hydro project roadmap — current beta status, known limitations, and planned features for v0.2, v0.3, and v1.0.
+description: AI-Hydro project roadmap — current status, shipped features, and planned work for v0.3 and v1.0.
 ---
 
 # Roadmap
 
-!!! tip "Project Status: Beta (v0.1.x)"
-    Core APIs are stable. New tools and features are being added regularly.
-    Not yet recommended for production pipelines without pinned versions.
-    Breaking changes before v1.0 will be documented in the [Changelog](changelog.md).
+!!! tip "Project Status: Beta (v0.2.5)"
+    The extension and Python backend are stable for interactive research and learning.
+    New capabilities are added incrementally; breaking changes before v1.0 will be
+    documented in the [Changelog](changelog.md).
 
 ---
 
-## Current Version — v0.1.4
+## Current Version — v0.2.5
 
-**Extension:** v0.1.4 · **Python backend:** aihydro-tools v1.2.1
+**Extension:** v0.2.5 · **Python backend:** aihydro-tools v1.7.0+
 
 ### What's stable
+
 - All 28 built-in MCP tools (analysis, modelling, session, project, literature, persona)
+- HTML Preview panel with full interactive-module execution environment
+- Course mode: guided learning paths with prerequisites and progress tracking
+- `window.aihydro` interactivity primitives (timeline, compare, sim, plot, scene3d, bindParam)
+- Manim video cells (3Blue1Brown-style animations rendered to inline MP4)
+- Control-state persistence (slider values survive panel close/reopen)
+- `AI-Hydro: Validate Module` command (deterministic lint against the 50-item checklist)
+- Live agent↔preview session bridge (`preview_list_modules`, `preview_get_state`, etc.)
+- Module marketplace with contributor recognition
 - HydroSession, ProjectSession, ResearcherProfile persistence
 - Plugin entry-point system (`aihydro.tools`)
-- VS Code extension auto-registration
-- GitHub Pages documentation
 
 ### Known limitations
+
 - USGS-gauge-centric data tools — non-USGS international gauges require custom scripts
 - PDF extraction requires text-layer PDFs (scanned images not supported)
 - LSTM modelling requires CAMELS gauges (static attributes dependency)
 - `xrspatial` not available on Python 3.13 — `extract_geomorphic_parameters` requires conda-installed `xarray-spatial`; TWI is unaffected (uses `pysheds`)
+- Manim render speed scales with animation length — complex scenes can take 10–60 s on first run
 
 ---
 
 ## Near-term — v0.2.x
 
-- [ ] Terminal recording (asciinema/vhs) embedded on home page
-- [ ] Screenshot gallery of VS Code extension in action
-- [ ] Case study: multi-basin CAMELS comparison with provenance export
-- [ ] `search_experiments` natural language improvements
-- [ ] Improved PDF extraction (OCR fallback for scanned PDFs)
+- [ ] Cell dependency graph — `dependsOn` field for graph-ordered execution
+- [ ] Variable inspector — inspect Python namespace without `print()` calls
+- [ ] Multi-band GeoTIFF in cells — render raster outputs inline in the output area
+- [ ] Shared output store — pass arrays / GeoDataFrames between cells in different artifacts
 - [ ] Windows PATH auto-detection improvements in extension
+- [ ] Terminal recording (asciinema/vhs) on the documentation home page
+- [ ] Screenshot gallery of VS Code extension in action
 
 ---
 
@@ -45,9 +55,10 @@ description: AI-Hydro project roadmap — current beta status, known limitations
 
 - [ ] International gauge support (GRDC, Global Runoff Database)
 - [ ] Interactive provenance viewer in VS Code sidebar
-- [ ] Automated session diff — detect what changed between runs
+- [ ] Automated session diff — detect what changed between analysis runs
 - [ ] Community plugin registry page (curated list with install commands)
 - [ ] `aihydro-rag` optional semantic literature search package
+- [ ] Case study: multi-basin CAMELS comparison with provenance export
 
 ---
 
