@@ -37,7 +37,7 @@
 		},
 		{
 			"id": "sdk-telemetry-doc-update",
-			"rule": "Any PR that adds new event constants to CORE_TELEMETRY_EVENTS in packages/core/src/services/telemetry/core-events.ts, adds new capture* helper functions, or changes the payload shape of an existing event must update the Event Catalog section in packages/core/docs/telemetry.md. Flag PRs that modify core-events.ts without a corresponding change to packages/core/docs/telemetry.md.",
+			"rule": "Any PR that adds new event constants to CORE_TELEMETRY_EVENTS in packages/core/src/services/telemetry/core-events.ts, adds new capture* helper functions, or changes the payload shape of an existing event must update the Event Catalog section in DOC.md. Flag PRs that modify core-events.ts without a corresponding change to DOC.md.",
 			"scope": ["packages/core/src/services/telemetry/core-events.ts"],
 			"severity": "medium"
 		}
