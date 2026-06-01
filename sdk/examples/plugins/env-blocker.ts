@@ -5,9 +5,9 @@
  * model can ignore. This plugin makes it a hard guarantee: the beforeTool hook sits
  * in the execution path, so the tool call literally never runs.
  *
- * It blocks every way an agent could reach a secret env file:
- *   - read_files / editor  -> file path access
- *   - run_commands         -> shell commands like `cat .env` or `source .env.production`
+ * It blocks every way an agent could read a secret env file:
+ *   - read_files    -> file path access
+ *   - run_commands  -> shell commands like `cat .env` or `source .env.production`
  *
  * Template files (.env.example, .env.sample, .env.template) stay readable.
  *
@@ -95,7 +95,6 @@ const plugin: AgentPlugin = {
 
 			switch (toolCall.toolName) {
 				case "read_files":
-				case "editor":
 					blocked = collectPaths(input).find(isEnvFile);
 					break;
 				case "run_commands":
