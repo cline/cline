@@ -1,4 +1,4 @@
-import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayTool, TurnState } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 
 /**
@@ -350,4 +350,58 @@ export function getButtonConfigForMessages(messages: ClineMessage[], mode: Mode 
 	}
 
 	return BUTTON_CONFIGS.default
+}
+
+/**
+ * Authoritative button configuration derived from the backend-owned TurnState (see
+ * apps/vscode/src/sdk/docs/webview-message-state-design.md §5/§6). This is the preferred path:
+ * the UI mode is read from `turnState.phase`, never inferred from the tail of the message array.
+ *
+ * The button SET is chosen by phase; the LABEL/variant for approvals (Save vs Approve, command
+ * vs tool vs MCP vs subagents) comes from the anchored message (turnState.anchorTs).
+ */
+export function buttonsForPhase(turnState: TurnState, anchoredMessage: ClineMessage | undefined): ButtonConfig {
+	switch (turnState.phase) {
+		case "idle":
+			return BUTTON_CONFIGS.default
+		case "streaming":
+			return BUTTON_CONFIGS.partial
+		case "completed":
+			return BUTTON_CONFIGS.completion_result
+		case "resumable":
+			return BUTTON_CONFIGS.resume_task
+		case "error":
+			// The anchored message distinguishes mistake_limit (Proceed/New Task) from a failed
+			// API request (Retry/New Task). Default to the retry config.
+			if (anchoredMessage?.type === "ask" && anchoredMessage.ask === "mistake_limit_reached") {
+				return BUTTON_CONFIGS.mistake_limit_reached
+			}
+			return BUTTON_CONFIGS.api_req_failed
+		case "awaiting_followup":
+			// followup / plan_mode_respond — input enabled, no approve/reject buttons. (If the
+			// anchored message is a recognized ask, defer to its config for correct labels.)
+			return anchoredMessage ? getButtonConfig(anchoredMessage, "act") : BUTTON_CONFIGS.followup
+		case "awaiting_approval":
+			// Approve/Reject (or Run Command / Save / etc.) — driven by the anchored ask so the
+			// labels match the tool kind. Falls back to generic tool approval.
+			return anchoredMessage ? getButtonConfig(anchoredMessage, "act") : BUTTON_CONFIGS.tool_approve
+		default:
+			return BUTTON_CONFIGS.default
+	}
+}
+
+/**
+ * Single entry point for button config. Uses the authoritative TurnState when present (SDK
+ * path); otherwise falls back to the legacy tail-walking heuristic (classic/older state).
+ */
+export function getButtonConfigFromState(
+	messages: ClineMessage[],
+	turnState: TurnState | undefined,
+	mode: Mode = "act",
+): ButtonConfig {
+	if (turnState) {
+		const anchored = turnState.anchorTs !== undefined ? messages.find((m) => m.ts === turnState.anchorTs) : undefined
+		return buttonsForPhase(turnState, anchored)
+	}
+	return getButtonConfigForMessages(messages, mode)
 }
