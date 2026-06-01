@@ -47,6 +47,18 @@ export interface ExtensionState {
 	mode: Mode
 	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
+	/**
+	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
+	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
+	 * ignored. Stamped by the extension. Optional for classic/legacy.
+	 */
+	stateVersion?: number
+	/**
+	 * Conversation/replica fence for this snapshot (see ClineMessage.epoch). A snapshot with a
+	 * newer epoch replaces the webview transcript; an older one is dropped; an equal one merges.
+	 * Optional for classic/legacy.
+	 */
+	epoch?: number
 	currentTaskItem?: HistoryItem
 	mcpMarketplaceEnabled?: boolean
 	mcpDisplayMode: McpDisplayMode
@@ -120,6 +132,19 @@ export interface ClineMessage {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	/**
+	 * Freshness counter for convergent-replica merging on the webview side. Monotonically
+	 * increasing per process; a higher `seq` means a newer copy of the SAME `ts` (identity).
+	 * Stamped by the extension as the message flows to the webview. See
+	 * apps/vscode/src/sdk/docs/webview-message-state-design.md. Optional for classic/legacy.
+	 */
+	seq?: number
+	/**
+	 * Conversation/replica fence. Messages from an older epoch (a previous task or a previous
+	 * render of the same task) are dropped by the webview. Stamped by the extension. Optional
+	 * for classic/legacy.
+	 */
+	epoch?: number
 	commandCompleted?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
