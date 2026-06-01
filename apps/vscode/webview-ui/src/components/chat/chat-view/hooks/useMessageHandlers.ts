@@ -96,18 +96,17 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}
 					}
 				} else if (messages.length > 0) {
-					// No clineAsk set. There are two reasons to still route this to the active
-					// session as a follow-up rather than dropping it:
+					// No clineAsk set, but there is an existing conversation. Route this to the
+					// active session as a follow-up when either:
 					//
-					//   1. TurnState says the conversation is continuable. After a turn ends the SDK
-					//      no longer synthesizes a trailing ask:"completion_result" (that "must be
-					//      last" hack was removed), so clineAsk is undefined even though the user can
-					//      keep talking. We read the authoritative turnState instead: phases
-					//      "completed" / "awaiting_followup" mean "send a follow-up to continue".
-					//      Without this, Enter after completion fell through to nothing (or, if the
-					//      transcript was ever emptied, started a brand-new task). See design doc §11.
-					//
-					//   2. Legacy fallback: the task looks actively running from the message tail.
+					//   1. The authoritative turnState says the conversation is continuable —
+					//      phases "completed" / "awaiting_followup" (the agent finished or is
+					//      waiting for the user) or "streaming" (interrupt with feedback). The SDK
+					//      does not emit a trailing ask:"completion_result", so clineAsk is
+					//      undefined even when the user can keep talking; turnState is the source
+					//      of truth.
+					//   2. Legacy fallback (no turnState): the task looks actively running from the
+					//      message tail.
 					const lastMessage = messages[messages.length - 1]
 					const isTaskRunning =
 						lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")

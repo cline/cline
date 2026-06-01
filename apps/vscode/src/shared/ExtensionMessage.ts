@@ -51,7 +51,6 @@ export interface ExtensionState {
 	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
 	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
 	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).
-	 * See apps/vscode/src/sdk/docs/webview-message-state-design.md §5.
 	 */
 	turnState?: TurnState
 	/**
@@ -130,7 +129,7 @@ export interface ExtensionState {
 }
 
 /**
- * The authoritative UI mode for the current agent turn (see design doc §5). The webview reads
+ * The authoritative UI mode for the current agent turn, owned by the extension. The webview reads
  * this instead of inferring mode from the tail of clineMessages.
  */
 export type TurnPhase =
@@ -163,8 +162,7 @@ export interface ClineMessage {
 	/**
 	 * Freshness counter for convergent-replica merging on the webview side. Monotonically
 	 * increasing per process; a higher `seq` means a newer copy of the SAME `ts` (identity).
-	 * Stamped by the extension as the message flows to the webview. See
-	 * apps/vscode/src/sdk/docs/webview-message-state-design.md. Optional for classic/legacy.
+	 * Stamped by the extension as the message flows to the webview. Optional for classic/legacy.
 	 */
 	seq?: number
 	/**

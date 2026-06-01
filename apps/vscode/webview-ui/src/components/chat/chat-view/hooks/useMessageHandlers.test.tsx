@@ -78,7 +78,7 @@ const completedConversation: ClineMessage[] = [
 	{ ts: 2, type: "say", say: "completion_result", text: "all done" },
 ]
 
-describe("useMessageHandlers — send routing (design doc §11, Symptom B)", () => {
+describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
 		newTask.mockClear()
 		askResponse.mockClear()

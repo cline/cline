@@ -766,11 +766,14 @@ export class Controller {
 		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
+		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
+		this.messageTranslatorState.clearTurnOutcome()
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
 		this.turnStateTracker.set("streaming")
+		this.messageTranslatorState.clearTurnOutcome()
 		await this.taskStart.reinitExistingTaskFromId(taskId)
 	}
 
@@ -822,6 +825,8 @@ export class Controller {
 		// session-event coordinator will set the terminal phase (completed/awaiting_followup/error)
 		// when this turn ends.
 		this.turnStateTracker.set("streaming")
+		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
+		this.messageTranslatorState.clearTurnOutcome()
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
 	}
 

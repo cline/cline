@@ -71,8 +71,7 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 
 	// FIRE-AND-FORGET: do not await delivery to the webview (it may be hidden/reloaded/closed
 	// and postMessage can hang or resolve false). The webview reconciles convergently from
-	// whatever state snapshots it receives, gated by stateVersion/epoch. See
-	// webview-message-state-design.md §3, §6.
+	// whatever state snapshots it receives, gated by stateVersion/epoch.
 	for (const responseStream of activeStateSubscriptions) {
 		responseStream(
 			{
