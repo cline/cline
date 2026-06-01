@@ -2,8 +2,8 @@ import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -12,6 +12,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { parsePrice } from "../utils/pricingUtils"
 import { getModeSpecificFields, normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
@@ -35,9 +36,21 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 
+	// Model IDs fetched from the provider's /models endpoint
+	const [openAiModels, setOpenAiModels] = useState<string[]>([])
+
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
+
+	// Keep a manually-entered model ID selectable even if the provider doesn't list it
+	const modelOptions = useMemo(() => {
+		const ids = [...openAiModels]
+		if (selectedModelId && !ids.includes(selectedModelId)) {
+			ids.unshift(selectedModelId)
+		}
+		return ids
+	}, [openAiModels, selectedModelId])
 
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
@@ -65,11 +78,31 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						baseUrl,
 						apiKey,
 					}),
-				).catch((error) => {
-					console.error("Failed to refresh OpenAI models:", error)
-				})
+				)
+					.then((response) => {
+						setOpenAiModels(response?.values ?? [])
+					})
+					.catch((error) => {
+						console.error("Failed to refresh OpenAI models:", error)
+					})
 			}, 500)
 		}
+	}, [])
+
+	// Populate the model list on mount when the provider is already configured
+	useEffect(() => {
+		const baseUrl = apiConfiguration?.openAiBaseUrl
+		const apiKey = apiConfiguration?.openAiApiKey
+		if (baseUrl && apiKey) {
+			ModelsServiceClient.refreshOpenAiModels(OpenAiModelsRequest.create({ baseUrl, apiKey }))
+				.then((response) => {
+					setOpenAiModels(response?.values ?? [])
+				})
+				.catch((error) => {
+					console.error("Failed to refresh OpenAI models:", error)
+				})
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	return (
@@ -110,15 +143,42 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				providerName="OpenAI Compatible"
 			/>
 
-			<DebouncedTextField
-				initialValue={selectedModelId || ""}
-				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-				}
-				placeholder={"Enter Model ID..."}
-				style={{ width: "100%", marginBottom: 10 }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
+			{modelOptions.length > 0 ? (
+				<div className="mb-2.5">
+					<label htmlFor="openai-model-id">
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</label>
+					<DropdownContainer className="dropdown-container" zIndex={10}>
+						<VSCodeDropdown
+							className="w-full"
+							id="openai-model-id"
+							onChange={(e: any) =>
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+									e?.target?.value ?? "",
+									currentMode,
+								)
+							}
+							value={selectedModelId}>
+							{modelOptions.map((modelId) => (
+								<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
+									{modelId}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+					</DropdownContainer>
+				</div>
+			) : (
+				<DebouncedTextField
+					initialValue={selectedModelId || ""}
+					onChange={(value) =>
+						handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+					}
+					placeholder={"Enter Model ID..."}
+					style={{ width: "100%", marginBottom: 10 }}>
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</DebouncedTextField>
+			)}
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
