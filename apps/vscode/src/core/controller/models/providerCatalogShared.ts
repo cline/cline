@@ -145,7 +145,11 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 	return {
 		...(protoPatch.apiKey !== undefined ? { apiKey: protoPatch.apiKey } : {}),
 		...(protoPatch.baseUrl !== undefined ? { baseUrl: protoPatch.baseUrl } : {}),
-		...(Object.keys(protoPatch.headers).length > 0 ? { headers: { ...protoPatch.headers } } : {}),
+		...(protoPatch.clearHeaders
+			? { headers: {} }
+			: Object.keys(protoPatch.headers ?? {}).length > 0
+				? { headers: { ...protoPatch.headers } }
+				: {}),
 		...(protoPatch.region !== undefined ? { region: protoPatch.region } : {}),
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
