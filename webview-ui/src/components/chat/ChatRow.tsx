@@ -341,6 +341,8 @@ export const ChatRowContent = memo(
 
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
+		// Long shell commands collapse to a one-line summary by default to keep the chat compact.
+		const [isCommandExpanded, setIsCommandExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
@@ -977,10 +979,10 @@ export const ChatRowContent = memo(
 
 			const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
 			const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
-			const showCancelButton =
-				(isCommandExecuting || isCommandPending) &&
-				typeof onCancelCommand === "function" &&
-				vscodeTerminalExecutionMode === "backgroundExec"
+			// The stop button is offered in BOTH terminal modes: backgroundExec kills the
+			// real process, vscodeTerminal sends Ctrl+C + detaches. Previously gating this to
+			// backgroundExec left default-mode users with no way to cancel a hung command.
+			const showCancelButton = (isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function"
 
 			// Check if this is a AI-Hydro subagent command
 			const isSubagentCommand = command.trim().startsWith("aihydro ")
@@ -1103,14 +1105,9 @@ export const ChatRowContent = memo(
 										<button
 											onClick={(e) => {
 												e.stopPropagation()
-												if (vscodeTerminalExecutionMode === "backgroundExec") {
-													onCancelCommand?.()
-												} else {
-													// For regular terminal mode, show a message
-													alert(
-														"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-													)
-												}
+												// Works in both modes now: backgroundExec kills the process,
+												// vscodeTerminal sends Ctrl+C + detaches the listener.
+												onCancelCommand?.()
 											}}
 											onMouseEnter={(e) => {
 												e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
@@ -1164,13 +1161,48 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)} */}
-						{!isSubagentCommand && (
-							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-								</div>
-							</div>
-						)}
+						{!isSubagentCommand &&
+							(() => {
+								const commandLines = command.split("\n")
+								const isLongCommand = commandLines.length > 1 || command.length > 120
+								const showFull = isCommandExpanded || !isLongCommand
+								return (
+									<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
+										{isLongCommand && (
+											<div
+												onClick={() => setIsCommandExpanded((v) => !v)}
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: "6px",
+													padding: "6px 10px",
+													cursor: "pointer",
+													fontFamily: "var(--vscode-editor-font-family)",
+													fontSize: "12px",
+													whiteSpace: "nowrap",
+													overflow: "hidden",
+												}}>
+												<span className={`codicon codicon-chevron-${showFull ? "down" : "right"}`} />
+												<span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+													{commandLines[0]}
+												</span>
+												{!showFull && (
+													<span style={{ flexShrink: 0, opacity: 0.7 }}>
+														{`  (+${commandLines.length - 1} more line${
+															commandLines.length - 1 === 1 ? "" : "s"
+														})`}
+													</span>
+												)}
+											</div>
+										)}
+										{showFull && (
+											<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
+												<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+											</div>
+										)}
+									</div>
+								)
+							})()}
 						{output.length > 0 && (
 							<CommandOutput
 								isContainerExpanded={true}
@@ -1261,6 +1293,7 @@ export const ChatRowContent = memo(
 							<>
 								<div onClick={(e) => e.stopPropagation()}>
 									<McpToolRow
+										compact={true}
 										serverName={useMcpServer.serverName}
 										tool={{
 											name: useMcpServer.toolName || "",
