@@ -40,6 +40,7 @@ Requires Node.js 22+.
 | Example | Description | Concepts |
 |---------|-------------|----------|
 | [code-review-bot](./code-review-bot) | AI code reviewer that reads git diffs and produces structured comments. | Multiple tools, `completesRun` lifecycle, `systemPrompt`, zod schemas |
+| [security-review-bot](./security-review-bot) | AI application security reviewer that reads git diffs and produces structured security findings. | Specialized agent prompts, multiple tools, security schemas, `completesRun` lifecycle |
 | [multi-agent](./multi-agent) | Web app that fans out to three specialist agents in parallel, streams results via SSE, then synthesizes a unified answer. | Concurrent agents, `Promise.all`, per-agent `subscribe()`, SSE streaming, agent composition |
 
 ### Advanced

@@ -167,7 +167,20 @@ fn push_notification(
 }
 
 fn resolve_sidecar_script(workspace_root: &str, launch_cwd: &str) -> Option<PathBuf> {
-    let candidates = [
+    sidecar_script_candidates(workspace_root, launch_cwd)
+        .into_iter()
+        .find(|p| p.exists())
+}
+
+fn sidecar_script_candidates(workspace_root: &str, launch_cwd: &str) -> Vec<PathBuf> {
+    vec![
+        PathBuf::from(workspace_root)
+            .join("sdk")
+            .join("apps")
+            .join("examples")
+            .join("menubar")
+            .join("sidecar")
+            .join("index.ts"),
         PathBuf::from(workspace_root)
             .join("sdk")
             .join("apps")
@@ -182,8 +195,7 @@ fn resolve_sidecar_script(workspace_root: &str, launch_cwd: &str) -> Option<Path
             .join("sidecar")
             .join("index.ts"),
         PathBuf::from(launch_cwd).join("sidecar").join("index.ts"),
-    ];
-    candidates.into_iter().find(|p| p.exists())
+    ]
 }
 
 fn sidecar_binary_name() -> String {
@@ -261,8 +273,13 @@ fn start_sidecar(
             .current_dir(workspace_root);
         c
     } else {
+        let searched_paths = sidecar_script_candidates(workspace_root, launch_cwd)
+            .into_iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
         return Err(format!(
-            "menubar sidecar not found under workspace_root={workspace_root}"
+            "menubar sidecar not found under workspace_root={workspace_root}; searched: {searched_paths}"
         ));
     };
 
