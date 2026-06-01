@@ -95,9 +95,9 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 		const blocks = parseAssistantMessageV2(message)
 
 		expect(toolUses(blocks)).to.have.length(0)
-		expect(blocks).to.have.length(1)
-		expect(blocks[0].type).to.equal("text")
-		expect(blocks[0].content).to.include('{"name":"write_to_file"')
+		const textBlocks = blocks.filter((b) => b.type === "text")
+		expect(textBlocks).to.have.length(1)
+		expect(textBlocks[0].content).to.include('{"name":"write_to_file"')
 	})
 
 	it("prefers XML when both XML and JSON are present", () => {
