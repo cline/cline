@@ -1,5 +1,5 @@
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import type { ApiConfiguration, ApiProvider, ModelInfo } from "@shared/api"
+import { type ApiConfiguration, type ApiProvider, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { isSecretKey, isSettingsKey, type SecretKey, type SettingsKey } from "@shared/storage/state-keys"
 import { StateManager } from "@/core/storage/StateManager"
@@ -150,6 +150,43 @@ function isKnownModelIdForProvider(providerId: ProviderId, modelId: string): boo
 	)
 }
 
+function readProviderSettingsModelId(providerId: ProviderId): string | undefined {
+	const model = getProviderSettings(providerId).model
+	return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined
+}
+
+function fallbackModelInfo(modelId: string): ModelInfo {
+	return { ...openAiModelInfoSafeDefaults, name: modelId }
+}
+
+function readKnownModelInfoForProvider(providerId: ProviderId, modelId: string): ModelInfo | undefined {
+	const sdkProviderId = toSdkProviderId(providerId)
+	const generatedModelInfo = getGeneratedModelsForProvider(sdkProviderId)[modelId]
+	if (isModelInfo(generatedModelInfo)) {
+		return generatedModelInfo
+	}
+
+	const collectionModelInfo = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId]
+	if (isModelInfo(collectionModelInfo)) {
+		return collectionModelInfo
+	}
+
+	return undefined
+}
+
+function readSelectionFromProviderSettings(providerId: ProviderId): ModelSelection | undefined {
+	const modelId = readProviderSettingsModelId(providerId)
+	if (!modelId) {
+		return undefined
+	}
+
+	return {
+		providerId,
+		modelId,
+		modelInfo: readKnownModelInfoForProvider(providerId, modelId) ?? fallbackModelInfo(modelId),
+	}
+}
+
 function writeStateKey(key: SecretKey | SettingsKey, value: unknown): void {
 	const stateManager = StateManager.get()
 	if (isSecretKey(key)) {
@@ -276,11 +313,12 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelect
 	const modelId = apiConfiguration[getModelIdKey(providerId, mode)]
 	const modelInfoKey = getModelInfoKey(providerId, mode)
 	const rememberedSelection = selectionMemory.get(memoryKey(providerId, mode))
+	const providerSettingsSelection = readSelectionFromProviderSettings(providerId)
 
 	if (modelInfoKey) {
 		const modelInfo = apiConfiguration[modelInfoKey]
 		if (typeof modelId !== "string" || modelId.length === 0 || !isModelInfo(modelInfo)) {
-			return undefined
+			return providerSettingsSelection
 		}
 		return { providerId, modelId, modelInfo }
 	}
@@ -288,19 +326,19 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelect
 	const activeProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 	const provider = providerForStorage(providerId)
 	if (activeProvider !== provider) {
-		return rememberedSelection
+		return rememberedSelection ?? providerSettingsSelection
 	}
 
 	if (typeof modelId !== "string" || modelId.length === 0) {
-		return rememberedSelection
+		return rememberedSelection ?? providerSettingsSelection
 	}
 
 	if (!isKnownModelIdForProvider(providerId, modelId)) {
-		return rememberedSelection
+		return rememberedSelection ?? providerSettingsSelection
 	}
 
 	if (!rememberedSelection || rememberedSelection.modelId !== modelId) {
-		return undefined
+		return providerSettingsSelection
 	}
 	return rememberedSelection
 }

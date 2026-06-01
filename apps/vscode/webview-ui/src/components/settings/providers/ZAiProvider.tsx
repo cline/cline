@@ -1,11 +1,23 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
+const PROVIDER_ID = "zai"
+
+function getEventValue(event: Event): string {
+	const target = event.target
+	if (target && "value" in target && typeof target.value === "string") {
+		return target.value
+	}
+	return ""
+}
 
 /**
  * Props for the ZAiProvider component
@@ -26,12 +38,43 @@ interface ZAiProviderProps {
  */
 export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
-		"zai",
-		apiConfiguration,
-		currentMode,
-	)
+	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
+	const {
+		models,
+		defaultModelId,
+		selectedModelId: legacySelectedModelId,
+		selectedModelInfo: legacySelectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection(PROVIDER_ID, apiConfiguration, currentMode)
+	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
+	const selectedModelId = committedSelection?.modelId ?? legacySelectedModelId
+	const selectedModelInfo = committedSelection?.modelInfo
+		? fromProtobufModelInfo(committedSelection.modelInfo)
+		: legacySelectedModelInfo
+	const selectedEntrypoint = config?.apiLine || apiConfiguration?.zaiApiLine || "international"
+
+	const handleApiLineChange = (value: string) => {
+		void write({ apiLine: value }).catch((err) => console.error("Failed to update Z AI entrypoint:", err))
+	}
+
+	const handleApiKeyChange = (apiKey: string) => {
+		void write({ apiKey }).catch((err) => console.error("Failed to update Z AI API key:", err))
+	}
+
+	const handleModelChange = (modelId: string) => {
+		if (!modelId) {
+			return
+		}
+
+		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
+		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
+
+		void commitSelection(currentMode, {
+			providerId: PROVIDER_ID,
+			modelId,
+			modelInfo,
+		}).catch((err) => console.error("Failed to commit Z AI model selection:", err))
+	}
 
 	return (
 		<div>
@@ -41,12 +84,12 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				</label>
 				<VSCodeDropdown
 					id="zai-entrypoint"
-					onChange={(e) => handleFieldChange("zaiApiLine", (e.target as any).value)}
+					onChange={(event) => handleApiLineChange(getEventValue(event))}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={apiConfiguration?.zaiApiLine || "international"}>
+					value={selectedEntrypoint}>
 					<VSCodeOption value="international">api.z.ai</VSCodeOption>
 					<VSCodeOption value="china">open.bigmodel.cn</VSCodeOption>
 				</VSCodeDropdown>
@@ -62,10 +105,10 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 			</p>
 			<ApiKeyField
 				initialValue={apiConfiguration?.zaiApiKey || ""}
-				onChange={(value) => handleFieldChange("zaiApiKey", value)}
+				onChange={handleApiKeyChange}
 				providerName="Z AI"
 				signupUrl={
-					apiConfiguration?.zaiApiLine === "china"
+					selectedEntrypoint === "china"
 						? "https://open.bigmodel.cn/console/overview"
 						: "https://z.ai/manage-apikey/apikey-list"
 				}
@@ -76,13 +119,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 					<ModelSelector
 						label="Model"
 						models={models}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
+						onChange={(event: Event) => handleModelChange(getEventValue(event))}
 						selectedModelId={selectedModelId}
 					/>
 
