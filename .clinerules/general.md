@@ -156,3 +156,48 @@ const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 **See also:** `BrowserSessionRow.tsx` uses similar pattern with `isLastApiReqInterrupted` and `isLastMessageResume`.
 
 **Backend side:** When streaming is cancelled, clean up properly (close tabs, clear comments, etc.) by checking `taskState.abort` after the streaming function returns.
+
+## Debug Harness: clear inherited VSCode/Electron env vars before launching
+
+The debug harness (`apps/vscode/src/dev/debug-harness/server.ts`) launches a child
+VSCode via Playwright's `_electron.launch({ env: { ...process.env, ... } })`. If you
+run the harness from a process that was itself spawned by VSCode (e.g. the Cline
+extension host, an integrated terminal, or an agent running inside VSCode), the
+parent's VSCode/Electron env vars leak into the child and break the launch.
+
+The fatal one is **`ELECTRON_RUN_AS_NODE=1`**: it makes the child VSCode binary run
+as plain Node, so it rejects every VSCode CLI flag. Symptom:
+
+```
+.../Visual Studio Code.app/Contents/MacOS/Code: bad option: --extensionDevelopmentPath=...
+Error: Process failed to launch!   (Playwright _electron.launch)
+```
+
+This is NOT the macOS Playwright flakiness mentioned in the harness README — it's
+env inheritance. Fix: strip the inherited vars before starting the harness:
+
+```bash
+env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE \
+    -u VSCODE_CLI -u VSCODE_CODE_CACHE_PATH -u VSCODE_CRASH_REPORTER_PROCESS_TYPE \
+    -u VSCODE_CWD -u VSCODE_ESM_ENTRYPOINT -u VSCODE_HANDLES_UNCAUGHT_ERRORS \
+    -u VSCODE_IPC_HOOK -u VSCODE_NLS_CONFIG -u VSCODE_PID -u VSCODE_L10N_BUNDLE_LOCATION \
+    npx tsx src/dev/debug-harness/server.ts --auto-launch --skip-build
+```
+
+Check your own env with `env | grep -iE 'electron|vscode_'` first; `ELECTRON_RUN_AS_NODE=1`
+present means you must scrub before launching.
+
+Other harness notes confirmed in practice:
+- The extension host is **ESM** (`VSCODE_ESM_ENTRYPOINT`), so `ext.evaluate` has no
+  `require` and module-internal functions aren't reachable as globals. To inspect
+  internal builders (e.g. `buildBedrockProviderConfig`), set a breakpoint with
+  `ext.set_breakpoint` and read locals via `ext.evaluate` with the paused `callFrameId`
+  — don't try to `require()` the bundle.
+- `web.evaluate` wraps the expression as a single returned expression; multi-statement
+  snippets must be an IIFE `(() => { ...; return x; })()`, otherwise you get
+  `SyntaxError: Unexpected token ';'`.
+- Webview settings inputs are `vscode-text-field` web components with debounced React
+  onChange. Setting `.value` + dispatching events via `web.evaluate` is unreliable for
+  some fields; focus the inner shadow `input` then use real keystrokes (`ui.type` +
+  `ui.press Tab`, or click the dropdown option) to make the value persist.
+
