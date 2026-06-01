@@ -126,7 +126,7 @@
       "name": "@cline/example-cli-agent",
       "version": "0.0.0",
       "dependencies": {
-        "@cline/sdk": "workspace:*",
+        "@cline/core": "workspace:*",
         "zod": "^4.3.6",
       },
       "devDependencies": {
@@ -137,9 +137,10 @@
       "name": "@cline/example-cline-core-cli-agent",
       "version": "0.0.0",
       "dependencies": {
-        "@cline/sdk": "workspace:*",
+        "@cline/core": "workspace:*",
       },
       "devDependencies": {
+        "@types/node": "^25.3.5",
         "typescript": "^5.9.3",
       },
     },
@@ -147,7 +148,7 @@
       "name": "@cline/example-code-review-bot",
       "version": "0.0.0",
       "dependencies": {
-        "@cline/sdk": "workspace:*",
+        "@cline/core": "workspace:*",
         "zod": "^4.3.6",
       },
       "devDependencies": {

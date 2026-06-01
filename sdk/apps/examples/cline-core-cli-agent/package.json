@@ -5,14 +5,14 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun run src/index.ts",
-		"build:sdk": "bun run --cwd ../../.. build:sdk",
-		"build": "tsc",
+		"build": "bun build src/index.ts --outdir ./dist",
 		"start": "node dist/index.js"
 	},
 	"dependencies": {
-		"@cline/sdk": "workspace:*"
+		"@cline/core": "workspace:*"
 	},
 	"devDependencies": {
+		"@types/node": "^25.3.5",
 		"typescript": "^5.9.3"
 	},
 	"engines": {

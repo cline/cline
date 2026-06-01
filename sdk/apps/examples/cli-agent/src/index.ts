@@ -1,5 +1,6 @@
+import { spawn } from "node:child_process";
 import * as readline from "node:readline";
-import { Agent, createTool } from "@cline/sdk";
+import { Agent, createTool } from "@cline/agents";
 import { z } from "zod";
 
 const agent = new Agent({
@@ -12,18 +13,26 @@ const agent = new Agent({
 		createTool({
 			name: "shell",
 			description: "Run a shell command and return the output.",
-			inputSchema: z.object({
-				command: z.string().describe("The shell command to execute"),
-			}),
+			inputSchema: z.toJSONSchema(
+				z.object({
+					command: z.string().describe("The shell command to execute"),
+				}),
+			),
 			async execute(input) {
-				const proc = Bun.spawn(["sh", "-c", input.command], {
-					stdout: "pipe",
-					stderr: "pipe",
+				return await new Promise((resolve) => {
+					const proc = spawn("sh", ["-c", input.command]);
+					let stdout = "";
+					let stderr = "";
+					proc.stdout.on("data", (chunk) => {
+						stdout += chunk.toString();
+					});
+					proc.stderr.on("data", (chunk) => {
+						stderr += chunk.toString();
+					});
+					proc.on("close", (exitCode) => {
+						resolve({ exitCode, stdout, stderr });
+					});
 				});
-				const stdout = await new Response(proc.stdout).text();
-				const stderr = await new Response(proc.stderr).text();
-				await proc.exited;
-				return { exitCode: proc.exitCode, stdout, stderr };
 			},
 		}),
 	],

@@ -3,7 +3,7 @@ import {
 	type AgentEvent,
 	ClineCore,
 	type ToolApprovalRequest,
-} from "@cline/sdk";
+} from "@cline/core";
 
 // ClineCore does not choose a model automatically; each session config must provide one.
 // These example defaults use the Cline gateway with Claude Sonnet, and can be overridden with env vars.
