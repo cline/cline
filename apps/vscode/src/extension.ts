@@ -667,7 +667,13 @@ async function getBinaryLocation(name: string): Promise<string> {
 		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
 	}
 
+	// VS Code 1.122.0 (microsoft/vscode#317978 et al.) migrated from @vscode/ripgrep
+	// to @vscode/ripgrep-universal, which ships per-platform/arch subdirectories.
+	// Probe the new layout first; fall back to the legacy paths for ≤1.121.x.
+	const platformArch = `${process.platform}-${process.arch}`
 	const binPath =
+		(await checkPath(`node_modules/@vscode/ripgrep-universal/bin/${platformArch}/`)) ||
+		(await checkPath(`node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/${platformArch}/`)) ||
 		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
 		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
 		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
