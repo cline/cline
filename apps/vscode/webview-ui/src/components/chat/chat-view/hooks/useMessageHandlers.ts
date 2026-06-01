@@ -12,7 +12,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning } = useExtensionState()
+	const { backgroundCommandRunning, turnState } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -96,14 +96,28 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}
 					}
 				} else if (messages.length > 0) {
-					// No clineAsk set - check if task is actively running
-					// If so, allow interrupting it with feedback
+					// No clineAsk set. There are two reasons to still route this to the active
+					// session as a follow-up rather than dropping it:
+					//
+					//   1. TurnState says the conversation is continuable. After a turn ends the SDK
+					//      no longer synthesizes a trailing ask:"completion_result" (that "must be
+					//      last" hack was removed), so clineAsk is undefined even though the user can
+					//      keep talking. We read the authoritative turnState instead: phases
+					//      "completed" / "awaiting_followup" mean "send a follow-up to continue".
+					//      Without this, Enter after completion fell through to nothing (or, if the
+					//      transcript was ever emptied, started a brand-new task). See design doc §11.
+					//
+					//   2. Legacy fallback: the task looks actively running from the message tail.
 					const lastMessage = messages[messages.length - 1]
 					const isTaskRunning =
 						lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")
+					const turnAllowsFollowup =
+						turnState?.phase === "completed" ||
+						turnState?.phase === "awaiting_followup" ||
+						turnState?.phase === "streaming"
 
-					if (isTaskRunning) {
-						// Task is running - send message as interruption/feedback
+					if (turnAllowsFollowup || isTaskRunning) {
+						// Continue the conversation / interrupt with feedback.
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
@@ -133,8 +147,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 		},
 		[
-			messages.length,
+			messages,
 			clineAsk,
+			turnState,
 			activeQuote,
 			setInputValue,
 			setActiveQuote,

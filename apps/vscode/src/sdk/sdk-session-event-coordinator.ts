@@ -89,7 +89,16 @@ export class SdkSessionEventCoordinator {
 				// turn is "completed" (green box + Start New Task); otherwise it simply stopped
 				// and is waiting for the user to type ("awaiting_followup"). Error turns are
 				// surfaced as the error phase. This replaces inferring mode from the array tail.
-				if (result.toolError && this.consecutiveToolErrorCount === 0) {
+				//
+				// EXCEPTION: if the session is already not running, this turn-complete is a
+				// straggler from a turn that was cancelled (cancelTask already set phase
+				// "resumable" and aborted). Overwriting it here would clobber "resumable" with
+				// "awaiting_followup"/"completed" and the footer would lose the Resume Task button
+				// (showing the scroll-arrow default instead). Leave the cancel-set phase intact.
+				// See design doc §11.
+				if (!activeSession.isRunning) {
+					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
+				} else if (result.toolError && this.consecutiveToolErrorCount === 0) {
 					// mistake_limit just fired (counter reset in trackToolErrors) — error UI.
 					this.options.setTurnPhase?.("error")
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
@@ -120,7 +129,13 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		if (result.messages.length > 0) {
+		// Post state when there are messages to ship OR when the turn ended. At a clean turn end
+		// the `done` event carries NO transcript message (the synthetic completion_result ask was
+		// removed in S7), yet the authoritative phase just changed to completed/awaiting_followup/
+		// error above. Gating the post on messages-only would leave the webview stuck on the prior
+		// phase (footer shows the streaming/scroll state forever). See design doc §11. The webview
+		// reducer gates turnState by seq, so an extra no-message post is safe.
+		if (result.messages.length > 0 || result.sessionEnded || result.turnComplete) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
