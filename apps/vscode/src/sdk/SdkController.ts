@@ -32,6 +32,7 @@ import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager
 import { HostProvider } from "@/hosts/host-provider"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { ExtensionRegistryInfo } from "@/registry"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -149,8 +150,7 @@ export class Controller {
 	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
-	// OCA auth shares the same AuthService instance.
-	ocaAuthService: AuthService
+	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
 	// Lazy terminal manager for foreground terminal execution.
@@ -205,7 +205,7 @@ export class Controller {
 
 		// Initialize SDK-backed auth and account services.
 		this.authService = AuthService.getInstance(this)
-		this.ocaAuthService = this.authService
+		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
 		// Initialize message translator state
@@ -883,8 +883,7 @@ export class Controller {
 	}
 
 	async handleOcaSignOut(): Promise<void> {
-		// OCA uses the same auth service — clear Cline auth on OCA sign out
-		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
+		await this.ocaAuthService.handleDeauth(LogoutReason.USER_INITIATED)
 		await this.postStateToWebview()
 	}
 
@@ -897,7 +896,7 @@ export class Controller {
 	}
 
 	async handleOcaAuthCallback(code: string, state: string): Promise<void> {
-		await this.authService.handleOcaAuthCallback(code, state)
+		await this.ocaAuthService.handleAuthCallback(code, state)
 		await this.postStateToWebview()
 	}
 
