@@ -529,18 +529,15 @@ describe("translateSessionEvent — agent_event done", () => {
 			},
 		}
 
-		// When attempt_completion was NOT called, the done event emits
-		// ask:"completion_result" with empty text (renders as InvisibleSpacer,
-		// no green rectangle) to enable follow-up input.
+		// done no longer synthesizes a trailing ask:"completion_result" (the removed
+		// must-be-last hack). It emits NO transcript message and only signals turnComplete;
+		// the authoritative UI mode comes from TurnState set by the session-event coordinator.
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].ask).toBe("completion_result")
-		expect(result.messages[0].text).toBe("")
-		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages).toHaveLength(0)
 		expect(result.turnComplete).toBe(true)
 	})
 
-	it("done always emits ask:completion_result even when attempt_completion was seen (ENG-1887)", () => {
+	it("done emits no synthetic ask even when attempt_completion was seen (green box from content_end)", () => {
 		const state = new MessageTranslatorState()
 
 		// Simulate attempt_completion being called (content_start)
@@ -583,7 +580,8 @@ describe("translateSessionEvent — agent_event done", () => {
 		expect(sayMessages).toHaveLength(1)
 		expect(askMessages).toHaveLength(0)
 
-		// Now the done event SHOULD emit ask:"completion_result" so it is the last message
+		// The done event emits NO message now (the green box already rendered at content_end);
+		// it only signals turnComplete. The webview reads phase=completed from TurnState.
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -599,10 +597,7 @@ describe("translateSessionEvent — agent_event done", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(1)
-		expect(doneResult.messages[0].type).toBe("ask")
-		expect(doneResult.messages[0].ask).toBe("completion_result")
-		expect(doneResult.messages[0].text).toBe("")
+		expect(doneResult.messages).toHaveLength(0)
 		expect(doneResult.turnComplete).toBe(true)
 	})
 })
@@ -910,9 +905,7 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(1)
-		expect(doneResult.messages[0].ask).toBe("completion_result")
-		expect(doneResult.messages[0].text).toBe("")
+		expect(doneResult.messages).toHaveLength(0)
 		expect(doneResult.turnComplete).toBe(true)
 	})
 
