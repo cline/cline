@@ -13,7 +13,7 @@
   "id": "watershed-runoff",
   "title": "The Watershed: Where Rain Becomes Runoff",
   "version": "0.1.0",
-  "authors": [{ "name": "M. Galib", "affiliation": "Aligarh Muslim University" }],
+  "authors": [{ "name": "Mohammad Galib", "affiliation": "Purdue University" }],
   "license": "CC-BY-4.0",
   "topic": "watershed-hydrology",
   "level": "intro",
@@ -59,6 +59,12 @@ a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,
 .hero::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 0% 60%,rgba(52,211,153,0.07),transparent 55%); pointer-events:none; }
 .brand-row { display:flex; align-items:center; gap:14px; margin-bottom:16px; position:relative; z-index:1; }
 .brand-logo { width:42px; height:42px; flex-shrink:0; }
+@keyframes aihydro-pulse {
+  0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 8px rgba(0,163,255,0.40)); }
+  50%      { transform: scale(1.04); filter: drop-shadow(0 0 14px rgba(0,221,255,0.65)); }
+}
+.brand-logo { animation: aihydro-pulse 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .brand-logo { animation: none; } }
 .brand-name { font-family:'Quicksand',sans-serif; font-weight:700; font-size:22px; background:linear-gradient(135deg,#00A3FF,#00FFFF); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .brand-tag { font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; padding-left:14px; border-left:1px solid var(--border); }
 .gradient-text { background:linear-gradient(135deg,#34d399,#00FFFF); -webkit-background-clip:text; background-clip:text; color:transparent; }
@@ -135,11 +141,20 @@ a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,
 <!-- HERO -->
 <div class="hero">
   <div class="brand-row">
-    <svg class="brand-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-label="AI-Hydro logo">
-      <defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00A3FF"/><stop offset="100%" stop-color="#00FFFF"/></linearGradient></defs>
-      <path d="M20 4 C20 4, 8 18, 8 26 a12 12 0 0 0 24 0 C 32 18, 20 4, 20 4 Z" fill="url(#lg2)" stroke="rgba(255,255,255,0.18)" stroke-width="0.7"/>
-      <path d="M13 24 Q 20 30, 27 24" fill="none" stroke="rgba(10,10,21,0.55)" stroke-width="1.4" stroke-linecap="round"/>
-      <circle cx="20" cy="14" r="1.7" fill="#FFFFFF"/>
+        <svg class="brand-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="AI-Hydro logo">
+      <defs>
+        <linearGradient id="aihydroG" x1="50" y1="10" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"  stop-color="#00A3FF"/>
+          <stop offset="100%" stop-color="#00DDFF"/>
+        </linearGradient>
+      </defs>
+      <path d="M50 10 C50 10 25 35 25 55 C25 70 35 85 50 85 C65 85 75 70 75 55 C75 35 50 10 50 10 Z" fill="url(#aihydroG)"/>
+      <ellipse cx="20" cy="52" rx="5" ry="7" fill="url(#aihydroG)"/>
+      <ellipse cx="80" cy="52" rx="5" ry="7" fill="url(#aihydroG)"/>
+      <ellipse cx="40" cy="48" rx="6" ry="9" fill="#1a1a2e"/>
+      <ellipse cx="60" cy="48" rx="6" ry="9" fill="#1a1a2e"/>
+      <path d="M 38 62 Q 50 68 62 62" stroke="#1a1a2e" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <circle cx="50" cy="14" r="4" fill="url(#aihydroG)"/>
     </svg>
     <span class="brand-name">AI-Hydro</span>
     <span class="brand-tag">Interactive Module · Watershed Hydrology</span>
@@ -374,7 +389,7 @@ a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,
     <li><em>O'Callaghan, J. F. &amp; Mark, D. M. (1984).</em> The extraction of drainage networks from digital elevation data. <em>Computer Vision, Graphics, and Image Processing</em>, 28(3), 323–344. — Flow accumulation and channel extraction.</li>
   </ol>
   <dl class="provenance">
-    <div class="prov-item"><dt>Author</dt><dd>M. Galib · Aligarh Muslim University</dd></div>
+    <div class="prov-item"><dt>Author</dt><dd>Mohammad Galib · Purdue University</dd></div>
     <div class="prov-item"><dt>License</dt><dd>CC-BY-4.0 — free to reuse with attribution</dd></div>
     <div class="prov-item"><dt>Module ID</dt><dd><code>watershed-runoff</code> · v0.1.0</dd></div>
     <div class="prov-item"><dt>Course</dt><dd>Introduction to Hydrology · <code>intro-hydro-2026</code></dd></div>

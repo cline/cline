@@ -3,13 +3,13 @@
 	"title": "Introduction to Hydrology",
 	"authors": [
 		{
-			"name": "M. Galib",
-			"affiliation": "Aligarh Muslim University"
+			"name": "Mohammad Galib",
+			"affiliation": "Purdue University"
 		}
 	],
 	"version": "0.2.0",
 	"license": "CC-BY-4.0",
-	"abstract": "A hands-on, animated tour through the whole hydrologic cycle — from the first flash of water vapour rising off the ocean to a full basin characterisation at your fingertips. Seven modules, each showcasing a different interactive capability of the AI-Hydro learning hub.",
+	"abstract": "A hands-on, animated tour through the whole hydrologic cycle \u2014 from the first flash of water vapour rising off the ocean to a full basin characterisation at your fingertips. Seven modules, each showcasing a different interactive capability of the AI-Hydro learning hub.",
 	"kernel": "isolated",
 	"estimatedHours": 5,
 	"modules": [
@@ -17,7 +17,7 @@
 			"id": "water-cycle-in-motion",
 			"path": "water-cycle-in-motion/module.html",
 			"title": "The Water Cycle in Motion",
-			"abstract": "Trace a water molecule through all six fluxes — evaporation, transpiration, condensation, precipitation, infiltration, runoff — via a Manim animation and an interactive timeline.",
+			"abstract": "Trace a water molecule through all six fluxes \u2014 evaporation, transpiration, condensation, precipitation, infiltration, runoff \u2014 via a Manim animation and an interactive timeline.",
 			"estimatedMinutes": 30
 		},
 		{
@@ -44,7 +44,7 @@
 			"id": "baseflow-separation",
 			"path": "baseflow-separation/module.html",
 			"title": "Splitting the Flow: Baseflow Separation",
-			"abstract": "Run the Lyne–Hollick digital filter, drag the alpha slider to rewrite the live Python cell in real time, and interpret the Baseflow Index.",
+			"abstract": "Run the Lyne\u2013Hollick digital filter, drag the alpha slider to rewrite the live Python cell in real time, and interpret the Baseflow Index.",
 			"estimatedMinutes": 40,
 			"prerequisites": [
 				"reading-a-hydrograph"
