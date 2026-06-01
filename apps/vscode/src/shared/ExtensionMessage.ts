@@ -48,6 +48,13 @@ export interface ExtensionState {
 	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
 	/**
+	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
+	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
+	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).
+	 * See apps/vscode/src/sdk/docs/webview-message-state-design.md §5.
+	 */
+	turnState?: TurnState
+	/**
 	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
 	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
 	 * ignored. Stamped by the extension. Optional for classic/legacy.
@@ -120,6 +127,27 @@ export interface ExtensionState {
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
+}
+
+/**
+ * The authoritative UI mode for the current agent turn (see design doc §5). The webview reads
+ * this instead of inferring mode from the tail of clineMessages.
+ */
+export type TurnPhase =
+	| "idle" // no active turn; input enabled, no buttons
+	| "streaming" // model producing content / tool running; Thinking + Cancel
+	| "awaiting_approval" // a tool/command/mcp/subagent approval is pending
+	| "awaiting_followup" // ask_question / plan_mode_respond / done-without-completion
+	| "completed" // attempt_completion done; Start New Task
+	| "error" // api_req_failed / fatal; Retry / recovery
+	| "resumable" // task cancelled / interrupted; Resume Task
+
+export interface TurnState {
+	phase: TurnPhase
+	/** ts of the ClineMessage this phase is "about" (e.g. the pending approval/ask). */
+	anchorTs?: number
+	/** Monotonic; the webview keeps the highest-seq TurnState and ignores older ones. */
+	seq: number
 }
 
 export interface ClineMessage {
