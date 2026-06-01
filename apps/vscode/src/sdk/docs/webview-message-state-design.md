@@ -356,8 +356,14 @@ Each step is independently shippable and re-verified against the reproductions.
       ExtensionStateContext for both channels; 120-permutation order-independence test proves
       convergence under any arrival order/duplication/loss. → fixes RC2 ("last message missing").
 - S4. `turnState` type + backend transitions, shipped in `state_json` (additive).
-- S5. Webview footer + buttons read `turnState` (delete `isWaitingForResponse` tail inference and
-      the inert skip-list walk). → fixes RC1. Re-verify with the trailing-bookkeeping injection.
+- S5. Webview footer + buttons read `turnState`. DONE: buttonConfig.buttonsForPhase /
+      getButtonConfigFromState (TurnState-driven, legacy tail-walk fallback when turnState
+      absent) wired into ActionButtons; MessagesArea.isWaitingForResponse short-circuits to
+      `phase === "streaming"` when turnState is present (legacy tail logic kept as fallback).
+      Button ACTIONS (approve/reject/proceed) already route by responseType independent of
+      clineAsk, so the SDK backend resolves the pending promise correctly. → fixes RC1.
+      (The legacy isInertStatusMessage skip-walk + getButtonConfigForMessages remain as the
+      fallback path; they can be deleted once classic is fully retired.)
 - S6. Cancel: fence-before-abort; usage exemption; replace the ask-only filter.
 - S7. Translator hygiene: suppress `ask_question` `say:tool`; one-`id` tool calls; remove the
       `done` synthetic ask and the mistake-limit abort.
