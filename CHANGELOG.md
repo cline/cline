@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.86.2]
+
+### Fixed
+
+- Fix `@` file mentions and workspace file search on VS Code 1.122+ by resolving the new bundled `@vscode/ripgrep-universal` per-platform binary layout before falling back to legacy ripgrep paths.
+
 ## [3.86.1]
 
 ### Fixed
