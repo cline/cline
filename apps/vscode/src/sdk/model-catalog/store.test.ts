@@ -123,6 +123,22 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toEqual(selection)
 	})
 
+	it("hydrates a generic provider selection from providers.json after reload", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ zai: { provider: "zai", model: "manual-zai-model" } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("zai")
+
+		expect(store.readSelection(providerId, "act")).toEqual({
+			providerId,
+			modelId: "manual-zai-model",
+			modelInfo: expect.objectContaining({
+				name: "manual-zai-model",
+				supportsPromptCache: false,
+			}),
+		})
+	})
+
 	it("does not combine a generic provider's remembered model info with another provider's active model id", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
