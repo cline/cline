@@ -60,7 +60,9 @@ function sendProgress(req: ProgressRequest): Promise<CourseProgress | null> {
 		}, 4000)
 		const onMessage = (e: MessageEvent) => {
 			const d = e.data
-			if (!d || d.type !== "aihydro-course-progress-result" || d.requestId !== requestId) return
+			if (!d || d.type !== "aihydro-course-progress-result" || d.requestId !== requestId) {
+				return
+			}
 			cleanup()
 			resolve((d.progress as CourseProgress | null) ?? null)
 		}
@@ -109,7 +111,9 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 		}
 		setLoading(true)
 		const fresh = await sendProgress({ action: "load", courseId })
-		if (fresh) setProgress(fresh)
+		if (fresh) {
+			setProgress(fresh)
+		}
 		setLoading(false)
 	}, [courseId])
 
@@ -122,9 +126,14 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 		let cancelled = false
 		setLoading(true)
 		sendProgress({ action: "load", courseId }).then((fresh) => {
-			if (cancelled) return
-			if (fresh) setProgress(fresh)
-			else setProgress(emptyProgress(courseId))
+			if (cancelled) {
+				return
+			}
+			if (fresh) {
+				setProgress(fresh)
+			} else {
+				setProgress(emptyProgress(courseId))
+			}
 			setLoading(false)
 		})
 		return () => {
@@ -134,33 +143,49 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 
 	const markComplete = useCallback(
 		async (moduleId: string, timeSpentMs?: number) => {
-			if (!courseId) return
+			if (!courseId) {
+				return
+			}
 			const fresh = await sendProgress({ action: "complete", courseId, moduleId, timeSpentMs })
-			if (fresh) setProgress(fresh)
+			if (fresh) {
+				setProgress(fresh)
+			}
 		},
 		[courseId],
 	)
 
 	const markUncomplete = useCallback(
 		async (moduleId: string) => {
-			if (!courseId) return
+			if (!courseId) {
+				return
+			}
 			const fresh = await sendProgress({ action: "uncomplete", courseId, moduleId })
-			if (fresh) setProgress(fresh)
+			if (fresh) {
+				setProgress(fresh)
+			}
 		},
 		[courseId],
 	)
 
 	const reset = useCallback(async () => {
-		if (!courseId) return
+		if (!courseId) {
+			return
+		}
 		const fresh = await sendProgress({ action: "reset", courseId })
-		if (fresh) setProgress(fresh)
+		if (fresh) {
+			setProgress(fresh)
+		}
 	}, [courseId])
 
 	const setCurrent = useCallback(
 		async (moduleId: string | null) => {
-			if (!courseId) return
+			if (!courseId) {
+				return
+			}
 			const fresh = await sendProgress({ action: "set-current", courseId, moduleId })
-			if (fresh) setProgress(fresh)
+			if (fresh) {
+				setProgress(fresh)
+			}
 		},
 		[courseId],
 	)
@@ -169,7 +194,9 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 
 	const missingPrerequisites = useCallback(
 		(mod: CourseModuleEntry): string[] => {
-			if (!mod.prerequisites || mod.prerequisites.length === 0) return []
+			if (!mod.prerequisites || mod.prerequisites.length === 0) {
+				return []
+			}
 			return mod.prerequisites.filter((id) => !progress.completed[id])
 		},
 		[progress.completed],
@@ -177,10 +204,12 @@ export function useCourseProgress(course: CourseManifest | null): CourseProgress
 
 	const canAccess = useCallback((mod: CourseModuleEntry) => missingPrerequisites(mod).length === 0, [missingPrerequisites])
 
+	// Only count completions for module IDs that actually exist in the current
+	// course — stale entries from renamed/removed modules must not inflate the count.
+	const validCompletedCount = course?.modules.filter((m) => !!progress.completed[m.id]).length ?? 0
+
 	const completionPct =
-		course && course.modules.length > 0
-			? Math.round((Object.keys(progress.completed).length / course.modules.length) * 100)
-			: 0
+		course && course.modules.length > 0 ? Math.round((validCompletedCount / course.modules.length) * 100) : 0
 
 	return {
 		progress,

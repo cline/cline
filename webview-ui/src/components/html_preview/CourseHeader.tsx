@@ -38,7 +38,8 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 	const next = currentIdx >= 0 && currentIdx < total - 1 ? course.modules[currentIdx + 1] : null
 	const currentModule = currentIdx >= 0 ? course.modules[currentIdx] : null
 
-	const completedCount = Object.keys(progress.progress.completed).length
+	// Count only IDs that exist in the current course to avoid stale entries inflating the tally.
+	const completedCount = course.modules.filter((m) => !!progress.progress.completed[m.id]).length
 	const completionPct = progress.completionPct
 	const isCurrentCompleted = currentModule ? progress.isCompleted(currentModule.id) : false
 
@@ -51,7 +52,9 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 	const [confirmReset, setConfirmReset] = useState(false)
 
 	const handleMarkComplete = async () => {
-		if (!currentModule) return
+		if (!currentModule) {
+			return
+		}
 		if (isCurrentCompleted) {
 			await progress.markUncomplete(currentModule.id)
 		} else {

@@ -22,7 +22,8 @@ const GREEN = "#4ade80"
 const MUTED = "var(--vscode-descriptionForeground, #999)"
 
 export const CourseNavigator: React.FC<CourseNavigatorProps> = ({ course, currentModuleId, progress, onNavigate }) => {
-	const completedCount = Object.keys(progress.progress.completed).length
+	// Count only IDs that actually exist in this course — stale entries must not inflate the tally.
+	const completedCount = course.modules.filter((m) => !!progress.progress.completed[m.id]).length
 	const total = course.modules.length
 	const completionPct = progress.completionPct
 
@@ -133,8 +134,11 @@ const ModuleRow: React.FC<{
 
 	// Icon for the leading badge
 	let badgeIcon: string | null = null
-	if (isLocked) badgeIcon = "lock"
-	else if (isCompleted) badgeIcon = "check"
+	if (isLocked) {
+		badgeIcon = "lock"
+	} else if (isCompleted) {
+		badgeIcon = "check"
+	}
 
 	const title = isLocked
 		? `Locked — complete first: ${missingTitles}`
