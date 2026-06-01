@@ -69,21 +69,21 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 
 	recordStateSizeTelemetry(Buffer.byteLength(stateJson, "utf8"))
 
-	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
-		try {
-			await responseStream(
-				{
-					stateJson,
-				},
-				false, // Not the last message
-			)
-		} catch (error) {
+	// FIRE-AND-FORGET: do not await delivery to the webview (it may be hidden/reloaded/closed
+	// and postMessage can hang or resolve false). The webview reconciles convergently from
+	// whatever state snapshots it receives, gated by stateVersion/epoch. See
+	// webview-message-state-design.md §3, §6.
+	for (const responseStream of activeStateSubscriptions) {
+		responseStream(
+			{
+				stateJson,
+			},
+			false, // Not the last message
+		).catch((error) => {
 			Logger.error("Error sending state update:", error)
 			activeStateSubscriptions.delete(responseStream)
-		}
-	})
-
-	await Promise.all(promises)
+		})
+	}
 }
 
 function recordStateSizeTelemetry(sizeBytes: number): void {

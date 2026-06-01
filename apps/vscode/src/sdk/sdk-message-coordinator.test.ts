@@ -1,4 +1,6 @@
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it, vi } from "vitest"
+import { MessageIdMinter } from "./message-id-minter"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 
@@ -62,5 +64,61 @@ describe("SdkMessageCoordinator", () => {
 		expect(finalized[1].partial).toBeUndefined()
 		expect(finalized[2].partial).toBeUndefined()
 		expect(JSON.parse(finalized[2].text ?? "{}")).toEqual({ cancelReason: "user_cancelled" })
+	})
+
+	it("stamps seq and epoch from the shared minter on append", () => {
+		const minter = new MessageIdMinter()
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkMessageCoordinator({ getTask: () => task, getMinter: () => minter })
+
+		const a: ClineMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "a", partial: true }
+		const b: ClineMessage = { ts: 2, type: "say" as const, say: "text" as const, text: "b", partial: false }
+		coordinator.appendMessages([a, b])
+
+		// Both got the current epoch, and seq strictly increases in append order.
+		expect(a.epoch).toBe(0)
+		expect(b.epoch).toBe(0)
+		expect(typeof a.seq).toBe("number")
+		expect((b.seq ?? 0) > (a.seq ?? 0)).toBe(true)
+	})
+
+	it("gives an updated message a NEWER seq than its earlier copy (partial -> final)", () => {
+		const minter = new MessageIdMinter()
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkMessageCoordinator({ getTask: () => task, getMinter: () => minter })
+
+		const partial: ClineMessage = { ts: 10, type: "say" as const, say: "text" as const, text: "Hel", partial: true }
+		coordinator.appendMessages([partial])
+		const partialSeq = partial.seq ?? 0
+
+		// A new copy with the SAME ts (identity) passes through again on finalize.
+		const final: ClineMessage = { ts: 10, type: "say" as const, say: "text" as const, text: "Hello", partial: false }
+		coordinator.appendMessages([final])
+
+		expect((final.seq ?? 0) > partialSeq).toBe(true)
+	})
+
+	it("reflects a bumped epoch on subsequent messages", () => {
+		const minter = new MessageIdMinter()
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkMessageCoordinator({ getTask: () => task, getMinter: () => minter })
+
+		const before: ClineMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "before", partial: false }
+		coordinator.appendMessages([before])
+		minter.bumpEpoch()
+		const after: ClineMessage = { ts: 2, type: "say" as const, say: "text" as const, text: "after", partial: false }
+		coordinator.appendMessages([after])
+
+		expect(before.epoch).toBe(0)
+		expect(after.epoch).toBe(1)
+	})
+
+	it("leaves messages unstamped when no minter is wired (classic/legacy)", () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkMessageCoordinator({ getTask: () => task })
+		const m: ClineMessage = { ts: 1, type: "say" as const, say: "text" as const, text: "x", partial: false }
+		coordinator.appendMessages([m])
+		expect(m.seq).toBeUndefined()
+		expect(m.epoch).toBeUndefined()
 	})
 })

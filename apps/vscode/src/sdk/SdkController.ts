@@ -208,7 +208,11 @@ export class Controller {
 
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState()
-		this.messages = new SdkMessageCoordinator({ getTask: () => this.task })
+		this.messages = new SdkMessageCoordinator({
+			getTask: () => this.task,
+			// Stamp seq/epoch on every message flowing to the webview from the shared authority.
+			getMinter: () => this.messageTranslatorState.getMinter(),
+		})
 		this.sessionHistory = new SdkSessionHistoryLoader()
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
@@ -312,7 +316,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			emitClineAuthError: () => this.emitClineAuthError(),
-			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.mcpTools = new SdkMcpCoordinator({
@@ -341,7 +345,7 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthError(),
-			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskControl = new SdkTaskControlCoordinator({
@@ -354,7 +358,7 @@ export class Controller {
 				this.task = task
 			},
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
-			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
@@ -1144,6 +1148,18 @@ export class Controller {
 		await sendStateUpdate(state)
 	}
 
+	/**
+	 * Reset the message translator's streaming state AND bump the conversation/replica fence
+	 * (epoch). Called at every conversation boundary (task start/clear, history open, reinit,
+	 * mode rebuild, new-session follow-up). Bumping the epoch BEFORE the new state is pushed
+	 * means any straggler message/state from the previous task or render carries an older epoch
+	 * and is dropped by the webview. Order matters: bump synchronously here, before any await.
+	 */
+	resetMessageTranslatorAndFence(): void {
+		this.messageTranslatorState.reset()
+		this.messageTranslatorState.getMinter().bumpEpoch()
+	}
+
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Build the base ExtensionState from StateManager, then layer the SDK's
 		// task history on top.
@@ -1201,12 +1217,19 @@ export class Controller {
 				.sort((a, b) => b.ts - a.ts)
 				.slice(0, 100)
 
+			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
+			// from the SAME counter that stamps messages. This lets the webview ignore stale
+			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
+			// synchronously here (no await between sampling and return).
+			const minter = this.messageTranslatorState.getMinter()
 			return {
 				...state,
 				currentTaskItem: this.task?.taskId
 					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
 					: undefined,
 				taskHistory: processedTaskHistory,
+				stateVersion: minter.nextSeq(),
+				epoch: minter.epoch,
 			}
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)

@@ -193,6 +193,9 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		images: message.images ?? [],
 		files: message.files ?? [],
 		partial: message.partial ?? false,
+		// Convergent-replica fields (default 0 = unstamped, e.g. classic/legacy path).
+		seq: message.seq ?? 0,
+		epoch: message.epoch ?? 0,
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -278,6 +281,15 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 			protoMessage.conversationHistoryDeletedRange.startIndex,
 			protoMessage.conversationHistoryDeletedRange.endIndex,
 		]
+	}
+
+	// Convergent-replica fields. 0 means unstamped (classic/legacy path) — leave undefined so
+	// the webview reducer treats such messages as always-applicable rather than epoch 0.
+	if (protoMessage.seq && protoMessage.seq !== 0) {
+		message.seq = protoMessage.seq
+	}
+	if (protoMessage.epoch && protoMessage.epoch !== 0) {
+		message.epoch = protoMessage.epoch
 	}
 
 	return message
