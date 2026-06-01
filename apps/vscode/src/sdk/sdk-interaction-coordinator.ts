@@ -1,6 +1,7 @@
 import type { ClineAskQuestion, ClineMessage } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
+import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 
@@ -19,12 +20,17 @@ export interface SdkInteractionCoordinatorOptions {
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
+	/**
+	 * The process-wide id/seq/epoch authority, shared with the message translator. Optional so
+	 * existing tests that don't need cross-generator id uniqueness keep working; when omitted a
+	 * private minter is used. Production wires the shared minter from MessageTranslatorState.
+	 */
+	getMinter?: () => MessageIdMinter
 }
 
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
-	private lastInteractionMessageTs = 0
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
 
@@ -124,9 +130,24 @@ export class SdkInteractionCoordinator {
 		}
 	}
 
+	/**
+	 * Mint a unique message id from the SHARED minter so interaction messages (tool-approval
+	 * asks, ask_question, user_feedback) never collide with translator-minted ids. Falls back to
+	 * a private minter when none is wired (tests).
+	 */
 	private nextMessageTs(): number {
-		const now = Date.now()
-		this.lastInteractionMessageTs = Math.max(now, this.lastInteractionMessageTs + 1)
-		return this.lastInteractionMessageTs
+		return this.getMinter().nextId()
+	}
+
+	private fallbackMinter: MessageIdMinter | undefined
+	private getMinter(): MessageIdMinter {
+		if (this.options.getMinter) {
+			return this.options.getMinter()
+		}
+		if (!this.fallbackMinter) {
+			// Lazy import-free fallback: construct on first use.
+			this.fallbackMinter = new MessageIdMinter()
+		}
+		return this.fallbackMinter
 	}
 }

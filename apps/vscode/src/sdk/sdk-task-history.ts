@@ -8,6 +8,7 @@ import { Logger } from "@/shared/services/Logger"
 import { buildSessionConfig } from "./cline-session-factory"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 import { readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
+import type { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -33,6 +34,11 @@ export interface TaskUsage {
 export interface SdkTaskHistoryOptions {
 	mcpHub: McpHub
 	sessions: SdkSessionLifecycle
+	/**
+	 * The process-wide id/seq/epoch authority. When provided, history rendering mints ids from
+	 * it so regenerated history ids never overlap live-session ids. Optional for tests.
+	 */
+	getMinter?: () => MessageIdMinter
 }
 
 type SdkTaskHistoryListOptions = ClineCoreListHistoryOptions & {
@@ -380,7 +386,10 @@ export class SdkTaskHistory {
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
 		await this.migrateLegacyTaskIfNeeded(taskId)
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
-		const clineMessages = sdkMessagesToClineMessages(sanitizeSdkUserMessagesForDisplay(sdkMessages))
+		const clineMessages = sdkMessagesToClineMessages(
+			sanitizeSdkUserMessagesForDisplay(sdkMessages),
+			this.options.getMinter?.(),
+		)
 		return clineMessages
 	}
 
