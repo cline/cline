@@ -129,8 +129,10 @@ async function openDefaultUrl(url: string): Promise<void> {
 	await open(url, { wait: false });
 }
 
-function waitForProcessShutdown(server: DashboardServerHandle): Promise<void> {
-	return new Promise<void>((resolveShutdown) => {
+export function waitForProcessShutdown(
+	server: DashboardServerHandle,
+): Promise<void> {
+	return new Promise<void>((resolveShutdown, rejectShutdown) => {
 		let settled = false;
 
 		const cleanup = () => {
@@ -142,8 +144,12 @@ function waitForProcessShutdown(server: DashboardServerHandle): Promise<void> {
 			if (settled) return;
 			settled = true;
 			cleanup();
-			await server.stop();
-			resolveShutdown();
+			try {
+				await server.stop();
+				resolveShutdown();
+			} catch (error) {
+				rejectShutdown(error);
+			}
 		};
 
 		function handleSignal() {

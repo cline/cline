@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync } from "node:fs";
 import { arch, platform, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runDashboardCommand } from "./dashboard";
+import { runDashboardCommand, waitForProcessShutdown } from "./dashboard";
 
 const ENV_KEYS = [
 	"WORKSPACE_ROOT",
@@ -165,5 +165,20 @@ describe("runDashboardCommand", () => {
 
 		expect(exitCode).toBe(0);
 		expect(observedWebviewDistDir).toBe(webviewDistDir);
+	});
+
+	it("settles shutdown when server stop rejects", async () => {
+		const shutdown = waitForProcessShutdown({
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			stop: vi.fn(async () => {
+				throw new Error("stop failed");
+			}),
+		});
+
+		process.emit("SIGINT", "SIGINT");
+
+		await expect(shutdown).rejects.toThrow("stop failed");
 	});
 });
