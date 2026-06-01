@@ -48,6 +48,19 @@ import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
+
+export const MAX_MCP_SERVER_INSTRUCTIONS_LENGTH = 2_000
+
+export function sanitizeMcpServerInstructions(instructions: string | undefined): string | undefined {
+	const trimmedInstructions = instructions?.trim()
+
+	if (!trimmedInstructions) {
+		return undefined
+	}
+
+	return trimmedInstructions.slice(0, MAX_MCP_SERVER_INSTRUCTIONS_LENGTH)
+}
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -655,7 +668,7 @@ export class McpHub {
 
 			// Capture server-level instructions advertised in the initialize response (MCP spec).
 			// Servers may expose an optional `instructions` field describing how to use them; surface it to the model.
-			connection.server.instructions = connection.client.getInstructions()
+			connection.server.instructions = sanitizeMcpServerInstructions(connection.client.getInstructions())
 
 			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
