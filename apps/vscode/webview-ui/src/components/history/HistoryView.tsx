@@ -1,4 +1,4 @@
-import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
@@ -131,20 +131,26 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
+			const nextValue = !currentValue
+
 			// Optimistic UI update
-			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: !currentValue }))
+			setPendingFavoriteToggles((prev) => ({ ...prev, [taskId]: nextValue }))
 
 			try {
 				await TaskServiceClient.toggleTaskFavorite(
 					TaskFavoriteRequest.create({
 						taskId,
-						isFavorited: !currentValue,
+						isFavorited: nextValue,
 					}),
+				)
+
+				setTasks((currentTasks) =>
+					currentTasks.map((task) => (task.id === taskId ? { ...task, isFavorited: nextValue } : task)),
 				)
 
 				// Refresh if either filter is active to ensure proper combined filtering
 				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
-					loadTaskHistory(0)
+					await loadTaskHistory(0)
 				}
 			} catch (err) {
 				console.error(`[FAVORITE_TOGGLE_UI] Error for task ${taskId}:`, err)
@@ -226,23 +232,41 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const handleDeleteHistoryItem = useCallback(
 		(id: string) => {
 			TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [id] }))
-				.then(() => fetchTotalTasksSize())
+				.then(async () => {
+					await loadTaskHistory(0)
+					await fetchTotalTasksSize()
+				})
 				.catch((error) => console.error("Error deleting task:", error))
 		},
-		[fetchTotalTasksSize],
+		[fetchTotalTasksSize, loadTaskHistory],
 	)
 
 	const handleDeleteSelectedHistoryItems = useCallback(
 		(ids: string[]) => {
 			if (ids.length > 0) {
 				TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: ids }))
-					.then(() => fetchTotalTasksSize())
+					.then(async () => {
+						await loadTaskHistory(0)
+						setSelectedItems([])
+						await fetchTotalTasksSize()
+					})
 					.catch((error) => console.error("Error deleting tasks:", error))
-				setSelectedItems([])
 			}
 		},
-		[fetchTotalTasksSize],
+		[fetchTotalTasksSize, loadTaskHistory],
 	)
+
+	const handleDeleteAllHistory = useCallback(() => {
+		setDeleteAllDisabled(true)
+		TaskServiceClient.deleteAllTaskHistory(EmptyRequest.create({}))
+			.then(async () => {
+				await loadTaskHistory(0)
+				setSelectedItems([])
+				await fetchTotalTasksSize()
+			})
+			.catch((error) => console.error("Error deleting task history:", error))
+			.finally(() => setDeleteAllDisabled(false))
+	}, [fetchTotalTasksSize, loadTaskHistory])
 
 	const fuse = useMemo(() => {
 		return new Fuse(tasks, {
@@ -512,13 +536,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						aria-label="Delete all history"
 						className="w-full"
 						disabled={deleteAllDisabled || (taskHistory.length === 0 && tasks.length === 0)}
-						onClick={() => {
-							setDeleteAllDisabled(true)
-							TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({}))
-								.then(() => fetchTotalTasksSize())
-								.catch((error) => console.error("Error deleting task history:", error))
-								.finally(() => setDeleteAllDisabled(false))
-						}}
+						onClick={handleDeleteAllHistory}
 						variant="danger">
 						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 					</Button>
