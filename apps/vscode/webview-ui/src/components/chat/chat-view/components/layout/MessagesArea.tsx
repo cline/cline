@@ -30,7 +30,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	chatState,
 	messageHandlers,
 }) => {
-	const { clineMessages } = useExtensionState()
+	const { clineMessages, turnState } = useExtensionState()
 	const lastRawMessage = useMemo(() => clineMessages.at(-1), [clineMessages])
 
 	const {
@@ -78,6 +78,28 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	const isWaitingForResponse = useMemo(() => {
 		const lastMsg = modifiedMessages[modifiedMessages.length - 1]
 
+		// AUTHORITATIVE PATH: when the backend provides a TurnState, the agent is only "thinking"
+		// while phase === "streaming". Any other phase (awaiting_approval/followup, completed,
+		// error, resumable, idle) is never a thinking state — this is what makes the footer
+		// immune to trailing bookkeeping messages and prevents the stuck-"Thinking" bug (RC1).
+		// During streaming we still suppress the footer loader once a partial content row is
+		// actually rendering, to avoid a duplicate spinner (handled by the legacy sub-logic
+		// below, which only runs in the streaming case).
+		if (turnState) {
+			if (turnState.phase !== "streaming") {
+				return false
+			}
+			// phase === streaming: show Thinking until a visible content row is streaming.
+			if (groupedMessages.length === 0 || !lastVisibleMessage) {
+				return true
+			}
+			if (lastVisibleRow && isToolGroup(lastVisibleRow)) {
+				return true
+			}
+			return lastVisibleMessage.partial !== true
+		}
+
+		// LEGACY PATH (no TurnState — classic/older state): infer from the message tail.
 		// Never show thinking while waiting on user input (any ask state).
 		// This includes completion_result, tool approvals, followups, and resume asks.
 		if (lastRawMessage?.type === "ask") {
@@ -137,7 +159,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			}
 		}
 		return false
-	}, [lastRawMessage, groupedMessages.length, lastVisibleMessage, lastVisibleRow, modifiedMessages])
+	}, [turnState, lastRawMessage, groupedMessages.length, lastVisibleMessage, lastVisibleRow, modifiedMessages])
 
 	// Keep loader in the message flow (not footer). During handoff from waiting -> reasoning stream,
 	// keep the loader mounted until a real reasoning row is visible.
