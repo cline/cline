@@ -94,11 +94,10 @@ describe("SdkSessionEventCoordinator", () => {
 	})
 
 	it("posts state on turn end even when the turn-complete event carries NO messages", async () => {
-		// Regression (design doc §11): the `done` handler emits no transcript message, so the
-		// turn-complete event has messages.length === 0. The phase is set to completed/
-		// awaiting_followup, but if we gate postStateToWebview() on messages.length the webview
-		// never learns the turn ended and the footer stays stuck on the previous phase (e.g.
-		// scroll-arrows / streaming). The phase change MUST be pushed.
+		// The `done` handler emits no transcript message, so a turn-complete event has
+		// messages.length === 0 while the phase changes to completed/awaiting_followup. State must
+		// be posted on turn end regardless of message count, or the footer stays stuck on the
+		// previous phase (e.g. scroll-arrows / streaming).
 		const { coordinator, options, event } = makeCoordinator({
 			translation: {
 				messages: [],
@@ -117,7 +116,7 @@ describe("SdkSessionEventCoordinator", () => {
 		// After cancelTask sets phase "resumable" and aborts, the SDK may still emit a trailing
 		// done/turnComplete. Because the session is no longer running, this straggler must NOT
 		// set "awaiting_followup"/"completed" — doing so would clobber "resumable" and the footer
-		// would lose the Resume Task button (showing scroll-arrows). See design doc §11.
+		// would lose the Resume Task button (showing scroll-arrows).
 		const { coordinator, options, event } = makeCoordinator({
 			activeSession: makeActiveSession({ isRunning: false }),
 			translation: {

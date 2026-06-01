@@ -322,15 +322,28 @@ export class MessageTranslatorState {
 		this.spawnAgentNextIndex = 0
 	}
 
-	/** Reset all streaming state (new turn) */
+	/**
+	 * Reset per-iteration STREAMING state: the open text/reasoning/tool stream pointers and the
+	 * spawn-agent aggregation. Called on each `iteration_start`, which is mid-turn within the same
+	 * conversation, so it deliberately does NOT touch turn-outcome signals such as
+	 * `attemptCompletionSeen` — those are scoped to the whole turn and survive its iterations.
+	 */
 	reset(): void {
 		this.streamingTextTs = undefined
 		this.streamingReasoningTs = undefined
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
-		this.attemptCompletionSeen = false
 		this.clearSpawnAgents()
+	}
+
+	/**
+	 * Clear turn-outcome signals (`attemptCompletionSeen`). Called at a new user turn / task
+	 * boundary so each turn's phase is computed fresh; it is intentionally separate from the
+	 * per-iteration `reset()` so the completion signal persists across the iterations of one turn.
+	 */
+	clearTurnOutcome(): void {
+		this.attemptCompletionSeen = false
 	}
 }
 
@@ -560,6 +573,25 @@ function parseToolInput(input: unknown): Record<string, unknown> | undefined {
 		}
 	}
 	return undefined
+}
+
+/**
+ * Whether a tool name is the agent's completion tool — the one that declares the task done and
+ * drives the green "Task Completed" box plus the `completed` turn phase. Two names are accepted:
+ * the VSCode extra tool `attempt_completion` and the SDK's built-in `submit_and_exit`
+ * (DefaultToolNames.SUBMIT_AND_EXIT, lifecycle.completesRun=true).
+ */
+function isCompletionTool(toolName: string): boolean {
+	return toolName === "submit_and_exit" || toolName === "attempt_completion"
+}
+
+/**
+ * Extract the completion summary text from a completion-tool input. `attempt_completion` carries
+ * it in `result`; `submit_and_exit` carries it in `summary`. Either renders the same completion UI.
+ */
+function getCompletionResultText(input: unknown): string {
+	const parsed = parseToolInput(input)
+	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
 }
 
 /** Extract file paths from a read_files/read_file input */
@@ -818,14 +850,14 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
-					// attempt_completion is handled specially — it drives the
-					// green "Task Completed" rectangle in the webview. We emit
-					// say:"completion_result" here (partial) and
-					// ask:"completion_result" at content_end.
-					if (toolName === "attempt_completion") {
+					// The completion tool (attempt_completion / submit_and_exit) is handled specially:
+					// it drives the green "Task Completed" rectangle. We emit say:"completion_result"
+					// here (partial) and finalize it at content_end. Recording attemptCompletionSeen
+					// makes the turn end in the "completed" phase ("Start New Task") rather than
+					// "awaiting_followup".
+					if (isCompletionTool(toolName)) {
 						state.setAttemptCompletionSeen()
-						const parsedInput = parseToolInput(input)
-						const resultText = getStringField(parsedInput, "result") ?? ""
+						const resultText = getCompletionResultText(input)
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -1052,16 +1084,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
-					// attempt_completion → emit ask:"completion_result" to
-					// finalize the green "Task Completed" rectangle and enable
-					// follow-up input. The say:"completion_result" was emitted
-					// at content_start (partial); now we emit the ask version
-					// which the webview uses to enable the follow-up textarea.
-					if (toolName === "attempt_completion") {
+					// Completion tool (attempt_completion / submit_and_exit) → finalize the green
+					// "Task Completed" rectangle. The partial say:"completion_result" was emitted at
+					// content_start; here we emit the non-partial version.
+					if (isCompletionTool(toolName)) {
 						const storedInput = state.getStreamingToolInput()
 						const ts = state.clearStreamingTool()
-						const parsedInput = parseToolInput(storedInput)
-						const resultText = getStringField(parsedInput, "result") ?? ""
+						const resultText = getCompletionResultText(storedInput)
 						// Finalize the say:"completion_result" (non-partial)
 						// This renders the green "Task Completed" rectangle.
 						messages.push({
@@ -1071,13 +1100,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							text: resultText,
 							partial: false,
 						})
-						// NOTE: We do NOT emit ask:"completion_result" here.
-						// The ask must come AFTER the usage event (which arrives
-						// between content_end and done). If we emit it here, the
-						// usage event's say:"api_req_started" becomes the last
-						// message and the webview shows "Thinking..." instead of
-						// the completion UI. The done handler emits the
-						// ask:"completion_result" as the final message.
+						// Only the say:"completion_result" is emitted (the green box). No
+						// ask:"completion_result" is produced — the webview's footer/buttons read
+						// the authoritative TurnState (phase "completed") rather than the message
+						// tail, so the completion UI is immune to trailing bookkeeping events such as
+						// the usage say:"api_req_started" that arrives between content_end and done.
 						break
 					}
 
@@ -1254,15 +1281,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete. We no longer synthesize a trailing
-			// ask:"completion_result" here — that was the "must be last message" hack that
-			// existed because the webview inferred UI mode from the array tail (ENG-1887).
-			// The webview now reads the authoritative TurnState (completed when
-			// attempt_completion was used, otherwise awaiting_followup), set by the
-			// session-event coordinator on turnComplete. The green "Task Completed" box still
-			// comes from the say:"completion_result" emitted at attempt_completion content_end.
-			//
-			// We only signal turnComplete (handled by the caller); no transcript message.
+			// Agent turn is complete. This emits no transcript message — it only signals
+			// turnComplete to the caller. UI mode comes from the authoritative TurnState the
+			// session-event coordinator sets on turn end (completed when the completion tool was
+			// used this turn, otherwise awaiting_followup), and the green "Task Completed" box
+			// comes from the say:"completion_result" emitted at the completion tool's content_end.
 			break
 		}
 

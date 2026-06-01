@@ -1,8 +1,6 @@
 // Single source of truth for ClineMessage identity (`id`), update freshness (`seq`),
 // and the conversation/replica fence (`epoch`).
 //
-// See apps/vscode/src/sdk/docs/webview-message-state-design.md §4.
-//
 // Rationale (why this exists):
 // - `ClineMessage.ts` is used as a message IDENTITY / merge key, not as a wall clock. It
 //   was historically minted from Date.now() in TWO independent places (the live translator
