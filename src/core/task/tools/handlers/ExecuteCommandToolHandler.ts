@@ -16,6 +16,12 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+// Wall-clock ceiling for a single command in normal (non-yolo) mode. On expiry the
+// command is detached to the background and the output captured so far is returned,
+// so a hung or interactive command (waiting on stdin, a pager, an infinite loop)
+// can never freeze the session indefinitely. Matches Claude Code's 120s default.
+const DEFAULT_COMMAND_TIMEOUT_SECONDS = 120
+
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = AiHydroDefaultTool.BASH
 
@@ -63,14 +69,14 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Handling of timeout while in yolo mode
-		if (config.yoloModeToggled) {
-			if (!timeoutParam) {
-				timeoutSeconds = 30
-			} else {
-				const parsedTimeoutParam = parseInt(timeoutParam, 10)
-				timeoutSeconds = isNaN(parsedTimeoutParam) || parsedTimeoutParam <= 0 ? 30 : parsedTimeoutParam
-			}
+		// Resolve an execution timeout for every command (not just yolo mode). Honor an
+		// explicit model-provided timeout; otherwise fall back to a sane default so a hung
+		// command auto-detaches to the background instead of blocking the session forever.
+		const parsedTimeoutParam = timeoutParam ? parseInt(timeoutParam, 10) : NaN
+		if (!isNaN(parsedTimeoutParam) && parsedTimeoutParam > 0) {
+			timeoutSeconds = parsedTimeoutParam
+		} else {
+			timeoutSeconds = config.yoloModeToggled ? 30 : DEFAULT_COMMAND_TIMEOUT_SECONDS
 		}
 
 		// Pre-process command for certain models

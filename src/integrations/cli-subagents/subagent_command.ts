@@ -9,6 +9,9 @@ import * as path from "path"
  */
 const AIHYDRO_COMMAND_PATTERN = /^aihydro\s+(['"])(.+?)\1(\s+.*)?$/
 
+/** Available named subagent profiles. */
+export type SubagentProfile = "explorer" | "data-runner" | null
+
 /** Structured context returned by prepareSubagentCommand. */
 export interface SubagentJob {
 	/** Short hex job identifier used to locate the result dir. */
@@ -17,6 +20,8 @@ export interface SubagentJob {
 	resultDir: string
 	/** Final shell command to execute (prompt augmented + flags injected). */
 	command: string
+	/** Named profile controlling tool restrictions inside the subagent. */
+	profile: SubagentProfile
 }
 
 /**
@@ -93,13 +98,31 @@ export function prepareSubagentCommand(command: string): SubagentJob | null {
 
 	const quote = match[1]
 	const originalPrompt = match[2]
-	const additionalFlags = match[3] || ""
+	let additionalFlags = match[3] || ""
+
+	// Extract --profile <name> from additional flags (unknown to the aihydro CLI; must be stripped).
+	let profile: SubagentProfile = null
+	const profileMatch = additionalFlags.match(/\s*--profile\s+([\w-]+)/)
+	if (profileMatch) {
+		const raw = profileMatch[1] as string
+		if (raw === "explorer" || raw === "data-runner") {
+			profile = raw
+		}
+		additionalFlags = additionalFlags.replace(profileMatch[0], "")
+	}
+
 	const augmentedCommand = `aihydro ${quote}${originalPrompt}${resultInstruction}${quote}${additionalFlags}`
 
 	// Apply standard autonomous-execution flags
-	const finalCommand = injectSubagentSettings(augmentedCommand)
+	let finalCommand = injectSubagentSettings(augmentedCommand)
 
-	return { jobId, resultDir, command: finalCommand }
+	// Prepend AIHYDRO_PROFILE env var so the subagent's process.env carries the profile.
+	// ToolExecutor inside the subagent reads this to enforce capability restrictions.
+	if (profile) {
+		finalCommand = `AIHYDRO_PROFILE=${profile} ${finalCommand}`
+	}
+
+	return { jobId, resultDir, command: finalCommand, profile }
 }
 
 /**

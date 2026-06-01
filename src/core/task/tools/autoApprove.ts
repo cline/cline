@@ -49,6 +49,7 @@ export class AutoApprove {
 				case AiHydroDefaultTool.NEW_RULE:
 				case AiHydroDefaultTool.FILE_NEW:
 				case AiHydroDefaultTool.FILE_EDIT:
+				case AiHydroDefaultTool.MULTI_FILE_EDIT:
 				case AiHydroDefaultTool.BASH:
 					return [true, true]
 
@@ -72,6 +73,7 @@ export class AutoApprove {
 				case AiHydroDefaultTool.NEW_RULE:
 				case AiHydroDefaultTool.FILE_NEW:
 				case AiHydroDefaultTool.FILE_EDIT:
+				case AiHydroDefaultTool.MULTI_FILE_EDIT:
 					return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
 				case AiHydroDefaultTool.BASH:
 					return [

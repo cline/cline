@@ -49,6 +49,11 @@ export class TaskState {
 	// second hit falls through to a human-in-the-loop ask instead of nudging forever. Reset
 	// after a human turn so a later, unrelated stuck-spell also gets one automatic recovery.
 	mistakeNudgeAlreadyInjected = false
+	// Consecutive turns where the model produced substantive reasoning but no tool call. Models
+	// that "think out loud" across turns (notably DeepSeek) shouldn't be penalized as mistakes
+	// for the first few such turns — only once they exceed the grace window do they count, so a
+	// model stuck purely thinking still trips the guard eventually.
+	consecutiveThinkingOnlyTurns = 0
 	// Sliding window of the most recent tool failures (tool name + truncated error), used to
 	// ground the auto-decompose nudge in concrete failures instead of generic boilerplate.
 	recentToolErrors: string[] = []

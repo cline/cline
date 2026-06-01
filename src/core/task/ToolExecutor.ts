@@ -34,6 +34,7 @@ import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHa
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
+import { MultiFileEditToolHandler } from "./tools/handlers/MultiFileEditToolHandler"
 import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
 import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { PreviewHtmlToolHandler } from "./tools/handlers/PreviewHtmlToolHandler"
@@ -219,6 +220,7 @@ export class ToolExecutor {
 		this.coordinator.register(writeHandler) // registers as "write_to_file" (AiHydroDefaultTool.FILE_NEW)
 		this.coordinator.register(new SharedToolHandler(AiHydroDefaultTool.FILE_EDIT, writeHandler))
 		this.coordinator.register(new SharedToolHandler(AiHydroDefaultTool.NEW_RULE, writeHandler))
+		this.coordinator.register(new MultiFileEditToolHandler(validator))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
@@ -310,6 +312,7 @@ export class ToolExecutor {
 	private static readonly PLAN_MODE_RESTRICTED_TOOLS: AiHydroDefaultTool[] = [
 		AiHydroDefaultTool.FILE_NEW,
 		AiHydroDefaultTool.FILE_EDIT,
+		AiHydroDefaultTool.MULTI_FILE_EDIT,
 		AiHydroDefaultTool.NEW_RULE,
 	]
 
@@ -328,6 +331,7 @@ export class ToolExecutor {
 		AiHydroDefaultTool.BASH, // execute_command
 		AiHydroDefaultTool.FILE_NEW, // write_to_file
 		AiHydroDefaultTool.FILE_EDIT, // replace_in_file
+		AiHydroDefaultTool.MULTI_FILE_EDIT, // edit_files
 		AiHydroDefaultTool.NEW_RULE, // new_rule
 		AiHydroDefaultTool.BROWSER, // browser_action (has side effects)
 		AiHydroDefaultTool.NEW_TASK, // new_task (no sub-spawning from explorer)

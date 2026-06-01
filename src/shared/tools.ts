@@ -6,6 +6,7 @@ export enum AiHydroDefaultTool {
 	FILE_EDIT = "replace_in_file",
 	FILE_READ = "read_file",
 	FILE_NEW = "write_to_file",
+	MULTI_FILE_EDIT = "edit_files",
 	SEARCH = "search_files",
 	LIST_FILES = "list_files",
 	LIST_CODE_DEF = "list_code_definition_names",

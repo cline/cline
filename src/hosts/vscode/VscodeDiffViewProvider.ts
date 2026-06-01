@@ -55,12 +55,35 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
 				const fileName = path.basename(uri.fsPath)
 				const fileExists = this.editType === "modify"
+				let settled = false
+				let pollTimer: NodeJS.Timeout | undefined
+				let timeoutTimer: NodeJS.Timeout | undefined
+
+				const finish = (editor: vscode.TextEditor) => {
+					if (settled) {
+						return
+					}
+					settled = true
+					disposable.dispose()
+					if (pollTimer) {
+						clearInterval(pollTimer)
+					}
+					if (timeoutTimer) {
+						clearTimeout(timeoutTimer)
+					}
+					resolve(editor)
+				}
+
+				const findEditor = () =>
+					vscode.window.visibleTextEditors.find((e) => arePathsEqual(e.document.uri.fsPath, uri.fsPath))
+
+				// Primary signal: the diff editor becomes the active editor.
 				const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
 					if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
-						disposable.dispose()
-						resolve(editor)
+						finish(editor)
 					}
 				})
+
 				vscode.commands.executeCommand(
 					"vscode.diff",
 					vscode.Uri.from({
@@ -74,11 +97,35 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 						preserveFocus: true,
 					},
 				)
-				// This may happen on very slow machines ie project idx
-				setTimeout(() => {
+
+				// Fallback signal: with preserveFocus the diff pane may open without ever
+				// becoming the *active* editor (common on large files), so the event above
+				// never fires. Poll the visible editors so we still resolve in that case.
+				pollTimer = setInterval(() => {
+					const editor = findEditor()
+					if (editor) {
+						finish(editor)
+					}
+				}, 100)
+
+				// This may happen on very slow machines ie project idx. Bumped to 20s and
+				// only rejects if neither the event nor the poll located the editor.
+				timeoutTimer = setTimeout(() => {
+					if (settled) {
+						return
+					}
+					const editor = findEditor()
+					if (editor) {
+						finish(editor)
+						return
+					}
+					settled = true
 					disposable.dispose()
+					if (pollTimer) {
+						clearInterval(pollTimer)
+					}
 					reject(new Error("Failed to open diff editor, please try again..."))
-				}, 10_000)
+				}, 20_000)
 			})
 		}
 

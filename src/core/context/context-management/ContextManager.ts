@@ -122,7 +122,14 @@ export class ContextManager {
 
 				const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 				const roundedThreshold = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
-				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+				// Absolute ceiling on the working set before we summarize. Without this, a
+				// model with a huge window (e.g. DeepSeek-v4's 1M) would only condense at
+				// 0.75 * 1M ≈ 750k tokens — and every turn re-sends that entire history,
+				// burning tokens linearly with conversation length. Condensing at ~200k keeps
+				// a generous working set while keeping long runs affordable. The percentage
+				// threshold still wins for normal windows (0.75 * 200k = 150k < ceiling).
+				const AUTO_CONDENSE_ABSOLUTE_CEILING = 200_000
+				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize, AUTO_CONDENSE_ABSOLUTE_CEILING)
 				return totalTokens >= thresholdTokens
 			}
 		}

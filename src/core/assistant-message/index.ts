@@ -15,6 +15,7 @@ export const toolParamNames = [
 	"path",
 	"content",
 	"diff",
+	"edits",
 	"regex",
 	"file_pattern",
 	"recursive",
