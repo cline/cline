@@ -63,6 +63,7 @@ import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { TurnStateTracker } from "./turn-state-tracker"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceRootPath } from "./workspace-root"
@@ -119,6 +120,7 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 export class Controller {
 	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
+	private turnStateTracker!: TurnStateTracker
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
 	private interactions: SdkInteractionCoordinator
@@ -208,6 +210,8 @@ export class Controller {
 
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState()
+		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
+		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
 			getTask: () => this.task,
 			// Stamp seq/epoch on every message flowing to the webview from the shared authority.
@@ -229,6 +233,7 @@ export class Controller {
 			// Share the single id/seq/epoch authority so interaction-minted ids (tool-approval
 			// asks, ask_question, user_feedback) never collide with translator-minted ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
@@ -269,6 +274,8 @@ export class Controller {
 				})
 			},
 			onSendError: async (error, sessionId) => {
+				// A turn failed — the UI shows error recovery (Retry / Sign In / Add Credits).
+				this.turnStateTracker.set("error")
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const isClineAuthError =
 					this.isClineProviderActive() &&
@@ -396,6 +403,7 @@ export class Controller {
 			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -752,14 +760,21 @@ export class Controller {
 		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
 		// blocking the UI.
 		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
+		// A new task is starting — the agent is about to stream.
+		this.turnStateTracker.set("streaming")
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		this.turnStateTracker.set("streaming")
 		await this.taskStart.reinitExistingTaskFromId(taskId)
 	}
 
 	async cancelTask(): Promise<void> {
+		// Fence first: mark resumable before aborting so any straggler events from the aborted
+		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
+		// in S6; this sets the authoritative phase now.)
+		this.turnStateTracker.set("resumable")
 		await this.taskControl.cancelTask()
 	}
 
@@ -769,6 +784,8 @@ export class Controller {
 
 	async clearTask(): Promise<void> {
 		this.pendingClineAuthRetryPrompt = undefined
+		// No active task — UI returns to idle (input enabled, no buttons/thinking).
+		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
 		await this.postStateToWebview()
 	}
@@ -1228,6 +1245,7 @@ export class Controller {
 					? processedTaskHistory.find((item) => item.id === this.task?.taskId)
 					: undefined,
 				taskHistory: processedTaskHistory,
+				turnState: this.turnStateTracker.get(),
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

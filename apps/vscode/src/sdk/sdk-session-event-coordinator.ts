@@ -2,7 +2,7 @@ import type { CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo, ClineMessage } from "@/shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
@@ -29,6 +29,12 @@ export interface SdkSessionEventCoordinatorOptions {
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	isClineFreeModel?: () => Promise<boolean>
+	/**
+	 * Set the authoritative UI turn phase. Called as the agent streams (streaming), on a
+	 * completed turn (completed if attempt_completion was used, else awaiting_followup), and on
+	 * error. Optional for tests.
+	 */
+	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 }
 
 export class SdkSessionEventCoordinator {
@@ -79,6 +85,19 @@ export class SdkSessionEventCoordinator {
 
 		if (activeSession) {
 			if (result.sessionEnded || result.turnComplete) {
+				// Authoritative UI phase at turn end. If the agent called attempt_completion the
+				// turn is "completed" (green box + Start New Task); otherwise it simply stopped
+				// and is waiting for the user to type ("awaiting_followup"). Error turns are
+				// surfaced as the error phase. This replaces inferring mode from the array tail.
+				if (result.toolError && this.consecutiveToolErrorCount === 0) {
+					// mistake_limit just fired (counter reset in trackToolErrors) — error UI.
+					this.options.setTurnPhase?.("error")
+				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
+					this.options.setTurnPhase?.("completed")
+				} else {
+					this.options.setTurnPhase?.("awaiting_followup")
+				}
+
 				this.options.sessions.setRunning(false)
 				this.options.mcpTools.checkDeferredRestart()
 
