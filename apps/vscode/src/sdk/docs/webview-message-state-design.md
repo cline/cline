@@ -371,8 +371,19 @@ Each step is independently shippable and re-verified against the reproductions.
       never gated by the message filter, so post-cancel usage events still bill (exemption holds).
       Ordering covered by a unit test. (The legacy !isRunning ask-only filter is now redundant
       given the epoch fence but left in place as defense-in-depth; safe to remove with classic.)
-- S7. Translator hygiene: suppress `ask_question` `say:tool`; one-`id` tool calls; remove the
-      `done` synthetic ask and the mistake-limit abort.
+- S7. Translator hygiene. DONE (a + c): ask_question/ask_followup_question are suppressed from
+      the generic say:"tool" renderer in both content_start and content_end (kills the orphan
+      partial row); the `done` handler no longer synthesizes a trailing ask:"completion_result"
+      (the "must be last" ENG-1887 hack) — it only signals turnComplete and the webview reads
+      phase from TurnState (completed/awaiting_followup). Translator tests updated to the new
+      contract.
+      DEFERRED (b + d) as lower-risk-if-left, to a follow-up: (b) collapse the approval ask onto
+      the SAME id as the streaming tool row (content_start/content_end already share
+      getStreamingToolTs; only the interaction-coordinator approval ask uses a separate id — needs
+      cross-coordinator id threading); (d) the mistake_limit forced sdkHost.abort() is now
+      harmless (phase is authoritative) but still desirable to stop the loop — leave as-is.
+      Note: the persisted-history renderer (sdkMessagesToClineMessages) still appends its own
+      trailing ask:completion_result so a reopened task shows the resume affordance — intentional.
 - S8. Full live pass: plan ask_question, act command approval, attempt_completion, cancel
       mid-stream, api error — confirm no stuck states.
 

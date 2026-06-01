@@ -810,6 +810,14 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// (content_end doesn't carry the input)
 					state.setStreamingToolContext(toolName, input)
 
+					// ask_question (and ask_followup_question) is NOT a visual tool row: the
+					// SdkInteractionCoordinator services it and emits the proper ask:"followup"
+					// message. Emitting a generic say:"tool" here would leave an orphan partial
+					// row that never finalizes. Suppress it (the CLI does the same).
+					if (toolName === "ask_question" || toolName === "ask_followup_question") {
+						break
+					}
+
 					// attempt_completion is handled specially — it drives the
 					// green "Task Completed" rectangle in the webview. We emit
 					// say:"completion_result" here (partial) and
@@ -968,6 +976,12 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
+
+					// ask_question is serviced by the interaction coordinator (see content_start);
+					// it produces no transcript row of its own, so its content_end is a no-op.
+					if (toolName === "ask_question" || toolName === "ask_followup_question") {
+						break
+					}
 
 					// spawn_agent → finalize the subagent entry and emit
 					// say:"subagent" (completed/failed) + say:"subagent_usage".
@@ -1240,28 +1254,15 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete. Always emit ask:"completion_result"
-			// as the LAST message so it comes after the usage event's
-			// say:"api_req_started". This is critical: the webview uses
-			// the last raw message to determine UI state. If the usage
-			// event is last, the webview shows "Thinking..." instead of
-			// the completion UI (ENG-1887).
+			// Agent turn is complete. We no longer synthesize a trailing
+			// ask:"completion_result" here — that was the "must be last message" hack that
+			// existed because the webview inferred UI mode from the array tail (ENG-1887).
+			// The webview now reads the authoritative TurnState (completed when
+			// attempt_completion was used, otherwise awaiting_followup), set by the
+			// session-event coordinator on turnComplete. The green "Task Completed" box still
+			// comes from the say:"completion_result" emitted at attempt_completion content_end.
 			//
-			// For attempt_completion: content_end already emitted
-			// say:"completion_result" (the green rectangle). We emit
-			// ask:"completion_result" here with empty text so the
-			// webview enables the follow-up textarea without a second
-			// green rectangle.
-			//
-			// For non-attempt_completion (agent just responded with text):
-			// same empty ask enables the follow-up input.
-			messages.push({
-				ts: state.nextTs(),
-				type: "ask",
-				ask: "completion_result",
-				text: "",
-				partial: false,
-			})
+			// We only signal turnComplete (handled by the caller); no transcript message.
 			break
 		}
 
