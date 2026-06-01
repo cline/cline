@@ -2,6 +2,7 @@ import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-
 import { runClaudeCode } from "@/integrations/claude-code/run"
 import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { type ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { type ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -61,6 +62,28 @@ export class ClaudeCodeHandler implements ApiHandler {
 			if (chunk.type === "system" && chunk.subtype === "init") {
 				// Based on my tests, subscription usage sets the `apiKeySource` to "none"
 				isPaidUsage = chunk.apiKeySource !== "none"
+				continue
+			}
+
+			// Handle error messages from Claude Code CLI
+			if (chunk.type === "error") {
+				const errorMessage = chunk.error?.message || chunk.message || JSON.stringify(chunk)
+				Logger.error("Claude Code error chunk received:", errorMessage)
+				throw new Error(`Claude Code error: ${errorMessage}`)
+			}
+
+			// Handle rate limit events
+			if (chunk.type === "rate_limit_event") {
+				const info = chunk.rate_limit_info
+				if (info.status === "rejected") {
+					const resetsAt = new Date(info.resetsAt * 1000).toLocaleTimeString()
+					throw new Error(
+						`Claude Code rate limit exceeded (${info.rateLimitType}). ` +
+							`Resets at ${resetsAt}.` +
+							(info.overageDisabledReason ? ` Overage disabled: ${info.overageDisabledReason}.` : ""),
+					)
+				}
+				Logger.log(`Claude Code rate limit status: ${info.status} (${info.rateLimitType})`)
 				continue
 			}
 

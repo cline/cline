@@ -17,6 +17,27 @@ type AssistantMessage = {
 
 type ErrorMessage = {
 	type: "error"
+	error?: {
+		message?: string
+		type?: string
+		code?: string
+	}
+	message?: string
+	subtype?: string
+	session_id?: string
+}
+
+type RateLimitEvent = {
+	type: "rate_limit_event"
+	rate_limit_info: {
+		status: "allowed" | "rejected" | string
+		resetsAt: number
+		rateLimitType: string
+		overageStatus?: string
+		overageDisabledReason?: string
+		isUsingOverage?: boolean
+	}
+	session_id?: string
 }
 
 type ResultMessage = {
@@ -31,4 +52,4 @@ type ResultMessage = {
 	session_id: string
 }
 
-export type ClaudeCodeMessage = InitMessage | AssistantMessage | ErrorMessage | ResultMessage
+export type ClaudeCodeMessage = InitMessage | AssistantMessage | ErrorMessage | ResultMessage | RateLimitEvent

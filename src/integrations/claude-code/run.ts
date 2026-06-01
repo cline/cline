@@ -55,6 +55,13 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		partialData: null,
 	}
 
+	// Track whether we've received a result chunk from Claude Code.
+	// When --max-turns 1 is set and the model produces a tool_use response (native tool calling),
+	// Claude Code exits with code 1 ("Reached maximum number of turns"). But by that point,
+	// the assistant message and result have already been streamed and yielded. In that case,
+	// the exit code 1 is expected and we should not throw.
+	let hasReceivedResult = false
+
 	try {
 		cProcess.stderr.on("data", (data) => {
 			processState.stderrLogs += data.toString()
@@ -80,6 +87,11 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 					continue
 				}
 
+				// Track result chunks so we know the response is complete
+				if (typeof chunk !== "string" && chunk.type === "result") {
+					hasReceivedResult = true
+				}
+
 				yield chunk
 			}
 		}
@@ -98,9 +110,30 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			)
 		}
 	} catch (err) {
+		// When --max-turns 1 is set and the model uses native tool calling instead of
+		// XML-formatted text tool calls, Claude Code exits with code 1 ("Reached maximum
+		// number of turns"). If we already received and yielded the result chunk, the
+		// response is complete — suppress the error and let the generator end normally.
+		if (hasReceivedResult && (err as any)?.exitCode === 1) {
+			Logger.log("Claude Code exited with max_turns limit — response already yielded, suppressing error.")
+			return
+		}
+
 		Logger.error(`Error during Claude Code execution:`, err)
 
-		if (processState.stderrLogs.includes("unknown option '--system-prompt-file'")) {
+		// Collect all available error details from multiple sources.
+		// execa attaches stderr/stdout to the error object, and we also capture stderr via our stream listener.
+		const execaStderr = (err as any)?.stderr?.trim?.() || ""
+		const execaStdout = (err as any)?.stdout?.trim?.() || ""
+		const collectedStderr = processState.stderrLogs?.trim() || ""
+		// Use the most informative stderr source available
+		const stderrContent = collectedStderr || execaStderr
+
+		Logger.error(
+			`Claude Code error details — stderr: ${stderrContent || "(empty)"}, stdout tail: ${execaStdout?.slice?.(-500) || "(empty)"}`,
+		)
+
+		if (stderrContent.includes("unknown option '--system-prompt-file'")) {
 			throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
 				cause: err,
 			})
@@ -141,7 +174,13 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 			if (startOfCommand !== -1) {
 				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
 
-				throw new Error(`${messageWithoutCommand}\n${processState.stderrLogs?.trim()}`, { cause: err })
+				// Build a descriptive error message using all available error sources
+				const errorDetails = stderrContent || execaStdout?.slice?.(-500) || ""
+				const errorSuffix = errorDetails
+					? `\n${errorDetails}`
+					: "\nNo error details available. Check the Output panel (Cline) for more information."
+
+				throw new Error(`${messageWithoutCommand}${errorSuffix}`, { cause: err })
 			}
 		}
 
@@ -160,23 +199,50 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 
 // We want the model to use our custom tool format instead of built-in tools.
 // Disabling built-in tools prevents tool-only responses and ensures text output.
+// This list must include ALL Claude Code built-in tools with correct PascalCase names.
+// If a tool is not disallowed, the model may call it natively, consuming the single
+// allowed turn (--max-turns 1) and causing a "Reached maximum number of turns" error.
 const claudeCodeTools = [
+	// Core tools
 	"Task",
 	"Bash",
+	"PowerShell",
 	"Glob",
 	"Grep",
 	"LS",
-	"exit_plan_mode",
 	"Read",
 	"Edit",
 	"MultiEdit",
 	"Write",
+	// Notebook tools
 	"NotebookRead",
 	"NotebookEdit",
+	// Web tools
 	"WebFetch",
+	"WebSearch",
+	// Todo tools
 	"TodoRead",
 	"TodoWrite",
-	"WebSearch",
+	// Interactive tools
+	"AskUserQuestion",
+	"ToolSearch",
+	"Skill",
+	"Monitor",
+	// Plan/worktree tools
+	"EnterPlanMode",
+	"ExitPlanMode",
+	"EnterWorktree",
+	"ExitWorktree",
+	// Task management tools
+	"TaskOutput",
+	"TaskStop",
+	// Scheduling/notification tools
+	"CronCreate",
+	"CronDelete",
+	"CronList",
+	"PushNotification",
+	"RemoteTrigger",
+	"ScheduleWakeup",
 ].join(",")
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
