@@ -11,6 +11,7 @@ import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { fetch } from "@/shared/net"
+import { buildBedrockProviderConfig } from "./bedrock-config"
 import { resolveApiKey, resolveBaseUrl, resolveModelId } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 
@@ -63,6 +64,9 @@ export function buildSdkProviderConfig(
 		// configuration (see .clinerules/network.md).
 		fetch,
 		onRetryAttempt: configuration.onRetryAttempt,
+		// Bedrock needs its region + structured AWS auth options forwarded to the
+		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.
+		...(providerId === "bedrock" ? buildBedrockProviderConfig(configuration, mode) : {}),
 	}
 
 	if (options?.disableReasoning) {
