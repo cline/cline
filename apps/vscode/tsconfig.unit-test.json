@@ -11,10 +11,18 @@
 	"ts-node": {
 		"require": [
 			"tsconfig-paths/register"
-		]
+		],
+		// Load the files matched by "include" (notably the ambient vscode LM
+		// API augmentation in src/types/*.d.ts) into the ts-node program.
+		// Without this, ts-node defaults to files:false and compiles modules
+		// on demand from their imports, so the loose .d.ts augmentation is
+		// never loaded and src/shared/storage/state-keys.ts fails to compile
+		// with "Module 'vscode' has no exported member 'LanguageModelChatSelector'".
+		"files": true
 	},
 	"include": [
 		"src/**/*.ts",
+		"src/types/**/*.d.ts",
 		"test/**/*.ts"
 	],
 	"exclude": [
