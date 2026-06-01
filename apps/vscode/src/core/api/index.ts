@@ -32,6 +32,7 @@ export interface ApiHandler {
 export interface ApiHandlerModel {
 	id: string
 	info: ModelInfo
+	providerId?: string
 }
 
 export interface ApiProviderInfo {
