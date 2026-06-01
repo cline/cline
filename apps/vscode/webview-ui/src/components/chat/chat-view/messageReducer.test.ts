@@ -1,6 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { applyMessage, applyStateSnapshot, createReplicaState, type ReplicaState } from "./messageReducer"
+import { applyMessage, applyStateSnapshot, applyTurnState, createReplicaState, type ReplicaState } from "./messageReducer"
 
 function msg(ts: number, seq: number, epoch: number, partial = false, text = `m${ts}`): ClineMessage {
 	return { ts, type: "say", say: "text", text, partial, seq, epoch }
@@ -164,6 +164,74 @@ describe("messageReducer — deterministic", () => {
 				}
 				expect(normalize(s)).toEqual(expected)
 			}
+		})
+	})
+
+	// --- Regressions from the TurnState cutover (design doc §11) -------------------
+	//
+	// These encode the two webview-side regressions found after wiring the footer/buttons
+	// to read turnState. See apps/vscode/src/sdk/docs/webview-message-state-design.md §11.
+
+	describe("messageReducer — turnState seq gate (Symptom A)", () => {
+		it("a snapshot carrying a newer-seq turnState advances the replica's turnState", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task")], 1, 1, { phase: "streaming", seq: 5 })
+			expect(s.turnState?.phase).toBe("streaming")
+			expect(s.turnState?.seq).toBe(5)
+		})
+
+		it("a stale snapshot with an OLDER-seq turnState does NOT revert phase (streaming stays)", () => {
+			// The race: phase reaches "streaming" (seq 5); then a late snapshot captured earlier
+			// (turnState idle, seq 2) resolves last. Without a seq gate it would revert the footer
+			// to idle and hide the Cancel button. The gate must keep "streaming".
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task")], 1, 1, { phase: "streaming", seq: 5 })
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task")], 1, 2, { phase: "idle", seq: 2 })
+			expect(s.turnState?.phase).toBe("streaming")
+			expect(s.turnState?.seq).toBe(5)
+		})
+
+		it("turnState moves forward when a newer-seq update arrives, regardless of arrival order", () => {
+			let s = createReplicaState()
+			// Deliver the newer one first, then an older straggler.
+			s = applyTurnState(s, { phase: "completed", seq: 9 })
+			s = applyTurnState(s, { phase: "streaming", seq: 4 })
+			expect(s.turnState?.phase).toBe("completed")
+			expect(s.turnState?.seq).toBe(9)
+		})
+
+		it("a newer epoch resets turnState along with the transcript", () => {
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "old")], 1, 1, { phase: "completed", seq: 9 })
+			// New task at a fresh epoch: the old completed turnState must not leak in.
+			s = applyStateSnapshot(s, [msg(10, 1, 2, false, "new")], 2, 1, { phase: "streaming", seq: 1 })
+			expect(s.turnState?.phase).toBe("streaming")
+			expect(s.turnState?.seq).toBe(1)
+			expect(texts(s)).toEqual(["new"])
+		})
+	})
+
+	describe("messageReducer — transcript is never emptied for a live conversation (Symptom B)", () => {
+		it("a same-epoch snapshot with an empty transcript does NOT clear an existing one", () => {
+			// A bookkeeping/empty snapshot must not wipe a populated transcript and strand the
+			// webview at messages.length === 0 (which routes Enter to newTask()).
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task"), msg(2, 2, 1, false, "answer")], 1, 1)
+			s = applyStateSnapshot(s, [], 1, 2)
+			expect(tsList(s)).toEqual([1, 2])
+		})
+
+		it("a lone newer-epoch partial does NOT discard a populated transcript", () => {
+			// If an epoch bump races ahead of the full snapshot, a single newer-epoch partial
+			// must not be treated as the entire new transcript (which would empty the task).
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task"), msg(2, 2, 1, false, "answer")], 1, 5)
+			// A stray bookkeeping partial stamped at a higher epoch but with no real content.
+			const stray: ClineMessage = { ts: 99, type: "say", say: "api_req_started", text: "{}", seq: 1, epoch: 2 }
+			s = applyMessage(s, stray)
+			// The transcript must still contain the real conversation, not just the stray row.
+			expect(tsList(s)).toContain(1)
+			expect(tsList(s)).toContain(2)
 		})
 	})
 })

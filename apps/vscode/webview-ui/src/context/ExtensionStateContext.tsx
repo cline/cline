@@ -449,8 +449,14 @@ export const ExtensionStateContextProvider: React.FC<{
 								stateData.clineMessages ?? [],
 								stateData.epoch ?? 0,
 								stateData.stateVersion ?? 0,
+								stateData.turnState,
 							)
 							stateData.clineMessages = replicaRef.current.messages
+							// Use the seq-gated turnState from the replica, NOT the raw snapshot's, so a
+							// late/stale snapshot carrying an older phase (e.g. "idle") cannot revert a
+							// newer phase (e.g. "streaming") and hide the Cancel button. See design
+							// doc §11 (Symptom A). Falls back to undefined for classic/legacy state.
+							stateData.turnState = replicaRef.current.turnState
 
 							const newState = {
 								...stateData,

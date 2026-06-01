@@ -93,6 +93,45 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.mode.applyPendingModeChange).toHaveBeenCalledOnce()
 	})
 
+	it("posts state on turn end even when the turn-complete event carries NO messages", async () => {
+		// Regression (design doc §11): the `done` handler emits no transcript message, so the
+		// turn-complete event has messages.length === 0. The phase is set to completed/
+		// awaiting_followup, but if we gate postStateToWebview() on messages.length the webview
+		// never learns the turn ended and the footer stays stuck on the previous phase (e.g.
+		// scroll-arrows / streaming). The phase change MUST be pushed.
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("does NOT override the phase on a turn-complete straggler from an already-cancelled session", async () => {
+		// After cancelTask sets phase "resumable" and aborts, the SDK may still emit a trailing
+		// done/turnComplete. Because the session is no longer running, this straggler must NOT
+		// set "awaiting_followup"/"completed" — doing so would clobber "resumable" and the footer
+		// would lose the Resume Task button (showing scroll-arrows). See design doc §11.
+		const { coordinator, options, event } = makeCoordinator({
+			activeSession: makeActiveSession({ isRunning: false }),
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).not.toHaveBeenCalled()
+	})
+
 	it("updates task usage when the active session has a start result", async () => {
 		const { coordinator, options, event } = makeCoordinator({
 			task: { taskId: "task-1" },
@@ -321,6 +360,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 		getTask: vi.fn(() => input.task),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		setTurnPhase: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
