@@ -27,6 +27,7 @@ import type {
 	AgentToolContext,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -717,8 +718,12 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(execute).toHaveBeenCalledTimes(1);
 	expect(execute.mock.calls[0]).toEqual([expect.anything(), toolContext]);
 	expect(runtimeConfig.toolContextMetadata).toEqual(
-		expect.objectContaining({ modelSupportsImages: true, telemetry }),
+		expect.objectContaining({
+			modelSupportsImages: true,
+			[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+		}),
 	);
+	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 
 describe("SessionRuntime.run", () => {

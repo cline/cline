@@ -357,6 +357,7 @@ describe("captureRunCommandsTimeout", () => {
 			timeout_source: "default_setting",
 			command_count: 2,
 			duration_ms: 1502,
+			ulid: "session-1",
 			mode: "act",
 			source: "sdk-test",
 			session_id: "session-1",
@@ -377,6 +378,7 @@ describe("captureRunCommandsTimeout", () => {
 			timeout_source: "default_setting",
 			command_count: 2,
 			duration_ms: 1502,
+			ulid: "session-1",
 			mode: "act",
 			source: "sdk-test",
 			session_id: "session-1",
@@ -413,6 +415,28 @@ describe("captureRunCommandsTimeout", () => {
 			timeout_source: "default_setting",
 			command_count: 1,
 			duration_ms: 1502,
+		});
+	});
+
+	test("allows configured timeout source", () => {
+		const stub = createTelemetryStub();
+		captureRunCommandsTimeout(stub.telemetry, {
+			tool_name: "run_commands",
+			effective_timeout_ms: 5000,
+			timeout_source: "configured_setting",
+			command_count: 1,
+			duration_ms: 5001,
+			ulid: "session-1",
+		});
+
+		const { properties } = captureCallAt(stub, 0);
+		expect(properties).toEqual({
+			tool_name: "run_commands",
+			effective_timeout_ms: 5000,
+			timeout_source: "configured_setting",
+			command_count: 1,
+			duration_ms: 5001,
+			ulid: "session-1",
 		});
 	});
 });

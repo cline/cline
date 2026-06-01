@@ -8,11 +8,11 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	createTool,
-	type ITelemetryService,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
+import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
 	formatError,
 	formatReadFileQuery,
@@ -68,18 +68,6 @@ import type {
 // Helper Functions
 // =============================================================================
 
-function getContextTelemetry(
-	context: AgentToolContext,
-): ITelemetryService | undefined {
-	const telemetry = context.metadata?.telemetry;
-	return telemetry &&
-		typeof telemetry === "object" &&
-		"capture" in telemetry &&
-		typeof telemetry.capture === "function"
-		? (telemetry as ITelemetryService)
-		: undefined;
-}
-
 function getStringMetadata(
 	context: AgentToolContext,
 	key: string,
@@ -92,16 +80,18 @@ function captureRunCommandsTimeoutFromContext(
 	context: AgentToolContext,
 	properties: {
 		effectiveTimeoutMs: number;
+		timeoutSource: "default_setting" | "configured_setting";
 		commandCount: number;
 		durationMs: number;
 	},
 ): void {
-	captureRunCommandsTimeout(getContextTelemetry(context), {
+	captureRunCommandsTimeout(getToolContextTelemetry(context.metadata), {
 		tool_name: "run_commands",
 		effective_timeout_ms: properties.effectiveTimeoutMs,
-		timeout_source: "default_setting",
+		timeout_source: properties.timeoutSource,
 		command_count: properties.commandCount,
 		duration_ms: properties.durationMs,
+		ulid: context.sessionId,
 		mode: getStringMetadata(context, "mode"),
 		source: getStringMetadata(context, "source"),
 		session_id: context.sessionId,
@@ -253,6 +243,10 @@ export function createBashTool(
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutSource =
+		config.bashTimeoutMs === undefined
+			? "default_setting"
+			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<RunCommandsInput, ToolOperationResult[]>({
@@ -301,6 +295,7 @@ export function createBashTool(
 						if (error instanceof TimeoutError) {
 							captureRunCommandsTimeoutFromContext(context, {
 								effectiveTimeoutMs: error.timeoutMs,
+								timeoutSource,
 								commandCount: commands.length,
 								durationMs: Date.now() - startedAt,
 							});
@@ -329,6 +324,10 @@ export function createWindowsShellTool(
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutSource =
+		config.bashTimeoutMs === undefined
+			? "default_setting"
+			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
@@ -362,6 +361,7 @@ export function createWindowsShellTool(
 						if (error instanceof TimeoutError) {
 							captureRunCommandsTimeoutFromContext(context, {
 								effectiveTimeoutMs: error.timeoutMs,
+								timeoutSource,
 								commandCount: commands.length,
 								durationMs: Date.now() - startedAt,
 							});

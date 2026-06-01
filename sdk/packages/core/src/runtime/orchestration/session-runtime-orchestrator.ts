@@ -50,6 +50,7 @@ import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
+import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { MessageBuilder } from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
@@ -753,7 +754,7 @@ export class SessionRuntime {
 				modelSupportsImages:
 					modelInfo?.capabilities?.includes("images") ?? true,
 				...this.config.toolContextMetadata,
-				telemetry: this.config.toolContextMetadata?.telemetry ?? this.telemetry,
+				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: this.telemetry,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),

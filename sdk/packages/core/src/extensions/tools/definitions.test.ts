@@ -1,6 +1,11 @@
 import type { ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	CLINE_INTERNAL_TELEMETRY_METADATA_KEY,
+	getToolContextTelemetry,
+} from "../../services/telemetry/tool-context";
+import {
+	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
 	createSkillsTool,
@@ -435,6 +440,17 @@ describe("default run_commands tool", () => {
 			.filter((event) => event.event === "sdk.tool_timeout");
 	}
 
+	it("reads telemetry from the internal metadata key", () => {
+		const telemetry = createTelemetryStub();
+
+		expect(
+			getToolContextTelemetry({
+				telemetry: "user-defined-label",
+				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+			}),
+		).toBe(telemetry);
+	});
+
 	it("accepts object input with commands as a single string", async () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>
 			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
@@ -604,7 +620,7 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 				toolCallId: "tool-call-1",
 				metadata: {
-					telemetry,
+					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 					mode: "act",
 					source: "sdk-test",
 				},
@@ -621,8 +637,9 @@ describe("default run_commands tool", () => {
 			expect(call.properties).toMatchObject({
 				tool_name: "run_commands",
 				effective_timeout_ms: 5,
-				timeout_source: "default_setting",
+				timeout_source: "configured_setting",
 				command_count: 2,
+				ulid: "session-1",
 				mode: "act",
 				source: "sdk-test",
 				session_id: "session-1",
@@ -659,7 +676,7 @@ describe("default run_commands tool", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-			metadata: { telemetry },
+			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
 		await createWindowsShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
 			{ commands: ["echo not-timeout"] } as never,
@@ -667,7 +684,7 @@ describe("default run_commands tool", () => {
 				agentId: "agent-1",
 				conversationId: "conv-1",
 				iteration: 2,
-				metadata: { telemetry },
+				metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 			},
 		);
 
@@ -675,9 +692,65 @@ describe("default run_commands tool", () => {
 		expect(timeoutCalls).toHaveLength(1);
 		expect(timeoutCalls[0]?.properties).toMatchObject({
 			effective_timeout_ms: 5000,
-			timeout_source: "default_setting",
+			timeout_source: "configured_setting",
 			command_count: 1,
 		});
+	});
+
+	it("emits timeout telemetry on the default bash tool path", async () => {
+		const telemetry = createTelemetryStub();
+		const execute = vi.fn(
+			async (): Promise<string> =>
+				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
+		);
+		const tool = createBashTool(execute, { bashTimeoutMs: 5 });
+
+		const result = await tool.execute(
+			{ commands: ["echo secret-token", "pwd"] },
+			{
+				sessionId: "session-1",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				runId: "run-1",
+				iteration: 1,
+				toolCallId: "tool-call-1",
+				metadata: {
+					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+					mode: "act",
+					source: "sdk-test",
+				},
+			},
+		);
+
+		expect(result).toEqual([
+			expect.objectContaining({ success: false }),
+			expect.objectContaining({ success: false }),
+		]);
+		const timeoutCalls = capturedTimeoutEvents(telemetry);
+		expect(timeoutCalls).toHaveLength(2);
+		for (const call of timeoutCalls) {
+			expect(call.properties).toMatchObject({
+				tool_name: "run_commands",
+				effective_timeout_ms: 5,
+				timeout_source: "configured_setting",
+				command_count: 2,
+				ulid: "session-1",
+				mode: "act",
+				source: "sdk-test",
+				session_id: "session-1",
+				agent_id: "agent-1",
+				conversation_id: "conv-1",
+				run_id: "run-1",
+				iteration: 1,
+				tool_call_id: "tool-call-1",
+			});
+			expect(typeof call.properties.duration_ms).toBe("number");
+			const payload = JSON.stringify(call.properties);
+			expect(payload).not.toContain("secret-token");
+			expect(payload).not.toContain("pwd");
+			expect(call.properties).not.toHaveProperty("command");
+			expect(call.properties).not.toHaveProperty("commands");
+		}
 	});
 
 	it("does not emit timeout telemetry for normal command success", async () => {
@@ -689,7 +762,7 @@ describe("default run_commands tool", () => {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-			metadata: { telemetry },
+			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
 
 		expect(capturedTimeoutEvents(telemetry)).toEqual([]);
