@@ -46,15 +46,6 @@ cline -i "Read the ignored .env file"
 
 The guard uses the `beforeTool` runtime hook. When a `read_files`, `editor`, or `apply_patch` call targets an ignored workspace file, the hook returns `{ skip: true }`, so the tool result records a policy error and the file is not accessed.
 
-To block the agent from reading `.env` secret files everywhere (installed globally, so it protects every project):
-
-```bash
-cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/env-blocker.ts
-cline -i "Read the .env file and tell me the API keys"
-```
-
-An AGENTS.md or `.clinerules` rule like "never read .env files" is a suggestion the model can ignore. `env-blocker.ts` makes it deterministic: the `beforeTool` hook sits in the execution path and returns `{ skip: true }` for any `read_files`, `editor`, or `run_commands` call that touches a `.env` secret file (including shell reads like `cat .env` or `source .env.production`), so the tool call never runs. Template files (`.env.example`, `.env.sample`, `.env.template`) stay readable.
-
 For a plugin that lives in a directory (with its own `package.json`), use `cline plugin install`:
 
 ```bash

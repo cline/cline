@@ -11,7 +11,7 @@
  *
  * Template files (.env.example, .env.sample, .env.template) stay readable.
  *
- * CLI usage (installed globally, so it protects every project):
+ * CLI usage:
  *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/env-blocker.ts
  *   cline -i "Read the .env file and tell me the API keys"
  */
