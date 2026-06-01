@@ -442,7 +442,21 @@ export function captureRunCommandsTimeout(
 	telemetry: ITelemetryService | undefined,
 	properties: RunCommandsTimeoutTelemetryProperties,
 ): void {
-	emit(telemetry, CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT, { ...properties });
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT,
+		stripUndefinedProperties(properties),
+	);
+}
+
+function stripUndefinedProperties(properties: object): TelemetryProperties {
+	const result: TelemetryProperties = {};
+	for (const [key, value] of Object.entries(properties)) {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
 }
 
 export function captureMentionUsed(

@@ -393,6 +393,28 @@ describe("captureRunCommandsTimeout", () => {
 		expect(properties).not.toHaveProperty("env");
 		expect(properties).not.toHaveProperty("workspace_path");
 	});
+
+	test("omits undefined optional properties", () => {
+		const stub = createTelemetryStub();
+		captureRunCommandsTimeout(stub.telemetry, {
+			tool_name: "run_commands",
+			effective_timeout_ms: 1500,
+			timeout_source: "default_setting",
+			command_count: 1,
+			duration_ms: 1502,
+			mode: undefined,
+			source: undefined,
+		});
+
+		const { properties } = captureCallAt(stub, 0);
+		expect(properties).toEqual({
+			tool_name: "run_commands",
+			effective_timeout_ms: 1500,
+			timeout_source: "default_setting",
+			command_count: 1,
+			duration_ms: 1502,
+		});
+	});
 });
 
 /**
