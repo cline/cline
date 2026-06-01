@@ -1,5 +1,4 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
@@ -21,6 +20,12 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import {
+	createReplicaState,
+	type ReplicaState,
+	applyMessage as reducerApplyMessage,
+	applyStateSnapshot as reducerApplyStateSnapshot,
+} from "../components/chat/chat-view/messageReducer"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export type ProviderId = string
@@ -413,6 +418,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
+	// Convergent-replica state for clineMessages. The partial-message stream and the full state
+	// snapshots both feed this reducer so the transcript converges correctly regardless of
+	// arrival order, duplication, or loss. See messageReducer.ts and
+	// apps/vscode/src/sdk/docs/webview-message-state-design.md.
+	const replicaRef = useRef<ReplicaState>(createReplicaState())
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -427,12 +437,20 @@ export const ExtensionStateContextProvider: React.FC<{
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							// HACK: Preserve clineMessages if currentTaskItem is the same
-							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
-								stateData.clineMessages = stateData.clineMessages?.length
-									? stateData.clineMessages
-									: prevState.clineMessages
-							}
+
+							// Route the snapshot's transcript through the convergent-replica reducer:
+							// merge by ts/seq within the same epoch (NEVER truncate), replace on a
+							// newer epoch, ignore stale/older snapshots. This replaces the old
+							// "preserve clineMessages if same task" HACK and fixes the
+							// last-message-missing / stuck-Thinking clobber. Unstamped (classic/
+							// legacy) state defaults to epoch 0 / version 0, which merges.
+							replicaRef.current = reducerApplyStateSnapshot(
+								replicaRef.current,
+								stateData.clineMessages ?? [],
+								stateData.epoch ?? 0,
+								stateData.stateVersion ?? 0,
+							)
+							stateData.clineMessages = replicaRef.current.messages
 
 							const newState = {
 								...stateData,
@@ -579,18 +597,17 @@ export const ExtensionStateContextProvider: React.FC<{
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
 					setState((prevState) => {
-						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-						if (lastIndex !== -1) {
-							// Update existing message in-place (classic streaming update)
-							const newClineMessages = [...prevState.clineMessages]
-							newClineMessages[lastIndex] = partialMessage
-							return { ...prevState, clineMessages: newClineMessages }
+						// Route through the convergent-replica reducer: merge by ts keeping the
+						// higher seq, fence stale epochs, never let an out-of-order or duplicate
+						// delivery corrupt the transcript. Unstamped (classic/legacy) messages
+						// default to epoch 0 and merge by ts as before.
+						const before = replicaRef.current
+						replicaRef.current = reducerApplyMessage(before, partialMessage)
+						if (replicaRef.current === before) {
+							// Stale/ignored — no change.
+							return prevState
 						}
-						// No existing message with this timestamp — append it.
-						// This happens in the SDK migration where messages arrive
-						// via the partial message stream before the state update.
-						return { ...prevState, clineMessages: [...prevState.clineMessages, partialMessage] }
+						return { ...prevState, clineMessages: replicaRef.current.messages }
 					})
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
