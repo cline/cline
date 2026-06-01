@@ -3,9 +3,11 @@ import "should"
 import sinon from "sinon"
 import { McpHub } from "../McpHub"
 
-function createMcpHub(config: string) {
+function createMcpHub(config: string, response?: unknown) {
 	const client = {
-		request: sinon.stub().rejects(new Error("stop after recording request options")),
+		request: response
+			? sinon.stub().resolves(response)
+			: sinon.stub().rejects(new Error("stop after recording request options")),
 	}
 
 	const connection = {
@@ -53,5 +55,17 @@ describe("McpHub MCP discovery requests", () => {
 			client.request.firstCall.args[0].method.should.equal(method)
 			client.request.firstCall.args[2].timeout.should.equal(30_000)
 		}
+	})
+
+	it("should use the configured MCP server timeout for prompts/get requests", async () => {
+		const { hub, client } = createMcpHub(JSON.stringify({ type: "stdio", command: "test", timeout: 40 }), {
+			messages: [],
+		})
+
+		await hub.getPrompt("test-server", "slow_prompt")
+
+		client.request.calledOnce.should.be.true()
+		client.request.firstCall.args[0].method.should.equal("prompts/get")
+		client.request.firstCall.args[2].timeout.should.equal(40_000)
 	})
 })
