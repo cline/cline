@@ -6,6 +6,7 @@ import {
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	listPluginToolsWithDiagnostics,
+	type McpServerRegistration,
 	type PluginInitializationFailure,
 	type RuleConfig,
 	readGlobalSettings,
@@ -134,6 +135,33 @@ function toSorted<T extends InteractiveConfigItem>(items: T[]): T[] {
 		}
 		return a.name.localeCompare(b.name);
 	});
+}
+
+function getMcpAuthLabel(registration: McpServerRegistration): string {
+	if (registration.transport.type === "stdio") {
+		return "local";
+	}
+	if (registration.oauth?.lastError) {
+		return "oauth error";
+	}
+	const accessToken = registration.oauth?.tokens?.access_token;
+	if (typeof accessToken === "string" && accessToken.trim().length > 0) {
+		return "oauth authorized";
+	}
+	if (registration.oauth && Object.keys(registration.oauth).length > 0) {
+		return "oauth pending";
+	}
+	if (
+		registration.transport.headers &&
+		Object.keys(registration.transport.headers).length > 0
+	) {
+		return "static headers";
+	}
+	return "no auth";
+}
+
+function getMcpDescription(registration: McpServerRegistration): string {
+	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}`;
 }
 
 function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
@@ -367,7 +395,8 @@ export async function loadInteractiveConfigData(input: {
 					enabled: registration.disabled !== true,
 					kind: "mcp",
 					source: detectSource(mcpSettingsPath, input.workspaceRoot),
-					description: registration.transport.type,
+					description: getMcpDescription(registration),
+					loadError: registration.oauth?.lastError,
 				});
 			}
 		} catch {

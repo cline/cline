@@ -420,7 +420,12 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						enabled: item.enabled,
 						description: item.description,
 						item,
-						rightLabel: getPluginLoadErrorLabel(item),
+						rightLabel:
+							activeTab === "mcp"
+								? item.loadError
+									? "oauth error"
+									: item.description
+								: getPluginLoadErrorLabel(item),
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsLoading) {

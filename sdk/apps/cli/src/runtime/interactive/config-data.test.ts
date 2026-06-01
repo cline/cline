@@ -538,6 +538,56 @@ Find installable skills.`,
 		).toBe(false);
 	});
 
+	it("surfaces MCP OAuth status and errors", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		await writeFile(
+			settingsPath,
+			`${JSON.stringify(
+				{
+					mcpServers: {
+						linear: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.linear.app/mcp",
+							},
+							oauth: {
+								lastError: "OAuth authorization failed",
+							},
+						},
+						docs: {
+							transport: {
+								type: "sse",
+								url: "https://mcp.example.com/sse",
+							},
+							oauth: {
+								tokens: {
+									access_token: "token",
+								},
+							},
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData();
+		const linear = data.mcp.find((item) => item.name === "linear");
+		const docs = data.mcp.find((item) => item.name === "docs");
+
+		expect(linear?.description).toBe("streamableHttp, oauth error");
+		expect(linear?.loadError).toBe("OAuth authorization failed");
+		expect(docs?.description).toBe("sse, oauth authorized");
+		expect(docs?.loadError).toBeUndefined();
+	});
+
 	it("does not toggle workflow items", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
