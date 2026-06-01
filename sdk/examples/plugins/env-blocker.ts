@@ -106,7 +106,6 @@ const plugin: AgentPlugin = {
 				return undefined;
 			}
 
-			console.error(`[env-blocker] blocked ${toolCall.toolName}: ${blocked}`);
 			return {
 				skip: true,
 				reason: `Blocked ${toolCall.toolName}: reading environment secret files (${blocked}) is not permitted. Ask the user for any values you need.`,
