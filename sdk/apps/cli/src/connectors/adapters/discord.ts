@@ -47,6 +47,7 @@ import { InMemoryStateAdapter } from "../stores/memory-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
 	type ConnectorBindingStore,
+	type ConnectorMuteTarget,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
 	findBindingForParticipantKey,
@@ -73,6 +74,8 @@ const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 		"You can respond in Discord threads, channels, and DMs, and you can use tools according to the user's requests and your capabilities.",
 		"When asked to mention a Discord user or bot by name, write the mention as @display-name or @username. The connector resolves unique guild names to Discord mention IDs before sending. Do not ask the user for a Discord ID unless the name cannot be resolved.",
 		"Discord subscribed thread messages may arrive even when they are not addressed to you. Check <discord_message_context>: when isDirectMention is false and the message is part of another user or bot conversation that does not require your action, reply exactly /idle and nothing else. The connector treats /idle as a private no-op and will not post it to Discord.",
+		"If this Discord thread is caught in a bot loop or the user wants the connector to stop processing this thread, tell them to send /mute@BotName in shared channels or /mute in DMs. Tell them to send /unmute@BotName in shared channels or /unmute in DMs when they want this connector to resume processing the thread.",
+		"If the user wants to mute only one Discord user or bot in the current thread, tell them to send /mute@BotName @user-or-bot in shared channels or /mute @user-or-bot in DMs. Tell them to send /unmute@BotName @user-or-bot in shared channels or /unmute @user-or-bot in DMs to resume processing that participant.",
 	].join("\n"),
 );
 
@@ -273,6 +276,22 @@ function formatDiscordRuntimeText(
 		"",
 		text,
 	].join("\n");
+}
+
+function resolveDiscordMuteTarget(
+	rawTarget: string,
+): ConnectorMuteTarget | undefined {
+	const trimmed = rawTarget.trim();
+	const userId =
+		trimmed.match(/^<@!?(\d{15,25})>$/)?.[1] ??
+		trimmed.match(/^@?(\d{15,25})$/)?.[1];
+	if (!userId) {
+		return undefined;
+	}
+	return {
+		participantKey: `discord:user:${userId}`,
+		participantLabel: `<@${userId}>`,
+	};
 }
 
 function decodeDiscordThreadId(threadId: string): DiscordThreadIdParts {
@@ -975,11 +994,14 @@ class DiscordConnector extends ConnectorBase<
 
 		const statePath = this.resolveConnectorStatePath(options.applicationId);
 		const bindingsPath = this.resolveBindingsPath(options.applicationId);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<DiscordThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs,
@@ -1093,6 +1115,15 @@ class DiscordConnector extends ConnectorBase<
 			resolveStop?.();
 		};
 
+		type ErrorTrackerEntry = {
+			count: number;
+			firstSeen: number;
+			lastSeen: number;
+		};
+		const errorTracker = new Map<string, ErrorTrackerEntry>();
+		const MAX_REPEATED_ERRORS = 3;
+		const ERROR_WINDOW_MS = 60_000; // 1 minute
+
 		const handleTurn = async (
 			thread: Thread<DiscordThreadState>,
 			text: string,
@@ -1125,6 +1156,9 @@ class DiscordConnector extends ConnectorBase<
 						logger: loggerAdapter,
 						transport: "discord",
 						botUserName: options.userName,
+						ownerParticipantKeys: options.ownerUserId
+							? [`discord:user:${options.ownerUserId}`]
+							: undefined,
 						requestStop,
 						bindingsPath,
 						hookCommand: options.hookCommand,
@@ -1135,6 +1169,7 @@ class DiscordConnector extends ConnectorBase<
 						chatCommandHost,
 						activeTurns,
 						turnKey: queueKey,
+						resolveMuteTarget: ({ target }) => resolveDiscordMuteTarget(target),
 						createEmptyRuntimeReplyResolver:
 							createDiscordEmptyRuntimeReplyResolver,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
@@ -1218,7 +1253,54 @@ class DiscordConnector extends ConnectorBase<
 				} catch (error) {
 					const message =
 						error instanceof Error ? error.message : String(error);
-					await thread.post(`Discord bridge error: ${message}`);
+
+					// Track repeated errors per-thread with fixed time window
+					const now = Date.now();
+					const errorKey = `${thread.id}:${message.slice(0, 200)}`; // Per-thread error tracking
+					const tracked = errorTracker.get(errorKey);
+
+					if (!tracked) {
+						// First occurrence, start tracking
+						errorTracker.set(errorKey, {
+							count: 1,
+							firstSeen: now,
+							lastSeen: now,
+						});
+						await thread.post(`Discord bridge error: ${message}`);
+					} else if (now - tracked.firstSeen > ERROR_WINDOW_MS) {
+						// Outside fixed window, reset counter
+						errorTracker.set(errorKey, {
+							count: 1,
+							firstSeen: now,
+							lastSeen: now,
+						});
+						await thread.post(`Discord bridge error: ${message}`);
+					} else {
+						// Within fixed window, increment counter
+						tracked.count++;
+						tracked.lastSeen = now;
+
+						if (tracked.count >= MAX_REPEATED_ERRORS) {
+							// Too many repeated errors in this thread, kill the connector
+							loggerAdapter.core.error?.(
+								"Discord connector stopping due to repeated errors",
+								{
+									transport: "discord",
+									threadId: thread.id,
+									errorMessage: message,
+									count: tracked.count,
+									windowMs: now - tracked.firstSeen,
+								},
+							);
+							await thread.post(
+								`Discord bridge error (repeated ${tracked.count} times in ${Math.round((now - tracked.firstSeen) / 1000)}s): ${message}\n\nConnector shutting down due to repeated errors.`,
+							);
+							requestStop("repeated_discord_errors");
+						} else {
+							// Still within threshold, post error
+							await thread.post(`Discord bridge error: ${message}`);
+						}
+					}
 				}
 			};
 			if (activeTurns.has(queueKey)) {
@@ -1483,6 +1565,7 @@ class DiscordConnector extends ConnectorBase<
 		}
 
 		await stopPromise;
+		clearBindingSessionIds<DiscordThreadState>(bindingsPath);
 		gatewayAbortController.abort();
 		stopTaskUpdateStream();
 		stopEventStream();
@@ -1502,6 +1585,7 @@ export const __test__ = {
 	DISCORD_SYSTEM_RULES,
 	createDiscordEmptyRuntimeReplyResolver,
 	formatDiscordRuntimeText,
+	resolveDiscordMuteTarget,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<DiscordThreadState>,
 		thread: Pick<Thread<DiscordThreadState>, "id" | "channelId" | "isDM"> & {

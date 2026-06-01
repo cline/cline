@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type {
 	AgentConfig,
 	AgentExtensionMessageBuilder,
+	AgentExtensionRule,
 	AgentTool,
 	AgentToolContext,
 	Message,
@@ -21,6 +22,7 @@ import { loadSandboxedPlugins } from "./plugin-sandbox";
 
 function createApiCapture() {
 	const tools: AgentTool[] = [];
+	const rules: AgentExtensionRule[] = [];
 	const messageBuilders: AgentExtensionMessageBuilder<Message[]>[] = [];
 	const automationEventTypes: unknown[] = [];
 	const api = {
@@ -29,12 +31,12 @@ function createApiCapture() {
 		registerMessageBuilder: (
 			builder: AgentExtensionMessageBuilder<Message[]>,
 		) => messageBuilders.push(builder),
-		registerRule: () => {},
+		registerRule: (rule: AgentExtensionRule) => rules.push(rule),
 		registerProvider: () => {},
 		registerAutomationEventType: (eventType: unknown) =>
 			automationEventTypes.push(eventType),
 	};
-	return { tools, messageBuilders, automationEventTypes, api };
+	return { tools, rules, messageBuilders, automationEventTypes, api };
 }
 
 function makeSnapshot() {
@@ -137,6 +139,33 @@ describe("plugin-sandbox", () => {
 				"    api.registerMessageBuilder({",
 				"      name: 'append-system-context',",
 				"      build: async (messages) => messages.concat([{ role: 'user', content: [{ type: 'text', text: 'from sandbox builder' }] }]),",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
+			join(dir, "plugin-rules.mjs"),
+			[
+				"let resolveCount = 0;",
+				"export default {",
+				"  name: 'sandbox-rules',",
+				"  manifest: { capabilities: ['rules'] },",
+				"  setup(api) {",
+				"    api.registerRule({",
+				"      id: 'sandbox-rules:static',",
+				"      source: 'sandbox-rules',",
+				"      content: 'Static sandbox rule',",
+				"    });",
+				"    api.registerRule({",
+				"      id: 'sandbox-rules:lazy',",
+				"      source: 'sandbox-rules',",
+				"      content: async () => {",
+				"        resolveCount += 1;",
+				"        return 'Lazy sandbox rule ' + resolveCount;",
+				"      },",
 				"    });",
 				"  },",
 				"};",
@@ -330,6 +359,7 @@ describe("plugin-sandbox", () => {
 				join(dir, "plugin-run-end.mjs"),
 				join(dir, "plugin-automation-events.mjs"),
 				join(dir, "plugin-message-builder.mjs"),
+				join(dir, "plugin-rules.mjs"),
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
 				join(dir, "plugin-sdk.ts"),
@@ -600,6 +630,27 @@ describe("plugin-sandbox", () => {
 				content: [{ type: "text", text: "from sandbox builder" }],
 			},
 		]);
+	});
+
+	it("registers prompt rules from sandbox plugins", async () => {
+		const extension = sharedExtensions.get("sandbox-rules");
+		const { rules, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+
+		expect(rules).toHaveLength(2);
+		expect(rules[0]).toEqual({
+			id: "sandbox-rules:static",
+			source: "sandbox-rules",
+			content: "Static sandbox rule",
+		});
+		expect(rules[1]?.id).toBe("sandbox-rules:lazy");
+		expect(rules[1]?.source).toBe("sandbox-rules");
+		expect(typeof rules[1]?.content).toBe("function");
+		if (typeof rules[1]?.content !== "function") {
+			throw new Error("Expected lazy sandbox rule content handler");
+		}
+		const content = await rules[1].content();
+		expect(content).toBe("Lazy sandbox rule 1");
 	});
 
 	it("loads TypeScript plugins in the sandbox process", async () => {

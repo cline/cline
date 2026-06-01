@@ -1,3 +1,4 @@
+import { CONNECTOR_CATALOG, listConnectorCatalog } from "./catalog";
 import type { ConnectCommandDefinition } from "./types";
 
 type ConnectorRegistryEntry = {
@@ -5,6 +6,10 @@ type ConnectorRegistryEntry = {
 	description: string;
 	load: () => Promise<ConnectCommandDefinition>;
 };
+
+const connectorDescriptions = new Map(
+	CONNECTOR_CATALOG.map((entry) => [entry.name, entry.description]),
+);
 
 const registry = new Map<string, ConnectorRegistryEntry>([
 	[
@@ -20,7 +25,7 @@ const registry = new Map<string, ConnectorRegistryEntry>([
 		"gchat",
 		{
 			name: "gchat",
-			description: "Google Chat webhook bridge backed by RPC runtime sessions",
+			description: connectorDescriptions.get("gchat") ?? "Google Chat",
 			load: async () => (await import("./adapters/gchat")).gchatConnector,
 		},
 	],
@@ -28,7 +33,7 @@ const registry = new Map<string, ConnectorRegistryEntry>([
 		"linear",
 		{
 			name: "linear",
-			description: "Linear webhook bridge backed by RPC runtime sessions",
+			description: connectorDescriptions.get("linear") ?? "Linear",
 			load: async () => (await import("./adapters/linear")).linearConnector,
 		},
 	],
@@ -36,7 +41,7 @@ const registry = new Map<string, ConnectorRegistryEntry>([
 		"slack",
 		{
 			name: "slack",
-			description: "Slack webhook bridge backed by RPC runtime sessions",
+			description: connectorDescriptions.get("slack") ?? "Slack",
 			load: async () => (await import("./adapters/slack")).slackConnector,
 		},
 	],
@@ -44,7 +49,7 @@ const registry = new Map<string, ConnectorRegistryEntry>([
 		"telegram",
 		{
 			name: "telegram",
-			description: "Bridge Telegram bot messages into RPC chat sessions",
+			description: connectorDescriptions.get("telegram") ?? "Telegram",
 			load: async () => (await import("./adapters/telegram")).telegramConnector,
 		},
 	],
@@ -52,7 +57,7 @@ const registry = new Map<string, ConnectorRegistryEntry>([
 		"whatsapp",
 		{
 			name: "whatsapp",
-			description: "Bridge WhatsApp webhook messages into RPC chat sessions",
+			description: connectorDescriptions.get("whatsapp") ?? "WhatsApp",
 			load: async () => (await import("./adapters/whatsapp")).whatsappConnector,
 		},
 	],
@@ -61,10 +66,7 @@ const registry = new Map<string, ConnectorRegistryEntry>([
 export function listConnectors(): Array<
 	Pick<ConnectorRegistryEntry, "name" | "description">
 > {
-	return [...registry.values()].map(({ name, description }) => ({
-		name,
-		description,
-	}));
+	return listConnectorCatalog();
 }
 
 export async function getConnector(

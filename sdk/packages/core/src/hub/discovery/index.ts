@@ -14,6 +14,7 @@ const HUB_STARTUP_LOCK_POLL_MS = 100;
 export interface HubServerDiscoveryRecord {
 	hubId: string;
 	protocolVersion: string;
+	coreVersion?: string;
 	buildId?: string;
 	authToken: string;
 	host: string;
@@ -134,6 +135,8 @@ export async function readHubDiscovery(
 		return {
 			hubId: parsed.hubId,
 			protocolVersion: parsed.protocolVersion,
+			coreVersion:
+				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
 			authToken: parsed.authToken,
 			host: parsed.host,

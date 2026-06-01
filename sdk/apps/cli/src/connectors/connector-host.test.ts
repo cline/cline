@@ -28,14 +28,14 @@ type TestState = {
 	welcomeSentAt?: string;
 };
 
-function createThread(initialState: TestState = {}) {
+function createThread(initialState: TestState = {}, isDM = true) {
 	let state = { ...initialState };
 	const posts: unknown[] = [];
 	return {
 		thread: {
 			id: "thread-1",
 			channelId: "channel-1",
-			isDM: true,
+			isDM,
 			get state() {
 				return Promise.resolve(state);
 			},
@@ -58,7 +58,7 @@ function createThread(initialState: TestState = {}) {
 				return {
 					id: "thread-1",
 					channelId: "channel-1",
-					isDM: true,
+					isDM,
 					state,
 				};
 			},
@@ -92,6 +92,8 @@ function createRuntimeClient(
 ) {
 	const startRuntimeSession = vi.fn(async () => ({ sessionId: "session-1" }));
 	const updateSession = vi.fn(async () => undefined);
+	const abortRuntimeSession = vi.fn(async () => undefined);
+	const deleteSession = vi.fn(async () => undefined);
 	const sendRuntimeSession = vi.fn(async () => ({
 		result: {
 			text: responseText,
@@ -104,6 +106,9 @@ function createRuntimeClient(
 		client: {
 			startRuntimeSession,
 			updateSession,
+			abortRuntimeSession,
+			stopRuntimeSession: abortRuntimeSession,
+			deleteSession,
 			sendRuntimeSession,
 			readMessages,
 			streamEvents: vi.fn(() => () => undefined),
@@ -248,6 +253,194 @@ describe("handleConnectorUserTurn", () => {
 			expect.anything(),
 		);
 		expect(getState().welcomeSentAt).toBeUndefined();
+	});
+
+	it("ignores bare connector slash commands in shared threads", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread(
+			{
+				sessionId: "session-1",
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:owner",
+				participantLabel: "owner",
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("unused");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/new",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			ownerParticipantKeys: ["discord:user:owner"],
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(posts).toEqual([]);
+		expect(getState().sessionId).toBe("session-1");
+		expect(runtime.client.abortRuntimeSession).not.toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
+	});
+
+	it("allows owner-addressed connector slash commands in shared threads", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread(
+			{
+				sessionId: "session-1",
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:owner",
+				participantLabel: "owner",
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("unused");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/new@ClineAdapterBot",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			ownerParticipantKeys: ["discord:user:owner"],
+			requestStop: vi.fn(),
+			bindingsPath,
+			hookCommand: "echo noop",
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(posts).toEqual(["Started a fresh session."]);
+		expect(getState().sessionId).toBeUndefined();
+		expect(runtime.client.abortRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+		);
+		expect(dispatchConnectorHookMock).toHaveBeenCalledWith(
+			"echo noop",
+			expect.objectContaining({ event: "session.reset" }),
+			expect.anything(),
+		);
+	});
+
+	it("denies non-owner connector slash commands", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread(
+			{
+				sessionId: "session-1",
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:not-owner",
+				participantLabel: "not-owner",
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("unused");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/new@ClineAdapterBot",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			ownerParticipantKeys: ["discord:user:owner"],
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(posts).toEqual(["Only the connector owner can use slash commands."]);
+		expect(getState().sessionId).toBe("session-1");
+		expect(runtime.client.abortRuntimeSession).not.toHaveBeenCalled();
+	});
+
+	it("keeps bare connector slash commands available in DMs", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "session-1",
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "discord:user:owner",
+			participantLabel: "owner",
+		});
+		const runtime = createRuntimeClient("unused");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/new",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			ownerParticipantKeys: ["discord:user:owner"],
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(posts).toEqual(["Started a fresh session."]);
+		expect(getState().sessionId).toBeUndefined();
+		expect(runtime.client.abortRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+		);
 	});
 
 	it("keeps tools disabled when connector startup forced no-tools", async () => {
@@ -669,6 +862,371 @@ describe("handleConnectorUserTurn", () => {
 
 		expect(postFinalReply).not.toHaveBeenCalled();
 		expect(posts).toEqual([]);
+	});
+
+	it("mutes a connector thread until /unmute", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("runtime reply");
+		const commonInput = {
+			thread: thread as never,
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			postFinalReply: async ({ text }: { text: string }) => {
+				posts.push(text);
+			},
+		};
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/mute",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "a bot keeps talking",
+		});
+
+		expect(posts).toEqual([
+			"Thread muted. I will ignore messages here until /unmute.",
+		]);
+		expect(runtime.startRuntimeSession).not.toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "/unmute",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			text: "hello again",
+		});
+
+		expect(posts.at(-2)).toBe("Thread unmuted.");
+		expect(posts.at(-1)).toBe("runtime reply");
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("aborts active turns when muting a connector thread", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("unused");
+		const activeTurns = new Map([
+			["other-participant", { sessionId: "session-1", threadId: "thread-1" }],
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/mute",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			activeTurns,
+			turnKey: "current-participant",
+		});
+
+		expect(runtime.client.abortRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+		);
+		expect(posts).toEqual([
+			"Thread muted. I will ignore messages here until /unmute.",
+		]);
+	});
+
+	it("mutes a specific participant in the current connector thread", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const alice = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:alice",
+				participantLabel: "Alice",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const bob = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:bob",
+				participantLabel: "Bob",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("runtime reply");
+		const commonInput = {
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			resolveMuteTarget: ({ target }: { target: string }) =>
+				target === "<@bob>"
+					? {
+							participantKey: "discord:user:bob",
+							participantLabel: "<@bob>",
+						}
+					: undefined,
+		};
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "/mute@ClineAdapterBot <@bob>",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: bob.thread as never,
+			text: "bob keeps talking",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "alice is still allowed",
+			postFinalReply: async ({ text }: { text: string }) => {
+				alice.posts.push(text);
+			},
+		});
+
+		expect(alice.posts[0]).toBe(
+			"Muted <@bob> in this thread. I will ignore their messages until /unmute <@bob>.",
+		);
+		expect(bob.posts).toEqual([]);
+		expect(alice.posts.at(-1)).toBe("runtime reply");
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(1);
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "/unmute@ClineAdapterBot <@bob>",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: bob.thread as never,
+			text: "bob is back",
+			postFinalReply: async ({ text }: { text: string }) => {
+				bob.posts.push(text);
+			},
+		});
+
+		expect(alice.posts.at(-1)).toBe("Unmuted <@bob> in this thread.");
+		expect(bob.posts.at(-1)).toBe("runtime reply");
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not report thread unmuted when only participant-specific mutes are active", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const alice = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:alice",
+				participantLabel: "Alice",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const bob = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "discord:user:bob",
+				participantLabel: "Bob",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("runtime reply");
+		const commonInput = {
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			resolveMuteTarget: ({ target }: { target: string }) =>
+				target === "<@bob>"
+					? {
+							participantKey: "discord:user:bob",
+							participantLabel: "<@bob>",
+						}
+					: undefined,
+		};
+
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "/mute@ClineAdapterBot <@bob>",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: alice.thread as never,
+			text: "/unmute@ClineAdapterBot",
+		});
+		await handleConnectorUserTurn({
+			...commonInput,
+			thread: bob.thread as never,
+			text: "bob is still muted",
+			postFinalReply: async ({ text }: { text: string }) => {
+				bob.posts.push(text);
+			},
+		});
+
+		expect(alice.posts).toEqual([
+			"Muted <@bob> in this thread. I will ignore their messages until /unmute <@bob>.",
+			"No thread-level mute is active. Participant-specific mutes are still active for <@bob>. Use /unmute <target> to clear one.",
+		]);
+		expect(bob.posts).toEqual([]);
+		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
+	});
+
+	it("aborts active turns for a participant-specific mute", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "discord:user:alice",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("unused");
+		const activeTurns = new Map([
+			[
+				"discord:user:bob",
+				{
+					sessionId: "session-bob",
+					threadId: "thread-1",
+					participantKey: "discord:user:bob",
+				},
+			],
+			[
+				"discord:user:alice",
+				{
+					sessionId: "session-alice",
+					threadId: "thread-1",
+					participantKey: "discord:user:alice",
+				},
+			],
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/mute <@bob>",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			activeTurns,
+			resolveMuteTarget: () => ({
+				participantKey: "discord:user:bob",
+				participantLabel: "<@bob>",
+			}),
+		});
+
+		expect(runtime.client.abortRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(runtime.client.abortRuntimeSession).toHaveBeenCalledWith(
+			"session-bob",
+		);
+		expect(posts).toEqual([
+			"Muted <@bob> in this thread. I will ignore their messages until /unmute <@bob>.",
+		]);
 	});
 
 	it("posts adapter fallback replies when the runtime stream is empty", async () => {

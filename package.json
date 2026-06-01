@@ -4,6 +4,7 @@
     "workspaces": [
         "sdk/packages/*",
         "sdk/apps/*",
+        "sdk/apps/cline-hub/src/webview",
         "sdk/apps/examples/*",
         "sdk/apps/examples/vscode/src/webview",
         "sdk/examples",

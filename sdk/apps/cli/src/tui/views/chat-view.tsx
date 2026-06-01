@@ -6,8 +6,8 @@ import {
 	ChatMessageList,
 	type TranscriptScrollHandle,
 } from "../components/chat-message-list";
-import { InputBar, type TextareaHandle } from "../components/input-bar";
 import { InlineToolResponse } from "../components/inline-tool-response";
+import { InputBar, type TextareaHandle } from "../components/input-bar";
 import { QueuedPrompts } from "../components/queued-prompts";
 import {
 	resolveModelDisplayName,
