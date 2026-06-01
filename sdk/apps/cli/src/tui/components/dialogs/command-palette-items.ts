@@ -68,8 +68,8 @@ const ACTION_ITEMS: Array<{
 		action: "plugins",
 		label: "Manage Plugins",
 		shortcut: "Opt+G",
-		description: "Open plugin settings and diagnostics",
-		keywords: ["plugins", "extensions", "tools", "settings"],
+		description: "Open plugin settings",
+		keywords: ["plugins", "extensions", "settings"],
 	},
 	{
 		action: "account",

@@ -127,6 +127,7 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	currentMode: string;
 	currentCompactionMode: CliCompactionMode;
 	initialTab?: InteractiveConfigTab;
+	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
@@ -307,7 +308,14 @@ function getPluginLoadErrorLabel(
 }
 
 export function ConfigPanelContent(props: ConfigPanelProps) {
-	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		config,
+		loadConfigData,
+		onActiveTabChange,
+	} = props;
 	const { height } = useTerminalDimensions();
 
 	const [mode, setMode] = useState(props.currentMode);
@@ -334,6 +342,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+
+	useEffect(() => {
+		onActiveTabChange?.(activeTab);
+	}, [activeTab, onActiveTabChange]);
 
 	useEffect(() => {
 		if (

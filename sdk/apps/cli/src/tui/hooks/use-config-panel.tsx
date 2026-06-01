@@ -57,6 +57,7 @@ export function useConfigPanel(opts: {
 	const openConfig = useCallback(
 		async (options: OpenConfigOptions = {}) => {
 			let keepOpen = true;
+			let activeTab = options.initialTab;
 			while (keepOpen) {
 				const [data, providerInfo] = await withLoadingDialog(
 					opts.dialog,
@@ -84,7 +85,10 @@ export function useConfigPanel(opts: {
 							providerDisplayName={providerDisplayName}
 							currentMode={opts.sessionUiMode}
 							currentCompactionMode={opts.compactionMode}
-							initialTab={options.initialTab}
+							initialTab={activeTab}
+							onActiveTabChange={(tab) => {
+								activeTab = tab;
+							}}
 							onToggleConfigItem={opts.onToggleConfigItem}
 							onToggleMode={opts.toggleMode}
 							onToggleAutoApprove={opts.toggleAutoApprove}
