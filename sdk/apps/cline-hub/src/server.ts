@@ -41,173 +41,203 @@ import { HubContext } from "./server/state";
 import { broadcastHubState, hubStatusPayload } from "./server/state-payloads";
 import type { BrowserFrame, BrowserPeer } from "./server/types";
 
-const ctx = new HubContext();
-const assets = new WebviewAssets(webviewDistDir);
-const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
-
-function isAuthorizedBrowserRequest(url: URL): boolean {
-	if (!roomSecret) return true;
-	return url.searchParams.get("roomSecret") === roomSecret;
+export interface ClineHubDashboardServer {
+	listenUrl: string;
+	publicUrl: string;
+	inviteUrl: string;
+	hubUrl: string | undefined;
+	stop: () => void;
 }
 
-await attachHub(ctx);
-setInterval(() => {
-	void (async () => {
-		await syncHubHealth(ctx);
-		broadcastHubState(ctx);
-	})();
-}, 5_000);
+export async function startClineHubDashboardServer(): Promise<ClineHubDashboardServer> {
+	const ctx = new HubContext();
+	const assets = new WebviewAssets(webviewDistDir);
+	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 
-const server = Bun.serve<BrowserPeer>({
-	port,
-	hostname: host,
-	async fetch(req, server) {
-		const url = new URL(req.url);
-		if (url.pathname === "/version") {
-			return createJsonResponse({ coreVersion: CORE_BUILD_VERSION });
-		}
-		if (url.pathname === "/health") {
+	function isAuthorizedBrowserRequest(url: URL): boolean {
+		if (!roomSecret) return true;
+		return url.searchParams.get("roomSecret") === roomSecret;
+	}
+
+	await attachHub(ctx);
+	const healthInterval = setInterval(() => {
+		void (async () => {
 			await syncHubHealth(ctx);
-			return createJsonResponse(hubStatusPayload(ctx));
-		}
-		if (url.pathname === "/browser") {
-			if (!isAuthorizedBrowserRequest(url)) {
-				return createJsonResponse({ error: "invalid_room_secret" }, 401);
+			broadcastHubState(ctx);
+		})();
+	}, 5_000);
+
+	const server = Bun.serve<BrowserPeer>({
+		port,
+		hostname: host,
+		async fetch(req, server) {
+			const url = new URL(req.url);
+			if (url.pathname === "/version") {
+				return createJsonResponse({ coreVersion: CORE_BUILD_VERSION });
 			}
-			const displayName = `Browser ${Math.random().toString(36).slice(2, 6)}`;
-			const data = {
-				socket: undefined as never,
-				displayName,
-				sending: false,
-			};
-			if (server.upgrade(req, { data })) return undefined;
-			return new Response("upgrade failed", { status: 400 });
-		}
-		if (url.pathname === "/config.json") {
-			return createJsonResponse(browserConfig);
-		}
-		return assets.serve(url.pathname);
-	},
-	websocket: {
-		async open(socket) {
-			const peer = socket.data;
-			peer.socket = socket;
-			ctx.peers.add(peer);
+			if (url.pathname === "/health") {
+				await syncHubHealth(ctx);
+				return createJsonResponse(hubStatusPayload(ctx));
+			}
+			if (url.pathname === "/browser") {
+				if (!isAuthorizedBrowserRequest(url)) {
+					return createJsonResponse({ error: "invalid_room_secret" }, 401);
+				}
+				const displayName = `Browser ${Math.random().toString(36).slice(2, 6)}`;
+				const data = {
+					socket: undefined as never,
+					displayName,
+					sending: false,
+				};
+				if (server.upgrade(req, { data })) return undefined;
+				return new Response("upgrade failed", { status: 400 });
+			}
+			if (url.pathname === "/config.json") {
+				return createJsonResponse(browserConfig);
+			}
+			return assets.serve(url.pathname);
 		},
-		async message(socket, raw) {
-			const peer = socket.data;
-			try {
-				const frame = JSON.parse(String(raw)) as BrowserFrame;
-				if (frame.type === "desktopCommand") {
-					try {
-						const result = await handleDesktopCommand(
-							ctx,
-							frame.command,
-							frame.args,
-						);
-						ctx.send(peer, {
-							type: "desktopCommandResult",
-							id: frame.id,
-							ok: true,
-							result,
+		websocket: {
+			async open(socket) {
+				const peer = socket.data;
+				peer.socket = socket;
+				ctx.peers.add(peer);
+			},
+			async message(socket, raw) {
+				const peer = socket.data;
+				try {
+					const frame = JSON.parse(String(raw)) as BrowserFrame;
+					if (frame.type === "desktopCommand") {
+						try {
+							const result = await handleDesktopCommand(
+								ctx,
+								frame.command,
+								frame.args,
+							);
+							ctx.send(peer, {
+								type: "desktopCommandResult",
+								id: frame.id,
+								ok: true,
+								result,
+							});
+						} catch (error) {
+							ctx.send(peer, {
+								type: "desktopCommandResult",
+								id: frame.id,
+								ok: false,
+								error: error instanceof Error ? error.message : String(error),
+							});
+						}
+					} else if (frame.type === "ready") {
+						await initializePeer(ctx, peer, syncClientsAndSessions);
+					} else if (frame.type === "loadModels") {
+						await loadModels(ctx, peer, frame.providerId);
+					} else if (frame.type === "loadProviderCatalog") {
+						await sendProviderCatalog(ctx, peer);
+					} else if (frame.type === "saveProviderSettings") {
+						await saveProviderSettings(ctx, peer, frame);
+					} else if (frame.type === "runProviderOAuthLogin") {
+						await runProviderOAuthLogin(ctx, peer, frame.providerId);
+					} else if (frame.type === "attachSession") {
+						await selectSession(ctx, peer, frame.sessionId);
+					} else if (frame.type === "deleteSession") {
+						await deleteSession(ctx, peer, frame.sessionId);
+					} else if (frame.type === "updateSessionMetadata") {
+						if (!ctx.cline) throw new Error("Hub is not connected.");
+						const session = await ctx.cline.get(frame.sessionId);
+						const metadata =
+							session?.metadata && typeof session.metadata === "object"
+								? (session.metadata as Record<string, unknown>)
+								: {};
+						await ctx.cline.update(frame.sessionId, {
+							metadata: { ...metadata, ...frame.metadata },
 						});
-					} catch (error) {
-						ctx.send(peer, {
-							type: "desktopCommandResult",
-							id: frame.id,
-							ok: false,
-							error: error instanceof Error ? error.message : String(error),
-						});
-					}
-				} else if (frame.type === "ready") {
-					await initializePeer(ctx, peer, syncClientsAndSessions);
-				} else if (frame.type === "loadModels") {
-					await loadModels(ctx, peer, frame.providerId);
-				} else if (frame.type === "loadProviderCatalog") {
-					await sendProviderCatalog(ctx, peer);
-				} else if (frame.type === "saveProviderSettings") {
-					await saveProviderSettings(ctx, peer, frame);
-				} else if (frame.type === "runProviderOAuthLogin") {
-					await runProviderOAuthLogin(ctx, peer, frame.providerId);
-				} else if (frame.type === "attachSession") {
-					await selectSession(ctx, peer, frame.sessionId);
-				} else if (frame.type === "deleteSession") {
-					await deleteSession(ctx, peer, frame.sessionId);
-				} else if (frame.type === "updateSessionMetadata") {
-					if (!ctx.cline) throw new Error("Hub is not connected.");
-					const session = await ctx.cline.get(frame.sessionId);
-					const metadata =
-						session?.metadata && typeof session.metadata === "object"
-							? (session.metadata as Record<string, unknown>)
-							: {};
-					await ctx.cline.update(frame.sessionId, {
-						metadata: { ...metadata, ...frame.metadata },
-					});
-					await syncHubClientsAndSessions(ctx);
-					broadcastHubState(ctx);
-				} else if (frame.type === "approval_response") {
-					handleToolApprovalResponse(ctx, frame);
-				} else if (frame.type === "abort") {
-					await abortPeerTurn(ctx, peer);
-				} else if (frame.type === "reset") {
-					await resetPeer(ctx, peer);
-				} else if (frame.type === "send") {
-					if (peer.sending) {
-						ctx.send(peer, {
-							type: "status",
-							text: "A turn is already in progress.",
-						});
-						return;
-					}
-					peer.sending = true;
-					try {
-						await sendMessage(
+						await syncHubClientsAndSessions(ctx);
+						broadcastHubState(ctx);
+					} else if (frame.type === "approval_response") {
+						handleToolApprovalResponse(ctx, frame);
+					} else if (frame.type === "abort") {
+						await abortPeerTurn(ctx, peer);
+					} else if (frame.type === "reset") {
+						await resetPeer(ctx, peer);
+					} else if (frame.type === "send") {
+						if (peer.sending) {
+							ctx.send(peer, {
+								type: "status",
+								text: "A turn is already in progress.",
+							});
+							return;
+						}
+						peer.sending = true;
+						try {
+							await sendMessage(
+								ctx,
+								peer,
+								frame.prompt,
+								frame.config,
+								frame.attachments,
+							);
+						} finally {
+							peer.sending = false;
+						}
+					} else if (frame.type === "forkSession") {
+						await forkPeerSession(ctx, peer, syncClientsAndSessions);
+					} else if (frame.type === "restore") {
+						await restorePeerSession(
 							ctx,
 							peer,
-							frame.prompt,
-							frame.config,
-							frame.attachments,
+							frame.checkpointRunCount,
+							syncClientsAndSessions,
 						);
-					} finally {
-						peer.sending = false;
+					} else if (frame.type === "restart_hub") {
+						await restartHub(ctx);
 					}
-				} else if (frame.type === "forkSession") {
-					await forkPeerSession(ctx, peer, syncClientsAndSessions);
-				} else if (frame.type === "restore") {
-					await restorePeerSession(
-						ctx,
-						peer,
-						frame.checkpointRunCount,
-						syncClientsAndSessions,
-					);
-				} else if (frame.type === "restart_hub") {
-					await restartHub(ctx);
+				} catch (error) {
+					ctx.send(peer, {
+						type: "error",
+						text: error instanceof Error ? error.message : String(error),
+					});
 				}
-			} catch (error) {
-				ctx.send(peer, {
-					type: "error",
-					text: error instanceof Error ? error.message : String(error),
-				});
-			}
+			},
+			close(socket) {
+				const peer = socket.data;
+				peer.unsubscribeEvents?.();
+				ctx.peers.delete(peer);
+				rejectOrphanedApprovals(ctx);
+			},
 		},
-		close(socket) {
-			const peer = socket.data;
-			peer.unsubscribeEvents?.();
-			ctx.peers.delete(peer);
-			rejectOrphanedApprovals(ctx);
-		},
-	},
-});
+	});
 
-console.log(`Cline Hub dashboard listening: ${server.url}`);
-console.log(`Cline Hub public URL: ${publicUrl}`);
-console.log(`hub endpoint: ${ctx.hubUrl}`);
-if (roomSecret) {
-	console.log(`Cline Hub invite URL: ${inviteUrl}`);
-} else if (isNonLocalBindHost(host)) {
-	console.warn("WARNING: non-local bind without ROOM_SECRET is not allowed.");
-} else {
-	console.log(
-		"ROOM_SECRET is not set; this local-only instance accepts browser connections without an invite token.",
-	);
+	return {
+		listenUrl: server.url.toString(),
+		publicUrl,
+		inviteUrl,
+		hubUrl: ctx.hubUrl,
+		stop: () => {
+			clearInterval(healthInterval);
+			server.stop(true);
+		},
+	};
+}
+
+export function printClineHubDashboardServerInfo(
+	server: ClineHubDashboardServer,
+): void {
+	console.log(`Cline Hub dashboard listening: ${server.listenUrl}`);
+	console.log(`Cline Hub public URL: ${server.publicUrl}`);
+	console.log(`hub endpoint: ${server.hubUrl}`);
+	if (roomSecret) {
+		console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
+	} else if (isNonLocalBindHost(host)) {
+		console.warn("WARNING: non-local bind without ROOM_SECRET is not allowed.");
+	} else {
+		console.log(
+			"ROOM_SECRET is not set; this local-only instance accepts browser connections without an invite token.",
+		);
+	}
+}
+
+if (import.meta.main) {
+	const server = await startClineHubDashboardServer();
+	printClineHubDashboardServerInfo(server);
 }
