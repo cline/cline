@@ -19,6 +19,7 @@ What a plugin can do:
 | [background-terminal.ts](./background-terminal.ts) | Detached shell jobs with persisted logs and session steering | Registers `start_background_command`, `get_background_command`, and `delete_background_command` so agents can launch long-running shell commands, poll stdout/stderr tails, clean up job metadata, and receive completion summaries as steer messages. |
 | [automation-events.ts](./automation-events.ts) | Plugin-emitted automation events | Registers a normalized `local.plugin_event` automation event type and, when `CLINE_LOCAL_EVENT_INTERVAL_MS` is set, periodically emits demo events into Cline automation. |
 | [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries | Uses `beforeTool` to inspect `read_files`, `editor`, and `apply_patch` requests and skips them when target paths match workspace `.gitignore` rules, preventing ignored files from being read or modified. |
+| [env-blocker.ts](./env-blocker.ts) | Deterministic secret protection via `beforeTool` | Uses `beforeTool` to block `read_files`, `editor`, and `run_commands` (e.g. `cat .env`) calls that touch `.env` secret files, while leaving `.env.example`/`.env.sample`/`.env.template` readable. A hard guarantee where an AGENTS.md rule is only a suggestion. |
 | [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key | Adds a `web_search` tool that queries Exa for current public web results, with optional result limits, domain filters, recency windows, and country localization. Requires `EXA_API_KEY`. |
 | [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
 | [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. |
@@ -44,6 +45,15 @@ cline -i "Read the ignored .env file"
 ```
 
 The guard uses the `beforeTool` runtime hook. When a `read_files`, `editor`, or `apply_patch` call targets an ignored workspace file, the hook returns `{ skip: true }`, so the tool result records a policy error and the file is not accessed.
+
+To block the agent from reading `.env` secret files specifically:
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/env-blocker.ts --cwd .
+cline -i "Read the .env file and tell me the API keys"
+```
+
+An AGENTS.md or `.clinerules` rule like "never read .env files" is a suggestion the model can ignore. `env-blocker.ts` makes it deterministic: the `beforeTool` hook sits in the execution path and returns `{ skip: true }` for any `read_files`, `editor`, or `run_commands` call that touches a `.env` secret file (including shell reads like `cat .env` or `source .env.production`), so the tool call never runs. Template files (`.env.example`, `.env.sample`, `.env.template`) stay readable.
 
 For a plugin that lives in a directory (with its own `package.json`), use `cline plugin install`:
 
