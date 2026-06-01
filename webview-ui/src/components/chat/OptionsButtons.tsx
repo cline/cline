@@ -78,6 +78,35 @@ export const OptionsButtons = ({
 					<span className="ph-no-capture">{option}</span>
 				</OptionButton>
 			))}
+			{/* Always offer a free-text escape hatch so the user is never boxed into the
+			    model's options (mirrors Claude Code's "Other" affordance). */}
+			{!hasSelected && isActive && (
+				<OptionButton
+					className="options-button options-button-free-text"
+					id="options-button-free-text"
+					key="free-text"
+					onClick={async () => {
+						const typed = inputValue?.trim()
+						if (typed) {
+							try {
+								await TaskServiceClient.askResponse(
+									AskResponseRequest.create({
+										responseType: "messageResponse",
+										text: typed,
+										images: [],
+									}),
+								)
+							} catch (error) {
+								console.error("Error sending free-text response:", error)
+							}
+						} else {
+							// Nothing typed yet — focus the chat input so the user can write their answer.
+							window.dispatchEvent(new CustomEvent("focusChatInput"))
+						}
+					}}>
+					<span style={{ opacity: 0.85 }}>✏️ Let me answer in my own words…</span>
+				</OptionButton>
+			)}
 		</div>
 	)
 }

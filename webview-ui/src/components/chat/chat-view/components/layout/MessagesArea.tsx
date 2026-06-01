@@ -34,6 +34,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		setIsAtBottom,
 		setShowScrollToBottom,
 		disableAutoScrollRef,
+		isAtBottom,
+		scrollToBottomSmooth,
 	} = scrollBehavior
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
@@ -64,18 +66,44 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	// Show typing indicator when the last message is from the user (no assistant response yet)
 	// Also show when an API request has started but the assistant hasn't started responding
 	const showTypingIndicator = useMemo(() => {
-		if (groupedMessages.length === 0) return false
+		if (groupedMessages.length === 0) {
+			return false
+		}
 		const last = groupedMessages[groupedMessages.length - 1]
-		if (Array.isArray(last)) return false
+		if (Array.isArray(last)) {
+			return false
+		}
 		// User messages are type "ask" with ask === "user_feedback"
-		if (last.type === "ask" && last.ask === "user_feedback") return true
+		if (last.type === "ask" && last.ask === "user_feedback") {
+			return true
+		}
 		// API request started but no text response yet
-		if (last.type === "say" && last.say === "api_req_started") return true
+		if (last.type === "say" && last.say === "api_req_started") {
+			return true
+		}
 		return false
 	}, [groupedMessages])
 
 	return (
-		<div className="overflow-hidden flex flex-col h-full">
+		<div className="overflow-hidden flex flex-col h-full relative">
+			{/* Floating jump-to-latest button (Claude Code style): appears whenever the user is
+			    not pinned to the bottom, overlaid on the transcript so it never displaces the
+			    approve/reject action buttons. */}
+			{!isAtBottom && groupedMessages.length > 0 && (
+				<button
+					aria-label="Scroll to latest"
+					className="absolute bottom-3 right-4 z-10 flex items-center justify-center w-8 h-8 rounded-full shadow-md smooth-transition active:scale-[0.92] cursor-pointer border-0"
+					onClick={() => {
+						scrollToBottomSmooth()
+						disableAutoScrollRef.current = false
+					}}
+					style={{
+						background: "var(--vscode-button-secondaryBackground)",
+						color: "var(--vscode-button-secondaryForeground)",
+					}}>
+					<span className="codicon codicon-chevron-down text-[14px]" />
+				</button>
+			)}
 			<div className="flex-grow flex" ref={scrollContainerRef}>
 				<Virtuoso
 					atBottomStateChange={(isAtBottom) => {

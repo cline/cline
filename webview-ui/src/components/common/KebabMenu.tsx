@@ -56,15 +56,23 @@ export const KebabMenu: React.FC<KebabMenuProps> = ({ items, trigger, title }) =
 
 	// Close on outside click / ESC
 	useEffect(() => {
-		if (!open) return
+		if (!open) {
+			return
+		}
 		const onDocClick = (e: MouseEvent) => {
 			const target = e.target as Node
-			if (triggerRef.current?.contains(target)) return
-			if ((refs.floating.current as HTMLElement | null)?.contains(target)) return
+			if (triggerRef.current?.contains(target)) {
+				return
+			}
+			if ((refs.floating.current as HTMLElement | null)?.contains(target)) {
+				return
+			}
 			setOpen(false)
 		}
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setOpen(false)
+			if (e.key === "Escape") {
+				setOpen(false)
+			}
 		}
 		document.addEventListener("mousedown", onDocClick)
 		document.addEventListener("keydown", onKey)
@@ -83,7 +91,9 @@ export const KebabMenu: React.FC<KebabMenuProps> = ({ items, trigger, title }) =
 	)
 
 	const handleItem = (item: KebabMenuItem) => {
-		if (item.disabled) return
+		if (item.disabled) {
+			return
+		}
 		setOpen(false)
 		item.onClick()
 	}

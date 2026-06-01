@@ -43,11 +43,17 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
 	const storageKey = persistKey ? `aihydro.accordion.${persistKey}` : null
 
 	const [open, setOpen] = useState<boolean>(() => {
-		if (!storageKey) return defaultOpen
+		if (!storageKey) {
+			return defaultOpen
+		}
 		try {
 			const stored = localStorage.getItem(storageKey)
-			if (stored === "true") return true
-			if (stored === "false") return false
+			if (stored === "true") {
+				return true
+			}
+			if (stored === "false") {
+				return false
+			}
 		} catch {
 			/* ignore */
 		}
@@ -55,7 +61,9 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
 	})
 
 	useEffect(() => {
-		if (!storageKey) return
+		if (!storageKey) {
+			return
+		}
 		try {
 			localStorage.setItem(storageKey, String(open))
 		} catch {

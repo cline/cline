@@ -5,7 +5,9 @@ interface TypingIndicatorProps {
 }
 
 export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ visible = true }) => {
-	if (!visible) return null
+	if (!visible) {
+		return null
+	}
 
 	return (
 		<div className="flex items-center gap-2 px-4 py-2 my-1">
