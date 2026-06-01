@@ -258,10 +258,17 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 }
 
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
-	if (StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")) {
-		return
+	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
+
+	if (selection.modelInfo.contextWindow !== undefined && selection.modelInfo.contextWindow > 0) {
+		next.contextWindow = selection.modelInfo.contextWindow
 	}
-	saveProviderSettings(providerId, { ...getProviderSettings(providerId), model: selection.modelId })
+
+	if (selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
+		next.maxTokens = selection.modelInfo.maxTokens
+	}
+
+	saveProviderSettings(providerId, next)
 }
 
 function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelection | undefined {
