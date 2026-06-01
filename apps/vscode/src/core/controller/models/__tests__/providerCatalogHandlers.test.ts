@@ -186,6 +186,24 @@ describe("provider model catalog handlers", () => {
 		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL")
 	})
 
+	it("writeProviderConfig can explicitly clear headers", async () => {
+		const { writeProviderConfig } = await import("../writeProviderConfig")
+		const providerId = parseProviderId("openai")
+		const updatedConfig: EffectiveProviderConfig = {
+			providerId,
+			headers: {},
+		}
+		const store = makeStore(updatedConfig)
+		const controller = makeController(store, makeCatalog())
+
+		await writeProviderConfig(controller, {
+			providerId: "openai",
+			patch: { headers: {}, clearHeaders: true },
+		})
+
+		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
+	})
+
 	it("commitModelSelection validates mode and commits the full selection envelope", async () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")
