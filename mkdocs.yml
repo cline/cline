@@ -155,7 +155,17 @@ nav:
 
   - User Guide:
     - VS Code Extension: guide/vscode-extension.md
-    - Map Panel: guide/map.md
+    - Map Panel:
+      - Overview: guide/map.md
+      - Layers & Symbology: guide/map/layers.md
+      - Draw & Measure: guide/map/draw-measure.md
+      - Smart Annotations: guide/map/annotations.md
+      - Transect Profiles: guide/map/transects.md
+      - Swipe Comparison: guide/map/swipe.md
+      - Map Plate Composer: guide/map/map-plate.md
+      - Feature Inspector: guide/map/inspector.md
+      - Hydrography & Gallery: guide/map/hydrography.md
+      - Agent Integration: guide/map/agent-integration.md
     - Data Fetch: guide/data-fetch.md
     - Spectral Indices: guide/spectral-indices.md
     - Tool Discovery: guide/tool-discovery.md

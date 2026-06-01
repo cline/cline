@@ -17,7 +17,9 @@ const require = createRequire(import.meta.url)
 // requires Rosetta 2 to run on Apple Silicon. Override via PROTOC_PATH.
 function resolveProtoc() {
 	const envOverride = process.env.PROTOC_PATH
-	if (envOverride) return envOverride
+	if (envOverride) {
+		return envOverride
+	}
 	const candidates = ["/opt/homebrew/bin/protoc", "/usr/local/bin/protoc"]
 	for (const c of candidates) {
 		try {
@@ -179,12 +181,18 @@ async function cleanup() {
 // (e.g. /opt/homebrew/bin/protoc), Rosetta is not needed and this check is
 // skipped.
 function checkAppleSiliconCompatibility() {
-	if (process.platform !== "darwin") return
-	if (os.arch() !== "arm64") return
+	if (process.platform !== "darwin") {
+		return
+	}
+	if (os.arch() !== "arm64") {
+		return
+	}
 
 	// If we picked a non-grpc-tools protoc, it's a native binary — no Rosetta needed.
 	const grpcToolsProtoc = path.join(require.resolve("grpc-tools"), "../bin/protoc")
-	if (PROTOC !== grpcToolsProtoc) return
+	if (PROTOC !== grpcToolsProtoc) {
+		return
+	}
 
 	try {
 		const rosettaCheck = execSync('/usr/bin/pgrep oahd || echo "NOT_INSTALLED"').toString().trim()

@@ -255,11 +255,21 @@ async function getCounts(url: URL, env: Env): Promise<Response> {
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url)
-		if (request.method === "OPTIONS") return json({ ok: true })
-		if (request.method === "GET" && url.pathname === "/v1/health") return json({ ok: true })
-		if (request.method === "POST" && url.pathname === "/v1/events") return recordEvent(request, env)
-		if (request.method === "POST" && url.pathname === "/v1/stars") return setStar(request, env)
-		if (request.method === "GET" && url.pathname === "/v1/counts") return getCounts(url, env)
+		if (request.method === "OPTIONS") {
+			return json({ ok: true })
+		}
+		if (request.method === "GET" && url.pathname === "/v1/health") {
+			return json({ ok: true })
+		}
+		if (request.method === "POST" && url.pathname === "/v1/events") {
+			return recordEvent(request, env)
+		}
+		if (request.method === "POST" && url.pathname === "/v1/stars") {
+			return setStar(request, env)
+		}
+		if (request.method === "GET" && url.pathname === "/v1/counts") {
+			return getCounts(url, env)
+		}
 		return json({ error: "Not found." }, { status: 404 })
 	},
 }

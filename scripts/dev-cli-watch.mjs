@@ -36,7 +36,7 @@ function killAllInstances() {
 			cwd: projectRoot,
 			stdio: "pipe",
 		})
-	} catch (error) {
+	} catch (_error) {
 		// Ignore errors - instances might not be running
 	}
 }
@@ -257,7 +257,9 @@ protoWatcher
 const goWatcher = chokidar.watch("cli", {
 	ignored: (filepath, stats) => {
 		// Ignore node_modules and non-.go files
-		if (filepath.includes("node_modules")) return true
+		if (filepath.includes("node_modules")) {
+			return true
+		}
 		return stats?.isFile() && !filepath.endsWith(".go")
 	},
 	persistent: true,

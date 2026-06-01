@@ -235,7 +235,7 @@ async function copyRipgrepBinary() {
 /**
  * Create a VERSION file with build metadata
  */
-async function createVersionFile() {
+async function _createVersionFile() {
 	const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"))
 	const version = packageJson.version
 	const platform = getCurrentPlatform()
