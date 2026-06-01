@@ -347,8 +347,14 @@ Each step is independently shippable and re-verified against the reproductions.
       when those coordinators are threaded for `seq`/`epoch` stamping. They are low-frequency
       boundary messages, but collision-safety wants them on the one counter too.
 - S2. `seq` + `epoch` stamping in the extension; fire-and-forget delivery (stop awaiting posts).
+      DONE: SdkMessageCoordinator stamps seq/epoch on every message; getStateToPostToWebview
+      stamps stateVersion/epoch; epoch bumps via resetMessageTranslatorAndFence() at the reset
+      sites; ClineMessage proto + ExtensionState carry the fields; sendPartialMessageEvent /
+      sendStateUpdate no longer await postMessage. (Cancel's epoch bump is folded into S6.)
 - S3. Webview reducer: gate on `epoch`, merge by `id`/`seq`, drop the wholesale-replace `// HACK`.
-      → fixes RC2 ("last message missing"). Re-verify with the stale-snapshot injection.
+      DONE: messageReducer.ts (pure applyMessage/applyStateSnapshot) wired into
+      ExtensionStateContext for both channels; 120-permutation order-independence test proves
+      convergence under any arrival order/duplication/loss. → fixes RC2 ("last message missing").
 - S4. `turnState` type + backend transitions, shipped in `state_json` (additive).
 - S5. Webview footer + buttons read `turnState` (delete `isWaitingForResponse` tail inference and
       the inert skip-list walk). → fixes RC1. Re-verify with the trailing-bookkeeping injection.
