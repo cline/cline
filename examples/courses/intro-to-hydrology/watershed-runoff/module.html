@@ -618,6 +618,70 @@ a { color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,221,
   });
 
 })();
+
+/* ── Quiz wiring ─────────────────────────────────────── */
+(function wireQuiz() {
+  var MODULE_ID = 'watershed-runoff';
+  var quizEl    = document.getElementById('watershedQuiz');
+  var submitBtn = document.getElementById('quizSubmit');
+  var scoreEl   = document.getElementById('quizScore');
+  if (!quizEl || !submitBtn) return;
+
+  var questions = Array.prototype.slice.call(quizEl.querySelectorAll('.aihydro-quiz-question'));
+
+  submitBtn.addEventListener('click', function () {
+    var numCorrect = 0;
+
+    questions.forEach(function (qEl) {
+      var correct   = parseInt(qEl.getAttribute('data-answer'), 10);
+      var radios    = qEl.querySelectorAll('input[type="radio"]');
+      var feedbacks = qEl.querySelectorAll('.aihydro-quiz-feedback');
+      var selected  = -1;
+      radios.forEach(function (r) { if (r.checked) selected = parseInt(r.value, 10); });
+
+      var labels = qEl.querySelectorAll('.aihydro-quiz-option');
+      labels.forEach(function (lbl, i) {
+        lbl.classList.remove('correct', 'incorrect');
+        if (i === correct) lbl.classList.add('correct');
+        else if (selected !== -1 && i === selected) lbl.classList.add('incorrect');
+      });
+
+      feedbacks.forEach(function (fb) { fb.classList.remove('show'); });
+      if (selected !== -1 && selected !== correct) {
+        var fb = qEl.querySelector('.aihydro-quiz-feedback[data-fb="' + selected + '"]');
+        if (fb) fb.classList.add('show');
+      }
+
+      if (selected === correct) numCorrect++;
+    });
+
+    var passed = numCorrect === questions.length;
+    var score  = numCorrect / questions.length;
+
+    if (scoreEl) {
+      scoreEl.textContent = numCorrect + '/' + questions.length + (passed ? ' ✓ Complete!' : ' — try again');
+      scoreEl.style.color = passed ? '#34d399' : '#f87171';
+    }
+
+    if (passed) {
+      submitBtn.textContent = 'Module complete ✓';
+      submitBtn.style.background = 'linear-gradient(135deg,#34d399,#059669)';
+      (function wr(fn) {
+        if (window.aihydro) { fn(); return; }
+        var t = setInterval(function () { if (window.aihydro) { clearInterval(t); fn(); } }, 50);
+      })(function () {
+        if (window.aihydro && window.aihydro.quiz) {
+          window.aihydro.quiz({ moduleId: MODULE_ID, passed: true, score: score });
+        }
+      });
+      try {
+        window.parent.postMessage({
+          type: 'aihydro-quiz-complete', moduleId: MODULE_ID, passed: true, score: score
+        }, '*');
+      } catch (e) {}
+    }
+  });
+})();
 </script>
 </body>
 </html>
