@@ -20,6 +20,7 @@ import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { type BedrockProviderConfig, buildBedrockProviderConfig, buildBedrockProviderSettings } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
@@ -429,6 +430,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	// Bedrock-specific structured AWS options (region + aws auth block). The core
+	// runtime reads these from CoreSessionConfig.providerConfig; without them the
+	// SDK gateway never receives the AWS region or authentication mode and a
+	// pasted Bedrock API key is silently dropped. See bedrock-config.ts.
+	let bedrockProviderConfig: BedrockProviderConfig | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -447,6 +453,29 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
+
+			// Resolve Bedrock region + AWS authentication options from the legacy
+			// ApiConfiguration (StateManager is the VSCode source of truth, not
+			// providers.json).
+			if (providerId === "bedrock") {
+				bedrockProviderConfig = buildBedrockProviderConfig(apiConfig, mode)
+
+				// The main chat path's gateway config is built by core from the
+				// providers.json `stored` entry (`{ ...stored, ... }`), and the
+				// session's providerConfig does NOT override the gateway's AWS
+				// region/auth. A stale providers.json Bedrock entry (e.g. a legacy
+				// migration with region "us-east-1" + SigV4 keys) would otherwise
+				// win and send requests to the wrong region. Persist the
+				// StateManager-derived settings so `stored` is authoritative.
+				try {
+					getProviderSettingsManager(resolveDataDir()).saveProviderSettings(
+						buildBedrockProviderSettings(apiConfig, modelId ?? "", mode),
+						{ setLastUsed: false },
+					)
+				} catch (error) {
+					Logger.warn("[SessionFactory] Failed to persist Bedrock provider settings:", error)
+				}
+			}
 
 			Logger.log(
 				`[SessionFactory] Resolved from StateManager: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`,
@@ -534,11 +563,26 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
 
+	// Bedrock requires structured AWS options (region + auth mode). Core reads
+	// these from providerConfig in createAgentModelFromConfig, but only when its
+	// providerId/modelId match the session, so build a minimal ProviderConfig.
+	const providerConfig =
+		bedrockProviderConfig !== undefined
+			? {
+					providerId: sdkProviderId,
+					modelId,
+					apiKey,
+					baseUrl,
+					...bedrockProviderConfig,
+				}
+			: undefined
+
 	const config: CoreSessionConfig = {
 		providerId: sdkProviderId,
 		modelId,
 		apiKey,
 		baseUrl,
+		providerConfig,
 		cwd,
 		workspaceRoot,
 		systemPrompt,
