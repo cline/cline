@@ -371,6 +371,10 @@
 			"destination": "/getting-started/installing-cline"
 		},
 		{
+			"source": "/getting-started/for-new-coders",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
 			"source": "/getting-started/overview",
 			"destination": "/cline-overview"
 		},
