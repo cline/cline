@@ -1,6 +1,12 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { BUTTON_CONFIGS, getButtonConfig, getButtonConfigForMessages } from "./buttonConfig"
+import {
+	BUTTON_CONFIGS,
+	buttonsForPhase,
+	getButtonConfig,
+	getButtonConfigForMessages,
+	getButtonConfigFromState,
+} from "./buttonConfig"
 
 describe("getButtonConfig", () => {
 	// Test default behavior
@@ -185,5 +191,65 @@ describe("getButtonConfig", () => {
 		const configAct = getButtonConfig(message, "act")
 		const configPlan = getButtonConfig(message, "plan")
 		expect(configAct).toEqual(configPlan)
+	})
+})
+
+describe("buttonsForPhase (TurnState-driven)", () => {
+	const ts = (phase: TurnState["phase"], anchorTs?: number): TurnState => ({ phase, anchorTs, seq: 1 })
+
+	it("maps phases to their button sets", () => {
+		expect(buttonsForPhase(ts("idle"), undefined)).toEqual(BUTTON_CONFIGS.default)
+		expect(buttonsForPhase(ts("streaming"), undefined)).toEqual(BUTTON_CONFIGS.partial)
+		expect(buttonsForPhase(ts("completed"), undefined)).toEqual(BUTTON_CONFIGS.completion_result)
+		expect(buttonsForPhase(ts("resumable"), undefined)).toEqual(BUTTON_CONFIGS.resume_task)
+		expect(buttonsForPhase(ts("error"), undefined)).toEqual(BUTTON_CONFIGS.api_req_failed)
+		expect(buttonsForPhase(ts("awaiting_followup"), undefined)).toEqual(BUTTON_CONFIGS.followup)
+		expect(buttonsForPhase(ts("awaiting_approval"), undefined)).toEqual(BUTTON_CONFIGS.tool_approve)
+	})
+
+	it("uses the anchored message to pick approval labels (Save vs Approve, command, mcp)", () => {
+		const save: ClineMessage = { ts: 5, type: "ask", ask: "tool", text: JSON.stringify({ tool: "editedExistingFile" }) }
+		expect(buttonsForPhase(ts("awaiting_approval", 5), save)).toEqual(BUTTON_CONFIGS.tool_save)
+
+		const command: ClineMessage = { ts: 6, type: "ask", ask: "command", text: "echo hi" }
+		expect(buttonsForPhase(ts("awaiting_approval", 6), command)).toEqual(BUTTON_CONFIGS.command)
+
+		const mcp: ClineMessage = { ts: 7, type: "ask", ask: "use_mcp_server", text: "{}" }
+		expect(buttonsForPhase(ts("awaiting_approval", 7), mcp)).toEqual(BUTTON_CONFIGS.use_mcp_server)
+	})
+
+	it("distinguishes mistake_limit from api_req_failed in the error phase via the anchor", () => {
+		const mistake: ClineMessage = { ts: 8, type: "ask", ask: "mistake_limit_reached", text: "" }
+		expect(buttonsForPhase(ts("error", 8), mistake)).toEqual(BUTTON_CONFIGS.mistake_limit_reached)
+	})
+})
+
+describe("getButtonConfigFromState (dispatch + legacy fallback)", () => {
+	const approvalAsk: ClineMessage = { ts: 100, type: "ask", ask: "command", text: "echo hi" }
+
+	it("prefers TurnState over the message tail (immune to trailing bookkeeping — RC1)", () => {
+		// Tail is a trailing api_req_started, but the authoritative phase is awaiting_approval.
+		const messages: ClineMessage[] = [
+			approvalAsk,
+			{ ts: 101, type: "say", say: "api_req_started", text: JSON.stringify({ tokensIn: 5, cost: 0.01 }) },
+		]
+		const turnState: TurnState = { phase: "awaiting_approval", anchorTs: 100, seq: 9 }
+		const config = getButtonConfigFromState(messages, turnState, "act")
+		expect(config).toEqual(BUTTON_CONFIGS.command)
+		expect(config.enableButtons).toBe(true)
+	})
+
+	it("falls back to legacy tail-walking when TurnState is absent", () => {
+		const messages: ClineMessage[] = [approvalAsk]
+		expect(getButtonConfigFromState(messages, undefined, "act")).toEqual(getButtonConfigForMessages(messages, "act"))
+	})
+
+	it("completed phase shows Start New Task regardless of trailing messages", () => {
+		const messages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "completion_result", text: "done" },
+			{ ts: 2, type: "say", say: "api_req_started", text: JSON.stringify({ cost: 0.02 }) },
+		]
+		const turnState: TurnState = { phase: "completed", seq: 3 }
+		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.completion_result)
 	})
 })
