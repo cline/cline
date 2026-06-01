@@ -39,7 +39,7 @@ function capturedToolUsageSuccess(ctx: { capture: ReturnType<typeof vi.fn> }) {
 }
 
 describe("handleAgentEvent tool telemetry", () => {
-	it("marks run_commands tool usage unsuccessful when a command result failed", () => {
+	it("marks run_commands tool usage unsuccessful when a command result timed out", () => {
 		const ctx = createContext();
 
 		handleAgentEvent(ctx, {
@@ -57,6 +57,26 @@ describe("handleAgentEvent tool telemetry", () => {
 		});
 
 		expect(capturedToolUsageSuccess(ctx)).toBe(false);
+	});
+
+	it("keeps run_commands tool usage successful for ordinary non-zero exits", () => {
+		const ctx = createContext();
+
+		handleAgentEvent(ctx, {
+			type: "content_end",
+			contentType: "tool",
+			toolName: "run_commands",
+			toolCallId: "call-1",
+			output: [
+				{
+					success: false,
+					result: "",
+					error: "Command failed: Command exited with code 1",
+				},
+			],
+		});
+
+		expect(capturedToolUsageSuccess(ctx)).toBe(true);
 	});
 
 	it("keeps run_commands tool usage successful when all command results succeeded", () => {

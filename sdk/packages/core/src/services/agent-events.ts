@@ -34,10 +34,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function hasFailedRunCommandsResult(output: unknown): boolean {
+function hasTimedOutRunCommandsResult(output: unknown): boolean {
 	return (
 		Array.isArray(output) &&
-		output.some((item) => isRecord(item) && item.success === false)
+		output.some(
+			(item) =>
+				isRecord(item) &&
+				item.success === false &&
+				typeof item.error === "string" &&
+				// Mirrors the sanitized TimeoutError message emitted by run_commands.
+				/^Command failed: Command timed out after \d+ms$/.test(item.error),
+		)
 	);
 }
 
@@ -49,7 +56,7 @@ function deriveToolUsageSuccess(
 	}
 	if (
 		event.toolName === "run_commands" &&
-		hasFailedRunCommandsResult(event.output)
+		hasTimedOutRunCommandsResult(event.output)
 	) {
 		return false;
 	}
