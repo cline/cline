@@ -32,8 +32,8 @@ function isEnvFile(rawPath: string): boolean {
 	return /^\.env(\.|$)/i.test(name);
 }
 
-/** True if a shell command references a secret env file (cat .env, source ./.env, etc.). */
-function commandTouchesEnv(command: string): boolean {
+/** True if a shell command reads a secret env file (cat .env, source ./.env, etc.). */
+function commandReadsEnv(command: string): boolean {
 	const tokens = command.match(/[\w./-]*\.env[\w.-]*/gi) ?? [];
 	return tokens.some(isEnvFile);
 }
@@ -98,7 +98,7 @@ const plugin: AgentPlugin = {
 					blocked = extractFilePaths(input).find(isEnvFile);
 					break;
 				case "run_commands":
-					blocked = extractShellCommands(input).find(commandTouchesEnv);
+					blocked = extractShellCommands(input).find(commandReadsEnv);
 					break;
 			}
 
