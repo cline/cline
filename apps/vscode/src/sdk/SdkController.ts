@@ -222,6 +222,9 @@ export class Controller {
 			messages: this.messages,
 			getSessionId: () => this.sessions.getActiveSession()?.sessionId ?? "",
 			postStateToWebview: () => this.postStateToWebview(),
+			// Share the single id/seq/epoch authority so interaction-minted ids (tool-approval
+			// asks, ask_question, user_feedback) never collide with translator-minted ids.
+			getMinter: () => this.messageTranslatorState.getMinter(),
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
@@ -293,6 +296,9 @@ export class Controller {
 		this.taskHistory = new SdkTaskHistory({
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
+			// History rendering mints ids from the shared authority so regenerated history ids
+			// never overlap live-session ids.
+			getMinter: () => this.messageTranslatorState.getMinter(),
 		})
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,

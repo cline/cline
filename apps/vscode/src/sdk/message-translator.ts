@@ -41,6 +41,7 @@ import type {
 	SubagentStatusItem,
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
+import { MessageIdMinter } from "./message-id-minter"
 
 // ---------------------------------------------------------------------------
 // Translation result
@@ -120,12 +121,24 @@ export class MessageTranslatorState {
 	private streamingToolInput: unknown | undefined
 	/** Stored tool name from content_start — used at content_end for consistency */
 	private streamingToolName: string | undefined
-	/** Monotonic counter for message timestamps */
-	private tsCounter = Date.now()
+	/**
+	 * Process-wide id/seq/epoch authority. Shared with the interaction coordinator and history
+	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
+	 */
+	private readonly minter: MessageIdMinter
 
-	/** Generate a unique timestamp for a new message */
+	constructor(minter: MessageIdMinter = new MessageIdMinter()) {
+		this.minter = minter
+	}
+
+	/** The shared minter, exposed so coordinators and history rendering mint from the same source. */
+	getMinter(): MessageIdMinter {
+		return this.minter
+	}
+
+	/** Generate a unique message id (identity). Pure monotonic counter; never reads the clock. */
 	nextTs(): number {
-		return ++this.tsCounter
+		return this.minter.nextId()
 	}
 
 	/** Get and increment for streaming text */
@@ -1571,9 +1584,11 @@ function finalizePersistedToolUse(
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
  */
-export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[]): ClineMessage[] {
+export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], minter?: MessageIdMinter): ClineMessage[] {
 	const clineMessages: ClineMessage[] = []
-	const state = new MessageTranslatorState()
+	// Use the process-wide minter when provided so regenerated history ids are globally unique
+	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
+	const state = new MessageTranslatorState(minter)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
 	const flushUnmatchedToolUses = () => {
