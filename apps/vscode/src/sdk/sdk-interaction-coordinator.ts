@@ -1,4 +1,4 @@
-import type { ClineAskQuestion, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
@@ -26,6 +26,12 @@ export interface SdkInteractionCoordinatorOptions {
 	 * private minter is used. Production wires the shared minter from MessageTranslatorState.
 	 */
 	getMinter?: () => MessageIdMinter
+	/**
+	 * Set the authoritative UI turn phase. Called when an approval/ask is pending
+	 * (awaiting_approval / awaiting_followup) and when the user responds (back to streaming).
+	 * Optional for tests.
+	 */
+	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 }
 
 export class SdkInteractionCoordinator {
@@ -46,6 +52,7 @@ export class SdkInteractionCoordinator {
 			type: "status",
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
+		this.options.setTurnPhase?.("awaiting_approval", toolAskMessage.ts)
 		await this.options.postStateToWebview()
 
 		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
@@ -70,6 +77,7 @@ export class SdkInteractionCoordinator {
 			type: "status",
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
+		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
 		await this.options.postStateToWebview()
 
 		return new Promise<string>((resolve) => {
@@ -87,6 +95,9 @@ export class SdkInteractionCoordinator {
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
 
+		// Approved or rejected, the agent resumes its turn — back to streaming. (On rejection
+		// the agent receives the denial and continues; the SDK drives the next phase.)
+		this.options.setTurnPhase?.("streaming")
 		resolve({
 			approved,
 			...(approved ? {} : { reason: prompt || "User denied the tool execution" }),
@@ -118,6 +129,8 @@ export class SdkInteractionCoordinator {
 			})
 		}
 
+		// User answered the follow-up — the agent resumes its turn.
+		this.options.setTurnPhase?.("streaming")
 		resolve(responseText)
 		return true
 	}
