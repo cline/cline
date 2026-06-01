@@ -16,6 +16,13 @@ export interface SdkTaskControlCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
+	/**
+	 * Raise the cancel fence SYNCHRONOUSLY before aborting the SDK session: bump the epoch so any
+	 * straggler events the SDK emits after the abort request carry the old epoch (and are dropped
+	 * by the webview), and mark the active turn cancelled so the session-event coordinator
+	 * suppresses its remaining DISPLAY output (usage is still accounted). See design doc §7.
+	 */
+	raiseCancelFence?: () => void
 }
 
 export class SdkTaskControlCoordinator {
@@ -31,6 +38,13 @@ export class SdkTaskControlCoordinator {
 		}
 
 		const { sdkHost, sessionId } = activeSession
+
+		// FENCE FIRST: raise the cancel fence synchronously BEFORE awaiting the abort. Any event
+		// the SDK emits after this point carries the old epoch (dropped by the webview) and is
+		// marked cancelled (display suppressed by the session-event coordinator; usage still
+		// accounted). Order matters — aborting first would leave a window where a straggler gets
+		// the new epoch. See design doc §7.
+		this.options.raiseCancelFence?.()
 
 		try {
 			await sdkHost.abort(sessionId)
