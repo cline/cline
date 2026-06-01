@@ -4,8 +4,8 @@ import { join } from "node:path";
 import type { Thread } from "chat";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	clearBindingSessionIds,
 	type ConnectorThreadState,
+	clearBindingSessionIds,
 	isParticipantMuted,
 	isThreadMuted,
 	readBindingForThread,
