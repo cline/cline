@@ -11,7 +11,10 @@ import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 
 const PROVIDER_ID = "zai"
 
-function getEventValue(event: Event): string {
+// VSCodeDropdown's onChange supplies `Event | React.FormEvent<HTMLElement>`,
+// so accept the same union here. We only read `target.value`, which is present
+// on both, so no narrowing of the event itself is required.
+function getEventValue(event: Event | React.FormEvent<HTMLElement>): string {
 	const target = event.target
 	if (target && "value" in target && typeof target.value === "string") {
 		return target.value
