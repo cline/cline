@@ -45,6 +45,8 @@ export interface ClineHubDashboardServer {
 	listenUrl: string;
 	publicUrl: string;
 	inviteUrl: string;
+	bindHost: string;
+	inviteRequired: boolean;
 	hubUrl: string | undefined;
 	stop: () => void;
 }
@@ -212,6 +214,8 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 		listenUrl: server.url.toString(),
 		publicUrl,
 		inviteUrl,
+		bindHost: host,
+		inviteRequired: Boolean(roomSecret),
 		hubUrl: ctx.hubUrl,
 		stop: () => {
 			clearInterval(healthInterval);
@@ -226,9 +230,9 @@ export function printClineHubDashboardServerInfo(
 	console.log(`Cline Hub dashboard listening: ${server.listenUrl}`);
 	console.log(`Cline Hub public URL: ${server.publicUrl}`);
 	console.log(`hub endpoint: ${server.hubUrl}`);
-	if (roomSecret) {
+	if (server.inviteRequired) {
 		console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
-	} else if (isNonLocalBindHost(host)) {
+	} else if (isNonLocalBindHost(server.bindHost)) {
 		console.warn("WARNING: non-local bind without ROOM_SECRET is not allowed.");
 	} else {
 		console.log(

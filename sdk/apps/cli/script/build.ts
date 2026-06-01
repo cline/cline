@@ -4,8 +4,10 @@ import {
 	cpSync,
 	existsSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
 	realpathSync,
+	statSync,
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { $ } from "bun";
@@ -101,8 +103,44 @@ if (!buildOptions.skipSdkBuild) {
 	await $`bun -F @cline/cli build`.cwd(rootDir);
 }
 
+const hubWebviewSource = join(cliDir, "../cline-hub/src/webview");
 const hubWebviewDist = join(cliDir, "../cline-hub/dist/webview");
-if (!existsSync(join(hubWebviewDist, "index.html"))) {
+const hubWebviewIndex = join(hubWebviewDist, "index.html");
+
+function newestFileMtimeMs(dir: string): number {
+	let newest = 0;
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		if (
+			entry.name === "node_modules" ||
+			entry.name === "dist" ||
+			entry.name === ".turbo"
+		) {
+			continue;
+		}
+		const path = join(dir, entry.name);
+		if (entry.isDirectory()) {
+			newest = Math.max(newest, newestFileMtimeMs(path));
+		} else if (entry.isFile()) {
+			newest = Math.max(newest, statSync(path).mtimeMs);
+		}
+	}
+	return newest;
+}
+
+function shouldBuildHubWebview(): boolean {
+	if (!existsSync(hubWebviewIndex)) {
+		return true;
+	}
+	try {
+		return (
+			newestFileMtimeMs(hubWebviewSource) > statSync(hubWebviewIndex).mtimeMs
+		);
+	} catch {
+		return true;
+	}
+}
+
+if (shouldBuildHubWebview()) {
 	console.log("Building Cline Hub webview...");
 	await $`bun -F @cline/cline-hub build:webview`.cwd(rootDir);
 }
