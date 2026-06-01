@@ -79,7 +79,7 @@ const MAIN_BRANCH = "main";
 const root = join(import.meta.dir, "..", "..");
 const sdkRoot = join(import.meta.dir, "..");
 const packagesDir = join(sdkRoot, "packages");
-const cliDir = join(sdkRoot, "apps/cli");
+const cliDir = join(sdkRoot, "../apps/cli");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
