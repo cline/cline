@@ -36,8 +36,8 @@ function buildGatewayProviderOptions(
 			secretAccessKey: config.aws?.secretKey,
 			sessionToken: config.aws?.sessionToken,
 			usePromptCache: config.aws?.usePromptCache,
-			useCrossRegionInference: config.useCrossRegionInference,
-			useGlobalInference: config.useGlobalInference,
+			useCrossRegionInference: config.aws?.useCrossRegionInference,
+			useGlobalInference: config.aws?.useGlobalInference,
 			endpoint: config.aws?.endpoint,
 			customModelBaseId: config.aws?.customModelBaseId,
 		});

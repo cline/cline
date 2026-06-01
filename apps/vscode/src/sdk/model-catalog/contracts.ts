@@ -78,6 +78,19 @@ export interface EffectiveProviderConfig {
 	readonly apiLine?: string
 	readonly headers?: Readonly<Record<string, string>>
 	readonly region?: string
+	readonly aws?: {
+		readonly accessKey?: string
+		readonly secretKey?: string
+		readonly sessionToken?: string
+		readonly region?: string
+		readonly profile?: string
+		readonly authentication?: string
+		readonly usePromptCache?: boolean
+		readonly useCrossRegionInference?: boolean
+		readonly useGlobalInference?: boolean
+		readonly endpoint?: string
+		readonly customModelBaseId?: string
+	}
 	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
@@ -118,6 +131,19 @@ export interface ProviderConfigPatch {
 	readonly apiLine?: string | null
 	readonly headers?: Readonly<Record<string, string>> | null
 	readonly region?: string | null
+	readonly aws?: {
+		readonly accessKey?: string | null
+		readonly secretKey?: string | null
+		readonly sessionToken?: string | null
+		readonly region?: string | null
+		readonly profile?: string | null
+		readonly authentication?: string | null
+		readonly usePromptCache?: boolean | null
+		readonly useCrossRegionInference?: boolean | null
+		readonly useGlobalInference?: boolean | null
+		readonly endpoint?: string | null
+		readonly customModelBaseId?: string | null
+	} | null
 	readonly auth?: {
 		readonly accessToken?: string
 		readonly refreshToken?: string

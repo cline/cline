@@ -12,6 +12,7 @@ import type {
 } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import {
+	AwsProviderConfig,
 	CatalogErrorInfo,
 	CommitModelSelectionRequest,
 	CommittedModelSelection,
@@ -101,6 +102,24 @@ function toCommittedModelSelectionProto(selection: ModelSelection | undefined): 
 	})
 }
 
+function toAwsProviderConfigProto(config: EffectiveProviderConfig["aws"]): AwsProviderConfig | undefined {
+	if (!config) {
+		return undefined
+	}
+	return AwsProviderConfig.create({
+		// Do not send AWS credential secrets to the webview. The response is
+		// intentionally redacted like top-level apiKey.
+		region: config.region,
+		profile: config.profile,
+		authentication: config.authentication,
+		usePromptCache: config.usePromptCache,
+		useCrossRegionInference: config.useCrossRegionInference,
+		useGlobalInference: config.useGlobalInference,
+		endpoint: config.endpoint,
+		customModelBaseId: config.customModelBaseId,
+	})
+}
+
 export function toProviderModelsResponse(
 	providerId: ProviderId,
 	requestId: string,
@@ -135,6 +154,7 @@ export function toRedactedProviderConfigResponse(
 		accountId: config.auth?.accountId,
 		planSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "plan")),
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
+		aws: toAwsProviderConfigProto(config.aws),
 	})
 }
 
@@ -151,6 +171,29 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 				? { headers: { ...protoPatch.headers } }
 				: {}),
 		...(protoPatch.region !== undefined ? { region: protoPatch.region } : {}),
+		...(protoPatch.aws
+			? {
+					aws: {
+						...(protoPatch.aws.accessKey !== undefined ? { accessKey: protoPatch.aws.accessKey } : {}),
+						...(protoPatch.aws.secretKey !== undefined ? { secretKey: protoPatch.aws.secretKey } : {}),
+						...(protoPatch.aws.sessionToken !== undefined ? { sessionToken: protoPatch.aws.sessionToken } : {}),
+						...(protoPatch.aws.region !== undefined ? { region: protoPatch.aws.region } : {}),
+						...(protoPatch.aws.profile !== undefined ? { profile: protoPatch.aws.profile } : {}),
+						...(protoPatch.aws.authentication !== undefined ? { authentication: protoPatch.aws.authentication } : {}),
+						...(protoPatch.aws.usePromptCache !== undefined ? { usePromptCache: protoPatch.aws.usePromptCache } : {}),
+						...(protoPatch.aws.useCrossRegionInference !== undefined
+							? { useCrossRegionInference: protoPatch.aws.useCrossRegionInference }
+							: {}),
+						...(protoPatch.aws.useGlobalInference !== undefined
+							? { useGlobalInference: protoPatch.aws.useGlobalInference }
+							: {}),
+						...(protoPatch.aws.endpoint !== undefined ? { endpoint: protoPatch.aws.endpoint } : {}),
+						...(protoPatch.aws.customModelBaseId !== undefined
+							? { customModelBaseId: protoPatch.aws.customModelBaseId }
+							: {}),
+					},
+				}
+			: {}),
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {

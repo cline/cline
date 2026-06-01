@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import {
+	type AwsProviderConfigPatch,
 	CommitModelSelectionRequest,
 	type ProviderConfigResponse,
 	WriteProviderConfigPatch,
@@ -13,6 +14,7 @@ import type { ModelInfo } from "../../../src/shared/api"
 
 export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "headers">> & {
 	headers?: Record<string, string>
+	aws?: Partial<AwsProviderConfigPatch>
 }
 
 export interface ProviderModelSelection {

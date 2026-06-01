@@ -117,6 +117,44 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("merges Bedrock providers.json aws settings with StateManager overlays", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			bedrock: {
+				provider: "bedrock",
+				apiKey: "provider-bedrock-api-key",
+				aws: {
+					region: "us-west-2",
+					authentication: "profile",
+					profile: "dev-profile",
+					useCrossRegionInference: true,
+					customModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+				},
+			},
+		})
+		mocks.setApiConfiguration({
+			awsRegion: "us-east-1",
+			awsBedrockUsePromptCache: true,
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("bedrock"))).toEqual({
+			providerId: parseProviderId("bedrock"),
+			apiKey: "provider-bedrock-api-key",
+			region: "us-east-1",
+			aws: {
+				region: "us-east-1",
+				authentication: "profile",
+				profile: "dev-profile",
+				useCrossRegionInference: true,
+				usePromptCache: true,
+				customModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			},
+			extras: {
+				awsBedrockUsePromptCache: true,
+			},
+		})
+	})
+
 	it("respects remote-config-locked LiteLLM key already applied by StateManager", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({

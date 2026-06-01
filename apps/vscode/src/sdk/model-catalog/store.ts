@@ -20,6 +20,20 @@ import { toSdkProviderId } from "./sdk-provider-id"
 
 type ProviderSettingsRecord = Record<string, unknown>
 type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras"
+type AwsPatch = NonNullable<ProviderConfigPatch["aws"]>
+
+const awsPatchStateKeys: Partial<Record<keyof AwsPatch, SecretKey | SettingsKey>> = {
+	accessKey: "awsAccessKey",
+	secretKey: "awsSecretKey",
+	sessionToken: "awsSessionToken",
+	region: "awsRegion",
+	profile: "awsProfile",
+	authentication: "awsAuthentication",
+	usePromptCache: "awsBedrockUsePromptCache",
+	useCrossRegionInference: "awsUseCrossRegionInference",
+	useGlobalInference: "awsUseGlobalInference",
+	endpoint: "awsBedrockEndpoint",
+}
 
 type ModelInfoKeys = {
 	readonly plan: keyof ApiConfiguration & SettingsKey
@@ -214,6 +228,15 @@ function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): v
 		writeStateKey("clineApiKey", patch.auth?.accessToken)
 		writeStateKey("clineAccountId", patch.auth?.accountId)
 	}
+
+	if (provider === "bedrock" && patch.aws) {
+		for (const [awsKey, stateKey] of Object.entries(awsPatchStateKeys)) {
+			if (!stateKey || !(awsKey in patch.aws)) {
+				continue
+			}
+			writeStateKey(stateKey, patchValue(patch.aws[awsKey as keyof AwsPatch]))
+		}
+	}
 }
 
 function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
@@ -236,6 +259,29 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 				delete next[key]
 			} else {
 				next[key] = value
+			}
+		}
+	}
+
+	if ("aws" in patch) {
+		const awsPatch = patch.aws
+		if (awsPatch === null || awsPatch === undefined) {
+			delete next.aws
+		} else {
+			const existingAws = isRecord(next.aws) ? next.aws : {}
+			const merged: Record<string, unknown> = { ...existingAws }
+			for (const [key, rawValue] of Object.entries(awsPatch)) {
+				const value = patchValue(rawValue)
+				if (value === undefined) {
+					delete merged[key]
+				} else {
+					merged[key] = value
+				}
+			}
+			if (Object.keys(merged).length === 0) {
+				delete next.aws
+			} else {
+				next.aws = merged
 			}
 		}
 	}

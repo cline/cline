@@ -199,6 +199,7 @@ message ProviderConfigResponse {
   optional string account_id = 9;
   optional CommittedModelSelection plan_selection = 10;
   optional CommittedModelSelection act_selection = 11;
+  optional AwsProviderConfig aws = 12;
 }
 
 message CommittedModelSelection {
@@ -213,6 +214,34 @@ message ProviderReasoningPatch {
   optional int32 budget_tokens = 3;
 }
 
+message AwsProviderConfig {
+  optional string access_key = 1;
+  optional string secret_key = 2;
+  optional string session_token = 3;
+  optional string region = 4;
+  optional string profile = 5;
+  optional string authentication = 6; // "iam" | "api-key" | "apikey" | "profile"
+  optional bool use_prompt_cache = 7;
+  optional bool use_cross_region_inference = 8;
+  optional bool use_global_inference = 9;
+  optional string endpoint = 10;
+  optional string custom_model_base_id = 11;
+}
+
+message AwsProviderConfigPatch {
+  optional string access_key = 1;
+  optional string secret_key = 2;
+  optional string session_token = 3;
+  optional string region = 4;
+  optional string profile = 5;
+  optional string authentication = 6; // "iam" | "api-key" | "apikey" | "profile"
+  optional bool use_prompt_cache = 7;
+  optional bool use_cross_region_inference = 8;
+  optional bool use_global_inference = 9;
+  optional string endpoint = 10;
+  optional string custom_model_base_id = 11;
+}
+
 message WriteProviderConfigPatch {
   optional string api_key = 1;
   optional string base_url = 2;
@@ -224,6 +253,7 @@ message WriteProviderConfigPatch {
   optional string account_id = 8;
   optional ProviderReasoningPatch reasoning = 9;
   optional bool clear_headers = 10;
+  optional AwsProviderConfigPatch aws = 11;
 }
 
 message WriteProviderConfigRequest {

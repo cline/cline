@@ -4,6 +4,7 @@ import { getProviderSettingsManager } from "../provider-migration"
 import type { EffectiveProviderConfig, ProviderId } from "./contracts"
 
 type AuthConfig = NonNullable<EffectiveProviderConfig["auth"]>
+type AwsConfig = NonNullable<EffectiveProviderConfig["aws"]>
 type ExtrasConfig = NonNullable<EffectiveProviderConfig["extras"]>
 
 type ConfigParts = Omit<EffectiveProviderConfig, "providerId">
@@ -15,6 +16,7 @@ type ProviderSettingsLike = {
 	readonly apiLine?: string
 	readonly headers?: Readonly<Record<string, string>>
 	readonly region?: string
+	readonly aws?: AwsConfig
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
 }
@@ -90,6 +92,19 @@ const headerFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	openai: "openAiHeaders",
 }
 
+const awsFields: Partial<Record<string, keyof ApiConfiguration>> = {
+	accessKey: "awsAccessKey",
+	secretKey: "awsSecretKey",
+	sessionToken: "awsSessionToken",
+	region: "awsRegion",
+	profile: "awsProfile",
+	authentication: "awsAuthentication",
+	usePromptCache: "awsBedrockUsePromptCache",
+	useCrossRegionInference: "awsUseCrossRegionInference",
+	useGlobalInference: "awsUseGlobalInference",
+	endpoint: "awsBedrockEndpoint",
+}
+
 const extrasFields: Partial<Record<string, Partial<Record<string, keyof ApiConfiguration>>>> = {
 	ollama: { ollamaApiOptionsCtxNum: "ollamaApiOptionsCtxNum" },
 	lmstudio: { lmStudioMaxTokens: "lmStudioMaxTokens" },
@@ -148,6 +163,42 @@ function readAuth(record: Record<string, unknown>): AuthConfig | undefined {
 	return accessToken || refreshToken || accountId ? { accessToken, refreshToken, accountId } : undefined
 }
 
+function readOptionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+	const value = record[key]
+	return typeof value === "boolean" ? value : undefined
+}
+
+function readAws(record: Record<string, unknown>): AwsConfig | undefined {
+	const aws = record.aws
+	if (!isPlainRecord(aws)) {
+		return undefined
+	}
+
+	const result: AwsConfig = {
+		...(readString(aws, "accessKey") !== undefined ? { accessKey: readString(aws, "accessKey") } : {}),
+		...(readString(aws, "secretKey") !== undefined ? { secretKey: readString(aws, "secretKey") } : {}),
+		...(readString(aws, "sessionToken") !== undefined ? { sessionToken: readString(aws, "sessionToken") } : {}),
+		...(readString(aws, "region") !== undefined ? { region: readString(aws, "region") } : {}),
+		...(readString(aws, "profile") !== undefined ? { profile: readString(aws, "profile") } : {}),
+		...(readString(aws, "authentication") !== undefined ? { authentication: readString(aws, "authentication") } : {}),
+		...(readOptionalBoolean(aws, "usePromptCache") !== undefined
+			? { usePromptCache: readOptionalBoolean(aws, "usePromptCache") }
+			: {}),
+		...(readOptionalBoolean(aws, "useCrossRegionInference") !== undefined
+			? { useCrossRegionInference: readOptionalBoolean(aws, "useCrossRegionInference") }
+			: {}),
+		...(readOptionalBoolean(aws, "useGlobalInference") !== undefined
+			? { useGlobalInference: readOptionalBoolean(aws, "useGlobalInference") }
+			: {}),
+		...(readString(aws, "endpoint") !== undefined ? { endpoint: readString(aws, "endpoint") } : {}),
+		...(readString(aws, "customModelBaseId") !== undefined
+			? { customModelBaseId: readString(aws, "customModelBaseId") }
+			: {}),
+	}
+
+	return Object.keys(result).length > 0 ? result : undefined
+}
+
 function readProviderSettings(providerId: ProviderId): ConfigParts {
 	try {
 		const settings: unknown = getProviderSettingsManager().getProviderSettings(providerId)
@@ -161,6 +212,7 @@ function readProviderSettings(providerId: ProviderId): ConfigParts {
 			apiLine: readString(settings, "apiLine"),
 			headers: readHeaders(settings, "headers"),
 			region: readString(settings, "region"),
+			aws: readAws(settings),
 			auth: readAuth(settings),
 			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
 		} satisfies ProviderSettingsLike
@@ -186,6 +238,55 @@ function readHeadersFromConfig(
 	}
 	const value = config[field]
 	return isPlainRecord(value) ? readHeaders({ value }, "value") : undefined
+}
+
+function readBooleanFromConfig(config: ApiConfiguration, field: keyof ApiConfiguration | undefined): boolean | undefined {
+	if (!field) {
+		return undefined
+	}
+	const value = config[field]
+	return typeof value === "boolean" ? value : undefined
+}
+
+function readStateAws(provider: string, config: ApiConfiguration): AwsConfig | undefined {
+	if (provider !== "bedrock") {
+		return undefined
+	}
+
+	const result: AwsConfig = {
+		...(readStringFromConfig(config, awsFields.accessKey) !== undefined
+			? { accessKey: readStringFromConfig(config, awsFields.accessKey) }
+			: {}),
+		...(readStringFromConfig(config, awsFields.secretKey) !== undefined
+			? { secretKey: readStringFromConfig(config, awsFields.secretKey) }
+			: {}),
+		...(readStringFromConfig(config, awsFields.sessionToken) !== undefined
+			? { sessionToken: readStringFromConfig(config, awsFields.sessionToken) }
+			: {}),
+		...(readStringFromConfig(config, awsFields.region) !== undefined
+			? { region: readStringFromConfig(config, awsFields.region) }
+			: {}),
+		...(readStringFromConfig(config, awsFields.profile) !== undefined
+			? { profile: readStringFromConfig(config, awsFields.profile) }
+			: {}),
+		...(readStringFromConfig(config, awsFields.authentication) !== undefined
+			? { authentication: readStringFromConfig(config, awsFields.authentication) }
+			: {}),
+		...(readBooleanFromConfig(config, awsFields.usePromptCache) !== undefined
+			? { usePromptCache: readBooleanFromConfig(config, awsFields.usePromptCache) }
+			: {}),
+		...(readBooleanFromConfig(config, awsFields.useCrossRegionInference) !== undefined
+			? { useCrossRegionInference: readBooleanFromConfig(config, awsFields.useCrossRegionInference) }
+			: {}),
+		...(readBooleanFromConfig(config, awsFields.useGlobalInference) !== undefined
+			? { useGlobalInference: readBooleanFromConfig(config, awsFields.useGlobalInference) }
+			: {}),
+		...(readStringFromConfig(config, awsFields.endpoint) !== undefined
+			? { endpoint: readStringFromConfig(config, awsFields.endpoint) }
+			: {}),
+	}
+
+	return Object.keys(result).length > 0 ? result : undefined
 }
 
 function readStateExtras(provider: string, config: ApiConfiguration): ExtrasConfig | undefined {
@@ -225,12 +326,23 @@ function readStateConfig(providerId: ProviderId, config: ApiConfiguration): Conf
 		apiLine: readStringFromConfig(config, apiLineFields[provider]),
 		headers: readHeadersFromConfig(config, headerFields[provider]),
 		region: readStringFromConfig(config, regionFields[provider]),
+		aws: readStateAws(provider, config),
 		auth: readStateAuth(provider, config),
 		extras: readStateExtras(provider, config),
 	}
 }
 
 function mergeExtras(first: ExtrasConfig | undefined, second: ExtrasConfig | undefined): ExtrasConfig | undefined {
+	if (!first) {
+		return second
+	}
+	if (!second) {
+		return first
+	}
+	return { ...first, ...second }
+}
+
+function mergeAws(first: AwsConfig | undefined, second: AwsConfig | undefined): AwsConfig | undefined {
 	if (!first) {
 		return second
 	}
@@ -264,7 +376,9 @@ export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveP
 	assignIfDefined(merged, "baseUrl", stateConfig.baseUrl ?? providerSettings.baseUrl)
 	assignIfDefined(merged, "apiLine", stateConfig.apiLine ?? providerSettings.apiLine)
 	assignIfDefined(merged, "headers", stateConfig.headers ?? providerSettings.headers)
-	assignIfDefined(merged, "region", stateConfig.region ?? providerSettings.region)
+	const aws = mergeAws(providerSettings.aws, stateConfig.aws)
+	assignIfDefined(merged, "region", stateConfig.region ?? providerSettings.region ?? aws?.region)
+	assignIfDefined(merged, "aws", aws)
 	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
 	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
 

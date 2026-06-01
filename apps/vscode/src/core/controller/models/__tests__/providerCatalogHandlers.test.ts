@@ -204,6 +204,60 @@ describe("provider model catalog handlers", () => {
 		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
 	})
 
+	it("writeProviderConfig maps Bedrock AWS patches and redacts credential response fields", async () => {
+		const { writeProviderConfig } = await import("../writeProviderConfig")
+		const providerId = parseProviderId("bedrock")
+		const updatedConfig: EffectiveProviderConfig = {
+			providerId,
+			aws: {
+				accessKey: "SECRET_SENTINEL_ACCESS",
+				secretKey: "SECRET_SENTINEL_SECRET",
+				sessionToken: "SECRET_SENTINEL_SESSION",
+				region: "us-east-1",
+				authentication: "profile",
+				profile: "dev-profile",
+				usePromptCache: true,
+			},
+		}
+		const store = makeStore(updatedConfig)
+		const controller = makeController(store, makeCatalog())
+
+		const response = await writeProviderConfig(controller, {
+			providerId: "bedrock",
+			patch: {
+				headers: {},
+				aws: {
+					accessKey: "SECRET_SENTINEL_ACCESS",
+					secretKey: "SECRET_SENTINEL_SECRET",
+					sessionToken: "SECRET_SENTINEL_SESSION",
+					region: "us-east-1",
+					authentication: "profile",
+					profile: "dev-profile",
+					usePromptCache: true,
+				},
+			},
+		})
+
+		expect(store.write).toHaveBeenCalledWith(providerId, {
+			aws: {
+				accessKey: "SECRET_SENTINEL_ACCESS",
+				secretKey: "SECRET_SENTINEL_SECRET",
+				sessionToken: "SECRET_SENTINEL_SESSION",
+				region: "us-east-1",
+				authentication: "profile",
+				profile: "dev-profile",
+				usePromptCache: true,
+			},
+		})
+		expect(response.aws).toMatchObject({
+			region: "us-east-1",
+			authentication: "profile",
+			profile: "dev-profile",
+			usePromptCache: true,
+		})
+		expect(JSON.stringify(response)).not.toContain("SECRET_SENTINEL")
+	})
+
 	it("commitModelSelection validates mode and commits the full selection envelope", async () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")

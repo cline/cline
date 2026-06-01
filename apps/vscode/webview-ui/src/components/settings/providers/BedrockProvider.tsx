@@ -1,4 +1,3 @@
-
 import BedrockData from "@shared/providers/bedrock.json"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -15,6 +14,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -48,6 +48,7 @@ interface BedrockProviderProps {
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { config: providerConfig, write, commitSelection } = useProviderConfig("bedrock")
 
 	const {
 		models: bedrockModels,
@@ -56,16 +57,37 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		selectedModelInfo,
 		hideUsageCost,
 	} = useStaticProviderSelection("bedrock", apiConfiguration, currentMode)
+	const awsConfig = providerConfig?.aws
+	const awsAuthentication =
+		awsConfig?.authentication === "iam" ? "credentials" : (awsConfig?.authentication ?? apiConfiguration?.awsAuthentication)
+	const awsProfile = awsConfig?.profile ?? apiConfiguration?.awsProfile
+	const awsEndpoint = awsConfig?.endpoint ?? apiConfiguration?.awsBedrockEndpoint
+	const awsUseCrossRegionInference = awsConfig?.useCrossRegionInference ?? apiConfiguration?.awsUseCrossRegionInference ?? false
+	const awsUseGlobalInference = awsConfig?.useGlobalInference ?? apiConfiguration?.awsUseGlobalInference ?? false
+	const awsUsePromptCache = awsConfig?.usePromptCache ?? apiConfiguration?.awsBedrockUsePromptCache ?? false
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const customBaseModelId = modeFields.awsBedrockCustomModelBaseId || awsConfig?.customModelBaseId || bedrockDefaultModelId
+	const customBaseModelInfo = bedrockModels[customBaseModelId] ?? selectedModelInfo
 	const isAdaptiveThinkingModel =
-		isClaudeOpusAdaptiveThinkingModel(selectedModelId) ||
-		isClaudeOpusAdaptiveThinkingModel(modeFields.awsBedrockCustomModelBaseId)
+		isClaudeOpusAdaptiveThinkingModel(selectedModelId) || isClaudeOpusAdaptiveThinkingModel(customBaseModelId)
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
-	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
+	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!awsEndpoint)
+
+	useEffect(() => {
+		setAwsEndpointSelected(!!awsEndpoint)
+	}, [awsEndpoint])
+
+	const writeBedrockAws = (aws: NonNullable<Parameters<typeof write>[0]["aws"]>) => {
+		void write({ aws }).catch((err) => console.error("Failed to update Bedrock provider settings:", err))
+	}
+
+	const writeBedrockApiKey = (apiKey: string) => {
+		void write({ apiKey }).catch((err) => console.error("Failed to update Bedrock API key:", err))
+	}
 
 	// Region combobox state
-	const currentRegion = apiConfiguration?.awsRegion || ""
+	const currentRegion = awsConfig?.region ?? apiConfiguration?.awsRegion ?? ""
 	const [searchTerm, setSearchTerm] = useState("")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -98,6 +120,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 	const handleRegionChange = (newRegion: string) => {
 		setSearchTerm(newRegion)
+		writeBedrockAws({ region: newRegion })
 		handleFieldChange("awsRegion", newRegion)
 	}
 
@@ -169,30 +192,36 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 			<VSCodeRadioGroup
 				onChange={(e) => {
 					const value = (e.target as HTMLInputElement)?.value
+					writeBedrockAws({ authentication: value === "credentials" ? "iam" : value })
 					handleFieldChange("awsAuthentication", value)
 				}}
-				value={apiConfiguration?.awsAuthentication ?? (apiConfiguration?.awsProfile ? "profile" : "credentials")}>
+				value={awsAuthentication ?? (awsProfile ? "profile" : "credentials")}>
 				<VSCodeRadio value="apikey">API Key</VSCodeRadio>
 				<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
 				<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
 			</VSCodeRadioGroup>
 
-			{(apiConfiguration?.awsAuthentication === undefined && apiConfiguration?.awsUseProfile) ||
-			apiConfiguration?.awsAuthentication === "profile" ? (
+			{(awsAuthentication === undefined && apiConfiguration?.awsUseProfile) || awsAuthentication === "profile" ? (
 				<DebouncedTextField
 					className="w-full"
-					initialValue={apiConfiguration?.awsProfile ?? ""}
+					initialValue={awsProfile ?? ""}
 					key="profile"
-					onChange={(value) => handleFieldChange("awsProfile", value)}
+					onChange={(value) => {
+						writeBedrockAws({ profile: value })
+						handleFieldChange("awsProfile", value)
+					}}
 					placeholder="Enter profile name (default if empty)">
 					<span className="font-medium">AWS Profile Name</span>
 				</DebouncedTextField>
-			) : apiConfiguration?.awsAuthentication === "apikey" ? (
+			) : awsAuthentication === "apikey" || awsAuthentication === "api-key" ? (
 				<DebouncedTextField
 					className="w-full"
 					initialValue={apiConfiguration?.awsBedrockApiKey ?? ""}
 					key="apikey"
-					onChange={(value) => handleFieldChange("awsBedrockApiKey", value)}
+					onChange={(value) => {
+						writeBedrockApiKey(value)
+						handleFieldChange("awsBedrockApiKey", value)
+					}}
 					placeholder="Enter Bedrock Api Key"
 					type="password">
 					<span className="font-medium">AWS Bedrock Api Key</span>
@@ -203,7 +232,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						className="w-full"
 						initialValue={apiConfiguration?.awsAccessKey || ""}
 						key="accessKey"
-						onChange={(value) => handleFieldChange("awsAccessKey", value)}
+						onChange={(value) => {
+							writeBedrockAws({ accessKey: value })
+							handleFieldChange("awsAccessKey", value)
+						}}
 						placeholder="Enter Access Key..."
 						type="password">
 						<span className="font-medium">AWS Access Key</span>
@@ -211,7 +243,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<DebouncedTextField
 						className="w-full"
 						initialValue={apiConfiguration?.awsSecretKey || ""}
-						onChange={(value) => handleFieldChange("awsSecretKey", value)}
+						onChange={(value) => {
+							writeBedrockAws({ secretKey: value })
+							handleFieldChange("awsSecretKey", value)
+						}}
 						placeholder="Enter Secret Key..."
 						type="password">
 						<span className="font-medium">AWS Secret Key</span>
@@ -219,7 +254,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<DebouncedTextField
 						className="w-full"
 						initialValue={apiConfiguration?.awsSessionToken || ""}
-						onChange={(value) => handleFieldChange("awsSessionToken", value)}
+						onChange={(value) => {
+							writeBedrockAws({ sessionToken: value })
+							handleFieldChange("awsSessionToken", value)
+						}}
 						placeholder="Enter Session Token..."
 						type="password">
 						<span className="font-medium">AWS Session Token</span>
@@ -333,6 +371,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									const isChecked = e.target.checked === true
 									setAwsEndpointSelected(isChecked)
 									if (!isChecked) {
+										writeBedrockAws({ endpoint: "" })
 										handleFieldChange("awsBedrockEndpoint", "")
 									}
 								}}>
@@ -347,8 +386,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							<DebouncedTextField
 								className="mt-0.5 mb-1 text-sm text-description"
 								disabled={remoteConfigSettings?.awsBedrockEndpoint !== undefined}
-								initialValue={apiConfiguration?.awsBedrockEndpoint || ""}
-								onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
+								initialValue={awsEndpoint || ""}
+								onChange={(value) => {
+									writeBedrockAws({ endpoint: value })
+									handleFieldChange("awsBedrockEndpoint", value)
+								}}
 								placeholder="Enter VPC Endpoint URL (optional)"
 								type="text"
 							/>
@@ -363,11 +405,12 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					<TooltipTrigger>
 						<div className="flex items-center gap-2">
 							<VSCodeCheckbox
-								checked={apiConfiguration?.awsUseCrossRegionInference || false}
+								checked={awsUseCrossRegionInference}
 								disabled={remoteConfigSettings?.awsUseCrossRegionInference !== undefined}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 
+									writeBedrockAws({ useCrossRegionInference: isChecked })
 									handleFieldChange("awsUseCrossRegionInference", isChecked)
 								}}>
 								Use cross-region inference
@@ -379,7 +422,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					</TooltipTrigger>
 				</Tooltip>
 
-				{apiConfiguration?.awsUseCrossRegionInference && selectedModelInfo.supportsGlobalEndpoint && (
+				{awsUseCrossRegionInference && selectedModelInfo.supportsGlobalEndpoint && (
 					<Tooltip>
 						<TooltipContent hidden={remoteConfigSettings?.awsUseGlobalInference === undefined}>
 							This setting is managed by your organization's remote configuration
@@ -387,10 +430,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						<TooltipTrigger>
 							<div className="flex items-center gap-2">
 								<VSCodeCheckbox
-									checked={apiConfiguration?.awsUseGlobalInference || false}
+									checked={awsUseGlobalInference}
 									disabled={remoteConfigSettings?.awsUseGlobalInference !== undefined}
 									onChange={(e: any) => {
 										const isChecked = e.target.checked === true
+										writeBedrockAws({ useGlobalInference: isChecked })
 										handleFieldChange("awsUseGlobalInference", isChecked)
 									}}>
 									Use global inference profile
@@ -411,10 +455,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						<TooltipTrigger>
 							<div className="flex items-center gap-2">
 								<VSCodeCheckbox
-									checked={apiConfiguration?.awsBedrockUsePromptCache || false}
+									checked={awsUsePromptCache}
 									disabled={remoteConfigSettings?.awsBedrockUsePromptCache !== undefined}
 									onChange={(e: any) => {
 										const isChecked = e.target.checked === true
+										writeBedrockAws({ usePromptCache: isChecked })
 										handleFieldChange("awsBedrockUsePromptCache", isChecked)
 									}}>
 									Use prompt caching
@@ -444,7 +489,17 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							className="w-full"
 							id="bedrock-model-dropdown"
 							onChange={(e: any) => {
-								const isCustom = e.target.value === "custom"
+								const value = e.target.value
+								const isCustom = value === "custom"
+								if (!isCustom && value && bedrockModels[value]) {
+									void commitSelection(currentMode, {
+										providerId: "bedrock",
+										modelId: value,
+										modelInfo: bedrockModels[value],
+									}).catch((err) => console.error("Failed to commit Bedrock model selection:", err))
+								}
+
+								writeBedrockAws({ customModelBaseId: bedrockDefaultModelId })
 
 								handleModeFieldsChange(
 									{
@@ -459,7 +514,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 										},
 									},
 									{
-										apiModelId: isCustom ? "" : e.target.value,
+										apiModelId: isCustom ? "" : value,
 										awsBedrockCustomSelected: isCustom,
 										awsBedrockCustomModelBaseId: bedrockDefaultModelId,
 									},
@@ -490,13 +545,20 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								className="w-full mt-0.5"
 								id="bedrock-model-input"
 								initialValue={modeFields.apiModelId || ""}
-								onChange={(value) =>
+								onChange={(value) => {
+									if (value.trim()) {
+										void commitSelection(currentMode, {
+											providerId: "bedrock",
+											modelId: value,
+											modelInfo: customBaseModelInfo,
+										}).catch((err) => console.error("Failed to commit custom Bedrock model selection:", err))
+									}
 									handleModeFieldChange(
 										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
 										value,
 										currentMode,
 									)
-								}
+								}}
 								placeholder="Enter custom model ID...">
 								<span className="font-medium">Model ID</span>
 							</DebouncedTextField>
@@ -507,7 +569,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								<VSCodeDropdown
 									className="w-full"
 									id="bedrock-base-model-dropdown"
-									onChange={(e: any) =>
+									onChange={(e: any) => {
+										writeBedrockAws({ customModelBaseId: e.target.value })
 										handleModeFieldChange(
 											{
 												plan: "planModeAwsBedrockCustomModelBaseId",
@@ -516,8 +579,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 											e.target.value,
 											currentMode,
 										)
-									}
-									value={modeFields.awsBedrockCustomModelBaseId || bedrockDefaultModelId}>
+									}}
+									value={customBaseModelId}>
 									<VSCodeOption value="">Select a model...</VSCodeOption>
 									{Object.keys(bedrockModels).map((modelId) => (
 										<VSCodeOption
