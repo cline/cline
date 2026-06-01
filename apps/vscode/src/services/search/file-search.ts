@@ -38,7 +38,7 @@ export async function executeRipgrepForFiles(
 	workspacePath: string,
 	limit = 5000,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
-	const rgPath = await getBinaryLocation("rg")
+	const rgPath = await resolveRipgrepPath()
 
 	return new Promise((resolve, reject) => {
 		// Arguments for ripgrep to list files, follow symlinks, include hidden, and exclude common directories
@@ -142,11 +142,45 @@ export async function executeRipgrepForFiles(
 	})
 }
 
+async function resolveRipgrepPath(): Promise<string> {
+	try {
+		return await getBinaryLocation("rg")
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
+		const fallback = await findSystemRipgrep()
+		Logger.warn(`[file-search] bundled ripgrep unavailable, trying ${fallback}: ${message}`)
+		return fallback
+	}
+}
+
+async function findSystemRipgrep(): Promise<string> {
+	const fallback = process.platform === "win32" ? "rg.exe" : "rg"
+	const candidates =
+		process.platform === "win32" ? [] : ["/usr/bin/rg", "/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
+
+	for (const candidate of candidates) {
+		try {
+			await fs.promises.access(candidate, fs.constants.X_OK)
+			return candidate
+		} catch {
+			// Keep looking; the bare command is the final PATH-based fallback.
+		}
+	}
+
+	return fallback
+}
+
 // Get currently active/open files from VSCode tabs using hostbridge
 async function getActiveFiles(): Promise<Set<string>> {
-	const request = GetOpenTabsRequest.create({})
-	const response = await HostProvider.window.getOpenTabs(request)
-	return new Set(response.paths)
+	try {
+		const request = GetOpenTabsRequest.create({})
+		const response = await HostProvider.window.getOpenTabs(request)
+		return new Set(response.paths)
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
+		Logger.warn(`[file-search] failed to read open tabs, continuing without active-file boost: ${message}`)
+		return new Set()
+	}
 }
 
 // Maximum number of candidates to ask the host for. The result is filtered &
