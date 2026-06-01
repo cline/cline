@@ -171,10 +171,12 @@ export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callba
  * })
  * ```
  */
-export function getAxiosSettings(): { adapter?: any; fetch?: typeof globalThis.fetch } {
+export function getAxiosSettings(): { adapter?: any; fetch?: typeof globalThis.fetch; maxBodyLength?: number; maxContentLength?: number } {
 	return {
 		adapter: "fetch" as any,
 		fetch, // Use our configured fetch
+		maxBodyLength: Infinity,
+		maxContentLength: Infinity,
 	}
 }
 

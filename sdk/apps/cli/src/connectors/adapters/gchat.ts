@@ -416,11 +416,14 @@ class GoogleChatConnector extends ConnectorBase<
 	): Promise<number> {
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<GoogleChatThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs,
@@ -816,6 +819,7 @@ class GoogleChatConnector extends ConnectorBase<
 		io.writeln(`[gchat] configure Google Chat App URL: ${endpointUrl}`);
 
 		await stopPromise;
+		clearBindingSessionIds<GoogleChatThreadState>(bindingsPath);
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();

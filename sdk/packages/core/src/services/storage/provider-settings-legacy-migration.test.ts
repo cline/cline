@@ -111,7 +111,7 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 		expect(manager.getProviderSettings("anthropic")).toEqual({
 			provider: "anthropic",
-			model: "claude-opus-4-7",
+			model: "claude-opus-4-8",
 			apiKey: "legacy-key",
 		});
 		expect(manager.read().providers.openai?.tokenSource).toBe("manual");
@@ -351,6 +351,122 @@ describe("migrateLegacyProviderSettings", () => {
 			},
 		});
 		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
+	});
+
+	it("migrates legacy SAP AI Core credentials into SAP provider settings", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "sapaicore",
+					actModeApiModelId: "anthropic--claude-4.6-sonnet",
+					sapAiCoreBaseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+					sapAiCoreTokenUrl:
+						"https://example.authentication.sap.hana.ondemand.com",
+					sapAiResourceGroup: "default",
+					sapAiCoreUseOrchestrationMode: true,
+					actModeSapAiCoreDeploymentId: "deployment-id",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					sapAiCoreClientId: "sap-client",
+					sapAiCoreClientSecret: "sap-secret",
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 1,
+			lastUsedProvider: "sapaicore",
+		});
+		expect(manager.getProviderSettings("sapaicore")).toEqual({
+			provider: "sapaicore",
+			model: "anthropic--claude-4.6-sonnet",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://example.authentication.sap.hana.ondemand.com",
+				resourceGroup: "default",
+				deploymentId: "deployment-id",
+				useOrchestrationMode: true,
+			},
+		});
+		expect(manager.read().providers.sapaicore?.tokenSource).toBe("migration");
+	});
+
+	it("detects SAP AI Core legacy files even when provider mode is absent", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					sapAiCoreBaseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+					sapAiCoreTokenUrl:
+						"https://example.authentication.sap.hana.ondemand.com",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					sapAiCoreClientId: "sap-client",
+					sapAiCoreClientSecret: "sap-secret",
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			lastUsedProvider: "sapaicore",
+		});
+		expect(manager.getProviderSettings("sapaicore")).toMatchObject({
+			provider: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://example.authentication.sap.hana.ondemand.com",
+			},
+		});
 	});
 });
 

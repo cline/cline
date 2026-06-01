@@ -5,6 +5,7 @@ import {
 	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeOpus471mModelId,
+	openRouterClaudeOpus481mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
@@ -61,7 +62,8 @@ export async function createOpenRouterStream(
 		model.id === openRouterClaudeSonnet451mModelId ||
 		model.id === openRouterClaudeSonnet461mModelId ||
 		model.id === openRouterClaudeOpus461mModelId ||
-		model.id === openRouterClaudeOpus471mModelId
+		model.id === openRouterClaudeOpus471mModelId ||
+		model.id === openRouterClaudeOpus481mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id openrouter API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)

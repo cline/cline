@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.86.2]
+
+### Fixed
+
+- Fix `@` file mentions and workspace file search on VS Code 1.122+ by resolving the new bundled `@vscode/ripgrep-universal` per-platform binary layout before falling back to legacy ripgrep paths.
+
+## [3.86.1]
+
+### Fixed
+
+- Fix `@` file mentions failing to find files in some environments (notably VS Code Remote SSH, and after certain VS Code updates) by keeping the file-search fallback alive when the workspace index or bundled ripgrep binary is unavailable.
+
+## [3.86.0]
+
+### Added
+
+- Add Claude Opus 4.8 provider support, including 1M-context variants where available.
+- Add Moonshot Kimi K2.6 model support.
+
+### Fixed
+
+- Show prompt-cache support for Qwen 3.7 Max in the Cline provider.
+- Fix the VS Code nightly publish workflow startup permissions.
+
+### Changed
+
+- Move the VS Code extension project into `apps/vscode`.
+
 ## [3.85.0]
 
 ### Added

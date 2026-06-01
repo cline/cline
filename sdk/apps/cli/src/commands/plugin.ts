@@ -671,6 +671,7 @@ async function installNpmPackage(
 		packageRoot,
 		"--omit=dev",
 		"--omit=peer",
+		"--legacy-peer-deps",
 		"--no-audit",
 		"--no-fund",
 		"--package-lock=false",
@@ -692,6 +693,8 @@ async function installPackageDependencies(
 		[
 			"install",
 			"--omit=dev",
+			"--omit=peer",
+			"--legacy-peer-deps",
 			"--no-audit",
 			"--no-fund",
 			"--package-lock=false",

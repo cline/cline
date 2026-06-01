@@ -1,61 +1,72 @@
-# dependencies (bun install)
-node_modules
-
-# output
 out
 dist
-*.tgz
-target
-.next
-.map
+dist-standalone
+node_modules
+tmp
+.vscode-test/
+*.vsix
 
-# code coverage
-coverage
-*.lcov
-
-# logs
-logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
-
-# dotenv environment variable files
-.env
-.env*.local
-
-# caches
-.eslintcache
-.cache
-*.tsbuildinfo
-next-env.d.ts
-
-# IntelliJ based IDEs
-.idea
-
-# Finder (MacOS) folder config
 .DS_Store
+.idea
+.husky/_/
 
-# Package lock files created by other package managers
-package-lock.json
-yarn.lock 
 pnpm-lock.yaml
 
-# Session files / User data
+.clineignore
+.venv
+.actrc
+CLAUDE.local.md
+
+apps/vscode/webview-ui/src/**/*.js
+apps/vscode/webview-ui/src/**/*.js.map
+
+# Ignore coverage directories and files
+coverage
+coverage-unit
+.nyc_output
+# But don't ignore the coverage scripts in .github/scripts/
+!.github/scripts/coverage/
+
+*evals.env
+.env
+.secrets
+.github/act/.secrets
+
+.worktrees
+
+## Generated files ##
+apps/vscode/src/generated/
+apps/vscode/src/shared/proto/
+apps/vscode/webview-ui/src/services/grpc-client.ts
+*.tsbuildinfo
+
+# E2E Tests
+test-results
+
+/.github/act
+/pkg
+.secrets
+
+*.tsbuildinfo
+
+# Smoke test results (generated)
+evals/smoke-tests/results/
+
+.tui-test
+secrets.json
+tui-traces
+tests/**/cache
+
+# Backup created by scripts/marketplace-readme.mjs while publishing.
+# Should never be committed: only exists if a publish aborts mid-swap.
+.README.github.bak
+
+
+# SDK Session files / User data
 .cline/data
 .cline/tmp
 *.db
 *.db-shm
 *.db-wal
-
-# Protobuf generated code
-packages/rpc/src/proto/generated
-
-# Tauri generated code
-apps/*/src-tauri/gen
-apps/*/src-tauri/bin
-apps/examples/*/src-tauri/gen
-apps/examples/*/src-tauri/bin
-# Tauri UI test snapshots
-apps/*/src/tests/.tui-test
-apps/*/src/tests/tui-traces
-
-.cli-release-staging
+.cline/**/managed.json
+.cline/**/bundle.json

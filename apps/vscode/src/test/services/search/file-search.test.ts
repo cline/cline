@@ -28,6 +28,8 @@ describe("File Search", () => {
 		const accessStub = sandbox.stub(fs.promises, "access")
 		accessStub.withArgs("/mock/path/rg").resolves()
 		accessStub.withArgs("/mock/path/rg.exe").resolves()
+		accessStub.withArgs("/mock/path/to/binary/rg").resolves()
+		accessStub.withArgs("/mock/path/to/binary/rg.exe").resolves()
 
 		setVscodeHostProviderMock()
 	})
@@ -163,6 +165,46 @@ describe("File Search", () => {
 			should(err).have.property("name", "RipgrepError")
 			should(err.stderr).match(/No such file or directory/)
 		})
+
+		it("falls back to a system ripgrep when the bundled binary path is missing", async () => {
+			setVscodeHostProviderMock({
+				getBinaryLocation: async () => "/missing/rg",
+			})
+
+			const accessStub = fs.promises.access as sinon.SinonStub
+			accessStub.withArgs("/missing/rg").rejects(new Error("missing"))
+			accessStub.withArgs("/usr/bin/rg", fs.constants.X_OK).resolves()
+
+			const mockStdout = new Readable({
+				read() {
+					this.push("/workspace/src/main.ts\n")
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						setImmediate(() => callback(0))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as childProcess.ChildProcess)
+
+			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
+			const expectedPath = process.platform === "win32" ? "src\\main.ts" : "src/main.ts"
+
+			should(spawnStub.firstCall.args[0]).equal(process.platform === "win32" ? "rg.exe" : "/usr/bin/rg")
+			should(result).containDeep([{ path: expectedPath, type: "file", label: "main.ts" }])
+		})
 	})
 
 	describe("searchWorkspaceFiles", () => {
@@ -208,6 +250,41 @@ describe("File Search", () => {
 			const srcEntries = result.items.filter((item) => item.path === "src")
 			should(srcEntries).have.length(1)
 			should(srcEntries[0]).have.properties({ path: "src", type: "folder" })
+		})
+
+		it("continues search when the host cannot return open tabs", async () => {
+			sandbox.stub(HostProvider.window, "getOpenTabs").rejects(new Error("getOpenTabs unavailable"))
+			sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").rejects({ code: 12, message: "not implemented" })
+
+			const mockStdout = new Readable({
+				read() {
+					this.push("/workspace/src/main.ts\n")
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						setImmediate(() => callback(0))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as childProcess.ChildProcess)
+
+			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
+			const expectedPath = process.platform === "win32" ? "src\\main.ts" : "src/main.ts"
+
+			should(result.source).equal("ripgrep")
+			should(result.items).containDeep([{ path: expectedPath, type: "file", label: "main.ts" }])
 		})
 
 		it("should apply fuzzy matching for non-empty query", async () => {

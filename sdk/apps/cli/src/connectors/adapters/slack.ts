@@ -581,11 +581,14 @@ class SlackConnector extends ConnectorBase<
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const stateStorePath = this.resolveStateStorePath(options.userName);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<SlackThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs,
@@ -1056,6 +1059,7 @@ class SlackConnector extends ConnectorBase<
 		);
 
 		await stopPromise;
+		clearBindingSessionIds<SlackThreadState>(bindingsPath);
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();

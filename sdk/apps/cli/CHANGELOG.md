@@ -1,5 +1,21 @@
 # Cline CLI Changelog
 
+## 3.0.15
+
+- Add Cline Hub, a web app for monitoring connected clients, viewing and driving sessions, streaming assistant output, and restarting the local hub, with local, LAN, and tunnel usage gated by a room secret.
+- Support global AGENTS rules so agent rules can be applied across all sessions, not just per-project.
+- Let plugins contribute static or dynamic rule content when installed in the sandbox.
+- Bind Discord sessions to individual message authors so different Discord users no longer share chat state in a thread.
+- Support participant mute targets in Discord: resolve `/mute` and `/unmute` from user mentions or raw user IDs to mute a specific participant in a thread.
+- Make OAuth URLs clickable in the TUI.
+- Refresh the bundled model catalog, adding Claude Opus 4.8, Moonshot Kimi K2.6, and Qwen3.7 Max (with cache support).
+- Discover SDK skill directories that are symlinked, including handling circular symlinks.
+- Steer active connector sessions across turn keys by matching on session ID, so replies continue the existing session instead of starting a duplicate.
+- Stop the Discord connector after repeated identical errors (per thread, within a time window) to prevent error messages from flooding a channel.
+- Fix Discord connector registration and reply fallback handling.
+- Fix SAP AI Core to use the AI SDK community provider.
+- Log ACP output as diagnostics instead of errors so normal output no longer appears as errors.
+
 ## 3.0.14
 
 - Fix OTEL telemetry variable bundling so telemetry is correctly enabled in compiled CLI builds: guard against environments where `process.env` is undefined and remove optional chaining so bundlers can inline the values at build time.

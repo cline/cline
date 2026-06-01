@@ -22,6 +22,7 @@ import {
 	createOpenAICompatibleProvider,
 	createOpenAIProvider,
 	createOpenCodeProvider,
+	createSapAiCoreProvider,
 	createVertexProvider,
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
@@ -160,6 +161,8 @@ function resolveFactory(
 			return createOpenCodeProvider;
 		case "dify":
 			return createDifyProvider;
+		case "sapaicore":
+			return createSapAiCoreProvider;
 		default:
 			return createOpenAICompatibleProvider;
 	}
