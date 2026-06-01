@@ -98,7 +98,9 @@ export const HtmlPreviewContextProvider: React.FC<{ children: React.ReactNode }>
 			return nextItems
 		})
 		setManifestsById((prev) => {
-			if (!(id in prev)) return prev
+			if (!(id in prev)) {
+				return prev
+			}
 			const next = { ...prev }
 			delete next[id]
 			return next
@@ -214,7 +216,9 @@ export const HtmlPreviewContextProvider: React.FC<{ children: React.ReactNode }>
 	// case-insensitive on macOS/Windows. Used to decide whether a target file
 	// is already represented by an existing preview item.
 	const pathsEqual = useCallback((a?: string, b?: string) => {
-		if (!a || !b) return false
+		if (!a || !b) {
+			return false
+		}
 		const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
 		return norm(a) === norm(b)
 	}, [])

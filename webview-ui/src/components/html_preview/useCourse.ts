@@ -61,9 +61,13 @@ const inflight = new Map<string, Promise<CacheEntry>>()
 
 function fetchCourseForFile(filePath: string): Promise<CacheEntry> {
 	const cached = cache.get(filePath)
-	if (cached) return Promise.resolve(cached)
+	if (cached) {
+		return Promise.resolve(cached)
+	}
 	const existing = inflight.get(filePath)
-	if (existing) return existing
+	if (existing) {
+		return existing
+	}
 
 	const requestId = `course-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 	const promise = new Promise<CacheEntry>((resolve) => {
@@ -83,7 +87,9 @@ function fetchCourseForFile(filePath: string): Promise<CacheEntry> {
 		}, 4000)
 		const onMessage = (e: MessageEvent) => {
 			const d = e.data
-			if (!d || d.type !== "aihydro-course-loaded" || d.requestId !== requestId) return
+			if (!d || d.type !== "aihydro-course-loaded" || d.requestId !== requestId) {
+				return
+			}
 			finish({
 				course: (d.course as CourseManifest | null) ?? null,
 				courseRoot: (d.courseRoot as string | null) ?? null,
@@ -103,8 +109,11 @@ function fetchCourseForFile(filePath: string): Promise<CacheEntry> {
 
 /** Force-refresh the cached course for a path (e.g. after the user edits course.json) */
 export function invalidateCourseCache(filePath?: string): void {
-	if (filePath) cache.delete(filePath)
-	else cache.clear()
+	if (filePath) {
+		cache.delete(filePath)
+	} else {
+		cache.clear()
+	}
 }
 
 /**
@@ -130,7 +139,9 @@ function resolveCurrentModuleId(course: CourseManifest, courseRoot: string, file
 
 export function useCourse(filePath: string | undefined | null): CourseInfo {
 	const [entry, setEntry] = useState<CacheEntry | null>(() => {
-		if (!filePath) return null
+		if (!filePath) {
+			return null
+		}
 		return cache.get(filePath) ?? null
 	})
 	const [loading, setLoading] = useState<boolean>(() => Boolean(filePath) && !cache.has(filePath))
@@ -151,7 +162,9 @@ export function useCourse(filePath: string | undefined | null): CourseInfo {
 		let cancelled = false
 		fetchCourseForFile(filePath)
 			.then((result) => {
-				if (cancelled) return
+				if (cancelled) {
+					return
+				}
 				setEntry(result)
 				setLoading(false)
 			})

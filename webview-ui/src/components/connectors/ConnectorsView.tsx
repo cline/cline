@@ -24,7 +24,9 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 	const mountedRef = useRef(true)
 
 	const applyGeeResponse = useCallback((resp: GeeStatusResponse) => {
-		if (!mountedRef.current) return
+		if (!mountedRef.current) {
+			return
+		}
 		setStatuses((prev) => ({ ...prev, [GEE_ID]: resp.ok ? "connected" : "disconnected" }))
 		if (resp.ok) {
 			setDetails((prev) => ({
@@ -45,10 +47,14 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 		mountedRef.current = true
 		UiServiceClient.refreshConnectorsCatalog(EmptyRequest.create({}))
 			.then((resp) => {
-				if (!mountedRef.current) return
+				if (!mountedRef.current) {
+					return
+				}
 				try {
 					const remote: ConnectorDefinition[] = JSON.parse(resp.catalogJson ?? "[]")
-					if (!Array.isArray(remote) || remote.length === 0) return
+					if (!Array.isArray(remote) || remote.length === 0) {
+						return
+					}
 					const remoteIds = new Set(remote.map((c) => c.id))
 					setConnectors([...remote, ...BUILTIN_CONNECTORS.filter((c) => !remoteIds.has(c.id))])
 				} catch {
@@ -68,7 +74,9 @@ const ConnectorsView = ({ onDone }: ConnectorsViewProps) => {
 	}, [applyGeeResponse])
 
 	const handleSetupWithAI = useCallback((connector: ConnectorDefinition) => {
-		if (!connector.setupPrompt) return
+		if (!connector.setupPrompt) {
+			return
+		}
 		UiServiceClient.sendToChat(StringRequest.create({ value: connector.setupPrompt })).catch(() => {})
 	}, [])
 

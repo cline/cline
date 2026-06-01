@@ -11,8 +11,12 @@ export interface KernelStatusChipProps {
 
 /** Inject the pulse keyframe once into the document (idempotent). */
 function ensurePulseStyle() {
-	if (typeof document === "undefined") return
-	if (document.getElementById("aihydro-kernel-pulse-style")) return
+	if (typeof document === "undefined") {
+		return
+	}
+	if (document.getElementById("aihydro-kernel-pulse-style")) {
+		return
+	}
 	const el = document.createElement("style")
 	el.id = "aihydro-kernel-pulse-style"
 	el.textContent = `
@@ -27,7 +31,9 @@ function ensurePulseStyle() {
 type ChipState = "ready-clean" | "ready-dirty" | "busy" | "starting" | "error" | "stopped" | "idle"
 
 function resolveChipState(kernelState: ArtifactKernelState | undefined, dirty: boolean, isRunning: boolean): ChipState {
-	if (isRunning) return "busy"
+	if (isRunning) {
+		return "busy"
+	}
 	switch (kernelState) {
 		case ArtifactKernelState.ARTIFACT_KERNEL_STATE_STARTING:
 			return "starting"

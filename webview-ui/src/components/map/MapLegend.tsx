@@ -129,20 +129,18 @@ export const MapLegend: React.FC<MapLegendProps> = ({ layers, visibleLayerIds, m
 			<div style={{ position: "relative", marginBottom: 3 }}>
 				<div style={{ height: 10, background: gradient, borderRadius: 2, border: `1px solid ${bdClr}` }} />
 				{showTick && (
-					<>
-						<div
-							style={{
-								position: "absolute",
-								top: -2,
-								left: `calc(${(tickPct * 100).toFixed(2)}% - 1px)`,
-								width: 2,
-								height: 14,
-								background: tickColor,
-								boxShadow: "0 0 0 1px rgba(0,0,0,0.55)",
-								borderRadius: 1,
-							}}
-						/>
-					</>
+					<div
+						style={{
+							position: "absolute",
+							top: -2,
+							left: `calc(${(tickPct * 100).toFixed(2)}% - 1px)`,
+							width: 2,
+							height: 14,
+							background: tickColor,
+							boxShadow: "0 0 0 1px rgba(0,0,0,0.55)",
+							borderRadius: 1,
+						}}
+					/>
 				)}
 			</div>
 			<div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, opacity: 0.78 }}>

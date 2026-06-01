@@ -43,7 +43,9 @@ const McpMarketplaceCard = ({ item, installedServers, setError, onRecognitionCha
 	const handleStar = async (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-		if (isStarring) return
+		if (isStarring) {
+			return
+		}
 		const nextStarred = !starred
 		setIsStarring(true)
 		setError(null)

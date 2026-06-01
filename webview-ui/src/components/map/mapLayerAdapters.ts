@@ -32,13 +32,16 @@ export function sampleTopRasterAtPoint(
 	layerOrder: string[],
 	lon: number,
 	lat: number,
-	rasterCache?: Map<
-		string,
-		{
-			bounds?: LayerBounds
-			rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
-		}
-	>,
+	rasterCache?: {
+		get(
+			id: string,
+		):
+			| {
+					bounds?: LayerBounds
+					rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
+			  }
+			| undefined
+	},
 ): CursorRasterReading | null {
 	const byId = new Map(layers.map((l) => [l.id, l]))
 	const ordered: MapLayer[] = []
@@ -66,13 +69,16 @@ function sampleRasterAtPoint(
 	layer: MapLayer,
 	lon: number,
 	lat: number,
-	rasterCache?: Map<
-		string,
-		{
-			bounds?: LayerBounds
-			rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
-		}
-	>,
+	rasterCache?: {
+		get(
+			id: string,
+		):
+			| {
+					bounds?: LayerBounds
+					rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
+			  }
+			| undefined
+	},
 ): CursorRasterReading | null {
 	if (layer.layerType === "gee_tile") {
 		return null
@@ -110,8 +116,47 @@ function sampleRasterAtPoint(
 	}
 }
 
+/** Sample ALL visible raster layers at a point (not just the topmost). Returns one reading per layer that has pixel data there. */
+export function sampleAllRastersAtPoint(
+	layers: MapLayer[],
+	visibleLayerIds: Set<string>,
+	layerOrder: string[],
+	lon: number,
+	lat: number,
+	rasterCache?: {
+		get(
+			id: string,
+		):
+			| {
+					bounds?: LayerBounds
+					rawPixels?: { data: Float32Array | number[]; width: number; height: number; min: number; max: number }
+			  }
+			| undefined
+	},
+): CursorRasterReading[] {
+	const byId = new Map(layers.map((l) => [l.id, l]))
+	const ordered: MapLayer[] = []
+	for (const id of layerOrder) {
+		const layer = byId.get(id)
+		if (layer && visibleLayerIds.has(id) && isRasterLikeLayer(layer)) ordered.push(layer)
+	}
+	for (const layer of layers) {
+		if (visibleLayerIds.has(layer.id) && isRasterLikeLayer(layer) && !ordered.some((o) => o.id === layer.id))
+			ordered.push(layer)
+	}
+	const results: CursorRasterReading[] = []
+	for (const layer of ordered) {
+		const r = sampleRasterAtPoint(layer, lon, lat, rasterCache)
+		if (r) results.push(r)
+	}
+	return results
+}
+
 /** Resolve WGS84 bounds for zoom / fit (raster, gee_tile, geojson). */
-export function getLayerBounds(layer: MapLayer, rasterCache?: Map<string, { bounds?: LayerBounds }>): LayerBounds | undefined {
+export function getLayerBounds(
+	layer: MapLayer,
+	rasterCache?: { get(id: string): { bounds?: LayerBounds } | undefined },
+): LayerBounds | undefined {
 	if (layer.layerType === "gee_tile") {
 		return parseBoundsJson(layer.metadata?.gee_bounds)
 	}

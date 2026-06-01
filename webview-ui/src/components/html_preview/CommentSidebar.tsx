@@ -38,8 +38,12 @@ export const CommentSidebar: React.FC<CommentSidebarProps> = ({ moduleId, iframe
 	useEffect(() => {
 		const onMessage = (event: MessageEvent) => {
 			const data = event.data as { type?: string; kind?: string; payloadJson?: string; moduleId?: string }
-			if (!data || data.type !== "aihydro-preview-event") return
-			if (data.moduleId && data.moduleId !== moduleId) return
+			if (!data || data.type !== "aihydro-preview-event") {
+				return
+			}
+			if (data.moduleId && data.moduleId !== moduleId) {
+				return
+			}
 
 			let payload: Record<string, unknown> = {}
 			try {
@@ -62,12 +66,16 @@ export const CommentSidebar: React.FC<CommentSidebarProps> = ({ moduleId, iframe
 	}, [moduleId])
 
 	const handleSend = useCallback(() => {
-		if (!iframeWindow) return
+		if (!iframeWindow) {
+			return
+		}
 		iframeWindow.postMessage({ type: "aihydro-send-batch" }, "*")
 	}, [iframeWindow])
 
 	const handleClear = useCallback(() => {
-		if (!iframeWindow) return
+		if (!iframeWindow) {
+			return
+		}
 		iframeWindow.postMessage({ type: "aihydro-clear-batch" }, "*")
 	}, [iframeWindow])
 

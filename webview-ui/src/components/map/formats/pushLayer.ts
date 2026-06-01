@@ -24,10 +24,18 @@ function sourceMetadata(spec: LayerSpec): Record<string, string> {
 		source_loaded_at_utc: new Date().toISOString(),
 		source_status: "current",
 	}
-	if (source.mtimeMs !== undefined) out.source_mtime_ms = String(source.mtimeMs)
-	if (source.sizeBytes !== undefined) out.source_size_bytes = String(source.sizeBytes)
-	if (source.remoteUrl) out.source_remote_url = source.remoteUrl
-	if (source.derivedFrom) out.source_derived_from = source.derivedFrom
+	if (source.mtimeMs !== undefined) {
+		out.source_mtime_ms = String(source.mtimeMs)
+	}
+	if (source.sizeBytes !== undefined) {
+		out.source_size_bytes = String(source.sizeBytes)
+	}
+	if (source.remoteUrl) {
+		out.source_remote_url = source.remoteUrl
+	}
+	if (source.derivedFrom) {
+		out.source_derived_from = source.derivedFrom
+	}
 	return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== ""))
 }
 

@@ -55,9 +55,13 @@ const FormatBtn: React.FC<{
 }> = ({ icon, label, command, title, iframeRef, value, disabled = false }) => {
 	const [hovered, setHovered] = useState(false)
 	const handleClick = () => {
-		if (disabled) return
+		if (disabled) {
+			return
+		}
 		const win = iframeRef.current?.contentWindow
-		if (!win) return
+		if (!win) {
+			return
+		}
 		win.postMessage({ type: "aihydro-editor-command", command, value }, "*")
 	}
 	return (

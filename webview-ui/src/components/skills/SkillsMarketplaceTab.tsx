@@ -43,7 +43,9 @@ const SkillsMarketplaceTab = () => {
 			.sort((a, b) => {
 				switch (sortBy) {
 					case "featured":
-						if (a.isRecommended !== b.isRecommended) return a.isRecommended ? -1 : 1
+						if (a.isRecommended !== b.isRecommended) {
+							return a.isRecommended ? -1 : 1
+						}
 						return b.aiHydroStars - a.aiHydroStars || b.aiHydroInstalls - a.aiHydroInstalls
 					case "stars":
 						return b.aiHydroStars - a.aiHydroStars
@@ -80,7 +82,9 @@ const SkillsMarketplaceTab = () => {
 
 	const updateRecognition = (skillId: string, starred: boolean, aiHydroStars: number) => {
 		setCatalog((current) => {
-			if (!current) return current
+			if (!current) {
+				return current
+			}
 			return {
 				...current,
 				items: current.items.map((item) =>

@@ -3,11 +3,280 @@
  *
  * Each adapter is loaded *lazily* via dynamic import so the deck.gl bundle
  * stays small for users who never load that format.
+ *
+ * GeoJSON and CSV parsing runs in a Blob Web Worker (off the main thread) so
+ * loading large files doesn't freeze the map panel. Other formats (kml, shp,
+ * tiff …) require npm libraries that can't be imported in a worker and stay on
+ * the main thread — they're typically smaller anyway.
  */
 
 import { PLATFORM_CONFIG } from "../../../config/platform.config"
 import type { LayerSourceSpec } from "./types"
 import { detectFormat, LayerLoadError, type LayerSpec, type RasterPixels } from "./types"
+
+// ---------------------------------------------------------------------------
+// Inline Web Worker — self-contained, no external imports.
+// Handles GeoJSON validation and CSV parsing off the main thread.
+// Input:  { id, format, arrayBuffer, fileName }  (arrayBuffer is transferred)
+// Output: { id, ok, kind, text?, rows?, parsed?, error? }
+// ---------------------------------------------------------------------------
+const PARSE_WORKER_SRC = `
+"use strict";
+var GEO_TYPES = ["FeatureCollection","Feature","GeometryCollection",
+  "Point","LineString","Polygon","MultiPoint","MultiLineString","MultiPolygon"];
+
+self.onmessage = function(evt) {
+  var req = evt.data;
+  var id = req.id;
+  var format = req.format;
+  var fileName = req.fileName || "file";
+  try {
+    var text = new TextDecoder().decode(req.arrayBuffer);
+    if (format === "geojson") {
+      var parsed = JSON.parse(text);
+      if (!parsed || typeof parsed.type !== "string") {
+        self.postMessage({ id: id, ok: false, error: fileName + " is not a recognized GeoJSON document." });
+        return;
+      }
+      if (parsed.type === "Topology") {
+        // TopoJSON detected inside a .geojson file — post topology back for
+        // main-thread conversion (topojson-client can't be imported here).
+        self.postMessage({ id: id, ok: true, kind: "topojson_parsed", parsed: parsed });
+        return;
+      }
+      if (GEO_TYPES.indexOf(parsed.type) >= 0) {
+        // Count total coordinates; if huge, apply grid-snap simplification so
+        // deck.gl doesn't have to tessellate millions of sub-pixel vertices.
+        var stats = countCoordsAndBbox(parsed);
+        var simplifiedCoords = stats.coordCount;
+        var simplifiedFlag = "false";
+        var outText = text;
+        if (stats.coordCount > 2000000) {
+          var extent = Math.max(stats.maxLon - stats.minLon, stats.maxLat - stats.minLat, 0.001);
+          var gridSize = Math.max(extent / 10000, 1e-5);
+          parsed = simplifyGeojson(parsed, gridSize);
+          simplifiedCoords = countCoordsAndBbox(parsed).coordCount;
+          simplifiedFlag = "true";
+          outText = JSON.stringify(parsed);
+        }
+        self.postMessage({ id: id, ok: true, kind: "geojson", text: outText,
+          originalCoordCount: stats.coordCount, simplifiedCoordCount: simplifiedCoords,
+          simplified: simplifiedFlag });
+        return;
+      }
+      self.postMessage({ id: id, ok: false, error: fileName + " is not a recognized GeoJSON / TopoJSON document." });
+    } else if (format === "csv") {
+      var result = parseCSV(text, fileName);
+      if (!result.ok) {
+        self.postMessage({ id: id, ok: false, error: result.error });
+        return;
+      }
+      self.postMessage({ id: id, ok: true, kind: "geojson",
+        text: JSON.stringify(result.fc), rows: result.rows });
+    }
+  } catch(err) {
+    self.postMessage({ id: id, ok: false, error: err && err.message ? err.message : String(err) });
+  }
+};
+
+function parseCSV(text, fileName) {
+  var lines = text.split(/\\r?\\n/).filter(function(l) { return l.trim().length > 0; });
+  if (lines.length < 2) return { ok: false, error: fileName + " has no data rows." };
+  var headers = splitCsvRow(lines[0]);
+  var lonIdx = pickCol(headers, ["lon","longitude","lng","x"]);
+  var latIdx = pickCol(headers, ["lat","latitude","y"]);
+  if (lonIdx < 0 || latIdx < 0) {
+    return { ok: false, error: "Couldn't find longitude/latitude columns in " + fileName +
+      ". Expected headers like \\"lon,lat\\" or \\"longitude,latitude\\"." };
+  }
+  var features = [];
+  for (var i = 1; i < lines.length; i++) {
+    var row = splitCsvRow(lines[i]);
+    var lon = parseFloat(row[lonIdx]);
+    var lat = parseFloat(row[latIdx]);
+    if (!isFinite(lon) || !isFinite(lat)) continue;
+    var props = {};
+    for (var j = 0; j < headers.length; j++) {
+      if (j !== lonIdx && j !== latIdx) props[headers[j]] = row[j] || "";
+    }
+    features.push({ type: "Feature",
+      geometry: { type: "Point", coordinates: [lon, lat] }, properties: props });
+  }
+  if (features.length === 0) return { ok: false, error: "No valid points in " + fileName + "." };
+  return { ok: true, fc: { type: "FeatureCollection", features: features }, rows: features.length };
+}
+
+function splitCsvRow(line) {
+  var out = [], cur = "", inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { cur += c; }
+    } else if (c === '"') { inQuotes = true; }
+    else if (c === ',') { out.push(cur); cur = ""; }
+    else { cur += c; }
+  }
+  out.push(cur);
+  return out.map(function(s) { return s.trim(); });
+}
+
+function pickCol(headers, candidates) {
+  var lower = headers.map(function(h) { return h.toLowerCase().trim(); });
+  for (var k = 0; k < candidates.length; k++) {
+    var idx = lower.indexOf(candidates[k]);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+// Count total coordinates and compute bounding box in a single O(N) pass.
+function countCoordsAndBbox(geojson) {
+  var count = 0;
+  var minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  function visitCoord(c) {
+    if (!Array.isArray(c) || c.length < 2) return;
+    count++;
+    if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0];
+    if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+  }
+  function visitCoords(coords, depth) {
+    if (!Array.isArray(coords) || coords.length === 0) return;
+    if (depth === 0) { visitCoord(coords); return; }
+    for (var i = 0; i < coords.length; i++) visitCoords(coords[i], depth - 1);
+  }
+  function visitGeom(geom) {
+    if (!geom) return;
+    switch (geom.type) {
+      case "Point":           visitCoords(geom.coordinates, 0); break;
+      case "MultiPoint":
+      case "LineString":      visitCoords(geom.coordinates, 1); break;
+      case "MultiLineString":
+      case "Polygon":         visitCoords(geom.coordinates, 2); break;
+      case "MultiPolygon":    visitCoords(geom.coordinates, 3); break;
+      case "GeometryCollection":
+        if (Array.isArray(geom.geometries)) geom.geometries.forEach(visitGeom); break;
+    }
+  }
+  function visitFeature(f) { if (f && f.geometry) visitGeom(f.geometry); }
+  if (geojson.type === "FeatureCollection") {
+    (geojson.features || []).forEach(visitFeature);
+  } else if (geojson.type === "Feature") {
+    visitFeature(geojson);
+  } else {
+    visitGeom(geojson);
+  }
+  return { coordCount: count, minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat };
+}
+
+// Grid-snap simplification: snaps each coordinate to a grid, drops duplicates.
+// O(N) pass, preserves topology (no crossing), never touches Point geometries.
+function snapRing(coords, g) {
+  if (!Array.isArray(coords)) return coords;
+  var out = [], prevGx, prevGy;
+  for (var i = 0; i < coords.length; i++) {
+    var gx = Math.round(coords[i][0] / g);
+    var gy = Math.round(coords[i][1] / g);
+    if (i === 0 || gx !== prevGx || gy !== prevGy) {
+      out.push([gx * g, gy * g]);
+      prevGx = gx; prevGy = gy;
+    }
+  }
+  return out;
+}
+function snapRings(rings, g) { return rings.map(function(r) { return snapRing(r, g); }); }
+
+function simplifyGeom(geom, g) {
+  if (!geom) return geom;
+  switch (geom.type) {
+    case "LineString":
+      return { type: "LineString", coordinates: snapRing(geom.coordinates, g) };
+    case "MultiLineString":
+      return { type: "MultiLineString", coordinates: snapRings(geom.coordinates, g) };
+    case "Polygon":
+      return { type: "Polygon", coordinates: snapRings(geom.coordinates, g) };
+    case "MultiPolygon":
+      return { type: "MultiPolygon",
+        coordinates: geom.coordinates.map(function(poly) { return snapRings(poly, g); }) };
+    case "GeometryCollection":
+      return { type: "GeometryCollection",
+        geometries: (geom.geometries || []).map(function(sub) { return simplifyGeom(sub, g); }) };
+    default: return geom; // Point / MultiPoint — untouched
+  }
+}
+
+function simplifyGeojson(geojson, g) {
+  if (geojson.type === "FeatureCollection") {
+    return { type: "FeatureCollection",
+      features: (geojson.features || []).map(function(f) {
+        return { type: "Feature", geometry: simplifyGeom(f.geometry, g), properties: f.properties };
+      })
+    };
+  }
+  if (geojson.type === "Feature") {
+    return { type: "Feature", geometry: simplifyGeom(geojson.geometry, g), properties: geojson.properties };
+  }
+  return simplifyGeom(geojson, g);
+}
+`
+
+// Singleton worker — created on first parse, reused for all subsequent calls.
+// Only geojson and csv use the worker; other formats stay on the main thread.
+let _parseWorker: Worker | null = null
+
+function getParseWorker(): Worker {
+	if (!_parseWorker) {
+		const blob = new Blob([PARSE_WORKER_SRC], { type: "application/javascript" })
+		const url = URL.createObjectURL(blob)
+		_parseWorker = new Worker(url)
+		_parseWorker.onerror = () => {
+			_parseWorker = null
+		}
+	}
+	return _parseWorker
+}
+
+type WorkerResult =
+	| {
+			id: string
+			ok: true
+			kind: string
+			text?: string
+			rows?: number
+			parsed?: any
+			simplified?: string
+			originalCoordCount?: number
+			simplifiedCoordCount?: number
+	  }
+	| { id: string; ok: false; error: string }
+
+function workerParse(
+	format: "geojson" | "csv",
+	arrayBuffer: ArrayBuffer,
+	fileName: string,
+): Promise<WorkerResult & { ok: true }> {
+	return new Promise((resolve, reject) => {
+		const id = `${format}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+		try {
+			const worker = getParseWorker()
+			const onMsg = (e: MessageEvent<WorkerResult>) => {
+				if (e.data?.id !== id) return
+				worker.removeEventListener("message", onMsg)
+				if (e.data.ok) {
+					resolve(e.data as WorkerResult & { ok: true })
+				} else {
+					reject(new LayerLoadError((e.data as { ok: false; error: string }).error, format))
+				}
+			}
+			worker.addEventListener("message", onMsg)
+			// Transfer the ArrayBuffer so the worker owns it — zero-copy, no main-thread stall.
+			worker.postMessage({ id, format, arrayBuffer, fileName }, [arrayBuffer])
+		} catch {
+			reject(new LayerLoadError(`Worker parse failed for ${fileName}`, format))
+		}
+	})
+}
 
 const slugify = (s: string): string =>
 	s
@@ -133,22 +402,20 @@ export async function loadFile(file: File, opts: LoadOptions = {}): Promise<Laye
 }
 
 async function loadJsonish(file: File, id: string, name: string): Promise<LayerSpec> {
-	const text = await file.text()
-	let parsed: any
-	try {
-		parsed = JSON.parse(text)
-	} catch {
-		throw new LayerLoadError(`${file.name} is not valid JSON.`)
-	}
-	if (parsed?.type === "Topology") {
-		// TopoJSON — convert to GeoJSON
+	// JSON.parse of large GeoJSON files can take several seconds on the main thread.
+	// Transfer the raw bytes to the worker; it parses and validates off-thread.
+	const arrayBuffer = await file.arrayBuffer()
+	const result = await workerParse("geojson", arrayBuffer, file.name)
+
+	if (result.kind === "topojson_parsed") {
+		// Worker detected a TopoJSON topology — convert to GeoJSON here (needs npm lib).
 		const { feature } = await import("topojson-client")
-		const objects = parsed.objects ?? {}
-		const firstKey = Object.keys(objects)[0]
+		const topology = result.parsed
+		const firstKey = Object.keys(topology?.objects ?? {})[0]
 		if (!firstKey) {
 			throw new LayerLoadError(`${file.name} has no topology objects.`)
 		}
-		const fc: any = feature(parsed, objects[firstKey])
+		const fc: any = feature(topology, topology.objects[firstKey])
 		return {
 			kind: "vector",
 			id,
@@ -157,26 +424,22 @@ async function loadJsonish(file: File, id: string, name: string): Promise<LayerS
 			metadata: { format: "topojson" },
 		}
 	}
-	if (
-		parsed?.type === "FeatureCollection" ||
-		parsed?.type === "Feature" ||
-		parsed?.type === "GeometryCollection" ||
-		parsed?.type === "Point" ||
-		parsed?.type === "LineString" ||
-		parsed?.type === "Polygon" ||
-		parsed?.type === "MultiPoint" ||
-		parsed?.type === "MultiLineString" ||
-		parsed?.type === "MultiPolygon"
-	) {
-		return {
-			kind: "vector",
-			id,
-			name,
-			geojson: text,
-			metadata: { format: "geojson" },
-		}
+
+	// Standard GeoJSON — worker already validated the type.
+	// Carry through simplification metadata if the worker had to simplify.
+	const meta: Record<string, string> = { format: "geojson" }
+	if (result.simplified === "true") {
+		meta.simplified = "true"
+		meta.original_coord_count = String(result.originalCoordCount ?? "")
+		meta.simplified_coord_count = String(result.simplifiedCoordCount ?? "")
 	}
-	throw new LayerLoadError(`${file.name} is not a recognized GeoJSON / TopoJSON document.`)
+	return {
+		kind: "vector",
+		id,
+		name,
+		geojson: result.text!,
+		metadata: meta,
+	}
 }
 
 async function loadKml(file: File, id: string, name: string): Promise<LayerSpec> {
@@ -266,26 +529,41 @@ async function loadShp(file: File, id: string, name: string): Promise<LayerSpec>
 /** Returns a proj4 definition string for common EPSG codes used in hydrology. */
 function getProj4Def(epsg: number): string | null {
 	// WGS84 / NAD83 — treat as geographic, no transform needed
-	if (epsg === 4326 || epsg === 4269 || epsg === 4152) return null
+	if (epsg === 4326 || epsg === 4269 || epsg === 4152) {
+		return null
+	}
 	// Web Mercator
-	if (epsg === 3857 || epsg === 900913)
+	if (epsg === 3857 || epsg === 900913) {
 		return "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +no_defs"
+	}
 	// CONUS Albers — used by NLCD, POLARIS, 3DEP, NWM rasters
-	if (epsg === 5070)
+	if (epsg === 5070) {
 		return "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
+	}
 	// NAD83 CONUS Albers (older code)
-	if (epsg === 102003)
+	if (epsg === 102003) {
 		return "+proj=aea +lat_0=37.5 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
+	}
 	// NAD83 UTM zones 1–60 (EPSG 26901–26960)
-	if (epsg >= 26901 && epsg <= 26960) return `+proj=utm +zone=${epsg - 26900} +datum=NAD83 +units=m +no_defs`
+	if (epsg >= 26901 && epsg <= 26960) {
+		return `+proj=utm +zone=${epsg - 26900} +datum=NAD83 +units=m +no_defs`
+	}
 	// WGS84 UTM zones North 1–60 (EPSG 32601–32660)
-	if (epsg >= 32601 && epsg <= 32660) return `+proj=utm +zone=${epsg - 32600} +datum=WGS84 +units=m +no_defs`
+	if (epsg >= 32601 && epsg <= 32660) {
+		return `+proj=utm +zone=${epsg - 32600} +datum=WGS84 +units=m +no_defs`
+	}
 	// WGS84 UTM zones South 1–60 (EPSG 32701–32760)
-	if (epsg >= 32701 && epsg <= 32760) return `+proj=utm +zone=${epsg - 32700} +south +datum=WGS84 +units=m +no_defs`
+	if (epsg >= 32701 && epsg <= 32760) {
+		return `+proj=utm +zone=${epsg - 32700} +south +datum=WGS84 +units=m +no_defs`
+	}
 	// NAD27 UTM zones (EPSG 26701–26760)
-	if (epsg >= 26701 && epsg <= 26760) return `+proj=utm +zone=${epsg - 26700} +datum=NAD27 +units=m +no_defs`
+	if (epsg >= 26701 && epsg <= 26760) {
+		return `+proj=utm +zone=${epsg - 26700} +datum=NAD27 +units=m +no_defs`
+	}
 	// GRS80 / ETRS89 UTM zones (EPSG 25800–25860)
-	if (epsg >= 25801 && epsg <= 25860) return `+proj=utm +zone=${epsg - 25800} +ellps=GRS80 +units=m +no_defs`
+	if (epsg >= 25801 && epsg <= 25860) {
+		return `+proj=utm +zone=${epsg - 25800} +ellps=GRS80 +units=m +no_defs`
+	}
 	return null
 }
 
@@ -336,8 +614,12 @@ async function loadTiff(file: File, id: string, name: string): Promise<LayerSpec
 	for (let i = 0; i < srcBand.length; i++) {
 		const v = srcBand[i]
 		if (Number.isFinite(v)) {
-			if (v < min) min = v
-			if (v > max) max = v
+			if (v < min) {
+				min = v
+			}
+			if (v > max) {
+				max = v
+			}
 		}
 	}
 	if (!Number.isFinite(min) || !Number.isFinite(max) || max === min) {
@@ -517,7 +799,9 @@ async function warpPixelsToWgs84(
 			const px = ((srcX - srcMinX) / xRange) * (srcW - 1)
 			const py = ((srcMaxY - srcY) / yRange) * (srcH - 1)
 
-			if (px < 0 || px > srcW - 1 || py < 0 || py > srcH - 1) continue
+			if (px < 0 || px > srcW - 1 || py < 0 || py > srcH - 1) {
+				continue
+			}
 
 			// Bilinear interpolation
 			const x0 = Math.floor(px),
@@ -574,89 +858,16 @@ function renderToDataUrl(band: Float32Array, width: number, height: number, min:
 }
 
 async function loadCsv(file: File, id: string, name: string): Promise<LayerSpec> {
-	const text = await file.text()
-	const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0)
-	if (lines.length < 2) {
-		throw new LayerLoadError(`${file.name} has no data rows.`)
-	}
-	const headers = splitCsvRow(lines[0])
-	const lonIdx = pickColumnIndex(headers, ["lon", "longitude", "lng", "x"])
-	const latIdx = pickColumnIndex(headers, ["lat", "latitude", "y"])
-	if (lonIdx < 0 || latIdx < 0) {
-		throw new LayerLoadError(
-			`Couldn't find longitude/latitude columns in ${file.name}. Expected headers like "lon,lat" or "longitude,latitude".`,
-		)
-	}
-	const features: any[] = []
-	for (let i = 1; i < lines.length; i++) {
-		const row = splitCsvRow(lines[i])
-		const lon = parseFloat(row[lonIdx])
-		const lat = parseFloat(row[latIdx])
-		if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
-			continue
-		}
-		const props: Record<string, string> = {}
-		for (let j = 0; j < headers.length; j++) {
-			if (j !== lonIdx && j !== latIdx) {
-				props[headers[j]] = row[j] ?? ""
-			}
-		}
-		features.push({
-			type: "Feature",
-			geometry: { type: "Point", coordinates: [lon, lat] },
-			properties: props,
-		})
-	}
-	if (features.length === 0) {
-		throw new LayerLoadError(`No valid points in ${file.name}.`)
-	}
+	// CSV parsing (including large station files) runs in the worker off-thread.
+	const arrayBuffer = await file.arrayBuffer()
+	const result = await workerParse("csv", arrayBuffer, file.name)
 	return {
 		kind: "vector",
 		id,
 		name,
-		geojson: JSON.stringify({ type: "FeatureCollection", features }),
-		metadata: { format: "csv", rows: String(features.length) },
+		geojson: result.text!,
+		metadata: { format: "csv", rows: String(result.rows ?? 0) },
 	}
-}
-
-// Lightweight CSV row splitter — handles quoted fields with commas inside.
-function splitCsvRow(line: string): string[] {
-	const out: string[] = []
-	let cur = ""
-	let inQuotes = false
-	for (let i = 0; i < line.length; i++) {
-		const c = line[i]
-		if (inQuotes) {
-			if (c === '"' && line[i + 1] === '"') {
-				cur += '"'
-				i++
-			} else if (c === '"') {
-				inQuotes = false
-			} else {
-				cur += c
-			}
-		} else if (c === '"') {
-			inQuotes = true
-		} else if (c === ",") {
-			out.push(cur)
-			cur = ""
-		} else {
-			cur += c
-		}
-	}
-	out.push(cur)
-	return out.map((s) => s.trim())
-}
-
-function pickColumnIndex(headers: string[], candidates: string[]): number {
-	const lower = headers.map((h) => h.toLowerCase().trim())
-	for (const c of candidates) {
-		const idx = lower.indexOf(c)
-		if (idx >= 0) {
-			return idx
-		}
-	}
-	return -1
 }
 
 // Compact viridis-like ramp — 5 stops, sufficient for preview rendering.

@@ -94,7 +94,9 @@ const McpMarketplaceView = () => {
 	}
 
 	const updateRecognition = (mcpId: string, starred: boolean, aiHydroStars: number) => {
-		if (!mcpMarketplaceCatalog) return
+		if (!mcpMarketplaceCatalog) {
+			return
+		}
 		setMcpMarketplaceCatalog({
 			...mcpMarketplaceCatalog,
 			items: mcpMarketplaceCatalog.items.map((item) =>

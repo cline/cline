@@ -29,7 +29,9 @@ function domainStyle(domain: string) {
 }
 
 function formatCount(n: number): string {
-	if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+	if (n >= 1000) {
+		return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+	}
 	return String(n)
 }
 
@@ -44,7 +46,9 @@ const SkillCard = ({ item, setError, onRecognitionChange }: SkillCardProps) => {
 	const handleInstall = async (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-		if (isInstalling || installed) return
+		if (isInstalling || installed) {
+			return
+		}
 		setIsInstalling(true)
 		setError(null)
 		try {
@@ -71,7 +75,9 @@ const SkillCard = ({ item, setError, onRecognitionChange }: SkillCardProps) => {
 	const handleStar = async (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-		if (isStarring) return
+		if (isStarring) {
+			return
+		}
 		const nextStarred = !starred
 		setIsStarring(true)
 		setError(null)

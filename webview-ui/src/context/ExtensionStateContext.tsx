@@ -296,7 +296,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	useEffect(() => {
 		console.log("[DEBUG] ExtensionStateContext: Initializing with timeout fallback")
 
-		const didHydrateRef = { current: didHydrateState }
+		const _didHydrateRef = { current: didHydrateState }
 
 		// Set a timeout to force didHydrateState to true after 2 seconds
 		const timeout = setTimeout(() => {

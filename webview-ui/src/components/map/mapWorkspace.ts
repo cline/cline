@@ -23,6 +23,18 @@ export interface ActiveRoi {
 	areaHa?: number
 }
 
+/** A named saved view bookmark. */
+export interface MapBookmark {
+	id: string
+	name: string
+	longitude: number
+	latitude: number
+	zoom: number
+	pitch?: number
+	bearing?: number
+	createdAt: string // ISO timestamp
+}
+
 export interface MapWorkspace {
 	version: 1
 	basemap?: string
@@ -40,6 +52,8 @@ export interface MapWorkspace {
 		width?: number
 		height?: number
 	}
+	/** Named saved view bookmarks. */
+	bookmarks?: MapBookmark[]
 }
 
 const DEFAULT_WORKSPACE: MapWorkspace = {

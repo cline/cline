@@ -8,9 +8,12 @@ import { McpServiceClient } from "@/services/grpc-client"
 type McpToolRowProps = {
 	tool: McpTool
 	serverName?: string
+	// In the chat transcript we want a slim row: the full tool description and the
+	// parameter schema are noise there (the actual call arguments render separately).
+	compact?: boolean
 }
 
-const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
+const McpToolRow = ({ tool, serverName, compact = false }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
 	const { setMcpServers } = useExtensionState()
@@ -63,11 +66,18 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 						marginTop: "4px",
 						opacity: 0.8,
 						fontSize: "12px",
+						...(compact && {
+							display: "-webkit-box",
+							WebkitLineClamp: 1,
+							WebkitBoxOrient: "vertical" as const,
+							overflow: "hidden",
+						}),
 					}}>
 					{tool.description}
 				</div>
 			)}
-			{tool.inputSchema &&
+			{!compact &&
+				tool.inputSchema &&
 				"properties" in tool.inputSchema &&
 				Object.keys(tool.inputSchema.properties as Record<string, any>).length > 0 && (
 					<div

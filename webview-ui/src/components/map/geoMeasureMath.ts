@@ -69,3 +69,47 @@ export function fmtArea(km2: number): string {
 	}
 	return `${km2.toFixed(1)} km²`
 }
+
+export function interpolateLine(points: GeoPoint[], N: number): { lon: number; lat: number; distKm: number }[] {
+	if (points.length < 2) return []
+
+	const cumDist: number[] = [0]
+	for (let i = 1; i < points.length; i++) {
+		cumDist.push(cumDist[i - 1] + haversineKm(points[i - 1], points[i]))
+	}
+	const total = cumDist[cumDist.length - 1]
+	if (total === 0 || N <= 1) return points.map((p, i) => ({ ...p, distKm: cumDist[i] }))
+
+	const result: { lon: number; lat: number; distKm: number }[] = []
+	const step = total / (N - 1)
+
+	let currentSeg = 0
+	for (let i = 0; i < N; i++) {
+		const targetDist = i * step
+		if (i === N - 1) {
+			result.push({ ...points[points.length - 1], distKm: total })
+			continue
+		}
+
+		while (currentSeg < cumDist.length - 2 && cumDist[currentSeg + 1] < targetDist) {
+			currentSeg++
+		}
+
+		const segStart = cumDist[currentSeg]
+		const segEnd = cumDist[currentSeg + 1]
+		const p1 = points[currentSeg]
+		const p2 = points[currentSeg + 1]
+
+		let t = 0
+		if (segEnd > segStart) {
+			t = (targetDist - segStart) / (segEnd - segStart)
+		}
+
+		result.push({
+			lon: p1.lon + t * (p2.lon - p1.lon),
+			lat: p1.lat + t * (p2.lat - p1.lat),
+			distKm: targetDist,
+		})
+	}
+	return result
+}

@@ -49,7 +49,9 @@ const extractNumericAttributes = (geojson: string): NumericAttribute[] => {
 			const props = f.properties || {}
 			for (const [key, val] of Object.entries(props)) {
 				if (typeof val === "number" && !key.startsWith("_")) {
-					if (!attrs.has(key)) attrs.set(key, [])
+					if (!attrs.has(key)) {
+						attrs.set(key, [])
+					}
 					attrs.get(key)!.push(val)
 				}
 			}
@@ -141,7 +143,9 @@ export const GraduatedSymbologyEditor: React.FC<GraduatedSymbologyEditorProps> =
 	const subtle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"
 
 	const isRaster = layer.layerType === "raster"
-	if (isRaster) return null // Raster graduation not supported yet
+	if (isRaster) {
+		return null // Raster graduation not supported yet
+	}
 
 	const attrs = extractNumericAttributes(layer.geojson || "")
 	const [attrName, setAttrName] = useState<string>(attrs[0]?.name || "")
@@ -156,7 +160,9 @@ export const GraduatedSymbologyEditor: React.FC<GraduatedSymbologyEditorProps> =
 
 	useEffect(() => {
 		const attr = attrs.find((a) => a.name === attrName)
-		if (!attr || numClasses < 2) return
+		if (!attr || numClasses < 2) {
+			return
+		}
 
 		let computedBreaks: number[]
 		if (method === "equal") {
@@ -186,7 +192,9 @@ export const GraduatedSymbologyEditor: React.FC<GraduatedSymbologyEditorProps> =
 	}, [attrName, method, numClasses, rampName, attrs, layer.geojson])
 
 	const apply = async () => {
-		if (!attrName || breaks.length === 0) return
+		if (!attrName || breaks.length === 0) {
+			return
+		}
 		setBusy(true)
 		try {
 			const next = {

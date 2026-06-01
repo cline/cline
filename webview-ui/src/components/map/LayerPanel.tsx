@@ -65,10 +65,18 @@ const layerTypeIcon = (t?: string): string => {
 
 const sourceBadge = (layer: MapLayer): { icon: string; title: string } => {
 	const s = layer.metadata?.source
-	if (s === "gee") return { icon: "🛰", title: "Google Earth Engine layer" }
-	if (s === "workspace") return { icon: "📁", title: "Workspace file" }
-	if (s === "user") return { icon: "📥", title: "Loaded by you" }
-	if (layer.metadata?._run_id || layer.metadata?.tool) return { icon: "🐍", title: "Tool output" }
+	if (s === "gee") {
+		return { icon: "🛰", title: "Google Earth Engine layer" }
+	}
+	if (s === "workspace") {
+		return { icon: "📁", title: "Workspace file" }
+	}
+	if (s === "user") {
+		return { icon: "📥", title: "Loaded by you" }
+	}
+	if (layer.metadata?._run_id || layer.metadata?.tool) {
+		return { icon: "🐍", title: "Tool output" }
+	}
 	return { icon: "📤", title: "Pushed layer" }
 }
 
@@ -108,7 +116,9 @@ const niceMetadata = (layer: MapLayer): Array<[string, string]> => {
 	if (layer.layerType !== "raster" && layer.geojson) {
 		try {
 			const p = JSON.parse(layer.geojson)
-			if (p?.type === "FeatureCollection" && Array.isArray(p.features)) out.push(["features", String(p.features.length)])
+			if (p?.type === "FeatureCollection" && Array.isArray(p.features)) {
+				out.push(["features", String(p.features.length)])
+			}
 		} catch {
 			/* ignore */
 		}
@@ -127,7 +137,9 @@ const niceMetadata = (layer: MapLayer): Array<[string, string]> => {
 		"rows",
 	]
 	for (const k of PRIORITY) {
-		if (meta[k]) out.push([k, meta[k]])
+		if (meta[k]) {
+			out.push([k, meta[k]])
+		}
 	}
 	if (layer.layerType === "gee_tile") {
 		for (const [k, v] of geeDisplayLines(layer)) {
@@ -246,8 +258,12 @@ const buildDisplayNames = (layers: MapLayer[], aliases: Record<string, string>):
 
 /** Download a layer's content as a file. */
 const exportLayer = (layer: MapLayer, displayName: string) => {
-	if (layer.layerType === "raster") return // raster export not yet supported
-	if (!layer.geojson) return
+	if (layer.layerType === "raster") {
+		return // raster export not yet supported
+	}
+	if (!layer.geojson) {
+		return
+	}
 	const blob = new Blob([layer.geojson], { type: "application/json" })
 	const url = URL.createObjectURL(blob)
 	const a = document.createElement("a")
@@ -304,8 +320,9 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 	const [confirmingClear, setConfirmingClear] = useState(false)
 	const [loadStatus, setLoadStatus] = useState<{ kind: "idle" | "ok" | "err"; msg: string }>({ kind: "idle", msg: "" })
 	const [savingLayerId, setSavingLayerId] = useState<string | null>(null)
+	const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
-	// Drag-to-reorder rows
+	// Subscribe to platform load events.
 	const rowDragRef = useRef<{ dragId: string; overIndex: number } | null>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -410,12 +427,18 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 
 	// Sorted layer list respects the custom order maintained in MapView
 	const orderedLayers = useMemo(() => {
-		if (layerOrder.length === 0) return layers
+		if (layerOrder.length === 0) {
+			return layers
+		}
 		const byId = new Map(layers.map((l) => [l.id, l]))
 		const sorted = layerOrder.map((id) => byId.get(id)).filter(Boolean) as MapLayer[]
 		// Append any layers not yet in the order list
 		const inOrder = new Set(layerOrder)
-		for (const l of layers) if (!inOrder.has(l.id)) sorted.push(l)
+		for (const l of layers) {
+			if (!inOrder.has(l.id)) {
+				sorted.push(l)
+			}
+		}
 		return sorted
 	}, [layers, layerOrder])
 
@@ -454,17 +477,23 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 	const onRowDragOver = useCallback((e: React.DragEvent, overIndex: number) => {
 		e.preventDefault()
 		e.dataTransfer.dropEffect = "move"
-		if (rowDragRef.current) rowDragRef.current.overIndex = overIndex
+		if (rowDragRef.current) {
+			rowDragRef.current.overIndex = overIndex
+		}
 	}, [])
 
 	const onRowDrop = useCallback(
 		(e: React.DragEvent, dropIndex: number) => {
 			e.preventDefault()
 			const dragId = e.dataTransfer.getData("text/plain")
-			if (!dragId) return
+			if (!dragId) {
+				return
+			}
 			const currentOrder = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
 			const fromIndex = currentOrder.indexOf(dragId)
-			if (fromIndex === -1 || fromIndex === dropIndex) return
+			if (fromIndex === -1 || fromIndex === dropIndex) {
+				return
+			}
 			const next = [...currentOrder]
 			next.splice(fromIndex, 1)
 			next.splice(dropIndex, 0, dragId)
@@ -478,18 +507,24 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 
 	const onFilesPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = e.target.files
-		if (!files || files.length === 0) return
+		if (!files || files.length === 0) {
+			return
+		}
 		setLoadStatus({ kind: "idle", msg: `Loading…` })
 		const result = await loadAndPushFiles(files)
-		if (result.loaded > 0 && result.errors.length === 0)
+		if (result.loaded > 0 && result.errors.length === 0) {
 			setLoadStatus({ kind: "ok", msg: `Loaded ${result.loaded} layer${result.loaded > 1 ? "s" : ""}.` })
-		else if (result.loaded > 0)
+		} else if (result.loaded > 0) {
 			setLoadStatus({
 				kind: "ok",
 				msg: `Loaded ${result.loaded}, ${result.errors.length} error${result.errors.length > 1 ? "s" : ""}.`,
 			})
-		else setLoadStatus({ kind: "err", msg: result.errors[0] ?? "No files loaded." })
-		if (fileInputRef.current) fileInputRef.current.value = ""
+		} else {
+			setLoadStatus({ kind: "err", msg: result.errors[0] ?? "No files loaded." })
+		}
+		if (fileInputRef.current) {
+			fileInputRef.current.value = ""
+		}
 		window.setTimeout(() => setLoadStatus({ kind: "idle", msg: "" }), 5000)
 	}
 
@@ -628,521 +663,594 @@ export const LayerPanelContent: React.FC<LayerPanelContentProps> = ({
 						</div>
 					</div>
 				) : (
-					orderedLayers.map((layer, idx) => {
-						const isVisible = visibleLayerIds.has(layer.id)
-						const swatch = colorSwatch(layer)
-						const badge = sourceBadge(layer)
-						const niceMeta = niceMetadata(layer)
-						const expanded = expandedRows.has(layer.id)
-						const detailsOn = allMetadata(layer).length > 0
-						const editing = symbologyFor === layer.id
-						const attrOpen = attrTableFor === layer.id
-						const displayName = displayNames.get(layer.id) ?? layer.name ?? layer.id
-						const isRaster = layer.layerType === "raster"
-						const isGeeTile = layer.layerType === "gee_tile"
-						const provenancePath = layer.metadata?.provenance_path
-						const sourcePath =
-							layer.metadata?.source_path || layer.metadata?.path || layer.metadata?.raster_source_path
-						const sourceStatus = layer.metadata?.source_status
-						const hasGeojson = !!layer.geojson && !isRaster
-						const intelligence = deriveLayerIntelligence(layer, {
-							rawRasterValuesAvailable: Boolean(rasterCache.get(layer.id)?.rawPixels),
-						})
-						const statusTone = statusColors(intelligence.dataState)
-						const primaryWarning = intelligence.warnings[0]
+					(() => {
+						const elements: JSX.Element[] = []
+						let currentGroupTitle = ""
 
-						return (
-							<div
-								draggable
-								key={layer.id}
-								onDragOver={(e) => onRowDragOver(e, idx)}
-								onDragStart={(e) => onRowDragStart(e, layer.id)}
-								onDrop={(e) => onRowDrop(e, idx)}
-								style={{
-									padding: "6px 8px",
-									marginBottom: 4,
-									background: subtle,
-									borderRadius: 4,
-									border: `1px solid ${border}`,
-									opacity: isVisible ? 1 : 0.55,
-									cursor: "default",
-								}}>
-								{/* ── Row: visibility + swatch + icons + name ── */}
-								<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-									{/* Gripper */}
-									<span
-										style={{ fontSize: 13, opacity: 0.35, cursor: "grab", userSelect: "none", flexShrink: 0 }}
-										title="Drag to reorder">
-										⠿
-									</span>
+						orderedLayers.forEach((layer, idx) => {
+							const isVisible = visibleLayerIds.has(layer.id)
+							const swatch = colorSwatch(layer)
+							const badge = sourceBadge(layer)
+							const niceMeta = niceMetadata(layer)
+							const expanded = expandedRows.has(layer.id)
+							const detailsOn = allMetadata(layer).length > 0
+							const editing = symbologyFor === layer.id
+							const attrOpen = attrTableFor === layer.id
+							const displayName = displayNames.get(layer.id) ?? layer.name ?? layer.id
+							const isRaster = layer.layerType === "raster"
+							const isGeeTile = layer.layerType === "gee_tile"
+							const provenancePath = layer.metadata?.provenance_path
+							const sourcePath =
+								layer.metadata?.source_path || layer.metadata?.path || layer.metadata?.raster_source_path
+							const sourceStatus = layer.metadata?.source_status
+							const hasGeojson = !!layer.geojson && !isRaster
+							const intelligence = deriveLayerIntelligence(layer, {
+								rawRasterValuesAvailable: Boolean(rasterCache.get(layer.id)?.rawPixels),
+							})
+							const statusTone = statusColors(intelligence.dataState)
+							const primaryWarning = intelligence.warnings[0]
 
-									{/* Visibility checkbox */}
-									<input
-										checked={isVisible}
-										onChange={() => onVisibilityChange(layer.id, !isVisible)}
-										style={{
-											cursor: "pointer",
-											accentColor: "var(--vscode-button-background)",
-											flexShrink: 0,
-										}}
-										title={isVisible ? "Hide layer" : "Show layer"}
-										type="checkbox"
-									/>
-
-									{/* Color swatch / symbology trigger */}
-									<button
-										onClick={() => setSymbologyFor(editing ? null : layer.id)}
-										style={{
-											width: isRaster ? 26 : 14,
-											height: 14,
-											padding: 0,
-											borderRadius: 2,
-											background: swatch,
-											border: editing
-												? "1px solid var(--vscode-focusBorder, #0e639c)"
-												: "1px solid rgba(255,255,255,0.25)",
-											flexShrink: 0,
-											cursor: "pointer",
-										}}
-										title="Edit symbology"
-										type="button"
-									/>
-
-									{/* Layer type + source badges */}
-									<span style={{ fontSize: 10, opacity: 0.6, flexShrink: 0 }} title={layer.layerType ?? ""}>
-										{layerTypeIcon(layer.layerType)}
-									</span>
-									<span style={{ fontSize: 11, flexShrink: 0 }} title={badge.title}>
-										{badge.icon}
-									</span>
-									{isGeeTile && layer.metadata?.gee_mock === "true" && (
-										<span
-											style={{
-												fontSize: 9,
-												padding: "1px 5px",
-												borderRadius: 3,
-												background: "rgba(220,160,0,0.15)",
-												color: "var(--vscode-editorWarning-foreground, #cca700)",
-												flexShrink: 0,
-											}}
-											title="Mock tile layer">
-											mock
-										</span>
-									)}
-									{sourceStatus === "source_changed" && (
-										<span
-											style={{
-												fontSize: 9,
-												padding: "1px 5px",
-												borderRadius: 3,
-												background: "rgba(255, 190, 80, 0.14)",
-												color: "var(--vscode-editorWarning-foreground, #cca700)",
-												flexShrink: 0,
-											}}
-											title="The source file changed after this layer was loaded. Reload source to refresh it.">
-											stale
-										</span>
-									)}
-									<span
-										style={{
-											fontSize: 9,
-											lineHeight: "15px",
-											padding: "0 5px",
-											borderRadius: 999,
-											background: statusTone.bg,
-											border: `1px solid ${statusTone.bd}`,
-											color: statusTone.fg,
-											flexShrink: 0,
-											maxWidth: 112,
-											overflow: "hidden",
-											textOverflow: "ellipsis",
-											whiteSpace: "nowrap",
-										}}
-										title={intelligence.statusDetail}>
-										{intelligence.statusLabel}
-									</span>
-									{primaryWarning && (
-										<span
-											style={{
-												fontSize: 11,
-												color: "var(--vscode-editorWarning-foreground, #cca700)",
-												flexShrink: 0,
-											}}
-											title={intelligence.warnings.map(warningText).join(" · ")}>
-											⚠
-										</span>
-									)}
-
-									{/* Name (double-click to rename) */}
-									{renamingId === layer.id ? (
-										<input
-											autoFocus
-											onBlur={() => void commitRename(layer)}
-											onChange={(e) => setRenameDraft(e.target.value)}
-											onKeyDown={(e) => {
-												if (e.key === "Enter") {
-													void commitRename(layer)
-												}
-												if (e.key === "Escape") {
-													setRenamingId(null)
-													setRenameDraft("")
-												}
-											}}
-											style={{
-												flex: 1,
-												minWidth: 0,
-												fontSize: 12,
-												padding: "1px 4px",
-												border: `1px solid var(--vscode-focusBorder, #0e639c)`,
-												borderRadius: 2,
-												background: "var(--vscode-input-background, #3c3c3c)",
-												color: fg,
-											}}
-											title="Layer display name"
-											type="text"
-											value={renameDraft}
-										/>
-									) : (
-										<span
-											onDoubleClick={() => {
-												setRenamingId(layer.id)
-												setRenameDraft(displayName)
-											}}
-											style={{
-												fontSize: 12,
-												fontWeight: 500,
-												flex: 1,
-												overflow: "hidden",
-												textOverflow: "ellipsis",
-												whiteSpace: "nowrap",
-												cursor: "text",
-											}}
-											title={`${displayName} — double-click to rename (saved in map session)`}>
-											{displayName}
-										</span>
-									)}
-								</div>
-
-								{/* Opacity slider */}
-								{isVisible && (
+							const isNewGroup = badge.title !== currentGroupTitle
+							if (isNewGroup) {
+								currentGroupTitle = badge.title
+								const isCollapsed = collapsedGroups.has(currentGroupTitle)
+								elements.push(
 									<div
+										key={`group-${currentGroupTitle}-${idx}`}
+										onClick={() => {
+											const next = new Set(collapsedGroups)
+											if (isCollapsed) {
+												next.delete(currentGroupTitle)
+											} else {
+												next.add(currentGroupTitle)
+											}
+											setCollapsedGroups(next)
+										}}
 										style={{
 											display: "flex",
 											alignItems: "center",
 											gap: 6,
-											marginLeft: 50,
-											marginTop: 4,
-											marginBottom: 2,
+											padding: "4px 8px",
+											fontSize: 10,
+											fontWeight: 600,
+											opacity: 0.85,
+											background: "rgba(0,0,0,0.1)",
+											marginTop: idx === 0 ? 0 : 8,
+											marginBottom: 4,
+											borderRadius: 3,
+											cursor: "pointer",
+											userSelect: "none",
 										}}>
-										<span style={{ fontSize: 10, opacity: 0.65, minWidth: 38 }}>Opacity</span>
-										<input
-											max={1}
-											min={0}
-											onChange={(e) => onOpacityChange?.(layer.id, parseFloat(e.target.value))}
-											step={0.05}
-											style={{
-												flex: 1,
-												accentColor: "var(--vscode-button-background)",
-												cursor: "pointer",
-											}}
-											title={`Opacity: ${Math.round((layerOpacities[layer.id] ?? 1) * 100)}%`}
-											type="range"
-											value={
-												layerOpacities[layer.id] ??
-												(isRaster ? parseFloat(layer.metadata?.raster_opacity ?? "0.75") : 1)
-											}
-										/>
+										<span style={{ fontSize: 9, opacity: 0.6, width: 12, textAlign: "center" }}>
+											{isCollapsed ? "▶" : "▼"}
+										</span>
+										<span>
+											{badge.icon} {badge.title}
+										</span>
+									</div>,
+								)
+							}
+
+							if (collapsedGroups.has(currentGroupTitle)) {
+								return // skip rendering layer row
+							}
+
+							elements.push(
+								<div
+									draggable
+									key={layer.id}
+									onDragOver={(e) => onRowDragOver(e, idx)}
+									onDragStart={(e) => onRowDragStart(e, layer.id)}
+									onDrop={(e) => onRowDrop(e, idx)}
+									style={{
+										padding: "6px 8px",
+										marginBottom: 4,
+										background: subtle,
+										borderRadius: 4,
+										border: `1px solid ${border}`,
+										opacity: isVisible ? 1 : 0.55,
+										cursor: "default",
+									}}>
+									{/* ── Row: visibility + swatch + icons + name ── */}
+									<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+										{/* Gripper */}
 										<span
 											style={{
-												fontSize: 10,
-												opacity: 0.65,
-												minWidth: 28,
-												textAlign: "right",
-												fontVariantNumeric: "tabular-nums",
-											}}>
-											{Math.round(
-												(layerOpacities[layer.id] ??
-													(isRaster ? parseFloat(layer.metadata?.raster_opacity ?? "0.75") : 1)) * 100,
-											)}
-											%
+												fontSize: 13,
+												opacity: 0.35,
+												cursor: "grab",
+												userSelect: "none",
+												flexShrink: 0,
+											}}
+											title="Drag to reorder">
+											⠿
 										</span>
-									</div>
-								)}
 
-								{/* ── Compact metadata line ── */}
-								{niceMeta.length > 0 && (
-									<div
-										style={{
-											fontSize: 10,
-											opacity: 0.7,
-											marginTop: 3,
-											marginLeft: 58,
-											display: "flex",
-											flexWrap: "wrap",
-											gap: "1px 6px",
-										}}>
-										{niceMeta.map(([k, v]) => (
-											<span key={k}>
-												<span style={{ opacity: 0.6 }}>{k}:</span> {v}
-											</span>
-										))}
-									</div>
-								)}
+										{/* Visibility checkbox */}
+										<input
+											checked={isVisible}
+											onChange={() => onVisibilityChange(layer.id, !isVisible)}
+											style={{
+												cursor: "pointer",
+												accentColor: "var(--vscode-button-background)",
+												flexShrink: 0,
+											}}
+											title={isVisible ? "Hide layer" : "Show layer"}
+											type="checkbox"
+										/>
 
-								{/* ── Icon toolbar ── */}
-								<div style={{ display: "flex", gap: 3, marginTop: 5, marginLeft: 50, alignItems: "center" }}>
-									<IconBtn
-										border={border}
-										fg={fg}
-										onClick={() => onZoomToLayer?.(layer)}
-										title="Zoom to extent">
-										🔍
-									</IconBtn>
-									{provenancePath && (
-										<IconBtn
-											border={border}
-											fg={fg}
-											onClick={() => void openProvenance(provenancePath)}
-											title="Open provenance record">
-											📋
-										</IconBtn>
-									)}
-									{sourcePath && (
-										<IconBtn
-											border={border}
-											fg={fg}
-											onClick={() => openSourceFile(sourcePath)}
-											title="Open source file">
-											↗
-										</IconBtn>
-									)}
-									{sourcePath && (
-										<IconBtn
-											border={border}
-											fg={fg}
-											onClick={() => void handleReloadSource(layer, displayName)}
-											title="Reload source file">
-											⟳
-										</IconBtn>
-									)}
-									<IconBtn
-										active={editing}
-										border={border}
-										fg={fg}
-										onClick={() => setSymbologyFor(editing ? null : layer.id)}
-										title="Symbology">
-										🎨
-									</IconBtn>
-									{/* Cluster toggle — only for point layers */}
-									{!isRaster && hasGeojson && layer.layerType === "point" && (
-										<IconBtn
-											active={clusterLayerIds?.has(layer.id)}
-											border={border}
-											fg={fg}
-											onClick={() => onClusterToggle?.(layer.id, !clusterLayerIds?.has(layer.id))}
-											title={
-												clusterLayerIds?.has(layer.id)
-													? "Disable point clustering"
-													: "Cluster points at low zoom"
-											}>
-											{clusterLayerIds?.has(layer.id) ? "🧩" : "🔘"}
-										</IconBtn>
-									)}
-									{hasGeojson && (
-										<IconBtn
-											active={attrOpen}
-											border={border}
-											fg={fg}
-											onClick={() => setAttrTableFor(attrOpen ? null : layer.id)}
-											title="Attribute table">
-											📊
-										</IconBtn>
-									)}
-									{!isRaster && layer.metadata?.source !== "workspace" && (
-										<IconBtn
-											border={border}
-											fg={fg}
-											onClick={() => void handleSaveLayerToWorkspace(layer, displayName)}
-											style={{ opacity: savingLayerId === layer.id ? 0.5 : 1 }}
-											title="Save to workspace vectors">
-											{savingLayerId === layer.id ? "…" : "📁"}
-										</IconBtn>
-									)}
-									{!isRaster && layer.metadata?.source !== "workspace" && (
-										<IconBtn
-											border={border}
-											fg={fg}
-											onClick={() => exportLayer(layer, displayName)}
-											title="Export as GeoJSON">
-											💾
-										</IconBtn>
-									)}
-									{detailsOn && (
-										<IconBtn
-											active={expanded}
-											border={border}
-											fg={fg}
-											onClick={() => toggleRowDetails(layer.id)}
-											title={expanded ? "Hide details" : "Show details"}>
-											{expanded ? "▴" : "▾"}
-										</IconBtn>
-									)}
-									{/* Move up / down */}
-									<IconBtn
-										border={border}
-										fg={fg}
-										onClick={() => {
-											if (idx === 0) return
-											const order = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
-											const next = [...order]
-											const i = next.indexOf(layer.id)
-											if (i > 0) {
-												;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-												onReorder(next)
-											}
-										}}
-										style={{ opacity: idx === 0 ? 0.25 : 1 }}
-										title="Move layer up (renders on top)">
-										↑
-									</IconBtn>
-									<IconBtn
-										border={border}
-										fg={fg}
-										onClick={() => {
-											if (idx === orderedLayers.length - 1) return
-											const order = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
-											const next = [...order]
-											const i = next.indexOf(layer.id)
-											if (i < next.length - 1) {
-												;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-												onReorder(next)
-											}
-										}}
-										style={{ opacity: idx === orderedLayers.length - 1 ? 0.25 : 1 }}
-										title="Move layer down (renders below)">
-										↓
-									</IconBtn>
-									<div style={{ flex: 1 }} />
-									<IconBtn
-										border={border}
-										fg={fg}
-										onClick={() => handleRemove(layer.id)}
-										style={{
-											color: danger,
-											borderColor: "rgba(220,53,69,0.35)",
-											background: "rgba(220,53,69,0.08)",
-										}}
-										title="Remove layer">
-										✕
-									</IconBtn>
-								</div>
+										{/* Color swatch / symbology trigger */}
+										<button
+											onClick={() => setSymbologyFor(editing ? null : layer.id)}
+											style={{
+												width: isRaster ? 26 : 14,
+												height: 14,
+												padding: 0,
+												borderRadius: 2,
+												background: swatch,
+												border: editing
+													? "1px solid var(--vscode-focusBorder, #0e639c)"
+													: "1px solid rgba(255,255,255,0.25)",
+												flexShrink: 0,
+												cursor: "pointer",
+											}}
+											title="Edit symbology"
+											type="button"
+										/>
 
-								{/* ── Attribute table ── */}
-								{attrOpen && hasGeojson && <AttributeTable border={border} fg={fg} layer={layer} />}
-
-								{/* ── Symbology editor ── */}
-								{editing && (
-									<>
-										{!isRaster && (
-											<div
+										{/* Layer type + source badges */}
+										<span style={{ fontSize: 10, opacity: 0.6, flexShrink: 0 }} title={layer.layerType ?? ""}>
+											{layerTypeIcon(layer.layerType)}
+										</span>
+										{isGeeTile && layer.metadata?.gee_mock === "true" && (
+											<span
 												style={{
-													marginTop: 6,
-													padding: 8,
-													background: subtle,
-													borderRadius: 4,
-													display: "flex",
-													gap: 6,
-												}}>
-												<button
-													onClick={() => setSymbologyMode("basic")}
-													style={{
-														flex: 1,
-														padding: "4px 8px",
-														fontSize: 10,
-														background:
-															symbologyMode === "basic"
-																? "var(--vscode-button-background, #0e639c)"
-																: "transparent",
-														color: fg,
-														border: `1px solid ${border}`,
-														borderRadius: 3,
-														cursor: "pointer",
-													}}
-													type="button">
-													Basic
-												</button>
-												<button
-													onClick={() => setSymbologyMode("graduated")}
-													style={{
-														flex: 1,
-														padding: "4px 8px",
-														fontSize: 10,
-														background:
-															symbologyMode === "graduated"
-																? "var(--vscode-button-background, #0e639c)"
-																: "transparent",
-														color: fg,
-														border: `1px solid ${border}`,
-														borderRadius: 3,
-														cursor: "pointer",
-													}}
-													type="button">
-													By Attribute
-												</button>
-											</div>
+													fontSize: 9,
+													padding: "1px 5px",
+													borderRadius: 3,
+													background: "rgba(220,160,0,0.15)",
+													color: "var(--vscode-editorWarning-foreground, #cca700)",
+													flexShrink: 0,
+												}}
+												title="Mock tile layer">
+												mock
+											</span>
 										)}
-										{symbologyMode === "basic" ? (
-											<SymbologyEditor
-												layer={layer}
-												mapStyle={mapStyle}
-												onClose={() => setSymbologyFor(null)}
+										{sourceStatus === "source_changed" && (
+											<span
+												style={{
+													fontSize: 9,
+													padding: "1px 5px",
+													borderRadius: 3,
+													background: "rgba(255, 190, 80, 0.14)",
+													color: "var(--vscode-editorWarning-foreground, #cca700)",
+													flexShrink: 0,
+												}}
+												title="The source file changed after this layer was loaded. Reload source to refresh it.">
+												stale
+											</span>
+										)}
+										<span
+											style={{
+												fontSize: 9,
+												lineHeight: "15px",
+												padding: "0 5px",
+												borderRadius: 999,
+												background: statusTone.bg,
+												border: `1px solid ${statusTone.bd}`,
+												color: statusTone.fg,
+												flexShrink: 0,
+												maxWidth: 112,
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												whiteSpace: "nowrap",
+											}}
+											title={intelligence.statusDetail}>
+											{intelligence.statusLabel}
+										</span>
+										{primaryWarning && (
+											<span
+												style={{
+													fontSize: 11,
+													color: "var(--vscode-editorWarning-foreground, #cca700)",
+													flexShrink: 0,
+												}}
+												title={intelligence.warnings.map(warningText).join(" · ")}>
+												⚠
+											</span>
+										)}
+										{layer.metadata?.simplified === "true" && (
+											<span
+												style={{
+													fontSize: 9,
+													padding: "1px 5px",
+													borderRadius: 3,
+													background: "rgba(100,180,255,0.12)",
+													color: "var(--vscode-textLink-foreground, #4da3ff)",
+													flexShrink: 0,
+												}}
+												title={`Auto-simplified: ${Number(layer.metadata.original_coord_count ?? 0).toLocaleString()} → ${Number(layer.metadata.simplified_coord_count ?? 0).toLocaleString()} coordinates (file was very large)`}>
+												simplified
+											</span>
+										)}
+
+										{/* Name (double-click to rename) */}
+										{renamingId === layer.id ? (
+											<input
+												autoFocus
+												onBlur={() => void commitRename(layer)}
+												onChange={(e) => setRenameDraft(e.target.value)}
+												onKeyDown={(e) => {
+													if (e.key === "Enter") {
+														void commitRename(layer)
+													}
+													if (e.key === "Escape") {
+														setRenamingId(null)
+														setRenameDraft("")
+													}
+												}}
+												style={{
+													flex: 1,
+													minWidth: 0,
+													fontSize: 12,
+													padding: "1px 4px",
+													border: `1px solid var(--vscode-focusBorder, #0e639c)`,
+													borderRadius: 2,
+													background: "var(--vscode-input-background, #3c3c3c)",
+													color: fg,
+												}}
+												title="Layer display name"
+												type="text"
+												value={renameDraft}
 											/>
 										) : (
-											<GraduatedSymbologyEditor
-												layer={layer}
-												mapStyle={mapStyle}
-												onClose={() => setSymbologyFor(null)}
-											/>
+											<span
+												onDoubleClick={() => {
+													setRenamingId(layer.id)
+													setRenameDraft(displayName)
+												}}
+												style={{
+													fontSize: 12,
+													fontWeight: 500,
+													flex: 1,
+													overflow: "hidden",
+													textOverflow: "ellipsis",
+													whiteSpace: "nowrap",
+													cursor: "text",
+												}}
+												title={`${displayName} — double-click to rename (saved in map session)`}>
+												{displayName}
+											</span>
 										)}
-									</>
-								)}
-
-								{(expanded || editing) && (
-									<LayerInspector
-										border={border}
-										fg={fg}
-										intelligence={intelligence}
-										layer={layer}
-										niceMeta={niceMeta}
-									/>
-								)}
-
-								{/* ── Full metadata details ── */}
-								{(expanded || showDetails) && detailsOn && (
-									<div
-										style={{
-											marginTop: 8,
-											paddingTop: 6,
-											borderTop: `1px dashed ${border}`,
-											fontSize: 10,
-											fontFamily: "var(--vscode-editor-font-family, ui-monospace, monospace)",
-											opacity: 0.85,
-											display: "grid",
-											gridTemplateColumns: "auto 1fr",
-											gap: "2px 8px",
-											wordBreak: "break-word",
-										}}>
-										{allMetadata(layer).map(([k, v]) => (
-											<React.Fragment key={k}>
-												<span style={{ opacity: 0.6 }}>{k}</span>
-												<span>{v}</span>
-											</React.Fragment>
-										))}
 									</div>
-								)}
-							</div>
-						)
-					})
+
+									{/* Opacity slider */}
+									{isVisible && (
+										<div
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: 6,
+												marginLeft: 50,
+												marginTop: 4,
+												marginBottom: 2,
+											}}>
+											<span style={{ fontSize: 10, opacity: 0.65, minWidth: 38 }}>Opacity</span>
+											<input
+												max={1}
+												min={0}
+												onChange={(e) => onOpacityChange?.(layer.id, parseFloat(e.target.value))}
+												step={0.05}
+												style={{
+													flex: 1,
+													accentColor: "var(--vscode-button-background)",
+													cursor: "pointer",
+												}}
+												title={`Opacity: ${Math.round((layerOpacities[layer.id] ?? 1) * 100)}%`}
+												type="range"
+												value={
+													layerOpacities[layer.id] ??
+													(isRaster ? parseFloat(layer.metadata?.raster_opacity ?? "0.75") : 1)
+												}
+											/>
+											<span
+												style={{
+													fontSize: 10,
+													opacity: 0.65,
+													minWidth: 28,
+													textAlign: "right",
+													fontVariantNumeric: "tabular-nums",
+												}}>
+												{Math.round(
+													(layerOpacities[layer.id] ??
+														(isRaster ? parseFloat(layer.metadata?.raster_opacity ?? "0.75") : 1)) *
+														100,
+												)}
+												%
+											</span>
+										</div>
+									)}
+
+									{/* ── Compact metadata line ── */}
+									{niceMeta.length > 0 && (
+										<div
+											style={{
+												fontSize: 10,
+												opacity: 0.7,
+												marginTop: 3,
+												marginLeft: 58,
+												display: "flex",
+												flexWrap: "wrap",
+												gap: "1px 6px",
+											}}>
+											{niceMeta.map(([k, v]) => (
+												<span key={k}>
+													<span style={{ opacity: 0.6 }}>{k}:</span> {v}
+												</span>
+											))}
+										</div>
+									)}
+
+									{/* ── Icon toolbar ── */}
+									<div style={{ display: "flex", gap: 3, marginTop: 5, marginLeft: 50, alignItems: "center" }}>
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => onZoomToLayer?.(layer)}
+											title="Zoom to extent">
+											🔍
+										</IconBtn>
+										{provenancePath && (
+											<IconBtn
+												border={border}
+												fg={fg}
+												onClick={() => void openProvenance(provenancePath)}
+												title="Open provenance record">
+												📋
+											</IconBtn>
+										)}
+										{sourcePath && (
+											<IconBtn
+												border={border}
+												fg={fg}
+												onClick={() => openSourceFile(sourcePath)}
+												title="Open source file">
+												↗
+											</IconBtn>
+										)}
+										{sourcePath && (
+											<IconBtn
+												border={border}
+												fg={fg}
+												onClick={() => void handleReloadSource(layer, displayName)}
+												title="Reload source file">
+												⟳
+											</IconBtn>
+										)}
+										<IconBtn
+											active={editing}
+											border={border}
+											fg={fg}
+											onClick={() => setSymbologyFor(editing ? null : layer.id)}
+											title="Symbology">
+											🎨
+										</IconBtn>
+										{/* Cluster toggle — only for point layers */}
+										{!isRaster && hasGeojson && layer.layerType === "point" && (
+											<IconBtn
+												active={clusterLayerIds?.has(layer.id)}
+												border={border}
+												fg={fg}
+												onClick={() => onClusterToggle?.(layer.id, !clusterLayerIds?.has(layer.id))}
+												title={
+													clusterLayerIds?.has(layer.id)
+														? "Disable point clustering"
+														: "Cluster points at low zoom"
+												}>
+												{clusterLayerIds?.has(layer.id) ? "🧩" : "🔘"}
+											</IconBtn>
+										)}
+										{hasGeojson && (
+											<IconBtn
+												active={attrOpen}
+												border={border}
+												fg={fg}
+												onClick={() => setAttrTableFor(attrOpen ? null : layer.id)}
+												title="Attribute table">
+												📊
+											</IconBtn>
+										)}
+										{!isRaster && layer.metadata?.source !== "workspace" && (
+											<IconBtn
+												border={border}
+												fg={fg}
+												onClick={() => void handleSaveLayerToWorkspace(layer, displayName)}
+												style={{ opacity: savingLayerId === layer.id ? 0.5 : 1 }}
+												title="Save to workspace vectors">
+												{savingLayerId === layer.id ? "…" : "📁"}
+											</IconBtn>
+										)}
+										{!isRaster && layer.metadata?.source !== "workspace" && (
+											<IconBtn
+												border={border}
+												fg={fg}
+												onClick={() => exportLayer(layer, displayName)}
+												title="Export as GeoJSON">
+												💾
+											</IconBtn>
+										)}
+										{detailsOn && (
+											<IconBtn
+												active={expanded}
+												border={border}
+												fg={fg}
+												onClick={() => toggleRowDetails(layer.id)}
+												title={expanded ? "Hide details" : "Show details"}>
+												{expanded ? "▴" : "▾"}
+											</IconBtn>
+										)}
+										{/* Move up / down */}
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => {
+												if (idx === 0) {
+													return
+												}
+												const order = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
+												const next = [...order]
+												const i = next.indexOf(layer.id)
+												if (i > 0) {
+													;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+													onReorder(next)
+												}
+											}}
+											style={{ opacity: idx === 0 ? 0.25 : 1 }}
+											title="Move layer up (renders on top)">
+											↑
+										</IconBtn>
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => {
+												if (idx === orderedLayers.length - 1) {
+													return
+												}
+												const order = layerOrder.length > 0 ? layerOrder : orderedLayers.map((l) => l.id)
+												const next = [...order]
+												const i = next.indexOf(layer.id)
+												if (i < next.length - 1) {
+													;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+													onReorder(next)
+												}
+											}}
+											style={{ opacity: idx === orderedLayers.length - 1 ? 0.25 : 1 }}
+											title="Move layer down (renders below)">
+											↓
+										</IconBtn>
+										<div style={{ flex: 1 }} />
+										<IconBtn
+											border={border}
+											fg={fg}
+											onClick={() => handleRemove(layer.id)}
+											style={{
+												color: danger,
+												borderColor: "rgba(220,53,69,0.35)",
+												background: "rgba(220,53,69,0.08)",
+											}}
+											title="Remove layer">
+											✕
+										</IconBtn>
+									</div>
+
+									{/* ── Attribute table ── */}
+									{attrOpen && hasGeojson && <AttributeTable border={border} fg={fg} layer={layer} />}
+
+									{/* ── Symbology editor ── */}
+									{editing && (
+										<>
+											{!isRaster && (
+												<div
+													style={{
+														marginTop: 6,
+														padding: 8,
+														background: subtle,
+														borderRadius: 4,
+														display: "flex",
+														gap: 6,
+													}}>
+													<button
+														onClick={() => setSymbologyMode("basic")}
+														style={{
+															flex: 1,
+															padding: "4px 8px",
+															fontSize: 10,
+															background:
+																symbologyMode === "basic"
+																	? "var(--vscode-button-background, #0e639c)"
+																	: "transparent",
+															color: fg,
+															border: `1px solid ${border}`,
+															borderRadius: 3,
+															cursor: "pointer",
+														}}
+														type="button">
+														Basic
+													</button>
+													<button
+														onClick={() => setSymbologyMode("graduated")}
+														style={{
+															flex: 1,
+															padding: "4px 8px",
+															fontSize: 10,
+															background:
+																symbologyMode === "graduated"
+																	? "var(--vscode-button-background, #0e639c)"
+																	: "transparent",
+															color: fg,
+															border: `1px solid ${border}`,
+															borderRadius: 3,
+															cursor: "pointer",
+														}}
+														type="button">
+														By Attribute
+													</button>
+												</div>
+											)}
+											{symbologyMode === "basic" ? (
+												<SymbologyEditor
+													layer={layer}
+													mapStyle={mapStyle}
+													onClose={() => setSymbologyFor(null)}
+												/>
+											) : (
+												<GraduatedSymbologyEditor
+													layer={layer}
+													mapStyle={mapStyle}
+													onClose={() => setSymbologyFor(null)}
+												/>
+											)}
+										</>
+									)}
+
+									{(expanded || editing) && (
+										<LayerInspector
+											border={border}
+											fg={fg}
+											intelligence={intelligence}
+											layer={layer}
+											niceMeta={niceMeta}
+										/>
+									)}
+
+									{/* ── Full metadata details ── */}
+									{(expanded || showDetails) && detailsOn && (
+										<div
+											style={{
+												marginTop: 8,
+												paddingTop: 6,
+												borderTop: `1px dashed ${border}`,
+												fontSize: 10,
+												fontFamily: "var(--vscode-editor-font-family, ui-monospace, monospace)",
+												opacity: 0.85,
+												display: "grid",
+												gridTemplateColumns: "auto 1fr",
+												gap: "2px 8px",
+												wordBreak: "break-word",
+											}}>
+											{allMetadata(layer).map(([k, v]) => (
+												<React.Fragment key={k}>
+													<span style={{ opacity: 0.6 }}>{k}</span>
+													<span>{v}</span>
+												</React.Fragment>
+											))}
+										</div>
+									)}
+								</div>,
+							)
+						})
+						return elements
+					})()
 				)}
 			</div>
 
@@ -1199,7 +1307,9 @@ const AttributeTable: React.FC<{ layer: MapLayer; border: string; fg: string }> 
 			const keys = new Set<string>()
 			for (const f of feats.slice(0, 100)) {
 				for (const k of Object.keys(f.properties ?? {})) {
-					if (!k.startsWith("_")) keys.add(k)
+					if (!k.startsWith("_")) {
+						keys.add(k)
+					}
 				}
 			}
 			return { features: feats, headers: Array.from(keys).slice(0, 12) }
@@ -1227,16 +1337,80 @@ const AttributeTable: React.FC<{ layer: MapLayer; border: string; fg: string }> 
 		)
 	}
 
+	const exportCsv = () => {
+		try {
+			const allKeys = new Set<string>()
+			for (const f of features) {
+				for (const k of Object.keys(f.properties ?? {})) {
+					if (!k.startsWith("_")) {
+						allKeys.add(k)
+					}
+				}
+			}
+			const cols = Array.from(allKeys)
+			const escape = (v: unknown) => {
+				const s = String(v ?? "")
+				return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s
+			}
+			const rows = [
+				cols.map(escape).join(","),
+				...features.map((f: any) => cols.map((k) => escape(f.properties?.[k] ?? "")).join(",")),
+			]
+			const blob = new Blob([rows.join("\n")], { type: "text/csv" })
+			const url = URL.createObjectURL(blob)
+			const a = document.createElement("a")
+			a.href = url
+			a.download = `${layer.name ?? "layer"}_attributes.csv`
+			a.click()
+			URL.revokeObjectURL(url)
+		} catch {
+			/* ignore */
+		}
+	}
+
 	return (
 		<div
 			style={{
 				marginTop: 8,
 				overflow: "auto",
-				maxHeight: 180,
+				maxHeight: 220,
 				fontSize: 10,
 				fontFamily: "var(--vscode-editor-font-family, ui-monospace, monospace)",
 				borderTop: `1px dashed ${border}`,
 			}}>
+			{/* Toolbar */}
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: 6,
+					padding: "3px 4px 3px 0",
+					position: "sticky",
+					top: 0,
+					background: "var(--vscode-sideBar-background, #1e1e1e)",
+					zIndex: 1,
+					borderBottom: `1px solid ${border}`,
+				}}>
+				<span style={{ flex: 1, opacity: 0.6 }}>
+					{features.length} feature{features.length === 1 ? "" : "s"} · {headers.length} cols
+				</span>
+				<button
+					onClick={exportCsv}
+					style={{
+						fontSize: 9,
+						padding: "1px 6px",
+						background: "transparent",
+						color: fg,
+						border: `1px solid ${border}`,
+						borderRadius: 3,
+						cursor: "pointer",
+						whiteSpace: "nowrap",
+					}}
+					title={`Download all ${features.length} rows as CSV`}
+					type="button">
+					⬇ CSV
+				</button>
+			</div>
 			<table style={{ width: "100%", borderCollapse: "collapse" }}>
 				<thead>
 					<tr style={{ background: "rgba(255,255,255,0.05)" }}>

@@ -8,7 +8,7 @@
  */
 
 import { AddMapLayerRequest, type MapLayer, MapLayerStyle } from "@shared/proto/cline/map"
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { PLATFORM_CONFIG } from "../../config/platform.config"
 import { MapServiceClient } from "../../services/grpc-client"
 import { loadFile } from "./formats/loadFile"
@@ -57,12 +57,18 @@ function rasterSourceCandidates(layer: MapLayer): string[] {
 	const meta = layer.metadata ?? {}
 	const out = new Set<string>()
 	for (const key of ["raster_source_path", "source_raster_path", "source_tif_path", "twi_raster_path"]) {
-		if (meta[key]) out.add(meta[key])
+		if (meta[key]) {
+			out.add(meta[key])
+		}
 	}
 	const rasterPath = meta.raster_path
 	if (rasterPath) {
-		if (/_tile\.png$/i.test(rasterPath)) out.add(rasterPath.replace(/_tile\.png$/i, ".tif"))
-		if (/_overlay\.png$/i.test(rasterPath)) out.add(rasterPath.replace(/_overlay\.png$/i, ".tif"))
+		if (/_tile\.png$/i.test(rasterPath)) {
+			out.add(rasterPath.replace(/_tile\.png$/i, ".tif"))
+		}
+		if (/_overlay\.png$/i.test(rasterPath)) {
+			out.add(rasterPath.replace(/_overlay\.png$/i, ".tif"))
+		}
 	}
 	const sessionId = meta.session_id
 	if (sessionId && /^TWI[:\s]/i.test(layer.name || layer.id)) {
@@ -90,6 +96,14 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 	const [strokeWidth, setStrokeWidth] = useState<number>(layer.style?.strokeWidth ?? layer.style?.weight ?? 2)
 	const [rasterOpacity, setRasterOpacity] = useState<number>(parseFloat(layer.metadata?.raster_opacity ?? "0.85"))
 	const [rasterColormap, setRasterColormap] = useState<string>(layer.metadata?.raster_colormap ?? "viridis")
+	const dataMin = rasterEntry?.rawPixels?.min ?? 0
+	const dataMax = rasterEntry?.rawPixels?.max ?? 1
+	const [stretchMin, setStretchMin] = useState<number>(
+		layer.metadata?.raster_stretch_min ? parseFloat(layer.metadata.raster_stretch_min) : dataMin,
+	)
+	const [stretchMax, setStretchMax] = useState<number>(
+		layer.metadata?.raster_stretch_max ? parseFloat(layer.metadata.raster_stretch_max) : dataMax,
+	)
 	const [busy, setBusy] = useState(false)
 	const [hydrating, setHydrating] = useState(false)
 	const [hydrateError, setHydrateError] = useState<string | null>(null)
@@ -103,7 +117,9 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 				try {
 					const resolved = await resolveFileUri(candidate)
 					const response = await fetch(resolved.uri)
-					if (!response.ok) throw new Error(`HTTP ${response.status}`)
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}`)
+					}
 					const blob = await response.blob()
 					const file = new File([blob], resolved.name)
 					const spec = (await loadFile(file, { idOverride: layer.id, nameOverride: layer.name })) as RasterLayerSpec
@@ -159,6 +175,9 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 						...(layer.metadata ?? {}),
 						raster_opacity: String(rasterOpacity),
 						...(canRecolorRaster ? { raster_colormap: rasterColormap } : {}),
+						...(canRecolorRaster
+							? { raster_stretch_min: String(stretchMin), raster_stretch_max: String(stretchMax) }
+							: {}),
 					},
 				}
 				await MapServiceClient.addMapLayer(AddMapLayerRequest.create({ layer: next as any }))
@@ -236,6 +255,20 @@ export const SymbologyEditor: React.FC<SymbologyEditorProps> = ({ layer, onClose
 						<strong>{intelligence.statusLabel}</strong>
 						<div style={{ color: fg, opacity: 0.72, marginTop: 2 }}>{intelligence.statusDetail}</div>
 					</div>
+					{canRecolorRaster && rasterEntry?.rawPixels && (
+						<RasterHistogram
+							border={border}
+							colormap={rasterColormap}
+							fg={fg}
+							onStretchChange={(lo, hi) => {
+								setStretchMin(lo)
+								setStretchMax(hi)
+							}}
+							rawPixels={rasterEntry.rawPixels}
+							stretchMax={stretchMax}
+							stretchMin={stretchMin}
+						/>
+					)}
 					<Row label="Colormap">
 						<select
 							disabled={!canRecolorRaster}
@@ -380,5 +413,233 @@ const selectStyle = (fg: string, border: string, bg: string, disabled = false): 
 	flex: 1,
 	opacity: disabled ? 0.58 : 1,
 })
+
+// ─── Raster Histogram ────────────────────────────────────────────────────────
+
+// Colormap hex stops — must match rasterCache.ts COLORMAPS order.
+const CM_STOPS: Record<string, string[]> = {
+	viridis: ["#440154", "#31688e", "#35b779", "#fde725"],
+	viridis_r: ["#fde725", "#35b779", "#31688e", "#440154"],
+	YlOrRd: ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"],
+	Blues: ["#f7fbff", "#6baed6", "#2171b5", "#084594"],
+	RdYlGn: ["#d73027", "#fee08b", "#1a9850"],
+	plasma: ["#0d0887", "#cc4778", "#f0f921"],
+	magma: ["#000004", "#b73779", "#fcfdbf"],
+	cividis: ["#00224e", "#7c7b78", "#fde737"],
+}
+
+interface RasterHistogramProps {
+	rawPixels: { data: Float32Array; min: number; max: number }
+	colormap: string
+	fg: string
+	border: string
+	stretchMin: number
+	stretchMax: number
+	onStretchChange: (min: number, max: number) => void
+}
+
+const RasterHistogram: React.FC<RasterHistogramProps> = ({
+	rawPixels,
+	colormap,
+	fg,
+	border,
+	stretchMin,
+	stretchMax,
+	onStretchChange,
+}) => {
+	const BINS = 40
+	const { bins, min, max, mean } = useMemo(() => {
+		const { data, min: dataMin, max: dataMax } = rawPixels
+		const counts = new Array<number>(BINS).fill(0)
+		let sum = 0
+		let n = 0
+		const range = dataMax - dataMin || 1
+		for (let i = 0; i < data.length; i++) {
+			const v = data[i]
+			if (!Number.isFinite(v)) {
+				continue
+			}
+			const bin = Math.min(BINS - 1, Math.floor(((v - dataMin) / range) * BINS))
+			counts[bin]++
+			sum += v
+			n++
+		}
+		return { bins: counts, min: dataMin, max: dataMax, mean: n > 0 ? sum / n : 0 }
+	}, [rawPixels])
+
+	const maxCount = Math.max(...bins, 1)
+	const W = 220
+	const H = 52
+	const barW = W / BINS
+	const stops = CM_STOPS[colormap] ?? CM_STOPS.viridis
+	const gradId = `hg-${colormap.replace(/[^a-z]/gi, "")}` // stable, no spaces/special chars
+
+	// Stretch indicator positions (pixel x within the SVG)
+	const range = max - min || 1
+	const sMinX = Math.max(0, Math.min(W, ((stretchMin - min) / range) * W))
+	const sMaxX = Math.max(0, Math.min(W, ((stretchMax - min) / range) * W))
+
+	const fmt = (v: number) => (Math.abs(v) >= 1000 || (Math.abs(v) < 0.01 && v !== 0) ? v.toExponential(2) : v.toFixed(3))
+
+	// Gradient CSS string for the bottom strip
+	const gradientCss = `linear-gradient(to right,${stops.join(",")})`
+
+	return (
+		<div style={{ marginBottom: 2 }}>
+			<div style={{ fontSize: 10, opacity: 0.6, marginBottom: 3 }}>Value distribution</div>
+			<div
+				style={{
+					position: "relative",
+					border: `1px solid ${border}`,
+					borderRadius: 4,
+					overflow: "hidden",
+					background: "rgba(0,0,0,0.18)",
+				}}>
+				{/* Colormap gradient strip at bottom */}
+				<div
+					style={{
+						position: "absolute",
+						bottom: 0,
+						left: 0,
+						right: 0,
+						height: 4,
+						background: gradientCss,
+					}}
+				/>
+				<svg height={H} preserveAspectRatio="none" style={{ display: "block", width: "100%" }} viewBox={`0 0 ${W} ${H}`}>
+					<defs>
+						{/* userSpaceOnUse: gradient spans the whole SVG width,
+						    each bar gets the color matching its position in the data range */}
+						<linearGradient gradientUnits="userSpaceOnUse" id={gradId} x1="0" x2={W} y1="0" y2="0">
+							{stops.map((color, i) => (
+								<stop key={i} offset={`${Math.round((i / (stops.length - 1)) * 100)}%`} stopColor={color} />
+							))}
+						</linearGradient>
+					</defs>
+					{/* Dimmed mask outside stretch range */}
+					{sMinX > 0 && <rect fill="rgba(0,0,0,0.4)" height={H - 4} width={sMinX} x={0} y={0} />}
+					{sMaxX < W && <rect fill="rgba(0,0,0,0.4)" height={H - 4} width={W - sMaxX} x={sMaxX} y={0} />}
+					{/* Histogram bars filled with colormap gradient */}
+					{bins.map((count, i) => {
+						const barH = Math.round((count / maxCount) * (H - 6))
+						return (
+							<rect
+								fill={`url(#${gradId})`}
+								height={barH}
+								key={i}
+								opacity={0.9}
+								width={Math.max(1, barW - 0.5)}
+								x={i * barW}
+								y={H - 4 - barH}
+							/>
+						)
+					})}
+					{/* Stretch min/max indicator lines */}
+					<line
+						stroke="rgba(255,255,255,0.85)"
+						strokeDasharray="3,2"
+						strokeWidth={1.5}
+						x1={sMinX}
+						x2={sMinX}
+						y1={0}
+						y2={H - 4}
+					/>
+					<line
+						stroke="rgba(255,255,255,0.85)"
+						strokeDasharray="3,2"
+						strokeWidth={1.5}
+						x1={sMaxX}
+						x2={sMaxX}
+						y1={0}
+						y2={H - 4}
+					/>
+				</svg>
+			</div>
+			{/* Min / Mean / Max data labels */}
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					fontSize: 9,
+					opacity: 0.55,
+					color: fg,
+					marginTop: 2,
+					marginBottom: 4,
+					fontVariantNumeric: "tabular-nums",
+				}}>
+				<span title="Data minimum">{fmt(min)}</span>
+				<span style={{ opacity: 0.75 }} title="Mean">
+					μ {fmt(mean)}
+				</span>
+				<span title="Data maximum">{fmt(max)}</span>
+			</div>
+			{/* Stretch controls */}
+			<div style={{ fontSize: 10, opacity: 0.65, marginBottom: 3 }}>Stretch</div>
+			<div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+				<span style={{ fontSize: 9, opacity: 0.6, minWidth: 22 }}>Min</span>
+				<input
+					onChange={(e) => {
+						const v = parseFloat(e.target.value)
+						if (Number.isFinite(v) && v < stretchMax) {
+							onStretchChange(v, stretchMax)
+						}
+					}}
+					step={(max - min) / 100 || 0.01}
+					style={{
+						flex: 1,
+						padding: "2px 4px",
+						fontSize: 10,
+						background: "rgba(255,255,255,0.07)",
+						color: fg,
+						border: `1px solid ${border}`,
+						borderRadius: 3,
+						minWidth: 0,
+					}}
+					type="number"
+					value={stretchMin}
+				/>
+				<span style={{ fontSize: 9, opacity: 0.6, minWidth: 22 }}>Max</span>
+				<input
+					onChange={(e) => {
+						const v = parseFloat(e.target.value)
+						if (Number.isFinite(v) && v > stretchMin) {
+							onStretchChange(stretchMin, v)
+						}
+					}}
+					step={(max - min) / 100 || 0.01}
+					style={{
+						flex: 1,
+						padding: "2px 4px",
+						fontSize: 10,
+						background: "rgba(255,255,255,0.07)",
+						color: fg,
+						border: `1px solid ${border}`,
+						borderRadius: 3,
+						minWidth: 0,
+					}}
+					type="number"
+					value={stretchMax}
+				/>
+				<button
+					onClick={() => onStretchChange(min, max)}
+					style={{
+						padding: "2px 5px",
+						fontSize: 9,
+						background: "transparent",
+						color: fg,
+						border: `1px solid ${border}`,
+						borderRadius: 3,
+						cursor: "pointer",
+						opacity: 0.7,
+						whiteSpace: "nowrap",
+					}}
+					title="Reset to full data range"
+					type="button">
+					↺ Reset
+				</button>
+			</div>
+		</div>
+	)
+}
 
 export default SymbologyEditor

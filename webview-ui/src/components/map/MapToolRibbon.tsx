@@ -28,7 +28,19 @@ import MapExport from "./MapExport"
 import { loadMapWorkspace, saveMapWorkspace } from "./mapWorkspace"
 import ResearchGalleryPanel from "./ResearchGalleryPanel"
 
-export type RibbonTool = "basemap" | "layers" | "gallery" | "hydrography" | "search" | "measure" | "draw" | "export" | null
+export type RibbonTool =
+	| "basemap"
+	| "layers"
+	| "gallery"
+	| "hydrography"
+	| "search"
+	| "measure"
+	| "draw"
+	| "transect"
+	| "annotations"
+	| "swipe"
+	| "export"
+	| null
 
 const TOOL_PANEL_SIZE: Record<
 	Exclude<RibbonTool, null>,
@@ -38,9 +50,12 @@ const TOOL_PANEL_SIZE: Record<
 	layers: { width: 340, height: 500, minWidth: 280, minHeight: 280, maxWidth: 520, maxHeightRatio: 0.85 },
 	gallery: { width: 620, height: 560, minWidth: 420, minHeight: 360, maxWidth: 820, maxHeightRatio: 0.86 },
 	hydrography: { width: 380, height: 560, minWidth: 320, minHeight: 340, maxWidth: 560, maxHeightRatio: 0.85 },
-	search: { width: 360, height: 170, minWidth: 300, minHeight: 118, maxWidth: 480, maxHeightRatio: 0.45 },
+	search: { width: 360, height: 340, minWidth: 300, minHeight: 200, maxWidth: 480, maxHeightRatio: 0.7 },
 	measure: { width: 280, height: 250, minWidth: 240, minHeight: 180, maxWidth: 380, maxHeightRatio: 0.55 },
 	draw: { width: 300, height: 310, minWidth: 250, minHeight: 220, maxWidth: 420, maxHeightRatio: 0.62 },
+	transect: { width: 320, height: 160, minWidth: 260, minHeight: 120, maxWidth: 420, maxHeightRatio: 0.45 },
+	annotations: { width: 360, height: 420, minWidth: 300, minHeight: 250, maxWidth: 480, maxHeightRatio: 0.8 },
+	swipe: { width: 300, height: 200, minWidth: 260, minHeight: 160, maxWidth: 400, maxHeightRatio: 0.5 },
 	export: { width: 620, height: 540, minWidth: 460, minHeight: 360, maxWidth: 980, maxHeightRatio: 0.88 },
 }
 
@@ -76,7 +91,41 @@ interface MapToolRibbonProps {
 	layers?: MapLayer[]
 	/** Search UI rendered inside the Search ribbon panel */
 	searchPanel?: React.ReactNode
+	/** Annotations UI rendered inside the Annotations ribbon panel */
+	annotationsPanel?: React.ReactNode
+	/** Swipe UI rendered inside the Swipe ribbon panel */
+	swipePanel?: React.ReactNode
+	/** Transect tool active state */
+	transectActive?: boolean
+	onTransectToggle?: () => void
+	/** Transect UI rendered inside the Transect ribbon panel */
+	transectsPanel?: React.ReactNode
+	/** Gallery UI rendered inside the Gallery ribbon panel */
+	galleryPanel?: React.ReactNode
 }
+
+interface RibbonButtonProps {
+	icon: string
+	label: string
+	active: boolean
+	accent: string
+	onClick: () => void
+	badge?: number
+	disabled?: boolean
+}
+
+const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, onClick, badge, disabled }) => (
+	<button
+		aria-label={label}
+		className={`map-ribbon-button${active ? " map-ribbon-button--active" : ""}`}
+		disabled={disabled}
+		onClick={onClick}
+		title={label}
+		type="button">
+		<span aria-hidden="true">{icon}</span>
+		{badge !== undefined && <span className="map-ribbon-badge">{badge > 99 ? "99+" : badge}</span>}
+	</button>
+)
 
 export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	mapStyle,
@@ -109,6 +158,12 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	viewState,
 	layers,
 	searchPanel,
+	annotationsPanel,
+	swipePanel,
+	transectActive,
+	onTransectToggle,
+	transectsPanel,
+	galleryPanel,
 }) => {
 	const persisted = loadMapWorkspace()
 	const [active, setActive] = useState<RibbonTool>(null)
@@ -216,6 +271,9 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 	const closePanel = () => {
 		if (active === "measure") {
 			onMeasureModeChange?.(null)
+		}
+		if (active === "transect") {
+			onTransectToggle?.()
 		}
 		if (active === "draw") {
 			onDrawModeChange?.(null)
@@ -395,14 +453,30 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 							/>
 						)}
 						{active === "search" && <div style={{ padding: 8 }}>{searchPanel}</div>}
+						{active === "annotations" && <div style={{ padding: 8 }}>{annotationsPanel}</div>}
+						{active === "swipe" && <div style={{ padding: 12 }}>{swipePanel}</div>}
 						{active === "gallery" && (
-							<ResearchGalleryPanel
-								mapStyle={mapStyle}
-								onOpenExport={() => {
-									toggle("export")
-								}}
-							/>
+							<div style={{ padding: 8 }}>
+								{galleryPanel ?? (
+									<ResearchGalleryPanel
+										bookmarkedIds={[]}
+										importCallbacks={{
+											onImportScene: () => {},
+											onImportTransects: () => {},
+											onImportAnnotations: () => {},
+										}}
+										mapStyle={mapStyle}
+										myItems={[]}
+										onDeleteMyItem={() => {}}
+										onOpenExport={() => toggle("export")}
+										onSaveScene={() => {}}
+										onToggleBookmark={() => {}}
+										onUpdateMyItem={() => {}}
+									/>
+								)}
+							</div>
 						)}
+						{active === "transect" && <div style={{ padding: 8 }}>{transectsPanel}</div>}
 						{active === "measure" && (
 							<div style={{ padding: 10 }}>
 								<div style={{ fontSize: 11, opacity: 0.75, marginBottom: 8, lineHeight: 1.5 }}>
@@ -604,14 +678,27 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				/>
 				<RibbonButton
 					accent={accent}
-					active={active === "draw" || !!drawMode}
+					active={active === "draw"}
 					icon="✏️"
-					label="Create vector"
+					label="Draw geometry"
 					onClick={() => {
 						onMeasureModeChange?.(null)
+						if (active === "transect") {
+							onTransectToggle?.()
+						}
 						toggle("draw")
 					}}
 				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "annotations"}
+					icon="🏷️"
+					label="Smart annotations"
+					onClick={() => {
+						toggle("annotations")
+					}}
+				/>
+				<div className="map-ribbon-divider" />
 				<RibbonButton
 					accent={accent}
 					active={active === "measure" || !!measureMode}
@@ -624,6 +711,27 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 				/>
 				<RibbonButton
 					accent={accent}
+					active={active === "transect" || !!transectActive}
+					icon="📈"
+					label="Transect profile"
+					onClick={() => {
+						onMeasureModeChange?.(null)
+						onDrawModeChange?.(null)
+						if (active !== "transect") {
+							onTransectToggle?.()
+						}
+						toggle("transect")
+					}}
+				/>
+				<RibbonButton
+					accent={accent}
+					active={active === "swipe"}
+					icon="◧"
+					label="Swipe / Compare layers"
+					onClick={() => toggle("swipe")}
+				/>
+				<RibbonButton
+					accent={accent}
 					active={active === "export" || !!exportOpen}
 					icon="🖼️"
 					label="Export snapshot"
@@ -633,28 +741,5 @@ export const MapToolRibbon: React.FC<MapToolRibbonProps> = ({
 		</>
 	)
 }
-
-interface RibbonButtonProps {
-	icon: string
-	label: string
-	active: boolean
-	accent: string
-	onClick: () => void
-	badge?: number
-	disabled?: boolean
-}
-
-const RibbonButton: React.FC<RibbonButtonProps> = ({ icon, label, active, onClick, badge, disabled }) => (
-	<button
-		aria-label={label}
-		className={`map-ribbon-button${active ? " map-ribbon-button--active" : ""}`}
-		disabled={disabled}
-		onClick={onClick}
-		title={label}
-		type="button">
-		<span aria-hidden="true">{icon}</span>
-		{badge !== undefined && <span className="map-ribbon-badge">{badge > 99 ? "99+" : badge}</span>}
-	</button>
-)
 
 export default MapToolRibbon

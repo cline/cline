@@ -371,7 +371,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<Virtuoso
 						className="flex-grow overflow-y-scroll"
 						data={taskHistorySearchResults}
-						itemContent={(index, item) => (
+						itemContent={(_index, item) => (
 							<div className="history-item modern-card mx-3 my-2 cursor-pointer flex" key={item.id}>
 								<VSCodeCheckbox
 									checked={selectedItems.includes(item.id)}

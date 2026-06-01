@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { sendHydroMapCommand } from "./mapHydrologyBridge"
+import { loadMapWorkspace, type MapBookmark, saveMapWorkspace } from "./mapWorkspace"
 
 export interface SearchResult {
 	label: string
@@ -16,6 +17,8 @@ interface SearchBarProps {
 	embedded?: boolean
 	viewBbox?: { minLon: number; minLat: number; maxLon: number; maxLat: number }
 	onResultSelect?: (result: SearchResult) => void
+	/** Current view state — needed to save bookmarks. */
+	currentView?: { longitude: number; latitude: number; zoom: number; pitch?: number; bearing?: number }
 }
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -32,8 +35,11 @@ const USGS_GAUGE_SITES: Record<string, { name: string; lat: number; lon: number 
 
 function parseCoordinateInput(raw: string): SearchResult | null {
 	const trimmed = raw.trim()
-	if (!trimmed) return null
+	if (!trimmed) {
+		return null
+	}
 
+	// Decimal degrees: "45.123, -73.456" or "45.123 -73.456"
 	const ddMatch = trimmed.match(/^\s*([+-]?\d+\.?\d*)\s*[,\s]\s*([+-]?\d+\.?\d*)\s*$/)
 	if (ddMatch) {
 		const lat = parseFloat(ddMatch[1])
@@ -43,6 +49,7 @@ function parseCoordinateInput(raw: string): SearchResult | null {
 		}
 	}
 
+	// DMS: "45°29'N, 73°34'W"
 	const dmsMatch = trimmed.match(/^(\d+)°(\d+)'\s*([NnSs])\s*[,\s]\s*(\d+)°(\d+)'\s*([EeWw])$/)
 	if (dmsMatch) {
 		const lat = (parseInt(dmsMatch[1], 10) + parseInt(dmsMatch[2], 10) / 60) * (dmsMatch[3].toUpperCase() === "S" ? -1 : 1)
@@ -51,12 +58,29 @@ function parseCoordinateInput(raw: string): SearchResult | null {
 			return { label: trimmed, lat, lon, source: "coordinate" }
 		}
 	}
+
+	// UTM: "zone 44N 269000 3042000" (simplified — zone easting northing)
+	const utmMatch = trimmed.match(/^(\d{1,2})\s*([Nn])\s+(\d+)\s+(\d+)$/)
+	if (utmMatch) {
+		// Very basic UTM→LatLon approximation for zone N/S only (good enough to fly to)
+		const zone = parseInt(utmMatch[1], 10)
+		const isNorth = utmMatch[2].toUpperCase() === "N"
+		const easting = parseFloat(utmMatch[3])
+		const northing = parseFloat(utmMatch[4])
+		const lon = (zone - 1) * 6 - 180 + 3 + (easting - 500000) / (111320 * Math.cos((northing / 6378137) * (180 / Math.PI)))
+		const lat = (northing - (isNorth ? 0 : 10000000)) / 111132
+		if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+			return { label: `UTM ${zone}N ${easting} ${northing}`, lat, lon, source: "coordinate" }
+		}
+	}
 	return null
 }
 
 function localGaugeSearch(query: string): SearchResult[] {
 	const q = query.trim().toLowerCase()
-	if (!q) return []
+	if (!q) {
+		return []
+	}
 	const out: SearchResult[] = []
 	for (const [id, info] of Object.entries(USGS_GAUGE_SITES)) {
 		if (id.includes(q) || info.name.toLowerCase().includes(q)) {
@@ -93,11 +117,189 @@ const SOURCE_ICON: Record<SearchResult["source"], string> = {
 	nominatim: "🌍",
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox, onResultSelect }) => {
+const fg = "var(--vscode-foreground, #ccc)"
+const border = "rgba(255,255,255,0.12)"
+const subtle = "rgba(255,255,255,0.04)"
+const accent = "var(--vscode-button-background, #0e639c)"
+
+const smallBtn = (active?: boolean): React.CSSProperties => ({
+	fontSize: 10,
+	padding: "2px 7px",
+	background: active ? accent : "transparent",
+	color: active ? "#fff" : fg,
+	border: `1px solid ${active ? accent : border}`,
+	borderRadius: 3,
+	cursor: "pointer",
+	whiteSpace: "nowrap" as const,
+})
+
+// ─── Bookmarks Panel ──────────────────────────────────────────────────────────
+
+const BookmarksPanel: React.FC<{
+	currentView?: SearchBarProps["currentView"]
+	onFlyTo: (bk: MapBookmark) => void
+}> = ({ currentView, onFlyTo }) => {
+	const [bookmarks, setBookmarks] = useState<MapBookmark[]>(() => loadMapWorkspace().bookmarks ?? [])
+	const [newName, setNewName] = useState("")
+	const [naming, setNaming] = useState(false)
+
+	const saveBookmark = () => {
+		if (!currentView || !newName.trim()) {
+			return
+		}
+		const bk: MapBookmark = {
+			id: `bk_${Date.now()}`,
+			name: newName.trim(),
+			longitude: currentView.longitude,
+			latitude: currentView.latitude,
+			zoom: currentView.zoom,
+			pitch: currentView.pitch,
+			bearing: currentView.bearing,
+			createdAt: new Date().toISOString(),
+		}
+		const next = [...bookmarks, bk]
+		setBookmarks(next)
+		saveMapWorkspace({ bookmarks: next })
+		setNewName("")
+		setNaming(false)
+	}
+
+	const removeBookmark = (id: string) => {
+		const next = bookmarks.filter((b) => b.id !== id)
+		setBookmarks(next)
+		saveMapWorkspace({ bookmarks: next })
+	}
+
+	return (
+		<div style={{ marginTop: 8 }}>
+			<div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+				<span style={{ fontSize: 10, fontWeight: 600, opacity: 0.8, flex: 1 }}>📌 Bookmarks</span>
+				{currentView && !naming && (
+					<button
+						onClick={() => setNaming(true)}
+						style={smallBtn()}
+						title="Save current view as bookmark"
+						type="button">
+						＋ Save view
+					</button>
+				)}
+			</div>
+
+			{naming && (
+				<div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
+					<input
+						autoFocus
+						maxLength={40}
+						onChange={(e) => setNewName(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								saveBookmark()
+							}
+							if (e.key === "Escape") {
+								setNaming(false)
+								setNewName("")
+							}
+						}}
+						placeholder="Bookmark name…"
+						style={{
+							flex: 1,
+							fontSize: 11,
+							padding: "3px 6px",
+							background: "rgba(255,255,255,0.07)",
+							color: fg,
+							border: `1px solid ${border}`,
+							borderRadius: 3,
+						}}
+						type="text"
+						value={newName}
+					/>
+					<button onClick={saveBookmark} style={smallBtn(true)} title="Save" type="button">
+						✓
+					</button>
+					<button
+						onClick={() => {
+							setNaming(false)
+							setNewName("")
+						}}
+						style={smallBtn()}
+						title="Cancel"
+						type="button">
+						✕
+					</button>
+				</div>
+			)}
+
+			{bookmarks.length === 0 ? (
+				<div style={{ fontSize: 10, opacity: 0.5, padding: "4px 0", textAlign: "center" }}>
+					No bookmarks yet. Navigate to a location and click ＋ Save view.
+				</div>
+			) : (
+				<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+					{bookmarks.map((bk) => (
+						<div
+							key={bk.id}
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 5,
+								padding: "3px 6px",
+								background: subtle,
+								border: `1px solid ${border}`,
+								borderRadius: 3,
+							}}>
+							<button
+								onClick={() => onFlyTo(bk)}
+								style={{
+									flex: 1,
+									textAlign: "left",
+									background: "transparent",
+									border: "none",
+									color: fg,
+									cursor: "pointer",
+									fontSize: 11,
+									padding: 0,
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+								}}
+								title={`${bk.latitude.toFixed(4)}, ${bk.longitude.toFixed(4)} · zoom ${bk.zoom.toFixed(1)}`}
+								type="button">
+								{bk.name}
+							</button>
+							<span style={{ fontSize: 9, opacity: 0.45, whiteSpace: "nowrap" }}>z{bk.zoom.toFixed(1)}</span>
+							<button
+								onClick={() => removeBookmark(bk.id)}
+								style={{
+									background: "transparent",
+									border: "none",
+									color: "rgba(220,53,69,0.7)",
+									cursor: "pointer",
+									fontSize: 12,
+									padding: 0,
+									lineHeight: 1,
+									flexShrink: 0,
+								}}
+								title="Remove bookmark"
+								type="button">
+								✕
+							</button>
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	)
+}
+
+// ─── SearchBar ────────────────────────────────────────────────────────────────
+
+export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox, onResultSelect, currentView }) => {
 	const [query, setQuery] = useState("")
 	const [results, setResults] = useState<SearchResult[]>([])
 	const [loading, setLoading] = useState(false)
 	const [selectedIdx, setSelectedIdx] = useState(-1)
+	const [coordInput, setCoordInput] = useState("")
+	const [coordError, setCoordError] = useState("")
 	const abortRef = useRef<AbortController | null>(null)
 
 	const doSearch = useCallback(
@@ -135,7 +337,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox
 			}
 
 			let nominatim: SearchResult[] = []
-			if (abortRef.current) abortRef.current.abort()
+			if (abortRef.current) {
+				abortRef.current.abort()
+			}
 			abortRef.current = new AbortController()
 			try {
 				const resp = await fetch(`${NOMINATIM_URL}?q=${encodeURIComponent(q)}&format=json&limit=5&polygon_geojson=0`, {
@@ -191,7 +395,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox
 	}
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if (results.length === 0) return
+		if (results.length === 0) {
+			return
+		}
 		if (e.key === "ArrowDown") {
 			e.preventDefault()
 			setSelectedIdx((i) => Math.min(i + 1, results.length - 1))
@@ -207,10 +413,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox
 		}
 	}
 
+	const handleGoToCoord = () => {
+		setCoordError("")
+		const result = parseCoordinateInput(coordInput)
+		if (!result) {
+			setCoordError("Unrecognised format. Try: 28.45, 77.02  or  28°27'N, 77°01'E  or  44N 269000 3042000")
+			return
+		}
+		onResultSelect?.(result)
+		setCoordInput("")
+	}
+
 	const rootClass = embedded ? "map-search-root map-search-root--embedded" : "map-search-root"
 
 	return (
 		<div className={rootClass}>
+			{/* ── Place / gauge / name search ── */}
 			<div className="map-search-field-wrap">
 				<span aria-hidden="true" className="map-search-field-icon">
 					🔍
@@ -256,6 +474,69 @@ export const SearchBar: React.FC<SearchBarProps> = ({ embedded = false, viewBbox
 					))}
 				</div>
 			)}
+
+			{/* ── Go to coordinates ── */}
+			<div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${border}` }}>
+				<div style={{ fontSize: 10, fontWeight: 600, opacity: 0.8, marginBottom: 4 }}>📍 Go to coordinates</div>
+				<div style={{ display: "flex", gap: 5 }}>
+					<input
+						onChange={(e) => {
+							setCoordInput(e.target.value)
+							setCoordError("")
+						}}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								handleGoToCoord()
+							}
+						}}
+						placeholder="28.45, 77.02  or  44N 269000 3042000"
+						style={{
+							flex: 1,
+							fontSize: 10,
+							padding: "3px 6px",
+							background: "rgba(255,255,255,0.07)",
+							color: fg,
+							border: `1px solid ${coordError ? "rgba(220,53,69,0.6)" : border}`,
+							borderRadius: 3,
+							minWidth: 0,
+						}}
+						type="text"
+						value={coordInput}
+					/>
+					<button
+						onClick={handleGoToCoord}
+						style={smallBtn(!!coordInput.trim())}
+						title="Fly to coordinates"
+						type="button">
+						Go
+					</button>
+				</div>
+				{coordError && (
+					<div
+						style={{
+							fontSize: 9,
+							color: "var(--vscode-editorError-foreground, #f48771)",
+							marginTop: 3,
+							lineHeight: 1.3,
+						}}>
+						{coordError}
+					</div>
+				)}
+				<div style={{ fontSize: 9, opacity: 0.4, marginTop: 3 }}>Accepts decimal · DMS · UTM (zone easting northing)</div>
+			</div>
+
+			{/* ── Bookmarks ── */}
+			<BookmarksPanel
+				currentView={currentView}
+				onFlyTo={(bk) =>
+					onResultSelect?.({
+						label: bk.name,
+						lat: bk.latitude,
+						lon: bk.longitude,
+						source: "coordinate",
+					})
+				}
+			/>
 		</div>
 	)
 }

@@ -35,13 +35,19 @@ interface FeatureIdentifierProps {
 const QUICK_DELINEATE_MAX_MERIT_UPAREA_KM2 = 50_000
 
 function numberProp(props: Record<string, unknown> | undefined, keys: string[]): number | undefined {
-	if (!props) return undefined
+	if (!props) {
+		return undefined
+	}
 	for (const key of keys) {
 		const value = props[key]
-		if (typeof value === "number" && Number.isFinite(value)) return value
+		if (typeof value === "number" && Number.isFinite(value)) {
+			return value
+		}
 		if (typeof value === "string") {
 			const parsed = Number(value)
-			if (Number.isFinite(parsed)) return parsed
+			if (Number.isFinite(parsed)) {
+				return parsed
+			}
 		}
 	}
 	return undefined
@@ -58,7 +64,9 @@ function routingBadge(
 			fg: string
 	  }
 	| undefined {
-	if (!point) return undefined
+	if (!point) {
+		return undefined
+	}
 	const conus = point.lat >= 24 && point.lat <= 50 && point.lon >= -125 && point.lon <= -66.5
 	if (conus) {
 		return {

@@ -33,6 +33,8 @@ interface RasterEntry {
 	bounds: [number, number, number, number]
 	colormap?: string
 	rawPixels?: RasterPixels
+	stretchMin?: number
+	stretchMax?: number
 }
 
 // ─── Colormap tables ─────────────────────────────────────────────────────────
@@ -129,11 +131,18 @@ export function dataUrlToImage(dataUrl: string): Promise<HTMLImageElement> {
  * Render raw pixel values through a named colormap into an HTMLImageElement.
  * NaN / non-finite pixels become fully transparent.
  */
-export function applyColormap(rawPixels: RasterPixels, colormapName: string): Promise<HTMLImageElement> {
+export function applyColormap(
+	rawPixels: RasterPixels,
+	colormapName: string,
+	stretchMin?: number,
+	stretchMax?: number,
+): Promise<HTMLImageElement> {
 	return new Promise((resolve, reject) => {
 		const ramp = COLORMAPS[colormapName] ?? COLORMAPS["viridis"]
 		const { data, width, height, min, max } = rawPixels
-		const range = max - min
+		const lo = stretchMin ?? min
+		const hi = stretchMax ?? max
+		const range = hi - lo || 1
 
 		const canvas = document.createElement("canvas")
 		canvas.width = width
@@ -154,7 +163,7 @@ export function applyColormap(rawPixels: RasterPixels, colormapName: string): Pr
 				imgData.data[off + 3] = 0
 				continue
 			}
-			const t = (v - min) / range
+			const t = (v - lo) / range
 			const [r, g, b] = sampleRamp(ramp, t)
 			imgData.data[off] = r
 			imgData.data[off + 1] = g

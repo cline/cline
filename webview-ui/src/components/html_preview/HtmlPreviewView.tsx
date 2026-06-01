@@ -195,7 +195,9 @@ function sendModuleState(
 		}, 4000)
 		const onMessage = (e: MessageEvent) => {
 			const d = e.data
-			if (!d || d.type !== "aihydro-module-state-result" || d.requestId !== requestId) return
+			if (!d || d.type !== "aihydro-module-state-result" || d.requestId !== requestId) {
+				return
+			}
 			cleanup()
 			resolve((d.state?.values as Record<string, string> | undefined) ?? null)
 		}
@@ -226,7 +228,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	// Phase C: write an active-course pointer (~/.aihydro/active_course.json)
 	// so the MCP course tools know which course the user is viewing.
 	useEffect(() => {
-		if (!course || !courseRoot) return
+		if (!course || !courseRoot) {
+			return
+		}
 		const sep = courseRoot.includes("\\") && !courseRoot.includes("/") ? "\\" : "/"
 		const coursePath = courseRoot.endsWith(sep) ? `${courseRoot}course.json` : `${courseRoot}${sep}course.json`
 		try {
@@ -247,18 +251,28 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	// path the Next button uses, so prerequisite gating and tab-activation
 	// behave identically whether a user or agent triggered the navigation.
 	useEffect(() => {
-		if (!course) return
+		if (!course) {
+			return
+		}
 		const onMessage = (e: MessageEvent) => {
 			const d = e.data
-			if (!d || d.type !== "aihydro-agent-navigate") return
-			if (d.courseId && d.courseId !== course.courseId) return
+			if (!d || d.type !== "aihydro-agent-navigate") {
+				return
+			}
+			if (d.courseId && d.courseId !== course.courseId) {
+				return
+			}
 			const moduleId = String(d.moduleId ?? "")
-			if (!moduleId) return
+			if (!moduleId) {
+				return
+			}
 			// We don't call handleCourseNavigate by reference (it would
 			// require listing it in the dep array which churns the listener).
 			// Inline the logic that needs the latest course/progress state.
 			const target = course.modules.find((m) => m.id === moduleId)
-			if (!target || !courseRoot) return
+			if (!target || !courseRoot) {
+				return
+			}
 			if (!courseProgress.canAccess(target)) {
 				console.info("[HtmlPreviewView] agent navigate refused: locked", moduleId)
 				return
@@ -272,12 +286,18 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 
 	const handleCourseNavigate = useCallback(
 		(moduleId: string) => {
-			if (!course || !courseRoot) return
+			if (!course || !courseRoot) {
+				return
+			}
 			const target = course.modules.find((m) => m.id === moduleId)
-			if (!target) return
+			if (!target) {
+				return
+			}
 			// Prerequisite gate — silently no-op if locked (the UI shouldn't have
 			// surfaced the click anyway, but this is defence-in-depth).
-			if (!courseProgress.canAccess(target)) return
+			if (!courseProgress.canAccess(target)) {
+				return
+			}
 			const fullPath = resolveModuleFilePath(courseRoot, target.path)
 			void loadWorkspaceFile(fullPath, target.title)
 		},
@@ -748,7 +768,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				return
 			}
 			if (data.type === "artifact/stateChanged") {
-				if (moduleKey) void sendModuleState("set", moduleKey, data.state ?? {})
+				if (moduleKey) {
+					void sendModuleState("set", moduleKey, data.state ?? {})
+				}
 				return
 			}
 		}
@@ -763,9 +785,13 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	// receives it (and the agent can observe via preview_recent_events).
 	useEffect(() => {
 		const onBridgeMessage = (event: MessageEvent) => {
-			if (event.source !== iframeRef.current?.contentWindow) return
+			if (event.source !== iframeRef.current?.contentWindow) {
+				return
+			}
 			const data = event.data as { type?: string; kind?: string; payloadJson?: string; source?: string }
-			if (!data || data.type !== "aihydro-preview-event") return
+			if (!data || data.type !== "aihydro-preview-event") {
+				return
+			}
 
 			let payload: Record<string, unknown> = {}
 			try {
@@ -798,8 +824,12 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				setHasPendingTextEdits(true)
 			} else if (data.kind === "edit.state") {
 				// Undo/redo stack availability update from the iframe adapter
-				if (typeof payload.undoEnabled === "boolean") setCanUndo(payload.undoEnabled)
-				if (typeof payload.redoEnabled === "boolean") setCanRedo(payload.redoEnabled)
+				if (typeof payload.undoEnabled === "boolean") {
+					setCanUndo(payload.undoEnabled)
+				}
+				if (typeof payload.redoEnabled === "boolean") {
+					setCanRedo(payload.redoEnabled)
+				}
 			} else if (data.kind === "edit.toggled") {
 				if (typeof payload?.enabled === "boolean") {
 					setEditModeActive(payload.enabled)
@@ -832,9 +862,13 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	// aihydro-preview-event). We resolve the in-flight save promise here.
 	useEffect(() => {
 		const onSaveResponse = (event: MessageEvent) => {
-			if (event.source !== iframeRef.current?.contentWindow) return
+			if (event.source !== iframeRef.current?.contentWindow) {
+				return
+			}
 			const data = event.data as { type?: string; html?: string }
-			if (data?.type !== "aihydro-save-document") return
+			if (data?.type !== "aihydro-save-document") {
+				return
+			}
 			if (pendingSaveResolverRef.current) {
 				pendingSaveResolverRef.current(data.html ?? "")
 				pendingSaveResolverRef.current = null
@@ -846,25 +880,33 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 
 	// Reset batch count whenever Edit Mode turns off externally
 	useEffect(() => {
-		if (!editModeActive) setPendingChangeCount(0)
+		if (!editModeActive) {
+			setPendingChangeCount(0)
+		}
 	}, [editModeActive])
 
 	// Tell the iframe whenever Edit Mode state changes (canonical sync)
 	useEffect(() => {
 		const win = iframeRef.current?.contentWindow
-		if (win) win.postMessage({ type: "aihydro-edit-mode", enabled: editModeActive }, "*")
+		if (win) {
+			win.postMessage({ type: "aihydro-edit-mode", enabled: editModeActive }, "*")
+		}
 	}, [editModeActive])
 
 	const handleSendBatch = useCallback(() => {
 		const win = iframeRef.current?.contentWindow
-		if (!win) return
+		if (!win) {
+			return
+		}
 		win.postMessage({ type: "aihydro-send-batch" }, "*")
 	}, [])
 
 	/** Request the iframe's current HTML, write to disk, reset unsaved state. */
 	const handleSaveDocument = useCallback(async (): Promise<boolean> => {
 		const win = iframeRef.current?.contentWindow
-		if (!win || !item?.filePath) return false
+		if (!win || !item?.filePath) {
+			return false
+		}
 		setIsSaving(true)
 		try {
 			const html = await new Promise<string>((resolve) => {
@@ -1343,8 +1385,12 @@ const Sep = () => <span style={{ color: "var(--vscode-descriptionForeground, #99
 
 /** Inject the spin keyframe once (idempotent). */
 function ensureSpinStyle() {
-	if (typeof document === "undefined") return
-	if (document.getElementById("aihydro-spin-style")) return
+	if (typeof document === "undefined") {
+		return
+	}
+	if (document.getElementById("aihydro-spin-style")) {
+		return
+	}
 	const el = document.createElement("style")
 	el.id = "aihydro-spin-style"
 	el.textContent = `@keyframes aihydro-spin { to { transform: rotate(360deg); } }`
@@ -1505,7 +1551,7 @@ const EmptyState: React.FC = () => (
 	</div>
 )
 
-function shortenPath(p: string): string {
+function _shortenPath(p: string): string {
 	if (p.length <= 60) {
 		return p
 	}
