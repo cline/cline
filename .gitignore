@@ -61,3 +61,6 @@ progress.md
 FEATURE_DELIVERY_SUMMARY.md
 .claude/worktrees/
 *.tsbuildinfo
+
+# Course modules — live in github.com/AI-Hydro/Modules, not here
+examples/courses/
