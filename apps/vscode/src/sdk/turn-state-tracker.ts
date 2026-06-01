@@ -3,10 +3,10 @@ import type { MessageIdMinter } from "./message-id-minter"
 
 // Authoritative UI-mode tracker for the current agent turn.
 //
-// See apps/vscode/src/sdk/docs/webview-message-state-design.md §5. The backend knows the true
-// phase at every SDK lifecycle point (it drives the session and owns every interaction
-// promise), so it sets the phase explicitly here rather than letting the webview infer it from
-// the tail of the message array. The webview renders footer/buttons/thinking from this.
+// The backend knows the true phase at every SDK lifecycle point (it drives the session and owns
+// every interaction promise), so it sets the phase explicitly here rather than letting the
+// webview infer it from the tail of the message array. The webview renders
+// footer/buttons/thinking from this.
 //
 // Each transition stamps a fresh `seq` from the shared minter so the webview keeps only the
 // newest TurnState and ignores stale/out-of-order ones (a late "streaming" can never overwrite

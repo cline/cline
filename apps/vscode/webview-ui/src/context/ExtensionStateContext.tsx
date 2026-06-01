@@ -420,8 +420,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 	// Convergent-replica state for clineMessages. The partial-message stream and the full state
 	// snapshots both feed this reducer so the transcript converges correctly regardless of
-	// arrival order, duplication, or loss. See messageReducer.ts and
-	// apps/vscode/src/sdk/docs/webview-message-state-design.md.
+	// arrival order, duplication, or loss. See messageReducer.ts.
 	const replicaRef = useRef<ReplicaState>(createReplicaState())
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
@@ -439,11 +438,9 @@ export const ExtensionStateContextProvider: React.FC<{
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
 
 							// Route the snapshot's transcript through the convergent-replica reducer:
-							// merge by ts/seq within the same epoch (NEVER truncate), replace on a
-							// newer epoch, ignore stale/older snapshots. This replaces the old
-							// "preserve clineMessages if same task" HACK and fixes the
-							// last-message-missing / stuck-Thinking clobber. Unstamped (classic/
-							// legacy) state defaults to epoch 0 / version 0, which merges.
+							// merge by ts/seq within the same epoch (never truncate), replace on a
+							// newer epoch, ignore stale/older snapshots. Unstamped (classic/legacy)
+							// state defaults to epoch 0 / version 0, which merges.
 							replicaRef.current = reducerApplyStateSnapshot(
 								replicaRef.current,
 								stateData.clineMessages ?? [],
@@ -454,8 +451,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							stateData.clineMessages = replicaRef.current.messages
 							// Use the seq-gated turnState from the replica, NOT the raw snapshot's, so a
 							// late/stale snapshot carrying an older phase (e.g. "idle") cannot revert a
-							// newer phase (e.g. "streaming") and hide the Cancel button. See design
-							// doc §11 (Symptom A). Falls back to undefined for classic/legacy state.
+							// newer phase (e.g. "streaming") and hide the Cancel button. Falls back to
+							// undefined for classic/legacy state.
 							stateData.turnState = replicaRef.current.turnState
 
 							const newState = {

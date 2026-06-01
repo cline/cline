@@ -167,12 +167,12 @@ describe("messageReducer — deterministic", () => {
 		})
 	})
 
-	// --- Regressions from the TurnState cutover (design doc §11) -------------------
+	// --- turnState seq gate + transcript preservation --------------------------------
 	//
-	// These encode the two webview-side regressions found after wiring the footer/buttons
-	// to read turnState. See apps/vscode/src/sdk/docs/webview-message-state-design.md §11.
+	// The footer/buttons read turnState; these cover the invariants that keep it correct
+	// under out-of-order delivery and that keep a live transcript from being emptied.
 
-	describe("messageReducer — turnState seq gate (Symptom A)", () => {
+	describe("messageReducer — turnState seq gate", () => {
 		it("a snapshot carrying a newer-seq turnState advances the replica's turnState", () => {
 			let s = createReplicaState()
 			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "task")], 1, 1, { phase: "streaming", seq: 5 })
@@ -211,7 +211,7 @@ describe("messageReducer — deterministic", () => {
 		})
 	})
 
-	describe("messageReducer — transcript is never emptied for a live conversation (Symptom B)", () => {
+	describe("messageReducer — transcript is never emptied for a live conversation", () => {
 		it("a same-epoch snapshot with an empty transcript does NOT clear an existing one", () => {
 			// A bookkeeping/empty snapshot must not wipe a populated transcript and strand the
 			// webview at messages.length === 0 (which routes Enter to newTask()).

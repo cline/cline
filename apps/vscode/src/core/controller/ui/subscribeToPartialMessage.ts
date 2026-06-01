@@ -59,7 +59,7 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 	// reloaded, or closed, and VSCode's postMessage may hang or resolve false; awaiting it
 	// could stall the backend's turn loop on a dead consumer. Correctness does not depend on
 	// any single delivery arriving — the webview is a convergent replica that merges by id/seq
-	// and reconciles from full state. See webview-message-state-design.md §3, §6.
+	// and reconciles from full state.
 	for (const responseStream of activePartialMessageSubscriptions) {
 		responseStream(
 			partialMessage,

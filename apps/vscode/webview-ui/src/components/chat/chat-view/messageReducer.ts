@@ -2,11 +2,10 @@ import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 
 // Convergent-replica reducer for the webview's clineMessages transcript.
 //
-// See apps/vscode/src/sdk/docs/webview-message-state-design.md §6. The webview receives the
-// same conversation over two unordered, fire-and-forget channels (incremental partial
-// messages and full state snapshots). This reducer makes the transcript converge to the
-// correct set under ANY arrival order, duplication, or loss, using three extension-stamped
-// quantities:
+// The webview receives the same conversation over two unordered, fire-and-forget channels
+// (incremental partial messages and full state snapshots). This reducer makes the transcript
+// converge to the correct set under ANY arrival order, duplication, or loss, using three
+// extension-stamped quantities:
 //
 //   - ts    : message identity / merge key (one process-wide monotonic id; see MessageIdMinter)
 //   - seq   : freshness within an epoch (higher seq = newer copy of the same ts)
@@ -31,8 +30,7 @@ export interface ReplicaState {
 	/**
 	 * The authoritative UI mode for the current turn. Moves forward by `turnState.seq` only, so a
 	 * late/out-of-order snapshot carrying an older phase (e.g. "idle") can never revert a newer
-	 * phase (e.g. "streaming"). See design doc §6 ("turnState only moves forward by seq").
-	 * `undefined` for classic/legacy state with no turnState.
+	 * phase (e.g. "streaming"). `undefined` for classic/legacy state with no turnState.
 	 */
 	turnState?: TurnState
 }
@@ -69,7 +67,7 @@ function resetTo(epoch: number, messages: ClineMessage[], stateVersion: number, 
 /**
  * Apply a TurnState update, gated by `seq`. The replica keeps the highest-seq TurnState and
  * ignores older ones, so a late/out-of-order "streaming" can never overwrite a newer
- * "completed" (and vice-versa). See design doc §6. Returns the same state when ignored.
+ * "completed" (and vice-versa). Returns the same state when ignored.
  */
 export function applyTurnState(state: ReplicaState, incoming: TurnState | undefined): ReplicaState {
 	if (!incoming) {
@@ -157,8 +155,7 @@ export function applyMessage(state: ReplicaState, incoming: ClineMessage): Repli
  *
  * `snapshotTurnState` (when present) is applied through the same seq gate as applyTurnState: a
  * newer epoch adopts it wholesale; otherwise it only advances the replica's turnState if its
- * seq is higher. This is what stops a late/stale snapshot from reverting "streaming" -> "idle"
- * (Symptom A in design doc §11).
+ * seq is higher. This is what stops a late/stale snapshot from reverting "streaming" -> "idle".
  */
 export function applyStateSnapshot(
 	state: ReplicaState,
