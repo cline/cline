@@ -60,10 +60,16 @@ describe("OpenAICompatibleProvider — model list", () => {
 
 		renderProvider()
 
-		// The dropdown appears once the fetched models arrive
-		const dropdown = await screen.findByRole("combobox")
+		// The dropdown is populated once the fetched models arrive (after the debounce)
+		await waitFor(
+			() =>
+				expect(within(screen.getByRole("combobox")).getAllByText("amazon/amazon.nova-lite-v1:0").length).toBeGreaterThan(
+					0,
+				),
+			{ timeout: 2000 },
+		)
+		const dropdown = screen.getByRole("combobox")
 		expect(within(dropdown).getAllByText("openai/gpt-4o").length).toBeGreaterThan(0)
-		expect(within(dropdown).getAllByText("amazon/amazon.nova-lite-v1:0").length).toBeGreaterThan(0)
 		// ...and the free-text fallback is gone
 		expect(screen.queryByPlaceholderText("Enter Model ID...")).not.toBeInTheDocument()
 	})
@@ -81,8 +87,8 @@ describe("OpenAICompatibleProvider — model list", () => {
 
 		renderProvider()
 
-		// Give the mount-time fetch a chance to resolve (to empty)
-		await waitFor(() => expect(ModelsServiceClient.refreshOpenAiModels).toHaveBeenCalled())
+		// Give the debounced fetch a chance to fire and resolve (to empty)
+		await waitFor(() => expect(ModelsServiceClient.refreshOpenAiModels).toHaveBeenCalled(), { timeout: 2000 })
 		expect(screen.getAllByPlaceholderText("Enter Model ID...").length).toBeGreaterThan(0)
 		expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
 	})
@@ -102,8 +108,12 @@ describe("OpenAICompatibleProvider — model list", () => {
 
 		renderProvider()
 
-		const dropdown = await screen.findByRole("combobox")
+		// Wait for the fetched model to arrive; the custom (selected) ID is present from the start
+		await waitFor(
+			() => expect(within(screen.getByRole("combobox")).getAllByText("openai/gpt-4o").length).toBeGreaterThan(0),
+			{ timeout: 2000 },
+		)
+		const dropdown = screen.getByRole("combobox")
 		expect(within(dropdown).getAllByText("some/custom-model").length).toBeGreaterThan(0)
-		expect(within(dropdown).getAllByText("openai/gpt-4o").length).toBeGreaterThan(0)
 	})
 })

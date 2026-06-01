@@ -3,7 +3,7 @@ import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shar
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -55,55 +55,37 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
 
-	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
-	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-
+	// Refresh the model list whenever the Base URL / API key change (and on mount when
+	// already configured). A single debounced effect with a cleanup guard ensures only the
+	// latest request's result is applied, so a slow in-flight fetch can't overwrite newer
+	// results with stale ones.
+	const openAiBaseUrl = apiConfiguration?.openAiBaseUrl
+	const openAiApiKey = apiConfiguration?.openAiApiKey
 	useEffect(() => {
-		return () => {
-			if (debounceTimerRef.current) {
-				clearTimeout(debounceTimerRef.current)
-			}
-		}
-	}, [])
-
-	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
-		if (debounceTimerRef.current) {
-			clearTimeout(debounceTimerRef.current)
+		if (!openAiBaseUrl || !openAiApiKey) {
+			return
 		}
 
-		if (baseUrl && apiKey) {
-			debounceTimerRef.current = setTimeout(() => {
-				ModelsServiceClient.refreshOpenAiModels(
-					OpenAiModelsRequest.create({
-						baseUrl,
-						apiKey,
-					}),
-				)
-					.then((response) => {
-						setOpenAiModels(response?.values ?? [])
-					})
-					.catch((error) => {
-						console.error("Failed to refresh OpenAI models:", error)
-					})
-			}, 500)
-		}
-	}, [])
-
-	// Populate the model list on mount when the provider is already configured
-	useEffect(() => {
-		const baseUrl = apiConfiguration?.openAiBaseUrl
-		const apiKey = apiConfiguration?.openAiApiKey
-		if (baseUrl && apiKey) {
-			ModelsServiceClient.refreshOpenAiModels(OpenAiModelsRequest.create({ baseUrl, apiKey }))
+		let ignore = false
+		const timer = setTimeout(() => {
+			ModelsServiceClient.refreshOpenAiModels(OpenAiModelsRequest.create({ baseUrl: openAiBaseUrl, apiKey: openAiApiKey }))
 				.then((response) => {
-					setOpenAiModels(response?.values ?? [])
+					if (!ignore) {
+						setOpenAiModels(response?.values ?? [])
+					}
 				})
 				.catch((error) => {
-					console.error("Failed to refresh OpenAI models:", error)
+					if (!ignore) {
+						console.error("Failed to refresh OpenAI models:", error)
+					}
 				})
+		}, 500)
+
+		return () => {
+			ignore = true
+			clearTimeout(timer)
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [])
+	}, [openAiBaseUrl, openAiApiKey])
 
 	return (
 		<div>
@@ -121,7 +103,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							initialValue={apiConfiguration?.openAiBaseUrl || ""}
 							onChange={(value) => {
 								handleFieldChange("openAiBaseUrl", value)
-								debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
 							}}
 							placeholder={"Enter base URL..."}
 							style={{ width: "100%", marginBottom: 10 }}
@@ -138,7 +119,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				initialValue={apiConfiguration?.openAiApiKey || ""}
 				onChange={(value) => {
 					handleFieldChange("openAiApiKey", value)
-					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
 				}}
 				providerName="OpenAI Compatible"
 			/>
