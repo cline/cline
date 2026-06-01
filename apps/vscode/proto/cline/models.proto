@@ -223,6 +223,7 @@ message WriteProviderConfigPatch {
   optional string refresh_token = 7;
   optional string account_id = 8;
   optional ProviderReasoningPatch reasoning = 9;
+  optional bool clear_headers = 10;
 }
 
 message WriteProviderConfigRequest {
