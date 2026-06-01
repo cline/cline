@@ -593,7 +593,7 @@
 		"serialize-javascript": ">=7.0.3",
 		"protobufjs": "7.5.8",
 		"diff": "8.0.4",
-		"/xmldom": "0.8.12"
+		"@xmldom/xmldom": "0.8.13"
 	},
 	"c8": {
 		"reporter": [
