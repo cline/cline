@@ -55,19 +55,21 @@ export function registerPartialMessageCallback(callback: PartialMessageCallback)
  * @param partialMessage The ClineMessage to send
  */
 export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
-	// Send to gRPC stream subscribers
-	const streamPromises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
-		try {
-			await responseStream(
-				partialMessage,
-				false, // Not the last message
-			)
-		} catch (error) {
+	// FIRE-AND-FORGET: do NOT await delivery to the webview. The webview can be hidden,
+	// reloaded, or closed, and VSCode's postMessage may hang or resolve false; awaiting it
+	// could stall the backend's turn loop on a dead consumer. Correctness does not depend on
+	// any single delivery arriving — the webview is a convergent replica that merges by id/seq
+	// and reconciles from full state. See webview-message-state-design.md §3, §6.
+	for (const responseStream of activePartialMessageSubscriptions) {
+		responseStream(
+			partialMessage,
+			false, // Not the last message
+		).catch((error) => {
 			Logger.error("Error sending partial message event:", error)
 			// Remove the subscription if there was an error
 			activePartialMessageSubscriptions.delete(responseStream)
-		}
-	})
+		})
+	}
 
 	// Send to callback subscribers (synchronous)
 	for (const callback of callbackSubscriptions) {
@@ -77,6 +79,4 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 			Logger.error("Error in partial message callback:", error)
 		}
 	}
-
-	await Promise.all(streamPromises)
 }
