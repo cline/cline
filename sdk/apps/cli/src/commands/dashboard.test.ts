@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { arch, platform, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runDashboardCommand } from "./dashboard";
@@ -11,6 +11,7 @@ const ENV_KEYS = [
 	"PUBLIC_URL",
 	"ROOM_SECRET",
 	"CLINE_HUB_WEBVIEW_DIST_DIR",
+	"CLINE_WRAPPER_PATH",
 ] as const;
 
 const originalEnv = Object.fromEntries(
@@ -122,5 +123,47 @@ describe("runDashboardCommand", () => {
 
 		expect(exitCode).toBe(0);
 		expect(openUrl).not.toHaveBeenCalled();
+	});
+
+	it("finds webview assets from the published wrapper package layout", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-wrapper-layout-"));
+		const wrapperPath = join(root, "node_modules", "cline", "bin", "cline");
+		const platformName = platform() === "win32" ? "windows" : platform();
+		const webviewDistDir = join(
+			root,
+			"node_modules",
+			"cline",
+			"node_modules",
+			"@cline",
+			`cli-${platformName}-${arch()}`,
+			"cline-hub",
+			"webview",
+		);
+		mkdirSync(join(wrapperPath, ".."), { recursive: true });
+		mkdirSync(webviewDistDir, { recursive: true });
+		process.env.CLINE_WRAPPER_PATH = wrapperPath;
+		delete process.env.CLINE_HUB_WEBVIEW_DIST_DIR;
+		let observedWebviewDistDir: string | undefined;
+
+		const exitCode = await runDashboardCommand({
+			openBrowser: false,
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			startServer: async () => {
+				observedWebviewDistDir = process.env.CLINE_HUB_WEBVIEW_DIST_DIR;
+				return {
+					listenUrl: "http://127.0.0.1:8787/",
+					publicUrl: "http://127.0.0.1:8787",
+					inviteUrl: "http://127.0.0.1:8787",
+					stop: vi.fn(),
+				};
+			},
+			waitForShutdown: async () => {},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(observedWebviewDistDir).toBe(webviewDistDir);
 	});
 });
