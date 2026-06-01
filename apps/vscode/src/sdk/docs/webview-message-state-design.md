@@ -1,12 +1,15 @@
-# SDK → Webview message & status pipeline — design
+# SDK → Webview message & status pipeline
 
-This document explains a class of repeated bugs in the layer that translates SDK session
-events into webview messages ("Thinking" missing or stuck, the last message disappearing,
-duplicated tool rows, vanishing approval buttons), the two root causes, and a robust
-redesign with no hacks. It ends with the test plan.
+This is reference documentation for how SDK session events are translated into the webview's
+conversation transcript and UI state. It explains the architecture, the invariants that keep
+the UI from getting stuck, and how to extend or debug it.
 
-A longer investigation log with the original live captures is preserved at the end under
-"Appendix: evidence".
+Historically this layer produced a class of repeated bugs — "Thinking" missing or stuck, the
+last message disappearing, duplicated tool rows, vanishing/contradictory approval buttons.
+§1–§2 describe those symptoms and their two root causes; §3–§8 describe the architecture that
+fixes them; §9 is the test strategy; §10 records implementation status; §11 is a debugging
+log of regressions found and how they were chased down. The original live investigation
+captures are in `webview-message-state-findings.md` next to this file.
 
 ---
 
@@ -333,59 +336,182 @@ Re-run the two on-camera reproductions and the cancel path:
   (was RC1 contradiction).
 - cancel mid-stream → lands on Resume Task, no stuck Thinking, stragglers ignored.
 
-## 10. Rollout
+## 10. Implementation map
 
-Each step is independently shippable and re-verified against the reproductions.
+The architecture above is implemented across these pieces. This section is a map from concept
+to code, so a future reader can find and extend each part.
 
-- S1. Single `MessageIdMinter` (pure monotonic, shared by live translation + interaction
-      coordinator + history). DONE: removed the translator `tsCounter` and the interaction
-      coordinator's `Date.now()`-based `lastInteractionMessageTs`; both now mint from the shared
-      minter, wired via `MessageTranslatorState.getMinter()`. (Field is still named `ts` on
-      `ClineMessage`; the rename to `id` is cosmetic and deferred.)
-      REMAINING for S2: ~13 one-off `ts: Date.now()` mint sites in coordinators (error rows,
-      mcp messages, resume/cancel asks, task-start) should also route through the shared minter
-      when those coordinators are threaded for `seq`/`epoch` stamping. They are low-frequency
-      boundary messages, but collision-safety wants them on the one counter too.
-- S2. `seq` + `epoch` stamping in the extension; fire-and-forget delivery (stop awaiting posts).
-      DONE: SdkMessageCoordinator stamps seq/epoch on every message; getStateToPostToWebview
-      stamps stateVersion/epoch; epoch bumps via resetMessageTranslatorAndFence() at the reset
-      sites; ClineMessage proto + ExtensionState carry the fields; sendPartialMessageEvent /
-      sendStateUpdate no longer await postMessage. (Cancel's epoch bump is folded into S6.)
-- S3. Webview reducer: gate on `epoch`, merge by `id`/`seq`, drop the wholesale-replace `// HACK`.
-      DONE: messageReducer.ts (pure applyMessage/applyStateSnapshot) wired into
-      ExtensionStateContext for both channels; 120-permutation order-independence test proves
-      convergence under any arrival order/duplication/loss. → fixes RC2 ("last message missing").
-- S4. `turnState` type + backend transitions, shipped in `state_json` (additive).
-- S5. Webview footer + buttons read `turnState`. DONE: buttonConfig.buttonsForPhase /
-      getButtonConfigFromState (TurnState-driven, legacy tail-walk fallback when turnState
-      absent) wired into ActionButtons; MessagesArea.isWaitingForResponse short-circuits to
-      `phase === "streaming"` when turnState is present (legacy tail logic kept as fallback).
-      Button ACTIONS (approve/reject/proceed) already route by responseType independent of
-      clineAsk, so the SDK backend resolves the pending promise correctly. → fixes RC1.
-      (The legacy isInertStatusMessage skip-walk + getButtonConfigForMessages remain as the
-      fallback path; they can be deleted once classic is fully retired.)
-- S6. Cancel: fence-before-abort; usage exemption. DONE: cancelTask raises the cancel fence
-      (epoch bump via raiseCancelFence) SYNCHRONOUSLY before awaiting sdkHost.abort, and
-      SdkController.cancelTask sets phase=resumable first — so straggler events carry the old
-      epoch (dropped by the webview reducer) and the resumable UI is authoritative. Usage was
-      never gated by the message filter, so post-cancel usage events still bill (exemption holds).
-      Ordering covered by a unit test. (The legacy !isRunning ask-only filter is now redundant
-      given the epoch fence but left in place as defense-in-depth; safe to remove with classic.)
-- S7. Translator hygiene. DONE (a + c): ask_question/ask_followup_question are suppressed from
-      the generic say:"tool" renderer in both content_start and content_end (kills the orphan
-      partial row); the `done` handler no longer synthesizes a trailing ask:"completion_result"
-      (the "must be last" ENG-1887 hack) — it only signals turnComplete and the webview reads
-      phase from TurnState (completed/awaiting_followup). Translator tests updated to the new
-      contract.
-      DEFERRED (b + d) as lower-risk-if-left, to a follow-up: (b) collapse the approval ask onto
-      the SAME id as the streaming tool row (content_start/content_end already share
-      getStreamingToolTs; only the interaction-coordinator approval ask uses a separate id — needs
-      cross-coordinator id threading); (d) the mistake_limit forced sdkHost.abort() is now
-      harmless (phase is authoritative) but still desirable to stop the loop — leave as-is.
-      Note: the persisted-history renderer (sdkMessagesToClineMessages) still appends its own
-      trailing ask:completion_result so a reopened task shows the resume affordance — intentional.
-- S8. Full live pass: plan ask_question, act command approval, attempt_completion, cancel
-      mid-stream, api error — confirm no stuck states.
+| Concern | Where it lives |
+|---|---|
+| `id`/`seq`/`epoch` authority | `apps/vscode/src/sdk/message-id-minter.ts` (one process-wide `MessageIdMinter`, owned by `MessageTranslatorState`, shared by live translation, the interaction coordinator, and history rendering) |
+| seq/epoch stamping on messages | `SdkMessageCoordinator` stamps every message flowing to the webview |
+| stateVersion/epoch stamping on snapshots | `SdkController.getStateToPostToWebview()` |
+| epoch bumps (the fence) | `SdkController.resetMessageTranslatorAndFence()` wired into the `resetMessageTranslator` callback sites (clear, show-from-history, reinit, mode rebuild, new-session follow-up); cancel bumps via `raiseCancelFence` (§7) |
+| fire-and-forget delivery | `sendPartialMessageEvent` / `sendStateUpdate` do not await `postMessage` |
+| convergent reducer | `apps/vscode/webview-ui/src/components/chat/chat-view/messageReducer.ts` (`applyMessage`/`applyStateSnapshot`), wired into `ExtensionStateContext` for both channels |
+| `turnState` type | `shared/ExtensionMessage.ts` (`TurnPhase`, `TurnState`, `ExtensionState.turnState`) |
+| `turnState` transitions | `apps/vscode/src/sdk/turn-state-tracker.ts` + the call sites in `SdkController` (streaming/error/resumable/idle), `SdkInteractionCoordinator` (awaiting_approval/awaiting_followup/back-to-streaming), and `SdkSessionEventCoordinator` (completed vs awaiting_followup on turn end) |
+| footer + buttons read `turnState` | `buttonConfig.buttonsForPhase` / `getButtonConfigFromState` (used by `ActionButtons`); `MessagesArea.isWaitingForResponse` short-circuits on `phase === "streaming"` |
+| translator hygiene | `message-translator.ts` suppresses `ask_question`/`ask_followup_question` from the generic tool renderer; the `done` handler emits no synthetic ask |
+| cancel fence | `SdkTaskControlCoordinator.cancelTask` calls `raiseCancelFence()` before `sdkHost.abort()` |
+
+Known follow-ups / deliberate exceptions:
+- The `ClineMessage` field is still named `ts`; it is used as an identity/merge key. Renaming to
+  `id` is cosmetic and deferred.
+- The interaction-coordinator approval ask still mints its own id rather than reusing the
+  streaming tool row's id, so a tool that requires approval can render as two rows. Collapsing
+  them needs cross-coordinator id threading (deferred).
+- The legacy tail heuristics (`getButtonConfigForMessages` + `isInertStatusMessage`, the
+  `isWaitingForResponse` tail inference, the `!isRunning` ask filter) remain as the fallback for
+  when `turnState` is absent (classic/older state); they can be removed once classic is retired.
+- The persisted-history renderer (`sdkMessagesToClineMessages`) still appends a trailing
+  `ask:completion_result` so a reopened task shows the resume affordance — intentional.
+
+---
+
+## 11. Debugging log
+
+A running log of regressions found in this layer and how they were chased down. The discipline
+is always: **(1) observe live, (2) replicate with a unit test, (3) only then fix** — so every
+fix is anchored to a reproduction that would have caught it.
+
+### 2026-06 — regressions after the TurnState cutover (§4–§7)
+
+Two regressions reported after wiring the webview to read `turnState` (§5) and removing the
+`done` synthetic ask (§7). Both are accidental, not intended.
+
+**Symptom A — no Cancel button during generation.** During a turn the footer shows only the
+scroll up/down arrow, not "Cancel". The scroll-arrow branch in `ActionButtons` renders when
+`buttonConfig` has no primary/secondary text, i.e. `BUTTON_CONFIGS.default`. `buttonsForPhase`
+returns `default` only for `phase === "idle"`. So during generation the webview's
+`turnState.phase` is `idle` (or `turnState` is stale), not `streaming`.
+
+**Symptom B — Enter after a completed task starts a NEW task** instead of continuing the
+conversation. In `useMessageHandlers.handleSendMessage` the routing is: `messages.length === 0`
+→ `newTask()`; else if `clineAsk` → `askResponse()`; else if running → interrupt; else nothing.
+For `newTask()` to fire, the webview's `clineMessages` must be **empty**.
+
+**Theories (confirmed by reading the code; see Resolution for the unit tests that pin them):**
+
+1. *Stale `turnState` clobber (most likely for A).* `turnState` rides inside the full state
+   snapshot and is adopted wholesale in `ExtensionStateContext` (`newState = {...stateData}`)
+   with **no seq gate** — unlike `clineMessages`, which the reducer gates by `stateVersion`/
+   `seq`. So a late or lower-version snapshot carrying an older `turnState` (e.g. `idle`) can
+   overwrite a newer `streaming`. The design says "TurnState only moves forward by seq" (§6)
+   but that gate was **not implemented** in the webview — only the message merge was. This
+   matches A: the webview briefly sees `streaming` then a stale snapshot reverts it to `idle`.
+
+2. *Empty transcript via an epoch over-bump (most likely for B).* For Enter to start a new
+   task, `clineMessages` must be empty. The reducer wholesale-**replaces** (and can reset to
+   empty) when an incoming snapshot's `epoch` is greater than the local epoch. `epoch` is
+   bumped by `resetMessageTranslatorAndFence()` at several lifecycle points and by
+   `raiseCancelFence()`. If an epoch bump fires while a snapshot with an empty/partial
+   transcript is in flight (e.g. during the clear→reload inside `initTask`, or a stray reset),
+   the webview replaces its transcript with an empty one and never recovers → `messages.length
+   === 0` → Enter routes to `newTask()`. Needs confirmation of exactly which bump + snapshot
+   pairing produces the empty replace.
+
+3. *Send-path still depends on the removed `done` ask (contributes to B regardless of #2).*
+   §7 removed the trailing `ask:completion_result`, so after completion `clineAsk` is
+   `undefined`. Even with a non-empty transcript, the `else if (clineAsk)` branch no longer
+   fires, so a follow-up after completion is not routed to `askResponse`. The send path must be
+   updated to consult `turnState` (e.g. continue the conversation when phase is
+   `completed`/`awaiting_followup`) rather than relying on a trailing ask. This is a real
+   coupling the TurnState cutover broke and must be fixed even if #2 is also true.
+
+**Plan (observe → replicate → fix):**
+1. **Observe live.** Rebuild + run the debug harness; with the message recorder, capture the
+   exact `turnState`/`stateVersion`/`epoch`/`clineMessages.length` sequence during: a fresh
+   turn (does phase reach and stay `streaming`?), and right after completion + Enter (is the
+   transcript empty? what is `clineAsk`/`turnState`?). Confirm which theory holds.
+2. **Replicate with unit tests.** Add failing tests at the smallest layer each bug lives in:
+   - webview state-handler/reducer test: applying snapshots out of order must NOT revert
+     `turnState` to an older phase (seq gate), and must NOT empty the transcript on a spurious
+     epoch (A and B-#2);
+   - send-routing test: a follow-up after `phase === "completed"` routes to `askResponse`, not
+     `newTask` (B-#3).
+3. **Only then fix**, guided by the failing tests: add the `turnState` seq gate in the webview;
+   make the send path TurnState-aware; and correct any epoch over-bump found in step 1.
+
+**Resolution (fixes landed; ⚠️ live verification still pending):**
+
+Step 1 (observe live) could **not** be completed in the working environment: the debug harness
+builds the extension fine but `_electron.launch()` fails immediately with "Process failed to
+launch!" (Playwright never sees Electron's DevTools handshake line). The VSCode build is
+complete and the binary runs standalone, so this is the documented macOS Playwright-launch
+limitation, not a code/build issue. The theories were therefore confirmed by **reading the
+code** rather than a live capture, and steps 2–3 were completed against deterministic tests.
+The fixes still need a live pass on a machine where the harness can launch (see below).
+
+Fixes:
+- **A — `turnState` seq gate (`messageReducer.ts`).** `ReplicaState` now carries `turnState`;
+  `applyTurnState()` keeps the highest-`seq` TurnState and ignores older ones; `applyStateSnapshot()`
+  takes the snapshot's `turnState` and applies it through that gate (adopting it wholesale on a
+  newer epoch). `ExtensionStateContext` feeds `stateData.turnState` into the reducer and reads the
+  **gated** result back, so a late/stale snapshot can no longer revert `streaming` → `idle` and
+  hide the Cancel button.
+- **B-#2 — never empty a live transcript (`messageReducer.ts`).** `applyMessage`'s newer-epoch
+  branch no longer resets the transcript to just the incoming message; it advances the fence while
+  carrying the existing transcript forward and merging the new row. The authoritative wholesale
+  replace for a genuine new task still comes from a newer-epoch full **snapshot**
+  (`applyStateSnapshot`), so a lone newer-epoch *partial* (e.g. a bookkeeping `api_req_started`
+  that raced ahead of its snapshot) can no longer strand the webview at `messages.length === 0`.
+- **B-#3 — TurnState-aware send path (`useMessageHandlers.ts`).** When there is no `clineAsk`,
+  the send path now also continues the conversation via `askResponse` (`messageResponse`) when
+  `turnState.phase` is `completed` / `awaiting_followup` / `streaming`, instead of relying on the
+  removed trailing `ask:completion_result`. An empty transcript still routes to `newTask()`.
+
+Tests (all green; each was confirmed to fail before its fix):
+- `messageReducer.test.ts` — turnState seq-gate cases (newer-seq advances; older-seq cannot
+  revert; order-independent; newer epoch resets turnState) and transcript-never-emptied cases
+  (empty same-epoch snapshot doesn't clear; lone newer-epoch partial doesn't discard).
+- `hooks/useMessageHandlers.test.tsx` — follow-up after `completed`/`awaiting_followup` routes to
+  `askResponse`, not `newTask`; empty transcript still starts a new task.
+
+⚠️ **Still TODO (live):** run the debug harness on a machine where Electron launches and walk the
+two reported flows end-to-end — (a) start a turn and confirm the footer shows Cancel for the whole
+`streaming` phase; (b) after completion, type + Enter and confirm the conversation continues
+(no new task) — capturing the `turnState`/`epoch`/`stateVersion`/`clineMessages.length` trace to
+close out step 1.
+
+### 2026-06 (follow-up) — live testing exposed the BACKEND phase bugs
+
+A manual run of the first-round fixes surfaced that those were necessary but not sufficient: the
+webview now *consumes* `turnState` correctly, but the backend was **emitting the wrong phase (or
+not emitting at all)** at several lifecycle points. Observed: cancel → footer shows the scroll-arrow
+default instead of Resume; resuming by sending kept the scroll-arrow state and blocked the send
+button (stuck); a plain conversation that finished was stuck on scroll-arrows (though still
+sendable). The scroll-arrow footer is `BUTTON_CONFIGS.default`, which `buttonsForPhase` returns only
+for `phase === "idle"` — i.e. the webview's effective phase was wrong/stale in every case.
+
+Root causes (all backend; confirmed by reading the SDK adapter):
+
+1. **Turn end didn't push state when the event had no messages.** `SdkSessionEventCoordinator`
+   set the terminal phase (`completed`/`awaiting_followup`/`error`) on `turnComplete`, but the
+   `postStateToWebview()` call was gated on `result.messages.length > 0`. Since the `done` handler
+   emits **no** transcript message (S7 removed the synthetic completion ask), a clean turn end
+   produced zero messages → no state push → the webview never learned the turn ended and stayed on
+   the prior phase. *Fix:* also post when `result.sessionEnded || result.turnComplete`.
+
+2. **`askResponse` never set `streaming`.** `initTask`/`reinitExistingTaskFromId` set
+   `phase = "streaming"`, but answering an ask / continuing after completion / resuming a cancelled
+   task (all routed through `SdkController.askResponse`) did not. So the resumed turn ran with a
+   stale non-streaming phase (no Cancel, send blocked). *Fix:* `askResponse` sets `streaming` before
+   delegating, mirroring `initTask`.
+
+3. **A post-cancel straggler clobbered `resumable`.** `cancelTask` sets `resumable`, but the SDK can
+   emit a trailing `done`/`turnComplete` after the abort. That straggler hit the turn-end branch and
+   overwrote `resumable` with `awaiting_followup`/`completed` → Resume button lost. *Fix:* at turn
+   end, if the session is already `!isRunning` (i.e. cancelled), do not set a phase — leave the
+   cancel-set `resumable` intact.
+
+Tests added (each confirmed to fail first):
+- `sdk-session-event-coordinator.test.ts` — posts state on a zero-message turn end; does NOT
+  override phase on a turn-complete straggler from an already-cancelled (`!isRunning`) session.
+
+⚠️ **Still TODO (live):** re-run the harness on a GUI-capable machine and confirm all four flows
+end-to-end (cancel → Resume; resume → Cancel during the new turn → terminal buttons; plain finish →
+Start New Task / followup; send-after-finish continues the conversation).
 
 ---
 

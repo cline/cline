@@ -815,6 +815,13 @@ export class Controller {
 			return
 		}
 
+		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
+		// new agent turn — move the authoritative phase to "streaming" so the footer shows
+		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
+		// scroll-arrow default). Mirrors initTask(). The webview gates turnState by seq, and the
+		// session-event coordinator will set the terminal phase (completed/awaiting_followup/error)
+		// when this turn ends.
+		this.turnStateTracker.set("streaming")
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
 	}
 
