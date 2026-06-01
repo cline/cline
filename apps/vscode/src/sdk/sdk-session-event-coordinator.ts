@@ -85,17 +85,16 @@ export class SdkSessionEventCoordinator {
 
 		if (activeSession) {
 			if (result.sessionEnded || result.turnComplete) {
-				// Authoritative UI phase at turn end. If the agent called attempt_completion the
-				// turn is "completed" (green box + Start New Task); otherwise it simply stopped
-				// and is waiting for the user to type ("awaiting_followup"). Error turns are
-				// surfaced as the error phase. This replaces inferring mode from the array tail.
+				// Authoritative UI phase at turn end. If the completion tool was used this turn
+				// the phase is "completed" (green box + Start New Task); otherwise the agent
+				// simply stopped and is waiting for the user ("awaiting_followup"). Error turns
+				// are surfaced as the error phase. The webview reads this, not the array tail.
 				//
 				// EXCEPTION: if the session is already not running, this turn-complete is a
 				// straggler from a turn that was cancelled (cancelTask already set phase
 				// "resumable" and aborted). Overwriting it here would clobber "resumable" with
 				// "awaiting_followup"/"completed" and the footer would lose the Resume Task button
-				// (showing the scroll-arrow default instead). Leave the cancel-set phase intact.
-				// See design doc §11.
+				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
 				if (!activeSession.isRunning) {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
 				} else if (result.toolError && this.consecutiveToolErrorCount === 0) {
@@ -129,12 +128,11 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		// Post state when there are messages to ship OR when the turn ended. At a clean turn end
-		// the `done` event carries NO transcript message (the synthetic completion_result ask was
-		// removed in S7), yet the authoritative phase just changed to completed/awaiting_followup/
-		// error above. Gating the post on messages-only would leave the webview stuck on the prior
-		// phase (footer shows the streaming/scroll state forever). See design doc §11. The webview
-		// reducer gates turnState by seq, so an extra no-message post is safe.
+		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
+		// `done` event carries no transcript message, yet the authoritative phase just changed to
+		// completed/awaiting_followup/error above; without posting here the webview would stay on
+		// the prior phase (footer stuck on the streaming/scroll state). The webview reducer gates
+		// turnState by seq, so an extra no-message post is safe.
 		if (result.messages.length > 0 || result.sessionEnded || result.turnComplete) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)

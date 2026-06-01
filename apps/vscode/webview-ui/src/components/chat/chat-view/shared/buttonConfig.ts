@@ -353,9 +353,9 @@ export function getButtonConfigForMessages(messages: ClineMessage[], mode: Mode 
 }
 
 /**
- * Authoritative button configuration derived from the backend-owned TurnState (see
- * apps/vscode/src/sdk/docs/webview-message-state-design.md §5/§6). This is the preferred path:
- * the UI mode is read from `turnState.phase`, never inferred from the tail of the message array.
+ * Authoritative button configuration derived from the backend-owned TurnState. This is the
+ * preferred path: the UI mode is read from `turnState.phase`, never inferred from the tail of
+ * the message array.
  *
  * The button SET is chosen by phase; the LABEL/variant for approvals (Save vs Approve, command
  * vs tool vs MCP vs subagents) comes from the anchored message (turnState.anchorTs).
