@@ -1,9 +1,47 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProviderSettingsManager } from "./provider-settings-manager";
+
+const writerPath = fileURLToPath(
+	new URL("./fixtures/provider-settings-writer.ts", import.meta.url),
+);
+const sdkDir = path.join(
+	path.dirname(fileURLToPath(import.meta.url)),
+	"../../../../..",
+);
+
+function runWriter(filePath: string, iterations: number): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const child = spawn("bun", [writerPath, filePath, String(iterations)], {
+			cwd: sdkDir,
+			stdio: ["ignore", "ignore", "pipe"],
+		});
+		let stderr = "";
+		child.stderr.on("data", (chunk) => {
+			stderr += chunk.toString();
+		});
+		child.on("error", reject);
+		child.on("close", (code) => {
+			if (code !== 0) {
+				reject(new Error(`Writer exited ${code}: ${stderr}`));
+				return;
+			}
+			resolve();
+		});
+	});
+}
 
 describe("ProviderSettingsManager", () => {
 	const tempDirs: string[] = [];
@@ -337,6 +375,107 @@ describe("ProviderSettingsManager", () => {
 		expect(manager.read().providers["openai-codex"]?.tokenSource).toBe("oauth");
 	});
 
+	it("preserves durable OpenAI Codex OAuth auth during ordinary settings writes", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		manager.saveProviderSettings(
+			{
+				provider: "openai-codex",
+				auth: {
+					accessToken: "access-old",
+					refreshToken: "refresh-old",
+					expiresAt: Date.now() - 1_000,
+				},
+			},
+			{ tokenSource: "oauth" },
+		);
+		const staleState = manager.read();
+		manager.saveProviderSettings(
+			{
+				provider: "openai-codex",
+				auth: {
+					accessToken: "access-new",
+					refreshToken: "refresh-new",
+					expiresAt: Date.now() + 3_600_000,
+				},
+			},
+			{ tokenSource: "oauth" },
+		);
+
+		const persisted = manager.saveProviderSettings({
+			provider: "openai-codex",
+			model: "gpt-5.4",
+			auth: {
+				accessToken: "access-old",
+				refreshToken: "refresh-old",
+				expiresAt: Date.now() - 1_000,
+			},
+		});
+
+		expect(persisted.providers["openai-codex"]?.settings.auth).toMatchObject({
+			accessToken: "access-new",
+			refreshToken: "refresh-new",
+		});
+		expect(manager.getProviderSettings("openai-codex")).toMatchObject({
+			model: "gpt-5.4",
+			auth: {
+				accessToken: "access-new",
+				refreshToken: "refresh-new",
+			},
+		});
+		manager.write(staleState);
+		expect(manager.getProviderSettings("openai-codex")?.auth).toMatchObject({
+			accessToken: "access-new",
+			refreshToken: "refresh-new",
+		});
+	});
+
+	it("does not restore OpenAI Codex OAuth auth during a conditional save after removal", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		const staleSettings = {
+			provider: "openai-codex" as const,
+			auth: {
+				accessToken: "access-old",
+				refreshToken: "refresh-old",
+				expiresAt: Date.now() - 1_000,
+			},
+		};
+		manager.saveProviderSettings(staleSettings, { tokenSource: "oauth" });
+		const removedState = manager.read();
+		delete removedState.providers["openai-codex"];
+		removedState.lastUsedProvider = undefined;
+		manager.write(removedState, {
+			allowOpenAICodexAuthReplacement: true,
+		});
+
+		const persisted = manager.saveProviderSettings(
+			{
+				...staleSettings,
+				auth: {
+					accessToken: "access-new",
+					refreshToken: "refresh-new",
+					expiresAt: Date.now() + 3_600_000,
+				},
+			},
+			{
+				tokenSource: "oauth",
+				expectedOpenAICodexAuth: staleSettings.auth,
+			},
+		);
+
+		expect(persisted.providers["openai-codex"]).toBeUndefined();
+		expect(persisted.lastUsedProvider).toBeUndefined();
+	});
+
 	it("ignores invalid persisted JSON and falls back to empty state", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),
@@ -351,4 +490,87 @@ describe("ProviderSettingsManager", () => {
 			providers: {},
 		});
 	});
+
+	it("recovers a replacement backup when the primary settings file is absent", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		mkdirSync(path.dirname(filePath), { recursive: true });
+		writeFileSync(
+			`${filePath}.backup`,
+			JSON.stringify({
+				version: 1,
+				providers: {
+					anthropic: {
+						settings: {
+							provider: "anthropic",
+							model: "backup-model",
+						},
+						updatedAt: new Date().toISOString(),
+						tokenSource: "manual",
+					},
+				},
+			}),
+		);
+
+		const manager = new ProviderSettingsManager({ filePath });
+		expect(manager.getProviderSettings("anthropic")?.model).toBe(
+			"backup-model",
+		);
+
+		manager.saveProviderSettings({
+			provider: "anthropic",
+			model: "new-model",
+		});
+
+		expect(existsSync(filePath)).toBe(true);
+		expect(existsSync(`${filePath}.backup`)).toBe(false);
+		expect(manager.getProviderSettings("anthropic")?.model).toBe("new-model");
+	});
+
+	it("keeps providers.json parseable during concurrent writes", async () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		manager.saveProviderSettings({
+			provider: "anthropic",
+			model: "initial",
+			apiKey: "initial",
+		});
+		let reads = 0;
+		let complete = false;
+		const completed = runWriter(filePath, 30).then(() => {
+			complete = true;
+		});
+
+		while (!complete) {
+			if (existsSync(filePath)) {
+				expect(() => JSON.parse(readFileSync(filePath, "utf8"))).not.toThrow();
+				reads += 1;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 1));
+		}
+		await completed;
+		expect(reads).toBeGreaterThan(0);
+		expect(manager.getProviderSettings("anthropic")?.model).toBe("model-29");
+	}, 15_000);
+
+	it("serializes concurrent settings writers", async () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		await Promise.all([runWriter(filePath, 30), runWriter(filePath, 30)]);
+
+		expect(() => JSON.parse(readFileSync(filePath, "utf8"))).not.toThrow();
+		expect(manager.getProviderSettings("anthropic")?.model).toBe("model-29");
+	}, 15_000);
 });

@@ -8,14 +8,17 @@ const {
 	getValidOpenAICodexCredentials,
 	getValidClineCredentials,
 	getValidOcaCredentials,
+	isOpenAICodexTokenExpired,
 } = vi.hoisted(() => ({
 	getValidOpenAICodexCredentials: vi.fn(),
 	getValidClineCredentials: vi.fn(),
 	getValidOcaCredentials: vi.fn(),
+	isOpenAICodexTokenExpired: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock("../../auth/codex", () => ({
 	getValidOpenAICodexCredentials,
+	isOpenAICodexTokenExpired,
 }));
 
 vi.mock("../../auth/cline", () => ({
@@ -26,9 +29,18 @@ vi.mock("../../auth/oca", () => ({
 	getValidOcaCredentials,
 }));
 
+function createPersistingSaveProviderSettings() {
+	return vi.fn((settings: unknown) => ({
+		providers: {
+			"openai-codex": { settings },
+		},
+	}));
+}
+
 describe("RuntimeOAuthTokenManager", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		isOpenAICodexTokenExpired.mockReturnValue(true);
 	});
 
 	it("refreshes and persists OpenAI Codex OAuth credentials", async () => {
@@ -41,7 +53,7 @@ describe("RuntimeOAuthTokenManager", () => {
 				accountId: "acct-old",
 			},
 		});
-		const saveProviderSettings = vi.fn();
+		const saveProviderSettings = createPersistingSaveProviderSettings();
 
 		getValidOpenAICodexCredentials.mockResolvedValueOnce({
 			access: "access-new",
@@ -54,6 +66,10 @@ describe("RuntimeOAuthTokenManager", () => {
 			providerSettingsManager: {
 				getProviderSettings,
 				saveProviderSettings,
+				withProviderRefreshLock: vi.fn(
+					async (_providerId: string, callback: () => Promise<unknown>) =>
+						callback(),
+				),
 			} as never,
 		});
 
@@ -76,7 +92,16 @@ describe("RuntimeOAuthTokenManager", () => {
 					expiresAt: 4_000_000_000_000,
 				}),
 			}),
-			{ setLastUsed: false, tokenSource: "oauth" },
+			{
+				setLastUsed: false,
+				tokenSource: "oauth",
+				expectedOpenAICodexAuth: {
+					accessToken: "access-old",
+					refreshToken: "refresh-old",
+					expiresAt: expect.any(Number),
+					accountId: "acct-old",
+				},
+			},
 		);
 	});
 
@@ -92,7 +117,11 @@ describe("RuntimeOAuthTokenManager", () => {
 						expiresAt: Date.now() - 1_000,
 					},
 				}),
-				saveProviderSettings: vi.fn(),
+				saveProviderSettings: createPersistingSaveProviderSettings(),
+				withProviderRefreshLock: vi.fn(
+					async (_providerId: string, callback: () => Promise<unknown>) =>
+						callback(),
+				),
 			} as never,
 		});
 
@@ -121,7 +150,11 @@ describe("RuntimeOAuthTokenManager", () => {
 						expiresAt: Date.now() - 1_000,
 					},
 				}),
-				saveProviderSettings: vi.fn(),
+				saveProviderSettings: createPersistingSaveProviderSettings(),
+				withProviderRefreshLock: vi.fn(
+					async (_providerId: string, callback: () => Promise<unknown>) =>
+						callback(),
+				),
 			} as never,
 		});
 
@@ -132,6 +165,116 @@ describe("RuntimeOAuthTokenManager", () => {
 
 		expect(first?.apiKey).toBe("access-new");
 		expect(second?.apiKey).toBe("access-new");
+		expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(1);
+	});
+
+	it("runs a strict forced refresh after an ordinary in-flight refresh", async () => {
+		let releaseFirstRefresh!: () => void;
+		const firstRefresh = new Promise<void>((resolve) => {
+			releaseFirstRefresh = resolve;
+		});
+		getValidOpenAICodexCredentials
+			.mockImplementationOnce(async () => {
+				await firstRefresh;
+				return {
+					access: "access-new",
+					refresh: "refresh-new",
+					expires: Date.now() + 60_000,
+				};
+			})
+			.mockResolvedValueOnce({
+				access: "access-forced",
+				refresh: "refresh-forced",
+				expires: Date.now() + 60_000,
+			});
+		const stored = {
+			provider: "openai-codex",
+			auth: {
+				accessToken: "access-old",
+				refreshToken: "refresh-old",
+				expiresAt: Date.now() - 1_000,
+			},
+		};
+		const manager = new RuntimeOAuthTokenManager({
+			providerSettingsManager: {
+				getProviderSettings: vi.fn().mockReturnValue(stored),
+				saveProviderSettings: createPersistingSaveProviderSettings(),
+				withProviderRefreshLock: vi.fn(
+					async (_providerId: string, callback: () => Promise<unknown>) =>
+						callback(),
+				),
+			} as never,
+		});
+
+		const ordinary = manager.resolveProviderApiKey({
+			providerId: "openai-codex",
+		});
+		await vi.waitFor(() => {
+			expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(1);
+		});
+		const forced = manager.resolveProviderApiKey({
+			providerId: "openai-codex",
+			forceRefresh: true,
+		});
+		releaseFirstRefresh();
+
+		await expect(Promise.all([ordinary, forced])).resolves.toMatchObject([
+			{ apiKey: "access-new" },
+			{ apiKey: "access-forced" },
+		]);
+		expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(2);
+		expect(getValidOpenAICodexCredentials.mock.calls[1]?.[1]).toMatchObject({
+			forceRefresh: true,
+		});
+	});
+
+	it("does not replay an ambiguous failed refresh for a forced waiter", async () => {
+		let releaseRefresh!: () => void;
+		const refreshBarrier = new Promise<void>((resolve) => {
+			releaseRefresh = resolve;
+		});
+		getValidOpenAICodexCredentials.mockImplementationOnce(async () => {
+			await refreshBarrier;
+			return null;
+		});
+		const manager = new RuntimeOAuthTokenManager({
+			providerSettingsManager: {
+				getProviderSettings: vi.fn().mockReturnValue({
+					provider: "openai-codex",
+					auth: {
+						accessToken: "access-old",
+						refreshToken: "refresh-old",
+						expiresAt: Date.now() - 1_000,
+					},
+				}),
+				saveProviderSettings: vi.fn(),
+				withProviderRefreshLock: vi.fn(
+					async (_providerId: string, callback: () => Promise<unknown>) =>
+						callback(),
+				),
+			} as never,
+		});
+
+		const ordinary = manager.resolveProviderApiKey({
+			providerId: "openai-codex",
+		});
+		await vi.waitFor(() => {
+			expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(1);
+		});
+		const forced = manager.resolveProviderApiKey({
+			providerId: "openai-codex",
+			forceRefresh: true,
+		});
+		const ordinaryRejection = expect(ordinary).rejects.toBeInstanceOf(
+			OAuthReauthRequiredError,
+		);
+		const forcedRejection = expect(forced).rejects.toBeInstanceOf(
+			OAuthReauthRequiredError,
+		);
+		releaseRefresh();
+
+		await ordinaryRejection;
+		await forcedRejection;
 		expect(getValidOpenAICodexCredentials).toHaveBeenCalledTimes(1);
 	});
 });

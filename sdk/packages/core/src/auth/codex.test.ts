@@ -55,22 +55,20 @@ describe("auth/codex token lifecycle", () => {
 		const accessToken = createJwt({
 			"https://api.openai.com/auth": { chatgpt_account_id: "acct-new" },
 		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(
-				async () =>
-					new Response(
-						JSON.stringify({
-							access_token: accessToken,
-							refresh_token: "refresh-new",
-							expires_in: 3600,
-							email: "new@example.com",
-							id_token: idToken,
-						}),
-						{ status: 200, headers: { "Content-Type": "application/json" } },
-					),
-			),
+		const fetchMock = vi.fn(
+			async (_input: string | URL | Request, _init?: RequestInit) =>
+				new Response(
+					JSON.stringify({
+						access_token: accessToken,
+						refresh_token: "refresh-new",
+						expires_in: 3600,
+						email: "new@example.com",
+						id_token: idToken,
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
 		);
+		vi.stubGlobal("fetch", fetchMock);
 
 		const current = createCredentials({ expires: 110_000 });
 		const result = await getValidOpenAICodexCredentials(current);
@@ -81,11 +79,15 @@ describe("auth/codex token lifecycle", () => {
 			email: "new@example.com",
 			metadata: { provider: "openai-codex" },
 		});
+		expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+			"User-Agent": expect.stringMatching(/^cline-sdk\//),
+		});
 		nowSpy.mockRestore();
 	});
 
 	it("returns null on invalid_grant refresh errors", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const onInvalidGrant = vi.fn();
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(
@@ -105,8 +107,10 @@ describe("auth/codex token lifecycle", () => {
 
 		const result = await getValidOpenAICodexCredentials(
 			createCredentials({ expires: 120_000 }),
+			{ onInvalidGrant },
 		);
 		expect(result).toBeNull();
+		expect(onInvalidGrant).toHaveBeenCalledOnce();
 		nowSpy.mockRestore();
 	});
 

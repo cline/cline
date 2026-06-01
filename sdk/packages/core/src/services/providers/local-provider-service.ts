@@ -329,7 +329,11 @@ function removeProviderFromSettingsState(
 		delete state.lastUsedProvider;
 		mutated = true;
 	}
-	if (mutated) manager.write(state);
+	if (mutated) {
+		manager.write(state, {
+			allowOpenAICodexAuthReplacement: providerId === "openai-codex",
+		});
+	}
 	LlmsModels.unregisterProvider(providerId);
 }
 
@@ -759,7 +763,9 @@ export function saveLocalProviderSettings(
 		const state = manager.read();
 		delete state.providers[providerId];
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
-		manager.write(state);
+		manager.write(state, {
+			allowOpenAICodexAuthReplacement: providerId === "openai-codex",
+		});
 		return { providerId, enabled: false, settingsPath: manager.getFilePath() };
 	}
 
