@@ -36,6 +36,16 @@ export function getEditorSizeError(input: EditFileInput): string | null {
 /**
  * Create a timeout-wrapped promise
  */
+export class TimeoutError extends Error {
+	readonly timeoutMs: number;
+
+	constructor(message: string, timeoutMs: number) {
+		super(message);
+		this.name = "TimeoutError";
+		this.timeoutMs = timeoutMs;
+	}
+}
+
 export function withTimeout<T>(
 	promise: Promise<T>,
 	ms: number,
@@ -44,7 +54,7 @@ export function withTimeout<T>(
 	return Promise.race([
 		promise,
 		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new Error(message)), ms);
+			setTimeout(() => reject(new TimeoutError(message, ms)), ms);
 		}),
 	]);
 }
