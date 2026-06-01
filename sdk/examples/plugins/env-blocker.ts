@@ -38,8 +38,8 @@ function commandTouchesEnv(command: string): boolean {
 	return tokens.some(isEnvFile);
 }
 
-/** Collect every file path mentioned in a tool input, across its many accepted shapes. */
-function collectPaths(input: unknown): string[] {
+/** Pull every file path out of a read_files tool input, across its many accepted shapes. */
+function extractFilePaths(input: unknown): string[] {
 	const paths: string[] = [];
 	const visit = (value: unknown): void => {
 		if (typeof value === "string") {
@@ -60,8 +60,8 @@ function collectPaths(input: unknown): string[] {
 	return paths;
 }
 
-/** Normalize run_commands input (string | array | { command | commands | cmd }) to a list. */
-function collectCommands(input: unknown): string[] {
+/** Pull every shell command out of a run_commands input (string | array | { command | commands | cmd }). */
+function extractShellCommands(input: unknown): string[] {
 	if (typeof input === "string") {
 		return [input];
 	}
@@ -95,10 +95,10 @@ const plugin: AgentPlugin = {
 
 			switch (toolCall.toolName) {
 				case "read_files":
-					blocked = collectPaths(input).find(isEnvFile);
+					blocked = extractFilePaths(input).find(isEnvFile);
 					break;
 				case "run_commands":
-					blocked = collectCommands(input).find(commandTouchesEnv);
+					blocked = extractShellCommands(input).find(commandTouchesEnv);
 					break;
 			}
 
