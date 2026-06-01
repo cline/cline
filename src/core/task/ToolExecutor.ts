@@ -1,4 +1,4 @@
-import { ApiHandler } from "@core/api"
+import { ApiHandler, ApiProviderInfo } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { AiHydroIgnoreController } from "@core/ignore/AiHydroIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
@@ -6,10 +6,12 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
+import { telemetryService } from "@services/telemetry"
 import { AiHydroAsk, AiHydroSay } from "@shared/ExtensionMessage"
 import { AiHydroDefaultTool } from "@shared/tools"
 import { AiHydroAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { getModelCapabilityTier, recommendedMaxMistakes } from "@/utils/model-capabilities"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -19,7 +21,7 @@ import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
-import { checkRepeatedToolCall, LOOP_DETECTION_SOFT_THRESHOLD, toolCallSignature } from "./loop-detection"
+import { checkRepeatedToolCall, checkSemanticLoop, LOOP_DETECTION_SOFT_THRESHOLD, toolCallSignature } from "./loop-detection"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
@@ -43,6 +45,7 @@ import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
 import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
 import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import { repairToolParams } from "./tools/ToolInputRepair"
 import { ToolValidator } from "./tools/ToolValidator"
 import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { createUIHelpers } from "./tools/types/UIHelpers"
@@ -52,6 +55,15 @@ import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
 export class ToolExecutor {
 	private autoApprover: AutoApprove
 	private coordinator: ToolExecutorCoordinator
+
+	// Effective consecutive-mistake threshold: never below the user's configured value, but
+	// raised for weaker models that need more slack to self-correct. Loop hard-escalation sets
+	// the mistake count to this so it reliably trips the auto-decompose path in the task loop.
+	private effectiveMaxMistakes(): number {
+		const configured = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+		const tier = getModelCapabilityTier({ model: this.api.getModel() } as ApiProviderInfo)
+		return Math.max(configured, recommendedMaxMistakes(tier))
+	}
 
 	// Auto-approval methods using the AutoApprove class
 	private shouldAutoApproveTool(toolName: AiHydroDefaultTool): boolean | [boolean, boolean] {
@@ -253,7 +265,31 @@ export class ToolExecutor {
 		this.pushToolResult(errorResponse, block)
 	}
 
+	// Stable markers for tool results that represent a failure (and thus increment the
+	// consecutive-mistake count). Used to feed the error-grounded auto-decompose nudge.
+	private static readonly TOOL_ERROR_MARKERS = [
+		"The tool execution failed with the following error:",
+		"Missing value for required parameter",
+		"Invalid JSON argument used with",
+		"is blocked by the .aihydroignore",
+	]
+
+	private recordIfToolError(content: ToolResponse, block: ToolUse) {
+		if (typeof content !== "string") {
+			return
+		}
+		if (!ToolExecutor.TOOL_ERROR_MARKERS.some((marker) => content.includes(marker))) {
+			return
+		}
+		const entry = `[${block.name}] ${content.replace(/\s+/g, " ").trim()}`.slice(0, 300)
+		this.taskState.recentToolErrors.push(entry)
+		if (this.taskState.recentToolErrors.length > 3) {
+			this.taskState.recentToolErrors.shift()
+		}
+	}
+
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
+		this.recordIfToolError(content, block)
 		// Use the ToolResultUtils to properly format and push the tool result
 		ToolResultUtils.pushToolResult(
 			content,
@@ -505,6 +541,23 @@ export class ToolExecutor {
 			}
 		}
 
+		// --- Tool-input repair (Domain A: path/string params) ---
+		// Forgiving normalization for weaker models (e.g. markdown-autolinked paths).
+		// Runs BEFORE loop detection so a repaired path neither masks nor fakes a loop.
+		// Never touches partial (still-streaming) blocks.
+		if (!block.partial) {
+			const { params: repairedParams, repairs } = repairToolParams(block.params)
+			if (repairs.length > 0) {
+				block.params = repairedParams
+				telemetryService.captureToolInputRepaired(
+					this.ulid,
+					block.name,
+					this.api.getModel().id,
+					repairs.map((r) => r.kind),
+				)
+			}
+		}
+
 		// --- Repeated tool call loop detection ---
 		// Must run BEFORE updating lastToolName/lastToolParams so we compare
 		// against the previous call's values, not the current one.
@@ -516,10 +569,32 @@ export class ToolExecutor {
 				type: "text",
 				text: formatResponse.repeatedToolCall(block.name, LOOP_DETECTION_SOFT_THRESHOLD),
 			})
+			telemetryService.captureLoopDetected(this.ulid, block.name, this.api.getModel().id, "identical", "soft")
 		}
 
 		if (loopCheck.hardEscalation) {
-			this.taskState.consecutiveMistakeCount = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+			this.taskState.consecutiveMistakeCount = this.effectiveMaxMistakes()
+			telemetryService.captureLoopDetected(this.ulid, block.name, this.api.getModel().id, "identical", "hard")
+		}
+
+		// --- Semantic loop detection ---
+		// Catches "same target, varying args, no progress" loops that byte-identical
+		// signature matching misses (e.g. repeated zero-result searches with different
+		// regexes, or re-reading the same file). Soft warning nudges a strategy change;
+		// hard escalation feeds the mistake-limit auto-decompose path.
+		if (!block.partial) {
+			const semanticCheck = checkSemanticLoop(this.taskState, block.name, block.params)
+			if (semanticCheck.softWarning) {
+				this.taskState.userMessageContent.push({
+					type: "text",
+					text: formatResponse.semanticLoop(block.name),
+				})
+				telemetryService.captureLoopDetected(this.ulid, block.name, this.api.getModel().id, "semantic", "soft")
+			}
+			if (semanticCheck.hardEscalation) {
+				this.taskState.consecutiveMistakeCount = this.effectiveMaxMistakes()
+				telemetryService.captureLoopDetected(this.ulid, block.name, this.api.getModel().id, "semantic", "hard")
+			}
 		}
 
 		// Update state AFTER comparison

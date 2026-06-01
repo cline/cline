@@ -145,6 +145,14 @@ export class TelemetryService {
 			TOOL_USED: "task.tool_used",
 			// Tracks when MCP tools are used
 			MCP_TOOL_CALLED: "task.mcp_tool_called",
+			// Tracks when a malformed tool input was auto-repaired before execution
+			TOOL_INPUT_REPAIRED: "task.tool_input_repaired",
+			// Tracks when a malformed tool input could not be repaired
+			TOOL_INPUT_INVALID: "task.tool_input_invalid",
+			// Tracks when the auto-decompose nudge fires on the first mistake-limit hit
+			AUTO_DECOMPOSE_NUDGE: "task.auto_decompose_nudge",
+			// Tracks when a repeated/semantic tool-call loop is detected
+			LOOP_DETECTED: "task.loop_detected",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
@@ -715,6 +723,55 @@ export class TelemetryService {
 					workspace_resolution_method: workspaceContext.resolutionMethod,
 				}),
 			},
+		})
+	}
+
+	/**
+	 * Records when a malformed tool input was auto-repaired before execution.
+	 * Captures only the repair kind(s) and tool name — never the param values.
+	 */
+	public captureToolInputRepaired(ulid: string, tool: string, modelId: string, repairKinds: string[]) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TOOL_INPUT_REPAIRED,
+			properties: { ulid, tool, modelId, repairKinds },
+		})
+	}
+
+	/**
+	 * Records when a malformed tool input could not be repaired and was rejected.
+	 */
+	public captureToolInputInvalid(ulid: string, tool: string, modelId: string, reason: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.TOOL_INPUT_INVALID,
+			properties: { ulid, tool, modelId, reason },
+		})
+	}
+
+	/**
+	 * Records when the auto-decompose nudge fires (first mistake-limit hit, before any human ask).
+	 * `recentErrorCount` is how many concrete failures were available to ground the nudge.
+	 */
+	public captureAutoDecomposeNudge(ulid: string, modelId: string, recentErrorCount: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AUTO_DECOMPOSE_NUDGE,
+			properties: { ulid, modelId, recentErrorCount },
+		})
+	}
+
+	/**
+	 * Records when a tool-call loop is detected. `kind` distinguishes the byte-identical detector
+	 * from the semantic one; `severity` is the soft warning vs. hard escalation.
+	 */
+	public captureLoopDetected(
+		ulid: string,
+		tool: string,
+		modelId: string,
+		kind: "identical" | "semantic",
+		severity: "soft" | "hard",
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LOOP_DETECTED,
+			properties: { ulid, tool, modelId, kind, severity },
 		})
 	}
 

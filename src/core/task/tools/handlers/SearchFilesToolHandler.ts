@@ -292,6 +292,20 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveMistakeCount++
 		}
 
+		// Semantic loop tracking: count consecutive zero-result searches on the SAME target
+		// path (the model retrying with different regexes against an empty target). Reset the
+		// moment a search returns anything, or when the target path changes.
+		const anyResults = searchResults.some((result) => result.resultCount > 0)
+		if (anyResults) {
+			config.taskState.consecutiveZeroResultSearches = 0
+			config.taskState.lastZeroResultSearchPath = ""
+		} else if (config.taskState.lastZeroResultSearchPath === parsedPath) {
+			config.taskState.consecutiveZeroResultSearches++
+		} else {
+			config.taskState.consecutiveZeroResultSearches = 1
+			config.taskState.lastZeroResultSearchPath = parsedPath
+		}
+
 		// Capture workspace search pattern telemetry
 		if (config.isMultiRootEnabled && config.workspaceManager) {
 			const searchType = workspaceHint ? "targeted" : searchPaths.length > 1 ? "cross_workspace" : "primary_only"

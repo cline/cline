@@ -49,6 +49,17 @@ export function isGPT5ModelFamily(id: string): boolean {
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
 }
 
+/**
+ * Capable open-weight models in the DeepSeek-v4 series. These are strong enough
+ * to warrant flagship-grade harness treatment (richer prompt, auto-condense,
+ * higher mistake tolerance) even though they are not "next-gen" frontier models.
+ * Includes the deprecated chat/reasoner aliases that route to v4-flash.
+ */
+export function isDeepSeekV4ModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek-v4") || modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (

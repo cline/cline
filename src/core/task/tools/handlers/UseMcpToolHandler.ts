@@ -7,6 +7,7 @@ import { AiHydroDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
+import { repairMcpArgumentsString } from "../ToolInputRepair"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -59,13 +60,28 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "tool_name")
 		}
 
-		// Parse and validate arguments if provided
+		// Parse and validate arguments if provided. Weaker models often emit
+		// near-miss JSON (code fences, stringified arrays, explicit nulls, wrapper
+		// objects); repair against the tool's input schema before counting a mistake.
 		let parsedArguments: Record<string, unknown> | undefined
 		if (mcp_arguments) {
+			const toolSchema = config.services.mcpHub.connections
+				?.find((conn: any) => conn.server.name === server_name)
+				?.server.tools?.find((tool: any) => tool.name === tool_name)?.inputSchema
+			const { value: repairedArguments, repairs } = repairMcpArgumentsString(mcp_arguments, toolSchema)
 			try {
-				parsedArguments = JSON.parse(mcp_arguments)
+				parsedArguments = JSON.parse(repairedArguments)
+				if (repairs.length > 0) {
+					telemetryService.captureToolInputRepaired(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						repairs.map((r) => r.kind),
+					)
+				}
 			} catch (_error) {
 				config.taskState.consecutiveMistakeCount++
+				telemetryService.captureToolInputInvalid(config.ulid, block.name, config.api.getModel().id, "json_parse_failed")
 				await config.callbacks.say(
 					"error",
 					`AI-Hydro tried to use ${tool_name} with an invalid JSON argument. Retrying...`,

@@ -34,6 +34,9 @@ export const formatResponse = {
 	repeatedToolCall: (toolName: string, count: number) =>
 		`Tool [${toolName}] has been called ${count} times consecutively with identical arguments. This is not making progress. Please use a different tool or different arguments instead of repeating the same call.`,
 
+	semanticLoop: (toolName: string) =>
+		`Tool [${toolName}] keeps targeting the same location without making progress (e.g. repeated searches that return nothing, or re-reading the same file). Tweaking the arguments is not working. Change strategy: try a different file or directory, a broader search location, list the directory first to confirm what exists, or step back and reconsider whether your assumption about where this lives is correct.`,
+
 	aihydroIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .aihydroignore file settings. You must try to continue in the task without using this file, or ask the user to update the .aihydroignore file.`,
 
@@ -90,6 +93,22 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
+
+	decomposeTaskNudge: (recentErrors?: string[]) => {
+		const errorBlock =
+			recentErrors && recentErrors.length > 0
+				? `\nYour most recent tool failures were:\n${recentErrors.map((e) => `- ${e}`).join("\n")}\n`
+				: ""
+		return (
+			`You have made several unsuccessful attempts in a row. Stop and reset your approach before continuing.\n` +
+			errorBlock +
+			`\n1. Restate the user's goal in one sentence, in your own words.\n` +
+			`2. Diagnose what specifically went wrong above — the exact tool, parameter, or assumption that failed. Do not hand-wave.\n` +
+			`3. Break the remaining work into the smallest possible next step that you can verify before moving on.\n` +
+			`4. Take only that one step now. Prefer gathering missing information (read a file, list a directory) over repeating an action that already failed.\n\n` +
+			`Do not repeat a previous failing action unchanged. (This is an automated message, so do not respond to it conversationally — just proceed with the single next step.)`
+		)
+	},
 
 	autoApprovalMaxReached: (feedback?: string) =>
 		`Auto-approval limit reached. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,

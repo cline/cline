@@ -31,6 +31,12 @@ export function toolCallSignature(params: Partial<Record<string, string>> | unde
 	return JSON.stringify(params, keys)
 }
 
+// Semantic loop thresholds — same as the byte-identical ones, but keyed on a fuzzy
+// "tool + resolved target" signature so "same target, different regex, all empty" trips.
+export const SEMANTIC_LOOP_SOFT_THRESHOLD = 3
+const SEMANTIC_LOOP_HARD_THRESHOLD = LOOP_DETECTION_HARD_THRESHOLD
+const READ_TARGET_WINDOW = 5
+
 interface LoopDetectionResult {
 	softWarning: boolean
 	hardEscalation: boolean
@@ -51,4 +57,44 @@ export function checkRepeatedToolCall(state: TaskState, toolName: string, curren
 		softWarning: state.consecutiveIdenticalToolCount === LOOP_DETECTION_SOFT_THRESHOLD,
 		hardEscalation: state.consecutiveIdenticalToolCount === LOOP_DETECTION_HARD_THRESHOLD,
 	}
+}
+
+/**
+ * Semantic loop detection: catches loops that byte-identical signature matching misses.
+ * Two patterns:
+ *  - search_files: repeated zero-result searches on the SAME target path while the regex
+ *    varies (counter maintained by SearchFilesToolHandler).
+ *  - read_file: the same resolved path read repeatedly within a sliding window.
+ *
+ * Keyed only on path + zero-result so legitimate iterative search across DIFFERENT paths,
+ * or successful searches, never false-positive.
+ */
+export function checkSemanticLoop(
+	state: TaskState,
+	toolName: string,
+	params: Partial<Record<string, string>> | undefined,
+): LoopDetectionResult {
+	if (toolName === "search_files") {
+		return {
+			softWarning: state.consecutiveZeroResultSearches === SEMANTIC_LOOP_SOFT_THRESHOLD,
+			hardEscalation: state.consecutiveZeroResultSearches === SEMANTIC_LOOP_HARD_THRESHOLD,
+		}
+	}
+
+	if (toolName === "read_file") {
+		const target = params?.path?.trim()
+		if (target) {
+			state.recentReadTargets.push(target)
+			if (state.recentReadTargets.length > READ_TARGET_WINDOW) {
+				state.recentReadTargets.shift()
+			}
+			const repeats = state.recentReadTargets.filter((t) => t === target).length
+			return {
+				softWarning: repeats === SEMANTIC_LOOP_SOFT_THRESHOLD,
+				hardEscalation: repeats === SEMANTIC_LOOP_HARD_THRESHOLD,
+			}
+		}
+	}
+
+	return { softWarning: false, hardEscalation: false }
 }
