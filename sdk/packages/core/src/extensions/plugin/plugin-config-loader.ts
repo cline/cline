@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import type {
 	AgentConfig,
 	PluginSetupContext,
@@ -8,6 +9,7 @@ import {
 	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
 	resolveConfiguredPluginModulePaths,
 	resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared,
+	SKILLS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import { filterDisabledPluginPaths } from "../../services/global-settings";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
@@ -16,6 +18,9 @@ import { loadSandboxedPlugins } from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
+
+const PACKAGE_JSON_FILE_NAME = "package.json";
+const INSTALLED_PACKAGE_DIRECTORY_NAME = "package";
 
 export function resolvePluginConfigSearchPaths(
 	workspacePath?: string,
@@ -31,6 +36,60 @@ export interface ResolveAgentPluginPathsOptions {
 	pluginPaths?: ReadonlyArray<string>;
 	workspacePath?: string;
 	cwd?: string;
+}
+
+function isDirectory(path: string): boolean {
+	try {
+		return existsSync(path) && statSync(path).isDirectory();
+	} catch {
+		return false;
+	}
+}
+
+function dedupePaths(paths: Iterable<string>): string[] {
+	const deduped: string[] = [];
+	const seen = new Set<string>();
+	for (const path of paths) {
+		const normalizedPath = resolve(path);
+		if (seen.has(normalizedPath)) {
+			continue;
+		}
+		seen.add(normalizedPath);
+		deduped.push(normalizedPath);
+	}
+	return deduped;
+}
+
+function isInstalledPackageDirectory(path: string): boolean {
+	return (
+		basename(path) === INSTALLED_PACKAGE_DIRECTORY_NAME &&
+		existsSync(join(dirname(path), PACKAGE_JSON_FILE_NAME))
+	);
+}
+
+function collectPluginSkillRootCandidates(entryPath: string): string[] {
+	const normalizedEntryPath = resolve(entryPath);
+	const candidates: string[] = [];
+	let current = dirname(normalizedEntryPath);
+
+	while (true) {
+		if (isInstalledPackageDirectory(current)) {
+			candidates.push(current);
+		}
+		if (existsSync(join(current, PACKAGE_JSON_FILE_NAME))) {
+			candidates.push(current);
+			break;
+		}
+
+		const parent = dirname(current);
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+
+	candidates.push(dirname(normalizedEntryPath));
+	return dedupePaths(candidates);
 }
 
 export function resolveAgentPluginPaths(
@@ -57,6 +116,21 @@ export function resolveAgentPluginPaths(
 		deduped.push(path);
 	}
 	return filterDisabledPluginPaths(deduped);
+}
+
+export function resolveAgentPluginSkillDirectories(
+	options: ResolveAgentPluginPathsOptions = {},
+): string[] {
+	const directories: string[] = [];
+	for (const pluginPath of resolveAgentPluginPaths(options)) {
+		for (const root of collectPluginSkillRootCandidates(pluginPath)) {
+			const skillDirectory = join(root, SKILLS_CONFIG_DIRECTORY_NAME);
+			if (isDirectory(skillDirectory)) {
+				directories.push(skillDirectory);
+			}
+		}
+	}
+	return dedupePaths(directories);
 }
 
 export interface ResolveAndLoadAgentPluginsOptions

@@ -758,7 +758,11 @@ export async function runCli(): Promise<void> {
 	} = await loadCliRuntimeModules();
 
 	const userInstructionService = createUserInstructionConfigService({
-		skills: { workspacePath: workspaceRoot },
+		skills: {
+			workspacePath: workspaceRoot,
+			includePluginSkills: true,
+			cwd,
+		},
 		rules: { workspacePath: workspaceRoot },
 		workflows: { workspacePath: workspaceRoot },
 	});

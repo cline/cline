@@ -76,8 +76,13 @@ async function withUserInstructionService<T>(
 	if (!workspaceRoot) {
 		return await run(undefined);
 	}
+	const cwd = input.cwd?.trim() || workspaceRoot;
 	const service = createUserInstructionConfigService({
-		skills: { workspacePath: workspaceRoot },
+		skills: {
+			workspacePath: workspaceRoot,
+			includePluginSkills: true,
+			cwd,
+		},
 		rules: { workspacePath: workspaceRoot },
 		workflows: { workspacePath: workspaceRoot },
 	});

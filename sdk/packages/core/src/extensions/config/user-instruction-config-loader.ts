@@ -11,6 +11,7 @@ import {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import YAML from "yaml";
+import { resolveAgentPluginSkillDirectories } from "../plugin/plugin-config-loader";
 import {
 	type UnifiedConfigDefinition,
 	type UnifiedConfigFileCandidate,
@@ -82,6 +83,9 @@ export interface CreateInstructionWatcherOptions {
 export interface CreateSkillsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
 	workspacePath?: string;
+	includePluginSkills?: boolean;
+	pluginPaths?: ReadonlyArray<string>;
+	cwd?: string;
 }
 
 export interface CreateRulesConfigDefinitionOptions {
@@ -110,6 +114,39 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 
 function isMarkdownFile(fileName: string): boolean {
 	return MARKDOWN_EXTENSIONS.has(extname(fileName).toLowerCase());
+}
+
+function dedupeDirectoryPaths(directories: ReadonlyArray<string>): string[] {
+	const deduped: string[] = [];
+	const seen = new Set<string>();
+	for (const directory of directories) {
+		const normalized = resolve(directory);
+		if (seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		deduped.push(directory);
+	}
+	return deduped;
+}
+
+function resolveSkillDirectories(
+	options?: CreateSkillsConfigDefinitionOptions,
+): string[] {
+	const directories = [
+		...(options?.directories ??
+			resolveSkillsConfigSearchPaths(options?.workspacePath)),
+	];
+	if (options?.includePluginSkills) {
+		directories.push(
+			...resolveAgentPluginSkillDirectories({
+				pluginPaths: options.pluginPaths,
+				workspacePath: options.workspacePath,
+				cwd: options.cwd ?? options.workspacePath,
+			}),
+		);
+	}
+	return dedupeDirectoryPaths(directories);
 }
 
 async function discoverManagedPluginRoots(
@@ -480,16 +517,16 @@ async function discoverManagedWorkflowFiles(
 export function createSkillsConfigDefinition(
 	options?: CreateSkillsConfigDefinitionOptions,
 ): UnifiedConfigDefinition<"skill", SkillConfig> {
-	const directories =
-		options?.directories ??
-		resolveSkillsConfigSearchPaths(options?.workspacePath);
+	const directories = resolveSkillDirectories(options);
 	const managedRoot = options?.workspacePath
 		? join(options.workspacePath, ".cline")
 		: undefined;
 
 	return {
 		type: "skill",
-		directories: managedRoot ? [...directories, managedRoot] : directories,
+		directories: managedRoot
+			? dedupeDirectoryPaths([...directories, managedRoot])
+			: directories,
 		discoverFiles: discoverSkillFiles,
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
 		parseFile: (context) =>

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	discoverPluginModulePaths,
 	resolveAgentPluginPaths,
+	resolveAgentPluginSkillDirectories,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
 } from "./plugin-config-loader";
@@ -107,6 +108,106 @@ describe("plugin-config-loader", () => {
 			expect(resolved).not.toContain(ignoredEntry);
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("resolves bundled skill directories from configured plugin packages", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const pluginDir = join(root, "plugin-package");
+			const srcDir = join(pluginDir, "src");
+			const skillDir = join(pluginDir, "skills", "review");
+			await mkdir(srcDir, { recursive: true });
+			await mkdir(skillDir, { recursive: true });
+			await writeFile(
+				join(pluginDir, "package.json"),
+				JSON.stringify({
+					name: "plugin-package",
+					private: true,
+					cline: {
+						plugins: [
+							{
+								paths: ["./src/index.ts"],
+								capabilities: ["tools"],
+							},
+						],
+					},
+				}),
+				"utf8",
+			);
+			await writeFile(join(srcDir, "index.ts"), "export default {}", "utf8");
+			await writeFile(
+				join(skillDir, "SKILL.md"),
+				"---\nname: review\n---\nReview skill.",
+				"utf8",
+			);
+
+			const resolved = resolveAgentPluginSkillDirectories({
+				pluginPaths: ["./plugin-package"],
+				cwd: root,
+				workspacePath: join(root, "workspace"),
+			});
+
+			expect(resolved).toEqual([join(pluginDir, "skills")]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("resolves bundled skill directories from installed plugin wrappers", async () => {
+		const home = await mkdtemp(
+			join(tmpdir(), "core-plugin-config-loader-home-"),
+		);
+		const workspace = await mkdtemp(
+			join(tmpdir(), "core-plugin-config-loader-workspace-"),
+		);
+		try {
+			process.env.HOME = home;
+			setHomeDir(home);
+			const installRoot = join(
+				workspace,
+				".cline",
+				"plugins",
+				"_installed",
+				"local",
+				"demo",
+			);
+			const packageRoot = join(installRoot, "package");
+			const skillDir = join(packageRoot, "skills", "review");
+			await mkdir(skillDir, { recursive: true });
+			await writeFile(
+				join(installRoot, "package.json"),
+				JSON.stringify({
+					name: "cline-installed-plugin-demo",
+					private: true,
+					cline: {
+						plugins: [{ paths: ["./package/index.ts"] }],
+					},
+				}),
+				"utf8",
+			);
+			await writeFile(
+				join(packageRoot, "index.ts"),
+				"export default {}",
+				"utf8",
+			);
+			await writeFile(
+				join(skillDir, "SKILL.md"),
+				"---\nname: review\n---\nReview skill.",
+				"utf8",
+			);
+
+			const resolved = resolveAgentPluginSkillDirectories({
+				workspacePath: workspace,
+				cwd: workspace,
+			});
+
+			expect(resolved).toEqual([join(packageRoot, "skills")]);
+		} finally {
+			await rm(home, { recursive: true, force: true });
+			await rm(workspace, { recursive: true, force: true });
 		}
 	});
 

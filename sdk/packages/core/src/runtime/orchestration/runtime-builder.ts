@@ -317,6 +317,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const rulesEnabled = hasConfigExtension(configExtensions, "rules");
 		const skillsEnabled = hasConfigExtension(configExtensions, "skills");
 		const workflowsEnabled = hasConfigExtension(configExtensions, "workflows");
+		const pluginsEnabled = hasConfigExtension(configExtensions, "plugins");
 		const userInstructionsEnabled =
 			rulesEnabled || skillsEnabled || workflowsEnabled;
 		let teamToolsRegistered = false;
@@ -328,7 +329,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		if (!userInstructionService && userInstructionsEnabled) {
 			userInstructionService = createUserInstructionConfigService({
-				skills: { workspacePath: config.cwd },
+				skills: skillsEnabled
+					? {
+							workspacePath: config.cwd,
+							includePluginSkills: pluginsEnabled,
+							pluginPaths: config.pluginPaths,
+							cwd: config.cwd,
+						}
+					: { workspacePath: config.cwd },
 				rules: { workspacePath: config.cwd },
 				workflows: { workspacePath: config.cwd },
 			});

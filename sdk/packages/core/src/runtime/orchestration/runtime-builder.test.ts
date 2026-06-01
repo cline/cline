@@ -7,6 +7,7 @@ import {
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
+import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -53,9 +54,12 @@ async function collectExtensionTools(
 }
 
 describe("DefaultRuntimeBuilder", () => {
+	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 
 	afterEach(() => {
+		process.env.HOME = previousHome;
+		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
 	});
 
@@ -542,6 +546,104 @@ Use conventional commits.`,
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
 		expect(extensionTools.map((tool) => tool.name)).toContain("skills");
+		await runtime.shutdown("test");
+	});
+
+	it("includes skills bundled in discovered plugin packages", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-plugin-skills-"));
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillDir = join(pluginDir, "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify(
+				{
+					name: "review-plugin",
+					private: true,
+					cline: {
+						plugins: [{ paths: ["./index.ts"] }],
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+description: Review code
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
+		expect(skillsTool).toBeDefined();
+		if (!skillsTool) {
+			throw new Error("Expected skills tool.");
+		}
+
+		const result = await skillsTool.execute(
+			{ skill: "review" },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		expect(result).toContain("<command-name>review</command-name>");
+		expect(result).toContain("Use the review plugin guidance.");
+
+		await runtime.shutdown("test");
+	});
+
+	it("does not include bundled plugin skills when plugins are disabled", async () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-plugin-skills-disabled-"),
+		);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillDir = join(pluginDir, "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify({
+				name: "review-plugin",
+				private: true,
+				cline: {
+					plugins: [{ paths: ["./index.ts"] }],
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			configExtensions: ["skills"],
+		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
+
 		await runtime.shutdown("test");
 	});
 
