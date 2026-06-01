@@ -30,6 +30,32 @@ export function extractSkillNameFromToolInput(
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasFailedRunCommandsResult(output: unknown): boolean {
+	return (
+		Array.isArray(output) &&
+		output.some((item) => isRecord(item) && item.success === false)
+	);
+}
+
+function deriveToolUsageSuccess(
+	event: Extract<AgentEvent, { type: "content_end" }>,
+): boolean {
+	if (event.error) {
+		return false;
+	}
+	if (
+		event.toolName === "run_commands" &&
+		hasFailedRunCommandsResult(event.output)
+	) {
+		return false;
+	}
+	return true;
+}
+
 export interface AgentEventContext {
 	sessionId: string;
 	config: CoreSessionConfig;
@@ -187,7 +213,7 @@ export function handleAgentEvent(
 
 	if (event.type === "content_end" && event.contentType === "tool") {
 		const toolName = event.toolName ?? "unknown";
-		const success = !event.error;
+		const success = deriveToolUsageSuccess(event);
 		captureToolUsage(telemetry, {
 			ulid: sessionId,
 			tool: toolName,
